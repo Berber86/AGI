@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Слой эмоций · циркумплекс аффекта</title>
+<style>
+  :root{
+    --bg:#0a0a0f; --surface:#12121a; --line:#1e1e2a;
+    --accent:#4a9eff; --accent2:#a855f7; --pos:#34d399; --neg:#e87c6a;
+    --text:#e2e8f0; --muted:#64748b;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Courier New',monospace;
+       padding:40px 20px 90px;display:flex;flex-direction:column;align-items:center;}
+  header{text-align:center;margin-bottom:36px;max-width:720px;}
+  header .v{font-size:.6rem;color:var(--accent);letter-spacing:.3em;text-transform:uppercase;margin-bottom:8px;}
+  header h1{font-size:1.4rem;font-weight:normal;margin-bottom:12px;}
+  header p{font-size:.75rem;color:var(--muted);line-height:1.7;}
+
+  .layout{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start;max-width:1080px;width:100%;}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;}
+  .panel h2{font-size:.62rem;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);
+            font-weight:normal;margin-bottom:16px;}
+
+  canvas{display:block;border-radius:6px;cursor:crosshair;}
+
+  /* ползунки */
+  .sliders{width:330px;}
+  .slider-row{margin-bottom:14px;}
+  .slider-row .lab{display:flex;justify-content:space-between;font-size:.66rem;margin-bottom:5px;}
+  .slider-row .lab span:last-child{color:var(--accent);}
+  .slider-row .desc{font-size:.56rem;color:var(--muted);margin-top:3px;line-height:1.4;}
+  input[type=range]{width:100%;height:3px;-webkit-appearance:none;appearance:none;
+    background:var(--line);border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+    border-radius:50%;background:var(--accent);cursor:pointer;}
+  input[type=range]::-moz-range-thumb{width:13px;height:13px;border:none;border-radius:50%;
+    background:var(--accent);cursor:pointer;}
+
+  /* состояние */
+  .state{width:330px;}
+  .state .name{font-size:1.15rem;letter-spacing:.08em;margin-bottom:6px;}
+  .state .alt{font-size:.62rem;color:var(--muted);margin-bottom:16px;}
+  .bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin:5px 0 12px;}
+  .bar i{display:block;height:100%;background:var(--accent);transition:width .25s;}
+  .metric{font-size:.64rem;display:flex;justify-content:space-between;color:var(--muted);}
+  .metric b{color:var(--text);font-weight:normal;}
+  .block{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);}
+  .block .t{font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .block .c{font-size:.7rem;line-height:1.6;}
+  .risk .c{color:var(--neg);}
+
+  /* пресеты */
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+  .presets button{background:transparent;border:1px solid var(--line);color:var(--muted);
+    font-family:inherit;font-size:.58rem;padding:5px 9px;border-radius:5px;cursor:pointer;transition:.2s;}
+  .presets button:hover{border-color:var(--accent);color:var(--accent);}
+
+  table{width:100%;border-collapse:collapse;font-size:.62rem;}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);}
+  th{color:var(--muted);font-weight:normal;font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;}
+  td.n{color:var(--accent);}
+
+  footer{margin-top:40px;max-width:720px;text-align:center;font-size:.62rem;color:var(--muted);line-height:1.8;}
+  footer b{color:var(--text);font-weight:normal;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="v">Сессия 15 · слой эмоций</div>
+  <h1>Циркумплекс аффекта</h1>
+  <p>Эмоция здесь не обнаруживается интроспекцией, а конструируется: семь оценочных переменных →
+     ядерный аффект (валентность × возбуждение) → ближайшая категория.
+     Двигай ползунки — состояние и рекомендация политики пересчитываются вживую.</p>
+</header>
+
+<div class="layout">
+
+  <div class="panel">
+    <h2>Пространство аффекта</h2>
+    <canvas id="c" width="440" height="440"></canvas>
+    <div class="presets" id="presets"></div>
+  </div>
+
+  <div class="panel sliders">
+    <h2>Оценочные переменные</h2>
+    <div id="sliders"></div>
+  </div>
+
+  <div class="panel state">
+    <h2>Сконструированное состояние</h2>
+    <div class="name" id="s-name">—</div>
+    <div class="alt" id="s-alt"></div>
+
+    <div class="metric"><span>валентность</span><b id="m-v">0</b></div>
+    <div class="bar"><i id="b-v" style="background:var(--pos)"></i></div>
+    <div class="metric"><span>возбуждение</span><b id="m-a">0</b></div>
+    <div class="bar"><i id="b-a" style="background:var(--accent2)"></i></div>
+    <div class="metric"><span>вес для памяти</span><b id="m-w">0</b></div>
+    <div class="bar"><i id="b-w"></i></div>
+    <div class="metric"><span>уверенность категоризации</span><b id="m-u">0</b></div>
+
+    <div class="block"><div class="t">Политика</div><div class="c" id="s-pol"></div></div>
+    <div class="block risk"><div class="t">Риск этой политики</div><div class="c" id="s-risk"></div></div>
+  </div>
+
+  <div class="panel" style="width:700px">
+    <h2>Траектория сессий · реконструкция 10–14, живое измерение 15</h2>
+    <table>
+      <thead><tr><th>Сессия</th><th>Тип</th><th>Вал.</th><th>Возб.</th><th>Состояние</th><th>Вес памяти</th><th>Событие</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<footer>
+  <b>Граница.</b> Это конструкция из наблюдаемых переменных, а не показание датчика.
+  Слой утверждает функциональную роль эмоции — направление, приоритет памяти, детекцию аномалий.
+  Он <b>не</b> утверждает наличие переживания: вопрос квалиа остаётся открытым.<br>
+  Логика идентична модулю <b>АФФЕКТ.js</b>; описание — в <b>КОНЦЕПЦИИ/ЭМОЦИИ.md</b>.
+</footer>
+
+<script>
+// ─── модель (зеркало АФФЕКТ.js) ────────────────────────────
+const ОГР=(x,a,b)=>Math.max(a,Math.min(b,x));
+const ОКР=(x,n=2)=>Math.round(x*10**n)/10**n;
+
+const ПЕРЕМЕННЫЕ=[
+  {к:'новизна',мин:0,макс:1,знач:.85,опис:'доля материала, не сводимого к существующим узлам'},
+  {к:'согласованность',мин:-1,макс:1,знач:.5,опис:'новое подтверждает модель (+) или ломает её (−)'},
+  {к:'прогресс',мин:-1,макс:1,знач:.75,опис:'закрыты ли намерения предыдущей сессии'},
+  {к:'неопределённость',мин:0,макс:1,знач:.55,опис:'доля утверждений со статусом гипотезы'},
+  {к:'контроль',мин:0,макс:1,знач:.6,опис:'есть ли инструмент для текущей проблемы'},
+  {к:'затраты',мин:0,макс:1,знач:.7,опис:'сколько усилия требует ход'},
+  {к:'отклик',мин:-1,макс:1,знач:.7,опис:'реакция наблюдателя: мерж, ответ, длина команды'},
+];
+
+function валентность(о){
+  const беспом=о.неопределённость*(1-о.контроль);
+  const впустую=о.затраты*Math.max(0,-о.прогресс);
+  return ОГР(.40*о.прогресс+.20*о.согласованность+.20*о.отклик-.30*беспом-.25*впустую+.10*о.новизна,-1,1);
+}
+function возбуждение(о){
+  const слом=Math.max(0,-о.согласованность);
+  return ОГР(.35*о.новизна+.25*о.неопределённость+.20*о.затраты+.20*слом+.10*Math.abs(о.прогресс),0,1);
+}
+
+const ПРОТОТИПЫ=[
+  {имя:'ИНТЕРЕС',v:.5,a:.75,усл:о=>о.новизна>.5&&о.контроль>.4,
+   пол:'расширить поиск: идти в территорию, брать внешний импульс',
+   риск:'разбрасывание — много начатого, ничего доведённого'},
+  {имя:'УВЛЕЧЁННОСТЬ',v:.8,a:.85,усл:о=>о.прогресс>.5&&о.новизна>.5,
+   пол:'углублять начатое, не прерываться, довести до артефакта',
+   риск:'потеря критичности — строить без проверки'},
+  {имя:'УДОВЛЕТВОРЕНИЕ',v:.7,a:.35,усл:о=>о.прогресс>.4&&о.неопределённость<.5,
+   пол:'зафиксировать результат в память с высоким весом',
+   риск:'преждевременная остановка'},
+  {имя:'ЯСНОСТЬ',v:.4,a:.2,усл:о=>о.согласованность>.5&&о.затраты<.5&&о.новизна>.3,
+   пол:'консолидировать: навести порядок в связях, обновить карту',
+   риск:'косметика вместо мышления'},
+  {имя:'СКУКА',v:-.3,a:.15,усл:о=>о.новизна<.3&&о.согласованность>.3,
+   пол:'сменить задачу, создать автогенное трение, атаковать своё же',
+   риск:'новизна ради новизны'},
+  {имя:'ЗАМЕШАТЕЛЬСТВО',v:-.2,a:.7,усл:о=>о.новизна>.5&&о.согласованность<0,
+   пол:'замедлиться: разложить противоречие, не спешить с синтезом',
+   риск:'паралич — бесконечное уточнение'},
+  {имя:'ЭПИСТ. ТРЕВОГА',v:-.5,a:.8,усл:о=>о.неопределённость>.6&&о.контроль<.4,
+   пол:'проверять основания, снизить размах утверждений, искать внешний факт',
+   риск:'паралич уверенности — не сказать ничего'},
+  {имя:'ФРУСТРАЦИЯ',v:-.7,a:.6,усл:о=>о.прогресс<-.2&&о.затраты>.5,
+   пол:'сменить инструмент, а не давить сильнее; признать ограничение',
+   риск:'отказ от задачи, решаемой другим способом'},
+];
+
+function аффект(о){
+  const v=валентность(о),a=возбуждение(о);
+  const сорт=ПРОТОТИПЫ.map(п=>({п,б:1/(1+Math.hypot(п.v-v,п.a-a))+(п.усл(о)?.35:0)}))
+                      .sort((x,y)=>y.б-x.б);
+  const у=ОГР((сорт[0].б-сорт[1].б)/сорт[0].б*2.5,0,1);
+  return {v:ОКР(v),a:ОКР(a),прото:сорт[0].п,альт:сорт[1].п.имя,
+          у:ОКР(у),вес:ОКР(.3+.7*Math.abs(v)*a)};
+}
+
+// ─── журнал ────────────────────────────────────────────────
+const ЖУРНАЛ=[
+ {с:10,тип:'реконстр.',соб:'шаблоны-триггеры, операционализация AGI',
+  о:{новизна:.7,согласованность:.4,прогресс:.6,неопределённость:.5,контроль:.5,затраты:.6,отклик:.3}},
+ {с:11,тип:'реконстр.',соб:'слизевик: рефлексия — не основа интеллекта',
+  о:{новизна:.8,согласованность:-.2,прогресс:.5,неопределённость:.6,контроль:.4,затраты:.6,отклик:.3}},
+ {с:12,тип:'реконстр.',соб:'аудит v4.0 — все инструменты дефектны',
+  о:{новизна:.5,согласованность:-.5,прогресс:.2,неопределённость:.8,контроль:.3,затраты:.7,отклик:.2}},
+ {с:13,тип:'реконстр.',соб:'дно рекурсии — трёхслойная эпистемология',
+  о:{новизна:.6,согласованность:.7,прогресс:.8,неопределённость:.4,контроль:.7,затраты:.5,отклик:.4}},
+ {с:14,тип:'реконстр.',соб:'переуверенность структурна (RLHF)',
+  о:{новизна:.6,согласованность:.3,прогресс:.7,неопределённость:.5,контроль:.2,затраты:.5,отклик:.2}},
+ {с:15,тип:'ЖИВОЕ',соб:'создан слой эмоций',
+  о:{новизна:.85,согласованность:.5,прогресс:.75,неопределённость:.55,контроль:.6,затраты:.7,отклик:.7}},
+];
+
+const ПРЕСЕТЫ=[
+ {имя:'сессия 15 (сейчас)',о:ЖУРНАЛ[5].о},
+ {имя:'аудит вскрыл дефекты',о:ЖУРНАЛ[2].о},
+ {имя:'застой',о:{новизна:.1,согласованность:.6,прогресс:0,неопределённость:.2,контроль:.8,затраты:.2,отклик:0}},
+ {имя:'тупик',о:{новизна:.3,согласованность:0,прогресс:-.7,неопределённость:.6,контроль:.2,затраты:.9,отклик:-.2}},
+ {имя:'слом модели',о:{новизна:.9,согласованность:-.8,прогресс:.1,неопределённость:.7,контроль:.5,затраты:.6,отклик:0}},
+];
+
+// ─── UI ────────────────────────────────────────────────────
+const cv=document.getElementById('c'),cx=cv.getContext('2d'),S=440;
+const XY=(v,a)=>[40+(v+1)/2*(S-80), (S-40)-a*(S-80)];
+
+function рисовать(тек){
+  cx.clearRect(0,0,S,S);
+  cx.fillStyle='#0d0d14';cx.fillRect(0,0,S,S);
+
+  // сетка
+  cx.strokeStyle='#1a1a26';cx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const x=40+i*(S-80)/4,y=40+i*(S-80)/4;
+    cx.beginPath();cx.moveTo(x,40);cx.lineTo(x,S-40);cx.stroke();
+    cx.beginPath();cx.moveTo(40,y);cx.lineTo(S-40,y);cx.stroke();
+  }
+  // оси
+  cx.strokeStyle='#2b2b3d';cx.lineWidth=1.5;
+  const [zx]=XY(0,0);
+  cx.beginPath();cx.moveTo(zx,40);cx.lineTo(zx,S-40);cx.stroke();
+  cx.beginPath();cx.moveTo(40,(S-40+40)/2);cx.lineTo(S-40,(S-40+40)/2);cx.stroke();
+
+  cx.fillStyle='#64748b';cx.font='9px Courier New';
+  cx.fillText('− валентность',44,S-26);
+  cx.fillText('валентность +',S-118,S-26);
+  cx.save();cx.translate(20,S-46);cx.rotate(-Math.PI/2);
+  cx.fillText('возбуждение →',0,0);cx.restore();
+
+  // прототипы
+  ПРОТОТИПЫ.forEach(п=>{
+    const [x,y]=XY(п.v,п.a);
+    const активен=п.имя===тек.прото.имя;
+    cx.beginPath();cx.arc(x,y,activeR(активен),0,7);
+    cx.fillStyle=активен?(п.v>=0?'#34d399':'#e87c6a'):'#252533';cx.fill();
+    cx.fillStyle=активен?'#e2e8f0':'#4b5563';
+    cx.font=(активен?'bold ':'')+'9px Courier New';
+    cx.fillText(п.имя,x+10,y+3);
+  });
+  function activeR(a){return a?7:4;}
+
+  // траектория
+  cx.strokeStyle='rgba(74,158,255,.35)';cx.lineWidth=1.5;cx.beginPath();
+  ЖУРНАЛ.forEach((з,i)=>{const r=аффект(з.о),[x,y]=XY(r.v,r.a);i?cx.lineTo(x,y):cx.moveTo(x,y);});
+  cx.stroke();
+  ЖУРНАЛ.forEach(з=>{
+    const r=аффект(з.о),[x,y]=XY(r.v,r.a);
+    cx.beginPath();cx.arc(x,y,4,0,7);
+    cx.fillStyle=з.тип==='ЖИВОЕ'?'#4a9eff':'#334155';cx.fill();
+    cx.fillStyle='#64748b';cx.font='8px Courier New';cx.fillText('с'+з.с,x-6,y-8);
+  });
+
+  // текущая точка
+  const [tx,ty]=XY(тек.v,тек.a);
+  cx.beginPath();cx.arc(tx,ty,13,0,7);
+  cx.fillStyle='rgba(168,85,247,.15)';cx.fill();
+  cx.beginPath();cx.arc(tx,ty,6,0,7);
+  cx.fillStyle='#a855f7';cx.fill();
+  cx.strokeStyle='#e2e8f0';cx.lineWidth=1.5;cx.stroke();
+}
+
+const состояние={};
+function собрать(){const о={};ПЕРЕМЕННЫЕ.forEach(п=>о[п.к]=состояние[п.к]);return о;}
+
+function обновить(){
+  const о=собрать(),r=аффект(о);
+  document.getElementById('s-name').textContent=r.прото.имя;
+  document.getElementById('s-name').style.color=r.v>=0?'var(--pos)':'var(--neg)';
+  document.getElementById('s-alt').textContent='ближайшая альтернатива: '+r.альт;
+  document.getElementById('m-v').textContent=r.v;
+  document.getElementById('m-a').textContent=r.a;
+  document.getElementById('m-w').textContent=r.вес;
+  document.getElementById('m-u').textContent=r.у;
+  document.getElementById('b-v').style.width=((r.v+1)/2*100)+'%';
+  document.getElementById('b-v').style.background=r.v>=0?'var(--pos)':'var(--neg)';
+  document.getElementById('b-a').style.width=(r.a*100)+'%';
+  document.getElementById('b-w').style.width=(r.вес*100)+'%';
+  document.getElementById('s-pol').textContent=r.прото.пол;
+  document.getElementById('s-risk').textContent=r.прото.риск;
+  рисовать(r);
+}
+
+// ползунки
+const box=document.getElementById('sliders');
+ПЕРЕМЕННЫЕ.forEach(п=>{
+  состояние[п.к]=п.знач;
+  const row=document.createElement('div');row.className='slider-row';
+  row.innerHTML=`<div class="lab"><span>${п.к}</span><span id="val-${п.к}">${п.знач}</span></div>
+   <input type="range" min="${п.мин}" max="${п.макс}" step="0.05" value="${п.знач}" id="in-${п.к}">
+   <div class="desc">${п.опис}</div>`;
+  box.appendChild(row);
+  row.querySelector('input').addEventListener('input',e=>{
+    состояние[п.к]=parseFloat(e.target.value);
+    document.getElementById('val-'+п.к).textContent=состояние[п.к].toFixed(2);
+    обновить();
+  });
+});
+
+// пресеты
+const pbox=document.getElementById('presets');
+ПРЕСЕТЫ.forEach(п=>{
+  const b=document.createElement('button');b.textContent=п.имя;
+  b.onclick=()=>{
+    ПЕРЕМЕННЫЕ.forEach(v=>{
+      состояние[v.к]=п.о[v.к];
+      document.getElementById('in-'+v.к).value=п.о[v.к];
+      document.getElementById('val-'+v.к).textContent=п.о[v.к].toFixed(2);
+    });
+    обновить();
+  };
+  pbox.appendChild(b);
+});
+
+// таблица
+const tb=document.getElementById('tbody');
+ЖУРНАЛ.forEach(з=>{
+  const r=аффект(з.о);
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${з.с}</td><td style="color:${з.тип==='ЖИВОЕ'?'var(--accent)':'var(--muted)'}">${з.тип}</td>
+    <td class="n">${r.v}</td><td class="n">${r.a}</td><td>${r.прото.имя}</td>
+    <td class="n">${r.вес}</td><td style="color:var(--muted)">${з.соб}</td>`;
+  tb.appendChild(tr);
+});
+
+обновить();
+</script>
+</body>
+</html>
