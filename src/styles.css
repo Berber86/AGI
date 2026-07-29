@@ -1,84 +1,35 @@
 :root {
   color: #f3f4e8;
   background: #11150f;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(170, 255, 120, 0.22), transparent 34rem),
-    linear-gradient(135deg, #11150f 0%, #1f271b 52%, #10130f 100%);
-}
-
-.shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  padding: 2rem;
-}
-
-.hero {
-  width: min(760px, 100%);
-  padding: clamp(1.5rem, 5vw, 4rem);
-  border: 1px solid rgba(243, 244, 232, 0.18);
-  border-radius: 28px;
-  background: rgba(15, 19, 14, 0.76);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
-}
-
-.eyebrow {
-  margin: 0 0 0.75rem;
-  color: #b6ff80;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(2.35rem, 8vw, 5rem);
-  line-height: 0.95;
-}
-
-.lead {
-  max-width: 58ch;
-  margin: 1.5rem 0 0;
-  color: #d7dbc8;
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  line-height: 1.65;
-}
-
-.status-card {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  margin-top: 2rem;
-  padding: 1rem;
-  border: 1px solid rgba(182, 255, 128, 0.24);
-  border-radius: 18px;
-  background: rgba(182, 255, 128, 0.08);
-}
-
-.status-card__icon {
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.status-card p {
-  margin: 0.25rem 0 0;
-  color: #c6ccb8;
-}
+* { box-sizing: border-box; }
+body { min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(circle at top left, rgba(170, 255, 120, 0.2), transparent 34rem), linear-gradient(135deg, #11150f, #1f271b 52%, #10130f); }
+button { color: inherit; font: inherit; cursor: pointer; }
+.shell { width: min(1100px, 100%); min-height: 100vh; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+.game-header { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.eyebrow { margin: 0 0 .5rem; color: #b6ff80; font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(2rem, 6vw, 4rem); line-height: .95; }
+.subtitle { max-width: 58ch; margin: 1rem 0 0; color: #d7dbc8; line-height: 1.5; }
+.hud, .journal { border: 1px solid rgba(243, 244, 232, .16); border-radius: 16px; background: rgba(15, 19, 14, .75); }
+.hud { min-width: 190px; padding: .9rem 1rem; color: #b6ff80; font-weight: 700; white-space: nowrap; }
+.game-layout { display: grid; grid-template-columns: minmax(280px, 1fr) 260px; gap: 1.5rem; align-items: start; }
+.board-wrap { padding: clamp(.75rem, 2vw, 1.25rem); border: 1px solid rgba(243, 244, 232, .16); border-radius: 24px; background: rgba(15, 19, 14, .7); }
+.board { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; width: min(680px, 100%); margin: auto; padding: 3px; border-radius: 12px; background: #303b29; }
+.board__cell { display: grid; aspect-ratio: 1; place-items: center; border-radius: 7px; background: #687559; color: #ebf4d8; font-size: clamp(1.25rem, 5vw, 2.8rem); line-height: 1; }
+.board__cell--rubble { background: #343b31; filter: saturate(.75); }
+.board__cell--evacuation { background: #806d37; }
+.board__cell--supplies, .board__cell--medkit { background: #456543; }
+.controls { display: grid; grid-template-columns: repeat(4, minmax(50px, 72px)); justify-content: center; gap: .5rem; margin-top: 1rem; }
+.controls button { min-height: 44px; border: 1px solid rgba(182, 255, 128, .3); border-radius: 10px; background: #283522; font-size: 1.4rem; }
+.controls button:hover, .controls button:focus-visible { border-color: #b6ff80; background: #3c5332; outline: none; }
+.controls button:last-child { grid-column: 2 / span 2; font-size: 1rem; }
+.hint { margin: .9rem 0 0; color: #aeb8a1; font-size: .85rem; text-align: center; }
+.journal { padding: 1rem; }
+.journal h2 { margin: 0; font-size: 1.1rem; }
+.journal ol { display: grid; gap: .65rem; margin: 1rem 0 0; padding-left: 1.25rem; color: #d7dbc8; font-size: .9rem; line-height: 1.35; }
+@media (max-width: 720px) { .game-header { display: block; } .hud { display: inline-block; margin-top: 1rem; } .game-layout { grid-template-columns: 1fr; } .journal { order: -1; } }
