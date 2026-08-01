@@ -84,6 +84,7 @@
     R.stats = { stageLosses: 0, startTime: Date.now(), wins: 0 };
     R.placed = [];
     placeAuto();
+    AF.startMusic(); // первый клик — можно включать звук
     showScreen('roster');
   }
 
@@ -104,6 +105,7 @@
   function updateTopbar() {
     $('chpStage').innerHTML = `Этап <b>${R.stage}/12</b>`;
     const t = E.tierOfStage(R.stage);
+    AF.setAct(E.TIERS[t].act); // музыка по актам
     $('chpTier').innerHTML = `${ERA_ICONS[E.TIERS[t].id] || ''} ${E.TIERS[t].name}`;
     $('chpAct').innerHTML = `Акт ${['', 'I', 'II', 'III'][E.TIERS[t].act]} · ${['', 'Древний мир', 'Средневековье', 'Новое время и будущее'][E.TIERS[t].act]}`;
     $('chpGold').textContent = R.gold;
@@ -592,6 +594,15 @@
     flashTimer = setTimeout(() => el.remove(), 1700);
   }
 
+  /* ================== ЗВУК ================== */
+  function updateSoundUI() {
+    const on = !AF.isMuted();
+    const b = $('btnSound'); if (b) b.textContent = on ? '🔊 Звук: вкл' : '🔇 Звук: выкл';
+    const t = $('topSound'); if (t) t.textContent = on ? '🔊' : '🔇';
+  }
+  $('btnSound').onclick = () => { AF.toggle(); AF.play('ui.click'); updateSoundUI(); };
+  $('topSound').onclick = () => { AF.toggle(); AF.play('ui.click'); updateSoundUI(); };
+
   /* ================== СОБЫТИЯ ================== */
   $('btnStart').onclick = () => { AF.play('ui.click'); newRun(); };
   $('btnFight').onclick = () => {
@@ -624,4 +635,5 @@
 
   updateTopbar();
   AF.init();
+  updateSoundUI();
 })();
