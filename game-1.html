@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Эволюция: Автобатл · Древний мир · Сложность 1/10</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    font-family:'Segoe UI',Roboto,Arial,sans-serif; color:#f4ecd8;
+    background:linear-gradient(135deg,#3a1d0f,#7a3b1e) fixed; min-height:100vh; padding:18px;
+  }
+  .wrap{max-width:900px; margin:0 auto}
+  h1{font-size:28px; color:#ffd97a; text-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .sub{color:#e8cfa0; font-size:14px; margin:4px 0 16px}
+  .card{background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:16px; margin-bottom:14px; box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .card h2{font-size:17px; margin-bottom:10px; color:#ffd97a}
+  .btn{padding:10px 20px; border:none; border-radius:12px; font-size:15px; font-weight:700; cursor:pointer; color:#3a1d0f; background:linear-gradient(135deg,#ffd97a,#ffb03a); transition:.15s}
+  .btn:hover{transform:translateY(-2px) scale(1.02); filter:brightness(1.05)}
+  .btn:disabled{opacity:.5; cursor:not-allowed; transform:none}
+  .btn.blue{background:linear-gradient(135deg,#7ec8ff,#4aa8ff); color:#0f2a3a}
+  .units{display:flex; gap:12px; flex-wrap:wrap; justify-content:center}
+  .uCard{width:130px; background:rgba(0,0,0,.25); border:2px solid rgba(255,255,255,.2); border-radius:14px; padding:12px; text-align:center; cursor:pointer; transition:.15s; animation:pop .4s ease}
+  .uCard:hover{transform:translateY(-4px)}
+  .uCard.sel{border-color:#ffd97a; background:rgba(255,217,122,.15); box-shadow:0 0 16px rgba(255,217,122,.4)}
+  .uCard .e{font-size:44px; display:block; animation:bob 2.5s infinite ease-in-out}
+  .uCard .n{font-weight:700; margin:6px 0 2px}
+  .uCard .i{font-size:12px; color:#e8cfa0}
+  .topbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
+  .stat{padding:8px 14px; border-radius:12px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.15); font-size:14px}
+  .stat b{color:#ffd97a}
+  .arena{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .side{padding:12px; border-radius:14px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.15); min-height:120px}
+  .side h3{font-size:13px; margin-bottom:8px; color:#e8cfa0}
+  .funit{display:flex; align-items:center; gap:8px; padding:6px; border-radius:10px; margin-bottom:6px; background:rgba(0,0,0,.25)}
+  .funit .e{font-size:26px; animation:bob 2s infinite}
+  .bar{height:9px; border-radius:6px; background:rgba(0,0,0,.4); overflow:hidden; flex:1; margin-top:2px}
+  .bar>div{height:100%; width:100%; border-radius:6px; transition:width .2s; background:linear-gradient(90deg,#7ee07e,#3fae3f)}
+  .bar.red>div{background:linear-gradient(90deg,#ff7e7e,#d44040)}
+  .hpnum{font-size:11px; color:#e8cfa0; min-width:32px; text-align:right}
+  .log{background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.15); border-radius:14px; padding:12px; height:170px; overflow-y:auto; font-size:13px; line-height:1.6; margin-top:12px}
+  .log p{margin:0}
+  .hit{color:#ffe08a} .crit{color:#ff7043; font-weight:700} .heal{color:#7ee07e} .dead{opacity:.4; text-decoration:line-through}
+  .banner{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(30,12,4,.85); z-index:50}
+  .banner .box{max-width:380px; text-align:center; padding:26px; background:linear-gradient(135deg,#5a2a10,#8a4a24); border-radius:18px; border:2px solid #ffd97a}
+  .banner .big{font-size:54px; animation:bob 1.5s infinite}
+  .banner h2{margin:10px 0; font-size:24px; color:#ffd97a}
+  .hidden{display:none!important}
+  .pickinfo{text-align:center; color:#e8cfa0; font-size:13px; margin-bottom:10px}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes pop{0%{transform:scale(.5); opacity:0}100%{transform:scale(1); opacity:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚔️ Эволюция: Автобатл</h1>
+  <div class="sub">Древний мир · выбери свою армию, дальше всё сделает бой сам. Сложность 1/10.</div>
+
+  <div class="topbar">
+    <div class="stat">🗡️ В армии: <b id="armySize">0</b>/3</div>
+    <div class="stat">🌊 Волна: <b id="wave">1</b></div>
+    <div class="stat">🏆 Побед: <b id="wins">0</b></div>
+  </div>
+
+  <div class="card">
+    <h2>🛡 Выбери 3 воинов древнего мира</h2>
+    <div class="pickinfo" id="pickInfo">Кликни по юниту, чтобы добавить его в армию.</div>
+    <div class="units" id="roster"></div>
+  </div>
+
+  <div class="card">
+    <h2>⚔️ Битва</h2>
+    <div class="arena">
+      <div class="side"><h3>Твоя армия</h3><div id="pSide"></div></div>
+      <div class="side"><h3>Враги</h3><div id="eSide"></div></div>
+    </div>
+    <div style="display:flex; justify-content:center; margin-top:12px">
+      <button class="btn blue" id="btnBattle">⚔️ Начать битву</button>
+    </div>
+    <div class="log" id="log"><p style="opacity:.6">Здесь пойдёт лента боя…</p></div>
+  </div>
+</div>
+
+<div class="banner hidden" id="banner">
+  <div class="box">
+    <div class="big" id="bEmoji">🏆</div>
+    <h2 id="bTitle">Победа!</h2>
+    <button class="btn" id="bBtn">Следующая волна →</button>
+  </div>
+</div>
+
+<script>
+// ============ ДАННЫЕ (одна эпоха — Древний мир) ============
+const UNITS = [
+  {e:'🗡️', name:'Воин',   hp:40, atk:10, spd:5},
+  {e:'🏹', name:'Лучник', hp:26, atk:13, spd:8},
+  {e:'🛡️', name:'Копейщик',hp:55, atk:8, spd:4},
+  {e:'🐎', name:'Всадник', hp:32, atk:12, spd:9},
+  {e:'⛪', name:'Жрец',   hp:28, atk:6, spd:5},
+];
+const MAX_ARMY = 3;
+const MAX_WAVE = 8;
+const AB = {none:'обычный', crit:'🎯 крит', heal:'💚 лечит'};
+
+// статы выбранного юнита
+function statsOf(u){ return {hp:u.hp, atk:u.atk, spd:u.spd}; }
+
+// ============ СОСТОЯНИЕ ============
+let S = load() || {army:[], wave:1, wins:0};
+
+function load(){ try{ return JSON.parse(localStorage.getItem('evo10')); }catch(e){ return null; } }
+function save(){ try{ localStorage.setItem('evo10', JSON.stringify(S)); }catch(e){} }
+
+// юниты с аб-способностями (часть)
+const AB_INDEX = {'Воин':'none','Лучник':'crit','Копейщик':'none','Всадник':'none','Жрец':'heal'};
+
+// ============ РЕНДЕР ============
+const $ = id => document.getElementById(id);
+function render(){
+  $('armySize').textContent = S.army.length;
+  $('wave').textContent = S.wave;
+  $('wins').textContent = S.wins;
+  renderRoster();
+  $('banner').classList.add('hidden');
+}
+function renderRoster(){
+  const r = $('roster'); r.innerHTML='';
+  UNITS.forEach((u,ui)=>{
+    const inArmy = S.army.some(x=>x.name===u.name);
+    const d = document.createElement('div'); d.className='uCard'+(inArmy?' sel':'');
+    const st = statsOf(u);
+    d.innerHTML = `<span class="e">${u.e}</span><div class="n">${u.name}</div>
+      <div class="i">❤️${st.hp} ⚔️${st.atk} 💨${st.spd}</div>
+      <div class="i">${AB[AB_INDEX[u.name]]}</div>`;
+    d.addEventListener('click', ()=>toggle(u.name));
+    r.appendChild(d);
+  });
+}
+function toggle(name){
+  const idx = S.army.findIndex(x=>x.name===name);
+  if(idx>=0){ S.army.splice(idx,1); }
+  else {
+    if(S.army.length>=MAX_ARMY){ msg('В армии уже 3 воина!'); return; }
+    S.army.push({name});
+  }
+  save(); render();
+}
+
+// ============ БОЙ ============
+let battling=false;
+function msg(t){ /* тихий фидбек */ }
+function logLine(html, cls){
+  const l=$('log'); const p=document.createElement('p'); p.innerHTML=html; if(cls)p.className=cls;
+  l.appendChild(p); l.scrollTop=l.scrollHeight;
+}
+function makeEnemies(){
+  const w = S.wave;
+  const pool = UNITS.slice(0,5);
+  const n = Math.min(3, 1+Math.floor(w/3));
+  const mult = 0.7 + w*0.15;
+  const arr=[];
+  for(let i=0;i<n;i++){
+    const u = pool[Math.floor(Math.random()*pool.length)];
+    arr.push({name:u.name, emoji:u.e, hp:Math.round(u.hp*mult), atk:Math.round(u.atk*mult), spd:u.spd, ab:AB_INDEX[u.name], side:'e'});
+  }
+  return arr;
+}
+function makePlayer(){
+  return S.army.map(u=>{
+    const base = UNITS.find(x=>x.name===u.name);
+    return {name:base.name, emoji:base.e, hp:base.hp, atk:base.atk, spd:base.spd, ab:AB_INDEX[base.name], side:'p'};
+  });
+}
+function initBattle(){
+  if(S.army.length===0){ alert('Сначала выбери хотя бы одного воина!'); return; }
+  if(battling) return;
+  $('log').innerHTML='<p>Битва начинается…</p>';
+  const p = makePlayer(), e = makeEnemies();
+  renderField(p,e);
+  runBattle(p,e);
+}
+function renderField(p,e){
+  $('pSide').innerHTML=''; $('eSide').innerHTML='';
+  p.forEach(u=>$('pSide').appendChild(funit(u)));
+  e.forEach(u=>$('eSide').appendChild(funit(u)));
+}
+function funit(u){
+  const d=document.createElement('div'); d.className='funit';
+  d.innerHTML=`<span class="e">${u.emoji}</span>
+    <div style="flex:1"><div style="font-size:12px">${u.name}</div>
+      <div class="bar ${u.side==='e'?'red':''}"><div></div></div></div>
+    <span class="hpnum"></span>`;
+  return d;
+}
+function syncHP(p,e){
+  const sides={p:'pSide',e:'eSide'};
+  ['p','e'].forEach(side=>{
+    const arr=side==='p'?p:e; const cards=[...$(sides[side]).children];
+    arr.forEach((u,i)=>{ const c=cards[i]; if(!c)return;
+      c.querySelector('.bar>div').style.width=Math.max(0,u.hp/u.maxHp*100)+'%';
+      c.querySelector('.hpnum').textContent=u.hp;
+      if(u.hp<=0) c.style.opacity='0.4';
+    });
+  });
+}
+function pick(enemy){ return enemy.filter(u=>u.hp>0)[0]; }
+
+async function runBattle(p,e){
+  battling=true; $('btnBattle').disabled=true;
+  const all=[...p,...e]; all.forEach(u=>{ u.maxHp=u.hp; u.next=100/u.spd; });
+  syncHP(p,e);
+  while(true){
+    const pa=p.filter(u=>u.hp>0), ea=e.filter(u=>u.hp>0);
+    if(pa.length===0||ea.length===0) break;
+    const actor=[...pa,...ea].reduce((a,b)=>a.next<=b.next?a:b);
+    actor.next+=100/actor.spd;
+    await act(actor,p,e);
+    syncHP(p,e);
+  }
+  battling=false; $('btnBattle').disabled=false;
+  const win = p.some(u=>u.hp>0);
+  if(win){
+    S.wins++;
+    logLine('🏆 Победа!','hit');
+    if(S.wave>=MAX_WAVE){ showBanner('🥇','Ты покорил все волны древнего мира!','Заново'); S.wave=1; }
+    else showBanner('🏆','Победа! Следующая волна будет сложнее.','Следующая волна →');
+  } else { logLine('💀 Поражение…','crit'); showBanner('💀','Армия пала. Попробуй другой состав!','Ещё раз'); }
+}
+async function act(actor,p,e){
+  const enemy=actor.side==='p'?e:p;
+  const allies=actor.side==='p'?p:e;
+  const u=actor;
+  if(u.ab==='heal'){
+    const hurt=allies.filter(a=>a.hp>0 && a.hp<a.maxHp);
+    if(hurt.length){ hurt.sort((a,b)=>(a.hp/a.maxHp)-(b.hp/b.maxHp)); const tar=hurt[0];
+      const amt=Math.round(u.atk*1.5); tar.hp=Math.min(tar.maxHp,tar.hp+amt);
+      logLine(`💚 ${u.emoji} Жрец лечит ${tar.name} (+${amt})`,'heal');
+    } else { const tar=pick(enemy); tar.hp-=Math.round(u.atk*0.7); logLine(`⚔️ ${u.emoji} Жрец бьёт ${tar.name}`,'hit'); }
+    return;
+  }
+  const tar=pick(enemy); if(!tar) return;
+  let dmg=Math.round(u.atk*(0.85+Math.random()*0.3));
+  let cls='hit', extra='';
+  if(u.ab==='crit' && Math.random()<0.35){ dmg=Math.round(u.atk*2); cls='crit'; extra=' КРИТ!'; }
+  tar.hp-=dmg;
+  logLine(`⚔️ ${u.emoji} ${u.name} бьёт ${tar.emoji} ${tar.name} (−${dmg})${extra}`,cls);
+}
+function showBanner(emoji,title,btn){
+  $('bEmoji').textContent=emoji; $('bTitle').textContent=title; $('bBtn').textContent=btn;
+  $('bBtn').onclick=()=>{ $('banner').classList.add('hidden'); if(title.indexOf('покорил')>=0){ S.wave=1; } else if(btn.indexOf('Следующая')>=0){ S.wave++; } save(); render(); };
+  $('banner').classList.remove('hidden');
+}
+$('btnBattle').addEventListener('click', initBattle);
+document.addEventListener('keydown', e=>{ if(e.key==='r'||e.key==='R'){ if(confirm('Начать заново?')){ S={army:[],wave:1,wins:0}; save(); render(); } } });
+
+render();
+</script>
+</body>
+</html>

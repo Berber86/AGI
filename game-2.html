@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Эволюция: Автобатл · 3 эпохи · Сложность 2/10</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{
+    font-family:'Segoe UI',Roboto,Arial,sans-serif; color:#f4ecd8;
+    background:linear-gradient(135deg,#3a1d0f,#7a3b1e) fixed; min-height:100vh; padding:16px; transition:background .8s;
+  }
+  .wrap{max-width:980px; margin:0 auto}
+  h1{font-size:26px; color:#ffd97a; text-shadow:0 2px 6px rgba(0,0,0,.4)}
+  .sub{color:#e8cfa0; font-size:14px; margin:4px 0 14px}
+  .topbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
+  .stat{padding:8px 14px; border-radius:12px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.15); font-size:14px}
+  .stat b{color:#ffd97a}
+  .card{background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.18); border-radius:16px; padding:16px; margin-bottom:14px; box-shadow:0 6px 20px rgba(0,0,0,.3)}
+  .card h2{font-size:17px; margin-bottom:10px; color:#ffd97a}
+  .btn{padding:9px 18px; border:none; border-radius:12px; font-size:14px; font-weight:700; cursor:pointer; color:#3a1d0f; background:linear-gradient(135deg,#ffd97a,#ffb03a); transition:.15s}
+  .btn:hover{transform:translateY(-2px); filter:brightness(1.05)}
+  .btn:disabled{opacity:.5; cursor:not-allowed; transform:none}
+  .btn.ghost{background:rgba(255,255,255,.15); color:#f4ecd8}
+  .btn.blue{background:linear-gradient(135deg,#7ec8ff,#4aa8ff); color:#0f2a3a}
+  .shop{display:flex; gap:12px; flex-wrap:wrap}
+  .sCard{width:150px; background:rgba(0,0,0,.25); border:2px solid rgba(255,255,255,.18); border-radius:14px; padding:10px; animation:pop .35s ease}
+  .sCard .e{font-size:38px; display:block; text-align:center}
+  .sCard .n{font-weight:700; text-align:center; margin:4px 0}
+  .sCard .i{font-size:11px; color:#e8cfa0; text-align:center}
+  .sCard .btn{margin:8px auto 0; display:block}
+  .army{display:flex; gap:10px; flex-wrap:wrap}
+  .aCard{width:130px; background:rgba(0,0,0,.3); border:2px solid rgba(255,255,255,.2); border-radius:12px; padding:8px; text-align:center; position:relative}
+  .aCard .e{font-size:30px}
+  .aCard .n{font-weight:600; font-size:12px}
+  .aCard .x{position:absolute; top:4px; right:6px; background:none; border:none; color:#ff7e7e; font-size:14px; cursor:pointer}
+  .aCard.empty{display:flex; align-items:center; justify-content:center; color:#8a7350; font-size:22px; border-style:dashed}
+  .arena{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .side{padding:12px; border-radius:14px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.15); min-height:110px}
+  .side h3{font-size:13px; margin-bottom:8px; color:#e8cfa0}
+  .funit{display:flex; align-items:center; gap:8px; padding:5px; border-radius:10px; margin-bottom:6px; background:rgba(0,0,0,.25); animation:pop .3s ease}
+  .funit .e{font-size:24px; animation:bob 2s infinite}
+  .bar{height:8px; border-radius:6px; background:rgba(0,0,0,.4); overflow:hidden; flex:1; margin-top:2px}
+  .bar>div{height:100%; width:100%; border-radius:6px; transition:width .18s; background:linear-gradient(90deg,#7ee07e,#3fae3f)}
+  .bar.red>div{background:linear-gradient(90deg,#ff7e7e,#d44040)}
+  .hpnum{font-size:10px; color:#e8cfa0; min-width:30px; text-align:right}
+  .log{background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.15); border-radius:14px; padding:12px; height:150px; overflow-y:auto; font-size:13px; line-height:1.6; margin-top:12px}
+  .log p{margin:0}
+  .hit{color:#ffe08a} .crit{color:#ff7043;font-weight:700} .heal{color:#7ee07e} .block{color:#7ec8ff}
+  .banner{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(30,12,4,.85); z-index:50}
+  .banner .box{max-width:380px; text-align:center; padding:26px; background:linear-gradient(135deg,#5a2a10,#8a4a24); border-radius:18px; border:2px solid #ffd97a}
+  .banner .big{font-size:54px; animation:bob 1.5s infinite}
+  .banner h2{margin:10px 0; font-size:23px; color:#ffd97a}
+  .banner p{color:#e8cfa0; margin-bottom:14px}
+  .hidden{display:none!important}
+  .era-chip{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:5px 11px; border-radius:20px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.2)}
+  .row{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes pop{0%{transform:scale(.5); opacity:0}100%{transform:scale(1); opacity:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚔️ Эволюция: Автобатл</h1>
+  <div class="sub">Покупай воинов, пройди 3 эпохи от древнего мира до Ренессанса. Сложность 2/10.</div>
+
+  <div class="topbar">
+    <div class="stat">💰 Золото: <b id="gold">30</b></div>
+    <div class="stat">🌊 Волна: <b id="wave">1</b>/12</div>
+    <div class="era-chip" id="eraChip">🏛 Древний мир</div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <h2 style="margin:0">🛒 Лавка</h2>
+      <button class="btn ghost" id="btnReroll">🔁 Переролл · 1💰</button>
+    </div>
+    <div class="shop" id="shop"></div>
+  </div>
+
+  <div class="card">
+    <h2>🛡 Твоя армия <span style="font-weight:400;color:#e8cfa0;font-size:12px">(<span id="armySize">0</span>/4)</span></h2>
+    <div class="army" id="army"></div>
+  </div>
+
+  <div class="card">
+    <h2>⚔️ Битва</h2>
+    <div class="arena">
+      <div class="side"><h3>Твоя армия</h3><div id="pSide"></div></div>
+      <div class="side"><h3>Враги</h3><div id="eSide"></div></div>
+    </div>
+    <div style="display:flex; justify-content:center; margin-top:12px">
+      <button class="btn blue" id="btnBattle">⚔️ Начать битву</button>
+    </div>
+    <div class="log" id="log"><p style="opacity:.6">Здесь пойдёт лента боя…</p></div>
+  </div>
+</div>
+
+<div class="banner hidden" id="banner">
+  <div class="box">
+    <div class="big" id="bEmoji">🏆</div>
+    <h2 id="bTitle">Победа!</h2>
+    <p id="bText"></p>
+    <button class="btn" id="bBtn">Следующая волна →</button>
+  </div>
+</div>
+
+<script>
+// ============ ДАННЫЕ ============
+// эпохи: 3. древний, средневековье, ренессанс
+const ERAS = [
+  {name:'Древний мир', emoji:'🏛', grad:['#3a1d0f','#7a3b1e'], mult:1.0},
+  {name:'Средневековье', emoji:'🏰', grad:['#241a2a','#4a3a4a'], mult:1.5},
+  {name:'Ренессанс', emoji:'🎨', grad:['#0f2a3a','#1f4a5e'], mult:2.2},
+];
+const ERAS_PER = 4;
+const MAX_WAVE = ERAS.length * ERAS_PER; // 12
+const MAX_ARMY = 4;
+
+// юниты: одна пассивная способность (none|crit|heal|block)
+const UNITS = [
+  // Древний мир (e0)
+  {e:0,emoji:'🗡️',name:'Воин',     hp:40, atk:10, spd:5, ab:'none', cost:16},
+  {e:0,emoji:'🏹',name:'Лучник',   hp:26, atk:13, spd:8, ab:'crit', cost:20},
+  {e:0,emoji:'🛡️',name:'Копейщик',hp:55, atk:8,  spd:4, ab:'block',cost:22},
+  {e:0,emoji:'🐎',name:'Всадник',  hp:32, atk:12, spd:9, ab:'none', cost:24},
+  {e:0,emoji:'⛪',name:'Жрец',     hp:28, atk:6,  spd:5, ab:'heal', cost:26},
+  // Средневековье (e1)
+  {e:1,emoji:'⚔️',name:'Мечник',   hp:48, atk:13, spd:6, ab:'none', cost:30},
+  {e:1,emoji:'🛡️',name:'Рыцарь',   hp:62, atk:11, spd:4, ab:'block',cost:36},
+  {e:1,emoji:'🎯',name:'Арбалетчик',hp:32, atk:18, spd:5, ab:'crit', cost:38},
+  {e:1,emoji:'⚕️',name:'Монах',    hp:34, atk:8,  spd:5, ab:'heal', cost:36},
+  // Ренессанс (e2)
+  {e:2,emoji:'🔫',name:'Мушкетёр',   hp:40, atk:24, spd:5, ab:'crit', cost:52},
+  {e:2,emoji:'⚔️',name:'Конкистадор',hp:54, atk:18, spd:6, ab:'none', cost:50},
+  {e:2,emoji:'⚗️',name:'Алхимик',    hp:42, atk:12, spd:6, ab:'heal', cost:54},
+  {e:2,emoji:'🎇',name:'Артиллерист',hp:38, atk:20, spd:4, ab:'none', cost:50},
+];
+const AB_LABEL = {none:'обычный', crit:'🎯 крит', heal:'💚 лечит', block:'🛡️ блок'};
+
+function eraOf(w){ return Math.min(ERAS.length-1, Math.floor((w-1)/ERAS_PER)); }
+function waveInEra(w){ return ((w-1)%ERAS_PER)+1; }
+function statsOf(u, mult){ return {hp:Math.round(u.hp*mult), atk:Math.round(u.atk*mult)}; }
+
+// ============ СОСТОЯНИЕ (без сохранения) ============
+let S = {gold:30, wave:1, army:[], shop:[]};
+
+function freshShop(){
+  const era = eraOf(S.wave);
+  const pool = UNITS.filter(u=>u.e===era);
+  const s=[];
+  for(let i=0;i<3;i++) s.push(pool[Math.floor(Math.random()*pool.length)]);
+  return s;
+}
+S.shop = freshShop();
+
+// ============ РЕНДЕР ============
+const $ = id => document.getElementById(id);
+function msg(t){ }
+function logLine(html,cls){ const l=$('log'); const p=document.createElement('p'); p.innerHTML=html; if(cls)p.className=cls; l.appendChild(p); l.scrollTop=l.scrollHeight; }
+
+function render(){
+  const era = eraOf(S.wave);
+  $('gold').textContent = S.gold;
+  $('wave').textContent = S.wave;
+  $('armySize').textContent = S.army.length;
+  $('eraChip').innerHTML = ERAS[era].emoji+' '+ERAS[era].name;
+  document.body.style.background='linear-gradient(135deg,'+ERAS[era].grad[0]+','+ERAS[era].grad[1]+') fixed';
+  renderShop(); renderArmy();
+  $('banner').classList.add('hidden');
+}
+function renderShop(){
+  const box=$('shop'); box.innerHTML='';
+  S.shop.forEach((u,i)=>{
+    const d=document.createElement('div'); d.className='sCard';
+    d.innerHTML=`<span class="e">${u.emoji}</span><div class="n">${u.name}</div>
+      <div class="i">❤️${u.hp} ⚔️${u.atk} 💨${u.spd}</div>
+      <div class="i">${AB_LABEL[u.ab]} · ${ERAS[u.e].emoji}</div>
+      <button class="btn" data-si="${i}">Купить · ${u.cost}💰</button>`;
+    d.querySelector('[data-si]').addEventListener('click',()=>buy(i));
+    box.appendChild(d);
+  });
+}
+function renderArmy(){
+  const box=$('army'); box.innerHTML='';
+  for(let i=0;i<MAX_ARMY;i++){
+    const u=S.army[i];
+    const d=document.createElement('div'); d.className='aCard'+(u?'':' empty');
+    if(u){ d.innerHTML=`<span class="e">${u.emoji}</span><div class="n">${u.name}</div>
+      <div class="i" style="font-size:11px;color:#e8cfa0">❤️${u.hp} ⚔️${u.atk} · ${AB_LABEL[u.ab]}</div>
+      <button class="x" data-sell="${i}">✖</button>`;
+      d.querySelector('[data-sell]').addEventListener('click',()=>sell(i));
+    } else d.textContent='+';
+    box.appendChild(d);
+  }
+}
+
+// ============ ДЕЙСТВИЯ ============
+function buy(si){
+  const u=S.shop[si];
+  if(S.gold<u.cost){ logLine('Не хватает золота'); return; }
+  if(S.army.length>=MAX_ARMY){ logLine('Армия полна!'); return; }
+  S.gold-=u.cost;
+  S.army.push({name:u.name, emoji:u.emoji, hp:u.hp, atk:u.atk, spd:u.spd, ab:u.ab, cost:u.cost, e:u.e});
+  logLine(`🛒 Куплен ${u.emoji} ${u.name} (−${u.cost}💰)`);
+  render();
+}
+function sell(i){
+  const u=S.army[i]; if(!u) return;
+  const refund = Math.round(u.cost*0.5);
+  S.gold+=refund; S.army.splice(i,1);
+  logLine(`💰 Продан ${u.emoji} ${u.name} (+${refund}💰)`);
+  render();
+}
+function reroll(){
+  if(S.gold<1){ logLine('Мало золота для переролла'); return; }
+  S.gold-=1; S.shop=freshShop(); render();
+}
+
+// ============ БОЙ ============
+let battling=false;
+function makeEnemies(){
+  const era=eraOf(S.wave), w=waveInEra(S.wave);
+  const pool=UNITS.filter(u=>u.e===era);
+  const n = Math.min(4, 2+Math.floor(w/2));
+  const mult = (0.7 + S.wave*0.12) * ERAS[era].mult;
+  const isBoss = (w===4);
+  const arr=[];
+  for(let i=0;i<n;i++){
+    const u=pool[Math.floor(Math.random()*pool.length)];
+    const st=statsOf(u,mult);
+    const boss=(isBoss&&i===0);
+    arr.push({name:boss?'Вождь эпохи':u.name, emoji:boss?'👑':u.emoji, hp:boss?st.hp*1.6:st.hp, atk:boss?st.atk*1.4:st.atk, spd:u.spd, ab:u.ab, side:'e', boss});
+  }
+  return arr;
+}
+function makePlayer(){
+  const era=eraOf(S.wave);
+  return S.army.map(u=>({name:u.name, emoji:u.emoji, hp:u.hp, atk:u.atk, spd:u.spd, ab:u.ab, side:'p', boss:false}));
+}
+function initBattle(){
+  if(S.army.length===0){ logLine('Сначала купи воинов в лавке!'); return; }
+  if(battling) return;
+  $('log').innerHTML='<p>Битва начинается…</p>';
+  const p=makePlayer(), e=makeEnemies();
+  renderField(p,e);
+  runBattle(p,e);
+}
+function renderField(p,e){
+  $('pSide').innerHTML=''; $('eSide').innerHTML='';
+  p.forEach(u=>$('pSide').appendChild(funit(u)));
+  e.forEach(u=>$('eSide').appendChild(funit(u)));
+}
+function funit(u){
+  const d=document.createElement('div'); d.className='funit';
+  d.innerHTML=`<span class="e">${u.emoji}</span>
+    <div style="flex:1"><div style="font-size:12px">${u.name}</div>
+      <div class="bar ${u.side==='e'?'red':''}"><div></div></div></div>
+    <span class="hpnum"></span>`;
+  return d;
+}
+function syncHP(p,e){
+  const sides={p:'pSide',e:'eSide'};
+  ['p','e'].forEach(side=>{
+    const arr=side==='p'?p:e; const cards=[...$(sides[side]).children];
+    arr.forEach((u,i)=>{ const c=cards[i]; if(!c)return;
+      c.querySelector('.bar>div').style.width=Math.max(0,u.hp/u.maxHp*100)+'%';
+      c.querySelector('.hpnum').textContent=u.hp;
+      if(u.hp<=0) c.style.opacity='0.4';
+    });
+  });
+}
+function pick(enemy){ return enemy.filter(u=>u.hp>0)[0]; }
+
+async function runBattle(p,e){
+  battling=true; $('btnBattle').disabled=true;
+  const all=[...p,...e]; all.forEach(u=>{ u.maxHp=u.hp; u.next=100/u.spd; });
+  syncHP(p,e);
+  while(true){
+    const pa=p.filter(u=>u.hp>0), ea=e.filter(u=>u.hp>0);
+    if(pa.length===0||ea.length===0) break;
+    const actor=[...pa,...ea].reduce((a,b)=>a.next<=b.next?a:b);
+    actor.next+=100/actor.spd;
+    await act(actor,p,e);
+    syncHP(p,e);
+  }
+  battling=false; $('btnBattle').disabled=false;
+  const win=p.some(u=>u.hp>0);
+  if(win){
+    const reward = 10 + S.wave*2;
+    S.gold+=reward;
+    logLine(`🏆 Победа! +${reward}💰`,'hit');
+    if(S.wave>=MAX_WAVE){ showBanner('🥇','Ты покорил все 3 эпохи!','Заново'); S.wave=1; }
+    else showBanner('🏆','Победа! +'+reward+'💰','Следующая волна →');
+  } else {
+    logLine('💀 Поражение… Попробуй другой состав.','crit');
+    showBanner('💀','Армия пала. Золото и войска сохранены — повтори волну.','Повторить волну');
+  }
+}
+async function act(actor,p,e){
+  const enemy=actor.side==='p'?e:p;
+  const allies=actor.side==='p'?p:e;
+  const u=actor;
+  if(u.ab==='heal'){
+    const hurt=allies.filter(a=>a.hp>0 && a.hp<a.maxHp);
+    if(hurt.length && Math.random()<0.5){ hurt.sort((a,b)=>(a.hp/a.maxHp)-(b.hp/b.maxHp)); const tar=hurt[0];
+      const amt=Math.round(u.atk*1.3); tar.hp=Math.min(tar.maxHp,tar.hp+amt);
+      logLine(`💚 ${u.emoji} ${u.name} лечит ${tar.name} (+${amt})`,'heal');
+    } else { const tar=pick(enemy); if(!tar)return; const dmg=Math.round(u.atk*0.7); tar.hp-=dmg; logLine(`⚔️ ${u.emoji} ${u.name} бьёт ${tar.name} (−${dmg})`,'hit'); }
+    return;
+  }
+  const tar=pick(enemy); if(!tar) return;
+  let dmg=Math.round(u.atk*(0.85+Math.random()*0.3));
+  let cls='hit', extra='';
+  if(u.ab==='crit' && Math.random()<0.35){ dmg=Math.round(u.atk*2); cls='crit'; extra=' КРИТ!'; }
+  if(tar.ab==='block'){ dmg=Math.round(dmg*0.65); extra+=' (блок)'; }
+  tar.hp-=dmg;
+  logLine(`⚔️ ${u.emoji} ${u.name} бьёт ${tar.emoji} ${tar.name} (−${dmg})${extra}`,cls);
+}
+function showBanner(emoji,title,btn){
+  $('bEmoji').textContent=emoji; $('bTitle').textContent=title;
+  $('bText').textContent = btn.indexOf('Заново')>=0 ? 'Сыграть ещё раз с чистого листа.' : '';
+  $('bBtn').textContent=btn;
+  $('bBtn').onclick=()=>{ $('banner').classList.add('hidden'); if(btn.indexOf('Заново')>=0){ S={gold:30,wave:1,army:[],shop:freshShop()}; } else if(btn.indexOf('Следующая')>=0){ S.wave++; S.shop=freshShop(); } render(); };
+  $('banner').classList.remove('hidden');
+}
+
+$('btnBattle').addEventListener('click', initBattle);
+$('btnReroll').addEventListener('click', reroll);
+
+render();
+</script>
+</body>
+</html>
