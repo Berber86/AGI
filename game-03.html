@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Эволюция войны: Автобатл эпох — Уровень 3/10</title>
+    <title>Эволюция войны: Автобатл эпох — Уровень 3/10 (Pass 2)</title>
     <style>
         :root {
             --bg-dark: #0e1117;
@@ -168,6 +168,19 @@
             box-shadow: 0 4px 15px rgba(229, 192, 123, 0.4);
         }
 
+        button.btn-sell {
+            background: linear-gradient(135deg, #7c2d35, #9b3842);
+            border-color: var(--accent-red);
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 2px 10px rgba(224, 108, 117, 0.3);
+        }
+
+        button.btn-sell:hover:not(:disabled) {
+            background: linear-gradient(135deg, #91343e, #b5404d);
+            box-shadow: 0 4px 15px rgba(224, 108, 117, 0.5);
+        }
+
         /* MAIN CONTAINER */
         main {
             flex: 1;
@@ -253,14 +266,14 @@
         }
 
         .panel-section {
-            padding: 16px;
+            padding: 14px 16px;
             border-bottom: 1px solid var(--border-color);
         }
 
         .panel-section h3 {
             color: var(--text-bright);
-            font-size: 0.95rem;
-            margin-bottom: 10px;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -322,11 +335,48 @@
         .type-heavy { background: #48262a; color: #e06c75; border: 1px solid rgba(224, 108, 117, 0.3); }
         .type-mobile { background: #453923; color: #e5c07b; border: 1px solid rgba(229, 192, 123, 0.3); }
 
-        .counter-table-mini {
-            font-size: 0.8rem;
-            line-height: 1.6;
+        /* SYNERGIES PANEL (PASS 2 NEW FEATURE) */
+        .synergies-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .synergy-item {
             background: var(--bg-card);
-            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            transition: all 0.2s ease;
+        }
+
+        .synergy-item.active {
+            border-color: var(--accent-gold);
+            background: linear-gradient(135deg, #272c23, #1e252e);
+            box-shadow: 0 0 10px rgba(229, 192, 123, 0.2);
+        }
+
+        .synergy-label {
+            font-weight: 700;
+            color: var(--text-bright);
+        }
+
+        .synergy-status {
+            font-weight: 800;
+        }
+
+        .synergy-status.active { color: var(--accent-green); }
+        .synergy-status.inactive { color: #666; }
+
+        .counter-table-mini {
+            font-size: 0.78rem;
+            line-height: 1.5;
+            background: var(--bg-card);
+            padding: 10px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
         }
@@ -334,8 +384,8 @@
         .counter-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 6px;
-            padding-bottom: 4px;
+            margin-bottom: 5px;
+            padding-bottom: 3px;
             border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
@@ -343,17 +393,6 @@
             margin-bottom: 0;
             padding-bottom: 0;
             border-bottom: none;
-        }
-
-        .hardcore-notice {
-            background: rgba(224, 108, 117, 0.12);
-            border: 1px solid rgba(224, 108, 117, 0.4);
-            border-radius: 8px;
-            padding: 10px;
-            font-size: 0.78rem;
-            color: #f2a6ad;
-            margin-top: 12px;
-            line-height: 1.45;
         }
 
         /* FOOTER / BENCH & SHOP BAR */
@@ -435,7 +474,7 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
-            min-width: 190px;
+            min-width: 200px;
         }
 
         .shop-cards {
@@ -725,7 +764,7 @@
     <header>
         <div class="header-title">
             <h1>🛡️ ЭВОЛЮЦИЯ ВОЙНЫ: АВТОБАТЛ</h1>
-            <span class="badge">L03: БАЛАНС И ДПС-МЕТР</span>
+            <span class="badge">L03: PASS 2 (СИНЕРГИИ И СЕТКА)</span>
         </div>
         <div class="stats-bar">
             <div class="stat-item hp" title="Здоровье базы">
@@ -770,14 +809,23 @@
             </div>
         </section>
 
-        <!-- RIGHT PANEL (SCOUT & COUNTER RULES) -->
+        <!-- RIGHT PANEL (SCOUT & SYNERGIES) -->
         <aside class="right-panel">
+            <!-- SYNERGIES PANEL (PASS 2 FEATURE) -->
+            <div class="panel-section">
+                <h3>⚡ Синергии армии (Бонусы)</h3>
+                <div class="synergies-list" id="synergiesList">
+                    <!-- Synergies injected dynamically -->
+                </div>
+            </div>
+
             <div class="panel-section">
                 <h3>🔍 Разведка волны <span id="scoutWaveNum">1</span></h3>
                 <div class="scout-list" id="scoutList">
                     <!-- Enemy list rendered dynamically -->
                 </div>
             </div>
+
             <div class="panel-section">
                 <h3>⚖️ Система уязвимостей (3/10)</h3>
                 <div class="counter-table-mini">
@@ -798,10 +846,6 @@
                         <b style="color:var(--accent-green);">Игн. броню + Splash</b>
                     </div>
                 </div>
-                <div class="hardcore-notice">
-                    <b>🔥 Жёсткий хардкор со старта:</b><br>
-                    Вражеские волны имеют повышенные характеристики. Внимательно выбирайте войска под контр-типы уязвимостей противника!
-                </div>
             </div>
         </aside>
     </main>
@@ -815,6 +859,12 @@
             </div>
             <div class="bench-slots" id="benchSlots">
                 <!-- 8 bench slots rendered dynamically -->
+            </div>
+            <!-- SELL UNIT BUTTON (PASS 2 NEW FEATURE) -->
+            <div id="sellUnitContainer" style="display:none;">
+                <button class="btn-sell" id="btnSellUnit" onclick="sellSelectedUnit()">
+                    💰 Продать юнит (+0 💰)
+                </button>
             </div>
         </div>
         <div class="shop-bar">
@@ -840,7 +890,7 @@
     <div class="modal-overlay" id="encyclopediaModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>📖 Энциклопедия и правила (Уровень 3/10)</h2>
+                <h2>📖 Энциклопедия и правила (Уровень 3/10 — Pass 2)</h2>
                 <button class="modal-close" onclick="closeModal('encyclopediaModal')">✕</button>
             </div>
             <div class="modal-body">
@@ -851,27 +901,31 @@
                 <ul>
                     <li><b>Фаза подготовки:</b> Нанимайте войска в магазине, расставляйте их на сетке 8x6 (левая половина — ваша зона) и изучайте состав вражеской волны справа.</li>
                     <li><b>Слияние звезд:</b> 3 одинаковых юнита 1★ автоматически сливаются в мощного юнита 2★ (+100% HP и Урона). 3 юнита 2★ объединяются в эпического 3★!</li>
-                    <li><b>Экономика:</b> За каждый раунд вы получаете базовый доход (5💰) + процент на накопленное золото (1💰 за каждые 10💰 в банке, до +5💰 максимум).</li>
-                    <li><b>Эволюция эпох:</b> Тратьте золото на исследование новых эпох. Это открывает доступ к новым, более продвинутым войскам и увеличивает лимит армии на поле.</li>
+                    <li><b>Экономика и продажа:</b> Вы получаете базовый доход (5💰) + процент (+1💰 за каждые 10💰 в банке, до +5💰). Любой юнит можно <b>продать за 75% стоимости</b>.</li>
+                    <li><b>Эволюция эпох:</b> Тратьте золото на исследование новых эпох для открытия продвинутых войск и увеличения лимита армии.</li>
+                </ul>
+
+                <h4>⚡ Синергии армии (Новое на втором проходе!)</h4>
+                <p>Выставляя на поле <b>2 и более войск одного класса</b>, вы активируете глобальные бонусы синергий:</p>
+                <ul>
+                    <li><b>🛡️ Тяжёлая броня (2+):</b> +20% к максимальному здоровью и аура защиты.</li>
+                    <li><b>🎯 Пробивающие стрелки (2+):</b> +25% к критическому урону по врагам.</li>
+                    <li><b>🐎 Мобильная конница/дроны (2+):</b> +25% к скорости атаки.</li>
+                    <li><b>💣 Осадная артиллерия (2+):</b> +30% к радиусу Splash-взрыва.</li>
+                </ul>
+
+                <h4>🗺️ Бонусы первой линии и тыла на поле боя</h4>
+                <ul>
+                    <li><b>Колонка 3 (Авангард):</b> Войска получают защитный бонус <b>+15% HP и брони</b>.</li>
+                    <li><b>Колонка 0 (Тыл):</b> Войска получают наступательный бонус <b>+15% к урону</b>.</li>
                 </ul>
 
                 <h4>⚖️ Тактическая система «Камень-Ножницы-Бумага»</h4>
-                <p>Каждый юнит имеет тип брони и тип атаки. Использование правильных типов атак даёт <b>+50% критического урона</b>:</p>
                 <ul>
-                    <li><b style="color:var(--accent-blue);">Легкая броня:</b> Быстрые пехотинцы, стрелки. Уязвимы к <b>Ударному/Дробящему</b> оружию (x1.5 урон).</li>
-                    <li><b style="color:var(--accent-red);">Тяжелая броня:</b> Щитоносцы, рыцари, танки. Уязвимы к <b>Пробивающему</b> оружию (x1.5 урон).</li>
-                    <li><b style="color:var(--accent-gold);">Конница/Мобильная:</b> Колесницы, кавалерия, дроны. Уязвимы к <b>Колющему/Противомобильному</b> оружию (x1.5 урон).</li>
-                    <li><b style="color:var(--accent-green);">Осадная атака (Пушки, Танки):</b> Игнорирует 50% брони и наносит урон по области (Splash).</li>
-                </ul>
-
-                <h4>🏛️ 6 Исторических эпох</h4>
-                <ul>
-                    <li><b>I. Каменный век:</b> Копьеносец, Дубинщик, Пращник.</li>
-                    <li><b>II. Бронзовый и железный век:</b> Гоплит-щитоносец, Лучник, Боевая колесница.</li>
-                    <li><b>III. Средневековье:</b> Рыцарь в латах, Арбалетчик, Тяжёлая кавалерия.</li>
-                    <li><b>IV. Эпоха пороха:</b> Линейная пехота, Мушкетёр, Полевая пушка.</li>
-                    <li><b>V. Современная эпоха:</b> Штурмовая пехота, Снайпер, Основной боевой танк.</li>
-                    <li><b>VI. Ближайшее будущее:</b> Экзоскелет-штурмовик, Рельсотрон-танк, Ударный дрон.</li>
+                    <li><b style="color:var(--accent-blue);">Легкая броня:</b> Уязвима к <b>Ударному/Дробящему</b> оружию (x1.5 урон).</li>
+                    <li><b style="color:var(--accent-red);">Тяжелая броня:</b> Уязвима к <b>Пробивающему</b> оружию (x1.5 урон).</li>
+                    <li><b style="color:var(--accent-gold);">Конница/Мобильная:</b> Уязвима к <b>Колющему/Противомобильному</b> оружию (x1.5 урон).</li>
+                    <li><b style="color:var(--accent-green);">Осадная атака:</b> Игнорирует 50% брони и наносит урон по области (Splash).</li>
                 </ul>
             </div>
             <div class="modal-footer">
@@ -894,7 +948,6 @@
                 
                 <div id="rewardBreakdown" style="background:var(--bg-card); padding:12px; border-radius:10px; border:1px solid var(--border-color); width:100%; font-size:0.95rem;"></div>
 
-                <!-- LIVE DPS METER CONTAINER -->
                 <div class="dps-container" id="dpsMeterContainer">
                     <div class="dps-title">📊 СТАТИСТИКА УРОНА ЗА РАУНД (ДПС-МЕТР)</div>
                     <div id="dpsRows">
@@ -1062,7 +1115,6 @@
             siege:       { light: 1.25, heavy: 1.25, mobile: 1.25 }
         };
 
-        // Hardcore early wave balance (WAVES 1-12)
         const WAVES = [
             { num: 1,  reward: 6,  enemies: [ {type: "spearman", x: 5, y: 1}, {type: "clubman", x: 6, y: 2}, {type: "clubman", x: 5, y: 4} ] },
             { num: 2,  reward: 7,  enemies: [ {type: "clubman", x: 5, y: 1}, {type: "clubman", x: 5, y: 4}, {type: "slinger", x: 6, y: 2}, {type: "slinger", x: 6, y: 3} ] },
@@ -1165,8 +1217,49 @@
                 dead: false,
                 recoil: 0,
                 lunge: 0,
-                damageDealt: 0 // Tracked for Live DPS Meter!
+                damageDealt: 0
             };
+        }
+
+        function computeSynergies() {
+            let heavy = 0, piercing = 0, mobile = 0, siege = 0;
+            state.board.forEach(u => {
+                if (u.armor === 'heavy') heavy++;
+                if (u.attack === 'piercing') piercing++;
+                if (u.armor === 'mobile') mobile++;
+                if (u.attack === 'siege') siege++;
+            });
+            return {
+                heavy: heavy >= 2,
+                piercing: piercing >= 2,
+                mobile: mobile >= 2,
+                siege: siege >= 2,
+                counts: { heavy, piercing, mobile, siege }
+            };
+        }
+
+        function renderSynergiesPanel() {
+            const listEl = document.getElementById('synergiesList');
+            if (!listEl) return;
+            const syn = computeSynergies();
+            listEl.innerHTML = `
+                <div class="synergy-item ${syn.heavy ? 'active' : ''}">
+                    <span class="synergy-label">🛡️ Тяжёлая броня (${syn.counts.heavy}/2)</span>
+                    <span class="synergy-status ${syn.heavy ? 'active' : 'inactive'}">${syn.heavy ? '🔥 +20% HP' : 'неакт.'}</span>
+                </div>
+                <div class="synergy-item ${syn.piercing ? 'active' : ''}">
+                    <span class="synergy-label">🎯 Пробивающие (${syn.counts.piercing}/2)</span>
+                    <span class="synergy-status ${syn.piercing ? 'active' : 'inactive'}">${syn.piercing ? '🔥 +25% Крит' : 'неакт.'}</span>
+                </div>
+                <div class="synergy-item ${syn.mobile ? 'active' : ''}">
+                    <span class="synergy-label">🐎 Конница/Дроны (${syn.counts.mobile}/2)</span>
+                    <span class="synergy-status ${syn.mobile ? 'active' : 'inactive'}">${syn.mobile ? '🔥 +25% Скор.атаки' : 'неакт.'}</span>
+                </div>
+                <div class="synergy-item ${syn.siege ? 'active' : ''}">
+                    <span class="synergy-label">💣 Осадные (${syn.counts.siege}/2)</span>
+                    <span class="synergy-status ${syn.siege ? 'active' : 'inactive'}">${syn.siege ? '🔥 +30% Splash' : 'неакт.'}</span>
+                </div>
+            `;
         }
 
         function updateUI() {
@@ -1200,13 +1293,32 @@
                 btnRes.disabled = true;
             }
 
+            // SELL BUTTON CONTROL (PASS 2 NEW FEATURE)
+            const sellContainer = document.getElementById('sellUnitContainer');
+            const btnSell = document.getElementById('btnSellUnit');
+            if (state.selectedUnit && state.phase === 'prep') {
+                const u = state.selectedUnit.source === 'bench'
+                    ? state.bench[state.selectedUnit.index]
+                    : state.board[state.selectedUnit.index];
+                if (u) {
+                    const refund = Math.round(u.cost * (u.star === 1 ? 0.75 : u.star === 2 ? 1.5 : 3.0));
+                    btnSell.innerHTML = `💰 Продать ${u.name} (+${refund} 💰)`;
+                    sellContainer.style.display = 'block';
+                } else {
+                    sellContainer.style.display = 'none';
+                }
+            } else {
+                sellContainer.style.display = 'none';
+            }
+
             renderBench();
             renderShop();
             renderScoutList();
+            renderSynergiesPanel();
         }
 
         /*************************************************************************
-         * 5. SHOP, MERGING, AND ECONOMY
+         * 5. SHOP, MERGING, SELL, AND ECONOMY
          *************************************************************************/
         function rerollShop(free = false) {
             if (!free) {
@@ -1292,6 +1404,23 @@
 
             playSound('buy');
             checkAutoMerge();
+            updateUI();
+        }
+
+        function sellSelectedUnit() {
+            if (!state.selectedUnit || state.phase !== 'prep') return;
+            const u = state.selectedUnit.source === 'bench'
+                ? state.bench[state.selectedUnit.index]
+                : state.board[state.selectedUnit.index];
+            if (!u) return;
+
+            const refund = Math.round(u.cost * (u.star === 1 ? 0.75 : u.star === 2 ? 1.5 : 3.0));
+            state.gold += refund;
+            removeUnitInstance(u.id);
+            state.selectedUnit = null;
+
+            playSound('buy');
+            showToast(`💰 Продано: ${u.name} (+${refund} 💰)`);
             updateUI();
         }
 
@@ -1625,6 +1754,8 @@
             document.querySelectorAll('.speed-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelector('.speed-btn').classList.add('active');
 
+            const syn = computeSynergies();
+
             [...state.board, ...state.enemies].forEach(u => {
                 u.dead = false;
                 u.target = null;
@@ -1632,9 +1763,28 @@
                 u.x = u.gx * CELL_W + CELL_W / 2;
                 u.y = u.gy * CELL_H + CELL_H / 2;
                 u.lunge = 0;
+
+                // APPLY SYNERGIES & GRID BONUSES (PASS 2 NEW FEATURE)
+                const baseMult = u.star === 1 ? 1 : (u.star === 2 ? 2 : 4);
+                const baseData = UNITS_DATA[u.type];
+                u.maxHp = Math.round(baseData.hp * baseMult);
+                u.dmg = Math.round(baseData.dmg * baseMult);
+
                 if (u.team === 'player') {
-                    u.damageDealt = 0; // Reset round DPS counter
+                    u.damageDealt = 0;
+                    if (syn.heavy && u.armor === 'heavy') {
+                        u.maxHp = Math.round(u.maxHp * 1.20);
+                    }
+                    if (u.gx === 3) {
+                        // Frontline +15% HP
+                        u.maxHp = Math.round(u.maxHp * 1.15);
+                    }
+                    if (u.gx === 0) {
+                        // Backline +15% Damage
+                        u.dmg = Math.round(u.dmg * 1.15);
+                    }
                 }
+                u.hp = u.maxHp;
             });
 
             state.projectiles = [];
@@ -1656,6 +1806,7 @@
             if (state.phase !== 'battle') return;
             const effectiveDt = dt * state.speed;
 
+            const syn = computeSynergies();
             const playersAlive = state.board.filter(u => !u.dead);
             const enemiesAlive = state.enemies.filter(u => !u.dead);
 
@@ -1694,8 +1845,12 @@
                 const attackRangePx = u.range * CELL_W;
                 if (minDist <= attackRangePx) {
                     if (u.attackCooldown <= 0) {
-                        performAttack(u, nearest);
-                        u.attackCooldown = 1.2 / u.speed;
+                        performAttack(u, nearest, syn);
+                        let baseCooldown = 1.2 / u.speed;
+                        if (u.team === 'player' && syn.mobile && u.armor === 'mobile') {
+                            baseCooldown *= 0.80; // +25% attack speed from mobile synergy
+                        }
+                        u.attackCooldown = baseCooldown / state.speed;
                         u.lunge = 1.0;
                     }
                 } else {
@@ -1734,7 +1889,7 @@
 
                 const dist = Math.hypot(p.target.x - p.x, p.target.y - p.y);
                 if (dist < 20) {
-                    applyDamage(p.source, p.target);
+                    applyDamage(p.source, p.target, syn);
                     createImpactParticles(p.target.x, p.target.y, p.source.attack, p.type);
                     state.projectiles.splice(i, 1);
                 }
@@ -1762,7 +1917,7 @@
             }
         }
 
-        function performAttack(attacker, target) {
+        function performAttack(attacker, target, syn) {
             if (attacker.range > 1) {
                 let projType = 'arrow';
                 let projColor = '#e5c07b';
@@ -1820,13 +1975,13 @@
                     }
                 }
             } else {
-                applyDamage(attacker, target);
+                applyDamage(attacker, target, syn);
                 createImpactParticles(target.x, target.y, attacker.attack, 'melee');
                 target.recoil = 1.0;
             }
         }
 
-        function applyDamage(attacker, target) {
+        function applyDamage(attacker, target, syn) {
             if (target.dead) return;
 
             let mult = 1.0;
@@ -1834,12 +1989,16 @@
                 mult = COUNTER_TABLE[attacker.attack][target.armor];
             }
 
+            // SYNERGY PIERCING CRIT BONUS
+            if (attacker.team === 'player' && syn && syn.piercing && attacker.attack === 'piercing' && mult > 1.0) {
+                mult *= 1.25; // +25% crit damage from synergy!
+            }
+
             const rawDmg = attacker.dmg * mult;
             const finalDmg = Math.max(1, Math.round(rawDmg));
 
             target.hp -= finalDmg;
 
-            // Track damage dealt for DPS Meter!
             if (attacker.damageDealt !== undefined) {
                 attacker.damageDealt += finalDmg;
             }
@@ -1868,7 +2027,10 @@
 
             if (attacker.attack === 'siege') {
                 playSound('hit_siege');
-                const splashRadius = CELL_W * 1.25;
+                let splashRadius = CELL_W * 1.25;
+                if (attacker.team === 'player' && syn && syn.siege) {
+                    splashRadius *= 1.30; // +30% splash radius from synergy!
+                }
                 const enemyPool = attacker.team === 'player' ? state.enemies : state.board;
                 enemyPool.forEach(e => {
                     if (e.id !== target.id && !e.dead) {
@@ -1929,7 +2091,7 @@
         }
 
         /*************************************************************************
-         * 10. ROUND RESULT MODAL & LIVE DPS METER (L03 BALANCER FEATURE)
+         * 10. ROUND RESULT MODAL & LIVE DPS METER
          *************************************************************************/
         function showRoundResult(playerWon) {
             state.phase = 'prep';
@@ -2030,9 +2192,7 @@
                 }
             }
 
-            // --- RENDER LIVE DPS METER STATISTICS ---
             renderDPSMeter();
-
             updateUI();
             openModal('resultModal');
         }
@@ -2048,7 +2208,6 @@
                 return;
             }
 
-            // Sort descending by damage dealt
             deployed.sort((a, b) => (b.damageDealt || 0) - (a.damageDealt || 0));
             const totalDamage = deployed.reduce((acc, u) => acc + (u.damageDealt || 0), 0) || 1;
 
@@ -2096,7 +2255,7 @@
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. Draw Tactical Command Grid
+            // 1. Draw Tactical Command Grid (With Frontline & Backline Highlights)
             for (let r = 0; r < GRID_ROWS; r++) {
                 for (let c = 0; c < GRID_COLS; c++) {
                     const x = c * CELL_W;
@@ -2109,6 +2268,15 @@
                     }
                     ctx.fillRect(x, y, CELL_W, CELL_H);
 
+                    // Highlight Column 0 (Backline +15% Dmg) and Column 3 (Frontline +15% HP)
+                    if (c === 0) {
+                        ctx.fillStyle = 'rgba(198, 120, 221, 0.12)';
+                        ctx.fillRect(x, y, CELL_W, CELL_H);
+                    } else if (c === 3) {
+                        ctx.fillStyle = 'rgba(152, 195, 121, 0.12)';
+                        ctx.fillRect(x, y, CELL_W, CELL_H);
+                    }
+
                     ctx.strokeStyle = c === 3 ? 'rgba(229, 192, 123, 0.7)' : 'rgba(255, 255, 255, 0.07)';
                     ctx.lineWidth = c === 3 ? 2 : 1;
                     ctx.strokeRect(x, y, CELL_W, CELL_H);
@@ -2119,13 +2287,19 @@
                         ctx.fillText(String.fromCharCode(65 + c), x + 6, y + CELL_H - 6);
                     }
 
-                    if (r === 0 && c === 1) {
-                        ctx.fillStyle = 'rgba(97, 175, 239, 0.3)';
-                        ctx.font = '700 12px Segoe UI';
-                        ctx.fillText('🛡️ ВАША ЗОНА (РАССТАНОВКА)', x, y + 20);
+                    // Tactical column labels
+                    if (r === 0 && c === 0) {
+                        ctx.fillStyle = 'rgba(198, 120, 221, 0.45)';
+                        ctx.font = '700 11px Segoe UI';
+                        ctx.fillText('⚔️ +15% Урон (Тыл)', x + 4, y + 18);
+                    }
+                    if (r === 0 && c === 3) {
+                        ctx.fillStyle = 'rgba(152, 195, 121, 0.45)';
+                        ctx.font = '700 11px Segoe UI';
+                        ctx.fillText('🛡️ +15% HP (Авангард)', x + 4, y + 18);
                     }
                     if (r === 0 && c === 5) {
-                        ctx.fillStyle = 'rgba(224, 108, 117, 0.3)';
+                        ctx.fillStyle = 'rgba(224, 108, 117, 0.35)';
                         ctx.font = '700 12px Segoe UI';
                         ctx.fillText('⚔️ ЗОНА ВРАГА (ВОЛНА)', x, y + 20);
                     }
