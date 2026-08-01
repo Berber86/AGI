@@ -329,7 +329,7 @@ function applyDamage(attacker, target, syn) {
 
     if (attacker.attack === 'siege') {
         playSound('hit_siege');
-        let splashRadius = CELL_W * 1.25;
+        let splashRadius = CELL_W * 1.0;
         if (attacker.team === 'player' && syn && syn.siege) {
             splashRadius *= 1.15; // +15% splash radius synergy
         }
@@ -338,7 +338,7 @@ function applyDamage(attacker, target, syn) {
             if (e.id !== target.id && !e.dead) {
                 const dist = Math.hypot(e.x - target.x, e.y - target.y);
                 if (dist <= splashRadius) {
-                    const splashDmg = Math.round(finalDmg * 0.5);
+                    const splashDmg = Math.round(finalDmg * 0.75);
                     e.hp -= splashDmg;
                     if (attacker.damageDealt !== undefined) {
                         attacker.damageDealt += splashDmg;

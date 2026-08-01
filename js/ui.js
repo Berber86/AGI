@@ -525,10 +525,10 @@ function showRoundResult(playerWon) {
                 <span>Урон здоровью базы:</span> <b>-${hpLoss} ❤️</b>
             </div>
             <div style="display:flex; justify-content:space-between; margin-top:8px;">
-                <span>Утешительное золото:</span> <b>+8 💰</b>
+                <span>Утешительное золото:</span> <b>+10 💰</b>
             </div>
         `;
-        state.gold += 8;
+        state.gold += 10;
 
         if (state.hp <= 0) {
             subEl.textContent = "Кампания проиграна (База разрушена)";
