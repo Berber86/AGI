@@ -193,7 +193,7 @@ window.BattleRender = (() => {
   }
 
   /* ---------- Юниты ---------- */
-  function headgear(eraIdx, sc, t) {
+  function headgear(eraIdx, sc) {
     const c = ROLE_COLOR;
     switch (eraIdx) {
       case 0: // каменный век: волосы + перо
@@ -240,7 +240,7 @@ window.BattleRender = (() => {
     }
   }
 
-  function weapon(role, eraIdx, sc, swing, t, pal) {
+  function weapon(role, eraIdx, sc, swing, t) {
     const trim = ERA[E.TIERS[eraIdx].id].trim;
     ctx.save();
     ctx.rotate(swing * 0.7);
@@ -346,10 +346,10 @@ window.BattleRender = (() => {
     // голова
     ctx.fillStyle = pal.skin;
     ctx.beginPath(); ctx.arc(0, -38 * sc, 8.6 * sc, 0, Math.PI * 2); ctx.fill();
-    headgear(eraIdx, sc, t);
+    headgear(eraIdx, sc);
 
     // оружие (с замахом при атаке)
-    weapon(role, eraIdx, sc, swing, t, pal);
+    weapon(role, eraIdx, sc, swing, t);
 
     // вспышка урона
     if (flash) {

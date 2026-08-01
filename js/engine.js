@@ -101,7 +101,7 @@ const Engine = (() => {
     { name:'Закат каменного века',  foes:[ {r:'guard',m:.75}, {r:'fighter',m:.75}, {r:'archer',m:.75} ] },
     { name:'Кузницы бронзы',        foes:[ {r:'guard',m:.80}, {r:'fighter',m:.80}, {r:'archer',m:.80}, {r:'healer',m:.75} ] },
     { name:'Колосс Античности',     boss:'colossus', foes:[ {r:'guard',m:.85,tier:1}, {r:'archer',m:.85,tier:1} ] },
-    { name:'Тени тёмных веков',     foes:[ {r:'guard',m:.97,tier:2}, {r:'fighter',m:.97,tier:2}, {r:'archer',m:.97,tier:2}, {r:'healer',m:.90,tier:2}, {r:'scout',m:.90,tier:2} ] },
+    { name:'Тени тёмных веков',     foes:[ {r:'guard',m:1.00,tier:2}, {r:'fighter',m:1.00,tier:2}, {r:'archer',m:1.00,tier:2}, {r:'healer',m:.93,tier:2}, {r:'scout',m:.93,tier:2} ] },
     { name:'Мечи и знамёна',        foes:[ {r:'guard',m:1.02,tier:2}, {r:'fighter',m:1.02,tier:2}, {r:'fighter',m:1.02,tier:2}, {r:'artillery',m:1.02,tier:2}, {r:'archer',m:1.02,tier:2}, {r:'healer',m:.95,tier:2} ] },
     { name:'Чёрные доспехи',        foes:[ {r:'guard',m:1.00,tier:3,lvl:2}, {r:'fighter',m:1.00,tier:3,lvl:2}, {r:'scout',m:.97,tier:3,lvl:2}, {r:'artillery',m:1.00,tier:3,lvl:2}, {r:'archer',m:1.00,tier:3,lvl:2}, {r:'healer',m:.92,tier:3,lvl:2} ] },
     { name:'Железный рыцарь',       boss:'ironKnight', foes:[ {r:'guard',m:.85,tier:3,lvl:2}, {r:'guard',m:.85,tier:3,lvl:2}, {r:'archer',m:.90,tier:3,lvl:2}, {r:'healer',m:.82,tier:3,lvl:2} ] },
@@ -314,6 +314,7 @@ const Engine = (() => {
         dst.shield -= absorbed; a -= absorbed;
         this.emit({ type:'shield', x:dst.x, y:dst.y, val:absorbed });
       }
+      if (a <= 0) return; // щит поглотил весь урон
       dst.hp -= a;
       this.emit({ type:'dmg', x:dst.x, y:dst.y, val:a, crit: !!crit });
       if (dst.hp <= 0) { dst.hp = 0; dst.alive = false; this.emit({ type:'die', x:dst.x, y:dst.y, side:dst.side }); }

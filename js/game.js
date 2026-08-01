@@ -19,10 +19,8 @@
     bench: [],
     placed: [],
     artifacts: [],
-    bossRewards: 0,
     snapshot: null,
-    stats: { stageLosses: 0, runLosses: 0, startTime: 0 },
-    eventsSeen: new Set(),
+    stats: { stageLosses: 0, startTime: 0 },
   };
 
   const $ = id => document.getElementById(id);
@@ -76,16 +74,15 @@
   /* ================== НОВАЯ ПАРТИЯ ================== */
   function newRun() {
     R.stage = 1; R.gold = 0; R.attemptsLeft = 3;
-    R.artifacts = []; R.bossRewards = 0;
+    R.artifacts = [];
     R.squad = [
       playerUnit('guard', 0, 1, { lane: 0, row: 0 }),
       playerUnit('fighter', 0, 1, { lane: 1, row: 0 }),
       playerUnit('archer', 0, 1, { lane: 2, row: 0 }),
     ];
     R.bench = [];
-    R.stats = { stageLosses: 0, runLosses: 0, startTime: Date.now(), wins: 0 };
+    R.stats = { stageLosses: 0, startTime: Date.now(), wins: 0 };
     R.placed = [];
-    R.eventsSeen = new Set();
     placeAuto();
     showScreen('roster');
   }
@@ -249,8 +246,9 @@
 
   /* ================== БОЙ ================== */
   const canvas = $('battleCanvas');
-  const ctx = BR.setup(canvas);
-  let battleSim = null, battleSpeed = 1, battleAccum = 0, battleInstant = false;
+  BR.setup(canvas);
+  let battleSim = null, battleUnits = null;
+  let battleSpeed = 1, battleAccum = 0, battleInstant = false;
   let battleEffects = [];
   let battleLastNow = 0;
 
@@ -281,7 +279,6 @@
     });
     requestAnimationFrame(battleLoop);
   }
-  let battleUnits = null;
 
   function battleLoop(now) {
     if (R.screen !== 'battle' || !battleSim) return;
@@ -344,7 +341,6 @@
     R.stats.wins++;
     const S = E.STAGES[R.stage - 1];
     if (S.boss) {
-      R.bossRewards++;
       showBossReward(() => afterStageReward());
     } else {
       afterStageReward();
