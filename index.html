@@ -3,40 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="0; url=game-03.html">
-    <title>Эволюция войны: Автобатл эпох — Уровень 3/10</title>
-    <style>
-        body {
-            background-color: #0e1117;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .loader {
-            text-align: center;
-            padding: 20px;
-        }
-        a {
-            color: #e5c07b;
-            text-decoration: none;
-            font-weight: 700;
-            border: 1px solid #e5c07b;
-            padding: 10px 20px;
-            border-radius: 8px;
-            display: inline-block;
-            margin-top: 15px;
-        }
-    </style>
+    <title>Эволюция войны: Автобатл эпох — Уровень 4/10 (Модульная версия)</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="loader">
-        <h2>🛡️ ЭВОЛЮЦИЯ ВОЙНЫ: АВТОБАТЛ (Уровень 3/10)</h2>
-        <p>Загрузка игры...</p>
-        <a href="game-03.html">▶ Открыть игру game-03.html</a>
+
+    <!-- HEADER / TOP BAR -->
+    <header>
+        <div class="header-title">
+            <h1>🛡️ ЭВОЛЮЦИЯ ВОЙНЫ: АВТОБАТЛ</h1>
+            <span class="badge">УРОВЕНЬ 4/10 (МОДУЛЬНЫЙ)</span>
+        </div>
+        <div class="stats-bar">
+            <div class="stat-item hp" title="Здоровье базы">
+                <span>❤️</span> <span id="playerHp">100</span> / 100
+            </div>
+            <div class="stat-item gold" title="Золото (процент: +1💰 за каждые 10💰 в банке)">
+                <span>💰</span> <span id="playerGold">15</span>
+            </div>
+            <div class="stat-item age" title="Текущая историческая эпоха">
+                <span>🏛️</span> <span id="currentAgeName">I. Каменный век</span>
+            </div>
+            <div class="stat-item army" title="Размер армии на поле">
+                <span>⚔️</span> <span id="armyCount">0 / 4</span>
+            </div>
+        </div>
+        <div class="header-controls">
+            <button id="btnSound" title="Включить/выключить звук" onclick="toggleSound()">🔊 Звук</button>
+            <button onclick="openModal('encyclopediaModal')">📖 Энциклопедия</button>
+        </div>
+    </header>
+
+    <!-- MAIN GAME AREA -->
+    <main>
+        <!-- BATTLEFIELD VIEWPORT -->
+        <section class="battlefield-container">
+            <div class="battle-header">
+                <div class="phase-indicator" id="phaseIndicator">
+                    <span>⏳ ФАЗА ПОДГОТОВКИ — ВОЛНА <span id="waveNumber">1</span>/12</span>
+                </div>
+                <!-- TACTICAL FORMATION SELECTOR (L04 GAME DESIGN FEATURE) -->
+                <div class="formation-selector" id="formationSelector" title="Выберите тактический строй армии перед волной">
+                    <!-- Formations injected dynamically -->
+                </div>
+                <div class="speed-controls" id="speedControls" style="display: none;">
+                    <span style="font-size:0.85rem; color:var(--text-main); align-self:center;">Скорость:</span>
+                    <button class="speed-btn active" onclick="setSpeed(1)">1x</button>
+                    <button class="speed-btn" onclick="setSpeed(2)">2x</button>
+                    <button class="speed-btn" onclick="setSpeed(4)">4x</button>
+                </div>
+                <div>
+                    <button class="btn-primary" id="btnStartBattle" onclick="startBattle()">⚔️ НАЧАТЬ БОЙ</button>
+                </div>
+            </div>
+            <div class="canvas-wrapper" id="canvasWrapper">
+                <canvas id="gameCanvas" width="840" height="520"></canvas>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL (SCOUT & SYNERGIES) -->
+        <aside class="right-panel">
+            <!-- SYNERGIES PANEL -->
+            <div class="panel-section">
+                <h3>⚡ Синергии армии (Бонусы)</h3>
+                <div class="synergies-list" id="synergiesList">
+                    <!-- Synergies injected dynamically -->
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>🔍 Разведка волны <span id="scoutWaveNum">1</span></h3>
+                <div class="scout-list" id="scoutList">
+                    <!-- Enemy list rendered dynamically -->
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <h3>⚖️ Система уязвимостей (4/10)</h3>
+                <div class="counter-table-mini">
+                    <div class="counter-row">
+                        <span>🗡️ Ударная (Melee):</span>
+                        <b style="color:var(--accent-blue);">x1.5 по Легкой</b>
+                    </div>
+                    <div class="counter-row">
+                        <span>🎯 Пробивающая (Pierce):</span>
+                        <b style="color:var(--accent-red);">x1.5 по Тяжелой</b>
+                    </div>
+                    <div class="counter-row">
+                        <span>🐎 Колющая (Anti-Mob):</span>
+                        <b style="color:var(--accent-gold);">x1.5 по Коннице</b>
+                    </div>
+                    <div class="counter-row">
+                        <span>💣 Осадная (Siege):</span>
+                        <b style="color:var(--accent-green);">Игн. броню + Splash</b>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- FOOTER / BENCH AND SHOP -->
+    <footer>
+        <div class="bench-bar">
+            <div class="bench-label">
+                <span>РЕЗЕРВ (<span id="benchCountText">0/8</span>)</span>
+                <span style="font-size:0.7rem; font-weight:400; color:var(--text-main);">Клик для перемещения</span>
+            </div>
+            <div class="bench-slots" id="benchSlots">
+                <!-- 8 bench slots rendered dynamically -->
+            </div>
+            <!-- SELL UNIT BUTTON -->
+            <div id="sellUnitContainer" style="display:none;">
+                <button class="btn-sell" id="btnSellUnit" onclick="sellSelectedUnit()">
+                    💰 Продать юнит (+0 💰)
+                </button>
+            </div>
+        </div>
+        <div class="shop-bar">
+            <div class="shop-controls">
+                <button onclick="rerollShop()" title="Обновить список доступных войск">🎲 Обновить (2 💰)</button>
+                <button class="btn-gold" id="btnResearch" onclick="researchAge()" title="Исследовать следующую эпоху (+1 к лимиту армии и доступ к новым войскам)">
+                    🚀 Эволюция: II Век (10 💰)
+                </button>
+            </div>
+            <div class="shop-cards" id="shopCards">
+                <!-- 5 shop cards rendered dynamically -->
+            </div>
+        </div>
+    </footer>
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- TOOLTIP ELEMENT -->
+    <div id="tooltip"></div>
+
+    <!-- ENCYCLOPEDIA MODAL -->
+    <div class="modal-overlay" id="encyclopediaModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📖 Энциклопедия и правила (Уровень 4/10 — Модульный)</h2>
+                <button class="modal-close" onclick="closeModal('encyclopediaModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <h4>🎯 Как играть</h4>
+                <p>
+                    <b>Эволюция войны</b> — это тактический автобатл уровня <b>4/10</b> с модульной архитектурой и новыми тактическими возможностями. Ваша цель — отбить 12 исторических волн врагов, развивая свою армию от Каменного века до Ближайшего будущего.
+                </p>
+                <ul>
+                    <li><b>Фаза подготовки:</b> Нанимайте войска в магазине, расставляйте их на сетке 8x6 (левая половина — ваша зона) и выбирайте <b>тактический строй армии</b> перед боем.</li>
+                    <li><b>Слияние звезд:</b> 3 одинаковых юнита 1★ автоматически сливаются в мощного юнита 2★ (+100% HP и Урона). 3 юнита 2★ объединяются в эпического 3★!</li>
+                    <li><b>Экономика и продажа:</b> Базовый доход (5💰) + процент (+1💰 за каждые 10💰 в банке, до +5💰). Любой юнит можно <b>продать за 75% стоимости</b>.</li>
+                    <li><b>Эволюция эпох:</b> Тратьте золото на исследование новых эпох для открытия продвинутых войск и увеличения лимита армии.</li>
+                </ul>
+
+                <h4>⚔️ Тактические формации / строи (Новое на уровне 4/10!)</h4>
+                <p>Перед каждой волной вы можете выбрать один из формационных строев, дающих преимущества вашей армии:</p>
+                <ul>
+                    <li><b>⚔️ Стандартный строй:</b> Сбалансированное построение без штрафов и бонусов.</li>
+                    <li><b>🛡️ Стена щитов:</b> +15% к максимальному здоровью и броне всей армии, но скорость перемещения снижена на 10%.</li>
+                    <li><b>🐎 Фланговый охват:</b> +15% к скорости атаки войскам, расположенным на крайних линиях (ряды 0 и 5).</li>
+                    <li><b>💣 Осадной/Огневой вал:</b> +15% к дальности и урону войскам в тыловой колонке (колонка 0).</li>
+                </ul>
+
+                <h4>⚡ Синергии армии</h4>
+                <ul>
+                    <li><b>🛡️ Тяжёлая броня (2+):</b> +12% к максимальному здоровью и аура защиты.</li>
+                    <li><b>🎯 Пробивающие стрелки (2+):</b> +15% к критическому урону по врагам.</li>
+                    <li><b>🐎 Мобильная конница/дроны (2+):</b> +15% к скорости атаки.</li>
+                    <li><b>💣 Осадная артиллерия (2+):</b> +15% к радиусу Splash-взрыва.</li>
+                </ul>
+
+                <h4>⚖️ Тактическая система «Камень-Ножницы-Бумага»</h4>
+                <ul>
+                    <li><b style="color:var(--accent-blue);">Легкая броня:</b> Уязвима к <b>Ударному/Дробящему</b> оружию (x1.5 урон).</li>
+                    <li><b style="color:var(--accent-red);">Тяжелая броня:</b> Уязвима к <b>Пробивающему</b> оружию (x1.5 урон).</li>
+                    <li><b style="color:var(--accent-gold);">Конница/Мобильная:</b> Уязвима к <b>Колющему/Противомобильному</b> оружию (x1.5 урон).</li>
+                    <li><b style="color:var(--accent-green);">Осадная атака:</b> Игнорирует 50% брони и наносит урон по области (Splash).</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="closeModal('encyclopediaModal')">Всё понятно!</button>
+            </div>
+        </div>
     </div>
+
+    <!-- RESULT MODAL (VICTORY / DEFEAT / CAMPAIGN END + DPS METER) -->
+    <div class="modal-overlay" id="resultModal">
+        <div class="modal-content" style="width: 560px; text-align: center;">
+            <div class="modal-header">
+                <h2 id="resultTitle">Итоги боя</h2>
+                <button class="modal-close" onclick="closeModal('resultModal')">✕</button>
+            </div>
+            <div class="modal-body" style="align-items: center;">
+                <div id="resultIcon" style="font-size: 3.6rem; margin-bottom: 6px;">🏆</div>
+                <h3 id="resultSubtitle" style="color:var(--text-bright); font-size:1.35rem;">Победа в раунде!</h3>
+                <p id="resultText" style="color:var(--text-main); font-size:0.95rem; margin:6px 0;">Вы разгромили врага и получили награду.</p>
+                
+                <div id="rewardBreakdown" style="background:var(--bg-card); padding:12px; border-radius:10px; border:1px solid var(--border-color); width:100%; font-size:0.95rem;"></div>
+
+                <div class="dps-container" id="dpsMeterContainer">
+                    <div class="dps-title">📊 СТАТИСТИКА УРОНА ЗА РАУНД (ДПС-МЕТР)</div>
+                    <div id="dpsRows">
+                        <!-- DPS rows injected dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: center;">
+                <button class="btn-primary" id="btnNextRound" onclick="proceedNextRound()">Продолжить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPTS LOADED MODULARLY -->
+    <script src="js/data.js"></script>
+    <script src="js/audio.js"></script>
+    <script src="js/engine.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>
