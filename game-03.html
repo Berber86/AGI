@@ -908,10 +908,10 @@
                 <h4>⚡ Синергии армии (Новое на втором проходе!)</h4>
                 <p>Выставляя на поле <b>2 и более войск одного класса</b>, вы активируете глобальные бонусы синергий (обозначаются парящими иконками над здоровьем):</p>
                 <ul>
-                    <li><b>🛡️ Тяжёлая броня (2+):</b> +20% к максимальному здоровью и аура защиты.</li>
-                    <li><b>🎯 Пробивающие стрелки (2+):</b> +25% к критическому урону по врагам.</li>
-                    <li><b>🐎 Мобильная конница/дроны (2+):</b> +25% к скорости атаки.</li>
-                    <li><b>💣 Осадная артиллерия (2+):</b> +30% к радиусу Splash-взрыва.</li>
+                    <li><b>🛡️ Тяжёлая броня (2+):</b> +12% к максимальному здоровью и аура защиты.</li>
+                    <li><b>🎯 Пробивающие стрелки (2+):</b> +15% к критическому урону по врагам.</li>
+                    <li><b>🐎 Мобильная конница/дроны (2+):</b> +15% к скорости атаки.</li>
+                    <li><b>💣 Осадная артиллерия (2+):</b> +15% к радиусу Splash-взрыва.</li>
                 </ul>
 
                 <h4>🗺️ Бонусы первой линии и тыла на поле боя</h4>
@@ -970,26 +970,34 @@
 
         function initAudio() {
             if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (AudioContextClass) {
+                    try {
+                        audioCtx = new AudioContextClass();
+                    } catch (e) {
+                        console.warn("AudioContext not supported");
+                    }
+                }
             }
         }
 
         function toggleSound() {
             soundEnabled = !soundEnabled;
             const btn = document.getElementById('btnSound');
-            btn.innerHTML = soundEnabled ? '🔊 Звук' : '🔇 Звук';
+            if (btn) btn.innerHTML = soundEnabled ? '🔊 Звук' : '🔇 Звук';
         }
 
         function playSound(type) {
             if (!soundEnabled) return;
-            initAudio();
-            if (!audioCtx) return;
+            try {
+                initAudio();
+                if (!audioCtx) return;
 
-            const now = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
 
             if (type === 'click') {
                 osc.type = 'triangle';
@@ -1064,6 +1072,9 @@
                 gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
                 osc.start(now);
                 osc.stop(now + 0.4);
+            }
+            } catch (e) {
+                console.warn("Audio error ignored:", e);
             }
         }
 
@@ -1149,14 +1160,17 @@
             battleTimer: 0,
             endlessMode: false
         };
+        window.state = state;
 
         /*************************************************************************
          * 4. INITIALIZATION & UI RENDERING
          *************************************************************************/
+        const requestAnimFrame = window.requestAnimationFrame || function(callback) { setTimeout(() => callback(Date.now()), 16); };
+
         window.addEventListener('DOMContentLoaded', () => {
             initGame();
             setupCanvasInteraction();
-            requestAnimationFrame(gameLoop);
+            requestAnimFrame(gameLoop);
         });
 
         function initGame() {
@@ -1238,69 +1252,83 @@
             listEl.innerHTML = `
                 <div class="synergy-item ${syn.heavy ? 'active' : ''}">
                     <span class="synergy-label">🛡️ Тяжёлая броня (${syn.counts.heavy}/2)</span>
-                    <span class="synergy-status ${syn.heavy ? 'active' : 'inactive'}">${syn.heavy ? '🔥 +20% HP' : 'неакт.'}</span>
+                    <span class="synergy-status ${syn.heavy ? 'active' : 'inactive'}">${syn.heavy ? '🔥 +12% HP' : 'неакт.'}</span>
                 </div>
                 <div class="synergy-item ${syn.piercing ? 'active' : ''}">
                     <span class="synergy-label">🎯 Пробивающие (${syn.counts.piercing}/2)</span>
-                    <span class="synergy-status ${syn.piercing ? 'active' : 'inactive'}">${syn.piercing ? '🔥 +25% Крит' : 'неакт.'}</span>
+                    <span class="synergy-status ${syn.piercing ? 'active' : 'inactive'}">${syn.piercing ? '🔥 +15% Крит' : 'неакт.'}</span>
                 </div>
                 <div class="synergy-item ${syn.mobile ? 'active' : ''}">
                     <span class="synergy-label">🐎 Конница/Дроны (${syn.counts.mobile}/2)</span>
-                    <span class="synergy-status ${syn.mobile ? 'active' : 'inactive'}">${syn.mobile ? '🔥 +25% Скор.атаки' : 'неакт.'}</span>
+                    <span class="synergy-status ${syn.mobile ? 'active' : 'inactive'}">${syn.mobile ? '🔥 +15% Скор.атаки' : 'неакт.'}</span>
                 </div>
                 <div class="synergy-item ${syn.siege ? 'active' : ''}">
                     <span class="synergy-label">💣 Осадные (${syn.counts.siege}/2)</span>
-                    <span class="synergy-status ${syn.siege ? 'active' : 'inactive'}">${syn.siege ? '🔥 +30% Splash' : 'неакт.'}</span>
+                    <span class="synergy-status ${syn.siege ? 'active' : 'inactive'}">${syn.siege ? '🔥 +15% Splash' : 'неакт.'}</span>
                 </div>
             `;
         }
 
         function updateUI() {
-            document.getElementById('playerHp').innerText = state.hp;
-            document.getElementById('playerGold').innerText = state.gold;
+            const hpEl = document.getElementById('playerHp');
+            if (hpEl) hpEl.textContent = state.hp;
+            const goldEl = document.getElementById('playerGold');
+            if (goldEl) goldEl.textContent = state.gold;
             const ageObj = AGES.find(a => a.id === state.age);
-            document.getElementById('currentAgeName').innerText = ageObj.name;
-            document.getElementById('armyCount').innerText = `${state.board.length} / ${ageObj.limit}`;
+            const ageNameEl = document.getElementById('currentAgeName');
+            if (ageNameEl && ageObj) ageNameEl.textContent = ageObj.name;
+            const armyEl = document.getElementById('armyCount');
+            if (armyEl && ageObj) armyEl.textContent = `${state.board.length} / ${ageObj.limit}`;
 
             const waveText = state.endlessMode ? `${state.wave} (Бесконечный)` : `${state.wave}`;
-            document.getElementById('waveNumber').innerText = waveText;
-            document.getElementById('scoutWaveNum').innerText = waveText;
+            const waveNumEl = document.getElementById('waveNumber');
+            if (waveNumEl) waveNumEl.textContent = waveText;
+            const scoutWaveEl = document.getElementById('scoutWaveNum');
+            if (scoutWaveEl) scoutWaveEl.textContent = waveText;
             const phaseEl = document.getElementById('phaseIndicator');
-            if (state.phase === 'prep') {
-                phaseEl.innerHTML = `<span>⏳ ФАЗА ПОДГОТОВКИ — ВОЛНА <b>${waveText}</b>/12</span>`;
-                document.getElementById('btnStartBattle').style.display = 'flex';
-                document.getElementById('speedControls').style.display = 'none';
-            } else {
-                phaseEl.innerHTML = `<span style="color:var(--accent-red);">⚔️ БОЕВАЯ ФАЗА — ВОЛНА <b>${waveText}</b>/12</span>`;
-                document.getElementById('btnStartBattle').style.display = 'none';
-                document.getElementById('speedControls').style.display = 'flex';
+            const btnStart = document.getElementById('btnStartBattle');
+            const speedCtrl = document.getElementById('speedControls');
+            if (phaseEl) {
+                if (state.phase === 'prep') {
+                    phaseEl.innerHTML = `<span>⏳ ФАЗА ПОДГОТОВКИ — ВОЛНА <b>${waveText}</b>/12</span>`;
+                    if (btnStart) btnStart.style.display = 'flex';
+                    if (speedCtrl) speedCtrl.style.display = 'none';
+                } else {
+                    phaseEl.innerHTML = `<span style="color:var(--accent-red);">⚔️ БОЕВАЯ ФАЗА — ВОЛНА <b>${waveText}</b>/12</span>`;
+                    if (btnStart) btnStart.style.display = 'none';
+                    if (speedCtrl) speedCtrl.style.display = 'flex';
+                }
             }
 
             const btnRes = document.getElementById('btnResearch');
-            if (state.age < 6) {
-                const nextAge = AGES.find(a => a.id === state.age + 1);
-                btnRes.innerHTML = `🚀 Эволюция: ${nextAge.name.split('.')[1]} (${nextAge.cost} 💰)`;
-                btnRes.disabled = state.gold < nextAge.cost || state.phase !== 'prep';
-            } else {
-                btnRes.innerHTML = `🚀 Макс. Эпоха (VI. Будущее)`;
-                btnRes.disabled = true;
+            if (btnRes) {
+                if (state.age < 6) {
+                    const nextAge = AGES.find(a => a.id === state.age + 1);
+                    btnRes.innerHTML = `🚀 Эволюция: ${nextAge.name.split('.')[1]} (${nextAge.cost} 💰)`;
+                    btnRes.disabled = state.gold < nextAge.cost || state.phase !== 'prep';
+                } else {
+                    btnRes.innerHTML = `🚀 Макс. Эпоха (VI. Будущее)`;
+                    btnRes.disabled = true;
+                }
             }
 
             const sellContainer = document.getElementById('sellUnitContainer');
             const btnSell = document.getElementById('btnSellUnit');
-            if (state.selectedUnit && state.phase === 'prep') {
-                const u = state.selectedUnit.source === 'bench'
-                    ? state.bench[state.selectedUnit.index]
-                    : state.board[state.selectedUnit.index];
-                if (u) {
-                    const refund = Math.round(u.cost * (u.star === 1 ? 0.75 : u.star === 2 ? 1.5 : 3.0));
-                    btnSell.innerHTML = `💰 Продать ${u.name} (+${refund} 💰)`;
-                    sellContainer.style.display = 'block';
+            if (sellContainer && btnSell) {
+                if (state.selectedUnit && state.phase === 'prep') {
+                    const u = state.selectedUnit.source === 'bench'
+                        ? state.bench[state.selectedUnit.index]
+                        : state.board[state.selectedUnit.index];
+                    if (u) {
+                        const refund = Math.round(u.cost * (u.star === 1 ? 0.75 : u.star === 2 ? 1.5 : 3.0));
+                        btnSell.innerHTML = `💰 Продать ${u.name} (+${refund} 💰)`;
+                        sellContainer.style.display = 'block';
+                    } else {
+                        sellContainer.style.display = 'none';
+                    }
                 } else {
                     sellContainer.style.display = 'none';
                 }
-            } else {
-                sellContainer.style.display = 'none';
             }
 
             renderBench();
@@ -1547,7 +1575,7 @@
                 benchContainer.appendChild(slot);
             });
 
-            document.getElementById('benchCountText').innerText = `${count}/8`;
+            document.getElementById('benchCountText').textContent = `${count}/8`;
         }
 
         function onBenchSlotClick(index) {
@@ -1775,7 +1803,7 @@
                 if (u.team === 'player') {
                     u.damageDealt = 0;
                     if (syn.heavy && u.armor === 'heavy') {
-                        u.maxHp = Math.round(u.maxHp * 1.20);
+                        u.maxHp = Math.round(u.maxHp * 1.12);
                     }
                     if (u.gx === 3) {
                         u.maxHp = Math.round(u.maxHp * 1.15);
@@ -1797,7 +1825,7 @@
             state.speed = spd;
             const btns = document.querySelectorAll('.speed-btn');
             btns.forEach(b => {
-                if (parseInt(b.innerText) === spd) b.classList.add('active');
+                if (parseInt(b.textContent) === spd) b.classList.add('active');
                 else b.classList.remove('active');
             });
         }
@@ -1848,7 +1876,7 @@
                         performAttack(u, nearest, syn);
                         let baseCooldown = 1.2 / u.speed;
                         if (u.team === 'player' && syn.mobile && u.armor === 'mobile') {
-                            baseCooldown *= 0.80;
+                            baseCooldown *= 0.85;
                         }
                         u.attackCooldown = baseCooldown / state.speed;
                         u.lunge = 1.0;
@@ -1990,7 +2018,7 @@
             }
 
             if (attacker.team === 'player' && syn && syn.piercing && attacker.attack === 'piercing' && mult > 1.0) {
-                mult *= 1.25;
+                mult *= 1.15;
             }
 
             const rawDmg = attacker.dmg * mult;
@@ -2028,7 +2056,7 @@
                 playSound('hit_siege');
                 let splashRadius = CELL_W * 1.25;
                 if (attacker.team === 'player' && syn && syn.siege) {
-                    splashRadius *= 1.30;
+                    splashRadius *= 1.15;
                 }
                 const enemyPool = attacker.team === 'player' ? state.enemies : state.board;
                 enemyPool.forEach(e => {
@@ -2112,11 +2140,11 @@
                 const totalReward = baseReward + interest + winStreak;
                 state.gold += totalReward;
 
-                titleEl.innerText = "Итоги боя: Победа!";
-                iconEl.innerText = "🏆";
-                subEl.innerText = `Волна ${state.wave} успешно отражена!`;
+                titleEl.textContent = "Итоги боя: Победа!";
+                iconEl.textContent = "🏆";
+                subEl.textContent = `Волна ${state.wave} успешно отражена!`;
                 subEl.style.color = "var(--accent-green)";
-                textEl.innerText = "Ваши войска доказали тактическое превосходство.";
+                textEl.textContent = "Ваши войска доказали тактическое превосходство.";
 
                 rewardEl.innerHTML = `
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
@@ -2135,7 +2163,7 @@
                 `;
 
                 if (state.wave === 12 && !state.endlessMode) {
-                    btnNext.innerText = "🎉 Войти в Бесконечный Режим";
+                    btnNext.textContent = "🎉 Войти в Бесконечный Режим";
                     btnNext.onclick = () => {
                         state.endlessMode = true;
                         state.wave++;
@@ -2144,7 +2172,7 @@
                         updateUI();
                     };
                 } else {
-                    btnNext.innerText = "Следующая волна ➔";
+                    btnNext.textContent = "Следующая волна ➔";
                     btnNext.onclick = () => {
                         state.wave++;
                         closeModal('resultModal');
@@ -2158,11 +2186,11 @@
                 const hpLoss = Math.min(state.hp, surviving * 8 + 10);
                 state.hp -= hpLoss;
 
-                titleEl.innerText = "Итоги боя: Поражение";
-                iconEl.innerText = "💥";
-                subEl.innerText = `Вражеская волна прорвала оборону!`;
+                titleEl.textContent = "Итоги боя: Поражение";
+                iconEl.textContent = "💥";
+                subEl.textContent = `Вражеская волна прорвала оборону!`;
                 subEl.style.color = "var(--accent-red)";
-                textEl.innerText = `Оставшиеся враги (${surviving}) нанесли урон вашей базе.`;
+                textEl.textContent = `Оставшиеся враги (${surviving}) нанесли урон вашей базе.`;
 
                 rewardEl.innerHTML = `
                     <div style="display:flex; justify-content:space-between; color:var(--accent-red); font-size:1.05rem;">
@@ -2175,14 +2203,14 @@
                 state.gold += 8;
 
                 if (state.hp <= 0) {
-                    subEl.innerText = "Кампания проиграна (База разрушена)";
-                    btnNext.innerText = "🔄 Начать заново";
+                    subEl.textContent = "Кампания проиграна (База разрушена)";
+                    btnNext.textContent = "🔄 Начать заново";
                     btnNext.onclick = () => {
                         closeModal('resultModal');
                         initGame();
                     };
                 } else {
-                    btnNext.innerText = "Повторить попытку ➔";
+                    btnNext.textContent = "Повторить попытку ➔";
                     btnNext.onclick = () => {
                         closeModal('resultModal');
                         loadScoutWave(state.wave);
@@ -2245,7 +2273,7 @@
             updateBattle(dt);
             drawBattlefield(timestamp);
 
-            requestAnimationFrame(gameLoop);
+            requestAnimFrame(gameLoop);
         }
 
         function drawBattlefield(timestamp) {
@@ -2660,7 +2688,7 @@
             const container = document.getElementById('toastContainer');
             const toast = document.createElement('div');
             toast.className = 'toast';
-            toast.innerText = msg;
+            toast.textContent = msg;
             container.appendChild(toast);
             setTimeout(() => {
                 if (toast.parentElement) toast.parentElement.removeChild(toast);
