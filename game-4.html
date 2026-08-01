@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ЭПОХИ — автобаттлер сквозь историю</title>
+<style>
+  :root{
+    --bg:#151210; --panel:#201c18; --panel2:#2a251f; --line:#3d352c;
+    --text:#ece4d5; --dim:#a89a85; --gold:#e8b64c; --good:#7fce7f; --bad:#d96b5f;
+    --accent:#e8b64c; --glow:rgba(232,182,76,.35);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #2b241a 0%, transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow:hidden;
+  }
+  .hidden{display:none !important;}
+  #app{max-width:980px; margin:0 auto; padding:14px 16px 30px; height:100vh; display:flex; flex-direction:column;}
+  header{display:flex; justify-content:space-between; align-items:center; padding:8px 2px 10px; border-bottom:1px solid var(--line); margin-bottom:12px; flex-wrap:wrap; gap:6px;}
+  header .brand{font-family:Georgia, "Times New Roman", serif; font-size:20px; letter-spacing:3px; color:var(--gold); text-shadow:0 0 12px var(--glow);}
+  .chip{font-size:12px; color:var(--dim); border:1px solid var(--line); border-radius:20px; padding:3px 10px; background:var(--panel);}
+  .chip b{color:var(--text);}
+  .chip.gold b{color:var(--gold);}
+  .chip.bad b{color:var(--bad);}
+  .chip.good b{color:var(--good);}
+  h1.logo{font-family:Georgia, serif; font-size:64px; letter-spacing:10px; color:var(--gold); text-shadow:0 0 24px var(--glow), 0 2px 0 #000; text-align:center;}
+  .subtitle{text-align:center; color:var(--dim); font-size:15px; letter-spacing:2px; margin:6px 0 26px;}
+  .panel{background:linear-gradient(180deg, var(--panel2), var(--panel)); border:1px solid var(--line); border-radius:12px; padding:16px; box-shadow:0 6px 24px rgba(0,0,0,.45);}
+  .btn{display:inline-block; border:1px solid var(--line); background:linear-gradient(180deg,#33302a,#262219); color:var(--text); font-size:15px; padding:10px 22px; border-radius:10px; cursor:pointer; transition:all .15s; font-family:inherit;}
+  .btn:hover{border-color:var(--gold); box-shadow:0 0 12px var(--glow); transform:translateY(-1px);}
+  .btn.primary{background:linear-gradient(180deg,#c99a3d,#8f6a1f); color:#1c1507; font-weight:600; border-color:#d8ac52;}
+  .btn.primary:hover{box-shadow:0 0 18px var(--glow);}
+  .btn:disabled{opacity:.45; cursor:not-allowed; transform:none; box-shadow:none;}
+  .btn.small{padding:6px 12px; font-size:13px;}
+  .center{text-align:center;}
+  .muted{color:var(--dim);}
+  .row{display:flex; gap:10px; align-items:center;}
+  .wrap{flex-wrap:wrap;}
+  .grow{flex:1;}
+
+  /* ===== Меню ===== */
+  #screen-menu{display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; gap:18px;}
+  .epoch-strip{display:flex; gap:8px;}
+  .epoch-strip span{font-size:12px; color:var(--dim); border:1px solid var(--line); border-radius:16px; padding:4px 12px; background:var(--panel);}
+  .epoch-strip span.done{color:var(--gold); border-color:var(--gold);}
+  .help{max-width:640px; font-size:14px; line-height:1.65; color:var(--text); text-align:left;}
+  .help b{color:var(--gold);}
+  .help ul{margin:8px 0 8px 20px;}
+  .help li{margin:4px 0;}
+
+  /* ===== Экран расстановки ===== */
+  #screen-roster{display:flex; flex-direction:column; gap:14px; flex:1;}
+  .stage-head{text-align:center;}
+  .stage-head .act{color:var(--dim); font-size:13px; letter-spacing:3px; text-transform:uppercase;}
+  .stage-head .stage{font-family:Georgia, serif; font-size:28px; color:var(--gold);}
+  .stage-head .tier{font-size:14px; color:var(--text);}
+  .roster-grid{display:flex; flex-direction:column; gap:12px; align-items:center;}
+  .lane{display:flex; gap:14px; align-items:center;}
+  .lane-label{width:56px; font-size:12px; color:var(--dim); text-align:right; text-transform:uppercase; letter-spacing:1px;}
+  .slot{width:128px; height:96px; border:1.5px dashed var(--line); border-radius:10px; background:rgba(255,255,255,.02); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s; position:relative;}
+  .slot:hover{border-color:var(--gold); background:rgba(232,182,76,.06);}
+  .slot.occupied{border-style:solid; background:var(--panel2);}
+  .slot .mini{font-size:11px; text-align:center; color:var(--dim); pointer-events:none;}
+  .slot .u-name{font-size:12px; font-weight:600; color:var(--text); pointer-events:none; line-height:1.25;}
+  .slot .u-role{font-size:10px; color:var(--dim); pointer-events:none;}
+  .slot .u-lvl{position:absolute; top:4px; right:6px; font-size:10px; color:var(--gold); pointer-events:none;}
+  .roster-foot{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; padding-bottom:10px;}
+  .bench{display:flex; gap:10px; justify-content:center; flex-wrap:wrap; min-height:44px; padding:10px; border:1px solid var(--line); border-radius:10px; background:var(--panel);}
+  .bench .label{font-size:12px; color:var(--dim); margin-right:4px; align-self:center; text-transform:uppercase; letter-spacing:1px;}
+  .picker{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:10px;}
+
+  /* ===== Карточка юнита ===== */
+  .ucard{width:148px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); padding:10px; cursor:pointer; transition:all .15s; position:relative;}
+  .ucard:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,.4);}
+  .ucard.disabled{opacity:.5; cursor:not-allowed;}
+  .ucard .u-name{font-weight:600; font-size:13px; line-height:1.2;}
+  .ucard .u-role{font-size:11px; color:var(--dim);}
+  .ucard .u-stats{font-size:11px; color:var(--text); margin-top:6px; line-height:1.55;}
+  .ucard .u-stats .hp{color:#e08d7a;} .ucard .u-stats .atk{color:#e8b64c;} .ucard .u-stats .asp{color:#8fc3e8;}
+  .ucard .cost{position:absolute; top:8px; right:10px; font-size:13px; color:var(--gold); font-weight:600;}
+  .ucard .tag{position:absolute; top:6px; left:8px; font-size:10px; color:var(--dim);}
+  .ucard.owned{border-color:rgba(127,206,127,.5);}
+
+  /* ===== Экран боя ===== */
+  #screen-battle{display:flex; flex-direction:column; gap:10px; flex:1;}
+  #battleWrap{position:relative; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#000; flex:1; min-height:420px;}
+  #battleCanvas{width:100%; height:100%; display:block;}
+  #battleMsg{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; background:rgba(0,0,0,.55); backdrop-filter:blur(2px); text-align:center;}
+  #battleMsg .big{font-family:Georgia, serif; font-size:38px; color:var(--gold); text-shadow:0 0 18px var(--glow);}
+  #battleMsg .sub{color:var(--dim); font-size:14px; max-width:520px; line-height:1.5;}
+  .battle-controls{display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+  .vs-line{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--dim); padding:2px 6px; flex-wrap:wrap; gap:6px;}
+  .vs-line .me{color:#8fc3e8;} .vs-line .foe{color:#e08d7a;}
+
+  /* ===== Магазин ===== */
+  #screen-shop{display:flex; flex-direction:column; gap:14px; flex:1;}
+  .shop-title{text-align:center; font-family:Georgia, serif; font-size:26px; color:var(--gold);}
+  .shop-cards{display:flex; gap:16px; justify-content:center; flex-wrap:wrap;}
+  .shop-foot{display:flex; justify-content:center; gap:12px; flex-wrap:wrap;}
+  .gold-note{text-align:center; color:var(--dim); font-size:13px;}
+
+  /* ===== Оверлеи событий ===== */
+  #overlay{position:fixed; inset:0; background:rgba(8,6,4,.82); display:flex; align-items:center; justify-content:center; z-index:50; backdrop-filter:blur(3px);}
+  #overlay .box{max-width:660px; width:92%; max-height:88vh; overflow:auto; text-align:center;}
+  #overlay .big{font-family:Georgia, serif; font-size:34px; color:var(--gold); text-shadow:0 0 16px var(--glow); margin-bottom:8px;}
+  #overlay .sub{color:var(--dim); font-size:14px; margin-bottom:16px; line-height:1.6;}
+  #overlay .sub b{color:var(--text);}
+  .evolve-list{display:flex; flex-direction:column; gap:8px; text-align:left; margin:14px 0;}
+  .evolve-row{display:flex; justify-content:space-between; align-items:center; background:var(--panel2); border:1px solid var(--line); border-radius:8px; padding:8px 14px; font-size:14px;}
+  .evolve-row .arrow{color:var(--gold); font-size:18px; padding:0 10px;}
+  .evolve-row .from{color:var(--dim);}
+  .evolve-row .to{color:var(--text); font-weight:600;}
+  .artifacts{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+  .acard{width:180px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); padding:12px; cursor:pointer; transition:all .15s;}
+  .acard:hover{border-color:var(--gold); transform:translateY(-2px); box-shadow:0 0 14px var(--glow);}
+  .acard .a-name{font-weight:600; color:var(--gold); font-size:14px; margin-bottom:6px;}
+  .acard .a-desc{font-size:12px; color:var(--text); line-height:1.5;}
+  .stat-line{display:flex; justify-content:space-between; padding:6px 2px; border-bottom:1px dashed var(--line); font-size:14px;}
+  .stat-line:last-child{border-bottom:none;}
+  .stat-line b{color:var(--gold);}
+  .footer-note{text-align:center; color:#5c5344; font-size:11px; margin-top:auto; padding-top:10px;}
+  @media (max-width:640px){
+    h1.logo{font-size:44px;}
+    .slot{width:96px; height:84px;}
+    #battleWrap{min-height:320px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= ВЕРХНЯЯ ПАНЕЛЬ ================= -->
+  <header id="topbar" class="hidden">
+    <div class="brand">ЭПОХИ</div>
+    <div class="row wrap">
+      <span class="chip" id="chpStage">Этап 1/12</span>
+      <span class="chip" id="chpTier">Каменный век</span>
+      <span class="chip" id="chpAct">Акт I · Древний мир</span>
+      <span class="chip gold">⚜ <b id="chpGold">0</b></span>
+      <span class="chip" id="chpSquad">Отряд 2/2</span>
+      <span class="chip" id="chpAttempts">Попытки 3/3</span>
+      <span class="chip" id="chpArtifacts"></span>
+    </div>
+  </header>
+
+  <!-- ================= МЕНЮ ================= -->
+  <section id="screen-menu">
+    <h1 class="logo">ЭПОХИ</h1>
+    <div class="subtitle">АВТОБАТТЛЕР СКВОЗЬ ИСТОРИЮ · ОТ КАМНЯ ДО СИНГУЛЯРНОСТИ</div>
+    <div class="epoch-strip" id="menuEpochs"></div>
+    <div class="panel help">
+      <b>Как играть.</b> Ваш отряд шагает сквозь 6 эпох: каменный век → античность → раннее и высокое
+      средневековье → порох и пар → современность и будущее. На границах эпох юниты <b>эволюционируют</b>.
+      <ul>
+        <li><b>Расстановка:</b> 3 линии × 2 ряда. Танки и бойцы — вперёд, стрелки и лекари — назад.</li>
+        <li><b>Бой</b> идёт сам: ваши решения — кого нанять, кого прокачать и как расставить.</li>
+        <li><b>Магазин</b> после каждой победы: наём или прокачка за золото.</li>
+        <li><b>Цена ошибки:</b> 1 жизнь на этап — проиграли, этап переигрывается с начала. Всего <b>3 попытки</b> на этап.</li>
+        <li>Победите <b>Нейро-колосса</b> в финале Акта III — и партия выиграна. Партия ~10–15 минут.</li>
+      </ul>
+    </div>
+    <button class="btn primary" id="btnStart" style="font-size:18px; padding:14px 44px;">⚔ НАЧАТЬ ПАРТИЮ</button>
+    <div class="footer-note">Эксперимент «Игра растёт» · Уровень 4/10 · Сессия: Геймдизайнер</div>
+  </section>
+
+  <!-- ================= РАССТАНОВКА ================= -->
+  <section id="screen-roster" class="hidden">
+    <div class="stage-head">
+      <div class="act" id="rstAct">Акт I · Древний мир</div>
+      <div class="stage" id="rstStage">Этап 1 · Племена долины</div>
+      <div class="tier" id="rstTier">Эпоха: Каменный век</div>
+    </div>
+    <div class="roster-grid" id="rstGrid"></div>
+    <div class="bench">
+      <span class="label">Скамейка:</span>
+      <span class="muted" id="rstBenchEmpty">— пусто —</span>
+      <div class="row wrap" id="rstBench"></div>
+    </div>
+    <div class="roster-foot">
+      <button class="btn small" id="btnAuto">⚡ Авторасстановка</button>
+      <button class="btn primary" id="btnFight">⚔ К БОЮ</button>
+    </div>
+  </section>
+
+  <!-- ================= БОЙ ================= -->
+  <section id="screen-battle" class="hidden">
+    <div class="vs-line">
+      <span id="vsPlayer">⚔ Ваш отряд</span>
+      <span id="vsTier">Каменный век · Этап 1/12</span>
+      <span id="vsEnemy">Враги</span>
+    </div>
+    <div id="battleWrap">
+      <canvas id="battleCanvas"></canvas>
+      <div id="battleMsg"><div class="big" id="battleMsgBig"></div><div class="sub" id="battleMsgSub"></div></div>
+    </div>
+    <div class="battle-controls">
+      <button class="btn small" id="btnSpeed1">▶ 1×</button>
+      <button class="btn small" id="btnSpeed2">▶▶ 2×</button>
+      <button class="btn small" id="btnInstant">⏭ Мгновенно</button>
+      <button class="btn small" id="btnReposition">↺ Расстановка</button>
+    </div>
+  </section>
+
+  <!-- ================= МАГАЗИН ================= -->
+  <section id="screen-shop" class="hidden">
+    <div class="shop-title">⚜ Магазин эпохи</div>
+    <div class="gold-note">Золото: <b id="shpGold" style="color:var(--gold)">0</b> · После победы — новый выбор</div>
+    <div class="shop-cards" id="shpCards"></div>
+    <div class="shop-foot">
+      <button class="btn small" id="btnSkip">Пропустить →</button>
+    </div>
+  </section>
+
+  <!-- ================= ОВЕРЛЕЙ ================= -->
+  <div id="overlay" class="hidden">
+    <div class="panel box" id="overlayBox"></div>
+  </div>
+</div>
+
+<!-- ================================================================
+     ДВИЖОК БОЯ (чистая логика, без DOM) — вынесен в отдельный блок,
+     чтобы гонять симуляции баланса в Node.
+================================================================= -->
+<script id="engine">
+"use strict";
+const Engine = (() => {
+
+  /* ---------- Данные ---------- */
+
+  const TIERS = [
+    { id:'stone',      name:'Каменный век',                act:1, key:'STONE' },
+    { id:'antiquity',  name:'Бронза и Античность',         act:1, key:'BRONZE' },
+    { id:'early-med',  name:'Раннее Средневековье',        act:2, key:'EARLYMED' },
+    { id:'high-med',   name:'Высокое Средневековье',       act:2, key:'HIGMED' },
+    { id:'industrial', name:'Эпоха Пороха и Пара',         act:3, key:'GUNPOWDER' },
+    { id:'future',     name:'Современность и Будущее',     act:3, key:'FUTURE' },
+  ];
+  const TIER_MULT = [1.00, 1.35, 1.80, 2.40, 3.20, 4.30];
+  const LVL_MULT  = lvl => 1 + 0.35 * (lvl - 1);
+
+  const ROLES = {
+    guard: {
+      name:'Страж', row:'front',
+      names:['Вождь','Гоплит','Рыцарь','Латник','Тяжёлый пехотинец','Киборг-страж'],
+      base:{ hp:220, atk:14, iv:1.6, rng:1.2, spd:1.0 },
+      abil:{ id:'wall', name:'Стена щитов', cd:10, desc:'Агро всех врагов на себя и щит 25% макс. HP на 4 с' },
+    },
+    fighter: {
+      name:'Боец', row:'front',
+      names:['Берсерк','Гладиатор','Мечник','Кондотьер','Коммандос','Киборг-солдат'],
+      base:{ hp:150, atk:20, iv:1.2, rng:1.2, spd:1.1 },
+      abil:{ id:'fury', name:'Ярость', cd:12, desc:'+90% урона и вампиризм 25% на 5 с' },
+    },
+    archer: {
+      name:'Стрелок', row:'back',
+      names:['Охотница','Скифский лучник','Арбалетчик','Мушкетёр','Снайпер','Дрон-снайпер'],
+      base:{ hp:90, atk:16, iv:1.4, rng:4.5, spd:0.9 },
+      abil:{ id:'volley', name:'Залп', cd:8, desc:'3 выстрела по трём самым раненым врагам' },
+    },
+    artillery: {
+      name:'Артиллерия', row:'back',
+      names:['Шаман','Жрец огня','Алхимик','Бомбардир','Ракетчик','Плазменный дрон'],
+      base:{ hp:110, atk:22, iv:2.0, rng:4.0, spd:0.8 },
+      abil:{ id:'blast', name:'Взрыв', cd:9, desc:'Урон 150% всем врагам в области' },
+    },
+    healer: {
+      name:'Лекарь', row:'back',
+      names:['Знахарка','Жрица','Монах-лекарь','Хирург','Полевой медик','Нано-медик'],
+      base:{ hp:100, atk:8, iv:1.8, rng:3.5, spd:0.9 },
+      abil:{ id:'mend', name:'Восстановление', cd:8, desc:'Лечит самого раненого союзника на 220% атаки' },
+    },
+    scout: {
+      name:'Разведчик', row:'front',
+      names:['Следопыт','Всадник','Шевалье','Гусар','Моторазведчик','Дрон-истребитель'],
+      base:{ hp:120, atk:17, iv:1.1, rng:1.3, spd:1.3 },
+      abil:{ id:'backstab', name:'Удар в спину', cd:10, desc:'Рывок к самому раненому врагу, урон 250%' },
+    },
+  };
+  const ROLE_ORDER = ['guard','fighter','archer','artillery','healer','scout'];
+
+  const ARTIFACTS = {
+    totem:   { name:'Тотем предков',   desc:'+20% к здоровью всего отряда' },
+    fire:    { name:'Священный огонь', desc:'+20% к атаке всего отряда' },
+    drum:    { name:'Боевой барабан',  desc:'+15% к скорости атаки' },
+    potion:  { name:'Эликсир жизни',   desc:'+25% к силе лечения' },
+    edge:    { name:'Заточенный клинок', desc:'+15% к шансу крита' },
+    chariot: { name:'Колесница вождя', desc:'+1 место в отряде' },
+  };
+
+  const BOSSES = {
+    colossus: {
+      name:'Бронзовый колосс', tier:1, size:1.7,
+      base:{ hp:950, atk:31, iv:2.2, rng:1.5, spd:0.55 },
+      abil:{ id:'quake', name:'Дрожь земли', cd:9, desc:'Область вокруг себя: 150% урона и оглушение 1 с' },
+    },
+    ironKnight: {
+      name:'Железный рыцарь', tier:3, size:1.7,
+      base:{ hp:1100, atk:40, iv:1.9, rng:1.4, spd:0.7 },
+      abil:{ id:'charge', name:'Таран', cd:10, desc:'Рывок к дальнему врагу: 150% урона и оглушение 1.2 с' },
+    },
+    neuroColossus: {
+      name:'Нейро-колосс', tier:5, size:1.9,
+      base:{ hp:1425, atk:50, iv:1.8, rng:2.2, spd:0.65 },
+      abil:{ id:'singularity', name:'Сингулярность', cd:12, desc:'Область у дальнего врага: 140% урона + призыв 2 дронов' },
+    },
+  };
+
+  /* Составы врагов по этапам: {role, tier, m (множитель силы), lvl}
+     Босс-этапы: {boss, adds:[...], m} */
+  const STAGES = [
+    { name:'Племена долины',        foes:[ {r:'guard',m:.65}, {r:'archer',m:.65} ] },
+    { name:'Закат каменного века',  foes:[ {r:'guard',m:.75}, {r:'fighter',m:.75}, {r:'archer',m:.75} ] },
+    { name:'Кузницы бронзы',        foes:[ {r:'guard',m:.80}, {r:'fighter',m:.80}, {r:'archer',m:.80}, {r:'healer',m:.75} ] },
+    { name:'Колосс Античности',     boss:'colossus', foes:[ {r:'guard',m:.85,tier:1}, {r:'archer',m:.85,tier:1} ] },
+    { name:'Тени тёмных веков',     foes:[ {r:'guard',m:.97,tier:2}, {r:'fighter',m:.97,tier:2}, {r:'archer',m:.97,tier:2}, {r:'healer',m:.90,tier:2}, {r:'scout',m:.90,tier:2} ] },
+    { name:'Мечи и знамёна',        foes:[ {r:'guard',m:1.02,tier:2}, {r:'fighter',m:1.02,tier:2}, {r:'fighter',m:1.02,tier:2}, {r:'artillery',m:1.02,tier:2}, {r:'archer',m:1.02,tier:2}, {r:'healer',m:.95,tier:2} ] },
+    { name:'Чёрные доспехи',        foes:[ {r:'guard',m:1.00,tier:3,lvl:2}, {r:'fighter',m:1.00,tier:3,lvl:2}, {r:'scout',m:.97,tier:3,lvl:2}, {r:'artillery',m:1.00,tier:3,lvl:2}, {r:'archer',m:1.00,tier:3,lvl:2}, {r:'healer',m:.92,tier:3,lvl:2} ] },
+    { name:'Железный рыцарь',       boss:'ironKnight', foes:[ {r:'guard',m:.85,tier:3,lvl:2}, {r:'guard',m:.85,tier:3,lvl:2}, {r:'archer',m:.90,tier:3,lvl:2}, {r:'healer',m:.82,tier:3,lvl:2} ] },
+    { name:'Порох и сталь',         foes:[ {r:'guard',m:1.18,tier:4,lvl:2}, {r:'fighter',m:1.18,tier:4,lvl:2}, {r:'archer',m:1.18,tier:4,lvl:2}, {r:'artillery',m:1.18,tier:4,lvl:2}, {r:'healer',m:1.08,tier:4,lvl:2}, {r:'scout',m:1.12,tier:4,lvl:2} ] },
+    { name:'Дым машин',             foes:[ {r:'guard',m:1.20,tier:4,lvl:2}, {r:'fighter',m:1.20,tier:4,lvl:2}, {r:'fighter',m:1.20,tier:4,lvl:2}, {r:'archer',m:1.20,tier:4,lvl:2}, {r:'artillery',m:1.20,tier:4,lvl:2}, {r:'healer',m:1.10,tier:4,lvl:2} ] },
+    { name:'Холодная война',        foes:[ {r:'guard',m:1.00,tier:5,lvl:3}, {r:'fighter',m:1.00,tier:5,lvl:3}, {r:'fighter',m:1.00,tier:5,lvl:3}, {r:'archer',m:1.00,tier:5,lvl:3}, {r:'artillery',m:1.00,tier:5,lvl:3}, {r:'healer',m:.95,tier:5,lvl:3} ] },
+    { name:'Нейро-колосс',          boss:'neuroColossus', foes:[ {r:'guard',m:.95,tier:5,lvl:2}, {r:'guard',m:.95,tier:5,lvl:2}, {r:'archer',m:1.00,tier:5,lvl:2}, {r:'healer',m:.92,tier:5,lvl:2}, {r:'scout',m:.97,tier:5,lvl:2} ] },
+  ];
+
+  const ARENA = {
+    W: 900, H: 500,
+    laneY: [140, 250, 360],
+    playerX: 150, enemyX: 750,
+    rngPx: 58,          // 1 единица дальности = 58 px
+    spdPx: 55,          // 1 единица скорости = 55 px/с
+    size: 46,           // базовый размер юнита
+  };
+
+  /* ---------- Артефакты: модификаторы ---------- */
+  function artifactMods(list) {
+    const m = { hp:1, atk:1, aspd:1, heal:1, crit:0 };
+    for (const id of list) {
+      if (id==='totem') m.hp += .20;
+      if (id==='fire') m.atk += .20;
+      if (id==='drum') m.aspd += .15;
+      if (id==='potion') m.heal += .25;
+      if (id==='edge') m.crit += .15;
+    }
+    return m;
+  }
+
+  /* ---------- Юниты ---------- */
+  let UID = 1;
+  function makeUnit(role, tier, lvl, side, opts = {}) {
+    const R = ROLES[role];
+    const base = Object.assign({}, R.base);
+    const tm = TIER_MULT[Math.max(0, Math.min(tier, TIER_MULT.length-1))];
+    const lm = LVL_MULT(lvl);
+    const mods = opts.mods || artifactMods(opts.artifacts || []);
+    const m = opts.m || 1;               // персональный множитель (враги)
+    const hp  = Math.round(base.hp * tm * lm * mods.hp * m);
+    const atk = Math.round(base.atk * tm * lm * mods.atk * m);
+    return {
+      id: UID++, side, role, tier, lvl, name: R.names[tier],
+      x:0, y:0, lane: opts.lane ?? 1, row: opts.row ?? R.row,
+      hp, maxHp: hp, atk,
+      iv: base.iv / mods.aspd,
+      rng: base.rng * ARENA.rngPx,
+      spd: base.spd * ARENA.spdPx,
+      healMult: mods.heal, crit: 0.10 + mods.crit,
+      alive: true, facing: side==='p' ? 1 : -1,
+      atkCd: 0.5 + Math.random()*0.6, abilityCd: 2 + Math.random()*3,
+      buffs: {}, shield: 0, tauntUntil: 0, stunUntil: 0,
+      boss: opts.boss || null,
+    };
+  }
+  function makeBoss(bkey, opts = {}) {
+    const B = BOSSES[bkey];
+    const tm = TIER_MULT[B.tier];
+    const mods = artifactMods(opts.artifacts || []);
+    const m = opts.m || 1;
+    const hp  = Math.round(B.base.hp * tm * mods.hp * m);
+    const atk = Math.round(B.base.atk * tm * mods.atk * m);
+    const u = makeUnit('fighter', B.tier, 1, opts.side || 'e', { lane: 1, row: 'front' });
+    u.boss = bkey;
+    u.role = 'boss:'+bkey;
+    u.name = B.name;
+    u.hp = u.maxHp = hp; u.atk = atk;
+    u.iv = B.base.iv / mods.aspd;
+    u.rng = B.base.rng * ARENA.rngPx;
+    u.spd = B.base.spd * ARENA.spdPx;
+    u.size = B.size;
+    u.abilityCd = 4 + Math.random()*3;
+    return u;
+  }
+
+  /* ---------- СИМУЛЯЦИЯ БОЯ ---------- */
+  class Sim {
+    constructor(teamP, teamE, opts = {}) {
+      this.team = { p: teamP, e: teamE };
+      this.t = 0;
+      this.events = [];
+      this.onEvent = opts.onEvent || (()=>{});
+      this.timeout = 150;
+      this.enrageAt = 45;
+      this.done = false;
+      this.winner = null; // 'p' | 'e' | 'draw'
+      this.reason = '';
+      this.place(teamP, 'p'); this.place(teamE, 'e');
+    }
+    place(units, side) {
+      const off = side==='p' ? -1 : 1;
+      const x0 = side==='p' ? ARENA.playerX : ARENA.enemyX;
+      for (const u of units) {
+        u.side = side;
+        u.lane = u.lane ?? 1;
+        // передний ряд выдвинут к врагу, задний — у своей кромки
+        u.x = x0 + (u.row==='front' ? -off*30 : off*8);
+        u.y = ARENA.laneY[u.lane];
+        u.alive = true; u.shield = 0; u.tauntUntil = 0; u.stunUntil = 0;
+        u.atkCd = Math.random()*0.6; u.abilityCd = 2 + Math.random()*3;
+        u.buffs = {};
+      }
+    }
+    alive(side) { return this.team[side].filter(u => u.alive); }
+    allAlive() { return this.team.p.filter(u=>u.alive).concat(this.team.e.filter(u=>u.alive)); }
+
+    step(dt) {
+      if (this.done) return;
+      this.t += dt;
+      const enraged = this.t > this.enrageAt ? 1 + 0.1 * Math.floor((this.t - this.enrageAt)/5) : 1;
+
+      for (const side of ['p','e']) {
+        for (const u of this.alive(side)) {
+          u.abilityCd -= dt;
+          this.tryAbility(u, enraged);
+        }
+      }
+      for (const side of ['p','e']) {
+        for (const u of this.alive(side)) {
+          this.updateUnit(u, dt, enraged);
+        }
+      }
+      // конец боя
+      const pAlive = this.alive('p').length, eAlive = this.alive('e').length;
+      if (eAlive === 0 && pAlive === 0) this.end('draw');
+      else if (eAlive === 0) this.end('p');
+      else if (pAlive === 0) this.end('e');
+      else if (this.t >= this.timeout) {
+        const hpP = this.alive('p').reduce((s,u)=>s+u.hp/u.maxHp,0);
+        const hpE = this.alive('e').reduce((s,u)=>s+u.hp/u.maxHp,0);
+        this.end(hpP >= hpE ? 'p' : 'e', 'время вышло');
+      }
+    }
+    end(winner, reason='') {
+      this.done = true; this.winner = winner; this.reason = reason;
+      this.emit({ type:'end', winner, reason });
+    }
+    emit(ev) { this.events.push(ev); this.onEvent(ev); }
+
+    /* --- поиск цели --- */
+    target(u) {
+      const foes = this.alive(u.side==='p' ? 'e' : 'p');
+      if (!foes.length) return null;
+      const taunts = foes.filter(f => f.tauntUntil > this.t);
+      if (taunts.length) {
+        let best = taunts[0], bd = Infinity;
+        for (const f of taunts) { const d = dist(u,f); if (d<bd){bd=d;best=f;} }
+        return best;
+      }
+      let best = null, bd = Infinity;
+      for (const f of foes) {
+        const same = Math.abs(f.lane - u.lane) <= 0.5;
+        const d = dist(u,f) * (same ? 0.78 : 1.0);
+        if (d < bd) { bd = d; best = f; }
+      }
+      return best;
+    }
+    frontAliveInLane(side, lane) {
+      return this.team[side].some(u => u.alive && u.row==='front' && u.lane===lane);
+    }
+    canAdvance(u) {
+      if (u.row === 'front') return true;
+      // задний ряд ждёт, пока фронт той же линии жив
+      return !this.frontAliveInLane(u.side, u.lane);
+    }
+
+    updateUnit(u, dt, enraged) {
+      if (u.stunUntil > this.t) { u.atkCd = Math.max(u.atkCd, 0.05); return; }
+      // сброс буста ярости по таймеру
+      if (u.buffs.furyUntil && this.t > u.buffs.furyUntil) {
+        delete u.buffs.atkMult; delete u.buffs.lifesteal; delete u.buffs.furyUntil;
+      }
+      const tgt = this.target(u);
+      if (!tgt) return;
+      const d = dist(u, tgt);
+      // движение
+      if (d > u.rng && this.canAdvance(u)) {
+        const blocked = this.team[u.side].some(o =>
+          o.alive && o!==u && o.lane===u.lane && Math.abs(o.x-u.x)<50 &&
+          (o.x - u.x) * u.facing > 0 && Math.abs(o.y-u.y) < 40 && u.row==='front');
+        if (!blocked) {
+          const dx = (tgt.x-u.x)/d, dy = (tgt.y-u.y)/d;
+          const step = Math.min(u.spd*dt, d - u.rng + 1);
+          u.x += dx*step; u.y += dy*step;
+        }
+      }
+      // атака
+      u.atkCd -= dt;
+      if (u.atkCd <= 0 && d <= u.rng) {
+        u.atkCd = u.iv;
+        const crit = Math.random() < u.crit;
+        let dmg = Math.round(u.atk * (crit ? 1.5 : 1) * (u.buffs.atkMult || 1) * enraged);
+        this.damage(u, tgt, dmg, crit);
+        this.emit({ type:'attack', x1:u.x, y1:u.y, x2:tgt.x, y2:tgt.y, crit, side:u.side });
+        const ls = u.buffs.lifesteal || 0;
+        if (ls > 0 && u.hp < u.maxHp) {
+          const heal = Math.round(dmg * ls);
+          u.hp = Math.min(u.maxHp, u.hp + heal);
+          this.emit({type:'heal', x:u.x, y:u.y, val:heal});
+        }
+      }
+    }
+
+    damage(src, dst, amount, crit) {
+      if (!dst.alive) return;
+      let a = amount;
+      if (dst.shield > 0) {
+        const absorbed = Math.min(dst.shield, a);
+        dst.shield -= absorbed; a -= absorbed;
+        this.emit({ type:'shield', x:dst.x, y:dst.y, val:absorbed });
+      }
+      dst.hp -= a;
+      this.emit({ type:'dmg', x:dst.x, y:dst.y, val:a, crit: !!crit });
+      if (dst.hp <= 0) { dst.hp = 0; dst.alive = false; this.emit({ type:'die', x:dst.x, y:dst.y, side:dst.side }); }
+    }
+    healAmount(u, amount) {
+      const val = Math.round(amount * u.healMult);
+      if (u.hp >= u.maxHp) return;
+      u.hp = Math.min(u.maxHp, u.hp + val);
+      this.emit({ type:'heal', x:u.x, y:u.y, val });
+    }
+
+    /* --- способности --- */
+    tryAbility(u, enraged) {
+      if (u.boss) { this.tryBossAbility(u, enraged); return; }
+      const R = ROLES[u.role];
+      if (!R || !R.abil) return;
+      const ab = R.abil;
+      if (u.abilityCd > 0) return;
+      const foes = this.alive(u.side==='p' ? 'e' : 'p');
+      if (!foes.length) return;
+      const allies = this.alive(u.side);
+      if (ab.id === 'mend') {
+        const hurt = allies.filter(a => a.hp < a.maxHp);
+        if (!hurt.length) { u.abilityCd = 1.0; return; } // ждём, пока есть кого лечить
+      }
+      u.abilityCd = ab.cd;
+      this.emit({ type:'abil', x:u.x, y:u.y, name:ab.name, side:u.side });
+      const tgt = this.target(u);
+      switch (ab.id) {
+        case 'wall': {
+          u.shield = Math.round(u.maxHp * 0.25);
+          u.tauntUntil = this.t + 4;
+          this.emit({ type:'wall', x:u.x, y:u.y });
+          break;
+        }
+        case 'fury': {
+          u.buffs.atkMult = (u.buffs.atkMult||1) * 1.9;
+          u.buffs.lifesteal = 0.25;
+          u.buffs.furyUntil = this.t + 5;
+          this.emit({ type:'fury', x:u.x, y:u.y });
+          break;
+        }
+        case 'volley': {
+          const targets = foes.slice().sort((a,b)=>a.hp/a.maxHp - b.hp/b.maxHp).slice(0,3);
+          for (const f of targets) {
+            const crit = Math.random() < u.crit;
+            const dmg = Math.round(u.atk * 0.8 * (crit ? 1.5 : 1) * enraged);
+            this.damage(u, f, dmg, crit);
+            this.emit({ type:'attack', x1:u.x, y1:u.y, x2:f.x, y2:f.y, crit:false });
+          }
+          break;
+        }
+        case 'blast': {
+          const t = tgt;
+          const dmg = Math.round(u.atk * 1.5 * enraged);
+          for (const f of foes) if (dist(f, t) < 95) this.damage(u, f, dmg, false);
+          this.emit({ type:'blast', x:t.x, y:t.y, r:95 });
+          break;
+        }
+        case 'mend': {
+          const hurt = allies.filter(a => a.hp < a.maxHp);
+          if (!hurt.length) break;
+          const target = hurt.sort((a,b)=>a.hp/a.maxHp - b.hp/b.maxHp)[0];
+          this.healAmount(target, u.atk * 2.2);
+          this.emit({ type:'mend', x:target.x, y:target.y });
+          break;
+        }
+        case 'backstab': {
+          const target = foes.slice().sort((a,b)=>a.hp/a.maxHp - b.hp/b.maxHp)[0];
+          const crit = Math.random() < u.crit;
+          const dmg = Math.round(u.atk * 2.5 * (crit ? 1.5 : 1) * enraged);
+          this.damage(u, target, dmg, crit);
+          this.emit({ type:'backstab', x:u.x, y:u.y, x2:target.x, y2:target.y });
+          break;
+        }
+      }
+    }
+
+    tryBossAbility(u, enraged) {
+      const B = BOSSES[u.boss];
+      if (u.abilityCd > 0) return;
+      const foes = this.alive(u.side==='p' ? 'e' : 'p');
+      if (!foes.length) return;
+      u.abilityCd = B.abil.cd;
+      this.emit({ type:'abil', x:u.x, y:u.y, name:B.abil.name, side:u.side });
+      switch (B.abil.id) {
+        case 'quake': {
+          const dmg = Math.round(u.atk * 1.5 * enraged);
+          for (const f of foes) if (dist(f,u) < 130) { this.damage(u, f, dmg, false); f.stunUntil = Math.max(f.stunUntil, this.t + 1); }
+          this.emit({ type:'blast', x:u.x, y:u.y, r:130 });
+          break;
+        }
+        case 'charge': {
+          let far = foes[0];
+          for (const f of foes) if (dist(u,f) > dist(u,far)) far = f;
+          const dmg = Math.round(u.atk * 1.7 * enraged);
+          const d = dist(u, far) || 1;
+          u.x += (far.x-u.x)/d * Math.min(d, 300); u.y += (far.y-u.y)/d * Math.min(d, 300);
+          this.damage(u, far, dmg, false); far.stunUntil = Math.max(far.stunUntil, this.t + 1.5);
+          this.emit({ type:'backstab', x:u.x, y:u.y, x2:far.x, y2:far.y });
+          break;
+        }
+        case 'singularity': {
+          let far = foes[0];
+          for (const f of foes) if (dist(u,f) > dist(u,far)) far = f;
+          const dmg = Math.round(u.atk * 1.6 * enraged);
+          for (const f of foes) if (dist(f, far) < 110) this.damage(u, f, dmg, false);
+          this.emit({ type:'blast', x:far.x, y:far.y, r:110 });
+          // призыв дронов
+          const side = u.side;
+          for (let i=0;i<2;i++) {
+            const drone = makeUnit('archer', 5, 1, side, { m:0.45, lane: i===0?0:2, row:'back' });
+            drone.x = u.x + (side==='p'?40:-40); drone.y = ARENA.laneY[drone.lane];
+            drone.atkCd = 1; drone.abilityCd = 99;
+            this.team[side].push(drone);
+            this.emit({ type:'summon', x:drone.x, y:drone.y });
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+  /* ---------- Хелперы ---------- */
+  function tierOfStage(stageIdx /*1..12*/) {
+    return [0,0,1,1,2,2,3,3,4,4,5,5][stageIdx-1];
+  }
+  function actOfStage(stageIdx){ return TIERS[tierOfStage(stageIdx)].act; }
+  function buildEnemySquad(stageIdx, opts={}) {
+    const S = STAGES[stageIdx-1];
+    const tier = tierOfStage(stageIdx);
+    const units = [];
+    for (const f of S.foes) {
+      const t = f.tier ?? tier;
+      const u = makeUnit(f.r, t, f.lvl || 1, 'e', { m:f.m, lane: units.length % 3, row: ROLES[f.r].row });
+      units.push(u);
+    }
+    if (S.boss) {
+      const b = makeBoss(S.boss, { side:'e', m: 1 });
+      b.lane = 1; b.y = ARENA.laneY[1];
+      units.push(b);
+    }
+    // расставить по линиям аккуратно: фронт/тыл
+    assignLanes(units);
+    return units;
+  }
+  function assignLanes(units) {
+    const laneOf = (i) => [0,2,1][i % 3];
+    // фронтовые в разные линии, затем тыловые
+    const front = units.filter(u=>u.row==='front' && !u.boss);
+    const back = units.filter(u=>u.row==='back');
+    const boss = units.find(u=>u.boss);
+    front.forEach((u,i)=>{ u.lane = laneOf(i); u.y = ARENA.laneY[u.lane]; });
+    back.forEach((u,i)=>{ u.lane = laneOf(i+1); u.y = ARENA.laneY[u.lane]; });
+    if (boss) { boss.lane = 1; boss.y = ARENA.laneY[1]; }
+  }
+
+  function runHeadless(teamP, teamE, opts={}) {
+    const sim = new Sim(teamP, teamE, { onEvent: opts.onEvent });
+    const dt = 0.1;
+    let guard = 0;
+    while (!sim.done && guard++ < 3000) sim.step(dt);
+    return sim;
+  }
+
+  return {
+    TIERS, TIER_MULT, LVL_MULT, ROLES, ROLE_ORDER, ARTIFACTS, BOSSES, STAGES,
+    ARENA, makeUnit, makeBoss, Sim, runHeadless, tierOfStage, actOfStage,
+    buildEnemySquad, artifactMods,
+  };
+})();
+</script>
+
+<script id="game">
+"use strict";
+(() => {
+  const E = Engine;
+
+  /* ================== СОСТОЯНИЕ ПАРТИИ ================== */
+  const R = {
+    screen: 'menu',
+    stage: 1,            // 1..12
+    gold: 0,
+    attemptsLeft: 3,     // попытки на текущий этап
+    squad: [],           // боевой состав (юниты)
+    bench: [],           // скамейка
+    placed: [],          // юниты, расставленные на сетке
+    artifacts: [],
+    bossRewards: 0,
+    snapshot: null,      // снимок на входе в этап (для отката)
+    stats: { stageLosses:0, runLosses:0, startTime:0 },
+    eventsSeen: new Set(),
+  };
+
+  const $ = id => document.getElementById(id);
+
+  /* ================== ЮНИТЫ ИГРОКА ================== */
+  function playerUnit(role, tier, lvl, opts={}) {
+    const u = E.makeUnit(role, tier, lvl, 'p', { artifacts: R.artifacts, lane: 1 });
+    u.lane = opts.lane ?? 1; u.row = opts.row ?? E.ROLES[role].row;
+    return u;
+  }
+  function squadCap() {
+    const base = [3,3,3,4,4,4,5,5,5,6,6,6][Math.min(R.stage-1, 11)];
+    const cap = base + (R.artifacts.includes('chariot') ? 1 : 0);
+    return Math.min(cap, 6);
+  }
+  function unitStatsText(u) {
+    return `❤ <span class="hp">${u.maxHp}</span> · ⚔ <span class="atk">${u.atk}</span> · <span class="asp">${u.iv.toFixed(1)} с</span>${u.crit>0.1?` · крит ${Math.round(u.crit*100)}%`:''}`;
+  }
+  function unitAbilText(roleOrBoss) {
+    if (roleOrBoss.startsWith('boss:')) {
+      const b = E.BOSSES[roleOrBoss.slice(5)];
+      return `★ ${b.abil.name} — ${b.abil.desc}`;
+    }
+    const a = E.ROLES[roleOrBoss].abil;
+    return `★ ${a.name} — ${a.desc}`;
+  }
+
+  /* ================== НОВАЯ ПАРТИЯ ================== */
+  function newRun() {
+    R.stage = 1; R.gold = 0; R.attemptsLeft = 3;
+    R.artifacts = []; R.bossRewards = 0;
+    R.squad = [ playerUnit('guard',0,1,{lane:0,row:0}), playerUnit('fighter',0,1,{lane:1,row:0}), playerUnit('archer',0,1,{lane:2,row:0}) ];
+    R.bench = [];
+    R.stats = { stageLosses:0, runLosses:0, startTime: Date.now(), wins:0 };
+    R.placed = [];
+    R.eventsSeen = new Set();
+    placeAuto();
+    showScreen('roster');
+  }
+
+  /* ================== ЭКРАНЫ ================== */
+  function showScreen(name) {
+    R.screen = name;
+    $('screen-menu').classList.toggle('hidden', name!=='menu');
+    $('screen-roster').classList.toggle('hidden', name!=='roster');
+    $('screen-battle').classList.toggle('hidden', name!=='battle');
+    $('screen-shop').classList.toggle('hidden', name!=='shop');
+    $('topbar').classList.toggle('hidden', name==='menu');
+    if (name==='roster') renderRoster();
+    if (name==='shop') renderShop();
+    if (name==='battle') startBattle();
+    updateTopbar();
+  }
+
+  function updateTopbar() {
+    $('chpStage').innerHTML = `Этап <b>${R.stage}/12</b>`;
+    const t = E.tierOfStage(R.stage);
+    $('chpTier').innerHTML = E.TIERS[t].name;
+    $('chpAct').innerHTML = `Акт ${['','I','II','III'][E.TIERS[t].act]} · ${['','Древний мир','Средневековье','Новое время и будущее'][E.TIERS[t].act]}`;
+    $('chpGold').textContent = R.gold;
+    $('chpSquad').innerHTML = `Отряд <b>${R.squad.length}</b>/<b>${squadCap()}</b>`;
+    $('chpAttempts').innerHTML = `Попытки <b>${R.attemptsLeft}/3</b>`;
+    $('chpAttempts').className = 'chip' + (R.attemptsLeft===1 ? ' bad':'');
+    $('chpArtifacts').innerHTML = R.artifacts.length
+      ? '✨ ' + R.artifacts.map(a=>E.ARTIFACTS[a].name).join(', ')
+      : '';
+  }
+
+  /* ================== РАССТАНОВКА ================== */
+  const SLOTS = [ [0,0],[1,0],[2,0],[0,1],[1,1],[2,1] ]; // [lane,row]
+
+  function placeAuto() {
+    const units = R.squad.concat(R.bench);
+    const front = units.filter(u=>E.ROLES[u.role] && E.ROLES[u.role].row==='front');
+    const back  = units.filter(u=>E.ROLES[u.role] && E.ROLES[u.role].row==='back');
+    const order = front.concat(back).slice(0, squadCap());
+    R.placed = [];
+    order.forEach((u,i)=>{
+      R.placed.push({ id:u.id, lane: i%3, row: E.ROLES[u.role].row==='front' ? 0 : 1 });
+    });
+  }
+
+  function renderRoster() {
+    const tier = E.tierOfStage(R.stage);
+    const S = E.STAGES[R.stage-1];
+    $('rstAct').textContent = `Акт ${['','I','II','III'][E.TIERS[tier].act]} · ${['','Древний мир','Средневековье','Новое время и будущее'][E.TIERS[tier].act]}`;
+    $('rstStage').textContent = `Этап ${R.stage} · ${S.name}`;
+    $('rstTier').textContent = `Эпоха: ${E.TIERS[tier].name}${S.boss ? ' · ⚠ БОСС' : ''}`;
+
+    const grid = $('rstGrid');
+    grid.innerHTML = '';
+    ['Верх','Центр','Низ'].forEach((ln, lane) => {
+      const laneDiv = document.createElement('div');
+      laneDiv.className = 'lane';
+      const label = document.createElement('div');
+      label.className = 'lane-label';
+      label.textContent = ln;
+      laneDiv.appendChild(label);
+      [0,1].forEach(row => {
+        const slot = document.createElement('div');
+        slot.className = 'slot';
+        const placed = R.placed.find(p => p.lane===lane && p.row===row);
+        if (placed) {
+          const u = R.squad.find(x=>x.id===placed.id) || R.bench.find(x=>x.id===placed.id);
+          if (u) {
+            slot.classList.add('occupied');
+            slot.innerHTML = `<span class="u-name">${u.name}</span><br><span class="u-role">${E.ROLES[u.role].name} · ур.${u.lvl}</span><span class="u-lvl">✚${u.lvl}</span>`;
+            slot.title = unitAbilText(u.role);
+          }
+        } else {
+          slot.innerHTML = `<span class="mini">${row===0?'перед':'тыл'}</span>`;
+        }
+        slot.onclick = () => {
+          if (placed) {
+            R.placed = R.placed.filter(p => !(p.lane===lane && p.row===row));
+          } else {
+            openPicker(lane, row);
+          }
+          renderRoster();
+        };
+        laneDiv.appendChild(slot);
+      });
+      grid.appendChild(laneDiv);
+    });
+
+    // скамейка
+    const benchEl = $('rstBench');
+    benchEl.innerHTML = '';
+    $('rstBenchEmpty').classList.toggle('hidden', R.bench.length>0);
+    for (const u of R.bench) {
+      const c = unitCard(u, { small:true });
+      c.onclick = () => {
+        const placed = R.placed.find(p=>p.id===u.id);
+        if (placed) R.placed = R.placed.filter(p=>p.id!==u.id);
+        else autoPlace(u);
+        renderRoster();
+      };
+      benchEl.appendChild(c);
+    }
+  }
+
+  function autoPlace(u) {
+    if (R.placed.some(p=>p.id===u.id)) { R.placed = R.placed.filter(p=>p.id!==u.id); return; }
+    const occupied = R.placed.length;
+    if (occupied >= squadCap()) return;
+    const lane = occupied % 3, row = E.ROLES[u.role].row==='front' ? 0 : 1;
+    R.placed.push({ id:u.id, lane, row });
+  }
+
+  function openPicker(lane, row) {
+    // показываем выбор из отряда+скамейки, не стоящих на поле
+    const free = R.squad.concat(R.bench).filter(u => !R.placed.some(p=>p.id===u.id));
+    const picker = document.createElement('div');
+    picker.className = 'panel';
+    picker.innerHTML = `<div class="muted" style="margin-bottom:8px">Поставить в линию <b>${['Верх','Центр','Низ'][lane]}</b>, ряд <b>${row===0?'перед':'тыл'}</b>:</div>`;
+    const cards = document.createElement('div');
+    cards.className = 'picker';
+    if (!free.length) cards.innerHTML = '<div class="muted">Нет свободных юнитов</div>';
+    for (const u of free) {
+      const c = unitCard(u, {});
+      c.onclick = () => {
+        if (R.placed.length >= squadCap()) return;
+        R.placed.push({ id:u.id, lane, row });
+        closeOverlay();
+        renderRoster();
+      };
+      cards.appendChild(c);
+    }
+    picker.appendChild(cards);
+    const cancel = document.createElement('div');
+    cancel.className = 'center';
+    cancel.style.marginTop = '10px';
+    cancel.innerHTML = '<button class="btn small">Отмена</button>';
+    cancel.onclick = closeOverlay;
+    picker.appendChild(cancel);
+    showOverlay('', picker, null, null);
+  }
+
+  function unitCard(u, opts={}) {
+    const card = document.createElement('div');
+    card.className = 'ucard';
+    const t = E.TIERS[u.tier];
+    card.innerHTML = `
+      <div class="tag">${t.name}</div>
+      <div class="u-name">${u.name}</div>
+      <div class="u-role">${E.ROLES[u.role].name} · ур.${u.lvl}</div>
+      <div class="u-stats">${unitStatsText(u)}</div>`;
+    return card;
+  }
+
+  /* ================== БОЙ ================== */
+  const canvas = $('battleCanvas');
+  const ctx = canvas.getContext('2d');
+  let battleSim = null, battleUnits = null, battleSpeed = 1, battleAccum = 0, battleInstant = false;
+
+  function teamUnits(side) {
+    return battleUnits[side];
+  }
+  function startBattle() {
+    // строим отряды
+    const placedUnits = [];
+    for (const p of R.placed) {
+      const u = R.squad.find(x=>x.id===p.id) || R.bench.find(x=>x.id===p.id);
+      if (u) placedUnits.push(u);
+    }
+    // полное лечение перед боем (стандарт автобаттлера)
+    for (const u of R.squad.concat(R.bench)) u.hp = u.maxHp;
+    // нерасставленных — не берём в бой
+    const tier = E.tierOfStage(R.stage);
+    const enemies = E.buildEnemySquad(R.stage);
+    battleUnits = { p: placedUnits, e: enemies };
+    battleSpeed = 1; battleAccum = 0; battleInstant = false;
+    $('vsPlayer').textContent = `⚔ Ваш отряд (${placedUnits.length})`;
+    $('vsEnemy').textContent = `Враги (${enemies.length})${E.STAGES[R.stage-1].boss?' · ⚠ БОСС':''}`;
+    $('vsTier').textContent = `${E.TIERS[tier].name} · Этап ${R.stage}/12`;
+    $('battleMsg').classList.add('hidden');
+    battleSim = new E.Sim(placedUnits, enemies, {
+      onEvent: (ev) => battleEffects.push(Object.assign({ttl:.5, born: performance.now()}, ev)),
+    });
+    battleEffects = [];
+    requestAnimationFrame(battleLoop);
+  }
+
+  let battleEffects = [];
+  function battleLoop(now) {
+    if (R.screen !== 'battle' || !battleSim) return;
+    const dtReal = Math.min(0.1, (now - (battleLastNow||now))/1000);
+    battleLastNow = now;
+    if (!battleInstant) {
+      battleAccum += dtReal * battleSpeed;
+      while (battleAccum >= 0.1 && !battleSim.done) { battleSim.step(0.1); battleAccum -= 0.1; }
+    } else {
+      while (!battleSim.done) battleSim.step(0.1);
+    }
+    drawBattle();
+    if (battleSim.done) {
+      battleEffects = [];
+      showBattleResult();
+      return;
+    }
+    requestAnimationFrame(battleLoop);
+  }
+  let battleLastNow = 0;
+
+  /* --- отрисовка --- */
+  function drawBattle() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const scale = w / E.ARENA.W;
+    if (canvas.width !== Math.round(w*dpr) || canvas.height !== Math.round(h*dpr)) {
+      canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+    }
+    ctx.setTransform(dpr*scale, 0, 0, dpr*scale, 0, 0);
+    ctx.clearRect(0,0,E.ARENA.W,E.ARENA.H);
+    const tier = E.tierOfStage(R.stage);
+
+    drawBackground(tier);
+    // поле
+    ctx.strokeStyle = 'rgba(255,255,255,.10)';
+    ctx.lineWidth = 2;
+    for (const y of E.ARENA.laneY) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(E.ARENA.W,y); ctx.stroke(); }
+
+    // юниты
+    for (const side of ['e','p']) for (const u of battleSim.team[side]) {
+      if (u.alive) drawUnit(u, side);
+    }
+    // эффекты
+    const now = performance.now();
+    battleEffects = battleEffects.filter(ef => now - ef.born < ef.ttl*1000);
+    for (const ef of battleEffects) drawEffect(ef, now);
+  }
+
+  const ERA_BG = {
+    stone:     ['#f2c078','#c97b4a','#6b4a35'],
+    antiquity: ['#a8d8ea','#5fa8d3','#35586e'],
+    earlymed:  ['#b8d8a8','#7aa05f','#3f5a34'],
+    higmed:    ['#d8b8a8','#8f6a5a','#4a3540'],
+    gunpowder: ['#c9c2b8','#8a8078','#3f3a35'],
+    future:    ['#2c3a55','#14202e','#0a0f18'],
+  };
+  function drawBackground(tier) {
+    const c = ERA_BG[E.TIERS[tier].id] || ERA_BG.stone;
+    const g = ctx.createLinearGradient(0,0,0,E.ARENA.H);
+    g.addColorStop(0,c[0]); g.addColorStop(.55,c[1]); g.addColorStop(1,c[2]);
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,E.ARENA.W,E.ARENA.H);
+    // силуэты
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
+    const id = E.TIERS[tier].id;
+    if (id==='stone') { tri(120,240,420,180,340); tri(300,260,560,200,460); }
+    if (id==='antiquity') { rect(140,220,26,120); rect(186,220,26,120); rect(160,180,36,60); rect(120,300,120,14); }
+    if (id==='earlymed') { tri(180,260,520,200,440); rect(420,250,40,90); }
+    if (id==='higmed') { rect(150,220,90,120); rect(170,160,50,60); rect(140,300,110,14); tri(150,160,240,160,195,110); }
+    if (id==='gunpowder') { rect(140,240,44,100); rect(200,260,34,80); ctx.fillStyle='rgba(0,0,0,.28)'; rect(150,210,70,30); rect(120,300,180,10); }
+    if (id==='future') { rect(140,220,40,120); rect(200,240,30,100); rect(170,190,60,50); ctx.fillStyle='rgba(140,200,255,.25)'; rect(120,300,190,8); }
+  }
+  function tri(x1,y1,x2,y2,x3,y3){ ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.closePath(); ctx.fill(); }
+  function rect(x,y,w,h){ ctx.fillRect(x,y,w,h); }
+
+  const ROLE_COLORS = {
+    guard:'#8faece', fighter:'#d08a5a', archer:'#7fbf7f', artillery:'#b58ae0',
+    healer:'#e8d48a', scout:'#7fc8c8',
+  };
+  function drawUnit(u, side) {
+    const sc = (u.size||1);
+    const x = u.x, y = u.y;
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.scale(u.facing,1);
+    // тень
+    ctx.fillStyle = 'rgba(0,0,0,.3)';
+    ctx.beginPath(); ctx.ellipse(0, sc*20, sc*20, sc*6, 0, 0, Math.PI*2); ctx.fill();
+    // щит (страж)
+    const col = ROLE_COLORS[u.role.startsWith('boss') ? 'fighter' : u.role] || '#ccc';
+    const dark = shade(col, -30);
+    // ноги
+    ctx.fillStyle = shade(col,-20);
+    ctx.fillRect(-sc*7, -sc*14, sc*6, sc*14);
+    ctx.fillRect(sc*2, -sc*14, sc*6, sc*14);
+    // тело
+    const bodyGrad = ctx.createLinearGradient(-sc*12,0,sc*12,0);
+    bodyGrad.addColorStop(0, dark); bodyGrad.addColorStop(1, col);
+    ctx.fillStyle = bodyGrad;
+    rr(-sc*12, -sc*30, sc*24, sc*22, sc*4);
+    // голова
+    ctx.fillStyle = shade(col,-45);
+    ctx.beginPath(); ctx.arc(0, -sc*36, sc*9, 0, Math.PI*2); ctx.fill();
+    // шлем/прибор по эпохе
+    ctx.fillStyle = shade(col,-55);
+    rr(-sc*8, -sc*44, sc*16, sc*10, sc*3);
+    // оружие по роли
+    ctx.strokeStyle = '#3a322a'; ctx.lineWidth = sc*3;
+    if (u.role==='guard') {
+      ctx.fillStyle = '#6b4a2f'; rr(-sc*2, -sc*42, sc*7, sc*14, 1); // щит
+      ctx.strokeStyle = shade(col,-50);
+      ctx.beginPath(); ctx.moveTo(sc*10,-sc*26); ctx.lineTo(sc*22,-sc*40); ctx.stroke(); // копьё/меч
+    } else if (u.role==='fighter') {
+      ctx.beginPath(); ctx.moveTo(sc*10,-sc*20); ctx.lineTo(sc*26,-sc*44); ctx.stroke();
+      ctx.lineWidth = sc*5; ctx.strokeStyle = '#e8e0d0';
+      ctx.beginPath(); ctx.moveTo(sc*12,-sc*24); ctx.lineTo(sc*26,-sc*44); ctx.stroke();
+    } else if (u.role==='archer') {
+      ctx.strokeStyle = '#6b4a2f'; ctx.lineWidth = sc*2;
+      ctx.beginPath(); ctx.arc(sc*14, -sc*30, sc*12, -1.2, 1.2); ctx.stroke();
+      ctx.strokeStyle = '#e8e0d0'; ctx.lineWidth = sc*1.5;
+      ctx.beginPath(); ctx.moveTo(sc*2,-sc*30); ctx.lineTo(sc*26,-sc*30); ctx.stroke();
+    } else if (u.role==='artillery') {
+      ctx.strokeStyle = '#2a2520'; ctx.lineWidth = sc*5;
+      ctx.beginPath(); ctx.moveTo(sc*6,-sc*24); ctx.lineTo(sc*28,-sc*24); ctx.stroke();
+      ctx.fillStyle = '#ffd97a';
+      ctx.beginPath(); ctx.arc(sc*28,-sc*24, sc*5, 0, Math.PI*2); ctx.fill();
+    } else if (u.role==='healer') {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = sc*2;
+      ctx.beginPath(); ctx.moveTo(sc*10,-sc*40); ctx.lineTo(sc*10,-sc*14); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sc*0,-sc*30); ctx.lineTo(sc*20,-sc*30); ctx.stroke();
+    } else { // scout
+      ctx.strokeStyle = shade(col,-50); ctx.lineWidth = sc*2.5;
+      ctx.beginPath(); ctx.moveTo(sc*8,-sc*26); ctx.lineTo(sc*24,-sc*42); ctx.stroke();
+    }
+    // босс — аура
+    if (u.boss) {
+      ctx.strokeStyle = 'rgba(255,120,80,.6)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0,-sc*18, sc*34, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+
+    // полоска HP
+    const w = sc*44;
+    ctx.fillStyle = 'rgba(0,0,0,.55)';
+    ctx.fillRect(x-w/2, y-sc*50, w, 5);
+    ctx.fillStyle = u.hp/u.maxHp > .5 ? '#7fce7f' : u.hp/u.maxHp > .25 ? '#e8b64c' : '#d96b5f';
+    ctx.fillRect(x-w/2, y-sc*50, w*Math.max(0,u.hp/u.maxHp), 5);
+    // щит-баббл
+    if (u.shield > 0) {
+      ctx.strokeStyle = 'rgba(140,200,255,.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y-sc*30, sc*26, 0, Math.PI*2); ctx.stroke();
+    }
+    // оглушение
+    if (u.stunUntil > battleSim.t) {
+      ctx.fillStyle = '#ffd97a';
+      for (let i=0;i<3;i++) ctx.fillRect(x-8+i*7, y-sc*58, 4, 4);
+    }
+    // имя босса
+    if (u.boss) {
+      ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffb39a';
+      ctx.fillText(u.name, x, y-sc*66);
+    }
+  }
+  function shade(hex, amt) {
+    const n = parseInt(hex.slice(1),16);
+    const r = Math.max(0, Math.min(255, (n>>16)+amt));
+    const g = Math.max(0, Math.min(255, ((n>>8)&255)+amt));
+    const b = Math.max(0, Math.min(255, (n&255)+amt));
+    return `rgb(${r},${g},${b})`;
+  }
+  function rr(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill();
+  }
+
+  function drawEffect(ef, now) {
+    const age = (now - ef.born)/1000;
+    const alpha = Math.max(0, 1 - age/ef.ttl);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    switch (ef.type) {
+      case 'dmg': {
+        ctx.font = 'bold 14px sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle = ef.crit ? '#ff9a5a' : '#fff';
+        ctx.fillText((ef.crit?'✶':'')+ef.val, ef.x, ef.y - 26 - age*30);
+        break;
+      }
+      case 'heal': {
+        ctx.font = 'bold 13px sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle = '#7fce7f';
+        ctx.fillText('+'+ef.val, ef.x, ef.y - 26 - age*26);
+        break;
+      }
+      case 'shield': {
+        ctx.strokeStyle = '#8fc3e8'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(ef.x, ef.y-30, 14+age*8, 0, Math.PI*2); ctx.stroke();
+        break;
+      }
+      case 'attack': {
+        ctx.strokeStyle = 'rgba(255,240,200,.9)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(ef.x1, ef.y1-30); ctx.lineTo(ef.x2, ef.y2-30); ctx.stroke();
+        break;
+      }
+      case 'abil': {
+        ctx.font = 'bold 14px sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle = '#ffd97a';
+        ctx.fillText('★ '+ef.name, ef.x, ef.y - 70 - age*20);
+        break;
+      }
+      case 'blast': {
+        ctx.strokeStyle = '#ff9a5a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(ef.x, ef.y-30, ef.r*(0.4+age*0.8), 0, Math.PI*2); ctx.stroke();
+        break;
+      }
+      case 'fury': {
+        ctx.strokeStyle = '#ff6a4a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(ef.x, ef.y-30, 20+age*16, 0, Math.PI*2); ctx.stroke();
+        break;
+      }
+      case 'wall': {
+        ctx.strokeStyle = '#8fc3e8'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(ef.x, ef.y-30, 30+age*6, 0, Math.PI*2); ctx.stroke();
+        break;
+      }
+      case 'backstab': {
+        ctx.strokeStyle = 'rgba(255,120,200,.9)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(ef.x, ef.y-30); ctx.lineTo(ef.x2, ef.y2-30); ctx.stroke();
+        break;
+      }
+      case 'mend': {
+        ctx.strokeStyle = '#a8e88a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(ef.x, ef.y-30, 10+age*14, 0, Math.PI*2); ctx.stroke();
+        break;
+      }
+      case 'summon': {
+        ctx.font = 'bold 14px sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle = '#8fc3e8';
+        ctx.fillText('ПРИЗЫВ', ef.x, ef.y-40);
+        break;
+      }
+      case 'die': {
+        ctx.font = '16px sans-serif'; ctx.textAlign='center';
+        ctx.fillStyle = '#d96b5f';
+        ctx.fillText('✖', ef.x, ef.y-34);
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  /* --- результат боя --- */
+  function showBattleResult() {
+    const msg = $('battleMsg');
+    const big = $('battleMsgBig'), sub = $('battleMsgSub');
+    msg.classList.remove('hidden');
+    if (battleSim.winner === 'p') {
+      big.textContent = 'ПОБЕДА';
+      big.style.color = 'var(--good)';
+      sub.innerHTML = `Этап ${R.stage} пройден. Золото: +${stageReward()}${E.STAGES[R.stage-1].boss ? ' · Плюс награда босса' : ''}`;
+      const btn = document.createElement('button');
+      btn.className = 'btn primary'; btn.style.fontSize='16px'; btn.style.padding='12px 36px';
+      btn.textContent = 'ДАЛЬШЕ →';
+      btn.onclick = () => { msg.querySelector('.btn')?.remove(); onStageWin(); };
+      const old = msg.querySelector('.btn'); if (old) old.remove();
+      msg.appendChild(btn);
+    } else {
+      big.textContent = 'ПОРАЖЕНИЕ';
+      big.style.color = 'var(--bad)';
+      R.attemptsLeft--;
+      R.stats.stageLosses++;
+      sub.innerHTML = R.attemptsLeft > 0
+        ? `Этап переигрывается с начала. Осталось попыток: <b>${R.attemptsLeft}</b>`
+        : `Попытки закончились. Партия окончена.`;
+      const btn = document.createElement('button');
+      btn.className = 'btn primary'; btn.style.fontSize='16px'; btn.style.padding='12px 36px';
+      btn.textContent = R.attemptsLeft > 0 ? '↺ ПЕРЕИГРАТЬ ЭТАП' : 'ИТОГИ ПАРТИИ';
+      btn.onclick = () => { msg.querySelector('.btn')?.remove(); if (R.attemptsLeft > 0) retryStage(); else showDefeat(); };
+      const old = msg.querySelector('.btn'); if (old) old.remove();
+      msg.appendChild(btn);
+    }
+  }
+
+  function stageReward() { return 12 + R.stage + (E.STAGES[R.stage-1].boss ? 8 : 0); }
+
+  function onStageWin() {
+    const reward = stageReward();
+    R.gold += reward;
+    R.stats.wins++;
+    const S = E.STAGES[R.stage-1];
+    if (S.boss) {
+      R.bossRewards++;
+      showBossReward(() => afterStageReward());
+    } else {
+      afterStageReward();
+    }
+  }
+  function afterStageReward() {
+    R.attemptsLeft = 3; // новый этап — новые попытки
+    // смена эпохи: этапы 2,4,6,8,10
+    if ([2,4,6,8,10].includes(R.stage)) {
+      evolveArmy();
+    } else if (R.stage >= 12) {
+      showVictory();
+    } else {
+      showScreen('shop');
+    }
+  }
+
+  /* --- эволюция армии --- */
+  function evolveArmy() {
+    const fromTier = E.tierOfStage(R.stage);
+    const toTier = fromTier + 1;
+    const rows = [];
+    for (const u of R.squad.concat(R.bench)) {
+      const oldName = u.name;
+      u.tier = toTier;
+      const nu = playerUnit(u.role, toTier, u.lvl);
+      u.name = nu.name;
+      u.maxHp = nu.maxHp; u.hp = nu.maxHp; u.atk = nu.atk;
+      u.iv = nu.iv; u.rng = nu.rng; u.spd = nu.spd; u.crit = nu.crit; u.healMult = nu.healMult;
+      rows.push({ from: oldName, to: u.name, role: E.ROLES[u.role].name });
+    }
+    const box = document.createElement('div');
+    box.innerHTML = `
+      <div class="big">⏳ НОВАЯ ЭПОХА</div>
+      <div class="sub">Эпоха сменяется: <b>${E.TIERS[fromTier].name}</b> → <b>${E.TIERS[toTier].name}</b>.<br>
+      Ваша армия эволюционирует вместе с историей — юниты получают новое вооружение и силу.</div>
+      <div class="evolve-list">${rows.map(r=>`
+        <div class="evolve-row"><span class="from">${r.role} · ${r.from}</span><span class="arrow">➜</span><span class="to">${r.to}</span></div>`).join('')}</div>`;
+    showOverlay('', box, () => {
+      if (R.stage >= 12) showVictory(); else showScreen('shop');
+    });
+  }
+
+  /* --- награда босса: артефакт --- */
+  function showBossReward(onDone) {
+    const pool = Object.keys(E.ARTIFACTS).filter(a => !R.artifacts.includes(a));
+    const options = [];
+    while (options.length < 3) {
+      const a = pool[Math.floor(Math.random()*pool.length)];
+      if (!options.includes(a)) options.push(a);
+    }
+    const box = document.createElement('div');
+    box.innerHTML = `
+      <div class="big">⚜ БОСС ПОВЕРЖЕН</div>
+      <div class="sub">Выберите артефакт эпохи — он усилит отряд до конца партии:</div>
+      <div class="artifacts"></div>`;
+    const wrap = box.querySelector('.artifacts');
+    for (const id of options) {
+      const a = E.ARTIFACTS[id];
+      const card = document.createElement('div');
+      card.className = 'acard';
+      card.innerHTML = `<div class="a-name">${a.name}</div><div class="a-desc">${a.desc}</div>`;
+      card.onclick = () => {
+        R.artifacts.push(id);
+        // пересчёт статов
+        for (const u of R.squad.concat(R.bench)) recalcUnit(u);
+        closeOverlay(); onDone();
+      };
+      wrap.appendChild(card);
+    }
+    showOverlay('', box);
+  }
+  function recalcUnit(u) {
+    const fresh = playerUnit(u.role, u.tier, u.lvl);
+    u.maxHp = fresh.maxHp; u.hp = Math.min(u.hp, fresh.maxHp); u.atk = fresh.atk;
+    u.iv = fresh.iv; u.rng = fresh.rng; u.spd = fresh.spd; u.crit = fresh.crit; u.healMult = fresh.healMult;
+  }
+
+  /* --- переигрывание этапа --- */
+  function retryStage() {
+    // откат к снимку на входе в этап
+    if (R.snapshot) {
+      R.squad = R.snapshot.squad.map(u => {
+        const fresh = playerUnit(u.role, u.tier, u.lvl);
+        return Object.assign(u, { hp: fresh.maxHp, maxHp: fresh.maxHp, atk: fresh.atk,
+          iv: fresh.iv, rng: fresh.rng, spd: fresh.spd, crit: fresh.crit, healMult: fresh.healMult });
+      });
+      R.bench = R.snapshot.bench.slice();
+      R.gold = R.snapshot.gold;
+      R.placed = R.snapshot.placed.map(p=>Object.assign({},p));
+    }
+    showScreen('roster');
+  }
+
+  /* ================== МАГАЗИН ================== */
+  function renderShop() {
+    $('shpGold').textContent = R.gold;
+    const tier = E.tierOfStage(R.stage + 1); // покупки под эпоху следующего этапа
+    const offers = [];
+    const roles = E.ROLE_ORDER.slice();
+    shuffle(roles);
+    // карточка 1: всегда наём
+    offers.push({ type:'recruit', role: roles[0], cost: recruitCost(tier) });
+    // карточка 2: наём или прокачка
+    if (Math.random() < 0.5) offers.push({ type:'recruit', role: roles[1], cost: recruitCost(tier) });
+    else offers.push(upgradeOffer());
+    // карточка 3: прокачка или наём
+    if (Math.random() < 0.6) offers.push(upgradeOffer());
+    else offers.push({ type:'recruit', role: roles[2], cost: recruitCost(tier) });
+
+    const wrap = $('shpCards');
+    wrap.innerHTML = '';
+    for (const off of offers) {
+      const card = document.createElement('div');
+      card.className = 'ucard';
+      if (off.type === 'recruit') {
+        const u = playerUnit(off.role, tier, 1);
+        card.innerHTML = `
+          <div class="tag">наём</div>
+          <div class="cost">${off.cost}⚜</div>
+          <div class="u-name">${u.name}</div>
+          <div class="u-role">${E.ROLES[u.role].name} · эпоха: ${E.TIERS[tier].name}</div>
+          <div class="u-stats">${unitStatsText(u)}</div>
+          <div class="u-stats muted" style="font-size:10px">${unitAbilText(u.role)}</div>`;
+        const afford = R.gold >= off.cost;
+        const hasRoom = R.squad.length + R.bench.length < 6;
+        card.classList.toggle('disabled', !afford || !hasRoom);
+        card.onclick = () => {
+          if (!afford) return;
+          if (!hasRoom) { flash('Отряд и скамейка полны (макс. 6)'); return; }
+          R.gold -= off.cost;
+          const nu = playerUnit(off.role, tier, 1);
+          R.bench.push(nu);
+          flash(`Нанят: ${nu.name}`);
+          renderShop(); updateTopbar();
+        };
+      } else {
+        const u = off.unit;
+        const cost = upgradeCost(u.lvl);
+        card.innerHTML = `
+          <div class="tag">прокачка</div>
+          <div class="cost">${cost}⚜</div>
+          <div class="u-name">${u.name}</div>
+          <div class="u-role">${E.ROLES[u.role].name} · ур.${u.lvl} → ур.${u.lvl+1}</div>
+          <div class="u-stats">${unitStatsText(u)}</div>`;
+        const afford = R.gold >= cost;
+        card.classList.toggle('disabled', !afford || u.lvl >= 4);
+        card.onclick = () => {
+          if (u.lvl >= 4) return;
+          if (!afford) { flash('Не хватает золота'); return; }
+          R.gold -= cost;
+          u.lvl++;
+          recalcUnit(u);
+          flash(`Прокачано: ${u.name} до ур.${u.lvl}`);
+          renderShop(); updateTopbar();
+        };
+      }
+      wrap.appendChild(card);
+    }
+  }
+  function recruitCost(tier) { return 12 + 5*tier; }
+  function upgradeCost(lvl) { return 10 + 6*lvl; }
+  function upgradeOffer() {
+    const pool = R.squad.concat(R.bench).filter(u => u.lvl < 4);
+    if (!pool.length) return { type:'recruit', role: E.ROLE_ORDER[Math.floor(Math.random()*E.ROLE_ORDER.length)], cost: recruitCost(E.tierOfStage(R.stage+1)) };
+    return { type:'upgrade', unit: pool[Math.floor(Math.random()*pool.length)] };
+  }
+  function shuffle(arr) { for (let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } }
+
+  /* ================== ФИНАЛЫ ================== */
+  function showVictory() {
+    const minutes = Math.round((Date.now() - R.stats.startTime)/6000)/10;
+    const box = document.createElement('div');
+    box.innerHTML = `
+      <div class="big" style="color:var(--good)">🏆 ИМПЕРИЯ БУДУЩЕГО</div>
+      <div class="sub">Нейро-колосс повержен. Ваша армия прошла путь от каменного топора до плазмы —
+      и история завершилась там, где начинается будущее.</div>
+      <div class="panel" style="text-align:left">
+        <div class="stat-line"><span>Этапов пройдено</span><b>12 / 12</b></div>
+        <div class="stat-line"><span>Потеряно попыток</span><b>${R.stats.stageLosses}</b></div>
+        <div class="stat-line"><span>Время партии</span><b>${minutes} мин</b></div>
+        <div class="stat-line"><span>Артефактов</span><b>${R.artifacts.length} ✨</b></div>
+      </div>`;
+    showOverlay('', box, newRun, '⚔ НОВАЯ ПАРТИЯ');
+  }
+  function showDefeat() {
+    const minutes = Math.round((Date.now() - R.stats.startTime)/6000)/10;
+    const box = document.createElement('div');
+    box.innerHTML = `
+      <div class="big" style="color:var(--bad)">АРМИЯ ПАЛА</div>
+      <div class="sub">История не дождалась вашей армии на этапе <b>${R.stage}</b> — эпоха ${E.TIERS[E.tierOfStage(R.stage)].name} оказалась сильнее.</div>
+      <div class="panel" style="text-align:left">
+        <div class="stat-line"><span>Этапов пройдено</span><b>${R.stats.wins} / 12</b></div>
+        <div class="stat-line"><span>Потеряно попыток</span><b>${R.stats.stageLosses}</b></div>
+        <div class="stat-line"><span>Время партии</span><b>${minutes} мин</b></div>
+        <div class="stat-line"><span>Артефактов</span><b>${R.artifacts.length} ✨</b></div>
+      </div>`;
+    showOverlay('', box, newRun, '⚔ НОВАЯ ПАРТИЯ');
+  }
+
+  /* ================== ОВЕРЛЕЙ ================== */
+  function showOverlay(html, node, onClose, btnLabel) {
+    const ov = $('overlay');
+    const box = $('overlayBox');
+    box.innerHTML = '';
+    if (html) box.innerHTML = html;
+    if (node) box.appendChild(node);
+    if (btnLabel !== null) {
+      const foot = document.createElement('div');
+      foot.className = 'center';
+      foot.style.marginTop = '16px';
+      const btn = document.createElement('button');
+      btn.className = 'btn primary';
+      btn.style.fontSize = '16px'; btn.style.padding = '12px 36px';
+      btn.textContent = btnLabel || 'Продолжить';
+      btn.onclick = () => { closeOverlay(); if (onClose) onClose(); };
+      foot.appendChild(btn);
+      box.appendChild(foot);
+    }
+    ov.classList.remove('hidden');
+  }
+  function closeOverlay() { $('overlay').classList.add('hidden'); $('overlayBox').innerHTML = ''; }
+  let flashTimer = null;
+  function flash(text) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--gold);color:var(--text);padding:10px 22px;border-radius:20px;z-index:99;font-size:14px;box-shadow:0 4px 16px rgba(0,0,0,.5)';
+    el.textContent = text;
+    document.body.appendChild(el);
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(()=>el.remove(), 1600);
+  }
+
+  /* ================== СОБЫТИЯ ================== */
+  $('btnStart').onclick = newRun;
+  $('btnFight').onclick = () => {
+    // автодополнение нерасставленных юнитов в свободные слоты
+    const free = R.squad.concat(R.bench).filter(u => !R.placed.some(p=>p.id===u.id));
+    for (const u of free) autoPlace(u);
+    if (!R.placed.length) { flash('Расставьте хотя бы один отряд!'); return; }
+    // снимок на входе в этап (для отката при переигрывании)
+    R.snapshot = {
+      squad: R.squad.slice(), bench: R.bench.slice(), gold: R.gold,
+      placed: R.placed.map(p=>Object.assign({},p)),
+    };
+    showScreen('battle');
+  };
+  $('btnReposition').onclick = () => showScreen('roster');
+  $('btnAuto').onclick = () => { placeAuto(); renderRoster(); };
+  $('btnSkip').onclick = () => {
+    if (R.stage >= 12) showVictory();
+    else { R.stage++; R.attemptsLeft = 3; showScreen('roster'); }
+  };
+  $('btnSpeed1').onclick = () => { battleSpeed = 1; };
+  $('btnSpeed2').onclick = () => { battleSpeed = 2; };
+  $('btnInstant').onclick = () => { battleInstant = true; };
+  $('btnSpeed1').classList.add('primary');
+
+  // меню: эпохи
+  const strip = $('menuEpochs');
+  strip.innerHTML = E.TIERS.map(t => `<span>${t.name}</span>`).join('');
+
+  // стартовый рендер
+  updateTopbar();
+})();
+</script>
+</body>
+</html>
