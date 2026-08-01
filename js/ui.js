@@ -325,6 +325,9 @@ function renderBench() {
     if (!benchContainer) return;
     benchContainer.innerHTML = '';
 
+    const ageObj = AGES.find(a => a.id === state.age);
+    const isLimitFull = ageObj && state.board.length >= ageObj.limit;
+
     let count = 0;
     state.bench.forEach((unit, index) => {
         const slot = document.createElement('div');
@@ -336,12 +339,14 @@ function renderBench() {
                 slot.classList.add('selected');
             }
             const starText = '★'.repeat(unit.star);
+            const lockBadge = isLimitFull ? `<span style="position:absolute; top:3px; left:4px; font-size:0.62rem; background:#48262a; color:#e06c75; padding:1px 4px; border-radius:4px; border:1px solid #e06c75;" title="Лимит армии на поле исчерпан">🔒 ЛИМИТ</span>` : '';
             slot.innerHTML = `
                 <div style="text-align:center; position:relative; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center;">
                     <span style="font-size:1.9rem; filter:drop-shadow(0 2px 4px rgba(0,0,0,0.6));">${unit.icon}</span>
                     <span style="font-size:0.72rem; font-weight:700; color:var(--text-bright); margin-top:2px;">${unit.name}</span>
                     <span style="position:absolute; top:3px; right:6px; color:var(--accent-gold); font-size:0.75rem; font-weight:800; text-shadow:0 1px 2px #000;">${starText}</span>
                     <span style="position:absolute; bottom:3px; left:6px; font-size:0.65rem; color:#8bb4e0; font-weight:600;">Эп.${unit.age}</span>
+                    ${lockBadge}
                 </div>
             `;
         }
@@ -980,6 +985,13 @@ function drawUnitSilhouette(ctx, type, team, star) {
     } else {
         ctx.beginPath(); ctx.arc(0, -12, 10, 0, Math.PI * 2); ctx.fill();
     }
+
+    // L04 GRAPHIC DESIGNER FEATURE: ENGRAVED HIGHLIGHTS
+    ctx.strokeStyle = isPlayer ? 'rgba(255, 215, 0, 0.75)' : 'rgba(255, 128, 128, 0.75)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, -20, 3, 0, Math.PI);
+    ctx.stroke();
 
     ctx.restore();
 }

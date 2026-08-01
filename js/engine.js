@@ -170,15 +170,20 @@ function updateBattle(dt) {
         p.x += Math.cos(angle) * speedPx * effectiveDt;
         p.y += Math.sin(angle) * speedPx * effectiveDt;
 
+        // L04 GRAPHIC DESIGNER FEATURE: CONTINUOUS PARTICLE TRAILS & BURSTS
         if (p.type === 'bullet' || p.type === 'cannon') {
             state.particles.push({
-                x: p.x,
-                y: p.y,
-                vx: (Math.random() - 0.5) * 10,
-                vy: -10,
-                color: 'rgba(200, 200, 210, 0.4)',
-                size: 3 + Math.random() * 3,
-                alpha: 0.8
+                x: p.x, y: p.y,
+                vx: (Math.random() - 0.5) * 15, vy: -12,
+                color: 'rgba(200, 200, 210, 0.45)',
+                size: 3 + Math.random() * 3, alpha: 0.8
+            });
+        } else if (p.type === 'laser' || p.type === 'arrow' || p.type === 'spear') {
+            state.particles.push({
+                x: p.x, y: p.y,
+                vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8,
+                color: p.color,
+                size: 2 + Math.random() * 2, alpha: 0.6
             });
         }
 
@@ -297,11 +302,14 @@ function applyDamage(attacker, target, syn) {
         attacker.damageDealt += finalDmg;
     }
 
+    let iconPrefix = attacker.attack === 'melee' ? '🗡️ ' :
+                     (attacker.attack === 'piercing' ? '🎯 ' :
+                     (attacker.attack === 'anti_mobile' ? '🐎 ' : '💣 '));
     let color = '#ffffff';
-    let text = `${finalDmg}`;
+    let text = `${iconPrefix}${finalDmg}`;
     if (mult > 1.0) {
         color = '#e06c75';
-        text = `${finalDmg}!`;
+        text = `${iconPrefix}${finalDmg}!`;
         playSound('hit_pierce');
         createImpactParticles(target.x, target.y, 'crit', 'crit');
     } else if (mult < 1.0) {
@@ -338,7 +346,7 @@ function applyDamage(attacker, target, syn) {
                     state.floatingTexts.push({
                         x: e.x,
                         y: e.y - 25,
-                        text: `${splashDmg}`,
+                        text: `💣 ${splashDmg}`,
                         color: '#e5c07b',
                         alpha: 1.0
                     });
