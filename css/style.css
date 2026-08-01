@@ -130,6 +130,15 @@ h1.logo {
 .stage-head .stage { font-family: Georgia, serif; font-size: 28px; color: var(--gold); }
 .stage-head .tier { font-size: 14px; color: var(--text); }
 .boss-tag { color: var(--bad); font-weight: 700; }
+.enemy-summary {
+  display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap;
+  margin-top: 10px; padding: 7px 14px; border: 1px solid var(--line-soft);
+  border-radius: 10px; background: rgba(0,0,0,.25); font-size: 12px; color: var(--dim);
+}
+.enemy-summary .es-label { text-transform: uppercase; letter-spacing: 1px; font-size: 10px; }
+.enemy-summary .es-item { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
+.enemy-summary .es-boss { color: var(--bad); font-weight: 700; }
+.enemy-summary .es-boss .r-icon { filter: drop-shadow(0 0 4px rgba(235,87,87,.5)); }
 .roster-grid { display: flex; flex-direction: column; gap: 12px; align-items: center; }
 .lane { display: flex; gap: 14px; align-items: center; }
 .lane-label { width: 58px; font-size: 11px; color: var(--dim); text-align: right; text-transform: uppercase; letter-spacing: 1px; }

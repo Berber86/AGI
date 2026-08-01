@@ -133,6 +133,7 @@
     $('rstAct').textContent = `Акт ${['', 'I', 'II', 'III'][E.TIERS[tier].act]} · ${['', 'Древний мир', 'Средневековье', 'Новое время и будущее'][E.TIERS[tier].act]}`;
     $('rstStage').textContent = `Этап ${R.stage} · ${S.name}`;
     $('rstTier').innerHTML = `${ERA_ICONS[E.TIERS[tier].id] || ''} Эпоха: ${E.TIERS[tier].name}${S.boss ? ' · <span class="boss-tag">⚠ БОСС</span>' : ''}`;
+    renderEnemySummary(S);
 
     const grid = $('rstGrid');
     grid.innerHTML = '';
@@ -191,6 +192,21 @@
       };
       benchEl.appendChild(c);
     }
+  }
+
+  /* Сводка врагов этапа (решение Критика: бои не вслепую) */
+  function renderEnemySummary(S) {
+    const counts = {};
+    for (const f of S.foes) counts[f.r] = (counts[f.r] || 0) + 1;
+    const el = $('rstEnemySummary');
+    const parts = Object.keys(counts).map(r => {
+      const n = counts[r];
+      return `<span class="es-item" title="${E.ROLES[r].name}">${roleIconSvg(r, 18)} ×${n}</span>`;
+    });
+    if (S.boss) {
+      parts.push(`<span class="es-item es-boss" title="${E.BOSSES[S.boss].abil.name} — ${E.BOSSES[S.boss].abil.desc}">${roleIconSvg('fighter', 20)} ${E.BOSSES[S.boss].name}</span>`);
+    }
+    el.innerHTML = `<span class="es-label">Враги:</span> ${parts.join('')}`;
   }
 
   function autoPlace(u) {
@@ -589,7 +605,6 @@
     };
     showScreen('battle');
   };
-  $('btnReposition').onclick = () => { AF.play('ui.click'); showScreen('roster'); };
   $('btnAuto').onclick = () => { AF.play('ui.click'); placeAuto(); renderRoster(); };
   $('btnSkip').onclick = () => {
     AF.play('ui.click');

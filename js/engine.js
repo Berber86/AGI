@@ -186,7 +186,7 @@ const Engine = (() => {
       this.events = [];
       this.onEvent = opts.onEvent || (()=>{});
       this.timeout = 150;
-      this.enrageAt = 45;
+      this.enrageAt = 60;
       this.done = false;
       this.winner = null; // 'p' | 'e' | 'draw'
       this.reason = '';
@@ -212,7 +212,7 @@ const Engine = (() => {
     step(dt) {
       if (this.done) return;
       this.t += dt;
-      const enraged = this.t > this.enrageAt ? 1 + 0.1 * Math.floor((this.t - this.enrageAt)/5) : 1;
+      const enraged = this.t > this.enrageAt ? 1 + 0.08 * Math.floor((this.t - this.enrageAt)/8) : 1;
 
       for (const side of ['p','e']) {
         for (const u of this.alive(side)) {
