@@ -198,7 +198,7 @@ function statsOf(u,mult){ return {hp:Math.round(u.hp*mult), atk:Math.round(u.atk
 const BACK_BONUS = 1.15;
 
 // ============ СОСТОЯНИЕ (без сохранения) ============
-let S = {gold:50, wave:1, army:[], shop:[]};
+let S = {gold:35, wave:1, army:[], shop:[]};
 function freshShop(){
   const era=eraOf(S.wave);
   const pool=UNITS.filter(u=>u.e===era);
@@ -280,7 +280,7 @@ function makeEnemies(){
   const era=eraOf(S.wave), w=waveInEra(S.wave);
   const pool=UNITS.filter(u=>u.e===era);
   const n=Math.min(5, 2+Math.floor(w/2));
-  const mult=(0.6+S.wave*0.1)*ERAS[era].mult;
+  const mult=(0.68+S.wave*0.11)*ERAS[era].mult;
   const isBoss=(w===4);
   const arr=[];
   for(let i=0;i<n;i++){
@@ -364,7 +364,7 @@ async function runBattle(p,e){
   battling=false; $('btnBattle').disabled=false;
   const win=p.some(u=>u.hp>0);
   if(win){
-    const reward=14+S.wave*2; S.gold+=reward;
+    const reward=10+S.wave*2; S.gold+=reward;
     logLine(`🏆 Победа! +${reward}💰`,'hit');
     if(S.wave>=MAX_WAVE) showBanner('🥇','Ты покорил все 4 эпохи!','Заново',true);
     else showBanner('🏆','Победа! +'+reward+'💰','Следующая волна →',false);
@@ -418,7 +418,7 @@ function showBanner(emoji,title,btn,restart){
   $('bEmoji').textContent=emoji; $('bTitle').textContent=title;
   $('bText').textContent=restart?'Сыграть ещё раз с чистого листа.':'';
   $('bBtn').textContent=btn;
-  $('bBtn').onclick=()=>{ $('banner').classList.add('hidden'); if(restart){ S={gold:50,wave:1,army:[],shop:freshShop()}; } else if(btn.indexOf('Следующая')>=0){ S.wave++; S.shop=freshShop(); } render(); };
+      $('bBtn').onclick=()=>{ $('banner').classList.add('hidden'); if(restart){ S={gold:35,wave:1,army:[],shop:freshShop()}; } else if(btn.indexOf('Следующая')>=0){ S.wave++; S.shop=freshShop(); } render(); };
   $('banner').classList.remove('hidden');
 }
 $('btnBattle').addEventListener('click', initBattle);
