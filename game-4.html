@@ -22,8 +22,7 @@
   .topbar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:12px}
   .stat{padding:8px 14px; border-radius:12px; background:var(--panel); border:1px solid var(--line); font-size:14px}
   .stat b{color:var(--accent)}
-  .era-chip{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:5px 11px; border-radius:20px; background:var(--panel); border:1px solid var(--line)}
-  .card{background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px}
+  .era-chip{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; padding:5px 11px; border-radius:20px; background:var(--panel); border:1px solid var(--line)}  .card{background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:14px}
   .card h2{font-size:16px; margin-bottom:10px; color:var(--accent)}
   .btn{padding:8px 16px; border:none; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer; color:#3a1d0f; background:linear-gradient(135deg,#ffd97a,#ffb03a); transition:.15s}
   .btn:hover{transform:translateY(-1px); filter:brightness(1.05)}
@@ -64,9 +63,11 @@
   .bar.red>div{background:linear-gradient(90deg,#ff7e7e,#d44040)}
   .hpnum{font-size:10px; color:var(--muted); min-width:28px; text-align:right}
   .shield-ind{position:absolute; left:6px; bottom:6px; font-size:11px; color:var(--shield); opacity:.9}
-  .actbtn{width:30px; height:30px; border-radius:8px; border:1px solid var(--line); cursor:pointer; font-size:16px; background:rgba(0,0,0,.4); color:var(--text); transition:.15s}
+  .actbtn{width:32px; height:32px; border-radius:9px; border:1px solid var(--line); cursor:pointer; font-size:16px; background:rgba(0,0,0,.4); color:var(--text); transition:.15s}
+  .actbtn:hover:not(:disabled){transform:translateY(-1px); filter:brightness(1.1)}
   .actbtn:disabled{opacity:.35; cursor:not-allowed}
   .actbtn.cd{filter:grayscale(.6)}
+  .era-accent{border:1px solid var(--eraAccent,#ffb03a); color:var(--eraAccent,#ffb03a)}
   .log{background:rgba(0,0,0,.35); border:1px solid var(--line); border-radius:14px; padding:12px; height:150px; overflow-y:auto; font-size:12px; line-height:1.6; margin-top:12px}
   .log p{margin:0}
   .hit{color:#ffe08a} .crit{color:var(--crit);font-weight:700} .heal{color:var(--heal)} .vamp{color:#ff9a9a}
@@ -135,10 +136,10 @@
 <script>
 // ============ ДАННЫЕ ============
 const ERAS = [
-  {name:'Древний мир', emoji:'🏛', grad:['#3a1d0f','#7a3b1e'], mult:1.0},
-  {name:'Средневековье', emoji:'🏰', grad:['#241a2a','#4a3a4a'], mult:1.5},
-  {name:'Ренессанс', emoji:'🎨', grad:['#0f2a3a','#1f4a5e'], mult:2.2},
-  {name:'Просвещение', emoji:'📜', grad:['#0f2a1a','#1f4a3a'], mult:3.0},
+  {name:'Древний мир', emoji:'🏛', grad:['#3a1d0f','#7a3b1e'], mult:1.0, accent:'#ffb03a'},
+  {name:'Средневековье', emoji:'🏰', grad:['#241a2a','#4a3a4a'], mult:1.5, accent:'#ba68c8'},
+  {name:'Ренессанс', emoji:'🎨', grad:['#0f2a3a','#1f4a5e'], mult:2.2, accent:'#4dd0e1'},
+  {name:'Просвещение', emoji:'📜', grad:['#0f2a1a','#1f4a3a'], mult:3.0, accent:'#81c784'},
 ];
 const ERAS_PER = 4;
 const MAX_WAVE = 16;
@@ -211,8 +212,11 @@ const $=id=>document.getElementById(id);
 function logLine(html,cls){ const l=$('log'); const p=document.createElement('p'); p.innerHTML=html; if(cls)p.className=cls; l.appendChild(p); l.scrollTop=l.scrollHeight; }
 function render(){
   const era=eraOf(S.wave);
+  const chip=$('eraChip');
+  chip.innerHTML=ERAS[era].emoji+' '+ERAS[era].name;
+  chip.className='era-chip era-accent';
+  chip.style.setProperty('--eraAccent', ERAS[era].accent);
   $('gold').textContent=S.gold; $('wave').textContent=S.wave; $('armySize').textContent=S.army.length;
-  $('eraChip').innerHTML=ERAS[era].emoji+' '+ERAS[era].name;
   document.body.style.background='linear-gradient(135deg,'+ERAS[era].grad[0]+','+ERAS[era].grad[1]+') fixed';
   renderShop(); renderArmy(); $('banner').classList.add('hidden');
 }
