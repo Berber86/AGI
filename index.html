@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ЭПОХИ — автобаттлер сквозь историю</title>
+<meta name="description" content="Автобаттлер «ЭПОХИ»: проведите отряд от каменного века до сингулярности. Уровень эксперимента 4/10.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%94%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= ВЕРХНЯЯ ПАНЕЛЬ ================= -->
+  <header id="topbar" class="hidden">
+    <div class="brand">ЭПОХИ</div>
+    <div class="row wrap">
+      <span class="chip" id="chpStage">Этап 1/12</span>
+      <span class="chip" id="chpTier">Каменный век</span>
+      <span class="chip" id="chpAct">Акт I · Древний мир</span>
+      <span class="chip gold">⚜ <b id="chpGold">0</b></span>
+      <span class="chip" id="chpSquad">Отряд 3/3</span>
+      <span class="chip" id="chpAttempts">Попытки 3/3</span>
+      <span class="chip" id="chpArtifacts"></span>
+    </div>
+  </header>
+
+  <!-- ================= МЕНЮ ================= -->
+  <section id="screen-menu">
+    <h1 class="logo">ЭПОХИ</h1>
+    <div class="subtitle">Автобаттлер сквозь историю · от камня до сингулярности</div>
+    <div class="epoch-strip" id="menuEpochs"></div>
+    <div class="panel help">
+      <b>Как играть.</b> Отряд шагает сквозь 6 эпох: каменный век → античность → раннее и высокое
+      средневековье → порох и пар → современность и будущее. На границах эпох юниты <b>эволюционируют</b>.
+      <ul>
+        <li><b>Расстановка:</b> 3 линии × 2 ряда. Танки и бойцы — вперёд, стрелки и лекари — назад.</li>
+        <li><b>Бой</b> идёт сам: ваши решения — кого нанять, кого прокачать и как расставить.</li>
+        <li><b>Магазин</b> после каждой победы: наём или прокачка за золото.</li>
+        <li><b>Цена ошибки:</b> 1 жизнь на этап — проиграли, этап переигрывается с начала. Всего <b>3 попытки</b> на этап.</li>
+        <li>Победите <b>Нейро-колосса</b> в финале Акта III — и партия выиграна. Партия ~10–15 минут.</li>
+      </ul>
+    </div>
+    <button class="btn primary btn-lg" id="btnStart">⚔ НАЧАТЬ ПАРТИЮ</button>
+    <div class="footer-note">Эксперимент «Игра растёт» · Уровень 4/10 · Сессия: Графический дизайнер</div>
+  </section>
+
+  <!-- ================= РАССТАНОВКА ================= -->
+  <section id="screen-roster" class="hidden">
+    <div class="stage-head">
+      <div class="act" id="rstAct">Акт I · Древний мир</div>
+      <div class="stage" id="rstStage">Этап 1 · Племена долины</div>
+      <div class="tier" id="rstTier">Эпоха: Каменный век</div>
+    </div>
+    <div class="roster-grid" id="rstGrid"></div>
+    <div class="bench">
+      <span class="label">Скамейка:</span>
+      <span class="muted" id="rstBenchEmpty">— пусто —</span>
+      <div class="row wrap" id="rstBench"></div>
+    </div>
+    <div class="roster-foot">
+      <button class="btn" id="btnAuto">⚡ Авторасстановка</button>
+      <button class="btn primary" id="btnFight">⚔ К БОЮ</button>
+    </div>
+  </section>
+
+  <!-- ================= БОЙ ================= -->
+  <section id="screen-battle" class="hidden">
+    <div class="vs-line">
+      <span class="me" id="vsPlayer">⚔ Ваш отряд</span>
+      <span id="vsTier">Каменный век · Этап 1/12</span>
+      <span class="foe" id="vsEnemy">Враги</span>
+    </div>
+    <div id="battleWrap">
+      <canvas id="battleCanvas"></canvas>
+      <div id="battleMsg">
+        <div class="big" id="battleMsgBig"></div>
+        <div class="sub" id="battleMsgSub"></div>
+      </div>
+    </div>
+    <div class="battle-controls">
+      <button class="btn small" id="btnSpeed1">▶ 1×</button>
+      <button class="btn small" id="btnSpeed2">▶▶ 2×</button>
+      <button class="btn small" id="btnInstant">⏭ Мгновенно</button>
+      <button class="btn small" id="btnReposition">↺ Расстановка</button>
+    </div>
+  </section>
+
+  <!-- ================= МАГАЗИН ================= -->
+  <section id="screen-shop" class="hidden">
+    <div class="shop-title">⚜ Магазин эпохи</div>
+    <div class="gold-note">Золото: <b id="shpGold">0</b> · После победы — новый выбор</div>
+    <div class="shop-cards" id="shpCards"></div>
+    <div class="shop-foot">
+      <button class="btn" id="btnSkip">Пропустить →</button>
+    </div>
+  </section>
+
+  <!-- ================= ОВЕРЛЕЙ ================= -->
+  <div id="overlay" class="hidden">
+    <div class="panel box" id="overlayBox"></div>
+  </div>
+</div>
+
+<noscript><p style="color:#fff;padding:20px">Для игры нужен JavaScript.</p></noscript>
+
+<!-- Модули: движок (чистая логика) → отрисовка → аудио (заглушка) → UI -->
+<script src="js/engine.js"></script>
+<script src="js/battle-render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
