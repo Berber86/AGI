@@ -106,6 +106,79 @@ class OutcomeExtractionTests(unittest.TestCase):
             log.unlink(missing_ok=True)
 
 
+class VerdictExtractionTests(unittest.TestCase):
+    def test_parses_all_three_statuses(self):
+        log = write_log(
+            [
+                "### Вердикт по Г1",
+                "- **Сравнение с предположением:** подтвердилась.",
+                "### Вердикт по Г2",
+                "- **Сравнение с предположением:** частично — метрика спорная.",
+                "### Вердикт по Г3",
+                "- **Сравнение с предположением:** опровергнута — тест не прошёл.",
+            ]
+        )
+        try:
+            verdicts = skill_usage.extract_verdict_events(log)
+            self.assertEqual(len(verdicts), 3)
+            by_hypothesis = {v.hypothesis: v.status for v in verdicts}
+            self.assertEqual(by_hypothesis["Г1"], "подтвердилась")
+            self.assertEqual(by_hypothesis["Г2"], "частично")
+            self.assertEqual(by_hypothesis["Г3"], "опровергнута")
+        finally:
+            log.unlink(missing_ok=True)
+
+    def test_status_prefix_with_tail(self):
+        log = write_log(
+            [
+                "### Вердикт по Г1",
+                "- **Сравнение с предположением:** подтвердилась с уточнением: нужен порог.",
+                "### Вердикт по Г2",
+                "- **Сравнение с предположением:** предварительно подтвердилась; нужна проверка.",
+            ]
+        )
+        try:
+            verdicts = skill_usage.extract_verdict_events(log)
+            self.assertEqual(len(verdicts), 2)
+            self.assertTrue(all(v.status == "подтвердилась" for v in verdicts))
+        finally:
+            log.unlink(missing_ok=True)
+
+    def test_unknown_status_ignored(self):
+        log = write_log(
+            [
+                "### Вердикт по Г1",
+                "- **Сравнение с предположением:** неоднозначно, данных мало.",
+            ]
+        )
+        try:
+            verdicts = skill_usage.extract_verdict_events(log)
+            self.assertEqual(len(verdicts), 0)
+        finally:
+            log.unlink(missing_ok=True)
+
+    def test_verdict_without_header_gets_question(self):
+        log = write_log(
+            ["- **Сравнение с предположением:** подтвердилась."]
+        )
+        try:
+            verdicts = skill_usage.extract_verdict_events(log)
+            self.assertEqual(len(verdicts), 1)
+            self.assertEqual(verdicts[0].hypothesis, "?")
+        finally:
+            log.unlink(missing_ok=True)
+
+    def test_classify_verdict_status_unknown_returns_none(self):
+        self.assertIsNone(skill_usage.classify_verdict_status("непроверено"))
+        self.assertIsNone(skill_usage.classify_verdict_status("не подтвердилась — повторить"))
+        self.assertEqual(
+            skill_usage.classify_verdict_status("Опровергнута полностью"), "опровергнута"
+        )
+        self.assertEqual(
+            skill_usage.classify_verdict_status("Частично подтвердилась"), "частично"
+        )
+
+
 class ReportFieldsTests(unittest.TestCase):
     def test_report_has_outcome_fields(self):
         report = skill_usage.build_skill_usage_report()
@@ -132,6 +205,37 @@ class ReportFieldsTests(unittest.TestCase):
             self.assertEqual(
                 set(data["outcomes"]), {"успех", "частично", "неудача"}
             )
+
+    def test_report_has_verdict_fields(self):
+        report = skill_usage.build_skill_usage_report()
+        for field in (
+            "total_verdicts",
+            "verdicts_by_status",
+            "skills_with_verdicts",
+            "verdicts_by_log",
+            "verdict_events",
+        ):
+            self.assertIn(field, report)
+        for skill, data in report["per_skill"].items():
+            self.assertIn("session_verdicts", data)
+            self.assertEqual(
+                set(data["session_verdicts"]),
+                {"подтвердилась", "частично", "опровергнута"},
+            )
+
+    def test_verdicts_aggregation_is_consistent(self):
+        report = skill_usage.build_skill_usage_report()
+        self.assertEqual(
+            sum(report["verdicts_by_status"].values()),
+            report["total_verdicts"],
+        )
+        per_skill_total = sum(
+            sum(data["session_verdicts"].values())
+            for data in report["per_skill"].values()
+        )
+        # Каждый вердикт может попасть в несколько скиллов (если они применялись в той же сессии),
+        # поэтому per_skill_total >= total_verdicts, но не больше total_verdicts * число_скиллов.
+        self.assertGreaterEqual(per_skill_total, report["total_verdicts"])
 
     def test_outcomes_aggregation_is_consistent(self):
         report = skill_usage.build_skill_usage_report()

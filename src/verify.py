@@ -409,6 +409,16 @@ def check_skill_usage(report: Report) -> None:
             "В логах есть ссылки на неизвестные скиллы: " + details + extra
         )
 
+    # Полнота измерения полезности (D005): скилл с частым применением, но без единого исхода.
+    for skill, data in usage["per_skill"].items():
+        if data["count"] >= 5 and sum(data["outcomes"].values()) == 0:
+            report.warn(
+                f"Скилл `{skill}` применён {data['count']} раз, но не имеет ни одного "
+                f"задокументированного исхода; заполни маркеры "
+                f"«Итог скилла `skills/<имя>.md`: успех|частично|неудача — ...» "
+                f"в логах (метрика полезности v1)."
+            )
+
 
 def check_capability_admission(report: Report) -> None:
     """Требует единственный PASS-marker в последнем сессионном логе."""
