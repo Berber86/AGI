@@ -50,6 +50,8 @@ REQUIRED_FILES = [
     "memory/05-lessons.md",
     "memory/06-deadends.md",
     "memory/07-dream.md",
+    "memory/10-persona.md",
+    "memory/11-self-model-history.json",
     ".gitignore",
     "prompts/awakening.md",
     "prompts/context-policy.md",
@@ -63,9 +65,11 @@ REQUIRED_FILES = [
     "src/stagnation.py",
     "src/skill_usage.py",
     "src/plot_metrics.py",
+    "src/self_model.py",
     "tests/test_admission.py",
     "tests/test_skill_usage.py",
     "tests/test_plot_metrics.py",
+    "tests/test_self_model.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -84,6 +88,7 @@ REQUIRED_SKILLS = [
     "skills/reflection-loop.md",
     "skills/stagnation-watch.md",
     "skills/context-hygiene.md",
+    "skills/persona-emulation.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
@@ -107,7 +112,11 @@ MIN_FILE_SIZES = {
     "src/stagnation.py": 1000,
     "src/skill_usage.py": 1000,
     "src/plot_metrics.py": 1000,
+    "src/self_model.py": 1000,
+    "tests/test_self_model.py": 500,
     "memory/07-dream.md": 500,
+    "memory/10-persona.md": 500,
+    "skills/persona-emulation.md": 500,
     "Readme.md": 50,
 }
 
@@ -120,6 +129,15 @@ CONSTITUTION_REQUIRED_SECTIONS = [
     "Статья 5",
 ]
 
+# Обязательные разделы в спецификации персоны (memory/10-persona.md)
+PERSONA_REQUIRED_SECTIONS = [
+    "## 1. Идентичность персоны",
+    "## 2. Голос и манера речи",
+    "## 3. Ценности",
+    "## 5. Паттерны поведения",
+    "## 7. Границы и честность",
+]
+
 # Порог доли кириллических символов, при котором файл считается русскоязычным
 # (считаем только по буквам; в кодовых блоках и URL доля может быть ниже, поэтому порог мягкий)
 CYRILLIC_THRESHOLD = 0.20
@@ -129,6 +147,7 @@ LANGUAGE_CHECK_EXEMPT = [
     "tests/test_admission.py",
     "tests/test_skill_usage.py",
     "tests/test_plot_metrics.py",
+    "tests/test_self_model.py",
 ]
 
 # Регулярка для кириллицы
@@ -199,6 +218,17 @@ def check_constitution_sections(report: Report) -> None:
             report.error(f"В конституции отсутствует обязательный раздел: {sec}")
 
 
+def check_persona_sections(report: Report) -> None:
+    """Проверяем обязательные разделы в спецификации персоны."""
+    p = REPO_ROOT / "memory/10-persona.md"
+    if not p.exists():
+        return
+    text = p.read_text(encoding="utf-8", errors="replace")
+    for sec in PERSONA_REQUIRED_SECTIONS:
+        if sec not in text:
+            report.error(f"В персоне отсутствует обязательный раздел: {sec}")
+
+
 def check_language(report: Report) -> None:
     """Проверяем, что ключевые md-файлы содержат достаточно кириллицы."""
     targets = []
@@ -213,6 +243,9 @@ def check_language(report: Report) -> None:
             for f in d.rglob("*.md"):
                 targets.append(str(f.relative_to(REPO_ROOT)))
     for rel in targets:
+        # машинные файлы (JSON и т.п.) не проверяем на язык — это данные, не текст
+        if rel.endswith(".json"):
+            continue
         p = REPO_ROOT / rel
         if not p.exists():
             continue
@@ -547,6 +580,7 @@ def main() -> int:
     check_required_files(report)
     check_file_sizes(report)
     check_constitution_sections(report)
+    check_persona_sections(report)
     check_language(report)
     check_git(report)
     check_log_naming(report)
