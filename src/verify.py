@@ -46,10 +46,12 @@ REQUIRED_FILES = [
     "memory/04-glossary.md",
     "memory/05-lessons.md",
     "memory/06-deadends.md",
+    "memory/07-dream.md",
     "prompts/awakening.md",
     "skills/README.md",
     "src/verify.py",
     "src/metrics.py",
+    "src/dream.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -76,6 +78,9 @@ MIN_FILE_SIZES = {
     "prompts/awakening.md": 500,
     "docs/ARCHITECTURE.md": 500,
     "src/verify.py": 1000,
+    "src/metrics.py": 1000,
+    "src/dream.py": 1000,
+    "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
 
