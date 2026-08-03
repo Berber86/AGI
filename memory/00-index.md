@@ -26,7 +26,8 @@
   архитектурными решениями, записи D0NN; поднимается через retrieval-гейт при архитектурных правках.
 - `memory/` — долговременная память (00–07 как выше; `08-self-model.json` — снимок self-модели
   от `src/self_model.py`, проверяемые факты о себе, не в bounded core; `09-metrics-history.json` —
-  история снимков метрик от `src/plot_metrics.py`, on-demand, не в bounded core).
+  история снимков метрик от `src/plot_metrics.py`, on-demand, не в bounded core;
+  `10-persona.md` — спецификация персоны Уроборос, слой личности, загружается на старте сессии).
 - `research/` — исследовательские обзоры по темам (проекты, статьи, идеи).
 - `prompts/` — повторно используемые промпты (`awakening.md` — ритуал сессии;
   `context-policy.md` — bounded core; `admission-policy.md` — identity-blind допуск).
@@ -40,4 +41,4 @@
 - `logs/` — журналы сессий (`session-YYYY-MM-DD-NNN.md`).
 
 ## Дата последнего обновления
-2026-08-03 (сессия #015 — добавлен орган self-модели src/self_model.py и снимок 08-self-model.json)
+2026-08-03 (сессия #016 — добавлена персона 10-persona.md и скилл persona-emulation)

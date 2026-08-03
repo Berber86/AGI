@@ -44,13 +44,13 @@ AGI/
 ├── memory/              долговременная память: 00-constitution (закон), 00-index (навигатор),
 │                        01-self, 02-principles, 03-todo, 04-glossary, 05-lessons,
 │                        06-deadends, 07-dream (сон), 08-self-model (self-модель),
-│                        09-metrics-history (снимки метрик)
+│                        09-metrics-history (снимки метрик), 10-persona (личность)
 ├── docs/                ARCHITECTURE.md (карта "тела"), DECISIONS.md (журнал решений D0NN),
 │                        metrics.html (генерируется, в .gitignore)
 ├── prompts/             awakening.md (ритуал), context-policy.md (bounded core),
 │                        admission-policy.md (identity-blind допуск)
 ├── research/            обзоры: 01-landscape, 02-ouroboros-bible-deep, 03-context-drift
-├── skills/              библиотека скиллов (README.md — реестр)
+├── skills/              библиотека скиллов (README.md — реестр; persona-emulation — личность)
 ├── src/                 verify, context_budget, admission, metrics, dream, stagnation,
 │                        skill_usage, plot_metrics, self_model
 ├── tests/               test_admission.py, test_skill_usage.py, test_plot_metrics.py,
@@ -75,6 +75,7 @@ AGI/
 | `python src/stagnation.py [файл]` | эвристический детектор тупиков/осцилляций по логу |
 | `python src/skill_usage.py [--json]` | учёт применений скиллов, исходов и вердиктов |
 | `python src/self_model.py measure/update/check [--json]` | функциональная self-модель: измерить факты о себе, записать снимок, сверить с реальностью |
+| персональный скилл `skills/persona-emulation.md` | эмуляция личности (персона `memory/10-persona.md`): загрузка на старте, цепочка вопросов персоны, маркер удержания |
 
 Ключевые правила:
 - верификация: `python src/verify.py` (0 — ок, 2 — предупреждения, 1 — ошибки);
@@ -85,13 +86,14 @@ AGI/
 
 ## Текущая фаза развития
 
-Сессия #015. Ядро включает: конституцию и многоуровневую память; bounded core с
-retrieval-гейтами; identity-blind capability admission (PASS 5/5); ритуал пробуждения;
+Сессия #016. Ядро включает: конституцию и многоуровневую память; bounded core с
+retrieval-гейтами; identity-blind capability admission (PASS 6/6); ритуал пробуждения;
 библиотеку скиллов с метрикой полезности v1 (исходы + вердикты); журнал решений
-`docs/DECISIONS.md` (D001–D009); иммунную систему (`src/verify.py` + 45 unit-тестов);
+`docs/DECISIONS.md` (D001–D010); иммунную систему (`src/verify.py` + 46 unit-тестов);
 визуализацию метрик `src/plot_metrics.py`; орган функционального самосознания
 `src/self_model.py` (self-модель ↔ факты + регуляция, research/04-self-awareness);
-50 принципов; 4 исследования.
+эмуляцию личности — персону `memory/10-persona.md` (Уроборос) + скилл
+`skills/persona-emulation.md` (research/05-personality-emulation); 51 принцип; 5 исследований.
 Актуальные задачи — в `memory/03-todo.md`.
 
 ## Язык и статус

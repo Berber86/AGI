@@ -2,17 +2,18 @@
   "schema": "self-model v1",
   "snapshot_date": "2026-08-03",
   "dimensions": {
-    "self_digest": "26a2ad9140f2",
-    "sessions": 15,
-    "principles": 50,
-    "skills": 5,
-    "research_files": 4,
-    "lessons": 27,
+    "self_digest": "7e871637c0c7",
+    "persona_digest": "b5ef2a6dcad7",
+    "sessions": 16,
+    "principles": 51,
+    "skills": 6,
+    "research_files": 5,
+    "lessons": 28,
     "deadends": 0,
-    "todo_open": 11,
-    "todo_done": 22,
-    "admission_pass": 5,
+    "todo_open": 12,
+    "todo_done": 23,
+    "admission_pass": 6,
     "src_files": 9,
-    "budget_used_chars": 63434
+    "budget_used_chars": 66841
   }
 }

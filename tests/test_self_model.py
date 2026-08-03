@@ -51,8 +51,9 @@ def make_tree(root: Path) -> None:
     # src: 2 py
     (root / "src/a.py").write_text("x=1\n", encoding="utf-8")
     (root / "src/b.py").write_text("y=2\n", encoding="utf-8")
-    # самоописание + контекстная политика с манифестом (2 файла ядра: self + policy)
+    # самоописание + персона + контекстная политика с манифестом (2 файла ядра: self + policy)
     (root / "memory/01-self.md").write_text("Я — агент.\n", encoding="utf-8")
+    (root / "memory/10-persona.md").write_text("## 1. Идентичность персоны\nУроборос.\n", encoding="utf-8")
     policy = (
         "<!-- CONTEXT_CORE_START -->\n"
         "- `memory/01-self.md`\n"
@@ -74,6 +75,7 @@ class SelfModelMeasureTest(unittest.TestCase):
 
     def test_measure_counts(self) -> None:
         m = self_model.measure(self.root)
+        self.assertEqual(len(m["persona_digest"]), 12)
         self.assertEqual(m["principles"], 2)
         self.assertEqual(m["skills"], 3)  # README исключён
         self.assertEqual(m["research_files"], 2)
@@ -96,6 +98,17 @@ class SelfModelMeasureTest(unittest.TestCase):
     def test_no_self_file_gives_empty_digest(self) -> None:
         (self.root / "memory/01-self.md").unlink()
         self.assertEqual(self_model.self_digest(self.root), "")
+
+    def test_persona_digest(self) -> None:
+        d = self_model.persona_digest(self.root)
+        self.assertEqual(len(d), 12)
+        # при изменении персоны отпечаток меняется
+        (self.root / "memory/10-persona.md").write_text(
+            "## 1. Идентичность персоны\nДругой.\n", encoding="utf-8")
+        self.assertNotEqual(self_model.persona_digest(self.root), d)
+        # нет файла -> пусто
+        (self.root / "memory/10-persona.md").unlink()
+        self.assertEqual(self_model.persona_digest(self.root), "")
 
 
 class SelfModelSnapshotTest(unittest.TestCase):

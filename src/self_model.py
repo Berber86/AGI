@@ -38,6 +38,7 @@ DEFAULT_SELF_MODEL = "memory/08-self-model.json"
 # но self-модель не пересоздана — это сигнал расхождения (устаревшая self-модель).
 DIMENSIONS: list[tuple[str, str]] = [
     ("self_digest", "отпечаток самоописания 01-self.md"),
+    ("persona_digest", "отпечаток персоны 10-persona.md"),
     ("sessions", "число сессий (логов)"),
     ("principles", "число принципов"),
     ("skills", "число скиллов"),
@@ -65,6 +66,14 @@ def _read(path: Path) -> str:
 def self_digest(repo_root: Path) -> str:
     """Короткий отпечаток самоописания. Пустая строка, если файла нет."""
     path = repo_root / "memory/01-self.md"
+    if not path.is_file():
+        return ""
+    return hashlib.sha256(_read(path).encode("utf-8")).hexdigest()[:12]
+
+
+def persona_digest(repo_root: Path) -> str:
+    """Короткий отпечаток персоны (memory/10-persona.md). Пусто, если файла нет."""
+    path = repo_root / "memory/10-persona.md"
     if not path.is_file():
         return ""
     return hashlib.sha256(_read(path).encode("utf-8")).hexdigest()[:12]
@@ -165,6 +174,7 @@ def measure(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     """Возвращает факты о себе: ключ измерения -> измеренное значение."""
     return {
         "self_digest": self_digest(repo_root),
+        "persona_digest": persona_digest(repo_root),
         "sessions": count_sessions(repo_root),
         "principles": count_principle_lines(repo_root),
         "skills": count_md_files("skills", repo_root, exclude_readme=True),

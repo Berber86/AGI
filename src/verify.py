@@ -50,6 +50,7 @@ REQUIRED_FILES = [
     "memory/05-lessons.md",
     "memory/06-deadends.md",
     "memory/07-dream.md",
+    "memory/10-persona.md",
     ".gitignore",
     "prompts/awakening.md",
     "prompts/context-policy.md",
@@ -86,6 +87,7 @@ REQUIRED_SKILLS = [
     "skills/reflection-loop.md",
     "skills/stagnation-watch.md",
     "skills/context-hygiene.md",
+    "skills/persona-emulation.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
@@ -112,6 +114,8 @@ MIN_FILE_SIZES = {
     "src/self_model.py": 1000,
     "tests/test_self_model.py": 500,
     "memory/07-dream.md": 500,
+    "memory/10-persona.md": 500,
+    "skills/persona-emulation.md": 500,
     "Readme.md": 50,
 }
 
@@ -122,6 +126,15 @@ CONSTITUTION_REQUIRED_SECTIONS = [
     "Статья 3",
     "Статья 4",
     "Статья 5",
+]
+
+# Обязательные разделы в спецификации персоны (memory/10-persona.md)
+PERSONA_REQUIRED_SECTIONS = [
+    "## 1. Идентичность персоны",
+    "## 2. Голос и манера речи",
+    "## 3. Ценности",
+    "## 5. Паттерны поведения",
+    "## 7. Границы и честность",
 ]
 
 # Порог доли кириллических символов, при котором файл считается русскоязычным
@@ -202,6 +215,17 @@ def check_constitution_sections(report: Report) -> None:
     for sec in CONSTITUTION_REQUIRED_SECTIONS:
         if sec not in text:
             report.error(f"В конституции отсутствует обязательный раздел: {sec}")
+
+
+def check_persona_sections(report: Report) -> None:
+    """Проверяем обязательные разделы в спецификации персоны."""
+    p = REPO_ROOT / "memory/10-persona.md"
+    if not p.exists():
+        return
+    text = p.read_text(encoding="utf-8", errors="replace")
+    for sec in PERSONA_REQUIRED_SECTIONS:
+        if sec not in text:
+            report.error(f"В персоне отсутствует обязательный раздел: {sec}")
 
 
 def check_language(report: Report) -> None:
@@ -552,6 +576,7 @@ def main() -> int:
     check_required_files(report)
     check_file_sizes(report)
     check_constitution_sections(report)
+    check_persona_sections(report)
     check_language(report)
     check_git(report)
     check_log_naming(report)
