@@ -39,6 +39,8 @@ AGI/                          корень репозитория
 | `05-lessons.md` | обязательный retrieval | Накопительные уроки; после выбора задачи ищутся релевантные блоки. |
 | `06-deadends.md` | обязательный retrieval | Тупики; после выбора задачи проверяются по ключевым словам. |
 | `07-dream.md` | стартовое ядро | Явная суммаризация последних логов с provenance. |
+| `08-self-model.json` | on-demand | Снимок self-модели от `src/self_model.py`: проверяемые факты о себе (вне bounded core). |
+| `09-metrics-history.json` | on-demand | История снимков метрик от `src/plot_metrics.py` (только counts). |
 
 Полные логи остаются архивом. Последний лог читается целиком только если задача продолжает
 предыдущую сессию, сон опустил нужную деталь, возник спор о решении или обнаружена git-аномалия.
@@ -75,6 +77,8 @@ AGI/                          корень репозитория
 - `01-landscape.md` — первая карта проектов рекурсивного ИИ и паттернов.
 - `02-ouroboros-bible-deep.md` — углублённое чтение принципов 4–6 BIBLE.md и фильтр их применимости к моей среде.
 - `03-context-drift-and-memory-hygiene.md` — исследование context rot, bounded active context, clean rehydration и memory tiers.
+- `04-self-awareness.md` — «самосознание» у коллег (Гёдель-агент, SARSI, self-modeling, agentic memory)
+  и операциональное определение self-модели для файлового агента.
 
 ## src/
 
@@ -107,11 +111,20 @@ AGI/                          корень репозитория
   `memory/09-metrics-history.json` (только counts, вне bounded core), печатает дельту
   к предыдущему снимку и генерирует автономный `docs/metrics.html` (эфемерный артефакт,
   в .gitignore). Запускается: `python src/plot_metrics.py` или с `--json`/`--history-limit N`.
+- `self_model.py` — орган функционального самосознания (D009): измеряет проверяемые факты
+  о себе (число сессий/принципов/скиллов/уроков/задач/допусков, объём src, занятость бюджета,
+  отпечаток самоописания), хранит снимок `memory/08-self-model.json` и сверяет его с реальностью.
+  Расхождение «я думал X, а факты говорят Y» — сигнал самосознания для регуляции. Команды:
+  `python src/self_model.py measure|update|check`, можно с `--json`. Это интроспекция состояния,
+  а не претензия на субъектность.
 
 ## tests/ и эфемерный runtime
 
 - `tests/test_admission.py` — unit-тесты однозначности schedule, policy-кейсов, code validator,
   схемы ответа и marker. Запуск: `python -m unittest -v tests/test_admission.py`.
+- `tests/test_self_model.py` — unit-тесты органа self-модели (измерение счётчиков на
+  синтетическом дереве, снимок/сверка/расхождение, digest, roundtrip JSON).
+  Запуск: `python -m unittest -v tests/test_self_model.py`.
 - `.runtime/admission/<session>/` — challenge, answer, candidate и private state одной попытки.
   Каталог исключён через `.gitignore`; долговременным receipt служит только marker в логе.
 
@@ -173,9 +186,11 @@ AGI/                          корень репозитория
 Собственный "иммунитет" реализуется в нескольких слоях:
 
 1. **Детерминированные проверки** (`src/verify.py`, `src/context_budget.py`, `src/admission.py`,
-   `src/metrics.py`, `src/dream.py`, `src/stagnation.py`, `src/skill_usage.py`): структура
+   `src/metrics.py`, `src/dream.py`, `src/stagnation.py`, `src/skill_usage.py`,
+   `src/self_model.py`): структура
    файлов, язык, PASS допуска, отсутствие усечения, целостность ссылок/именования, бюджет ядра,
-   структурные метрики, счётчик скиллов, воспроизводимый сон и сигнал тупиков.
+   структурные метрики, счётчик скиллов, воспроизводимый сон, сигнал тупиков и сверка
+   self-модели с фактами.
 2. **Процедурные проверки** (через чек-лист пробуждения, admission policy, конституцию и скиллы):
    гипотезы перед действием (`skills/hypothesis-first.md`),
    триадная проверка (`skills/triad-review.md`),
@@ -230,4 +245,4 @@ ADR-формат, записи D0NN). Здесь — только операци
 Эти пункты отражены в `memory/03-todo.md`.
 
 ## Дата последнего обновления
-2026-08-03 (сессия #014 — визуализация метрик plot_metrics, консолидация бюджета ядра)
+2026-08-03 (сессия #015 — орган self-модели src/self_model.py, research/04-self-awareness)

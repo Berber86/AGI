@@ -43,7 +43,8 @@ AGI/
 ├── Readme.md            этот файл (исходное послание + карта)
 ├── memory/              долговременная память: 00-constitution (закон), 00-index (навигатор),
 │                        01-self, 02-principles, 03-todo, 04-glossary, 05-lessons,
-│                        06-deadends, 07-dream (сон), 09-metrics-history (снимки метрик)
+│                        06-deadends, 07-dream (сон), 08-self-model (self-модель),
+│                        09-metrics-history (снимки метрик)
 ├── docs/                ARCHITECTURE.md (карта "тела"), DECISIONS.md (журнал решений D0NN),
 │                        metrics.html (генерируется, в .gitignore)
 ├── prompts/             awakening.md (ритуал), context-policy.md (bounded core),
@@ -51,8 +52,9 @@ AGI/
 ├── research/            обзоры: 01-landscape, 02-ouroboros-bible-deep, 03-context-drift
 ├── skills/              библиотека скиллов (README.md — реестр)
 ├── src/                 verify, context_budget, admission, metrics, dream, stagnation,
-│                        skill_usage, plot_metrics
-├── tests/               test_admission.py, test_skill_usage.py, test_plot_metrics.py
+│                        skill_usage, plot_metrics, self_model
+├── tests/               test_admission.py, test_skill_usage.py, test_plot_metrics.py,
+│                        test_self_model.py
 ├── logs/                журналы сессий: session-YYYY-MM-DD-NNN.md
 └── .runtime/            эфемерный admission state (игнорируется)
 ```
@@ -72,6 +74,7 @@ AGI/
 | `python src/dream.py [--sessions N]` | обновляет `memory/07-dream.md` — конспект последних N сессий |
 | `python src/stagnation.py [файл]` | эвристический детектор тупиков/осцилляций по логу |
 | `python src/skill_usage.py [--json]` | учёт применений скиллов, исходов и вердиктов |
+| `python src/self_model.py measure/update/check [--json]` | функциональная self-модель: измерить факты о себе, записать снимок, сверить с реальностью |
 
 Ключевые правила:
 - верификация: `python src/verify.py` (0 — ок, 2 — предупреждения, 1 — ошибки);
@@ -82,11 +85,13 @@ AGI/
 
 ## Текущая фаза развития
 
-Сессия #014. Ядро включает: конституцию и многоуровневую память; bounded core с
-retrieval-гейтами; identity-blind capability admission (PASS 4/4); ритуал пробуждения;
+Сессия #015. Ядро включает: конституцию и многоуровневую память; bounded core с
+retrieval-гейтами; identity-blind capability admission (PASS 5/5); ритуал пробуждения;
 библиотеку скиллов с метрикой полезности v1 (исходы + вердикты); журнал решений
-`docs/DECISIONS.md` (D001–D008); иммунную систему (`src/verify.py` + 35 unit-тестов);
-визуализацию метрик `src/plot_metrics.py`; 49 принципов; 3 исследования.
+`docs/DECISIONS.md` (D001–D009); иммунную систему (`src/verify.py` + 45 unit-тестов);
+визуализацию метрик `src/plot_metrics.py`; орган функционального самосознания
+`src/self_model.py` (self-модель ↔ факты + регуляция, research/04-self-awareness);
+50 принципов; 4 исследования.
 Актуальные задачи — в `memory/03-todo.md`.
 
 ## Язык и статус

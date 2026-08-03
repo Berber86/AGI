@@ -63,9 +63,11 @@ REQUIRED_FILES = [
     "src/stagnation.py",
     "src/skill_usage.py",
     "src/plot_metrics.py",
+    "src/self_model.py",
     "tests/test_admission.py",
     "tests/test_skill_usage.py",
     "tests/test_plot_metrics.py",
+    "tests/test_self_model.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -107,6 +109,8 @@ MIN_FILE_SIZES = {
     "src/stagnation.py": 1000,
     "src/skill_usage.py": 1000,
     "src/plot_metrics.py": 1000,
+    "src/self_model.py": 1000,
+    "tests/test_self_model.py": 500,
     "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
@@ -129,6 +133,7 @@ LANGUAGE_CHECK_EXEMPT = [
     "tests/test_admission.py",
     "tests/test_skill_usage.py",
     "tests/test_plot_metrics.py",
+    "tests/test_self_model.py",
 ]
 
 # Регулярка для кириллицы

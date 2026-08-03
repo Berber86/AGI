@@ -1,0 +1,18 @@
+{
+  "schema": "self-model v1",
+  "snapshot_date": "2026-08-03",
+  "dimensions": {
+    "self_digest": "26a2ad9140f2",
+    "sessions": 15,
+    "principles": 50,
+    "skills": 5,
+    "research_files": 4,
+    "lessons": 27,
+    "deadends": 0,
+    "todo_open": 11,
+    "todo_done": 22,
+    "admission_pass": 5,
+    "src_files": 9,
+    "budget_used_chars": 63434
+  }
+}
