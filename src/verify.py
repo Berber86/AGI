@@ -52,6 +52,7 @@ REQUIRED_FILES = [
     "src/verify.py",
     "src/metrics.py",
     "src/dream.py",
+    "src/stagnation.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -68,6 +69,7 @@ REQUIRED_SKILLS = [
     "skills/triad-review.md",
     "skills/hypothesis-first.md",
     "skills/reflection-loop.md",
+    "skills/stagnation-watch.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
@@ -80,6 +82,7 @@ MIN_FILE_SIZES = {
     "src/verify.py": 1000,
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
+    "src/stagnation.py": 1000,
     "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
