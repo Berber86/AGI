@@ -32,6 +32,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+EXPECTED_BRANCH = "arena/019fc7cf-agi"
 
 # Обязательные файлы (относительно корня репозитория)
 REQUIRED_FILES = [
@@ -45,9 +46,13 @@ REQUIRED_FILES = [
     "memory/04-glossary.md",
     "memory/05-lessons.md",
     "memory/06-deadends.md",
+    "memory/07-dream.md",
     "prompts/awakening.md",
     "skills/README.md",
     "src/verify.py",
+    "src/metrics.py",
+    "src/dream.py",
+    "src/stagnation.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -64,6 +69,7 @@ REQUIRED_SKILLS = [
     "skills/triad-review.md",
     "skills/hypothesis-first.md",
     "skills/reflection-loop.md",
+    "skills/stagnation-watch.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
@@ -74,6 +80,10 @@ MIN_FILE_SIZES = {
     "prompts/awakening.md": 500,
     "docs/ARCHITECTURE.md": 500,
     "src/verify.py": 1000,
+    "src/metrics.py": 1000,
+    "src/dream.py": 1000,
+    "src/stagnation.py": 1000,
+    "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
 
@@ -216,10 +226,10 @@ def check_git(report: Report) -> None:
         if r.returncode == 0:
             branch = r.stdout.strip()
             report.info(f"Текущая ветка: {branch}")
-            if branch != "arena/019fc784-agi":
+            if branch != EXPECTED_BRANCH:
                 report.warn(
                     f"Текущая ветка {branch!r} не совпадает с фиксированной "
-                    f"'arena/019fc784-agi'."
+                    f"{EXPECTED_BRANCH!r}."
                 )
         else:
             report.warn("Не удалось определить текущую ветку git.")
