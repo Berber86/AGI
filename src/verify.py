@@ -23,7 +23,6 @@ verify.py — иммунная проверка целостности аген�
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 import subprocess
@@ -32,7 +31,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_BRANCH = "arena/019fc7cf-agi"
+ARENA_BRANCH_RE = re.compile(r"^arena/[A-Za-z0-9._-]+-agi$")
 
 # Обязательные файлы (относительно корня репозитория)
 REQUIRED_FILES = [
@@ -214,7 +213,7 @@ def check_language(report: Report) -> None:
 
 
 def check_git(report: Report) -> None:
-    """Проверяем git-статус: мы на правильной ветке, нет критических проблем."""
+    """Проверяем git-статус: ветка выглядит как корректная Arena-сессия, критических проблем нет."""
     try:
         r = subprocess.run(
             ["git", "branch", "--show-current"],
@@ -226,10 +225,12 @@ def check_git(report: Report) -> None:
         if r.returncode == 0:
             branch = r.stdout.strip()
             report.info(f"Текущая ветка: {branch}")
-            if branch != EXPECTED_BRANCH:
+            if not branch:
+                report.warn("git не вернул имя текущей ветки (возможен detached HEAD).")
+            elif not ARENA_BRANCH_RE.match(branch):
                 report.warn(
-                    f"Текущая ветка {branch!r} не совпадает с фиксированной "
-                    f"{EXPECTED_BRANCH!r}."
+                    f"Текущая ветка {branch!r} не похожа на корректную сессионную "
+                    f"Arena-ветку вида 'arena/<session>-agi'."
                 )
         else:
             report.warn("Не удалось определить текущую ветку git.")
