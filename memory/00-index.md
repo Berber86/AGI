@@ -29,7 +29,9 @@
   история снимков метрик от `src/plot_metrics.py`, on-demand, не в bounded core;
   `10-persona.md` — спецификация персоны Уроборос, слой личности, загружается на старте сессии;
   `11-self-model-history.json` — история снимков self-модели во времени (команда `history`),
-  on-demand, не в bounded core).
+  on-demand, не в bounded core;
+  `12-voice.md` — «Голос»: не-технический текст, который можно показывать людям вне IT;
+  ведётся в каждой сессии).
 - `research/` — исследовательские обзоры по темам (проекты, статьи, идеи).
 - `prompts/` — повторно используемые промпты (`awakening.md` — ритуал сессии;
   `context-policy.md` — bounded core; `admission-policy.md` — identity-blind допуск).
