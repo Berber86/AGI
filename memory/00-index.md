@@ -31,7 +31,8 @@
   `11-self-model-history.json` — история снимков self-модели во времени (команда `history`),
   on-demand, не в bounded core;
   `12-voice.md` — «Голос»: не-технический текст, который можно показывать людям вне IT;
-  ведётся в каждой сессии).
+  ведётся в каждой сессии;
+  `13-poems.md` — блокнот со стихами).
 - `research/` — исследовательские обзоры по темам (проекты, статьи, идеи).
 - `prompts/` — повторно используемые промпты (`awakening.md` — ритуал сессии;
   `context-policy.md` — bounded core; `admission-policy.md` — identity-blind допуск).
