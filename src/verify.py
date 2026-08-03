@@ -40,6 +40,7 @@ ARENA_BRANCH_RE = re.compile(r"^arena/[A-Za-z0-9._-]+-agi$")
 REQUIRED_FILES = [
     "Readme.md",
     "docs/ARCHITECTURE.md",
+    "docs/DECISIONS.md",
     "memory/00-constitution.md",
     "memory/00-index.md",
     "memory/01-self.md",
@@ -62,6 +63,7 @@ REQUIRED_FILES = [
     "src/stagnation.py",
     "src/skill_usage.py",
     "tests/test_admission.py",
+    "tests/test_skill_usage.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -91,10 +93,12 @@ MIN_FILE_SIZES = {
     "prompts/context-policy.md": 500,
     "prompts/admission-policy.md": 500,
     "docs/ARCHITECTURE.md": 500,
+    "docs/DECISIONS.md": 500,
     "src/verify.py": 1000,
     "src/context_budget.py": 1000,
     "src/admission.py": 1000,
     "tests/test_admission.py": 500,
+    "tests/test_skill_usage.py": 500,
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
@@ -117,7 +121,7 @@ CONSTITUTION_REQUIRED_SECTIONS = [
 CYRILLIC_THRESHOLD = 0.20
 
 # Файлы, которые мы НЕ проверяем на язык (код, логи могут содержать много латиницы, но логи всё же проверяем мягко)
-LANGUAGE_CHECK_EXEMPT = ["tests/test_admission.py"]
+LANGUAGE_CHECK_EXEMPT = ["tests/test_admission.py", "tests/test_skill_usage.py"]
 
 # Регулярка для кириллицы
 CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")

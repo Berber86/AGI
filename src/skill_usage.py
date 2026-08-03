@@ -13,6 +13,13 @@ skill_usage.py — учёт и отчёт по явному применению
 Скрипт также понимает более короткий исторический вариант:
     Применяю `skills/<имя>.md`: ...
 
+Опциональный маркер исхода (метрика полезности v1, D005):
+    Итог скилла `skills/<имя>.md`: успех — <обоснование>
+    Итог скилла `skills/<имя>.md`: частично — <обоснование>
+    Итог скилла `skills/<имя>.md`: неудача — <обоснование>
+Маркер не входит в счёт применений; он агрегируется отдельно как распределение
+исходов. Отсутствие исхода у применения — не ошибка, а незаполненное измерение.
+
 Запуск:
     python src/skill_usage.py
     python src/skill_usage.py --json
@@ -42,6 +49,11 @@ SKILL_USE_RE = re.compile(
     r"^\s*(?:[-*]\s+)?Применяю(?:\s+скилл)?\s+`?(skills/[A-Za-z0-9._/-]+\.md)`?",
     re.IGNORECASE,
 )
+OUTCOME_RE = re.compile(
+    r"^\s*(?:[-*]\s+)?Итог\s+скилла\s+`?(skills/[A-Za-z0-9._/-]+\.md)`?\s*[:—-]\s*(успех|частично|неудача)",
+    re.IGNORECASE,
+)
+OUTCOME_STATUSES = ("успех", "частично", "неудача")
 
 
 @dataclass(frozen=True)
@@ -49,6 +61,28 @@ class SkillUseEvent:
     """Одно найденное явное применение скилла в конкретном логе."""
 
     skill_path: str
+    log_path: Path
+    line_no: int
+    line_text: str
+
+    @property
+    def log_rel(self) -> str:
+        return str(self.log_path.relative_to(REPO_ROOT))
+
+    @property
+    def session_label(self) -> str:
+        match = SESSION_LABEL_RE.match(self.log_path.name)
+        if not match:
+            return self.log_path.stem
+        return f"#{match.group(1)}"
+
+
+@dataclass(frozen=True)
+class SkillOutcomeEvent:
+    """Один задокументированный исход применения скилла (метрика полезности v1)."""
+
+    skill_path: str
+    status: str
     log_path: Path
     line_no: int
     line_text: str
@@ -105,6 +139,29 @@ def extract_skill_uses(log_path: Path) -> list[SkillUseEvent]:
     return events
 
 
+def extract_outcome_events(log_path: Path) -> list[SkillOutcomeEvent]:
+    """Извлекает задокументированные исходы скиллов из одного лога (опциональный маркер)."""
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    events: list[SkillOutcomeEvent] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        match = OUTCOME_RE.search(line)
+        if not match:
+            continue
+        status = match.group(2).casefold()
+        if status not in OUTCOME_STATUSES:
+            continue
+        events.append(
+            SkillOutcomeEvent(
+                skill_path=match.group(1),
+                status=status,
+                log_path=log_path,
+                line_no=line_no,
+                line_text=line.strip(),
+            )
+        )
+    return events
+
+
 def ru_plural(value: int, one: str, few: str, many: str) -> str:
     """Возвращает русскую форму существительного после числа."""
     n = abs(value) % 100
@@ -132,6 +189,9 @@ def build_skill_usage_report() -> dict[str, Any]:
             "last_log": None,
             "last_line": None,
             "examples": [],
+            "outcomes": {"успех": 0, "частично": 0, "неудача": 0},
+            "outcome_sessions": [],
+            "outcome_logs": [],
         }
         for skill in skill_paths
     }
@@ -139,6 +199,8 @@ def build_skill_usage_report() -> dict[str, Any]:
     events: list[SkillUseEvent] = []
     unknown_references: list[dict[str, Any]] = []
     logs_with_usage: set[str] = set()
+    outcome_events: list[SkillOutcomeEvent] = []
+    unknown_outcome_references: list[dict[str, Any]] = []
 
     for log_path in logs:
         for event in extract_skill_uses(log_path):
@@ -167,8 +229,36 @@ def build_skill_usage_report() -> dict[str, Any]:
             if len(bucket["examples"]) < 3:
                 bucket["examples"].append(event.line_text)
 
+        for outcome in extract_outcome_events(log_path):
+            outcome_events.append(outcome)
+            if outcome.skill_path not in known_skills:
+                unknown_outcome_references.append(
+                    {
+                        "skill_path": outcome.skill_path,
+                        "log": outcome.log_rel,
+                        "session": outcome.session_label,
+                        "line_no": outcome.line_no,
+                        "line_text": outcome.line_text,
+                    }
+                )
+                continue
+            bucket = per_skill[outcome.skill_path]
+            bucket["outcomes"][outcome.status] += 1
+            if outcome.session_label not in bucket["outcome_sessions"]:
+                bucket["outcome_sessions"].append(outcome.session_label)
+            if outcome.log_rel not in bucket["outcome_logs"]:
+                bucket["outcome_logs"].append(outcome.log_rel)
+
     unused_skills = [skill for skill, data in per_skill.items() if data["count"] == 0]
     used_skills = [skill for skill, data in per_skill.items() if data["count"] > 0]
+
+    outcomes_by_status: dict[str, int] = {"успех": 0, "частично": 0, "неудача": 0}
+    for outcome in outcome_events:
+        if outcome.status in outcomes_by_status:
+            outcomes_by_status[outcome.status] += 1
+    skills_with_outcomes = [
+        skill for skill, data in per_skill.items() if sum(data["outcomes"].values()) > 0
+    ]
 
     return {
         "repo_root": str(REPO_ROOT),
@@ -181,6 +271,10 @@ def build_skill_usage_report() -> dict[str, Any]:
         "skills_unused": len(unused_skills),
         "unused_skills": unused_skills,
         "unknown_references": unknown_references,
+        "total_outcomes": len(outcome_events),
+        "outcomes_by_status": outcomes_by_status,
+        "skills_with_outcomes": skills_with_outcomes,
+        "unknown_outcome_references": unknown_outcome_references,
         "per_skill": per_skill,
         "events": [
             {
@@ -191,6 +285,17 @@ def build_skill_usage_report() -> dict[str, Any]:
                 "line_text": event.line_text,
             }
             for event in events
+        ],
+        "outcome_events": [
+            {
+                "skill_path": event.skill_path,
+                "status": event.status,
+                "log": event.log_rel,
+                "session": event.session_label,
+                "line_no": event.line_no,
+                "line_text": event.line_text,
+            }
+            for event in outcome_events
         ],
     }
 
@@ -243,6 +348,46 @@ def print_report(report: dict[str, Any]) -> None:
             f"- `{skill}` — {data['count']} {uses_word}; "
             f"сессии: {sessions}; последний лог: `{data['last_log']}`:{data['last_line']}"
         )
+
+    print()
+    print("## Исходы скиллов (полезность v1)")
+    if report["total_outcomes"] == 0:
+        print(
+            "Исходы пока не задокументированы. Маркер (опциональный): "
+            "«Итог скилла `skills/<имя>.md`: успех|частично|неудача — ...»."
+        )
+    else:
+        statuses = report["outcomes_by_status"]
+        print(
+            f"Задокументировано исходов: {report['total_outcomes']} "
+            f"(применений всего: {report['total_events']}); "
+            f"успех: {statuses['успех']}, частично: {statuses['частично']}, "
+            f"неудача: {statuses['неудача']}."
+        )
+        for skill, data in report["per_skill"].items():
+            if sum(data["outcomes"].values()) == 0:
+                continue
+            out = data["outcomes"]
+            sessions = ", ".join(data["outcome_sessions"])
+            print(
+                f"- `{skill}` — успех: {out['успех']}, частично: {out['частично']}, "
+                f"неудача: {out['неудача']}; сессии: {sessions}"
+            )
+        uncovered = max(report["total_events"] - report["total_outcomes"], 0)
+        if uncovered > 0:
+            print(
+                f"Применений без задокументированного исхода: {uncovered} "
+                f"(это не провал, а незаполненное измерение)."
+            )
+
+    if report["unknown_outcome_references"]:
+        print()
+        print("## Неизвестные ссылки в маркерах исхода")
+        for item in report["unknown_outcome_references"]:
+            print(
+                f"- `{item['skill_path']}` в `{item['log']}`:{item['line_no']} "
+                f"({item['session']})"
+            )
 
     if report["unknown_references"]:
         print()
