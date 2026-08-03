@@ -71,6 +71,7 @@ REQUIRED_SKILLS = [
     "skills/hypothesis-first.md",
     "skills/reflection-loop.md",
     "skills/stagnation-watch.md",
+    "skills/context-hygiene.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
