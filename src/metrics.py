@@ -8,8 +8,8 @@ metrics.py — простой снимок прогресса агента AGI.
 
 Скрипт не пытается измерить «интеллект» напрямую. Он считает наблюдаемые
 структурные показатели репозитория: сколько накоплено принципов, скиллов,
-исследований, логов, уроков и кода. Это внешний сигнал для будущих сессий,
-а не повод оптимизироваться под красивые числа.
+исследований, логов, уроков, кода и явных применений скиллов. Это внешний
+сигнал для будущих сессий, а не повод оптимизироваться под красивые числа.
 """
 
 from __future__ import annotations
@@ -114,6 +114,16 @@ def src_stats() -> dict[str, int]:
     }
 
 
+def collect_skill_usage() -> dict[str, Any] | None:
+    """Пытается получить отчёт по использованию скиллов из `src/skill_usage.py`."""
+    try:
+        import skill_usage  # type: ignore
+
+        return skill_usage.build_skill_usage_report()
+    except Exception:
+        return None
+
+
 def markdown_files() -> list[Path]:
     """Возвращает md-файлы репозитория, не заходя в .git."""
     result: list[Path] = []
@@ -144,6 +154,7 @@ def build_metrics() -> dict[str, Any]:
     memory = list_files("memory", "*.md")
     md_files = markdown_files()
     src = src_stats()
+    skill_usage = collect_skill_usage()
 
     return {
         "snapshot_date": date.today().isoformat(),
@@ -166,6 +177,15 @@ def build_metrics() -> dict[str, Any]:
             "docs_files": len(docs),
             "prompts_files": len(prompts),
             "markdown_files": len(md_files),
+            "skill_use_events": 0 if skill_usage is None else skill_usage["total_events"],
+            "skills_used_at_least_once": 0 if skill_usage is None else skill_usage["skills_used_at_least_once"],
+            "skills_unused": 0 if skill_usage is None else skill_usage["skills_unused"],
+        },
+        "skill_usage": None if skill_usage is None else {
+            "logs_scanned": skill_usage["logs_scanned"],
+            "logs_with_usage": skill_usage["logs_with_usage"],
+            "unused_skills": skill_usage["unused_skills"],
+            "per_skill": skill_usage["per_skill"],
         },
         "src": src,
         "sizes": {
@@ -210,6 +230,11 @@ def print_report(metrics: dict[str, Any]) -> None:
     print(f"- Записей тупиков: {counts['deadends']}")
     print(f"- Открытых задач TODO: {counts['todo_open']}")
     print(f"- Завершённых задач TODO: {counts['todo_done']}")
+    print(f"- Явных применений скиллов: {counts['skill_use_events']}")
+    print(
+        f"- Скиллов, использованных хотя бы раз: "
+        f"{counts['skills_used_at_least_once']} / {counts['skills']}"
+    )
     print()
     print("## Объём тела")
     print(f"- Python-файлов в src/: {src['files']}")
@@ -220,6 +245,11 @@ def print_report(metrics: dict[str, Any]) -> None:
     print(f"- Объём исследований research/: {format_bytes(sizes['research_bytes'])}")
     print(f"- Объём скиллов skills/: {format_bytes(sizes['skills_bytes'])}")
     print(f"- Общий объём markdown-тела: {format_bytes(sizes['markdown_bytes_total'])}")
+    if metrics.get("skill_usage") is not None and metrics["skill_usage"]["unused_skills"]:
+        print(
+            "- Неиспользованные скиллы: "
+            + ", ".join(f"`{skill}`" for skill in metrics["skill_usage"]["unused_skills"])
+        )
     print()
     print("## Предостережение")
     print("Эти числа измеряют структуру и накопление внешней памяти, а не сознание и не AGI.")

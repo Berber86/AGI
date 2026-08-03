@@ -14,6 +14,7 @@ verify.py — иммунная проверка целостности аген�
 5. Git-статус в норме (не ломается база; предупреждение о незакоммиченных изменениях — не ошибка).
 6. TODO-файл не содержит сломанных ссылок на несуществующие файлы (упоминания research/, src/, prompts/).
 7. Логи последних сессий имеют корректное именование.
+8. Скиллы не только существуют, но и имеют явные следы применения в логах.
 
 Выходные коды:
 0 — всё ок
@@ -23,7 +24,6 @@ verify.py — иммунная проверка целостности аген�
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 import subprocess
@@ -32,7 +32,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-EXPECTED_BRANCH = "arena/019fc7cf-agi"
+ARENA_BRANCH_RE = re.compile(r"^arena/[A-Za-z0-9._-]+-agi$")
 
 # Обязательные файлы (относительно корня репозитория)
 REQUIRED_FILES = [
@@ -53,6 +53,7 @@ REQUIRED_FILES = [
     "src/metrics.py",
     "src/dream.py",
     "src/stagnation.py",
+    "src/skill_usage.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -70,6 +71,7 @@ REQUIRED_SKILLS = [
     "skills/hypothesis-first.md",
     "skills/reflection-loop.md",
     "skills/stagnation-watch.md",
+    "skills/context-hygiene.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
@@ -83,6 +85,7 @@ MIN_FILE_SIZES = {
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
+    "src/skill_usage.py": 1000,
     "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
@@ -214,7 +217,7 @@ def check_language(report: Report) -> None:
 
 
 def check_git(report: Report) -> None:
-    """Проверяем git-статус: мы на правильной ветке, нет критических проблем."""
+    """Проверяем git-статус: ветка выглядит как корректная Arena-сессия, критических проблем нет."""
     try:
         r = subprocess.run(
             ["git", "branch", "--show-current"],
@@ -226,10 +229,12 @@ def check_git(report: Report) -> None:
         if r.returncode == 0:
             branch = r.stdout.strip()
             report.info(f"Текущая ветка: {branch}")
-            if branch != EXPECTED_BRANCH:
+            if not branch:
+                report.warn("git не вернул имя текущей ветки (возможен detached HEAD).")
+            elif not ARENA_BRANCH_RE.match(branch):
                 report.warn(
-                    f"Текущая ветка {branch!r} не совпадает с фиксированной "
-                    f"{EXPECTED_BRANCH!r}."
+                    f"Текущая ветка {branch!r} не похожа на корректную сессионную "
+                    f"Arena-ветку вида 'arena/<session>-agi'."
                 )
         else:
             report.warn("Не удалось определить текущую ветку git.")
@@ -354,6 +359,40 @@ def check_skills(report: Report) -> None:
     report.info(f"Проверено обязательных скиллов: {len(REQUIRED_SKILLS)}")
 
 
+def check_skill_usage(report: Report) -> None:
+    """Проверяем, что скиллы реально применяются и ссылки в логах не битые."""
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        import skill_usage  # type: ignore
+
+        usage = skill_usage.build_skill_usage_report()
+    except Exception as e:
+        report.warn(f"Не удалось проверить применение скиллов через src/skill_usage.py: {e}")
+        return
+
+    report.info(f"Явных применений скиллов в логах: {usage['total_events']}")
+
+    if usage["total_events"] == 0:
+        report.warn("В логах не найдено ни одного явного применения скиллов.")
+
+    if usage["unused_skills"]:
+        report.warn(
+            "Ни разу явно не применялись скиллы: "
+            + ", ".join(f"`{skill}`" for skill in usage["unused_skills"])
+        )
+
+    if usage["unknown_references"]:
+        sample = usage["unknown_references"][:3]
+        details = "; ".join(
+            f"`{item['skill_path']}` в `{item['log']}`:{item['line_no']}"
+            for item in sample
+        )
+        extra = "" if len(usage["unknown_references"]) <= 3 else f"; и ещё {len(usage['unknown_references']) - 3}"
+        report.warn(
+            "В логах есть ссылки на неизвестные скиллы: " + details + extra
+        )
+
+
 def check_no_silent_truncation(report: Report) -> None:
     """
     Проверка на подозрительные `[:N]` срезы — эвристический поиск
@@ -388,6 +427,7 @@ def main() -> int:
     check_log_naming(report)
     check_md_references(report)
     check_skills(report)
+    check_skill_usage(report)
     check_no_silent_truncation(report)
 
     # Вывод
