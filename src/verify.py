@@ -62,8 +62,10 @@ REQUIRED_FILES = [
     "src/dream.py",
     "src/stagnation.py",
     "src/skill_usage.py",
+    "src/plot_metrics.py",
     "tests/test_admission.py",
     "tests/test_skill_usage.py",
+    "tests/test_plot_metrics.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -99,10 +101,12 @@ MIN_FILE_SIZES = {
     "src/admission.py": 1000,
     "tests/test_admission.py": 500,
     "tests/test_skill_usage.py": 500,
+    "tests/test_plot_metrics.py": 500,
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
     "src/skill_usage.py": 1000,
+    "src/plot_metrics.py": 1000,
     "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
@@ -121,7 +125,11 @@ CONSTITUTION_REQUIRED_SECTIONS = [
 CYRILLIC_THRESHOLD = 0.20
 
 # Файлы, которые мы НЕ проверяем на язык (код, логи могут содержать много латиницы, но логи всё же проверяем мягко)
-LANGUAGE_CHECK_EXEMPT = ["tests/test_admission.py", "tests/test_skill_usage.py"]
+LANGUAGE_CHECK_EXEMPT = [
+    "tests/test_admission.py",
+    "tests/test_skill_usage.py",
+    "tests/test_plot_metrics.py",
+]
 
 # Регулярка для кириллицы
 CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")

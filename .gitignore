@@ -4,3 +4,6 @@
 # Локальные кэши Python.
 __pycache__/
 *.py[cod]
+
+# Генерируемый HTML-отчёт визуализации метрик (история — в memory/09-metrics-history.json).
+docs/metrics.html

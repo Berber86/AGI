@@ -1,0 +1,28 @@
+[
+  {
+    "date": "2026-08-03",
+    "commit": "0f76055",
+    "counts": {
+      "principles": 49,
+      "skills": 5,
+      "research_files": 3,
+      "logs": 14,
+      "lessons": 25,
+      "deadends": 0,
+      "todo_open": 9,
+      "todo_done": 21,
+      "memory_files": 9,
+      "docs_files": 2,
+      "prompts_files": 3,
+      "markdown_files": 41,
+      "skill_use_events": 22,
+      "skills_used_at_least_once": 5,
+      "skills_unused": 0,
+      "admission_events": 4,
+      "admission_pass": 4,
+      "admission_fail": 0
+    },
+    "src_lines": 3746,
+    "markdown_bytes": 538662
+  }
+]
