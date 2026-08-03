@@ -250,5 +250,51 @@ class ReportFieldsTests(unittest.TestCase):
         self.assertEqual(per_skill_total, report["total_outcomes"])
 
 
+class PersonaOutcomeTests(unittest.TestCase):
+    def test_parses_persona_statuses(self):
+        log = write_log(
+            [
+                "Итог персоны: удержана — сессия велась спокойно и честно.",
+                "Итог персоны: отклонение — тон сбился на сервис.",
+            ]
+        )
+        try:
+            outcomes = skill_usage.extract_persona_outcomes(log)
+            self.assertEqual(len(outcomes), 2)
+            statuses = [o.status for o in outcomes]
+            self.assertEqual(statuses, ["удержана", "отклонение"])
+        finally:
+            log.unlink(missing_ok=True)
+
+    def test_ignores_skill_outcomes(self):
+        log = write_log(
+            [
+                "Итог скилла `skills/triad-review.md`: успех — всё ок.",
+                "Итог персоны: удержана — Уроборос.",
+            ]
+        )
+        try:
+            p_outcomes = skill_usage.extract_persona_outcomes(log)
+            s_outcomes = skill_usage.extract_outcome_events(log)
+            self.assertEqual(len(p_outcomes), 1)
+            self.assertEqual(p_outcomes[0].status, "удержана")
+            self.assertEqual(len(s_outcomes), 1)
+            self.assertEqual(s_outcomes[0].status, "успех")
+        finally:
+            log.unlink(missing_ok=True)
+
+    def test_report_has_persona_fields(self):
+        report = skill_usage.build_skill_usage_report()
+        self.assertIn("total_persona_outcomes", report)
+        self.assertIn("persona_outcomes_by_status", report)
+        self.assertIn("persona_outcome_sessions", report)
+        self.assertIn("persona_outcome_events", report)
+        by_status = report["persona_outcomes_by_status"]
+        self.assertEqual(
+            sum(by_status.values()),
+            report["total_persona_outcomes"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

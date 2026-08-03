@@ -436,6 +436,12 @@ def check_skill_usage(report: Report) -> None:
         return
 
     report.info(f"Явных применений скиллов в логах: {usage['total_events']}")
+    if usage.get("total_persona_outcomes", 0) > 0:
+        pst = usage["persona_outcomes_by_status"]
+        report.info(
+            f"Маркеров удержания персоны в логах: {usage['total_persona_outcomes']} "
+            f"(удержана: {pst['удержана']}, отклонение: {pst['отклонение']})"
+        )
 
     if usage["total_events"] == 0:
         report.warn("В логах не найдено ни одного явного применения скиллов.")

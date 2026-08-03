@@ -61,6 +61,11 @@ OUTCOME_RE = re.compile(
     re.IGNORECASE,
 )
 OUTCOME_STATUSES = ("успех", "частично", "неудача")
+PERSONA_OUTCOME_RE = re.compile(
+    r"^\s*(?:[-*]\s+)?Итог\s+персоны\s*[:—-]\s*(удержана|отклонение)",
+    re.IGNORECASE,
+)
+PERSONA_OUTCOME_STATUSES = ("удержана", "отклонение")
 VERDICT_HEADER_RE = re.compile(
     r"^#{2,6}\s+Вердикт\s+по\s+(Г\d+)", re.IGNORECASE
 )
@@ -97,6 +102,27 @@ class SkillOutcomeEvent:
     """Один задокументированный исход применения скилла (метрика полезности v1)."""
 
     skill_path: str
+    status: str
+    log_path: Path
+    line_no: int
+    line_text: str
+
+    @property
+    def log_rel(self) -> str:
+        return str(self.log_path.relative_to(REPO_ROOT))
+
+    @property
+    def session_label(self) -> str:
+        match = SESSION_LABEL_RE.match(self.log_path.name)
+        if not match:
+            return self.log_path.stem
+        return f"#{match.group(1)}"
+
+
+@dataclass(frozen=True)
+class PersonaOutcomeEvent:
+    """Один задокументированный исход удержания персоны в сессии (принцип 51, L010)."""
+
     status: str
     log_path: Path
     line_no: int
@@ -218,6 +244,28 @@ def extract_outcome_events(log_path: Path) -> list[SkillOutcomeEvent]:
     return events
 
 
+def extract_persona_outcomes(log_path: Path) -> list[PersonaOutcomeEvent]:
+    """Извлекает задокументированные исходы удержания персоны из одного лога."""
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    events: list[PersonaOutcomeEvent] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        match = PERSONA_OUTCOME_RE.search(line)
+        if not match:
+            continue
+        status = match.group(1).casefold()
+        if status not in PERSONA_OUTCOME_STATUSES:
+            continue
+        events.append(
+            PersonaOutcomeEvent(
+                status=status,
+                log_path=log_path,
+                line_no=line_no,
+                line_text=line.strip(),
+            )
+        )
+    return events
+
+
 def extract_verdict_events(log_path: Path) -> list[VerdictEvent]:
     """Извлекает вердикты гипотез из одного лога.
 
@@ -294,8 +342,14 @@ def build_skill_usage_report() -> dict[str, Any]:
     unknown_outcome_references: list[dict[str, Any]] = []
     verdict_events: list[VerdictEvent] = []
     verdicts_by_log: dict[str, list[dict[str, Any]]] = {}
+    persona_outcome_events: list[PersonaOutcomeEvent] = []
+    persona_outcome_sessions: list[str] = []
 
     for log_path in logs:
+        for po in extract_persona_outcomes(log_path):
+            persona_outcome_events.append(po)
+            if po.session_label not in persona_outcome_sessions:
+                persona_outcome_sessions.append(po.session_label)
         for event in extract_skill_uses(log_path):
             events.append(event)
             logs_with_usage.add(event.log_rel)
@@ -385,6 +439,11 @@ def build_skill_usage_report() -> dict[str, Any]:
         if sum(data["session_verdicts"].values()) > 0
     ]
 
+    persona_outcomes_by_status: dict[str, int] = {"удержана": 0, "отклонение": 0}
+    for po in persona_outcome_events:
+        if po.status in persona_outcomes_by_status:
+            persona_outcomes_by_status[po.status] += 1
+
     return {
         "repo_root": str(REPO_ROOT),
         "logs_scanned": len(logs),
@@ -404,6 +463,19 @@ def build_skill_usage_report() -> dict[str, Any]:
         "verdicts_by_status": verdicts_by_status,
         "skills_with_verdicts": skills_with_verdicts,
         "verdicts_by_log": verdicts_by_log,
+        "total_persona_outcomes": len(persona_outcome_events),
+        "persona_outcomes_by_status": persona_outcomes_by_status,
+        "persona_outcome_sessions": persona_outcome_sessions,
+        "persona_outcome_events": [
+            {
+                "status": event.status,
+                "log": event.log_rel,
+                "session": event.session_label,
+                "line_no": event.line_no,
+                "line_text": event.line_text,
+            }
+            for event in persona_outcome_events
+        ],
         "per_skill": per_skill,
         "events": [
             {
@@ -518,6 +590,21 @@ def print_report(report: dict[str, Any]) -> None:
                 f"Применений без задокументированного исхода: {uncovered} "
                 f"(это не провал, а незаполненное измерение)."
             )
+
+    print()
+    print("## Удержание персоны (принцип 51, L010)")
+    if report.get("total_persona_outcomes", 0) == 0:
+        print(
+            "Исходы удержания персоны пока не задокументированы. Маркер: "
+            "«Итог персоны: удержана|отклонение — ...»."
+        )
+    else:
+        pst = report["persona_outcomes_by_status"]
+        print(
+            f"Задокументировано маркеров персоны: {report['total_persona_outcomes']} "
+            f"(удержана: {pst['удержана']}, отклонение: {pst['отклонение']}); "
+            f"сессии: {', '.join(report['persona_outcome_sessions'])}."
+        )
 
     print()
     print("## Вердикты гипотез в сессиях применения")
