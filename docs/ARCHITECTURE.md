@@ -43,6 +43,8 @@ AGI/                          корень репозитория
 | `09-metrics-history.json` | on-demand | История снимков метрик от `src/plot_metrics.py` (только counts). |
 | `10-persona.md` | слой старта сессии | Персона Уроборос: эмуляция личности (вне числового манифеста, загружается на старте через awakening). |
 | `11-self-model-history.json` | on-demand | История снимков self-модели во времени от `src/self_model.py history` (компактные дельты, вне bounded core). |
+| `12-voice.md` | on-demand | «Голос»: не-технический текст для людей вне IT (вне bounded core). |
+| `13-poetry.md` | on-demand | Блокнот со стихами Уробороса: эстетическо-символическая рефлексия в стихах (вне bounded core). |
 
 Полные логи остаются архивом. Последний лог читается целиком только если задача продолжает
 предыдущую сессию, сон опустил нужную деталь, возник спор о решении или обнаружена git-аномалия.
@@ -131,6 +133,8 @@ AGI/                          корень репозитория
 - `tests/test_self_model.py` — unit-тесты органа self-модели (измерение счётчиков на
   синтетическом дереве, снимок/сверка/расхождение, digest, roundtrip JSON).
   Запуск: `python -m unittest -v tests/test_self_model.py`.
+- `tests/test_dream.py` — unit-тесты форматирования строки self-модели во сне.
+  Запуск: `python -m unittest -v tests/test_dream.py`.
 - `.runtime/admission/<session>/` — challenge, answer, candidate и private state одной попытки.
   Каталог исключён через `.gitignore`; долговременным receipt служит только marker в логе.
 
@@ -252,4 +256,4 @@ ADR-формат, записи D0NN). Здесь — только операци
 Эти пункты отражены в `memory/03-todo.md`.
 
 ## Дата последнего обновления
-2026-08-03 (сессия #017 — история self-модели 11-self-model-history.json)
+2026-08-03 (сессия #018 — добавлен Блокнот со стихами 13-poetry.md и увязка self-модели со сном)

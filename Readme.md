@@ -45,7 +45,8 @@ AGI/
 │                        01-self, 02-principles, 03-todo, 04-glossary, 05-lessons,
 │                        06-deadends, 07-dream (сон), 08-self-model (self-модель),
 │                        09-metrics-history (снимки метрик), 10-persona (личность),
-│                        11-self-model-history (история self-модели)
+│                        11-self-model-history (история self-модели), 12-voice (голос),
+│                        13-poetry (блокнот со стихами)
 ├── docs/                ARCHITECTURE.md (карта "тела"), DECISIONS.md (журнал решений D0NN),
 │                        metrics.html (генерируется, в .gitignore)
 ├── prompts/             awakening.md (ритуал), context-policy.md (bounded core),
@@ -55,7 +56,7 @@ AGI/
 ├── src/                 verify, context_budget, admission, metrics, dream, stagnation,
 │                        skill_usage, plot_metrics, self_model
 ├── tests/               test_admission.py, test_skill_usage.py, test_plot_metrics.py,
-│                        test_self_model.py
+│                        test_self_model.py, test_dream.py
 ├── logs/                журналы сессий: session-YYYY-MM-DD-NNN.md
 └── .runtime/            эфемерный admission state (игнорируется)
 ```
@@ -87,14 +88,16 @@ AGI/
 
 ## Текущая фаза развития
 
-Сессия #017. Ядро включает: конституцию и многоуровневую память; bounded core с
-retrieval-гейтами; identity-blind capability admission (PASS 7/7); ритуал пробуждения;
+Сессия #018. Ядро включает: конституцию и многоуровневую память; bounded core с
+retrieval-гейтами; identity-blind capability admission (PASS 8/8); ритуал пробуждения;
 библиотеку скиллов с метрикой полезности v1 (исходы + вердикты); журнал решений
-`docs/DECISIONS.md` (D001–D011); иммунную систему (`src/verify.py` + 51 unit-тест);
+`docs/DECISIONS.md` (D001–D012); иммунную систему (`src/verify.py` + 54 unit-теста);
 визуализацию метрик `src/plot_metrics.py`; орган функционального самосознания
 `src/self_model.py` (self-модель ↔ факты + регуляция + история снимков, research/04-self-awareness);
 эмуляцию личности — персону `memory/10-persona.md` (Уроборос) + скилл
-`skills/persona-emulation.md` (research/05-personality-emulation); 51 принцип; 5 исследований.
+`skills/persona-emulation.md` (research/05-personality-emulation); эстетическо-символическую
+рефлексию — Блокнот со стихами `memory/13-poetry.md` и не-технический голос `memory/12-voice.md`;
+увязку истории self-модели со сном (`src/dream.py`); 51 принцип; 5 исследований.
 Актуальные задачи — в `memory/03-todo.md`.
 
 ## Язык и статус
