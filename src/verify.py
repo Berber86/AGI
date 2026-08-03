@@ -14,6 +14,7 @@ verify.py — иммунная проверка целостности аген�
 5. Git-статус в норме (не ломается база; предупреждение о незакоммиченных изменениях — не ошибка).
 6. TODO-файл не содержит сломанных ссылок на несуществующие файлы (упоминания research/, src/, prompts/).
 7. Логи последних сессий имеют корректное именование.
+8. Скиллы не только существуют, но и имеют явные следы применения в логах.
 
 Выходные коды:
 0 — всё ок
@@ -52,6 +53,7 @@ REQUIRED_FILES = [
     "src/metrics.py",
     "src/dream.py",
     "src/stagnation.py",
+    "src/skill_usage.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -82,6 +84,7 @@ MIN_FILE_SIZES = {
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
+    "src/skill_usage.py": 1000,
     "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
@@ -355,6 +358,40 @@ def check_skills(report: Report) -> None:
     report.info(f"Проверено обязательных скиллов: {len(REQUIRED_SKILLS)}")
 
 
+def check_skill_usage(report: Report) -> None:
+    """Проверяем, что скиллы реально применяются и ссылки в логах не битые."""
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        import skill_usage  # type: ignore
+
+        usage = skill_usage.build_skill_usage_report()
+    except Exception as e:
+        report.warn(f"Не удалось проверить применение скиллов через src/skill_usage.py: {e}")
+        return
+
+    report.info(f"Явных применений скиллов в логах: {usage['total_events']}")
+
+    if usage["total_events"] == 0:
+        report.warn("В логах не найдено ни одного явного применения скиллов.")
+
+    if usage["unused_skills"]:
+        report.warn(
+            "Ни разу явно не применялись скиллы: "
+            + ", ".join(f"`{skill}`" for skill in usage["unused_skills"])
+        )
+
+    if usage["unknown_references"]:
+        sample = usage["unknown_references"][:3]
+        details = "; ".join(
+            f"`{item['skill_path']}` в `{item['log']}`:{item['line_no']}"
+            for item in sample
+        )
+        extra = "" if len(usage["unknown_references"]) <= 3 else f"; и ещё {len(usage['unknown_references']) - 3}"
+        report.warn(
+            "В логах есть ссылки на неизвестные скиллы: " + details + extra
+        )
+
+
 def check_no_silent_truncation(report: Report) -> None:
     """
     Проверка на подозрительные `[:N]` срезы — эвристический поиск
@@ -389,6 +426,7 @@ def main() -> int:
     check_log_naming(report)
     check_md_references(report)
     check_skills(report)
+    check_skill_usage(report)
     check_no_silent_truncation(report)
 
     # Вывод
