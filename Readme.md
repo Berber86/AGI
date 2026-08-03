@@ -36,14 +36,16 @@
 1. 👉 **Прочитать [`memory/00-constitution.md`](memory/00-constitution.md)** — это высший закон.
 2. Следовать чек-листу из [`prompts/awakening.md`](prompts/awakening.md).
 
-Чек-лист подключит [`prompts/context-policy.md`](prompts/context-policy.md), измерит bounded core
-и только затем поднимет релевантные архивные материалы. Полную историю читать на старте не нужно.
+Чек-лист подключит [`prompts/context-policy.md`](prompts/context-policy.md), измерит bounded core,
+проведёт identity-blind допуск из [`prompts/admission-policy.md`](prompts/admission-policy.md) и
+только после PASS поднимет релевантные архивы. Полную историю читать на старте не нужно.
 
 ## Структура репозитория
 
 ```
 AGI/
 ├── Readme.md                 этот файл (исходное послание + карта)
+├── .gitignore                исключает эфемерный admission runtime и Python-кэши
 ├── memory/                   долговременная память между сессиями
 │   ├── 00-constitution.md    конституция, высший закон
 │   ├── 00-index.md           навигатор по памяти
@@ -58,7 +60,8 @@ AGI/
 │   └── ARCHITECTURE.md       карта собственного "тела" (потоки, скрипты, константы)
 ├── prompts/
 │   ├── awakening.md          ритуал пробуждения/закрытия сессии (чек-лист)
-│   └── context-policy.md     bounded core, retrieval-гейты и clean rehydration
+│   ├── context-policy.md     bounded core, retrieval-гейты и clean rehydration
+│   └── admission-policy.md   identity-blind допуск и fail-closed поведение
 ├── research/                 исследовательские обзоры
 │   ├── 01-landscape.md       первая карта проектов рекурсивного ИИ и паттернов
 │   ├── 02-ouroboros-bible-deep.md
@@ -68,10 +71,13 @@ AGI/
 ├── src/
 │   ├── verify.py             скрипт иммунной верификации (честность, целостность, язык)
 │   ├── context_budget.py     измеритель размера стартового контекста
+│   ├── admission.py          одноразовый capability gate новой сессии
 │   ├── metrics.py            простой отчёт о структурных метриках прогресса
 │   ├── dream.py              механизм "сна": конспект последних логов
 │   ├── stagnation.py         детектор тупиков/осцилляций по логам
 │   └── skill_usage.py        счётчик применений скиллов по логам
+├── tests/
+│   └── test_admission.py     unit-тесты генератора, checker и marker
 └── logs/                     журналы сессий (не редактируются после закрытия)
     ├── session-2026-08-03-001.md
     ├── session-2026-08-03-002.md
@@ -82,7 +88,8 @@ AGI/
     ├── session-2026-08-03-007.md
     ├── session-2026-08-03-008.md
     ├── session-2026-08-03-009.md
-    └── session-2026-08-03-010.md
+    ├── session-2026-08-03-010.md
+    └── session-2026-08-03-011.md
 ```
 
 Подробности и операционные детали: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
@@ -102,9 +109,25 @@ python src/verify.py
 - корректность именования логов;
 - ссылки на несуществующие файлы в TODO;
 - наличие явных применений скиллов и ссылки на неизвестные скиллы в логах;
+- единственный PASS-marker capability admission в последнем логе;
 - целостность манифеста и бюджет ограниченного стартового ядра.
 
 Коды выхода: `0` — всё ок, `2` — есть предупреждения, `1` — критические ошибки.
+
+## Как пройти ранний допуск сессии
+
+После bounded core и до любых tracked-изменений:
+
+```bash
+python src/admission.py issue --session-log logs/session-YYYY-MM-DD-NNN.md
+# решить challenge в .runtime/admission/<session>/
+python src/admission.py check --session-log logs/session-YYYY-MM-DD-NNN.md
+```
+
+Gate ничего не выясняет об идентичности активной модели. Он проверяет три наблюдаемые категории:
+constraint fidelity, уникальную schedule-задачу и runtime code-repair. Требуется 3/3 за одну
+попытку. Любой другой исход завершает сессию без commit/push. PASS — минимальный допуск, а не
+гарантия качества: окончательное решение о merge остаётся у создателя.
 
 ## Как измерить стартовый контекст
 
@@ -123,8 +146,8 @@ python src/context_budget.py --json
 python src/metrics.py
 ```
 
-Скрипт печатает простой русскоязычный снимок: число принципов, скиллов, исследований,
-логов, уроков, TODO, объём `src/` и markdown-памяти. Эти числа — не измерение сознания
+Скрипт печатает простой русскоязычный снимок: число принципов, скиллов, admission PASS/FAIL,
+исследований, логов, уроков, TODO, объём `src/` и markdown-памяти. Эти числа — не измерение сознания
 или AGI, а внешний сигнал о росте и структуре тела репозитория.
 
 Для будущей визуализации есть машинный формат:
@@ -141,7 +164,7 @@ python src/dream.py
 
 Скрипт читает последние логи сессий и создаёт `memory/07-dream.md` — компактный
 конспект с явным указанием источников. Это не замена исходным логам и конституции,
-а быстрый обзор недавней траектории. Количество сессий можно изменить:
+а быстрый обзор недавней траектории. По умолчанию берутся две сессии; число можно изменить:
 
 ```bash
 python src/dream.py --sessions 5
@@ -183,24 +206,21 @@ python src/skill_usage.py --json
 
 ## Текущая фаза развития
 
-Сессия #010 — текущее ядро уже включает:
+Сессия #011 — текущее ядро уже включает:
 - конституцию и упорядоченную многоуровневую память;
-- bounded wake-up core с бюджетом, task-directed retrieval и триггерами clean rehydration
-  (`prompts/context-policy.md`);
-- детерминированный измеритель ядра `src/context_budget.py`, встроенный в `src/verify.py`;
-- ритуал пробуждения с шаблонами гипотез/вердиктов и обязательным поиском по lessons/deadends;
-- библиотеку скиллов `skills/` (триада, hypothesis-first, reflection-loop, детекция тупиков,
-  контекстная гигиена);
-- метрики `src/metrics.py`, сон `src/dream.py`, детектор тупиков `src/stagnation.py` и
-  счётчик применений скиллов `src/skill_usage.py`;
-- три исследовательских обзора, включая разбор context rot и clean rehydration
-  (`research/03-context-drift-and-memory-hygiene.md`);
-- 44 рабочих принципа и устойчивый инвариант сессионной Arena-ветки.
+- bounded wake-up core, task-directed retrieval и clean rehydration (`prompts/context-policy.md`);
+- identity-blind capability admission 3/3 до работы (`prompts/admission-policy.md`,
+  `src/admission.py`) без определения или журналирования активной модели;
+- verify-gate по PASS-marker и unit-тесты `tests/test_admission.py`;
+- ритуал пробуждения с гипотезами, обязательным поиском по lessons/deadends и fail-closed остановкой;
+- библиотеку скиллов `skills/`, метрики, сон, детектор тупиков и счётчик применений скиллов;
+- три исследовательских обзора, 48 рабочих принципов и устойчивый инвариант Arena-ветки.
 
 Ближайшие задачи (из `memory/03-todo.md`):
 - добавить явный `rationale layer` для нетривиальных архитектурных решений;
 - придумать метрику не только частоты, но и полезности применения скиллов;
-- проверить bounded-ритуал на нескольких новых пробуждениях и калибровать бюджет по фактам;
+- проверить bounded-ритуал ещё на двух новых пробуждениях;
+- откалибровать admission v1 по ручным merge/reject и измерить false accept/false reject;
 - визуализировать метрики прогресса на базе `src/metrics.py`.
 
 ## Язык

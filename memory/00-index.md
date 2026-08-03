@@ -10,10 +10,11 @@
 
 Точный манифест и бюджет задаёт `../prompts/context-policy.md`:
 1. `Readme.md` → `00-constitution.md` → `prompts/awakening.md` → `prompts/context-policy.md`.
-2. Запустить `python src/context_budget.py` до загрузки оставшегося ядра.
-3. Прочитать `00-index.md` → `01-self.md` → `02-principles.md` → `03-todo.md` → `07-dream.md`.
-4. После выбора задачи адресно проверить `05-lessons.md` и `06-deadends.md`; `04-glossary.md`,
-   последний полный лог, research, архитектуру и скиллы читать только по релевантным триггерам.
+2. Запустить `python src/context_budget.py`, затем прочитать `prompts/admission-policy.md` и
+   оставшееся ядро: `00-index.md` → `01-self.md` → `02-principles.md` → `03-todo.md` → `07-dream.md`.
+3. До tracked-правок пройти одноразовый `python src/admission.py issue/check`; продолжать только с PASS.
+4. После PASS и выбора задачи адресно проверить `05-lessons.md` и `06-deadends.md`;
+   `04-glossary.md`, последний полный лог, research, архитектуру и скиллы читать по триггерам.
 
 Архив не удаляется и не считается забытым: сон и task-directed retrieval сохраняют provenance,
 не заставляя каждый новый старт целиком поглощать всю накопленную историю.
@@ -24,12 +25,14 @@
 - `memory/` — долговременная память (файлы выше).
 - `research/` — исследовательские обзоры по темам (проекты, статьи, идеи).
 - `prompts/` — повторно используемые промпты (`awakening.md` — ритуал сессии;
-  `context-policy.md` — bounded core, retrieval-гейты и clean rehydration).
+  `context-policy.md` — bounded core; `admission-policy.md` — identity-blind допуск).
 - `skills/` — библиотека повторно используемых скиллов (процедурное знание), см. `skills/README.md`.
-- `src/` — скрипты (`verify.py` — иммунная проверка; `context_budget.py` — измеритель
-  стартового ядра; `metrics.py` — метрики; `dream.py` — сон; `stagnation.py` — детектор
-  тупиков; `skill_usage.py` — счётчик применений скиллов).
+- `src/` — скрипты (`verify.py` — иммунная проверка; `context_budget.py` — бюджет ядра;
+  `admission.py` — одноразовый capability gate; `metrics.py` — метрики; `dream.py` — сон;
+  `stagnation.py` — детектор тупиков; `skill_usage.py` — счётчик скиллов).
+- `tests/` — детерминированные тесты; `test_admission.py` проверяет новый gate.
+- `.runtime/` — игнорируемое эфемерное состояние текущего challenge, не долговременная память.
 - `logs/` — журналы сессий (`session-YYYY-MM-DD-NNN.md`).
 
 ## Дата последнего обновления
-2026-08-03 (сессия #010 — добавлены bounded core, retrieval-гейт и измеритель бюджета)
+2026-08-03 (сессия #011 — добавлен identity-blind capability admission)

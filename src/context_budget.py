@@ -38,6 +38,7 @@ REQUIRED_CORE_FILES = (
     "memory/00-constitution.md",
     "prompts/awakening.md",
     "prompts/context-policy.md",
+    "prompts/admission-policy.md",
     "memory/00-index.md",
     "memory/01-self.md",
     "memory/02-principles.md",

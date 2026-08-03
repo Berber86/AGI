@@ -8,7 +8,7 @@ metrics.py — простой снимок прогресса агента AGI.
 
 Скрипт не пытается измерить «интеллект» напрямую. Он считает наблюдаемые
 структурные показатели репозитория: сколько накоплено принципов, скиллов,
-исследований, логов, уроков, кода и явных применений скиллов. Это внешний
+исследований, логов, уроков, кода, применений скиллов и PASS/FAIL допуска. Это внешний
 сигнал для будущих сессий, а не повод оптимизироваться под красивые числа.
 """
 
@@ -25,6 +25,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOG_RE = re.compile(r"^session-\d{4}-\d{2}-\d{2}-\d{3}\.md$")
+ADMISSION_RE = re.compile(r"<!-- CAPABILITY_ADMISSION: (PASS|FAIL) id=[0-9a-f]{16} score=(\d)/3 ")
 
 
 def read_text(rel_path: str) -> str:
@@ -94,6 +95,20 @@ def count_deadends() -> int:
     return count_regex_lines(section, r"^###\s+")
 
 
+def admission_stats(logs: list[Path]) -> dict[str, int]:
+    """Считает устойчивые PASS/FAIL-marker в сессионных логах."""
+    passed = 0
+    failed = 0
+    for path in logs:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for outcome, _score in ADMISSION_RE.findall(text):
+            if outcome == "PASS":
+                passed += 1
+            else:
+                failed += 1
+    return {"events": passed + failed, "pass": passed, "fail": failed}
+
+
 def src_stats() -> dict[str, int]:
     """Считает объём Python-кода в src/."""
     files = list_files("src", "*.py")
@@ -155,6 +170,7 @@ def build_metrics() -> dict[str, Any]:
     md_files = markdown_files()
     src = src_stats()
     skill_usage = collect_skill_usage()
+    admission = admission_stats(logs)
 
     return {
         "snapshot_date": date.today().isoformat(),
@@ -180,7 +196,11 @@ def build_metrics() -> dict[str, Any]:
             "skill_use_events": 0 if skill_usage is None else skill_usage["total_events"],
             "skills_used_at_least_once": 0 if skill_usage is None else skill_usage["skills_used_at_least_once"],
             "skills_unused": 0 if skill_usage is None else skill_usage["skills_unused"],
+            "admission_events": admission["events"],
+            "admission_pass": admission["pass"],
+            "admission_fail": admission["fail"],
         },
+        "admission": admission,
         "skill_usage": None if skill_usage is None else {
             "logs_scanned": skill_usage["logs_scanned"],
             "logs_with_usage": skill_usage["logs_with_usage"],
@@ -234,6 +254,10 @@ def print_report(metrics: dict[str, Any]) -> None:
     print(
         f"- Скиллов, использованных хотя бы раз: "
         f"{counts['skills_used_at_least_once']} / {counts['skills']}"
+    )
+    print(
+        f"- Capability admission PASS/FAIL: "
+        f"{counts['admission_pass']} / {counts['admission_fail']}"
     )
     print()
     print("## Объём тела")

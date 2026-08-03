@@ -16,6 +16,7 @@ verify.py — иммунная проверка целостности аген�
 7. Логи последних сессий имеют корректное именование.
 8. Скиллы не только существуют, но и имеют явные следы применения в логах.
 9. Стартовое ядро из контекстной политики существует и укладывается в бюджет.
+10. Последняя сессия имеет единственный PASS-marker identity-blind capability admission.
 
 Выходные коды:
 0 — всё ок
@@ -48,15 +49,19 @@ REQUIRED_FILES = [
     "memory/05-lessons.md",
     "memory/06-deadends.md",
     "memory/07-dream.md",
+    ".gitignore",
     "prompts/awakening.md",
     "prompts/context-policy.md",
+    "prompts/admission-policy.md",
     "skills/README.md",
     "src/verify.py",
     "src/context_budget.py",
+    "src/admission.py",
     "src/metrics.py",
     "src/dream.py",
     "src/stagnation.py",
     "src/skill_usage.py",
+    "tests/test_admission.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -84,9 +89,12 @@ MIN_FILE_SIZES = {
     "memory/02-principles.md": 500,
     "prompts/awakening.md": 500,
     "prompts/context-policy.md": 500,
+    "prompts/admission-policy.md": 500,
     "docs/ARCHITECTURE.md": 500,
     "src/verify.py": 1000,
     "src/context_budget.py": 1000,
+    "src/admission.py": 1000,
+    "tests/test_admission.py": 500,
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
@@ -109,7 +117,7 @@ CONSTITUTION_REQUIRED_SECTIONS = [
 CYRILLIC_THRESHOLD = 0.20
 
 # Файлы, которые мы НЕ проверяем на язык (код, логи могут содержать много латиницы, но логи всё же проверяем мягко)
-LANGUAGE_CHECK_EXEMPT = []
+LANGUAGE_CHECK_EXEMPT = ["tests/test_admission.py"]
 
 # Регулярка для кириллицы
 CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")
@@ -398,6 +406,65 @@ def check_skill_usage(report: Report) -> None:
         )
 
 
+def check_capability_admission(report: Report) -> None:
+    """Требует единственный PASS-marker в последнем сессионном логе."""
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        import admission  # type: ignore
+    except Exception as exc:
+        report.error(f"Не удалось импортировать src/admission.py: {exc}")
+        return
+
+    logs_dir = REPO_ROOT / "logs"
+    logs = (
+        sorted(
+            path
+            for path in logs_dir.glob("session-*.md")
+            if path.is_file() and re.match(r"^session-\d{4}-\d{2}-\d{2}-\d{3}\.md$", path.name)
+        )
+        if logs_dir.exists()
+        else []
+    )
+    if not logs:
+        report.error("Нельзя проверить capability admission: сессионные логи не найдены.")
+        return
+
+    latest = logs[-1]
+    markers = admission.existing_result_markers(latest)
+    if len(markers) != 1:
+        report.error(
+            f"В последнем логе {latest.relative_to(REPO_ROOT)} ожидался ровно один "
+            f"capability admission marker, найдено {len(markers)}."
+        )
+        return
+
+    marker = markers[0]
+    outcome = marker.group(1)
+    score = int(marker.group(3))
+    protocol = int(marker.group(4))
+    if outcome != "PASS" or score != admission.PASS_SCORE:
+        report.error(
+            f"Последняя сессия не прошла capability admission: {outcome}, {score}/3."
+        )
+        return
+    if protocol != admission.PROTOCOL_VERSION:
+        report.error(
+            f"Admission marker использует protocol={protocol}, а checker ожидает "
+            f"{admission.PROTOCOL_VERSION}."
+        )
+        return
+
+    ignore_path = REPO_ROOT / ".gitignore"
+    ignore_text = ignore_path.read_text(encoding="utf-8", errors="replace") if ignore_path.exists() else ""
+    if ".runtime/" not in ignore_text.splitlines():
+        report.error("`.runtime/` не защищён записью в .gitignore.")
+        return
+
+    report.info(
+        f"Capability admission последней сессии: PASS {score}/3, protocol={protocol}."
+    )
+
+
 def check_context_budget(report: Report) -> None:
     """Проверяет целостность манифеста и размер ограниченного стартового ядра."""
     try:
@@ -464,6 +531,7 @@ def main() -> int:
     check_md_references(report)
     check_skills(report)
     check_skill_usage(report)
+    check_capability_admission(report)
     check_context_budget(report)
     check_no_silent_truncation(report)
 

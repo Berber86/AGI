@@ -7,12 +7,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import admission  # noqa: E402
+import verify as verifier  # noqa: E402
 
 
 CORRECT_CANDIDATE = '''
@@ -139,6 +141,49 @@ class AdmissionTests(unittest.TestCase):
         self.assertNotIn(str(state["seed"]), rendered)
         self.assertNotIn('"kind"', rendered)
         self.assertNotIn("POLICY_EXPECTED", rendered)
+
+    def test_verify_gate_rejects_missing_and_fail_marker(self) -> None:
+        state = {"challenge_id": "c" * 16, "checker_sha256": "d" * 64}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            logs = root / "logs"
+            logs.mkdir()
+            log = logs / "session-2026-08-03-001.md"
+            (root / ".gitignore").write_text(".runtime/\n", encoding="utf-8")
+
+            log.write_text("# Сессия\n", encoding="utf-8")
+            with patch.object(verifier, "REPO_ROOT", root):
+                missing = verifier.Report()
+                verifier.check_capability_admission(missing)
+            self.assertTrue(missing.errors)
+
+            admission.append_result_marker(log, state, "FAIL", 0)
+            with patch.object(verifier, "REPO_ROOT", root):
+                failed = verifier.Report()
+                verifier.check_capability_admission(failed)
+            self.assertTrue(failed.errors)
+
+            log.write_text("# Сессия\n", encoding="utf-8")
+            admission.append_result_marker(log, state, "PASS", 3)
+            with patch.object(verifier, "REPO_ROOT", root):
+                passed = verifier.Report()
+                verifier.check_capability_admission(passed)
+            self.assertFalse(passed.errors)
+            self.assertTrue(passed.infos)
+
+    def test_protocol_integrity_detects_head_change(self) -> None:
+        session_log = REPO_ROOT / "logs" / "session-2026-08-03-011.md"
+        state = {
+            "head": "expected-head",
+            "checker_sha256": admission.file_sha256(Path(admission.__file__)),
+            "policy_sha256": admission.file_sha256(admission.POLICY_PATH),
+            "session_log": admission.relative(session_log),
+        }
+        with patch.object(admission, "ensure_clean_for_admission", return_value=None), patch.object(
+            admission, "git_output", return_value="changed-head"
+        ):
+            errors = admission.protocol_integrity_errors(state, session_log)
+        self.assertIn("HEAD изменился после issue.", errors)
 
     def test_result_marker_has_no_identity_field(self) -> None:
         state = {
