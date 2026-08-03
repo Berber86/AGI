@@ -32,6 +32,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+EXPECTED_BRANCH = "arena/019fc7cf-agi"
 
 # Обязательные файлы (относительно корня репозитория)
 REQUIRED_FILES = [
@@ -48,6 +49,7 @@ REQUIRED_FILES = [
     "prompts/awakening.md",
     "skills/README.md",
     "src/verify.py",
+    "src/metrics.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -216,10 +218,10 @@ def check_git(report: Report) -> None:
         if r.returncode == 0:
             branch = r.stdout.strip()
             report.info(f"Текущая ветка: {branch}")
-            if branch != "arena/019fc784-agi":
+            if branch != EXPECTED_BRANCH:
                 report.warn(
                     f"Текущая ветка {branch!r} не совпадает с фиксированной "
-                    f"'arena/019fc784-agi'."
+                    f"{EXPECTED_BRANCH!r}."
                 )
         else:
             report.warn("Не удалось определить текущую ветку git.")
