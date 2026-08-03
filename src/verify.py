@@ -46,7 +46,24 @@ REQUIRED_FILES = [
     "memory/05-lessons.md",
     "memory/06-deadends.md",
     "prompts/awakening.md",
+    "skills/README.md",
     "src/verify.py",
+]
+
+# Обязательные разделы в файлах скиллов (в дополнение к конституции)
+SKILL_REQUIRED_SECTIONS = [
+    "## Назначение",
+    "## Сигналы к применению",
+    "## Процедура",
+    "## Критерий остановки",
+    "## История изменений",
+]
+
+# Скиллы, которые обязательно должны присутствовать (из skills/README.md реестр)
+REQUIRED_SKILLS = [
+    "skills/triad-review.md",
+    "skills/hypothesis-first.md",
+    "skills/reflection-loop.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
@@ -243,28 +260,88 @@ def check_log_naming(report: Report) -> None:
     report.info(f"Обнаружено логов сессий: {count}")
 
 
-def check_todo_refs(report: Report) -> None:
-    """Проверяем, что упоминаемые в TODO относительные пути существуют."""
-    p = REPO_ROOT / "memory/03-todo.md"
-    if not p.exists():
-        return
-    text = p.read_text(encoding="utf-8", errors="replace")
-    # Ищем пути вида src/..., prompts/..., research/..., memory/..., logs/...
-    path_re = re.compile(r"(`|\s)(src|prompts|research|memory|logs|skills)/[A-Za-z0-9_./-]+")
-    found = set()
-    for m in path_re.finditer(text):
-        raw = m.group(0).strip().strip("`")
-        found.add(raw)
-    for rel in sorted(found):
-        # Обрезаем символы пунктуации справа
-        rel_clean = rel.rstrip(").,;:")
-        fp = REPO_ROOT / rel_clean
-        # Не ругаемся на директории и на шаблонные имена
+def check_md_references(report: Report) -> None:
+    """
+    Проверяем относительные пути в md-файлах на существование.
+    ВАЖНО: файл memory/03-todo.md намеренно исключается, потому что в нём
+    перечисляются *будущие* файлы/скрипты, которых ещё нет — это нормально.
+    Проверка на битые ссылки делается по research/, docs/, prompts/, skills/,
+    корневому Readme.md и логам.
+    """
+    roots_to_scan = [
+        REPO_ROOT / "research",
+        REPO_ROOT / "docs",
+        REPO_ROOT / "prompts",
+        REPO_ROOT / "skills",
+    ]
+    files_to_scan = [REPO_ROOT / "Readme.md"]
+    for d in roots_to_scan:
+        if d.exists():
+            files_to_scan.extend(d.rglob("*.md"))
+    logs_dir = REPO_ROOT / "logs"
+    if logs_dir.exists():
+        # Логи тоже сканируем, но эвристика там не жёсткая — просто инфо
+        pass  # логи не сканируем (ссылки на будущее там нормальны)
+
+    path_re = re.compile(r"(?:`|\(|\s|\])(src|prompts|research|memory|logs|skills|docs)/[A-Za-z0-9_./-]+")
+    found: dict[str, list[str]] = {}  # rel -> list of files referencing it
+    for fp in files_to_scan:
+        if not fp.exists():
+            continue
+        try:
+            text = fp.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for m in path_re.finditer(text):
+            raw = m.group(0).lstrip("(`\t\n ").rstrip(").,;)\"'`]")
+            rel = raw
+            found.setdefault(rel, []).append(str(fp.relative_to(REPO_ROOT)))
+
+    placeholder_patterns = ("YYYY", "MM", "DD", "NNN", "<", ">", "topic.md", "-topic")
+    for rel, src_files in sorted(found.items()):
+        rel_clean = rel.rstrip(").,;:)")
+        fp_target = REPO_ROOT / rel_clean
         if rel_clean.endswith("/"):
             continue
-        if not fp.exists() and "." in Path(rel_clean).name:
-            # Файл не существует и у него есть расширение — явная ссылка
-            report.warn(f"В TODO упомянут отсутствующий файл: {rel_clean}")
+        if "." not in Path(rel_clean).name:
+            # Похоже на директорию — не проверяем
+            continue
+        if any(p in rel_clean for p in placeholder_patterns):
+            # Шаблонный/placeholder путь (например, session-YYYY-MM-DD-NNN.md) — пропускаем
+            continue
+        if not fp_target.exists():
+            report.warn(
+                f"В {', '.join(sorted(set(src_files)))} упомянут отсутствующий файл: {rel_clean}"
+            )
+
+
+def check_skills(report: Report) -> None:
+    """Проверяем наличие всех обязательных скиллов и обязательные разделы в них."""
+    skills_dir = REPO_ROOT / "skills"
+    if not skills_dir.exists():
+        report.error("Папка skills/ отсутствует.")
+        return
+    for rel in REQUIRED_SKILLS:
+        p = REPO_ROOT / rel
+        if not p.exists():
+            report.error(f"Отсутствует обязательный скилл: {rel}")
+            continue
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            report.warn(f"Не удалось прочитать скилл {rel}: {e}")
+            continue
+        for sec in SKILL_REQUIRED_SECTIONS:
+            if sec not in text:
+                report.error(
+                    f"В скилле {rel} отсутствует обязательный раздел: {sec}"
+                )
+        # Эвристика: у скилла должен быть заголовок первого уровня с его именем
+        if not re.search(r"^#\s+skills/", text, re.MULTILINE):
+            report.warn(
+                f"В скилле {rel} нет ожидаемого заголовка '# skills/<имя>.md'."
+            )
+    report.info(f"Проверено обязательных скиллов: {len(REQUIRED_SKILLS)}")
 
 
 def check_no_silent_truncation(report: Report) -> None:
@@ -299,7 +376,8 @@ def main() -> int:
     check_language(report)
     check_git(report)
     check_log_naming(report)
-    check_todo_refs(report)
+    check_md_references(report)
+    check_skills(report)
     check_no_silent_truncation(report)
 
     # Вывод
