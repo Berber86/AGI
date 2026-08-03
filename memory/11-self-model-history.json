@@ -1,0 +1,56 @@
+[
+  {
+    "snapshot_date": "2026-08-03",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "b5ef2a6dcad7",
+      "sessions": 17,
+      "principles": 51,
+      "skills": 6,
+      "research_files": 5,
+      "lessons": 28,
+      "deadends": 0,
+      "todo_open": 12,
+      "todo_done": 23,
+      "admission_pass": 7,
+      "src_files": 9,
+      "budget_used_chars": 66841
+    }
+  },
+  {
+    "snapshot_date": "2026-08-03",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "b5ef2a6dcad7",
+      "sessions": 17,
+      "principles": 51,
+      "skills": 6,
+      "research_files": 5,
+      "lessons": 29,
+      "deadends": 0,
+      "todo_open": 11,
+      "todo_done": 24,
+      "admission_pass": 7,
+      "src_files": 9,
+      "budget_used_chars": 64956
+    }
+  },
+  {
+    "snapshot_date": "2026-08-03",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "b5ef2a6dcad7",
+      "sessions": 17,
+      "principles": 51,
+      "skills": 6,
+      "research_files": 5,
+      "lessons": 29,
+      "deadends": 0,
+      "todo_open": 11,
+      "todo_done": 24,
+      "admission_pass": 7,
+      "src_files": 9,
+      "budget_used_chars": 66978
+    }
+  }
+]

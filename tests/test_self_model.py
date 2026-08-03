@@ -159,6 +159,49 @@ class SelfModelSnapshotTest(unittest.TestCase):
         self.assertEqual(loaded["dimensions"], snap["dimensions"])
 
 
+class SelfModelHistoryTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        make_tree(self.root)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_update_records_history(self) -> None:
+        self_model.update(self.root)
+        hist = self_model.history(self.root)
+        self.assertEqual(len(hist["entries"]), 1)
+        self.assertEqual(hist["entries"][0]["dimensions"]["sessions"], 2)
+
+    def test_history_delta_detects_change(self) -> None:
+        self_model.update(self.root)
+        # меняем факты: добавляем сессию -> следующий update даст дельту
+        (self.root / "logs/session-2026-08-03-003.md").write_text("# s\n", encoding="utf-8")
+        self_model.update(self.root)
+        hist = self_model.history(self.root)
+        self.assertEqual(len(hist["entries"]), 2)
+        keys = {k for k, _, _ in hist["delta"]}
+        self.assertIn("sessions", keys)
+
+    def test_update_identical_no_duplicate(self) -> None:
+        self_model.update(self.root)
+        self_model.update(self.root)  # без изменений фактов
+        hist = self_model.history(self.root)
+        self.assertEqual(len(hist["entries"]), 1)
+
+    def test_load_history_empty(self) -> None:
+        self.assertEqual(self_model.load_history(self.root), [])
+
+    def test_history_limit(self) -> None:
+        # дописываем 5 записей с лимитом 3 -> остаётся максимум 3
+        for i in range(5):
+            self_model.record_history({"snapshot_date": "2026-08-03", "dimensions": {"x": i}},
+                                      self.root, limit=3)
+        hist = self_model.load_history(self.root)
+        self.assertLessEqual(len(hist), 3)
+
+
 class SelfModelCliTest(unittest.TestCase):
     def test_update_then_check_exit_codes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

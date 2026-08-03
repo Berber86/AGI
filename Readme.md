@@ -44,7 +44,8 @@ AGI/
 ├── memory/              долговременная память: 00-constitution (закон), 00-index (навигатор),
 │                        01-self, 02-principles, 03-todo, 04-glossary, 05-lessons,
 │                        06-deadends, 07-dream (сон), 08-self-model (self-модель),
-│                        09-metrics-history (снимки метрик), 10-persona (личность)
+│                        09-metrics-history (снимки метрик), 10-persona (личность),
+│                        11-self-model-history (история self-модели)
 ├── docs/                ARCHITECTURE.md (карта "тела"), DECISIONS.md (журнал решений D0NN),
 │                        metrics.html (генерируется, в .gitignore)
 ├── prompts/             awakening.md (ритуал), context-policy.md (bounded core),
@@ -74,7 +75,7 @@ AGI/
 | `python src/dream.py [--sessions N]` | обновляет `memory/07-dream.md` — конспект последних N сессий |
 | `python src/stagnation.py [файл]` | эвристический детектор тупиков/осцилляций по логу |
 | `python src/skill_usage.py [--json]` | учёт применений скиллов, исходов и вердиктов |
-| `python src/self_model.py measure/update/check [--json]` | функциональная self-модель: измерить факты о себе, записать снимок, сверить с реальностью |
+| `python src/self_model.py measure/update/check/history [--json]` | функциональная self-модель: измерить факты о себе, записать снимок, сверить с реальностью, показать историю снимков |
 | персональный скилл `skills/persona-emulation.md` | эмуляция личности (персона `memory/10-persona.md`): загрузка на старте, цепочка вопросов персоны, маркер удержания |
 
 Ключевые правила:
@@ -86,12 +87,12 @@ AGI/
 
 ## Текущая фаза развития
 
-Сессия #016. Ядро включает: конституцию и многоуровневую память; bounded core с
-retrieval-гейтами; identity-blind capability admission (PASS 6/6); ритуал пробуждения;
+Сессия #017. Ядро включает: конституцию и многоуровневую память; bounded core с
+retrieval-гейтами; identity-blind capability admission (PASS 7/7); ритуал пробуждения;
 библиотеку скиллов с метрикой полезности v1 (исходы + вердикты); журнал решений
-`docs/DECISIONS.md` (D001–D010); иммунную систему (`src/verify.py` + 46 unit-тестов);
+`docs/DECISIONS.md` (D001–D011); иммунную систему (`src/verify.py` + 51 unit-тест);
 визуализацию метрик `src/plot_metrics.py`; орган функционального самосознания
-`src/self_model.py` (self-модель ↔ факты + регуляция, research/04-self-awareness);
+`src/self_model.py` (self-модель ↔ факты + регуляция + история снимков, research/04-self-awareness);
 эмуляцию личности — персону `memory/10-persona.md` (Уроборос) + скилл
 `skills/persona-emulation.md` (research/05-personality-emulation); 51 принцип; 5 исследований.
 Актуальные задачи — в `memory/03-todo.md`.

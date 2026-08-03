@@ -51,6 +51,7 @@ REQUIRED_FILES = [
     "memory/06-deadends.md",
     "memory/07-dream.md",
     "memory/10-persona.md",
+    "memory/11-self-model-history.json",
     ".gitignore",
     "prompts/awakening.md",
     "prompts/context-policy.md",
@@ -242,6 +243,9 @@ def check_language(report: Report) -> None:
             for f in d.rglob("*.md"):
                 targets.append(str(f.relative_to(REPO_ROOT)))
     for rel in targets:
+        # машинные файлы (JSON и т.п.) не проверяем на язык — это данные, не текст
+        if rel.endswith(".json"):
+            continue
         p = REPO_ROOT / rel
         if not p.exists():
             continue

@@ -32,6 +32,9 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SELF_MODEL = "memory/08-self-model.json"
+# История снимков self-модели (вне bounded core, компактные дельты измерений)
+DEFAULT_SELF_MODEL_HISTORY = "memory/11-self-model-history.json"
+HISTORY_LIMIT = 40
 
 # Упорядоченный список измерений self-модели: (ключ, человеческая подпись).
 # self_digest — отпечаток самоописания (memory/01-self.md): если самоописание изменилось,
@@ -211,7 +214,7 @@ def write_snapshot(snapshot: dict[str, Any], repo_root: Path, rel_path: str) -> 
 
 
 def update(repo_root: Path = REPO_ROOT, rel_path: str = DEFAULT_SELF_MODEL) -> dict[str, Any]:
-    """Записывает текущие факты о себе как self-модель."""
+    """Записывает текущие факты о себе как self-модель и добавляет снимок в историю."""
     current = measure(repo_root)
     snapshot = {
         "schema": "self-model v1",
@@ -219,7 +222,63 @@ def update(repo_root: Path = REPO_ROOT, rel_path: str = DEFAULT_SELF_MODEL) -> d
         "dimensions": current,
     }
     write_snapshot(snapshot, repo_root, rel_path)
+    record_history(snapshot, repo_root)
     return snapshot
+
+
+def load_history(repo_root: Path = REPO_ROOT,
+                 rel_path: str = DEFAULT_SELF_MODEL_HISTORY) -> list[dict[str, Any]]:
+    """Возвращает историю снимков self-модели (список компактных записей)."""
+    path = repo_root / rel_path
+    if not path.is_file():
+        return []
+    try:
+        data = json.loads(_read(path))
+    except (json.JSONDecodeError, OSError):
+        return []
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def record_history(snapshot: dict[str, Any], repo_root: Path,
+                   rel_path: str = DEFAULT_SELF_MODEL_HISTORY,
+                   limit: int = HISTORY_LIMIT) -> None:
+    """Дописывает компактный снимок в историю, обрезая до лимита глубины."""
+    history = load_history(repo_root, rel_path)
+    entry = {
+        "snapshot_date": snapshot["snapshot_date"],
+        "dimensions": dict(snapshot["dimensions"]),
+    }
+    # не дублируем полностью одинаковый соседний снимок (история = значимые изменения)
+    if history and history[-1].get("dimensions") == entry["dimensions"]:
+        return
+    history.append(entry)
+    if len(history) > limit:
+        history = history[-limit:]
+    path = repo_root / rel_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(history, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def history(repo_root: Path = REPO_ROOT,
+            rel_path: str = DEFAULT_SELF_MODEL_HISTORY) -> dict[str, Any]:
+    """Собирает историю снимков и дельту последнего к предыдущему."""
+    history_list = load_history(repo_root, rel_path)
+    delta: list[tuple[str, Any, Any]] = []
+    if len(history_list) >= 2:
+        prev = history_list[-2]["dimensions"]
+        last = history_list[-1]["dimensions"]
+        for key in DIMENSIONS:
+            key_ = key[0]
+            pv, lv = prev.get(key_), last.get(key_)
+            if pv != lv:
+                delta.append((key_, pv, lv))
+    return {
+        "entries": history_list,
+        "delta": delta,
+        "last_date": history_list[-1]["snapshot_date"] if history_list else None,
+    }
 
 
 def check(repo_root: Path = REPO_ROOT, rel_path: str = DEFAULT_SELF_MODEL) -> dict[str, Any]:
@@ -271,9 +330,30 @@ def print_rows(rows: list[tuple[str, str, Any, Any]], claimed_ok: bool = True) -
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Функциональная self-модель агента AGI")
-    parser.add_argument("action", nargs="?", choices=["measure", "update", "check"], default="measure")
+    parser.add_argument("action", nargs="?", choices=["measure", "update", "check", "history"], default="measure")
     parser.add_argument("--json", action="store_true", help="машинный вывод")
     args = parser.parse_args(argv)
+
+    if args.action == "history":
+        hist = history()
+        if args.json:
+            print(json.dumps({
+                "action": "history",
+                "count": len(hist["entries"]),
+                "last_date": hist["last_date"],
+                "delta": [{"dimension": k, "prev": p, "now": l} for k, p, l in hist["delta"]],
+            }, ensure_ascii=False))
+            return 0
+        print(f"# История self-модели: {len(hist['entries'])} снимков, последний от {hist['last_date']}")
+        if not hist["delta"]:
+            print("Дельты к предыдущему снимку нет (образ себя не изменился).")
+            return 0
+        label_map = dict(DIMENSIONS)
+        print("Изменения к предыдущему снимку:")
+        for key, prev, now in hist["delta"]:
+            label = label_map.get(key, key)
+            print(f"  {label}: {_fmt(prev)} → {_fmt(now)}")
+        return 0
 
     if args.action == "measure":
         current = measure()
