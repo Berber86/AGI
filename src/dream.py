@@ -30,6 +30,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = REPO_ROOT / "memory" / "07-dream.md"
+DEFAULT_SESSIONS = 2
 LOG_RE = re.compile(r"^session-(\d{4})-(\d{2})-(\d{2})-(\d{3})\.md$")
 HEADER_RE = re.compile(r"^(#{2,6})\s+(.+?)\s*$")
 
@@ -167,22 +168,22 @@ def digest_one_log(path: Path) -> SessionDigest:
         tasks=compact_markdown(
             choose_heading_block(text, "Задачи на сессию"),
             source=path,
-            max_lines=14,
+            max_lines=8,
         ),
         outcomes=compact_markdown(
             choose_heading_block(text, "Итоги сессии", "Итоги"),
             source=path,
-            max_lines=18,
+            max_lines=12,
         ),
         verdicts=compact_markdown(
             choose_heading_block(text, "Вердикты по гипотезам"),
             source=path,
-            max_lines=16,
+            max_lines=10,
         ),
         final_status=compact_markdown(
             choose_heading_block(text, "Статус на конец"),
             source=path,
-            max_lines=10,
+            max_lines=7,
         ),
         surprises=compact_markdown(
             choose_heading_block(
@@ -192,7 +193,7 @@ def digest_one_log(path: Path) -> SessionDigest:
                 "Дополнение после финального прогона сна",
             ),
             source=path,
-            max_lines=8,
+            max_lines=5,
         ),
     )
 
@@ -222,6 +223,7 @@ def format_metrics(metrics: dict[str, Any] | None) -> str:
             f"- Принципов: {counts['principles']}; скиллов: {counts['skills']}; исследований: {counts['research_files']}.",
             f"- Логов: {counts['logs']}; уроков: {counts['lessons']}; тупиков: {counts['deadends']}.",
             f"- TODO открыто/закрыто: {counts['todo_open']} / {counts['todo_done']}.",
+            f"- Capability admission PASS/FAIL: {counts['admission_pass']} / {counts['admission_fail']}.",
             f"- `src/`: Python-файлов {src['files']}, строк {src['lines']} (непустых {src['non_empty_lines']}).",
         ]
     )
@@ -242,10 +244,10 @@ def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: b
         "> Если раздел обрезан ради компактности, рядом указано, сколько строк опущено и где полный источник.",
         "",
         "## Как использовать при пробуждении",
-        "1. Прочитать конституцию и ядро памяти как обычно — сон не выше конституции.",
-        "2. Прочитать этот файл как быстрый обзор последних сессий.",
-        "3. Если нужна деталь, открыть конкретный лог из списка источников.",
-        "4. После завершения новой сессии обновить сон командой `python src/dream.py`.",
+        "1. Следовать bounded-ритуалу из `prompts/context-policy.md` — сон не выше конституции.",
+        "2. Прочитать этот файл как обзор траектории внутри стартового ядра.",
+        "3. После выбора задачи адресно открыть источник, только если нужна опущенная деталь.",
+        "4. После сессии обновить сон и проверить его командой `python src/context_budget.py`.",
         "",
         "## Параметры генерации",
         f"- Запрошено последних сессий: {requested_sessions}.",
@@ -301,9 +303,9 @@ def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: b
         [
             "",
             "## Рекомендация следующему пробуждению",
-            "- Начинай с `Readme.md`, затем выполняй `prompts/awakening.md`.",
-            "- Используй этот сон только как быстрый индекс недавней траектории.",
-            "- Если работа касается решения прошлой сессии, открой полный лог-источник, а не доверяй одной выжимке.",
+            "- Начинай с `Readme.md`, затем выполняй `prompts/awakening.md` и `prompts/context-policy.md`.",
+            "- Используй этот сон как bounded-обзор траектории, а не замену источникам.",
+            "- Полный лог открывай task-directed: при продолжении решения, споре о факте или явном опущении нужной детали.",
             "",
             "## Дата последнего обновления",
             today,
@@ -321,8 +323,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sessions",
         type=int,
-        default=3,
-        help="сколько последних сессий включить в сон (по умолчанию: 3)",
+        default=DEFAULT_SESSIONS,
+        help=f"сколько последних сессий включить в сон (по умолчанию: {DEFAULT_SESSIONS})",
     )
     parser.add_argument(
         "--output",
