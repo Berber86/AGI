@@ -40,6 +40,7 @@ ARENA_BRANCH_RE = re.compile(r"^arena/[A-Za-z0-9._-]+-agi$")
 REQUIRED_FILES = [
     "Readme.md",
     "docs/ARCHITECTURE.md",
+    "docs/DECISIONS.md",
     "memory/00-constitution.md",
     "memory/00-index.md",
     "memory/01-self.md",
@@ -61,7 +62,10 @@ REQUIRED_FILES = [
     "src/dream.py",
     "src/stagnation.py",
     "src/skill_usage.py",
+    "src/plot_metrics.py",
     "tests/test_admission.py",
+    "tests/test_skill_usage.py",
+    "tests/test_plot_metrics.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -91,14 +95,18 @@ MIN_FILE_SIZES = {
     "prompts/context-policy.md": 500,
     "prompts/admission-policy.md": 500,
     "docs/ARCHITECTURE.md": 500,
+    "docs/DECISIONS.md": 500,
     "src/verify.py": 1000,
     "src/context_budget.py": 1000,
     "src/admission.py": 1000,
     "tests/test_admission.py": 500,
+    "tests/test_skill_usage.py": 500,
+    "tests/test_plot_metrics.py": 500,
     "src/metrics.py": 1000,
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
     "src/skill_usage.py": 1000,
+    "src/plot_metrics.py": 1000,
     "memory/07-dream.md": 500,
     "Readme.md": 50,
 }
@@ -117,7 +125,11 @@ CONSTITUTION_REQUIRED_SECTIONS = [
 CYRILLIC_THRESHOLD = 0.20
 
 # Файлы, которые мы НЕ проверяем на язык (код, логи могут содержать много латиницы, но логи всё же проверяем мягко)
-LANGUAGE_CHECK_EXEMPT = ["tests/test_admission.py"]
+LANGUAGE_CHECK_EXEMPT = [
+    "tests/test_admission.py",
+    "tests/test_skill_usage.py",
+    "tests/test_plot_metrics.py",
+]
 
 # Регулярка для кириллицы
 CYRILLIC_RE = re.compile(r"[а-яА-ЯёЁ]")
@@ -404,6 +416,16 @@ def check_skill_usage(report: Report) -> None:
         report.warn(
             "В логах есть ссылки на неизвестные скиллы: " + details + extra
         )
+
+    # Полнота измерения полезности (D005): скилл с частым применением, но без единого исхода.
+    for skill, data in usage["per_skill"].items():
+        if data["count"] >= 5 and sum(data["outcomes"].values()) == 0:
+            report.warn(
+                f"Скилл `{skill}` применён {data['count']} раз, но не имеет ни одного "
+                f"задокументированного исхода; заполни маркеры "
+                f"«Итог скилла `skills/<имя>.md`: успех|частично|неудача — ...» "
+                f"в логах (метрика полезности v1)."
+            )
 
 
 def check_capability_admission(report: Report) -> None:

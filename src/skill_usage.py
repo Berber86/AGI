@@ -13,6 +13,20 @@ skill_usage.py — учёт и отчёт по явному применению
 Скрипт также понимает более короткий исторический вариант:
     Применяю `skills/<имя>.md`: ...
 
+Опциональный маркер исхода (метрика полезности v1, D005):
+    Итог скилла `skills/<имя>.md`: успех — <обоснование>
+    Итог скилла `skills/<имя>.md`: частично — <обоснование>
+    Итог скилла `skills/<имя>.md`: неудача — <обоснование>
+Маркер не входит в счёт применений; он агрегируется отдельно как распределение
+исходов. Отсутствие исхода у применения — не ошибка, а незаполненное измерение.
+
+Вердикты гипотез (связывание с сессиями применения, сессия #013):
+    ### Вердикт по Г1
+    - **Сравнение с предположением:** подтвердилась ...
+Статус классифицируется по префиксу (подтвердилась/частично/опровергнута).
+Для каждого скилла отчёт показывает распределение вердиктов в сессиях, где он
+применялся, — корреляционный контекст, а не доказательство причинности.
+
 Запуск:
     python src/skill_usage.py
     python src/skill_usage.py --json
@@ -42,6 +56,19 @@ SKILL_USE_RE = re.compile(
     r"^\s*(?:[-*]\s+)?Применяю(?:\s+скилл)?\s+`?(skills/[A-Za-z0-9._/-]+\.md)`?",
     re.IGNORECASE,
 )
+OUTCOME_RE = re.compile(
+    r"^\s*(?:[-*]\s+)?Итог\s+скилла\s+`?(skills/[A-Za-z0-9._/-]+\.md)`?\s*[:—-]\s*(успех|частично|неудача)",
+    re.IGNORECASE,
+)
+OUTCOME_STATUSES = ("успех", "частично", "неудача")
+VERDICT_HEADER_RE = re.compile(
+    r"^#{2,6}\s+Вердикт\s+по\s+(Г\d+)", re.IGNORECASE
+)
+VERDICT_STATUS_RE = re.compile(
+    r"^\s*[-*]?\s*\*\*Сравнение\s+с\s+предположением:\*\*\s*(.+?)\s*$",
+    re.IGNORECASE,
+)
+VERDICT_STATUSES = ("подтвердилась", "частично", "опровергнута")
 
 
 @dataclass(frozen=True)
@@ -63,6 +90,69 @@ class SkillUseEvent:
         if not match:
             return self.log_path.stem
         return f"#{match.group(1)}"
+
+
+@dataclass(frozen=True)
+class SkillOutcomeEvent:
+    """Один задокументированный исход применения скилла (метрика полезности v1)."""
+
+    skill_path: str
+    status: str
+    log_path: Path
+    line_no: int
+    line_text: str
+
+    @property
+    def log_rel(self) -> str:
+        return str(self.log_path.relative_to(REPO_ROOT))
+
+    @property
+    def session_label(self) -> str:
+        match = SESSION_LABEL_RE.match(self.log_path.name)
+        if not match:
+            return self.log_path.stem
+        return f"#{match.group(1)}"
+
+
+@dataclass(frozen=True)
+class VerdictEvent:
+    """Вердикт гипотезы сессии («Вердикт по ГN» + «Сравнение с предположением»)."""
+
+    hypothesis: str
+    status: str
+    log_path: Path
+    line_no: int
+    line_text: str
+
+    @property
+    def log_rel(self) -> str:
+        return str(self.log_path.relative_to(REPO_ROOT))
+
+    @property
+    def session_label(self) -> str:
+        match = SESSION_LABEL_RE.match(self.log_path.name)
+        if not match:
+            return self.log_path.stem
+        return f"#{match.group(1)}"
+
+
+def classify_verdict_status(text: str) -> str | None:
+    """Классифицирует статус вердикта по вхождению ключевого слова.
+
+    Устойчиво к хвостам и оборотам («подтвердилась с уточнением»,
+    «предварительно подтвердилась»). Негация («не подтвердилась») и неизвестные
+    формулировки возвращают None, а не догадку.
+    """
+    lowered = text.strip().casefold()
+    if "не подтвердилась" in lowered or "не подтвердил" in lowered:
+        return None
+    if "частично" in lowered:
+        return "частично"
+    if "опровергнут" in lowered:
+        return "опровергнута"
+    if "подтвердилась" in lowered or "подтвердил" in lowered:
+        return "подтвердилась"
+    return None
 
 
 def relative(path: Path) -> str:
@@ -105,6 +195,62 @@ def extract_skill_uses(log_path: Path) -> list[SkillUseEvent]:
     return events
 
 
+def extract_outcome_events(log_path: Path) -> list[SkillOutcomeEvent]:
+    """Извлекает задокументированные исходы скиллов из одного лога (опциональный маркер)."""
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    events: list[SkillOutcomeEvent] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        match = OUTCOME_RE.search(line)
+        if not match:
+            continue
+        status = match.group(2).casefold()
+        if status not in OUTCOME_STATUSES:
+            continue
+        events.append(
+            SkillOutcomeEvent(
+                skill_path=match.group(1),
+                status=status,
+                log_path=log_path,
+                line_no=line_no,
+                line_text=line.strip(),
+            )
+        )
+    return events
+
+
+def extract_verdict_events(log_path: Path) -> list[VerdictEvent]:
+    """Извлекает вердикты гипотез из одного лога.
+
+    Вердикт = заголовок «### Вердикт по ГN» + строка «**Сравнение с предположением:** ...».
+    Статус классифицируется по префиксу; гипотеза берётся из ближайшего предшествующего
+    заголовка. Строки без предшествующего заголовка получают hypothesis «?».
+    """
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    events: list[VerdictEvent] = []
+    current_hypothesis: str | None = None
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        header = VERDICT_HEADER_RE.match(line)
+        if header:
+            current_hypothesis = header.group(1)
+            continue
+        status_match = VERDICT_STATUS_RE.search(line)
+        if not status_match:
+            continue
+        status = classify_verdict_status(status_match.group(1))
+        if status is None:
+            continue
+        events.append(
+            VerdictEvent(
+                hypothesis=current_hypothesis or "?",
+                status=status,
+                log_path=log_path,
+                line_no=line_no,
+                line_text=line.strip(),
+            )
+        )
+    return events
+
+
 def ru_plural(value: int, one: str, few: str, many: str) -> str:
     """Возвращает русскую форму существительного после числа."""
     n = abs(value) % 100
@@ -132,6 +278,11 @@ def build_skill_usage_report() -> dict[str, Any]:
             "last_log": None,
             "last_line": None,
             "examples": [],
+            "outcomes": {"успех": 0, "частично": 0, "неудача": 0},
+            "outcome_sessions": [],
+            "outcome_logs": [],
+            "session_verdicts": {"подтвердилась": 0, "частично": 0, "опровергнута": 0},
+            "session_verdict_keys": set(),
         }
         for skill in skill_paths
     }
@@ -139,6 +290,10 @@ def build_skill_usage_report() -> dict[str, Any]:
     events: list[SkillUseEvent] = []
     unknown_references: list[dict[str, Any]] = []
     logs_with_usage: set[str] = set()
+    outcome_events: list[SkillOutcomeEvent] = []
+    unknown_outcome_references: list[dict[str, Any]] = []
+    verdict_events: list[VerdictEvent] = []
+    verdicts_by_log: dict[str, list[dict[str, Any]]] = {}
 
     for log_path in logs:
         for event in extract_skill_uses(log_path):
@@ -167,8 +322,68 @@ def build_skill_usage_report() -> dict[str, Any]:
             if len(bucket["examples"]) < 3:
                 bucket["examples"].append(event.line_text)
 
+        for outcome in extract_outcome_events(log_path):
+            outcome_events.append(outcome)
+            if outcome.skill_path not in known_skills:
+                unknown_outcome_references.append(
+                    {
+                        "skill_path": outcome.skill_path,
+                        "log": outcome.log_rel,
+                        "session": outcome.session_label,
+                        "line_no": outcome.line_no,
+                        "line_text": outcome.line_text,
+                    }
+                )
+                continue
+            bucket = per_skill[outcome.skill_path]
+            bucket["outcomes"][outcome.status] += 1
+            if outcome.session_label not in bucket["outcome_sessions"]:
+                bucket["outcome_sessions"].append(outcome.session_label)
+            if outcome.log_rel not in bucket["outcome_logs"]:
+                bucket["outcome_logs"].append(outcome.log_rel)
+
+        for verdict in extract_verdict_events(log_path):
+            verdict_events.append(verdict)
+            verdicts_by_log.setdefault(verdict.log_rel, []).append(
+                {
+                    "hypothesis": verdict.hypothesis,
+                    "status": verdict.status,
+                    "line_no": verdict.line_no,
+                }
+            )
+            # Корреляционный контекст: скилл применялся в сессии с вердиктом ГN.
+            for skill, bucket in per_skill.items():
+                if verdict.log_rel in bucket["logs"]:
+                    key = (verdict.log_rel, verdict.hypothesis)
+                    if key not in bucket["session_verdict_keys"]:
+                        bucket["session_verdict_keys"].add(key)
+                        bucket["session_verdicts"][verdict.status] += 1
+
+    for bucket in per_skill.values():
+        bucket["session_verdict_keys"] = sorted(bucket["session_verdict_keys"])
+
     unused_skills = [skill for skill, data in per_skill.items() if data["count"] == 0]
     used_skills = [skill for skill, data in per_skill.items() if data["count"] > 0]
+
+    outcomes_by_status: dict[str, int] = {"успех": 0, "частично": 0, "неудача": 0}
+    for outcome in outcome_events:
+        if outcome.status in outcomes_by_status:
+            outcomes_by_status[outcome.status] += 1
+    skills_with_outcomes = [
+        skill for skill, data in per_skill.items() if sum(data["outcomes"].values()) > 0
+    ]
+
+    verdicts_by_status: dict[str, int] = {
+        "подтвердилась": 0, "частично": 0, "опровергнута": 0
+    }
+    for verdict in verdict_events:
+        if verdict.status in verdicts_by_status:
+            verdicts_by_status[verdict.status] += 1
+    skills_with_verdicts = [
+        skill
+        for skill, data in per_skill.items()
+        if sum(data["session_verdicts"].values()) > 0
+    ]
 
     return {
         "repo_root": str(REPO_ROOT),
@@ -181,6 +396,14 @@ def build_skill_usage_report() -> dict[str, Any]:
         "skills_unused": len(unused_skills),
         "unused_skills": unused_skills,
         "unknown_references": unknown_references,
+        "total_outcomes": len(outcome_events),
+        "outcomes_by_status": outcomes_by_status,
+        "skills_with_outcomes": skills_with_outcomes,
+        "unknown_outcome_references": unknown_outcome_references,
+        "total_verdicts": len(verdict_events),
+        "verdicts_by_status": verdicts_by_status,
+        "skills_with_verdicts": skills_with_verdicts,
+        "verdicts_by_log": verdicts_by_log,
         "per_skill": per_skill,
         "events": [
             {
@@ -191,6 +414,27 @@ def build_skill_usage_report() -> dict[str, Any]:
                 "line_text": event.line_text,
             }
             for event in events
+        ],
+        "outcome_events": [
+            {
+                "skill_path": event.skill_path,
+                "status": event.status,
+                "log": event.log_rel,
+                "session": event.session_label,
+                "line_no": event.line_no,
+                "line_text": event.line_text,
+            }
+            for event in outcome_events
+        ],
+        "verdict_events": [
+            {
+                "hypothesis": event.hypothesis,
+                "status": event.status,
+                "log": event.log_rel,
+                "session": event.session_label,
+                "line_no": event.line_no,
+            }
+            for event in verdict_events
         ],
     }
 
@@ -243,6 +487,73 @@ def print_report(report: dict[str, Any]) -> None:
             f"- `{skill}` — {data['count']} {uses_word}; "
             f"сессии: {sessions}; последний лог: `{data['last_log']}`:{data['last_line']}"
         )
+
+    print()
+    print("## Исходы скиллов (полезность v1)")
+    if report["total_outcomes"] == 0:
+        print(
+            "Исходы пока не задокументированы. Маркер (опциональный): "
+            "«Итог скилла `skills/<имя>.md`: успех|частично|неудача — ...»."
+        )
+    else:
+        statuses = report["outcomes_by_status"]
+        print(
+            f"Задокументировано исходов: {report['total_outcomes']} "
+            f"(применений всего: {report['total_events']}); "
+            f"успех: {statuses['успех']}, частично: {statuses['частично']}, "
+            f"неудача: {statuses['неудача']}."
+        )
+        for skill, data in report["per_skill"].items():
+            if sum(data["outcomes"].values()) == 0:
+                continue
+            out = data["outcomes"]
+            sessions = ", ".join(data["outcome_sessions"])
+            print(
+                f"- `{skill}` — успех: {out['успех']}, частично: {out['частично']}, "
+                f"неудача: {out['неудача']}; сессии: {sessions}"
+            )
+        uncovered = max(report["total_events"] - report["total_outcomes"], 0)
+        if uncovered > 0:
+            print(
+                f"Применений без задокументированного исхода: {uncovered} "
+                f"(это не провал, а незаполненное измерение)."
+            )
+
+    print()
+    print("## Вердикты гипотез в сессиях применения")
+    verdicts = report["verdicts_by_status"]
+    print(
+        f"Вердиктов в логах: {report['total_verdicts']} "
+        f"(подтвердилась: {verdicts['подтвердилась']}, "
+        f"частично: {verdicts['частично']}, опровергнута: {verdicts['опровергнута']})."
+    )
+    if report["skills_with_verdicts"]:
+        print(
+            "По скиллам — корреляционный контекст, НЕ доказательство причинности: "
+            "сколько вердиктов (уникальных по сессии и гипотезе) встретилось в сессиях, "
+            "где скилл применялся."
+        )
+        for skill, data in report["per_skill"].items():
+            sv = data["session_verdicts"]
+            if sum(sv.values()) == 0:
+                continue
+            sessions = ", ".join(data["sessions"])
+            print(
+                f"- `{skill}` — подтвердилась: {sv['подтвердилась']}, "
+                f"частично: {sv['частично']}, опровергнута: {sv['опровергнута']}; "
+                f"сессии применения: {sessions}"
+            )
+    else:
+        print("Совпадений применений скиллов с вердиктами гипотез пока нет.")
+
+    if report["unknown_outcome_references"]:
+        print()
+        print("## Неизвестные ссылки в маркерах исхода")
+        for item in report["unknown_outcome_references"]:
+            print(
+                f"- `{item['skill_path']}` в `{item['log']}`:{item['line_no']} "
+                f"({item['session']})"
+            )
 
     if report["unknown_references"]:
         print()

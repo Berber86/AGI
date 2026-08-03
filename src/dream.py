@@ -173,17 +173,17 @@ def digest_one_log(path: Path) -> SessionDigest:
         outcomes=compact_markdown(
             choose_heading_block(text, "Итоги сессии", "Итоги"),
             source=path,
-            max_lines=12,
+            max_lines=10,
         ),
         verdicts=compact_markdown(
             choose_heading_block(text, "Вердикты по гипотезам"),
             source=path,
-            max_lines=10,
+            max_lines=8,
         ),
         final_status=compact_markdown(
             choose_heading_block(text, "Статус на конец"),
             source=path,
-            max_lines=7,
+            max_lines=6,
         ),
         surprises=compact_markdown(
             choose_heading_block(
@@ -193,7 +193,7 @@ def digest_one_log(path: Path) -> SessionDigest:
                 "Дополнение после финального прогона сна",
             ),
             source=path,
-            max_lines=5,
+            max_lines=4,
         ),
     )
 

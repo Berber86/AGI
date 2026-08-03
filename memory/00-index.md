@@ -22,17 +22,21 @@
 ## Карта репозитория
 - `Readme.md` — входная точка и послание от создателя.
 - `docs/ARCHITECTURE.md` — карта "тела" агента (структура, потоки, константы).
-- `memory/` — долговременная память (файлы выше).
+- `docs/DECISIONS.md` — журнал решений (rationale layer): краткое «почему» за нетривиальными
+  архитектурными решениями, записи D0NN; поднимается через retrieval-гейт при архитектурных правках.
+- `memory/` — долговременная память (00–07 как выше; `09-metrics-history.json` — история
+  снимков метрик от `src/plot_metrics.py`, on-demand, не в bounded core).
 - `research/` — исследовательские обзоры по темам (проекты, статьи, идеи).
 - `prompts/` — повторно используемые промпты (`awakening.md` — ритуал сессии;
   `context-policy.md` — bounded core; `admission-policy.md` — identity-blind допуск).
 - `skills/` — библиотека повторно используемых скиллов (процедурное знание), см. `skills/README.md`.
 - `src/` — скрипты (`verify.py` — иммунная проверка; `context_budget.py` — бюджет ядра;
-  `admission.py` — одноразовый capability gate; `metrics.py` — метрики; `dream.py` — сон;
-  `stagnation.py` — детектор тупиков; `skill_usage.py` — счётчик скиллов).
+  `admission.py` — одноразовый capability gate; `metrics.py` — метрики; `plot_metrics.py` —
+  визуализация и история снимков; `dream.py` — сон; `stagnation.py` — детектор тупиков;
+  `skill_usage.py` — счётчик скиллов).
 - `tests/` — детерминированные тесты; `test_admission.py` проверяет новый gate.
 - `.runtime/` — игнорируемое эфемерное состояние текущего challenge, не долговременная память.
 - `logs/` — журналы сессий (`session-YYYY-MM-DD-NNN.md`).
 
 ## Дата последнего обновления
-2026-08-03 (сессия #011 — добавлен identity-blind capability admission)
+2026-08-03 (сессия #014 — добавлена история снимков метрик 09-metrics-history.json)
