@@ -126,9 +126,14 @@ def compact_markdown(lines: list[str], *, source: Path, max_lines: int) -> str:
     Делает явный компактный фрагмент markdown.
 
     Это не «молчаливое усечение»: если строк больше лимита, в конец добавляется
-    строка с числом опущенных строк и ссылкой на исходный лог.
+    строка с числом опущенных строк и ссылкой на исходный лог. Пустые строки
+    между пунктами не сохраняются, чтобы не раздувать ядро пробелами.
     """
-    meaningful = [sanitize_excerpt_line(line) for line in trim_blank_edges(lines)]
+    meaningful = [
+        sanitize_excerpt_line(line)
+        for line in trim_blank_edges(lines)
+        if line.strip()
+    ]
     if not meaningful:
         return "_Раздел не найден или пуст._"
 
@@ -370,22 +375,22 @@ def digest_one_log(path: Path) -> SessionDigest:
         tasks=compact_markdown(
             choose_heading_block(text, "Задачи на сессию"),
             source=path,
-            max_lines=6,
+            max_lines=4,
         ),
         outcomes=compact_markdown(
             choose_heading_block(text, "Итоги сессии", "Итоги"),
             source=path,
-            max_lines=6,
+            max_lines=4,
         ),
         verdicts=compact_markdown(
             choose_heading_block(text, "Вердикты по гипотезам"),
             source=path,
-            max_lines=5,
+            max_lines=4,
         ),
         final_status=compact_markdown(
             choose_heading_block(text, "Статус на конец"),
             source=path,
-            max_lines=4,
+            max_lines=3,
         ),
         surprises=compact_markdown(
             choose_heading_block(
@@ -395,7 +400,7 @@ def digest_one_log(path: Path) -> SessionDigest:
                 "Дополнение после финального прогона сна",
             ),
             source=path,
-            max_lines=3,
+            max_lines=2,
         ),
     )
 
