@@ -209,7 +209,52 @@ def collect_metrics() -> dict[str, Any] | None:
         return None
 
 
-def format_metrics(metrics: dict[str, Any] | None) -> str:
+def collect_self_model_history() -> dict[str, Any] | None:
+    """Пытается получить историю снимков self-модели из src/self_model.py."""
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        import self_model  # type: ignore
+
+        return self_model.history()
+    except Exception:
+        return None
+
+
+def format_self_model_line(history_info: dict[str, Any] | None) -> str:
+    """Форматирует строку состояния/динамики self-модели для сна."""
+    if history_info is None or not history_info.get("entries"):
+        return "- Self-модель: _история снимков пуста или недоступна._"
+
+    entries = history_info["entries"]
+    last_date = history_info.get("last_date") or "неизвестно"
+    if len(entries) == 1:
+        return f"- Self-модель: снимок от {last_date}, начальная запись (история изменений накапливается)."
+
+    delta = history_info.get("delta") or []
+    if not delta:
+        return f"- Self-модель: {len(entries)} снимков, последний от {last_date} (без изменений к предыдущему)."
+
+    labels_map: dict[str, str] = {}
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "src"))
+        import self_model  # type: ignore
+
+        labels_map = dict(self_model.DIMENSIONS)
+    except Exception:
+        pass
+
+    parts = []
+    for key, prev, now in delta[:4]:
+        label = labels_map.get(key, key)
+        parts.append(f"{label}: {prev} → {now}")
+    if len(delta) > 4:
+        parts.append(f"и ещё {len(delta) - 4} изм.")
+
+    changes_str = "; ".join(parts)
+    return f"- Self-модель ({len(entries)} снимков, от {last_date}): {changes_str}."
+
+
+def format_metrics(metrics: dict[str, Any] | None, history_info: dict[str, Any] | None = None) -> str:
     """Форматирует короткий блок метрик для сна."""
     if metrics is None:
         return "_Метрики недоступны: `src/metrics.py` не удалось импортировать или выполнить._"
@@ -217,6 +262,7 @@ def format_metrics(metrics: dict[str, Any] | None) -> str:
     counts = metrics["counts"]
     src = metrics["src"]
     git = metrics["git"]
+    self_line = format_self_model_line(history_info)
     return "\n".join(
         [
             f"- Git: ветка `{git['branch']}` (коммит и dirty-статус не фиксируются во сне, чтобы избежать самоссылочной устарелости).",
@@ -225,6 +271,7 @@ def format_metrics(metrics: dict[str, Any] | None) -> str:
             f"- TODO открыто/закрыто: {counts['todo_open']} / {counts['todo_done']}.",
             f"- Capability admission PASS/FAIL: {counts['admission_pass']} / {counts['admission_fail']}.",
             f"- `src/`: Python-файлов {src['files']}, строк {src['lines']} (непустых {src['non_empty_lines']}).",
+            self_line,
         ]
     )
 
@@ -233,7 +280,7 @@ def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: b
     """Строит полный markdown-файл сна."""
     selected = logs[-requested_sessions:] if requested_sessions > 0 else []
     digests = [digest_one_log(path) for path in selected]
-    metrics_block = format_metrics(collect_metrics()) if include_metrics else "_Метрики отключены параметром запуска._"
+    metrics_block = format_metrics(collect_metrics(), collect_self_model_history()) if include_metrics else "_Метрики отключены параметром запуска._"
     today = date.today().isoformat()
 
     lines: list[str] = [
