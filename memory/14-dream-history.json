@@ -64,5 +64,38 @@
       "Г1: Вернуть стартовое ядро в норму",
       "Г2: Эстетическая рефлексия"
     ]
+  },
+  {
+    "counts": {
+      "admission_fail": 0,
+      "admission_pass": 14,
+      "deadends": 0,
+      "lessons": 36,
+      "logs": 24,
+      "principles": 51,
+      "research_files": 5,
+      "skills": 7,
+      "todo_done": 30,
+      "todo_open": 12
+    },
+    "date": "2026-08-04",
+    "logs_selected": 2,
+    "logs_total": 24,
+    "requested_sessions": 2,
+    "sources": [
+      "logs/session-2026-08-04-023.md",
+      "logs/session-2026-08-04-024.md"
+    ],
+    "src": {
+      "files": 10,
+      "lines": 4812,
+      "non_empty_lines": 4137
+    },
+    "task_labels": [
+      "Г1: Вернуть стартовое ядро в норму",
+      "Г2: Эстетическая рефлексия",
+      "Г1: `src/backup.py` + тесты + упоминания в архитектур...",
+      "Г2: Исправить формулировку TODO об эстетике; не делат..."
+    ]
   }
 ]

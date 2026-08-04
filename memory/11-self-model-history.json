@@ -268,5 +268,23 @@
       "src_files": 9,
       "budget_used_chars": 68396
     }
+  },
+  {
+    "snapshot_date": "2026-08-04",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "4555833c0dc8",
+      "sessions": 24,
+      "principles": 51,
+      "skills": 7,
+      "research_files": 5,
+      "lessons": 36,
+      "deadends": 0,
+      "todo_open": 12,
+      "todo_done": 30,
+      "admission_pass": 15,
+      "src_files": 10,
+      "budget_used_chars": 67968
+    }
   }
 ]

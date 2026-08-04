@@ -54,6 +54,7 @@ REQUIRED_FILES = [
     "memory/11-self-model-history.json",
     "memory/12-voice.md",
     "memory/13-poetry.md",
+    "memory/14-dream-history.json",
     ".gitignore",
     "prompts/awakening.md",
     "prompts/context-policy.md",
@@ -66,6 +67,7 @@ REQUIRED_FILES = [
     "src/dream.py",
     "src/stagnation.py",
     "src/skill_usage.py",
+    "src/backup.py",
     "src/plot_metrics.py",
     "src/self_model.py",
     "tests/test_admission.py",
@@ -73,6 +75,7 @@ REQUIRED_FILES = [
     "tests/test_plot_metrics.py",
     "tests/test_self_model.py",
     "tests/test_dream.py",
+    "tests/test_backup.py",
 ]
 
 # Обязательные разделы в файлах скиллов (в дополнение к конституции)
@@ -115,10 +118,12 @@ MIN_FILE_SIZES = {
     "src/dream.py": 1000,
     "src/stagnation.py": 1000,
     "src/skill_usage.py": 1000,
+    "src/backup.py": 1000,
     "src/plot_metrics.py": 1000,
     "src/self_model.py": 1000,
     "tests/test_self_model.py": 500,
     "tests/test_dream.py": 500,
+    "tests/test_backup.py": 500,
     "memory/07-dream.md": 500,
     "memory/10-persona.md": 500,
     "memory/12-voice.md": 200,
@@ -156,6 +161,7 @@ LANGUAGE_CHECK_EXEMPT = [
     "tests/test_plot_metrics.py",
     "tests/test_self_model.py",
     "tests/test_dream.py",
+    "tests/test_backup.py",
 ]
 
 # Регулярка для кириллицы
