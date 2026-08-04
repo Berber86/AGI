@@ -7,6 +7,11 @@ dream.py — механизм «сна» для файловой памяти AG
     чтобы будущая сессия могла быстро восстановить траекторию без чтения
     всех длинных логов подряд.
 
+Дополнительно ведётся компактная история digest-снимков в on-demand файле
+`memory/14-dream-history.json` (вне bounded core), чтобы можно было наблюдать
+динамику траектории между прогонами сна и показывать короткую дельту прямо
+в markdown-сне — без молчаливого усечения и без раздувания ядра.
+
 Запуск:
     python src/dream.py
     python src/dream.py --sessions 5
@@ -20,6 +25,7 @@ dream.py — механизм «сна» для файловой памяти AG
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -27,12 +33,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT = REPO_ROOT / "memory" / "07-dream.md"
+DEFAULT_HISTORY = REPO_ROOT / "memory" / "14-dream-history.json"
 DEFAULT_SESSIONS = 2
+MAX_DYNAMIC_LINES = 6
+MAX_TASK_LABELS_HISTORY = 12
 LOG_RE = re.compile(r"^session-(\d{4})-(\d{2})-(\d{2})-(\d{3})\.md$")
 HEADER_RE = re.compile(r"^(#{2,6})\s+(.+?)\s*$")
+CHECKBOX_RE = re.compile(r"^- \[[ xX]\]\s+(.*)$")
 
 
 @dataclass(frozen=True)
@@ -56,6 +65,26 @@ def relative(path: Path) -> str:
 def read_text(path: Path) -> str:
     """Безопасно читает текстовый файл как UTF-8."""
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def write_json(path: Path, payload: Any) -> None:
+    """Записывает JSON в файл с детерминированным форматированием."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_json_list(path: Path) -> list[Any]:
+    """Читает JSON-массив; при отсутствии/повреждении возвращает пустой список."""
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(read_text(path))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
 
 
 def find_session_logs() -> list[Path]:
@@ -157,6 +186,179 @@ def first_heading(text: str, fallback: str) -> str:
     return fallback
 
 
+def extract_task_labels(digests: list[SessionDigest]) -> list[str]:
+    """Извлекает короткие заголовки задач/гипотез из конспектов текущего сна.
+
+    Берутся только маркированные checkbox-строки из раздела «Задачи», чтобы не
+    подхватывать промежуточные пояснения, служебные строки и цитаты. Из каждой
+    строки извлекается короткий заголовок вида «Г1: Автоматическое сравнение...»,
+    обрезанный до первого разделителя длинного описания или до лимита длины.
+    """
+    labels: list[str] = []
+    seen: set[str] = set()
+    for digest in digests:
+        for raw in digest.tasks.splitlines():
+            line = raw.strip()
+            checkbox = CHECKBOX_RE.match(line)
+            if not checkbox:
+                continue
+            content = checkbox.group(1).strip()
+            # В логах код задачи обычно выделен жирным: «- [ ] **Г1:** Суть ...».
+            # Снимаем выделение кода и берём полный текст для дальнейшего сжатия.
+            label = re.sub(r"^\*{1,2}(Г\d+)\s*[:：—–-]?\*{1,2}\s*[:：—–-]?\s*", r"\1: ", content)
+            label = label.strip("*_").strip()
+
+            # Если после кода «Г1:» идёт длинное описание, обрезаем до первого разделителя.
+            code_match = re.match(r"^(Г\d+)\s*[:：—–-]\s*(.+)$", label)
+            if code_match:
+                code = code_match.group(1)
+                after = code_match.group(2).strip()
+                short = re.split(r"\s[;；:：—–(]| \(| — ", after, maxsplit=1)[0].strip()
+                label = f"{code}: {short}" if short else code
+            label = label.strip("*` «»\"'—:–- ").strip()
+            if not label or label.startswith("…") or "_Раздел не найден" in label:
+                continue
+            label = re.sub(r"\s+", " ", label)
+            if len(label) > 56:
+                label = label[:53].rstrip() + "..."
+            key = normalize_title(label)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            labels.append(label)
+    return labels[:MAX_TASK_LABELS_HISTORY]
+
+
+def snapshot_signature(snapshot: dict[str, Any] | None) -> tuple[Any, ...]:
+    """Ключевые поля, по которым определяем материальное изменение снимка."""
+    if not snapshot:
+        return ()
+    counts = snapshot.get("counts") or {}
+    return (
+        snapshot.get("date"),
+        snapshot.get("requested_sessions"),
+        tuple(sorted((counts or {}).items())),
+        tuple(snapshot.get("task_labels") or []),
+        tuple(snapshot.get("sources") or []),
+    )
+
+
+def build_snapshot(
+    logs: list[Path],
+    selected: list[Path],
+    digests: list[SessionDigest],
+    metrics: dict[str, Any] | None,
+    *,
+    requested_sessions: int,
+    today: str,
+) -> dict[str, Any]:
+    """Строит компактный digest-снимок для истории снов."""
+    counts: dict[str, Any] = {}
+    src: dict[str, Any] = {}
+    if metrics:
+        counts = dict(metrics.get("counts") or {})
+        src = dict(metrics.get("src") or {})
+    return {
+        "date": today,
+        "requested_sessions": requested_sessions,
+        "logs_total": len(logs),
+        "logs_selected": len(selected),
+        "sources": [relative(p) for p in selected],
+        "counts": {
+            "principles": counts.get("principles"),
+            "skills": counts.get("skills"),
+            "research_files": counts.get("research_files"),
+            "logs": counts.get("logs"),
+            "lessons": counts.get("lessons"),
+            "deadends": counts.get("deadends"),
+            "todo_open": counts.get("todo_open"),
+            "todo_done": counts.get("todo_done"),
+            "admission_pass": counts.get("admission_pass"),
+            "admission_fail": counts.get("admission_fail"),
+        },
+        "src": {
+            "files": src.get("files"),
+            "lines": src.get("lines"),
+            "non_empty_lines": src.get("non_empty_lines"),
+        },
+        "task_labels": extract_task_labels(digests),
+    }
+
+
+def update_dream_history(history_path: Path, snapshot: dict[str, Any]) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Добавляет снимок в историю, если он материально отличается от последнего."""
+    history = load_json_list(history_path)
+    previous = history[-1] if history else None
+    if snapshot_signature(previous) != snapshot_signature(snapshot):
+        history.append(snapshot)
+        write_json(history_path, history)
+    elif not history:
+        history.append(snapshot)
+        write_json(history_path, history)
+    return previous, history
+
+
+def format_count_delta(key: str, prev: int | None, now: int | None) -> str | None:
+    """Форматирует одну строку дельты счётчика."""
+    if now is None:
+        return None
+    if prev is None or prev == now:
+        return None
+    diff = now - prev
+    sign = "+" if diff > 0 else ""
+    return f"{key}: {prev} → {now} ({sign}{diff})"
+
+
+def format_dynamics_block(
+    previous: dict[str, Any] | None,
+    snapshot: dict[str, Any],
+    history: list[dict[str, Any]],
+) -> str:
+    """Форматирует короткий блок динамики траектории для markdown-сна."""
+    lines: list[str] = []
+    if not history:
+        return "- _История снимков пуста._"
+
+    if previous is None:
+        lines.append(f"- История снов: начата, снимков {len(history)} (первый прогон).")
+    else:
+        prev_counts = previous.get("counts") or {}
+        now_counts = snapshot.get("counts") or {}
+        metric_labels = {
+            "principles": "принципы",
+            "skills": "скиллы",
+            "research_files": "исследования",
+            "logs": "логи",
+            "lessons": "уроки",
+            "deadends": "тупики",
+            "todo_open": "TODO открыто",
+            "todo_done": "TODO закрыто",
+            "admission_pass": "допуск PASS",
+            "admission_fail": "допуск FAIL",
+        }
+        delta_lines: list[str] = []
+        for key, label in metric_labels.items():
+            line = format_count_delta(label, prev_counts.get(key), now_counts.get(key))
+            if line:
+                delta_lines.append(line)
+        if delta_lines:
+            for line in delta_lines[:MAX_DYNAMIC_LINES]:
+                lines.append(f"- {line}.")
+        else:
+            lines.append("- Счётчики не изменились относительно предыдущего снимка.")
+
+    prev_tasks = set(normalize_title(x) for x in (previous or {}).get("task_labels") or [])
+    now_tasks = snapshot.get("task_labels") or []
+    new_tasks = [label for label in now_tasks if normalize_title(label) not in prev_tasks]
+    if new_tasks:
+        preview = "; ".join(new_tasks[:2])
+        more = len(new_tasks) - 2
+        if more > 0:
+            preview += f"; и ещё {more}"
+        lines.append(f"- Темы текущего сна: {preview}.")
+    return "\n".join(lines) if lines else "- _Динамика без видимых изменений._"
+
+
 def digest_one_log(path: Path) -> SessionDigest:
     """Создаёт компактную выжимку одного лога."""
     text = read_text(path)
@@ -168,22 +370,22 @@ def digest_one_log(path: Path) -> SessionDigest:
         tasks=compact_markdown(
             choose_heading_block(text, "Задачи на сессию"),
             source=path,
-            max_lines=8,
+            max_lines=6,
         ),
         outcomes=compact_markdown(
             choose_heading_block(text, "Итоги сессии", "Итоги"),
             source=path,
-            max_lines=10,
+            max_lines=6,
         ),
         verdicts=compact_markdown(
             choose_heading_block(text, "Вердикты по гипотезам"),
             source=path,
-            max_lines=8,
+            max_lines=5,
         ),
         final_status=compact_markdown(
             choose_heading_block(text, "Статус на конец"),
             source=path,
-            max_lines=6,
+            max_lines=4,
         ),
         surprises=compact_markdown(
             choose_heading_block(
@@ -193,7 +395,7 @@ def digest_one_log(path: Path) -> SessionDigest:
                 "Дополнение после финального прогона сна",
             ),
             source=path,
-            max_lines=4,
+            max_lines=3,
         ),
     )
 
@@ -276,12 +478,31 @@ def format_metrics(metrics: dict[str, Any] | None, history_info: dict[str, Any] 
     )
 
 
-def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: bool) -> str:
-    """Строит полный markdown-файл сна."""
+def build_dream(
+    logs: list[Path],
+    *,
+    requested_sessions: int,
+    include_metrics: bool,
+    history_path: Path = DEFAULT_HISTORY,
+) -> str:
+    """Строит полный markdown-файл сна и побочно обновляет историю снимков."""
     selected = logs[-requested_sessions:] if requested_sessions > 0 else []
     digests = [digest_one_log(path) for path in selected]
-    metrics_block = format_metrics(collect_metrics(), collect_self_model_history()) if include_metrics else "_Метрики отключены параметром запуска._"
+    metrics = collect_metrics() if include_metrics else None
+    history_info = collect_self_model_history() if include_metrics else None
+    metrics_block = format_metrics(metrics, history_info)
     today = date.today().isoformat()
+
+    snapshot = build_snapshot(
+        logs,
+        selected,
+        digests,
+        metrics,
+        requested_sessions=requested_sessions,
+        today=today,
+    )
+    previous, history = update_dream_history(history_path, snapshot)
+    dynamics_block = format_dynamics_block(previous, snapshot, history)
 
     lines: list[str] = [
         "# Сон агента — компактный конспект последних сессий",
@@ -300,6 +521,7 @@ def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: b
         f"- Запрошено последних сессий: {requested_sessions}.",
         f"- Фактически найдено логов: {len(logs)}.",
         f"- Попало в сон: {len(selected)}.",
+        f"- История digest-снимков: `{relative(history_path)}` (снимков: {len(history)}; вне bounded core).",
         "",
         "## Источники",
     ]
@@ -315,6 +537,9 @@ def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: b
             "",
             "## Текущий снимок метрик",
             metrics_block,
+            "",
+            "## Динамика траектории",
+            dynamics_block,
             "",
             "## Конспекты сессий",
         ]
@@ -352,6 +577,7 @@ def build_dream(logs: list[Path], *, requested_sessions: int, include_metrics: b
             "## Рекомендация следующему пробуждению",
             "- Начинай с `Readme.md`, затем выполняй `prompts/awakening.md` и `prompts/context-policy.md`.",
             "- Используй этот сон как bounded-обзор траектории, а не замену источникам.",
+            "- Динамика снов накапливается в `memory/14-dream-history.json`; поднимай её только при анализе долгой траектории.",
             "- Полный лог открывай task-directed: при продолжении решения, споре о факте или явном опущении нужной детали.",
             "",
             "## Дата последнего обновления",
@@ -380,6 +606,12 @@ def parse_args() -> argparse.Namespace:
         help="куда записать markdown-сон (по умолчанию: memory/07-dream.md)",
     )
     parser.add_argument(
+        "--history",
+        type=Path,
+        default=DEFAULT_HISTORY,
+        help="куда сохранять историю digest-снимков (по умолчанию: memory/14-dream-history.json)",
+    )
+    parser.add_argument(
         "--stdout",
         action="store_true",
         help="напечатать сон в stdout вместо записи в файл",
@@ -399,11 +631,16 @@ def main() -> int:
         print("ОШИБКА: --sessions должен быть положительным числом.", file=sys.stderr)
         return 1
 
+    history_path = args.history
+    if not history_path.is_absolute():
+        history_path = REPO_ROOT / history_path
+
     logs = find_session_logs()
     dream = build_dream(
         logs,
         requested_sessions=args.sessions,
         include_metrics=not args.no_metrics,
+        history_path=history_path,
     )
 
     if args.stdout:
@@ -415,6 +652,7 @@ def main() -> int:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(dream, encoding="utf-8")
         print(f"Сон записан: {relative(output)}")
+        print(f"История снимков: {relative(history_path)}")
     return 0
 
 

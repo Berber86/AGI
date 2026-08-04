@@ -1,0 +1,35 @@
+[
+  {
+    "counts": {
+      "admission_fail": 0,
+      "admission_pass": 12,
+      "deadends": 0,
+      "lessons": 34,
+      "logs": 22,
+      "principles": 51,
+      "research_files": 5,
+      "skills": 7,
+      "todo_done": 29,
+      "todo_open": 13
+    },
+    "date": "2026-08-04",
+    "logs_selected": 2,
+    "logs_total": 22,
+    "requested_sessions": 2,
+    "sources": [
+      "logs/session-2026-08-04-021.md",
+      "logs/session-2026-08-04-022.md"
+    ],
+    "src": {
+      "files": 9,
+      "lines": 4604,
+      "non_empty_lines": 3961
+    },
+    "task_labels": [
+      "Г1: Создать скилл агентного стихосложения с ограничен...",
+      "Г2: Опробовать скилл новым стихотворением в `memory/1...",
+      "Г1: Автоматическое сравнение снимков сна во времени:...",
+      "Г2: Эстетическая рефлексия: новое стихотворение в `me..."
+    ]
+  }
+]
