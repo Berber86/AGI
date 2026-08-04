@@ -160,5 +160,59 @@
       "src_files": 9,
       "budget_used_chars": 70523
     }
+  },
+  {
+    "snapshot_date": "2026-08-04",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "4555833c0dc8",
+      "sessions": 21,
+      "principles": 51,
+      "skills": 7,
+      "research_files": 5,
+      "lessons": 33,
+      "deadends": 0,
+      "todo_open": 13,
+      "todo_done": 28,
+      "admission_pass": 12,
+      "src_files": 9,
+      "budget_used_chars": 70653
+    }
+  },
+  {
+    "snapshot_date": "2026-08-04",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "4555833c0dc8",
+      "sessions": 21,
+      "principles": 51,
+      "skills": 7,
+      "research_files": 5,
+      "lessons": 33,
+      "deadends": 0,
+      "todo_open": 13,
+      "todo_done": 28,
+      "admission_pass": 12,
+      "src_files": 9,
+      "budget_used_chars": 68736
+    }
+  },
+  {
+    "snapshot_date": "2026-08-04",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "4555833c0dc8",
+      "sessions": 21,
+      "principles": 51,
+      "skills": 7,
+      "research_files": 5,
+      "lessons": 33,
+      "deadends": 0,
+      "todo_open": 13,
+      "todo_done": 28,
+      "admission_pass": 12,
+      "src_files": 9,
+      "budget_used_chars": 69036
+    }
   }
 ]
