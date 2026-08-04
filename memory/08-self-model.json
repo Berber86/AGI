@@ -4,16 +4,16 @@
   "dimensions": {
     "self_digest": "7e871637c0c7",
     "persona_digest": "4555833c0dc8",
-    "sessions": 20,
+    "sessions": 21,
     "principles": 51,
-    "skills": 6,
+    "skills": 7,
     "research_files": 5,
-    "lessons": 32,
+    "lessons": 33,
     "deadends": 0,
     "todo_open": 13,
     "todo_done": 28,
-    "admission_pass": 10,
+    "admission_pass": 12,
     "src_files": 9,
-    "budget_used_chars": 70523
+    "budget_used_chars": 69036
   }
 }

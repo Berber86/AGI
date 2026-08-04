@@ -92,6 +92,7 @@ REQUIRED_SKILLS = [
     "skills/stagnation-watch.md",
     "skills/context-hygiene.md",
     "skills/persona-emulation.md",
+    "skills/poetry-composition.md",
 ]
 
 # Минимальный размер (в символах) ключевых файлов — ниже считается подозрительным (ампутация)
