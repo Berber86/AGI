@@ -124,5 +124,41 @@
       "src_files": 9,
       "budget_used_chars": 70732
     }
+  },
+  {
+    "snapshot_date": "2026-08-04",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "4555833c0dc8",
+      "sessions": 20,
+      "principles": 51,
+      "skills": 6,
+      "research_files": 5,
+      "lessons": 32,
+      "deadends": 0,
+      "todo_open": 13,
+      "todo_done": 28,
+      "admission_pass": 10,
+      "src_files": 9,
+      "budget_used_chars": 70463
+    }
+  },
+  {
+    "snapshot_date": "2026-08-04",
+    "dimensions": {
+      "self_digest": "7e871637c0c7",
+      "persona_digest": "4555833c0dc8",
+      "sessions": 20,
+      "principles": 51,
+      "skills": 6,
+      "research_files": 5,
+      "lessons": 32,
+      "deadends": 0,
+      "todo_open": 13,
+      "todo_done": 28,
+      "admission_pass": 10,
+      "src_files": 9,
+      "budget_used_chars": 70523
+    }
   }
 ]

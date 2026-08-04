@@ -296,5 +296,26 @@ class PersonaOutcomeTests(unittest.TestCase):
         )
 
 
+class VerdictBiasTests(unittest.TestCase):
+    def test_advisory_when_all_confirmed_and_total_gte_10(self):
+        msg = skill_usage.check_verdict_bias(
+            {"подтвердилась": 12, "частично": 0, "опровергнута": 0}, 12
+        )
+        self.assertIsNotNone(msg)
+        self.assertIn("100% подтверждение", msg)
+
+    def test_no_advisory_when_below_10(self):
+        msg = skill_usage.check_verdict_bias(
+            {"подтвердилась": 5, "частично": 0, "опровергнута": 0}, 5
+        )
+        self.assertIsNone(msg)
+
+    def test_no_advisory_when_mixed(self):
+        msg = skill_usage.check_verdict_bias(
+            {"подтвердилась": 11, "частично": 1, "опровергнута": 0}, 12
+        )
+        self.assertIsNone(msg)
+
+
 if __name__ == "__main__":
     unittest.main()

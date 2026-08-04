@@ -442,6 +442,9 @@ def check_skill_usage(report: Report) -> None:
             f"Маркеров удержания персоны в логах: {usage['total_persona_outcomes']} "
             f"(удержана: {pst['удержана']}, отклонение: {pst['отклонение']})"
         )
+    bias_msg = usage.get("verdict_bias_advisory")
+    if bias_msg:
+        report.info(f"Смещение вердиктов (L025): 100% подтверждений ({usage['total_verdicts']}/{usage['total_verdicts']}).")
 
     if usage["total_events"] == 0:
         report.warn("В логах не найдено ни одного явного применения скиллов.")

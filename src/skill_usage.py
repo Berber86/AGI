@@ -312,6 +312,23 @@ def ru_plural(value: int, one: str, few: str, many: str) -> str:
     return many
 
 
+def check_verdict_bias(verdicts_by_status: dict[str, int], total_verdicts: int) -> str | None:
+    """Возвращает рекомендательное сообщение, если обнаружено 100% подтверждение гипотез.
+
+    Это не ошибка верификации, а сигнал для самонаблюдения (L025, D007):
+    если вердиктов >= 10 и все они «подтвердилась», стоит проверить, не стала ли
+    постановка гипотез излишне консервативной.
+    """
+    confirmed = verdicts_by_status.get("подтвердилась", 0)
+    if total_verdicts >= 10 and confirmed == total_verdicts and confirmed > 0:
+        return (
+            f"Обнаружено 100% подтверждение гипотез ({total_verdicts} из {total_verdicts} — «подтвердилась», "
+            "ни одного «частично» или «опровергнута»). Сигнал для наблюдения (L025): "
+            "проверь, не стала ли постановка гипотез излишне консервативной или оценки завышенными."
+        )
+    return None
+
+
 def build_skill_usage_report() -> dict[str, Any]:
     """Строит словарь-отчёт, пригодный и для CLI, и для импорта из других скриптов."""
     skill_paths = [relative(path) for path in list_skills()]
@@ -461,6 +478,7 @@ def build_skill_usage_report() -> dict[str, Any]:
         "unknown_outcome_references": unknown_outcome_references,
         "total_verdicts": len(verdict_events),
         "verdicts_by_status": verdicts_by_status,
+        "verdict_bias_advisory": check_verdict_bias(verdicts_by_status, len(verdict_events)),
         "skills_with_verdicts": skills_with_verdicts,
         "verdicts_by_log": verdicts_by_log,
         "total_persona_outcomes": len(persona_outcome_events),
@@ -632,6 +650,11 @@ def print_report(report: dict[str, Any]) -> None:
             )
     else:
         print("Совпадений применений скиллов с вердиктами гипотез пока нет.")
+
+    bias_advisory = report.get("verdict_bias_advisory")
+    if bias_advisory:
+        print()
+        print(f"💡 Наблюдение за смещением вердиктов: {bias_advisory}")
 
     if report["unknown_outcome_references"]:
         print()
