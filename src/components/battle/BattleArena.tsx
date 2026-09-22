@@ -2,99 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BattleResult, BattleUnitState } from '@/engine/combat/combat.types';
 import type { GearInstance } from '@/engine/unit/unit.types';
 import { buildLog } from '@/engine/combat/log';
+import { computeFrameState, type UnitFx } from '@/engine/combat/playback';
 import { GEAR_BY_ID, RARITY_LABEL } from '@/data/gear';
 import { NODE_KIND_META } from '@/data/campaign';
 import { applyBattleOutcome, useGameStore } from '@/store/useGameStore';
-import { UnitCard, type UnitCardData, type UnitFx } from './UnitCard';
+import { cueForEvent, playCue } from '@/utils/sound';
+import { UnitCard, type UnitCardData } from './UnitCard';
 import { FightLog } from './FightLog';
 
 type Speed = 1 | 2 | 0; // 0 = мгновенно
 const SPEED_MS: Record<Exclude<Speed, 0>, number> = { 1: 700, 2: 300 };
-
-interface DisplayState {
-  units: Map<string, BattleUnitState>;
-  fx: Map<string, UnitFx>;
-  round: number;
-  phase: string;
-  finished: boolean;
-}
-
-/** Пересчитывает видимое состояние по событиям [0..upto]. Чисто и без дрейфа. */
-function displayState(result: BattleResult, upto: number): DisplayState {
-  const units = new Map(result.initial.map((u) => [u.id, { ...u }]));
-  const fx = new Map<string, UnitFx>();
-  let round = 0;
-  let phase = '⚡ Разведка';
-  let n = 0;
-  for (let i = 0; i <= upto && i < result.events.length; i++) {
-    const ev = result.events[i]!;
-    n++;
-    switch (ev.type) {
-      case 'phase':
-        phase = ev.phase === 'surprise' ? '⚡ Внезапная атака' : '⚔️ Бой';
-        break;
-      case 'roundStart':
-        round = ev.round;
-        break;
-      case 'attack': {
-        const t = units.get(ev.tgt)!;
-        if (ev.hit) {
-          t.hp = ev.tgtHp;
-          t.shield = ev.tgtShield;
-          fx.set(ev.tgt, { n, kind: ev.crit ? 'crit' : 'hit', amount: ev.dmg });
-          fx.delete(ev.src); // сброс прошлого fx атакующего
-        } else {
-          fx.set(ev.tgt, { n, kind: 'miss' });
-        }
-        break;
-      }
-      case 'dot': {
-        const t = units.get(ev.tgt)!;
-        t.hp = ev.tgtHp;
-        fx.set(ev.tgt, { n, kind: 'hit', amount: ev.dmg });
-        break;
-      }
-      case 'heal': {
-        const t = units.get(ev.tgt)!;
-        t.hp = ev.tgtHp;
-        fx.set(ev.tgt, { n, kind: 'heal', amount: ev.amount });
-        break;
-      }
-      case 'status': {
-        const t = units.get(ev.tgt)!;
-        t.poison = ev.stacks;
-        break;
-      }
-      case 'morale': {
-        const t = units.get(ev.unit);
-        if (t) t.morale = ev.morale;
-        break;
-      }
-      case 'death': {
-        const t = units.get(ev.unit)!;
-        t.alive = false;
-        t.hp = 0;
-        fx.set(ev.unit, { n, kind: 'death' });
-        break;
-      }
-      case 'rout': {
-        const t = units.get(ev.unit)!;
-        t.routed = true;
-        t.morale = ev.morale;
-        fx.set(ev.unit, { n, kind: 'rout' });
-        break;
-      }
-      case 'advance': {
-        const t = units.get(ev.unit);
-        if (t) t.line = ev.toLine;
-        break;
-      }
-      case 'end':
-        break;
-    }
-  }
-  return { units, fx, round, phase, finished: upto >= result.events.length - 1 };
-}
 
 function toCard(u: BattleUnitState): UnitCardData {
   return {
@@ -118,6 +35,35 @@ const RESULT_TEXT: Record<string, { title: string; cls: string }> = {
   draw: { title: '🤝 Ничья', cls: 'text-slate-300' },
 };
 
+/** Зона одной стороны: 5 линий глубины, фронт у разделителя. */
+function SideField({ side, units, fxMap }: { side: 'player' | 'enemy'; units: BattleUnitState[]; fxMap: Map<string, UnitFx> }) {
+  const order = side === 'enemy' ? [4, 3, 2, 1, 0] : [0, 1, 2, 3, 4];
+  return (
+    <div className="flex w-full flex-col gap-1">
+      {order.map((line) => {
+        const inLine = units.filter((u) => u.line === line).sort((a, b) => a.column - b.column);
+        const front = line === 0;
+        return (
+          <div
+            key={line}
+            className={`flex min-h-[16px] flex-wrap items-start justify-center gap-2 rounded-lg border border-dashed px-2 py-1 ${
+              front ? 'border-slate-600/70 bg-slate-900/50' : line === 4 ? 'border-slate-800/50' : 'border-slate-800/70 bg-slate-950/20'
+            }`}
+          >
+            {inLine.length === 0 ? (
+              <span className="py-0.5 text-[9px] uppercase tracking-widest text-slate-700">
+                {side === 'player' ? 'наша' : 'вражья'} линия {line + 1}
+              </span>
+            ) : (
+              inLine.map((u) => <UnitCard key={u.id} unit={toCard(u)} fx={fxMap.get(u.id)} />)
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function BattleArena({
   result,
   kind,
@@ -132,12 +78,19 @@ export function BattleArena({
   onDone: () => void;
 }) {
   const [speed, setSpeed] = useState<Speed>(1);
+  const [soundOn, setSoundOn] = useState(true);
   const [frame, setFrame] = useState(0);
   const [done, setDone] = useState(false);
   const total = result.events.length;
   const logRef = useRef<HTMLDivElement>(null);
+  const prevFrameRef = useRef(0);
 
-  const ds = useMemo(() => displayState(result, frame), [result, frame]);
+  const ds = useMemo(() => computeFrameState(result, frame), [result, frame]);
+
+  // Новый бой — сброс курсора звуков.
+  useEffect(() => {
+    prevFrameRef.current = 0;
+  }, [result]);
 
   // Тик воспроизведения.
   useEffect(() => {
@@ -164,27 +117,54 @@ export function BattleArena({
     return () => clearTimeout(t);
   }, [frame, speed, done, total, result]);
 
+  // Звуки: озвучиваем события, попавшие в кадр с прошлого тика.
+  useEffect(() => {
+    const from = prevFrameRef.current;
+    prevFrameRef.current = frame;
+    if (!soundOn || speed === 0 || frame <= from) return;
+    for (let i = from + 1; i <= Math.min(frame, total - 1); i++) {
+      const cue = cueForEvent(result.events[i]!);
+      if (cue) playCue(cue);
+    }
+  }, [frame, soundOn, speed, total, result]);
+
   useEffect(() => {
     if (ds.finished && !done) setDone(true);
   }, [ds.finished, done]);
+
+  // Финальный аккорд.
+  useEffect(() => {
+    if (done && soundOn) {
+      playCue(result.winner === 'player' ? 'victory' : result.winner === 'enemy' ? 'defeat' : 'round');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [frame]);
 
-  const enemyUnits = [...ds.units.values()].filter((u) => u.side === 'enemy').sort((a, b) => a.column - b.column);
-  const playerUnits = [...ds.units.values()].filter((u) => u.side === 'player').sort((a, b) => a.column - b.column);
+  const enemyUnits = [...ds.units.values()].filter((u) => u.side === 'enemy');
+  const playerUnits = [...ds.units.values()].filter((u) => u.side === 'player');
   const logLines = useMemo(() => buildLog(result.events.slice(0, frame + 1), result.initial), [result, frame]);
   const meta = NODE_KIND_META[kind as keyof typeof NODE_KIND_META];
   const res = RESULT_TEXT[result.winner] ?? RESULT_TEXT.draw;
+  const progress = Math.min(100, (ds.round / Math.max(1, result.rounds)) * 100);
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-slate-950/97 backdrop-blur-sm">
       {/* верхняя панель */}
       <div className="flex items-center gap-3 border-b border-amber-500/20 px-4 py-2">
         <span className="text-lg font-bold text-amber-200">{meta?.icon} {kind === 'skirmish' ? 'Стычка' : (meta?.label ?? 'Бой')}</span>
-        <span className="text-xs text-slate-400">{ds.phase} • Раунд {ds.round}/{result.rounds || '…'}</span>
+        <span className="text-xs text-slate-400">{ds.phase === 'surprise' ? '⚡ Внезапная атака' : '⚔️ Бой'} • Раунд {ds.round}/{result.rounds || '…'}</span>
         <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setSoundOn((v) => !v)}
+            title={soundOn ? 'Выключить звук' : 'Включить звук'}
+            className={`rounded px-2 py-1 text-xs transition ${soundOn ? 'bg-slate-900 text-slate-200' : 'bg-slate-900 text-slate-600'}`}
+          >
+            {soundOn ? '🔊' : '🔇'}
+          </button>
           {([1, 2, 0] as Speed[]).map((s) => (
             <button
               key={s}
@@ -202,27 +182,39 @@ export function BattleArena({
         </div>
       </div>
 
+      {/* прогресс раундов */}
+      <div className="h-0.5 w-full bg-slate-800">
+        <div className="h-full bg-amber-500/60 transition-all duration-300" style={{ width: `${progress}%` }} />
+      </div>
+
       {/* поле боя */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex flex-wrap items-start justify-center gap-3 border-b border-red-900/30 bg-red-950/10 p-3">
-          {enemyUnits.map((u) => (
-            <UnitCard key={u.id} unit={toCard(u)} fx={ds.fx.get(u.id)} />
-          ))}
+      <div className="relative flex flex-1 flex-col overflow-hidden">
+        {ds.banner && speed !== 0 && (
+          <div
+            key={ds.banner.key}
+            className="banner-float pointer-events-none absolute left-1/2 top-6 z-30 -translate-x-1/2 rounded-xl border border-amber-500/40 bg-slate-950/90 px-8 py-2 text-lg font-black uppercase tracking-[0.3em] text-amber-200 shadow-[0_0_30px_rgba(245,158,11,0.25)]"
+          >
+            {ds.banner.text}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto thin-scroll border-b border-red-900/30 bg-red-950/10 p-2">
+          <SideField side="enemy" units={enemyUnits} fxMap={ds.fx} />
         </div>
 
-        <div className="flex items-center justify-center py-1 text-[10px] uppercase tracking-[0.4em] text-slate-600">
-          ⚙ ⚙ ⚙
+        <div className="flex items-center justify-center gap-4 py-1 text-[10px] uppercase tracking-[0.4em] text-slate-600">
+          <span>линия фронта</span>
+          <span>⚙ ⚙ ⚙</span>
+          <span>касание · дальность 1</span>
         </div>
 
-        <div className="flex flex-wrap items-start justify-center gap-3 border-t border-sky-900/30 bg-sky-950/10 p-3">
-          {playerUnits.map((u) => (
-            <UnitCard key={u.id} unit={toCard(u)} fx={ds.fx.get(u.id)} />
-          ))}
+        <div className="flex-1 overflow-y-auto thin-scroll border-t border-sky-900/30 bg-sky-950/10 p-2">
+          <SideField side="player" units={playerUnits} fxMap={ds.fx} />
         </div>
       </div>
 
       {/* лог */}
-      <div ref={logRef} className="thin-scroll h-40 overflow-y-auto border-t border-slate-800 bg-slate-950/90 px-4 py-2">
+      <div ref={logRef} className="thin-scroll h-36 overflow-y-auto border-t border-slate-800 bg-slate-950/90 px-4 py-2">
         <FightLog lines={logLines} />
       </div>
 

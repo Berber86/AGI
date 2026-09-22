@@ -4,13 +4,9 @@ import { describeAbility, TARGETING_LABEL } from '@/engine/unit/computeUnit';
 import type { Rarity } from '@/engine/unit/unit.types';
 import { formatStatValue, STAT_ICON, STAT_LABEL } from '@/utils/format';
 import type { BattleUnitState } from '@/engine/combat/combat.types';
+import type { UnitFx } from '@/engine/combat/playback';
 
-export interface UnitFx {
-  /** Ключ анимации; меняется на каждое новое событие, чтобы перезапустить CSS. */
-  n: number;
-  kind: 'hit' | 'crit' | 'miss' | 'heal' | 'death' | 'rout';
-  amount?: number;
-}
+export type { UnitFx };
 
 /** Короткие статы для верхней строки карточки. */
 const TOP_STATS = ['atk', 'def', 'spd', 'range'] as const;
@@ -45,7 +41,9 @@ export function UnitCard({ unit, fx, compact = false }: { unit: UnitCardData; fx
     fx?.kind === 'crit' ? 'fx-crit' :
     fx?.kind === 'heal' ? 'fx-heal' :
     fx?.kind === 'death' ? 'fx-dead' :
-    fx?.kind === 'rout' ? 'fx-routed' : '';
+    fx?.kind === 'rout' ? 'fx-routed' :
+    fx?.kind === 'attackMelee' ? (unit.side === 'player' ? 'fx-lunge-up' : 'fx-lunge-down') :
+    fx?.kind === 'attackRanged' ? 'fx-shoot' : '';
   const key = fx ? `${fx.kind}-${fx.n}` : 'idle';
 
   return (

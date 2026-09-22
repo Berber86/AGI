@@ -260,7 +260,9 @@ function startOfRound(sim: Sim): void {
     }
     if (u.poison > 0) {
       const dmg = u.poison * COMBAT.poisonDmgPerStack;
-      applyDamage(u, dmg);
+      // Яд — внутренний урон, щитом не поглощается (см. docs/DECISIONS.md, D-16):
+      // так воспроизведение кадра по событиям остаётся точным и щит не «телепатирует».
+      u.hp = Math.max(0, u.hp - dmg);
       sim.events.push({ type: 'dot', round: sim.round, tgt: u.id, dmg, tgtHp: u.hp, status: 'poison' });
       u.poison -= 1;
       if (u.hp <= 0) {

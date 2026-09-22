@@ -119,3 +119,33 @@ body {
   50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
 }
 .node-available { animation: node-pulse 1.8s ease infinite; }
+
+/* ===== Фаза 1: анимации атакующего и баннеры ===== */
+@keyframes fx-lunge-up {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(-14px) scale(1.05); filter: brightness(1.3); }
+  100% { transform: translateY(0) scale(1); }
+}
+.fx-lunge-up { animation: fx-lunge-up 0.45s ease; z-index: 10; }
+
+@keyframes fx-lunge-down {
+  0% { transform: translateY(0) scale(1); }
+  35% { transform: translateY(14px) scale(1.05); filter: brightness(1.3); }
+  100% { transform: translateY(0) scale(1); }
+}
+.fx-lunge-down { animation: fx-lunge-down 0.45s ease; z-index: 10; }
+
+@keyframes fx-shoot {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.07); filter: brightness(1.4) drop-shadow(0 0 8px rgba(125, 211, 252, 0.8)); }
+  100% { transform: scale(1); }
+}
+.fx-shoot { animation: fx-shoot 0.4s ease; }
+
+@keyframes banner-in {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.92); }
+  12% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  78% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.98); }
+}
+.banner-float { animation: banner-in 1.5s ease forwards; }
