@@ -12,7 +12,8 @@ import type { MomentumTactic } from '@/engine/combat/combat.types';
 import { cityTick, canAfford, addResources, buildingCost, ZERO_RESOURCES } from '@/engine/economy/cityTick';
 import { activeDogmas, collectModifiers, craftDiscount, lootCountBonus, lootRarityBonus } from '@/engine/economy/techTree';
 import { canCraft, craftCost, craftGear, rollLoot, SALVAGE_ORE } from '@/engine/loot/gearGenerator';
-import { analyzeBattle, achievementProgress, ACHIEVEMENTS, completedQuests, progressInputOf, questRewardInstance } from '@/engine/progression/meta';
+import { analyzeBattle, achievementProgress, ACHIEVEMENTS, completedQuests, questRewardInstance } from '@/engine/progression/meta';
+import { progressInputOf } from './metaInput';
 import { computeUnit } from '@/engine/unit/computeUnit';
 import { GEAR_SLOTS, type GearInstance, type GearSlot, type Modifier, type Resources, type SquadSetup } from '@/engine/unit/unit.types';
 import { combineSeed, createRng } from '@/utils/rng';
@@ -553,7 +554,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         }
 
         // --- квестовые шестерёнки ---
-        for (const qid of completedQuests(draft, { isBossBattle: kind === 'boss', analysis })) {
+        for (const qid of completedQuests(progressInputOf(draft, analysis), { isBossBattle: kind === 'boss', analysis })) {
           if (draft.quests[qid]) continue;
           const inst = questRewardInstance(qid, draft.cycle);
           const q = QUEST_LOOKUP[qid];

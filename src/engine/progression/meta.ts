@@ -1,9 +1,7 @@
 import { GEAR_BY_ID } from '@/data/gear';
 import { QUESTS, QUEST_BY_ID } from '@/data/quests';
-import { activeDogmas } from '@/engine/economy/techTree';
 import type { Element, Resources } from '@/engine/unit/unit.types';
 import type { BattleResult } from '@/engine/combat/combat.types';
-import type { GameData } from '@/store/gameState.types';
 
 /**
  * Прогрессия и мета: разбор боя, достижения, квесты.
@@ -95,6 +93,7 @@ export interface ProgressInput {
     wins: number;
     skirmishWins: number;
     winStreak: number;
+    bestWinStreak: number;
     crafted: number;
     bossKills: number;
     cyclesCompleted: number;
@@ -104,24 +103,6 @@ export interface ProgressInput {
   collectionSize: number;
   fullSquads: number;
   analysis: BattleAnalysis | null;
-}
-
-export function progressInputOf(d: GameData, analysis: BattleAnalysis | null): ProgressInput {
-  return {
-    stats: {
-      wins: d.stats.wins,
-      skirmishWins: d.stats.skirmishWins,
-      winStreak: d.stats.winStreak,
-      crafted: d.stats.crafted,
-      bossKills: d.stats.bossKills,
-      cyclesCompleted: d.stats.cyclesCompleted,
-    },
-    techsCount: d.techs.length,
-    dogmaCount: activeDogmas(d.techs).length,
-    collectionSize: d.collection.length,
-    fullSquads: d.squads.filter((sq) => sq.recruitId).length,
-    analysis,
-  };
 }
 
 /** Текущий прогресс достижения. cur >= goal → выполнено. */
@@ -186,7 +167,7 @@ export interface QuestContext {
 }
 
 /** Выполненные сейчас квесты (без учёта уже выданных — фильтрует стор). */
-export function completedQuests(d: GameData, ctx: QuestContext): string[] {
+export function completedQuests(input: ProgressInput, ctx: QuestContext): string[] {
   const out: string[] = [];
   const an = ctx.analysis;
   const win = an?.winner === 'player' ? an : null;
@@ -199,10 +180,10 @@ export function completedQuests(d: GameData, ctx: QuestContext): string[] {
         if (ctx.isBossBattle && win && win.playerElements.length > 0 && win.playerElements.every((e) => e === 'fire')) out.push(q.id);
         break;
       case 'q_cog_ages':
-        if (d.stats.cyclesCompleted >= 2) out.push(q.id);
+        if (input.stats.cyclesCompleted >= 2) out.push(q.id);
         break;
       case 'q_warlord':
-        if (d.stats.bestWinStreak >= 5) out.push(q.id);
+        if (input.stats.bestWinStreak >= 5) out.push(q.id);
         break;
     }
   }

@@ -8,7 +8,6 @@ import { migrate } from '@/store/useGameStore';
 import { SAVE_VERSION } from '@/store/useGameStore';
 import { mkUnit } from '../testUtils';
 import { createRng } from '@/utils/rng';
-import type { GameData } from '@/store/gameState.types';
 
 function fireVsTough(seed = 3) {
   // Игрок бьёт огнём; враг живучий, без страха.
@@ -57,7 +56,7 @@ describe('analyzeBattle', () => {
 
 function baseInput(over: Partial<ProgressInput> = {}): ProgressInput {
   return {
-    stats: { wins: 0, skirmishWins: 0, winStreak: 0, crafted: 0, bossKills: 0, cyclesCompleted: 0 },
+    stats: { wins: 0, skirmishWins: 0, winStreak: 0, bestWinStreak: 0, crafted: 0, bossKills: 0, cyclesCompleted: 0 },
     techsCount: 0,
     dogmaCount: 0,
     collectionSize: 0,
@@ -87,7 +86,7 @@ describe('достижения', () => {
 
   it('мета-достижения считаются от статистики', () => {
     const input = baseInput({
-      stats: { wins: 10, skirmishWins: 5, winStreak: 5, crafted: 5, bossKills: 1, cyclesCompleted: 1 },
+      stats: { wins: 10, skirmishWins: 5, winStreak: 5, bestWinStreak: 5, crafted: 5, bossKills: 1, cyclesCompleted: 1 },
       techsCount: 10,
       dogmaCount: 5,
       collectionSize: 20,
@@ -119,23 +118,22 @@ describe('квесты', () => {
   const winAnalysis = { winner: 'player' as const, rounds: 6, playerElements: ['fire' as const], playerLost: 0, enemyRouted: 0, playerKills: 3 };
 
   it('Феникс: босс без потерь', () => {
-    const d = { stats: { bestWinStreak: 0, cyclesCompleted: 0 } } as unknown as GameData;
-    const ids = completedQuests(d, { isBossBattle: true, analysis: winAnalysis });
+    const input = baseInput();
+    const ids = completedQuests(input, { isBossBattle: true, analysis: winAnalysis });
     expect(ids).toContain('q_phoenix');
     const withLoss = { ...winAnalysis, playerLost: 1 };
-    expect(completedQuests(d, { isBossBattle: true, analysis: withLoss })).not.toContain('q_phoenix');
-    expect(completedQuests(d, { isBossBattle: false, analysis: winAnalysis })).not.toContain('q_phoenix');
+    expect(completedQuests(input, { isBossBattle: true, analysis: withLoss })).not.toContain('q_phoenix');
+    expect(completedQuests(input, { isBossBattle: false, analysis: winAnalysis })).not.toContain('q_phoenix');
   });
 
   it('Поджигатель: босс только огнём', () => {
-    const d = { stats: { bestWinStreak: 0, cyclesCompleted: 0 } } as unknown as GameData;
-    const ids = completedQuests(d, { isBossBattle: true, analysis: winAnalysis });
+    const ids = completedQuests(baseInput(), { isBossBattle: true, analysis: winAnalysis });
     expect(ids).toContain('q_arsonist');
   });
 
   it('Хранитель Циклов и Печать Военачальника — по статистике', () => {
-    const d = { stats: { bestWinStreak: 5, cyclesCompleted: 2 } } as unknown as GameData;
-    const ids = completedQuests(d, { isBossBattle: false, analysis: null });
+    const input = baseInput({ stats: { wins: 0, skirmishWins: 0, winStreak: 0, bestWinStreak: 5, crafted: 0, bossKills: 0, cyclesCompleted: 2 } });
+    const ids = completedQuests(input, { isBossBattle: false, analysis: null });
     expect(ids).toContain('q_cog_ages');
     expect(ids).toContain('q_warlord');
   });
