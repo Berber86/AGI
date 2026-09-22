@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { collectModifiers } from '@/engine/economy/techTree';
+import { RECRUIT_BY_ID } from '@/data/recruits';
 import { NODE_KIND_META } from '@/data/campaign';
 import { computeUnit, TARGETING_LABEL } from '@/engine/unit/computeUnit';
 import { toBattleState } from '@/engine/combat/simulateFight';
@@ -36,11 +38,20 @@ export function PrepModal() {
   const cancel = useGameStore((s) => s.cancelPrep);
   const place = useGameStore((s) => s.placeSquad);
   const squads = useGameStore((s) => s.data.squads);
-  const computed = useGameStore((s) => s.computedSquads());
+  const d = useGameStore((s) => s.data);
 
   const preview = useMemo(() => {
     if (!prep) return null;
-    const players = computed.filter((u): u is ComputedUnit => u !== null);
+    const mods = collectModifiers(d.techs, d.buildings);
+    const players = d.squads
+      .map((sq) => {
+        if (!sq.recruitId || !RECRUIT_BY_ID[sq.recruitId]) return null;
+        const gear = Object.fromEntries(
+          (['weapon', 'armor', 'trinket', 'core'] as const).map((slot) => [slot, d.collection.find((g) => g.uid === sq.gear[slot]) ?? null]),
+        );
+        return computeUnit({ id: sq.id, name: sq.name, recruitId: sq.recruitId, gear, line: sq.line, column: sq.column }, { modifiers: mods });
+      })
+      .filter((u): u is ComputedUnit => u !== null);
     const enemies = prep.encounter.enemies.map((sq) => computeUnit(sq));
     const rng = createRng(42);
     const pStates = players.map((u) => toBattleState(u, 'player'));
@@ -59,7 +70,7 @@ export function PrepModal() {
     for (const u of players) byId.set(u.id, u);
     for (const u of enemies) byId.set(u.id, u);
     return { players, enemies, playerTargets, enemyTargets, byId };
-  }, [prep, computed]);
+  }, [prep, d]);
 
   if (!prep || !preview) return null;
   const meta = NODE_KIND_META[prep.kind as keyof typeof NODE_KIND_META];

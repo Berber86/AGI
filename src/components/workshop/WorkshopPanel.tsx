@@ -3,7 +3,7 @@ import { GEAR_BY_ID, RARITY_LABEL, SLOT_ICON, SLOT_LABEL } from '@/data/gear';
 import { SET_BY_ID, SETS } from '@/data/sets';
 import { describeAbility, gearInstanceStats } from '@/engine/unit/computeUnit';
 import { canCraft, craftCost, CRAFT_COST_ORE, SALVAGE_ORE } from '@/engine/loot/gearGenerator';
-import { craftDiscount } from '@/engine/economy/techTree';
+import { collectModifiers, craftDiscount } from '@/engine/economy/techTree';
 import { GEAR_SLOTS, RARITIES, type Element, type GearInstance, type GearSlot, type Rarity } from '@/engine/unit/unit.types';
 import { useGameStore } from '@/store/useGameStore';
 import { ELEMENT_LABEL, formatStats, STAT_ICON } from '@/utils/format';
@@ -24,7 +24,7 @@ export function WorkshopPanel() {
   const [onlyAbilities, setOnlyAbilities] = useState(false);
   const [sort, setSort] = useState<SortKey>('rarity');
 
-  const mods = useGameStore((s) => s.modifiers());
+  const mods = useMemo(() => collectModifiers(d.techs, d.buildings), [d.techs, d.buildings]);
   const discount = craftDiscount(mods);
 
   const items = useMemo(() => {

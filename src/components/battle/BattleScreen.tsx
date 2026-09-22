@@ -150,7 +150,7 @@ export function BattleScreen() {
   }, [frame, session, soundOn, speed, events]);
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
+    logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
   }, [frame]);
 
   if (!session || !ds) return null;

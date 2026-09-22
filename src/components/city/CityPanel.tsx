@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { BUILDINGS } from '@/data/buildings';
 import { buildingCost, canAfford, cityTick } from '@/engine/economy/cityTick';
+import { collectModifiers } from '@/engine/economy/techTree';
 import { useGameStore } from '@/store/useGameStore';
 import { formatCost, RESOURCE_META } from '@/utils/format';
 import { RESOURCE_KEYS, type ResourceKey } from '@/engine/unit/unit.types';
@@ -7,7 +9,7 @@ import { TECH_BY_ID } from '@/data/techs';
 
 export function CityPanel() {
   const d = useGameStore((s) => s.data);
-  const mods = useGameStore((s) => s.modifiers());
+  const mods = useMemo(() => collectModifiers(d.techs, d.buildings), [d.techs, d.buildings]);
   const build = useGameStore((s) => s.build);
   const breakdown = cityTick(d.buildings, mods);
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { CAMPAIGN_MAP, CAMPAIGN_NODE_BY_ID, NODE_KIND_META } from '@/data/campaign';
 import { availableNodes, MAX_LAYER } from '@/engine/campaign/nodeLogic';
+import { RECRUIT_BY_ID } from '@/data/recruits';
 import { useGameStore } from '@/store/useGameStore';
 
 const LAYERS = Array.from({ length: MAX_LAYER + 1 }, (_, i) => i);
@@ -9,12 +10,15 @@ export function CampaignMap() {
   const d = useGameStore((s) => s.data);
   const enterNode = useGameStore((s) => s.enterNode);
   const fightSkirmish = useGameStore((s) => s.fightSkirmish);
-  const computed = useGameStore((s) => s.computedSquads());
+  const squads = useGameStore((s) => s.data.squads);
 
   const current = d.campaign.currentNodeId;
   const available = useMemo(() => new Set(availableNodes(current, d.campaign.completed).map((n) => n.id)), [current, d.campaign.completed]);
   const completed = useMemo(() => new Set(d.campaign.completed), [d.campaign.completed]);
-  const armyReady = computed.some(Boolean);
+  const armyReady = useMemo(
+    () => squads.some((sq) => sq.recruitId && RECRUIT_BY_ID[sq.recruitId]),
+    [squads],
+  );
 
   return (
     <div className="space-y-4">

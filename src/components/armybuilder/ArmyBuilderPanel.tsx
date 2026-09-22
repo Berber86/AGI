@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { GEAR_BY_ID, RARITY_LABEL, SLOT_ICON, SLOT_LABEL } from '@/data/gear';
 import { RECRUIT_BY_ID, RECRUITS, PLAYER_RECRUIT_IDS } from '@/data/recruits';
 import { SET_BY_ID } from '@/data/sets';
 import { synergyHints, setTierStates } from '@/engine/unit/synergy';
 import { computeUnit, describeAbility, gearInstanceStats } from '@/engine/unit/computeUnit';
+import { collectModifiers } from '@/engine/economy/techTree';
 import { GEAR_SLOTS, RARITIES, type ComputedUnit, type GearInstance, type GearSlot } from '@/engine/unit/unit.types';
 import { useGameStore } from '@/store/useGameStore';
 import { formatCost, formatStatDelta, formatStats, STAT_ICON } from '@/utils/format';
@@ -21,7 +22,7 @@ function statDiffs(computed: ComputedUnit): string[] {
 
 export function ArmyBuilderPanel() {
   const d = useGameStore((s) => s.data);
-  const mods = useGameStore((s) => s.modifiers());
+  const mods = useMemo(() => collectModifiers(d.techs, d.buildings), [d.techs, d.buildings]);
   const hire = useGameStore((s) => s.hire);
   const disband = useGameStore((s) => s.disband);
   const rename = useGameStore((s) => s.renameSquad);
