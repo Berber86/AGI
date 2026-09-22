@@ -1,9 +1,25 @@
-# Эфемерные файлы одноразового допуска; результат сохраняется marker-ом в логе.
-.runtime/
+# зависимости
+node_modules/
 
-# Локальные кэши Python.
-__pycache__/
-*.py[cod]
+# сборка
+dist/
+dist-ssr/
+*.local
 
-# Генерируемый HTML-отчёт визуализации метрик (история — в memory/09-metrics-history.json).
-docs/metrics.html
+# логи
+logs
+*.log
+npm-debug.log*
+
+# редакторы / ОС
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# тесты / кэш
+coverage/
+.vite/
+
+# инкрементальные сборочные кэши TS
+*.tsbuildinfo
