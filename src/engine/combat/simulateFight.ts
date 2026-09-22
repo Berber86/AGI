@@ -198,6 +198,60 @@ export function simulateFight(
             absorbedByShield: 0,
             logMessage: `Тактическая карта: «${cardPlay.card.name}» синхронизирует огонь (+25% к шансу крита)!`,
           });
+        } else if (cardPlay.card.effect === 'overclock_attack') {
+          activePlayers.forEach(p => {
+            p.stats.attack = Math.round(p.stats.attack * 1.4);
+          });
+          pushFrame({
+            round: currentRound,
+            isAmbush: false,
+            actionType: 'tactical_card',
+            actorId: 'player_tactics',
+            actorName: 'Командный Приказ',
+            actorIsPlayer: true,
+            damage: 0,
+            isCrit: false,
+            isDodge: false,
+            absorbedByShield: 0,
+            logMessage: `Тактическая карта: «${cardPlay.card.name}» форсирует обороты поршней (+40% к силе ударов)!`,
+          });
+        } else if (cardPlay.card.effect === 'emp_stun') {
+          const highestThreatEnemy = activeEnemies.sort((a, b) => b.stats.attack - a.stats.attack)[0];
+          if (highestThreatEnemy) {
+            highestThreatEnemy.statuses.push({ type: 'stun', duration: 1, value: 0 });
+            pushFrame({
+              round: currentRound,
+              isAmbush: false,
+              actionType: 'tactical_card',
+              actorId: 'player_tactics',
+              actorName: 'Командный Приказ',
+              actorIsPlayer: true,
+              targetId: highestThreatEnemy.id,
+              targetName: highestThreatEnemy.name,
+              damage: 0,
+              isCrit: false,
+              isDodge: false,
+              absorbedByShield: 0,
+              logMessage: `Тактическая карта: «${cardPlay.card.name}» разряжает конденсаторы, оглушая ${highestThreatEnemy.name}!`,
+            });
+          }
+        } else if (cardPlay.card.effect === 'smoke_screen') {
+          activePlayers.forEach(p => {
+            p.stats.dodgeRate = Math.min(0.65, p.stats.dodgeRate + 0.35);
+          });
+          pushFrame({
+            round: currentRound,
+            isAmbush: false,
+            actionType: 'tactical_card',
+            actorId: 'player_tactics',
+            actorName: 'Командный Приказ',
+            actorIsPlayer: true,
+            damage: 0,
+            isCrit: false,
+            isDodge: false,
+            absorbedByShield: 0,
+            logMessage: `Тактическая карта: «${cardPlay.card.name}» выпускает плотную паровую завесу (+35% к уклонению)!`,
+          });
         }
       }
     }

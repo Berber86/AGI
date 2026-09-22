@@ -9,7 +9,7 @@ import { FightSimulationResult, TacticalCard } from '../engine/combat/combat.typ
 import { simulateFight } from '../engine/combat/simulateFight';
 import { calculateBuildingUpgradeCost, computeCityTick } from '../engine/economy/cityTick';
 import { calculateAccumulatedIcons, getActiveDogmas, isTechUnlockable } from '../engine/economy/techTree';
-import { dismantleGearReward, fuseGears, generateLootGear } from '../engine/loot/gearGenerator';
+import { dismantleGearReward, fuseGears, generateLootGear, refineGear, craftBlueprintArtifact } from '../engine/loot/gearGenerator';
 import { buildUnitEntityFromChampion } from '../engine/unit/computeUnit';
 import { UnitEntity } from '../engine/unit/unit.types';
 import { loadGameStateFromLocalStorage, saveGameStateToLocalStorage } from './persistence';
@@ -71,6 +71,9 @@ interface GameStoreState {
   unlockTech: (techId: string) => boolean;
   fuseThreeGears: (gearIds: [string, string, string]) => { success: boolean; message: string; newGear?: GearItem };
   dismantleGear: (gearId: string) => void;
+  refineGearItem: (gearId: string) => { success: boolean; message: string };
+  craftArtifact: (blueprintId: string) => { success: boolean; message: string };
+  startSandboxBattle: (archetype: 'swarm' | 'fortress' | 'assassins') => void;
   startBattle: (nodeId: string) => void;
   handleRestNode: (nodeId: string) => void;
   handleWorkshopNode: (nodeId: string) => void;
@@ -96,9 +99,30 @@ const TACTICAL_DECK: TacticalCard[] = [
   {
     id: 'tactic_focused_burst',
     name: 'Синхронный Залп',
-    costMorale: 40,
+    costMorale: 35,
     effect: 'focused_fire',
     description: 'Навести оптику: +25% к шансу крита и +15% к точности до конца боя.',
+  },
+  {
+    id: 'tactic_overclock_attack',
+    name: 'Перегрузка Поршней',
+    costMorale: 45,
+    effect: 'overclock_attack',
+    description: 'Впрыск закиси эфира: +40% к силе ударов всех отрядов.',
+  },
+  {
+    id: 'tactic_emp_stun',
+    name: 'Эфирный ЭМИ-Импульс',
+    costMorale: 40,
+    effect: 'emp_stun',
+    description: 'Направленный электромагнитный разряд: оглушает опаснейшего противника.',
+  },
+  {
+    id: 'tactic_smoke_screen',
+    name: 'Дымовая Завеса',
+    costMorale: 25,
+    effect: 'smoke_screen',
+    description: 'Густые пары копоти: +35% к уклонению всех союзных отрядов.',
   },
 ];
 
@@ -361,6 +385,258 @@ export const useGameStore = create<GameStoreState>((set, get) => {
         },
       });
       get().saveGame();
+    },
+
+    refineGearItem: (gearId) => {
+      const { inventory, champions, resources } = get();
+
+      // Check if gear is in inventory
+      let targetGear = inventory.find(g => g.id === gearId);
+      let isEquipped = false;
+      let squadIdWithGear = '';
+      let slotWithGear: GearSlot = 'core';
+
+      if (!targetGear) {
+        for (const squad of champions) {
+          for (const slot of ['core', 'drive', 'aux'] as GearSlot[]) {
+            if (squad.equippedGear[slot]?.id === gearId) {
+              targetGear = squad.equippedGear[slot];
+              isEquipped = true;
+              squadIdWithGear = squad.id;
+              slotWithGear = slot;
+              break;
+            }
+          }
+          if (targetGear) break;
+        }
+      }
+
+      if (!targetGear) return { success: false, message: 'Шестерня не найдена' };
+
+      const result = refineGear(targetGear, resources.gold, resources.cogParts);
+      if (!result.success || !result.refinedGear) {
+        return { success: false, message: result.error || 'Ошибка заточки' };
+      }
+
+      soundManager.playVictory();
+
+      if (isEquipped) {
+        const updatedChampions = champions.map(sq =>
+          sq.id === squadIdWithGear
+            ? { ...sq, equippedGear: { ...sq.equippedGear, [slotWithGear]: result.refinedGear } }
+            : sq
+        );
+        set({
+          resources: {
+            ...resources,
+            gold: resources.gold - result.costGold,
+            cogParts: resources.cogParts - result.costCogParts,
+          },
+          champions: updatedChampions,
+        });
+      } else {
+        const updatedInventory = inventory.map(g => (g.id === gearId ? result.refinedGear! : g));
+        set({
+          resources: {
+            ...resources,
+            gold: resources.gold - result.costGold,
+            cogParts: resources.cogParts - result.costCogParts,
+          },
+          inventory: updatedInventory,
+        });
+      }
+
+      get().saveGame();
+      return { success: true, message: `Шестерня успешно заточена до ${result.refinedGear.name}!` };
+    },
+
+    craftArtifact: (blueprintId) => {
+      const { inventory, resources } = get();
+      const res = craftBlueprintArtifact(blueprintId, inventory, resources.gold, resources.cogParts);
+      if (!res.success || !res.resultGear) {
+        return { success: false, message: res.error || 'Ошибка создания артефакта' };
+      }
+
+      const remainingInventory = inventory.filter(g => !res.consumedGearIds.includes(g.id));
+      remainingInventory.push(res.resultGear);
+
+      soundManager.playVictory();
+      set({
+        inventory: remainingInventory,
+        resources: {
+          ...resources,
+          gold: resources.gold - res.costGold,
+          cogParts: resources.cogParts - res.costCogParts,
+        },
+      });
+      get().saveGame();
+      return { success: true, message: `Выкован легендарный артефакт: ${res.resultGear.name}!` };
+    },
+
+    startSandboxBattle: (archetype) => {
+      const { champions, unlockedTechIds } = get();
+      const unlockedTechs = TECH_NODES.filter(t => unlockedTechIds.includes(t.id));
+      const icons = calculateAccumulatedIcons(unlockedTechIds);
+      const activeDogmas = getActiveDogmas(icons);
+
+      const playerUnits: UnitEntity[] = champions.map(c =>
+        buildUnitEntityFromChampion(c, { unlockedTechs, activeDogmas })
+      );
+
+      let enemyUnits: UnitEntity[] = [];
+
+      if (archetype === 'fortress') {
+        enemyUnits = [
+          {
+            id: 'fort_1',
+            name: 'Бронеколлосс «Бастион I»',
+            role: 'vanguard',
+            isPlayer: false,
+            row: 1,
+            col: 11,
+            currentHp: 240,
+            maxHp: 240,
+            shield: 60,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 28, defense: 22, maxHp: 240, speed: 8, range: 1, critChance: 0.05, dodgeRate: 0.02, accuracy: 0.9, effectiveHp: 306, armorPenetration: 0, startingShield: 60, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+          {
+            id: 'fort_2',
+            name: 'Бронеколлосс «Бастион II»',
+            role: 'vanguard',
+            isPlayer: false,
+            row: 3,
+            col: 11,
+            currentHp: 240,
+            maxHp: 240,
+            shield: 60,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 28, defense: 22, maxHp: 240, speed: 8, range: 1, critChance: 0.05, dodgeRate: 0.02, accuracy: 0.9, effectiveHp: 306, armorPenetration: 0, startingShield: 60, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+        ];
+      } else if (archetype === 'assassins') {
+        enemyUnits = [
+          {
+            id: 'assassin_1',
+            name: 'Шестеренный Ликвидатор Альфа',
+            role: 'duelist',
+            isPlayer: false,
+            row: 0,
+            col: 12,
+            currentHp: 130,
+            maxHp: 130,
+            shield: 0,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 42, defense: 6, maxHp: 130, speed: 20, range: 2, critChance: 0.35, dodgeRate: 0.25, accuracy: 0.95, effectiveHp: 148, armorPenetration: 0.15, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+          {
+            id: 'assassin_2',
+            name: 'Шестеренный Ликвидатор Бета',
+            role: 'duelist',
+            isPlayer: false,
+            row: 4,
+            col: 12,
+            currentHp: 130,
+            maxHp: 130,
+            shield: 0,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 42, defense: 6, maxHp: 130, speed: 20, range: 2, critChance: 0.35, dodgeRate: 0.25, accuracy: 0.95, effectiveHp: 148, armorPenetration: 0.15, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+        ];
+      } else {
+        // Swarm
+        enemyUnits = [
+          {
+            id: 'swarm_1',
+            name: 'Роевой Дрон Альфа',
+            role: 'duelist',
+            isPlayer: false,
+            row: 1,
+            col: 11,
+            currentHp: 90,
+            maxHp: 90,
+            shield: 0,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 22, defense: 4, maxHp: 90, speed: 17, range: 1, critChance: 0.15, dodgeRate: 0.1, accuracy: 0.9, effectiveHp: 102, armorPenetration: 0, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+          {
+            id: 'swarm_2',
+            name: 'Роевой Дрон Бета',
+            role: 'duelist',
+            isPlayer: false,
+            row: 2,
+            col: 12,
+            currentHp: 90,
+            maxHp: 90,
+            shield: 0,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 22, defense: 4, maxHp: 90, speed: 17, range: 1, critChance: 0.15, dodgeRate: 0.1, accuracy: 0.9, effectiveHp: 102, armorPenetration: 0, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+          {
+            id: 'swarm_3',
+            name: 'Ульевый Мортирщик',
+            role: 'arcanist',
+            isPlayer: false,
+            row: 3,
+            col: 15,
+            currentHp: 100,
+            maxHp: 100,
+            shield: 0,
+            morale: 100,
+            isFled: false,
+            stats: { attack: 36, defense: 4, maxHp: 100, speed: 11, range: 6, critChance: 0.15, dodgeRate: 0.05, accuracy: 0.9, effectiveHp: 112, armorPenetration: 0.1, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+            equippedGear: {},
+            statuses: [],
+          },
+        ];
+      }
+
+      const simulation = simulateFight(playerUnits, enemyUnits);
+
+      set({
+        activeBattle: {
+          isFighting: true,
+          currentNode: {
+            id: 'sandbox_node',
+            stage: 1,
+            colIndex: 0,
+            rowIndex: 0,
+            type: 'battle',
+            name: `Испытательный Полигон [${archetype.toUpperCase()}]`,
+            description: 'Тренировочный бой против тестового архетипа ботов.',
+            connections: [],
+            completed: false,
+            rewards: { gold: 10, science: 5, cogParts: 5, gearDropChance: 0 },
+          },
+          fightResult: simulation,
+          frameIndex: 0,
+          playbackSpeed: 1,
+          isPlaying: true,
+          playerUnits,
+          enemyUnits,
+          tacticalMorale: 60,
+          availableTactics: TACTICAL_DECK,
+          battleEnded: false,
+        },
+      });
     },
 
     handleRestNode: (nodeId) => {

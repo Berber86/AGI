@@ -46,7 +46,7 @@ export interface TacticalCard {
   name: string;
   costMorale: number;
   description: string;
-  effect: 'shield_all' | 'focused_fire' | 'overclock_speed' | 'cleave_burst';
+  effect: 'shield_all' | 'focused_fire' | 'overclock_speed' | 'cleave_burst' | 'overclock_attack' | 'emp_stun' | 'smoke_screen';
 }
 
 export interface FightSimulationResult {

@@ -1,4 +1,15 @@
-import { GEAR_POOL, GearItem, GearRarity } from '../../data/gear';
+import { GEAR_POOL, GearItem, GearRarity, QUEST_BLUEPRINTS } from '../../data/gear';
+
+export function dismantleGearReward(gear: GearItem): { cogParts: number; gold: number } {
+  const rarityValues: Record<GearRarity, { cogParts: number; gold: number }> = {
+    common: { cogParts: 8, gold: 5 },
+    rare: { cogParts: 20, gold: 15 },
+    epic: { cogParts: 50, gold: 40 },
+    legendary: { cogParts: 120, gold: 100 },
+  };
+
+  return rarityValues[gear.rarity] || { cogParts: 5, gold: 5 };
+}
 
 const RARITY_WEIGHTS: Record<number, Record<GearRarity, number>> = {
   1: { common: 70, rare: 25, epic: 5, legendary: 0 },
@@ -98,13 +109,97 @@ export function fuseGears(gearsToFuse: GearItem[]): {
   return { success: true, resultGear: newGear };
 }
 
-export function dismantleGearReward(gear: GearItem): { cogParts: number; gold: number } {
-  const rarityValues: Record<GearRarity, { cogParts: number; gold: number }> = {
-    common: { cogParts: 8, gold: 5 },
-    rare: { cogParts: 20, gold: 15 },
-    epic: { cogParts: 50, gold: 40 },
-    legendary: { cogParts: 120, gold: 100 },
+export function refineGear(
+  gear: GearItem,
+  goldAvailable: number,
+  cogPartsAvailable: number
+): {
+  success: boolean;
+  refinedGear?: GearItem;
+  costGold: number;
+  costCogParts: number;
+  error?: string;
+} {
+  const currentRefine = gear.refinementLevel || 0;
+  if (currentRefine >= 5) {
+    return { success: false, costGold: 0, costCogParts: 0, error: 'Шестерня достигла максимального уровня заточки (+5)!' };
+  }
+
+  const costGold = (currentRefine + 1) * 35;
+  const costCogParts = (currentRefine + 1) * 20;
+
+  if (goldAvailable < costGold || cogPartsAvailable < costCogParts) {
+    return { success: false, costGold, costCogParts, error: `Недостаточно ресурсов (нужно 💰${costGold}, ⚙️${costCogParts})!` };
+  }
+
+  const newStats: GearItem['stats'] = { ...gear.stats };
+  const mult = 1.15;
+
+  if (newStats.attack) newStats.attack = Math.round(newStats.attack * mult);
+  if (newStats.defense) newStats.defense = Math.round(newStats.defense * mult);
+  if (newStats.maxHp) newStats.maxHp = Math.round(newStats.maxHp * mult);
+  if (newStats.speed) newStats.speed = Math.max(newStats.speed + 1, Math.round(newStats.speed * 1.1));
+
+  const refinedGear: GearItem = {
+    ...gear,
+    refinementLevel: currentRefine + 1,
+    name: gear.name.includes('+') ? gear.name.replace(/\+\d+$/, `+${currentRefine + 1}`) : `${gear.name} +${currentRefine + 1}`,
+    stats: newStats,
   };
 
-  return rarityValues[gear.rarity] || { cogParts: 5, gold: 5 };
+  return { success: true, refinedGear, costGold, costCogParts };
+}
+
+export function craftBlueprintArtifact(
+  blueprintId: string,
+  inventory: GearItem[],
+  gold: number,
+  cogParts: number
+): {
+  success: boolean;
+  resultGear?: GearItem;
+  consumedGearIds: string[];
+  costGold: number;
+  costCogParts: number;
+  error?: string;
+} {
+  // Find blueprint template
+  const bp = QUEST_BLUEPRINTS.find(b => b.id === blueprintId);
+  if (!bp) return { success: false, consumedGearIds: [], costGold: 0, costCogParts: 0, error: 'Чертеж не найден' };
+
+  if (gold < bp.costGold || cogParts < bp.costCogParts) {
+    return { success: false, consumedGearIds: [], costGold: bp.costGold, costCogParts: bp.costCogParts, error: 'Недостаточно золота или запчастей!' };
+  }
+
+  const eligible = inventory.filter(
+    g => g.rarity === bp.requiredRarity && (!bp.requiredSetName || g.setName === bp.requiredSetName)
+  );
+
+  if (eligible.length < bp.requiredCount) {
+    return {
+      success: false,
+      consumedGearIds: [],
+      costGold: bp.costGold,
+      costCogParts: bp.costCogParts,
+      error: `Требуется ${bp.requiredCount} эпических деталей сета ${bp.requiredSetName || ''} (у вас ${eligible.length})!`,
+    };
+  }
+
+  const consumed = eligible.slice(0, bp.requiredCount);
+  const targetTemplate = GEAR_POOL.find(g => g.templateId === bp.resultGearTemplateId) || GEAR_POOL[6];
+
+  const resultGear: GearItem = {
+    ...targetTemplate,
+    id: `artifact_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    rarity: 'legendary',
+    level: 3,
+  };
+
+  return {
+    success: true,
+    resultGear,
+    consumedGearIds: consumed.map(c => c.id),
+    costGold: bp.costGold,
+    costCogParts: bp.costCogParts,
+  };
 }

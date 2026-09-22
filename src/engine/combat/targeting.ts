@@ -35,3 +35,46 @@ export function selectBestTarget(
 
   return sorted[0] || null;
 }
+
+export interface TargetingPreview {
+  attackerId: string;
+  attackerName: string;
+  targetId: string;
+  targetName: string;
+  from: { row: number; col: number };
+  to: { row: number; col: number };
+  distance: number;
+  isInRange: boolean;
+  hitChanceEstimate: number;
+}
+
+export function previewTargetingVectors(
+  playerArmy: UnitEntity[],
+  enemyArmy: UnitEntity[]
+): TargetingPreview[] {
+  const previews: TargetingPreview[] = [];
+
+  for (const attacker of playerArmy) {
+    if (attacker.currentHp <= 0 || attacker.isFled) continue;
+    const target = selectBestTarget(attacker, enemyArmy);
+    if (!target) continue;
+
+    const dist = calculateDistance(attacker, target);
+    const isInRange = dist <= attacker.stats.range + 8;
+    const hitChance = Math.min(0.96, Math.max(0.15, attacker.stats.accuracy - target.stats.dodgeRate));
+
+    previews.push({
+      attackerId: attacker.id,
+      attackerName: attacker.name,
+      targetId: target.id,
+      targetName: target.name,
+      from: { row: attacker.row, col: attacker.col },
+      to: { row: target.row, col: target.col },
+      distance: dist,
+      isInRange,
+      hitChanceEstimate: Math.round(hitChance * 100),
+    });
+  }
+
+  return previews;
+}

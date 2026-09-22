@@ -3,10 +3,12 @@ import { useGameStore } from '../../store/useGameStore';
 import { GearItem, GearSlot } from '../../data/gear';
 import { GEAR_SETS } from '../../data/sets';
 import { UnitCard } from '../battle/UnitCard';
-import { computeUnitStats } from '../../engine/unit/computeUnit';
+import { computeUnitStats, buildUnitEntityFromChampion } from '../../engine/unit/computeUnit';
 import { TECH_NODES } from '../../data/techs';
 import { calculateAccumulatedIcons, getActiveDogmas } from '../../engine/economy/techTree';
-import { Plus, X, Lightbulb } from 'lucide-react';
+import { previewTargetingVectors } from '../../engine/combat/targeting';
+import { Plus, X, Lightbulb, Target } from 'lucide-react';
+import { UnitEntity } from '../../engine/unit/unit.types';
 
 export const ArmyBuilder: React.FC = () => {
   const { champions, inventory, equipGear, unequipGear, setSquadPosition, unlockedTechIds } = useGameStore();
@@ -21,10 +23,68 @@ export const ArmyBuilder: React.FC = () => {
 
   const computedStats = computeUnitStats(selectedSquad, { unlockedTechs, activeDogmas });
 
+  // Dummy target dummy enemies to compute target preview
+  const dummyEnemies: UnitEntity[] = [
+    {
+      id: 'dummy_vanguard',
+      name: 'Вражеский Дозор (Авангард)',
+      role: 'vanguard',
+      isPlayer: false,
+      row: 2,
+      col: 11,
+      currentHp: 160,
+      maxHp: 160,
+      shield: 0,
+      morale: 100,
+      isFled: false,
+      stats: { attack: 20, defense: 14, maxHp: 160, speed: 9, range: 1, critChance: 0.05, dodgeRate: 0.04, accuracy: 0.85, effectiveHp: 200, armorPenetration: 0, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+      equippedGear: {},
+      statuses: [],
+    },
+    {
+      id: 'dummy_flanker',
+      name: 'Вражеский Фланкер (Дуэлянт)',
+      role: 'duelist',
+      isPlayer: false,
+      row: 0,
+      col: 13,
+      currentHp: 120,
+      maxHp: 120,
+      shield: 0,
+      morale: 100,
+      isFled: false,
+      stats: { attack: 30, defense: 8, maxHp: 120, speed: 17, range: 2, critChance: 0.2, dodgeRate: 0.15, accuracy: 0.9, effectiveHp: 144, armorPenetration: 0.1, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+      equippedGear: {},
+      statuses: [],
+    },
+    {
+      id: 'dummy_sniper',
+      name: 'Вражеский Снайпер (Арканист)',
+      role: 'arcanist',
+      isPlayer: false,
+      row: 4,
+      col: 15,
+      currentHp: 90,
+      maxHp: 90,
+      shield: 0,
+      morale: 100,
+      isFled: false,
+      stats: { attack: 38, defense: 4, maxHp: 90, speed: 12, range: 6, critChance: 0.15, dodgeRate: 0.05, accuracy: 0.92, effectiveHp: 102, armorPenetration: 0.15, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+      equippedGear: {},
+      statuses: [],
+    },
+  ];
+
+  const playerEntities = champions.map(c =>
+    buildUnitEntityFromChampion(c, { unlockedTechs, activeDogmas })
+  );
+
+  const targetingPreviews = previewTargetingVectors(playerEntities, dummyEnemies);
+
   // Eligible inventory items for equip modal
   const eligibleGear = equipModalSlot ? inventory.filter(g => g.slot === equipModalSlot) : [];
 
-  // Synergy Recommendations: check if any squad has 2/3 of a set and inventory has the missing piece
+  // Synergy Recommendations
   const recommendations: string[] = [];
   champions.forEach(s => {
     const gears = [s.equippedGear.core, s.equippedGear.drive, s.equippedGear.aux].filter(Boolean) as GearItem[];
@@ -267,6 +327,96 @@ export const ArmyBuilder: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Interactive 10x20 Battlefield Tactical Preview with Targeting Vectors */}
+      <div className="bg-slate-900/90 p-4 rounded-xl border border-slate-800 shadow-xl space-y-3">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-amber-400" />
+            <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wider">
+              Тактическая Сетка 10x20: Превью Таргетинга и Траекторий
+            </h3>
+          </div>
+          <span className="text-xs text-slate-400">
+            Зона Игрока (Колонки 0..9) ↔ Зона Врагов (Колонки 10..19)
+          </span>
+        </div>
+
+        {/* 10x20 Interactive Board */}
+        <div className="grid grid-rows-5 gap-1.5 bg-slate-950 p-3 rounded-xl border border-slate-800 font-mono text-[10px]">
+          {[0, 1, 2, 3, 4].map(rowIndex => (
+            <div key={rowIndex} className="flex items-center gap-1">
+              <span className="w-8 text-slate-500 font-bold">L{rowIndex + 1}</span>
+
+              {/* 20 Columns */}
+              <div className="grid grid-cols-20 gap-1 flex-1">
+                {Array.from({ length: 20 }).map((_, colIndex) => {
+                  const isPlayerZone = colIndex <= 9;
+                  const squadHere = champions.find(c => c.preferredLine === rowIndex && c.col === colIndex);
+                  const dummyHere = dummyEnemies.find(d => d.row === rowIndex && d.col === colIndex);
+
+                  return (
+                    <div
+                      key={colIndex}
+                      onClick={() => {
+                        if (isPlayerZone) {
+                          setSquadPosition(selectedSquadId, rowIndex, colIndex);
+                        }
+                      }}
+                      className={`h-7 rounded flex items-center justify-center transition border ${
+                        squadHere
+                          ? 'bg-amber-500/30 border-amber-400 text-amber-300 font-bold shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                          : dummyHere
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-300 font-bold'
+                          : isPlayerZone
+                          ? 'bg-slate-900/40 border-slate-800/80 hover:border-amber-500/40 cursor-pointer'
+                          : 'bg-slate-950/60 border-slate-900 text-slate-700'
+                      }`}
+                      title={
+                        squadHere
+                          ? `${squadHere.name} (L${rowIndex + 1}, C${colIndex})`
+                          : dummyHere
+                          ? `${dummyHere.name}`
+                          : `Клетка L${rowIndex + 1}, C${colIndex}`
+                      }
+                    >
+                      {squadHere ? (
+                        <span className="text-xs">⚔</span>
+                      ) : dummyHere ? (
+                        <span className="text-xs">🎯</span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Targeting vectors readout */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-1 text-xs font-mono">
+          {targetingPreviews.map(p => (
+            <div
+              key={p.attackerId}
+              className="bg-slate-950/80 p-2.5 rounded-lg border border-slate-800 flex flex-col justify-between"
+            >
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-amber-400 font-bold truncate">{p.attackerName}</span>
+                <span className="text-[10px] text-slate-400">дист: {p.distance}</span>
+              </div>
+              <div className="text-[11px] text-slate-300">
+                Цель: <strong className="text-rose-400">{p.targetName}</strong>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1">
+                <span>Шанс попадания: <strong className="text-emerald-400">{p.hitChanceEstimate}%</strong></span>
+                <span className={p.isInRange ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                  {p.isInRange ? '✓ В радиусе' : '⚡ Сближение'}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

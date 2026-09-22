@@ -201,24 +201,56 @@ export const BattleArena: React.FC = () => {
         <div className="lg:col-span-2 hidden xl:flex flex-col justify-center items-center bg-slate-900/40 p-2 rounded-xl border border-slate-800 text-[10px]">
           <div className="font-bold text-slate-300 mb-2 uppercase tracking-widest text-[9px]">Поле 10x20</div>
           <div className="grid grid-rows-5 gap-1.5 w-full">
-            {[0, 1, 2, 3, 4].map(rowIndex => (
-              <div key={rowIndex} className="flex items-center justify-between bg-slate-950/70 p-1 rounded border border-slate-800">
-                <span className="text-[9px] text-slate-500 font-mono">L{rowIndex + 1}</span>
-                <div className="flex items-center gap-1">
-                  {/* Player side indicator */}
-                  {playerSnapshots.filter(p => p.row === rowIndex && !p.isDead).map(p => (
-                    <span key={p.id} className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]" title={p.name} />
-                  ))}
+            {[0, 1, 2, 3, 4].map(rowIndex => {
+              const isActionLine = currentFrame.actorId && (
+                playerSnapshots.some(p => p.id === currentFrame.actorId && p.row === rowIndex) ||
+                enemySnapshots.some(e => e.id === currentFrame.actorId && e.row === rowIndex)
+              );
+
+              return (
+                <div
+                  key={rowIndex}
+                  className={`flex items-center justify-between p-1 rounded border transition-all ${
+                    isActionLine
+                      ? 'bg-amber-950/40 border-amber-500/80 ring-1 ring-amber-400'
+                      : 'bg-slate-950/70 border-slate-800'
+                  }`}
+                >
+                  <span className="text-[9px] text-slate-500 font-mono">L{rowIndex + 1}</span>
+                  <div className="flex items-center gap-1">
+                    {/* Player side indicator */}
+                    {playerSnapshots.filter(p => p.row === rowIndex && !p.isDead).map(p => (
+                      <span
+                        key={p.id}
+                        className={`w-3 h-3 rounded-full ${
+                          currentFrame.actorId === p.id
+                            ? 'bg-amber-300 ring-2 ring-white scale-125 animate-ping'
+                            : 'bg-amber-400'
+                        } shadow-[0_0_6px_rgba(251,191,36,0.8)]`}
+                        title={p.name}
+                      />
+                    ))}
+                  </div>
+                  <span className={isActionLine ? 'text-amber-400 font-bold animate-pulse' : 'text-slate-700'}>
+                    {isActionLine ? '⚡' : '⚔️'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {/* Enemy side indicator */}
+                    {enemySnapshots.filter(e => e.row === rowIndex && !e.isDead).map(e => (
+                      <span
+                        key={e.id}
+                        className={`w-3 h-3 rounded-full ${
+                          currentFrame.actorId === e.id || currentFrame.targetId === e.id
+                            ? 'bg-rose-400 ring-2 ring-white scale-125 animate-pulse'
+                            : 'bg-rose-500'
+                        } shadow-[0_0_6px_rgba(244,63,94,0.8)]`}
+                        title={e.name}
+                      />
+                    ))}
+                  </div>
                 </div>
-                <span className="text-slate-700">⚔️</span>
-                <div className="flex items-center gap-1">
-                  {/* Enemy side indicator */}
-                  {enemySnapshots.filter(e => e.row === rowIndex && !e.isDead).map(e => (
-                    <span key={e.id} className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]" title={e.name} />
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <span className="text-[9px] text-slate-500 mt-2 text-center">Авангард держит фронт</span>
         </div>

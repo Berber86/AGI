@@ -8,6 +8,7 @@ export interface GearItem {
   slot: GearSlot;
   rarity: GearRarity;
   level: number;
+  refinementLevel?: number; // 0..5 (+15% per refinement level)
   setName?: string;
   stats: {
     attack?: number;
@@ -22,6 +23,54 @@ export interface GearItem {
   specialEffect?: string;
   description: string;
 }
+
+export interface QuestBlueprint {
+  id: string;
+  name: string;
+  description: string;
+  resultGearTemplateId: string;
+  requiredRarity: GearRarity;
+  requiredCount: number;
+  requiredSetName?: string;
+  costGold: number;
+  costCogParts: number;
+}
+
+export const QUEST_BLUEPRINTS: QuestBlueprint[] = [
+  {
+    id: 'blueprint_void_crown',
+    name: 'Чертеж: «Вечный Двигатель Архитектора»',
+    description: 'Легендарное ядро Первой Империи, генерирующее неиссякаемый кинетический импульс.',
+    resultGearTemplateId: 'core_perpetual_singularity',
+    requiredRarity: 'epic',
+    requiredCount: 2,
+    requiredSetName: 'void_core',
+    costGold: 250,
+    costCogParts: 150,
+  },
+  {
+    id: 'blueprint_dragon_turbine',
+    name: 'Чертеж: «Квантовый Маятник Пространства»',
+    description: 'Маятник, искривляющий пространство вокруг шасси отряда.',
+    resultGearTemplateId: 'drive_warp_pendulum',
+    requiredRarity: 'epic',
+    requiredCount: 2,
+    requiredSetName: 'clockwork_dragon',
+    costGold: 220,
+    costCogParts: 140,
+  },
+  {
+    id: 'blueprint_titan_aegis',
+    name: 'Чертеж: «Эгида Небесного Колосса»',
+    description: 'Древний артефакт, выкованный для противостояния осадам богов.',
+    resultGearTemplateId: 'aux_aegis_of_ages',
+    requiredRarity: 'epic',
+    requiredCount: 2,
+    requiredSetName: 'titan_guard',
+    costGold: 300,
+    costCogParts: 180,
+  },
+];
 
 export const GEAR_POOL: Omit<GearItem, 'id'>[] = [
   // --- CORE COGS ---
