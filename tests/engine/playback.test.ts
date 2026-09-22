@@ -13,7 +13,7 @@ describe('playback: восстановление кадра', () => {
   it('финальный кадр побитово совпадает с final-состоянием симуляции', () => {
     for (const seed of [1, 7, 42]) {
       const r = duel(seed);
-      const fs = computeFrameState(r, r.events.length - 1);
+      const fs = computeFrameState(r.events, r.initial, r.events.length - 1);
       expect(fs.finished).toBe(true);
       for (const u of r.final) {
         const s = fs.units.get(u.id)!;
@@ -32,7 +32,7 @@ describe('playback: восстановление кадра', () => {
     const r = duel(5);
     const idx = r.events.findIndex((e) => e.type === 'attack');
     expect(idx).toBeGreaterThan(-1);
-    const fs = computeFrameState(r, idx);
+    const fs = computeFrameState(r.events, r.initial, idx);
     const ev = r.events[idx]!;
     if (ev.type !== 'attack') return;
     if (ev.hit) {
@@ -50,10 +50,10 @@ describe('playback: восстановление кадра', () => {
   it('счётчик раундов и фаза отслеживаются', () => {
     const r = duel(3);
     const lastRound = Math.max(...r.events.filter((e) => e.type === 'roundStart').map((e) => (e.type === 'roundStart' ? e.round : 0)));
-    const fs = computeFrameState(r, r.events.length - 1);
+    const fs = computeFrameState(r.events, r.initial, r.events.length - 1);
     expect(fs.round).toBe(lastRound);
     expect(fs.phase).toBe('main');
-    const mid = computeFrameState(r, 0);
+    const mid = computeFrameState(r.events, r.initial, 0);
     expect(mid.phase).toBe('surprise');
   });
 
@@ -61,7 +61,7 @@ describe('playback: восстановление кадра', () => {
     const r = duel(11);
     const deathIdx = r.events.findIndex((e) => e.type === 'death');
     if (deathIdx === -1) return;
-    const fs = computeFrameState(r, deathIdx);
+    const fs = computeFrameState(r.events, r.initial, deathIdx);
     const ev = r.events[deathIdx]!;
     if (ev.type !== 'death') return;
     const s = fs.units.get(ev.unit)!;
@@ -72,8 +72,8 @@ describe('playback: восстановление кадра', () => {
 
   it('воспроизведение детерминировано', () => {
     const r = duel(9);
-    const a = computeFrameState(r, 10);
-    const b = computeFrameState(r, 10);
+    const a = computeFrameState(r.events, r.initial, 10);
+    const b = computeFrameState(r.events, r.initial, 10);
     expect([...a.fx.entries()]).toEqual([...b.fx.entries()]);
     expect([...a.units.entries()].map(([k, v]) => [k, v.hp, v.morale])).toEqual(
       [...b.units.entries()].map(([k, v]) => [k, v.hp, v.morale]),
@@ -82,7 +82,7 @@ describe('playback: восстановление кадра', () => {
 
   it('до первого события — стартовые состояния, fx пуст', () => {
     const r = duel(2);
-    const fs = computeFrameState(r, -1);
+    const fs = computeFrameState(r.events, r.initial, -1);
     expect(fs.fx.size).toBe(0);
     for (const u of r.initial) {
       expect(fs.units.get(u.id)!.hp).toBe(u.maxHp);

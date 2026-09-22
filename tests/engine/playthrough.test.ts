@@ -10,6 +10,18 @@ import { cityTick } from '@/engine/economy/cityTick';
 
 const PATH = ['b1a', 'r2', 't3', 'r4', 'e5', 'r6', 'boss'];
 
+/** Заходит в узел и проводит бой через prep → confirm → шаги симуляции. */
+function runBattleAt(nodeId: string): 'player' | 'enemy' | 'draw' | null {
+  useGameStore.getState().enterNode(nodeId);
+  const st = useGameStore.getState();
+  if (!st.prep) return null; // не боевой узел
+  st.confirmPrep();
+  const session = useGameStore.getState().session!;
+  while (!session.sim.finished) session.sim.step();
+  useGameStore.getState().finishBattle();
+  return useGameStore.getState().data.battle!.result.winner;
+}
+
 function freshGame(seed = 424242): void {
   useGameStore.getState().hardReset();
   useGameStore.setState((s) => ({ data: { ...s.data, campaignSeed: seed } }));
@@ -73,12 +85,10 @@ describe('интеграция: петля игры', () => {
         attempts++;
         guard++;
         expect(guard).toBeLessThan(60);
-        useGameStore.getState().enterNode(nodeId);
-        const battle = useGameStore.getState().data.battle;
-        if (!battle) break; // не боевой узел (привал/сокровище)
-        const won = battle.result.winner === 'player';
+        const won = runBattleAt(nodeId);
+        if (won === null) break; // не боевой узел (привал/сокровище)
         applyBattleOutcome();
-        if (won) break;
+        if (won === 'player') break;
       }
       totalAttempts.push(attempts);
       expect(attempts).toBeLessThan(8);
@@ -116,8 +126,12 @@ describe('интеграция: петля игры', () => {
     while (tries < 10) {
       tries++;
       useGameStore.getState().fightSkirmish();
-      const b = useGameStore.getState().data.battle!;
-      const won = b.result.winner === 'player';
+      const st = useGameStore.getState();
+      st.confirmPrep();
+      const session = useGameStore.getState().session!;
+      while (!session.sim.finished) session.sim.step();
+      st.finishBattle();
+      const won = useGameStore.getState().data.battle!.result.winner === 'player';
       applyBattleOutcome();
       if (won) break;
     }

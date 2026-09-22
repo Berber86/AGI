@@ -72,6 +72,17 @@ export function mergeAbilities(list: Ability[]): Ability[] {
       case 'shield':
         map.set(mapKey, { key: 'shield', amount: (prev as typeof ab).amount + ab.amount });
         break;
+      case 'stunOnHit': {
+        const p = prev as typeof ab;
+        map.set(mapKey, { key: 'stunOnHit', chance: Math.min(100, Math.max(p.chance, ab.chance)), rounds: Math.min(3, Math.max(p.rounds, ab.rounds)) });
+        break;
+      }
+      case 'slowOnHit':
+        map.set(mapKey, { key: 'slowOnHit', rounds: Math.min(3, Math.max((prev as typeof ab).rounds, ab.rounds)) });
+        break;
+      case 'wardOnStart':
+        map.set(mapKey, { key: 'wardOnStart', charges: (prev as typeof ab).charges + ab.charges, perCharge: (prev as typeof ab).perCharge + ab.perCharge });
+        break;
       case 'firstStrike':
       case 'targetPref':
         break; // дубликаты бессмысленны
@@ -207,6 +218,12 @@ export function describeAbility(ab: Ability): string {
       return `Воодушевление: убийство даёт союзникам +${ab.morale} морали.`;
     case 'shield':
       return `Щит: поглощает первые ${ab.amount} урона.`;
+    case 'stunOnHit':
+      return `Оглушение: ${ab.chance}% шанс лишить цель удара на ${ab.rounds} раунд(а).`;
+    case 'slowOnHit':
+      return `Замедление: скорость цели ×0.6 на ${ab.rounds} раунд(а).`;
+    case 'wardOnStart':
+      return `Броня: ${ab.charges} заряд(а), каждый поглощает ${ab.perCharge} урона за атаку.`;
     case 'targetPref':
       return `Охотник: предпочитает цели с меткой «${ab.tag}».`;
   }

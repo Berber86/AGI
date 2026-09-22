@@ -65,6 +65,9 @@ export type Ability =
   | { key: 'execute'; threshold: number; bonus: number } // бонус урона по целям ниже threshold% HP
   | { key: 'rally'; morale: number } // при убийстве все союзники получают мораль
   | { key: 'shield'; amount: number } // щит, поглощающий урон в начале боя
+  | { key: 'stunOnHit'; chance: number; rounds: number } // шанс оглушить цель
+  | { key: 'slowOnHit'; rounds: number } // замедление цели при попадании
+  | { key: 'wardOnStart'; charges: number; perCharge: number } // броня-щит с зарядами
   | { key: 'targetPref'; tag: UnitTag }; // приоритет целей с тегом
 
 export type AbilityKey = Ability['key'];

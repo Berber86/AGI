@@ -9,7 +9,9 @@ const KEY = 'cog-empires-save-v1';
 
 export function saveGame(data: GameData): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    // Бой — транзиентное состояние: после перезагрузки страницы игрок возвращается на карту
+    // (см. docs/DECISIONS.md, D-22).
+    localStorage.setItem(KEY, JSON.stringify({ ...data, battle: null }));
   } catch {
     // Переполнение/приватный режим — игра продолжает работать без сохранения.
   }

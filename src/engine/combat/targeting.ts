@@ -35,11 +35,14 @@ export function selectTarget(
   allies: readonly BattleUnitState[],
   enemies: readonly BattleUnitState[],
   rng: Rng,
+  opts: { ignoreRange?: boolean } = {},
 ): BattleUnitState | null {
   const aFront = frontLine(allies);
   const tFront = frontLine(enemies);
   const activeEnemies = enemies.filter(isActive);
-  const reachable = activeEnemies.filter((e) => canReach(attacker, e, aFront, tFront));
+  const reachable = opts.ignoreRange
+    ? activeEnemies
+    : activeEnemies.filter((e) => canReach(attacker, e, aFront, tFront));
   if (reachable.length === 0) return null;
 
   let pool = reachable;

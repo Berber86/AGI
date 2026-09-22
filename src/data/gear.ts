@@ -45,6 +45,8 @@ export const GEAR_POOL: GearDef[] = [
   g({ id: 'headsman_axe', name: 'Секира палача', icon: '🪓', slot: 'weapon', rarity: 'rare', stats: { atk: 11 }, abilities: [{ key: 'execute', threshold: 30, bonus: 40 }] }),
   g({ id: 'shell_shield', name: 'Щит-панцирь', icon: '🐢', slot: 'armor', rarity: 'rare', stats: { def: 12, hp: 20 }, abilities: [{ key: 'retaliate', pct: 30 }] }),
   g({ id: 'talisman_of_valor', name: 'Талисман храбрости', icon: '🎖️', slot: 'trinket', rarity: 'rare', stats: { morale: 20 }, abilities: [{ key: 'rally', morale: 8 }] }),
+  g({ id: 'frost_brand', name: 'Морозный клинок', icon: '❄️', slot: 'weapon', rarity: 'rare', element: 'frost', stats: { atk: 9, spd: 1 }, abilities: [{ key: 'slowOnHit', rounds: 2 }] }),
+  g({ id: 'chrono_pendant', name: 'Хроно-кулон', icon: '⏳', slot: 'trinket', rarity: 'rare', stats: { spd: 2, eva: 4 }, abilities: [{ key: 'slowOnHit', rounds: 1 }] }),
   g({ id: 'regenerator', name: 'Регенератор', icon: '💚', slot: 'core', rarity: 'rare', stats: { hp: 20 }, abilities: [{ key: 'regen', hp: 5 }] }),
   g({ id: 'lens_of_focus', name: 'Линза сосредоточения', icon: '🔍', slot: 'trinket', rarity: 'rare', stats: { acc: 10, crit: 6 } }),
   g({ id: 'iron_core', name: 'Железное ядро', icon: '⚙️', slot: 'core', rarity: 'rare', stats: { def: 8, hp: 30, atk: 3 } }),
@@ -66,6 +68,8 @@ export const GEAR_POOL: GearDef[] = [
   g({ id: 'titan_plate', name: 'Доспех титана', icon: '🛡️', slot: 'armor', rarity: 'epic', stats: { def: 18, hp: 50 }, abilities: [{ key: 'shield', amount: 40 }] }),
   g({ id: 'hawk_eye', name: 'Око ястреба', icon: '🦅', slot: 'trinket', rarity: 'epic', stats: { acc: 15, range: 1, crit: 5 } }),
   g({ id: 'war_engine', name: 'Двигатель войны', icon: '⚙️', slot: 'core', rarity: 'epic', stats: { atk: 10, critDmg: 30 } }),
+  g({ id: 'thunder_maul', name: 'Громовой молот', icon: '🔨', slot: 'weapon', rarity: 'epic', stats: { atk: 13, spd: -1 }, abilities: [{ key: 'stunOnHit', chance: 30, rounds: 1 }] }),
+  g({ id: 'aegis_shard', name: 'Осколок эгиды', icon: '🧿', slot: 'core', rarity: 'epic', stats: { def: 10, hp: 30 }, abilities: [{ key: 'wardOnStart', charges: 2, perCharge: 35 }] }),
 
   // =================== LEGENDARY ===================
   g({ id: 'devourer', name: 'Пожиратель', icon: '🩸', slot: 'weapon', rarity: 'legendary', stats: { atk: 18, lifesteal: 25 }, targeting: 'weakest', flavor: 'Каждая рана врага — глоток жизни.' }),

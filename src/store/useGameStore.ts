@@ -3,8 +3,10 @@ import { CAMPAIGN_NODE_BY_ID as NODE_BY_ID, NODE_KIND_META } from '@/data/campai
 import { BUILDING_BY_ID as BUILDING_LOOKUP } from '@/data/buildings';
 import { RECRUIT_BY_ID, PLAYER_RECRUIT_IDS } from '@/data/recruits';
 import { TECH_BY_ID as TECH_LOOKUP } from '@/data/techs';
+import type { Encounter } from '@/engine/campaign/nodeLogic';
 import { generateEncounter, generateSkirmish, isCycleComplete, LOOT_COUNT, TICKS_FOR_NODE, treasureLoot } from '@/engine/campaign/nodeLogic';
-import { simulateFight } from '@/engine/combat/simulateFight';
+import { BattleSim } from '@/engine/combat/simulateFight';
+import type { MomentumTactic } from '@/engine/combat/combat.types';
 import { cityTick, canAfford, addResources, buildingCost, ZERO_RESOURCES } from '@/engine/economy/cityTick';
 import { activeDogmas, collectModifiers, craftDiscount, lootCountBonus, lootRarityBonus } from '@/engine/economy/techTree';
 import { canCraft, craftCost, craftGear, rollLoot, SALVAGE_ORE } from '@/engine/loot/gearGenerator';
@@ -13,6 +15,23 @@ import { GEAR_SLOTS, type GearInstance, type GearSlot, type Modifier, type Resou
 import { combineSeed, createRng } from '@/utils/rng';
 import type { ActiveBattle, GameData, Notice, Squad } from './gameState.types';
 import { clearSavedGame, loadGame, saveGame } from './persistence';
+
+/** Бой на стадии расстановки (до «В бой!»). */
+export interface BattlePrep {
+  nodeId: string;
+  kind: ActiveBattle['kind'];
+  encounter: Encounter;
+  /** Для стычек — их счётчик (фиксируется при подтверждении). */
+  skirmishCounter?: number;
+}
+
+/** Живой бой: пошаговый симулятор + контекст узла. Не сериализуется и не сохраняется. */
+export interface BattleSession {
+  sim: BattleSim;
+  nodeId: string;
+  kind: ActiveBattle['kind'];
+  encounter: Encounter;
+}
 
 /** Граф переходов кампании: из узла → в какие узлы можно идти. */
 const NEXT_OF: Record<string, string[]> = Object.fromEntries(
@@ -58,6 +77,12 @@ function freshData(seed?: number): GameData {
 export interface GameStore {
   data: GameData;
   craftSelection: string[];
+  /** Бой на стадии расстановки. */
+  prep: BattlePrep | null;
+  /** Живой бой (пошаговый симулятор). Не персистится. */
+  session: BattleSession | null;
+  /** Счётчик изменений симуляции — чтобы React реагировал на мутации sim. */
+  simVersion: number;
   // --- производные селекторы ---
   modifiers(): Modifier[];
   computedSquads(): (ReturnType<typeof computeUnit> | null)[];
@@ -76,10 +101,16 @@ export interface GameStore {
   salvage(uid: string): void;
   toggleCraftSelect(uid: string): void;
   craft(): void;
-  // --- кампания ---
+  // --- кампания и бой ---
   enterNode(nodeId: string): void;
   fightSkirmish(): void;
-  clearBattle(): void;
+  confirmPrep(): void;
+  cancelPrep(): void;
+  stepSim(): void;
+  useMomentum(tactic: MomentumTactic): void;
+  skipMomentum(): void;
+  finishBattle(): void;
+  clearSession(): void;
   restart(): void;
   hardReset(): void;
 }
@@ -101,6 +132,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
   return {
     data: initial,
     craftSelection: [],
+    prep: null,
+    session: null,
+    simVersion: 0,
 
     modifiers() {
       const d = get().data;
@@ -302,7 +336,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
       if (node.kind === 'battle' || node.kind === 'elite' || node.kind === 'boss') {
         const encounter = generateEncounter(d0.campaignSeed, d0.cycle, nodeId, d0.campaign.battleAttempts);
-        startBattleImpl(set, get, nodeId, node.kind, encounter);
+        set({ prep: { nodeId, kind: node.kind, encounter } });
         return;
       }
       mutate((draft) => {
@@ -334,13 +368,113 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const d = get().data;
       const counter = d.campaign.skirmishCount + 1;
       const encounter = generateSkirmish(d.campaignSeed, d.cycle, 3, counter);
-      startBattleImpl(set, get, `skirmish_${counter}`, 'skirmish', encounter, counter);
+      set({ prep: { nodeId: `skirmish_${counter}`, kind: 'skirmish', encounter, skirmishCounter: counter } });
     },
 
-    clearBattle() {
+    confirmPrep() {
+      const st = get();
+      const prep = st.prep;
+      if (!prep) return;
+      const d = st.data;
+      const { units } = playerUnitsOf(d);
+      if (units.length === 0) {
+        st.notify('Сначала собери хотя бы один отряд!', 'warn');
+        set({ prep: null });
+        return;
+      }
+      const enemyUnits = prep.encounter.enemies.map((sq: SquadSetup) => computeUnit(sq));
+      const seed = combineSeed(d.campaignSeed, d.cycle, prep.nodeId, d.campaign.battleAttempts);
+      const sim = new BattleSim(units, enemyUnits, { seed });
       mutate((draft) => {
-        draft.battle = null;
+        if (prep.skirmishCounter !== undefined) {
+          draft.campaign.skirmishCount = prep.skirmishCounter;
+        } else {
+          // Движение по карте фиксируется при входе в бой.
+          const prev = draft.campaign.currentNodeId;
+          if (prev && prev !== prep.nodeId && prev !== 'start' && !draft.campaign.completed.includes(prev)) {
+            draft.campaign.completed.push(prev);
+          }
+          draft.campaign.currentNodeId = prep.nodeId;
+        }
+        draft.campaign.battleAttempts += 1;
+        draft.stats.battles += 1;
       });
+      set({ prep: null, session: { sim, nodeId: prep.nodeId, kind: prep.kind, encounter: prep.encounter }, simVersion: 0 });
+    },
+
+    cancelPrep() {
+      set({ prep: null });
+    },
+
+    stepSim() {
+      const session = get().session;
+      if (!session || session.sim.finished) return;
+      session.sim.step();
+      set({ simVersion: get().simVersion + 1 });
+    },
+
+    useMomentum(tactic) {
+      const session = get().session;
+      if (!session) return;
+      session.sim.useMomentum(tactic);
+      set({ simVersion: get().simVersion + 1 });
+    },
+
+    skipMomentum() {
+      const session = get().session;
+      if (!session) return;
+      session.sim.skipMomentum();
+      set({ simVersion: get().simVersion + 1 });
+    },
+
+    finishBattle() {
+      const session = get().session;
+      if (!session || !session.sim.finished) return;
+      if (get().data.battle) return; // результат уже зафиксирован
+      const result = session.sim.result();
+      set((state) => {
+        const draft = structuredClone(state.data);
+        const kind = session.kind;
+        draft.stats.longestBattle = Math.max(draft.stats.longestBattle, result.rounds);
+
+        const rng = createRng(combineSeed(result.seed, 'loot'));
+        const mods = collectModifiers(draft.techs, draft.buildings);
+        let loot: GearInstance[] = [];
+        let income: Resources | null = null;
+
+        if (result.winner === 'player') {
+          draft.stats.wins += 1;
+          const count = LOOT_COUNT[kind] + lootCountBonus(mods);
+          loot = rollLoot(rng, { source: kind, cycle: draft.cycle, count, rarityBonus: lootRarityBonus(mods) });
+          const ticks = TICKS_FOR_NODE[kind];
+          const tick = cityTick(draft.buildings, mods).total;
+          income = { ...ZERO_RESOURCES };
+          for (let i = 0; i < ticks; i++) {
+            draft.resources = addResources(draft.resources, tick);
+            draft.day += 1;
+            income = addResources(income, tick);
+          }
+          for (const item of loot) {
+            draft.collection.push(item);
+            draft.stats.gearFound += 1;
+          }
+          if (kind === 'boss') {
+            draft.stats.bossKills += 1;
+            draft.stats.cyclesCompleted += 1;
+          }
+        } else if (result.winner === 'enemy') {
+          draft.stats.losses += 1;
+        } else {
+          draft.stats.draws += 1;
+        }
+
+        draft.battle = { encounter: session.encounter, result, nodeId: session.nodeId, kind, loot, income };
+        return { data: draft };
+      });
+    },
+
+    clearSession() {
+      set({ session: null, simVersion: 0 });
     },
 
     restart() {
@@ -384,79 +518,6 @@ function playerUnitsOf(d: GameData): { units: ReturnType<typeof computeUnit>[]; 
     squadIds.push(sq.id);
   }
   return { units, squadIds };
-}
-
-type StoreSet = (partial: Partial<GameStore> | ((s: GameStore) => Partial<GameStore>)) => void;
-type StoreGet = () => GameStore;
-
-function startBattleImpl(
-  set: StoreSet,
-  get: StoreGet,
-  nodeId: string,
-  kind: ActiveBattle['kind'],
-  encounter: ReturnType<typeof generateEncounter>,
-  skirmishCounter?: number,
-): void {
-  const d = get().data;
-  const { units } = playerUnitsOf(d);
-  if (units.length === 0) {
-    get().notify('Сначала собери хотя бы один отряд!', 'warn');
-    return;
-  }
-  const enemyUnits = encounter.enemies.map((s: SquadSetup) => computeUnit(s));
-  const seed = combineSeed(d.campaignSeed, d.cycle, nodeId, d.campaign.battleAttempts);
-  const result = simulateFight(units, enemyUnits, { seed });
-  set((state) => {
-    const draft = structuredClone(state.data);
-    if (skirmishCounter !== undefined) {
-      draft.campaign.skirmishCount = skirmishCounter;
-    } else {
-      // Перемещение по карте фиксируется только для узлов кампании.
-      const prev = draft.campaign.currentNodeId;
-      if (prev && prev !== nodeId && prev !== 'start' && !draft.campaign.completed.includes(prev)) {
-        draft.campaign.completed.push(prev);
-      }
-      draft.campaign.currentNodeId = nodeId;
-    }
-    draft.campaign.battleAttempts += 1;
-    draft.stats.battles += 1;
-    draft.stats.longestBattle = Math.max(draft.stats.longestBattle, result.rounds);
-
-    const rng = createRng(combineSeed(seed, 'loot'));
-    const mods = collectModifiers(draft.techs, draft.buildings);
-    let loot: GearInstance[] = [];
-    let income: Resources | null = null;
-
-    if (result.winner === 'player') {
-      draft.stats.wins += 1;
-      const count = LOOT_COUNT[kind] + lootCountBonus(mods);
-      loot = rollLoot(rng, { source: kind, cycle: draft.cycle, count, rarityBonus: lootRarityBonus(mods) });
-      const ticks = TICKS_FOR_NODE[kind];
-      const tick = cityTick(draft.buildings, mods).total;
-      income = { ...ZERO_RESOURCES };
-      for (let i = 0; i < ticks; i++) {
-        draft.resources = addResources(draft.resources, tick);
-        draft.day += 1;
-        income = addResources(income, tick);
-      }
-      for (const item of loot) {
-        draft.collection.push(item);
-        draft.stats.gearFound += 1;
-      }
-      if (kind === 'boss') {
-        draft.stats.bossKills += 1;
-        draft.stats.cyclesCompleted += 1;
-      }
-    } else if (result.winner === 'enemy') {
-      draft.stats.losses += 1;
-    } else {
-      draft.stats.draws += 1;
-    }
-
-    const battle: ActiveBattle = { encounter, result, nodeId, kind, loot, income };
-    draft.battle = battle;
-    return { data: draft };
-  });
 }
 
 /**

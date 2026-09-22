@@ -1,4 +1,5 @@
-import type { BattlePhase, BattleResult, BattleUnitState } from './combat.types';
+import { MOMENTUM_META } from '@/data/momentum';
+import type { BattleEvent, BattlePhase, BattleUnitState } from './combat.types';
 
 /**
  * Проигрывание боя: чистая функция, восстанавливающая видимое состояние
@@ -40,28 +41,28 @@ export interface FrameState {
 }
 
 /** Восстанавливает состояние на кадре `upto` (индекс события включительно). */
-export function computeFrameState(result: BattleResult, upto: number): FrameState {
-  const units = new Map(result.initial.map((u) => [u.id, { ...u, stats: { ...u.stats }, tags: [...u.tags], abilities: u.abilities.map((a) => ({ ...a })) }]));
+export function computeFrameState(events: readonly BattleEvent[], initial: readonly BattleUnitState[], upto: number): FrameState {
+  const units = new Map(initial.map((u) => [u.id, { ...u, stats: { ...u.stats }, tags: [...u.tags], abilities: u.abilities.map((a) => ({ ...a })) }]));
   const fx = new Map<string, UnitFx>();
   let round = 0;
   let phase: BattlePhase = 'surprise';
   let banner: FrameBanner | null = null;
 
-  const last = Math.min(upto, result.events.length - 1);
+  const last = Math.min(upto, events.length - 1);
   for (let i = 0; i <= last; i++) {
-    const ev = result.events[i]!;
+    const ev = events[i]!;
     const n = i + 1;
     switch (ev.type) {
       case 'phase':
         phase = ev.phase;
         banner = { text: ev.phase === 'surprise' ? '⚡ Внезапная атака' : '⚔️ Основная схватка', kind: 'phase', key: n };
         break;
-      case 'roundStart':
-        round = ev.round;
-        banner = { text: `Раунд ${ev.round}`, kind: 'round', key: n };
+      case 'momentum':
+        banner = { text: `⚡ Тактика: ${MOMENTUM_META[ev.tactic].label}`, kind: 'phase', key: n };
         break;
       case 'attack': {
         const t = units.get(ev.tgt)!;
+        t.wardCharges = ev.tgtWard;
         if (ev.hit) {
           t.hp = ev.tgtHp;
           t.shield = ev.tgtShield;
@@ -89,7 +90,10 @@ export function computeFrameState(result: BattleResult, upto: number): FrameStat
       }
       case 'status': {
         const t = units.get(ev.tgt)!;
-        t.poison = ev.stacks;
+        if (ev.status === 'poison') t.poison = ev.stacks;
+        else if (ev.status === 'stun') t.stunRounds = ev.stacks;
+        else if (ev.status === 'slow') t.slowRounds = ev.stacks;
+        else t.shield = ev.stacks;
         break;
       }
       case 'morale': {
@@ -102,6 +106,8 @@ export function computeFrameState(result: BattleResult, upto: number): FrameStat
         t.alive = false;
         t.hp = 0;
         t.poison = 0;
+        t.stunRounds = 0;
+        t.slowRounds = 0;
         fx.set(ev.unit, { n, kind: 'death' });
         break;
       }
@@ -117,9 +123,26 @@ export function computeFrameState(result: BattleResult, upto: number): FrameStat
         if (t) t.line = ev.toLine;
         break;
       }
+      case 'skip': {
+        // Оглушение списывается в момент пропущенного удара — зеркалим симуляцию.
+        if (ev.reason === 'stunned') {
+          const t = units.get(ev.unit);
+          if (t) t.stunRounds = Math.max(0, t.stunRounds - 1);
+        }
+        break;
+      }
+      case 'roundStart': {
+        // Зеркало симуляции: замедление тикает в начале раунда.
+        for (const t of units.values()) {
+          if (t.alive && !t.routed && t.slowRounds > 0) t.slowRounds -= 1;
+        }
+        round = ev.round;
+        banner = { text: `Раунд ${ev.round}`, kind: 'round', key: n };
+        break;
+      }
       case 'end':
         break;
     }
   }
-  return { units, fx, round, phase, banner, finished: upto >= result.events.length - 1, cursor: last };
+  return { units, fx, round, phase, banner, finished: upto >= events.length - 1, cursor: last };
 }

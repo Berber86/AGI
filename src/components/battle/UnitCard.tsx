@@ -21,6 +21,9 @@ export interface UnitCardData {
   shield: number;
   morale: number;
   poison: number;
+  stunRounds: number;
+  slowRounds: number;
+  wardCharges: number;
   line: number;
   alive: boolean;
   routed: boolean;
@@ -87,6 +90,21 @@ export function UnitCard({ unit, fx, compact = false }: { unit: UnitCardData; fx
         {unit.poison > 0 && (
           <span className="absolute bottom-1 right-1 rounded bg-lime-500/20 px-1 text-[10px] font-bold text-lime-300" title={`Яд ${unit.poison}`}>
             ☠{unit.poison}
+          </span>
+        )}
+        {unit.stunRounds > 0 && (
+          <span className="absolute left-1 top-1 rounded bg-yellow-500/25 px-1 text-[10px] font-bold text-yellow-200" title={`Оглушение: ${unit.stunRounds}`}>
+            😵{unit.stunRounds}
+          </span>
+        )}
+        {unit.slowRounds > 0 && (
+          <span className="absolute right-1 top-6 rounded bg-sky-500/20 px-1 text-[10px] font-bold text-sky-200" title={`Замедление: ${unit.slowRounds}`}>
+            🐌{unit.slowRounds}
+          </span>
+        )}
+        {unit.wardCharges > 0 && (
+          <span className="absolute right-1 top-1 rounded bg-violet-500/25 px-1 text-[10px] font-bold text-violet-200" title={`Броня: ${unit.wardCharges} зар.`}>
+            🧿{unit.wardCharges}
           </span>
         )}
         <span className="absolute right-1 top-1 rounded bg-slate-950/70 px-1 text-[9px] text-slate-400" title="Линия">

@@ -6,7 +6,8 @@ import { CityPanel } from '@/components/city/CityPanel';
 import { TechTreePanel } from '@/components/techtree/TechTreePanel';
 import { ArmyBuilderPanel } from '@/components/armybuilder/ArmyBuilderPanel';
 import { WorkshopPanel } from '@/components/workshop/WorkshopPanel';
-import { BattleOverlay } from '@/components/battle/BattleArena';
+import { BattleScreen } from '@/components/battle/BattleScreen';
+import { PrepModal } from '@/components/battle/PrepModal';
 import { useGameStore } from '@/store/useGameStore';
 
 const TABS = [
@@ -21,13 +22,15 @@ type TabId = (typeof TABS)[number]['id'];
 
 export default function App() {
   const [tab, setTab] = useState<TabId>('campaign');
-  const battle = useGameStore((s) => s.data.battle);
+  const prep = useGameStore((s) => s.prep);
+  const session = useGameStore((s) => s.session);
 
   return (
     <div className="min-h-screen text-slate-100">
       <Header />
       <NoticeStack />
-      {battle && <BattleOverlay />}
+      {prep && <PrepModal />}
+      {session && <BattleScreen />}
 
       <nav className="flex gap-1 border-b border-slate-800 bg-slate-950/60 px-4 pt-2">
         {TABS.map((t) => (
