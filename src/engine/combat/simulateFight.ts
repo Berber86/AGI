@@ -1,5 +1,5 @@
 import { UnitEntity } from '../unit/unit.types';
-import { CombatFrame, CombatUnitSnapshot, FightSimulationResult, TacticalCard } from './combat.types';
+import { CombatFrame, CombatUnitSnapshot, FightSimulationResult, TacticalCard, UnitCombatPerformance } from './combat.types';
 import { selectBestTarget } from './targeting';
 
 // Deterministic PRNG: Mulberry32
@@ -64,6 +64,21 @@ export function simulateFight(
   let totalDamageDealtByPlayer = 0;
   let totalDamageDealtByEnemy = 0;
 
+  const performanceMap: Record<string, UnitCombatPerformance> = {};
+  allUnits.forEach(u => {
+    performanceMap[u.id] = {
+      unitId: u.id,
+      name: u.name,
+      isPlayer: u.isPlayer,
+      totalDamageDealt: 0,
+      totalDamageTaken: 0,
+      shieldAbsorbed: 0,
+      critsLanded: 0,
+      attacksDodged: 0,
+      killsCount: 0,
+    };
+  });
+
   function pushFrame(frame: Omit<CombatFrame, 'frameIndex' | 'unitSnapshots'>) {
     frames.push({
       ...frame,
@@ -85,6 +100,7 @@ export function simulateFight(
     const hitRoll = rng();
     const hitChance = Math.min(0.95, Math.max(0.2, attacker.stats.accuracy - target.stats.dodgeRate));
     if (hitRoll > hitChance) {
+      if (performanceMap[target.id]) performanceMap[target.id].attacksDodged += 1;
       pushFrame({
         round: 0,
         isAmbush: true,
@@ -121,11 +137,21 @@ export function simulateFight(
     if (attacker.isPlayer) totalDamageDealtByPlayer += dmg;
     else totalDamageDealtByEnemy += dmg;
 
+    if (performanceMap[attacker.id]) {
+      performanceMap[attacker.id].totalDamageDealt += dmg;
+      if (isCrit) performanceMap[attacker.id].critsLanded += 1;
+    }
+    if (performanceMap[target.id]) {
+      performanceMap[target.id].totalDamageTaken += dmg;
+      if (absorbed > 0) performanceMap[target.id].shieldAbsorbed += absorbed;
+    }
+
     if (isCrit) {
       oppTeam.forEach(u => (u.morale = Math.max(0, u.morale - 8)));
     }
 
     if (target.currentHp <= 0) {
+      if (performanceMap[attacker.id]) performanceMap[attacker.id].killsCount += 1;
       oppTeam.forEach(u => (u.morale = Math.max(0, u.morale - 25)));
     }
 
@@ -345,6 +371,7 @@ export function simulateFight(
       const hitRoll = rng();
 
       if (hitRoll > hitChance) {
+        if (performanceMap[target.id]) performanceMap[target.id].attacksDodged += 1;
         pushFrame({
           round: currentRound,
           isAmbush: false,
@@ -384,11 +411,21 @@ export function simulateFight(
       if (actor.isPlayer) totalDamageDealtByPlayer += calculatedDamage;
       else totalDamageDealtByEnemy += calculatedDamage;
 
+      if (performanceMap[actor.id]) {
+        performanceMap[actor.id].totalDamageDealt += calculatedDamage;
+        if (isCrit) performanceMap[actor.id].critsLanded += 1;
+      }
+      if (performanceMap[target.id]) {
+        performanceMap[target.id].totalDamageTaken += calculatedDamage;
+        if (absorbed > 0) performanceMap[target.id].shieldAbsorbed += absorbed;
+      }
+
       // Morale impact
       if (isCrit) {
         oppTeam.forEach(u => (u.morale = Math.max(0, u.morale - 10)));
       }
       if (target.currentHp <= 0) {
+        if (performanceMap[actor.id]) performanceMap[actor.id].killsCount += 1;
         oppTeam.forEach(u => (u.morale = Math.max(0, u.morale - 25)));
       }
 
@@ -447,6 +484,7 @@ export function simulateFight(
     enemiesDefeatedCount: enemies.length - activeEnemiesFinal.length,
     totalDamageDealtByPlayer,
     totalDamageDealtByEnemy,
+    unitPerformance: Object.values(performanceMap),
     seed,
   };
 }

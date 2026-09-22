@@ -49,6 +49,18 @@ export interface TacticalCard {
   effect: 'shield_all' | 'focused_fire' | 'overclock_speed' | 'cleave_burst' | 'overclock_attack' | 'emp_stun' | 'smoke_screen';
 }
 
+export interface UnitCombatPerformance {
+  unitId: string;
+  name: string;
+  isPlayer: boolean;
+  totalDamageDealt: number;
+  totalDamageTaken: number;
+  shieldAbsorbed: number;
+  critsLanded: number;
+  attacksDodged: number;
+  killsCount: number;
+}
+
 export interface FightSimulationResult {
   winner: 'player' | 'enemy' | 'draw';
   roundsCount: number;
@@ -57,5 +69,6 @@ export interface FightSimulationResult {
   enemiesDefeatedCount: number;
   totalDamageDealtByPlayer: number;
   totalDamageDealtByEnemy: number;
+  unitPerformance?: UnitCombatPerformance[];
   seed: number;
 }

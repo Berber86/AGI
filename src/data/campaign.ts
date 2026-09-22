@@ -1,6 +1,95 @@
 import { GearRarity } from './gear';
 
-export type NodeType = 'battle' | 'elite' | 'rest' | 'workshop' | 'boss';
+export type NodeType = 'battle' | 'elite' | 'rest' | 'workshop' | 'event' | 'boss';
+
+export interface EventChoice {
+  id: string;
+  text: string;
+  consequenceText: string;
+  requirement?: { gold?: number; cogParts?: number; science?: number };
+  outcome: {
+    gold?: number;
+    cogParts?: number;
+    science?: number;
+    gearRewardRarity?: GearRarity;
+    hpPercentDelta?: number; // e.g. -15 for damage, +30 for heal
+  };
+}
+
+export interface CampaignEvent {
+  id: string;
+  title: string;
+  narrative: string;
+  choices: EventChoice[];
+}
+
+export const CAMPAIGN_EVENTS_POOL: CampaignEvent[] = [
+  {
+    id: 'event_abandoned_dreadnought',
+    title: 'Брошенный Дредноут Первой Династии',
+    narrative: 'В глубоком ущелье ваши разведчики обнаруживают колоссальный остов шагающего титана. Его угольные котлы давно остыли, но броневые листы и гидравлика до сих пор целы.',
+    choices: [
+      {
+        id: 'salvage_hull',
+        text: 'Разобрать внешние броневые пластины на лом',
+        consequenceText: 'Мастера срезают первоклассную легированную сталь.',
+        outcome: { cogParts: 45, gold: 20 },
+      },
+      {
+        id: 'explore_reactor',
+        text: 'Проникнуть в реакторный отсек (Опасно: утечка перегретого пара)',
+        consequenceText: 'Отряды получают ожоги пара, но извлекают законсервированную редкую шестерню!',
+        outcome: { gearRewardRarity: 'rare', hpPercentDelta: -10, science: 30 },
+      },
+    ],
+  },
+  {
+    id: 'event_alchemist_vendor',
+    title: 'Странствующий Алхимик-Шарлатан',
+    narrative: 'На перекрестке ржавых путей вас окликает торговец в медной маске-клюве. Он предлагает экспериментальные дистилляты эфира и чертежи древних передач.',
+    choices: [
+      {
+        id: 'buy_concoction',
+        text: 'Купить сосуд эфирного катализатора за 40 Золота',
+        consequenceText: 'Алхимик передает шипящую колбу с формулами синтеза.',
+        requirement: { gold: 40 },
+        outcome: { gold: -40, science: 50, gearRewardRarity: 'rare' },
+      },
+      {
+        id: 'barter_scrap',
+        text: 'Обменять 25 Запчастей на алхимическое золото',
+        consequenceText: 'Торговец охотно принимает механические узлы.',
+        requirement: { cogParts: 25 },
+        outcome: { cogParts: -25, gold: 60 },
+      },
+      {
+        id: 'ignore_alchemist',
+        text: 'Пройти мимо, не доверяя бродяге',
+        consequenceText: 'Экспедиция продолжает путь без задержек.',
+        outcome: {},
+      },
+    ],
+  },
+  {
+    id: 'event_sacred_shrine',
+    title: 'Алтарь Заводных Богов',
+    narrative: 'В пещере бьет фонтан перегретого пара, вращающий каменные колеса с золотыми глифами. От этого места исходит мощный резонанс.',
+    choices: [
+      {
+        id: 'meditate_cogs',
+        text: 'Синхронизировать механизмы отрядов с ритмом алтаря',
+        consequenceText: 'Паровые контуры охлаждаются, пилоты обретают спокойствие духа.',
+        outcome: { science: 35, hpPercentDelta: 25 },
+      },
+      {
+        id: 'pry_gem',
+        text: 'Выломать золотой регулятор из часового пьедестала',
+        consequenceText: 'Система выпускает защитный импульс, но драгоценный артефакт в ваших руках!',
+        outcome: { gold: 80, cogParts: 30, hpPercentDelta: -15 },
+      },
+    ],
+  },
+];
 
 export interface CampaignNode {
   id: string;
@@ -12,6 +101,7 @@ export interface CampaignNode {
   description: string;
   connections: string[];
   completed: boolean;
+  eventData?: CampaignEvent;
   enemySquads?: {
     name: string;
     role: 'vanguard' | 'duelist' | 'arcanist';
@@ -73,11 +163,12 @@ export function generateCampaignGraph(cycle: number = 1): CampaignNode[] {
       stage: 2,
       colIndex: 1,
       rowIndex: 2,
-      type: 'rest',
-      name: 'Заброшенный Водонапорный Шпиль',
-      description: 'Безопасное укрытие для охлаждения котлов и починки обшивки.',
+      type: 'event',
+      name: 'Брошенный Дредноут',
+      description: 'Колоссальный остов шагающего титана в ущелье. Возможно, в нем скрыты ценные тайны.',
       connections: ['node_3_2', 'node_3_3'],
       completed: false,
+      eventData: CAMPAIGN_EVENTS_POOL[0],
       rewards: { gold: 20, science: 10, cogParts: 10, gearDropChance: 0 },
     },
     // Stage 3
@@ -149,11 +240,12 @@ export function generateCampaignGraph(cycle: number = 1): CampaignNode[] {
       stage: 4,
       colIndex: 3,
       rowIndex: 2,
-      type: 'rest',
-      name: 'Оазис Термальных Источников',
-      description: 'Теплые гейзеры и спокойствие перед восхождением к цитадели.',
+      type: 'event',
+      name: 'Алтарь Заводных Богов',
+      description: 'Древнее священное место с вращающимися каменными дисками и паром.',
       connections: ['node_5_1'],
       completed: false,
+      eventData: CAMPAIGN_EVENTS_POOL[2],
       rewards: { gold: 40, science: 20, cogParts: 20, gearDropChance: 0 },
     },
     // Stage 5: Boss

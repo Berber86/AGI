@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { UnitCard } from './UnitCard';
 import { Play, Pause, SkipForward, FastForward, Zap, Award, Skull } from 'lucide-react';
@@ -14,6 +14,7 @@ export const BattleArena: React.FC = () => {
     finishBattle,
   } = useGameStore();
 
+  const [showDetailedAnalytics, setShowDetailedAnalytics] = useState(false);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   // Playback timer loop
@@ -393,7 +394,7 @@ export const BattleArena: React.FC = () => {
               </p>
             </div>
 
-            {/* Battle Stats */}
+            {/* Battle Stats & Analytics toggle */}
             <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs text-left space-y-1.5 font-mono">
               <div className="flex justify-between">
                 <span className="text-slate-400">Раундов боя:</span>
@@ -407,6 +408,42 @@ export const BattleArena: React.FC = () => {
                 <span className="text-slate-400">Уцелевших бойцов:</span>
                 <span className="font-bold text-emerald-400">{result.playerSurvivedCount} / 3</span>
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowDetailedAnalytics(!showDetailedAnalytics)}
+                className="w-full mt-2 pt-1.5 border-t border-slate-800 text-center text-sky-400 hover:text-sky-300 font-sans font-semibold text-[11px] block"
+              >
+                {showDetailedAnalytics ? '▲ Скрыть подробную аналитику' : '▼ Подробная статистика отрядов'}
+              </button>
+
+              {showDetailedAnalytics && result.unitPerformance && (
+                <div className="mt-2 space-y-2 pt-2 border-t border-slate-800/80 font-sans text-xs">
+                  {result.unitPerformance.map(perf => (
+                    <div
+                      key={perf.unitId}
+                      className={`p-2 rounded-lg border ${
+                        perf.isPlayer
+                          ? 'bg-amber-950/20 border-amber-500/30'
+                          : 'bg-rose-950/20 border-rose-500/30'
+                      }`}
+                    >
+                      <div className="flex justify-between font-bold mb-1">
+                        <span className={perf.isPlayer ? 'text-amber-300' : 'text-rose-300'}>{perf.name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {perf.killsCount > 0 ? `☠️ ${perf.killsCount} фрагов` : ''}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-300 font-mono">
+                        <div>Урон: <strong className="text-amber-400">{perf.totalDamageDealt}</strong></div>
+                        <div>Получено: <strong className="text-rose-400">{perf.totalDamageTaken}</strong></div>
+                        <div>Критов: <strong className="text-yellow-400">{perf.critsLanded}</strong></div>
+                        <div>Уклонений: <strong className="text-sky-400">{perf.attacksDodged}</strong></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Rewards */}

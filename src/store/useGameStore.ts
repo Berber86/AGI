@@ -77,6 +77,7 @@ interface GameStoreState {
   startBattle: (nodeId: string) => void;
   handleRestNode: (nodeId: string) => void;
   handleWorkshopNode: (nodeId: string) => void;
+  handleEventChoice: (nodeId: string, choiceId: string) => { success: boolean; message: string };
   stepBattle: () => void;
   setBattleFrameIndex: (idx: number) => void;
   setPlaybackSpeed: (speed: 1 | 2 | 'instant') => void;
@@ -742,6 +743,52 @@ export const useGameStore = create<GameStoreState>((set, get) => {
           battleEnded: false,
         },
       });
+    },
+
+    handleEventChoice: (nodeId, choiceId) => {
+      const { campaign, resources, inventory } = get();
+      const node = campaign.nodes.find(n => n.id === nodeId);
+      if (!node || !node.eventData) return { success: false, message: 'Событие не найдено' };
+
+      const choice = node.eventData.choices.find(c => c.id === choiceId);
+      if (!choice) return { success: false, message: 'Вариант не найден' };
+
+      if (choice.requirement) {
+        if (choice.requirement.gold && resources.gold < choice.requirement.gold) {
+          return { success: false, message: 'Недостаточно золота!' };
+        }
+        if (choice.requirement.cogParts && resources.cogParts < choice.requirement.cogParts) {
+          return { success: false, message: 'Недостаточно запчастей!' };
+        }
+      }
+
+      const out = choice.outcome;
+      let newGold = resources.gold + (out.gold || 0);
+      let newCog = resources.cogParts + (out.cogParts || 0);
+      let newSci = resources.science + (out.science || 0);
+
+      const newInventory = [...inventory];
+      if (out.gearRewardRarity) {
+        const rewardGear = generateLootGear(campaign.cycle, out.gearRewardRarity);
+        newInventory.push(rewardGear);
+      }
+
+      const { updatedCampaign } = completeCampaignNode(campaign, nodeId);
+      soundManager.playVictory();
+
+      set({
+        campaign: updatedCampaign,
+        resources: {
+          ...resources,
+          gold: Math.max(0, newGold),
+          cogParts: Math.max(0, newCog),
+          science: Math.max(0, newSci),
+        },
+        inventory: newInventory,
+      });
+
+      get().saveGame();
+      return { success: true, message: choice.consequenceText };
     },
 
     stepBattle: () => {

@@ -124,4 +124,32 @@ describe('Advanced Systems: Refinement, Artifacts & Tactical Abilities', () => {
     expect(empFrames.length).toBe(1);
     expect(empFrames[0].targetId).toBe(strongEnemy.id);
   });
+
+  it('should compute comprehensive per-unit performance metrics', () => {
+    const player = buildUnitEntityFromChampion(INITIAL_CHAMPIONS[1]); // Duelist
+    const enemy: UnitEntity = {
+      id: 'target_dummy',
+      name: 'Target Dummy',
+      role: 'vanguard',
+      isPlayer: false,
+      row: 1,
+      col: 11,
+      currentHp: 80,
+      maxHp: 80,
+      shield: 0,
+      morale: 100,
+      isFled: false,
+      stats: { attack: 15, defense: 5, maxHp: 80, speed: 8, range: 1, critChance: 0, dodgeRate: 0, accuracy: 0.8, effectiveHp: 95, armorPenetration: 0, startingShield: 0, activeSets: [], activeDogmaBonuses: [] },
+      equippedGear: {},
+      statuses: [],
+    };
+
+    const sim = simulateFight([player], [enemy], { seed: 100 });
+    expect(sim.unitPerformance).toBeDefined();
+    expect(sim.unitPerformance?.length).toBe(2);
+
+    const playerPerf = sim.unitPerformance?.find(p => p.unitId === player.id);
+    expect(playerPerf).toBeDefined();
+    expect(playerPerf?.totalDamageDealt).toBeGreaterThan(0);
+  });
 });
