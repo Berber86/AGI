@@ -43,12 +43,25 @@ export const TECHS: TechDef[] = [
   { id: 'currency', name: 'Чеканка монет', icon: '🪙', era: 2, cost: 50, requires: ['mining', 'pottery'], icons: ['culture', 'mining'], effects: [], description: 'Открывает Рынок и Головореза.' },
   { id: 'masonry', name: 'Каменная кладка', icon: '🧱', era: 2, cost: 50, requires: ['mining'], icons: ['craft', 'mining'], effects: [{ kind: 'production', resource: 'ore', pct: 20 }], description: '+20% к добыче руды.' },
   { id: 'medicine', name: 'Медицина', icon: '⚕️', era: 2, cost: 55, requires: ['agriculture', 'writing'], icons: ['lore', 'agri'], effects: [{ kind: 'stat', stat: 'hp', pct: 8 }], description: '+8% здоровья всем отрядам.' },
+  { id: 'hunting', name: 'Охота', icon: '🏹', era: 2, cost: 45, requires: ['archery'], icons: ['war', 'agri'], effects: [{ kind: 'stat', stat: 'crit', flat: 3 }], description: '+3% крита всем отрядам. Путь Охотника.' },
+  { id: 'toolmaking', name: 'Орудия труда', icon: '🔨', era: 2, cost: 45, requires: ['bronze_working'], icons: ['craft', 'craft'], effects: [{ kind: 'stat', stat: 'atk', flat: 1 }, { kind: 'production', resource: 'ore', flat: 4 }], description: '+1 атака, +4 руды за ход. Путь Кузнеца.' },
+  { id: 'logistics', name: 'Логистика', icon: '🚚', era: 2, cost: 50, requires: ['currency'], icons: ['culture', 'agri'], effects: [{ kind: 'production', resource: 'food', flat: 6 }], description: '+6 еды за ход. Путь Стратега.' },
 
   // ===== Эра III =====
   { id: 'steel', name: 'Сталь', icon: '🔩', era: 3, cost: 110, requires: ['iron_working'], icons: ['war', 'craft', 'craft'], effects: [{ kind: 'stat', stat: 'atk', pct: 8 }], description: '+8% к атаке всех отрядов.' },
   { id: 'engineering', name: 'Инженерия', icon: '⚙️', era: 3, cost: 120, requires: ['mathematics', 'masonry'], icons: ['craft', 'lore', 'mining'], effects: [{ kind: 'craftDiscount', pct: 15 }], description: 'Слияние шестерёнок на 15% дешевле.' },
   { id: 'alchemy', name: 'Алхимия', icon: '⚗️', era: 3, cost: 120, requires: ['philosophy', 'medicine'], icons: ['lore', 'craft'], effects: [{ kind: 'lootRarity', bonus: 6 }], description: 'Добыча заметно чаще выпадает более редкой.' },
   { id: 'feudalism', name: 'Феодализм', icon: '🏰', era: 3, cost: 100, requires: ['currency', 'horseback_riding'], icons: ['war', 'culture', 'agri'], effects: [{ kind: 'stat', stat: 'morale', flat: 10 }], description: '+10 морали всем отрядам.' },
+  // --- Путь Охотника: скорость/крит/уклонение ---
+  { id: 'hunting_bands', name: 'Охотничьи артели', icon: '🐺', era: 3, cost: 100, requires: ['hunting'], icons: ['war', 'agri', 'agri'], effects: [{ kind: 'stat', stat: 'spd', flat: 2 }, { kind: 'stat', stat: 'eva', flat: 3 }], description: '+2 скорости, +3% уклонения.' },
+  { id: 'apex_predator', name: 'Верхний хищник', icon: '🦅', era: 3, cost: 130, requires: ['hunting_bands'], icons: ['war', 'war', 'agri'], effects: [{ kind: 'stat', stat: 'crit', flat: 6 }, { kind: 'stat', stat: 'critDmg', flat: 20 }], description: '+6% крита, +20% критического урона.' },
+  { id: 'beast_taming', name: 'Приручение', icon: '🐾', era: 3, cost: 110, requires: ['hunting'], icons: ['agri', 'war'], effects: [{ kind: 'stat', stat: 'spd', flat: 1 }, { kind: 'stat', stat: 'eva', flat: 2 }, { kind: 'stat', stat: 'morale', flat: 5 }], description: '+1 скорость, +2% уклонения, +5 морали.' },
+  // --- Путь Кузнеца: атака/слияние/добыча ---
+  { id: 'master_craft', name: 'Мастер-кузнец', icon: '⚒️', era: 3, cost: 105, requires: ['toolmaking'], icons: ['craft', 'craft', 'war'], effects: [{ kind: 'stat', stat: 'atk', pct: 5 }, { kind: 'craftDiscount', pct: 10 }], description: '+5% атаки, слияние на 10% дешевле.' },
+  { id: 'rune_forge', name: 'Рунная кузня', icon: '🔯', era: 3, cost: 140, requires: ['master_craft'], icons: ['craft', 'lore', 'war'], effects: [{ kind: 'lootRarity', bonus: 5 }, { kind: 'stat', stat: 'atk', flat: 3 }], description: 'Добыча чаще редче, +3 атаки.' },
+  // --- Путь Стратега: экономика/масса ---
+  { id: 'conscription', name: 'Рекрутский набор', icon: '📯', era: 3, cost: 100, requires: ['logistics'], icons: ['culture', 'war', 'agri'], effects: [{ kind: 'stat', stat: 'hp', pct: 5 }, { kind: 'production', resource: 'food', flat: 5 }], description: '+5% здоровья, +5 еды за ход.' },
+  { id: 'war_college', name: 'Военная академия', icon: '🎓', era: 3, cost: 125, requires: ['logistics', 'mathematics'], icons: ['lore', 'war', 'culture'], effects: [{ kind: 'stat', stat: 'morale', flat: 8 }, { kind: 'stat', stat: 'acc', flat: 3 }], description: '+8 морали, +3% меткости.' },
 ];
 
 export const TECH_BY_ID: Record<string, TechDef> = Object.fromEntries(TECHS.map((t) => [t.id, t]));

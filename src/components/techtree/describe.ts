@@ -2,7 +2,7 @@ import { BUILDINGS } from '@/data/buildings';
 import { RECRUITS } from '@/data/recruits';
 import type { TechDef } from '@/data/techs';
 import type { Modifier } from '@/engine/unit/unit.types';
-import { formatStatDelta } from '@/utils/format';
+import { formatStatDelta, RESOURCE_META } from '@/utils/format';
 
 /** Человекочитаемое описание эффектов технологии/догмы. */
 export function describeModifiers(mods: readonly Modifier[]): string {
@@ -12,9 +12,12 @@ export function describeModifiers(mods: readonly Modifier[]): string {
       case 'stat':
         parts.push(formatStatDelta(m.stat, m.pct ?? m.flat ?? 0));
         break;
-      case 'production':
-        parts.push(`производство ${m.resource}: ${m.pct ? `+${m.pct}%` : ''}${m.flat ? ` +${m.flat}/ход` : ''}`);
+      case 'production': {
+        const label = RESOURCE_META[m.resource].label.toLowerCase();
+        const bits = [m.flat ? `+${m.flat}/ход` : null, m.pct ? `+${m.pct}%` : null].filter(Boolean);
+        parts.push(`${label} ${bits.join(', ')}`);
         break;
+      }
       case 'lootRarity':
         parts.push('добыча чаще бывает редче');
         break;

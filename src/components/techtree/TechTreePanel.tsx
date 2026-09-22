@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { TECHS, TECH_BY_ID, TECH_ICON_META, DOGMAS, type TechIcon } from '@/data/techs';
 import { canResearch, countIcons, dogmaProgress, isDogmaActive } from '@/engine/economy/techTree';
 import { useGameStore } from '@/store/useGameStore';
 import { describeTech } from './describe';
+import { TechGraph } from './TechGraph';
 
 const ERAS = [1, 2, 3] as const;
 const ERA_LABEL: Record<number, string> = { 1: 'Эра I — Заря', 2: 'Эра II — Порядок', 3: 'Эра III — Механизм' };
@@ -10,6 +12,7 @@ export function TechTreePanel() {
   const d = useGameStore((s) => s.data);
   const research = useGameStore((s) => s.research);
   const icons = countIcons(d.techs);
+  const [view, setView] = useState<'graph' | 'list'>('graph');
 
   return (
     <div className="space-y-4">
@@ -61,8 +64,25 @@ export function TechTreePanel() {
         })}
       </div>
 
-      {/* Дерево технологий по эрам */}
-      {ERAS.map((era) => (
+      {/* Дерево технологий: граф или список */}
+      <div className="flex items-center gap-1">
+        {([['graph', '🕸️ Граф'], ['list', '📋 Список']] as const).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+              view === v ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50' : 'bg-slate-900 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'graph' && <TechGraph />}
+
+      {/* Список по эрам */}
+      {view === 'list' && ERAS.map((era) => (
         <div key={era}>
           <div className="mb-2 text-sm font-bold uppercase tracking-widest text-slate-400">{ERA_LABEL[era]}</div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">

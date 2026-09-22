@@ -88,3 +88,32 @@ export function lootCountBonus(modifiers: readonly Modifier[]): number {
   for (const m of modifiers) if (m.kind === 'lootCount') b += m.bonus;
   return b;
 }
+
+/** Все предки технологии (транзитивные требования) — для подсветки графа. */
+export function requirementClosure(techId: string): Set<string> {
+  const out = new Set<string>();
+  const walk = (id: string): void => {
+    const t = TECH_BY_ID[id];
+    if (!t) return;
+    for (const r of t.requires) {
+      if (!out.has(r)) {
+        out.add(r);
+        walk(r);
+      }
+    }
+  };
+  walk(techId);
+  return out;
+}
+
+/** Глубина технологии в графе требований (число узлов до корня). */
+export function techDepth(techId: string, memo: Map<string, number> = new Map()): number {
+  const cached = memo.get(techId);
+  if (cached !== undefined) return cached;
+  const t = TECH_BY_ID[techId];
+  if (!t) return 0;
+  let depth = 1;
+  for (const r of t.requires) depth = Math.max(depth, 1 + techDepth(r, memo));
+  memo.set(techId, depth);
+  return depth;
+}

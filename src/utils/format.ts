@@ -1,4 +1,12 @@
-import type { PartialResources, PartialStats, StatKey } from '@/engine/unit/unit.types';
+import type { Element, PartialResources, PartialStats, StatKey } from '@/engine/unit/unit.types';
+
+export const ELEMENT_LABEL: Record<Element, string> = {
+  physical: 'Физический',
+  fire: 'Огонь',
+  frost: 'Лёд',
+  poison: 'Яд',
+  arcane: 'Магия',
+};
 
 export const STAT_LABEL: Record<StatKey, string> = {
   hp: 'Здоровье',

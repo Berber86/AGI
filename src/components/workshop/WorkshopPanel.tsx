@@ -4,9 +4,9 @@ import { SET_BY_ID, SETS } from '@/data/sets';
 import { describeAbility, gearInstanceStats } from '@/engine/unit/computeUnit';
 import { canCraft, craftCost, CRAFT_COST_ORE, SALVAGE_ORE } from '@/engine/loot/gearGenerator';
 import { craftDiscount } from '@/engine/economy/techTree';
-import { GEAR_SLOTS, RARITIES, type GearInstance, type GearSlot, type Rarity } from '@/engine/unit/unit.types';
+import { GEAR_SLOTS, RARITIES, type Element, type GearInstance, type GearSlot, type Rarity } from '@/engine/unit/unit.types';
 import { useGameStore } from '@/store/useGameStore';
-import { formatStats, STAT_ICON } from '@/utils/format';
+import { ELEMENT_LABEL, formatStats, STAT_ICON } from '@/utils/format';
 
 type SortKey = 'rarity' | 'slot' | 'set';
 
@@ -20,6 +20,8 @@ export function WorkshopPanel() {
   const [filterRarity, setFilterRarity] = useState<Rarity | 'all'>('all');
   const [filterSlot, setFilterSlot] = useState<GearSlot | 'all'>('all');
   const [filterSet, setFilterSet] = useState<string | 'all'>('all');
+  const [filterElement, setFilterElement] = useState<Element | 'all'>('all');
+  const [onlyAbilities, setOnlyAbilities] = useState(false);
   const [sort, setSort] = useState<SortKey>('rarity');
 
   const mods = useGameStore((s) => s.modifiers());
@@ -33,6 +35,8 @@ export function WorkshopPanel() {
       if (filterRarity !== 'all' && g.rarity !== filterRarity) return false;
       if (filterSlot !== 'all' && def.slot !== filterSlot) return false;
       if (filterSet !== 'all' && (def.setId ?? 'none') !== filterSet) return false;
+      if (filterElement !== 'all' && (def.element ?? 'physical') !== filterElement) return false;
+      if (onlyAbilities && !(def.abilities && def.abilities.length > 0)) return false;
       return true;
     });
     const rank = (g: GearInstance): number => RARITIES.indexOf(g.rarity);
@@ -42,7 +46,7 @@ export function WorkshopPanel() {
       return (GEAR_BY_ID[a.defId]!.setId ?? '').localeCompare(GEAR_BY_ID[b.defId]!.setId ?? '') || rank(b) - rank(a);
     });
     return { list, worn };
-  }, [d.collection, d.squads, filterRarity, filterSlot, filterSet, sort]);
+  }, [d.collection, d.squads, filterRarity, filterSlot, filterSet, filterElement, onlyAbilities, sort]);
 
   const selected = d.collection.filter((g) => selection.includes(g.uid));
   const craftCheck = canCraft(selected);
@@ -123,6 +127,16 @@ export function WorkshopPanel() {
           ))}
           <option value="none">— без сета</option>
         </select>
+        <select value={filterElement} onChange={(e) => setFilterElement(e.target.value as Element | 'all')} className="rounded bg-slate-900 px-2 py-1 text-slate-200">
+          <option value="all">Любая стихия</option>
+          {(Object.keys(ELEMENT_LABEL) as Element[]).map((el) => (
+            <option key={el} value={el}>{ELEMENT_LABEL[el]}</option>
+          ))}
+        </select>
+        <label className="flex cursor-pointer items-center gap-1 rounded bg-slate-900 px-2 py-1 text-slate-300">
+          <input type="checkbox" checked={onlyAbilities} onChange={(e) => setOnlyAbilities(e.target.checked)} />
+          только со способностями
+        </label>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="rounded bg-slate-900 px-2 py-1 text-slate-200">
           <option value="rarity">Сортировка: редкость</option>
           <option value="slot">Сортировка: слот</option>

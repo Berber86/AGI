@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { GEAR_BY_ID, RARITY_LABEL, SLOT_ICON, SLOT_LABEL } from '@/data/gear';
 import { RECRUIT_BY_ID, RECRUITS, PLAYER_RECRUIT_IDS } from '@/data/recruits';
 import { SET_BY_ID } from '@/data/sets';
+import { synergyHints, setTierStates } from '@/engine/unit/synergy';
 import { computeUnit, describeAbility, gearInstanceStats } from '@/engine/unit/computeUnit';
 import { GEAR_SLOTS, RARITIES, type ComputedUnit, type GearInstance, type GearSlot } from '@/engine/unit/unit.types';
 import { useGameStore } from '@/store/useGameStore';
@@ -144,14 +145,51 @@ export function ArmyBuilderPanel() {
                   return diffs.length ? <div className="mt-1 text-[10px] text-emerald-300">от базы: {diffs.join(', ')}</div> : null;
                 })()}
                 {Object.keys(c.setCounts).length > 0 && (
-                  <div className="mt-1 text-[11px]">
-                    {Object.entries(c.setCounts).map(([setId, n]) => (
-                      <span key={setId} className="mr-2 text-emerald-300">
-                        {SET_BY_ID[setId]?.icon} {SET_BY_ID[setId]?.name}: {n}/4
-                      </span>
-                    ))}
+                  <div className="mt-1 space-y-1">
+                    {Object.entries(c.setCounts).map(([setId, n]) => {
+                      const set = SET_BY_ID[setId];
+                      if (!set) return null;
+                      return (
+                        <div key={setId} className="text-[10px]">
+                          <span className="font-bold text-emerald-300">{set.icon} {set.name} {n}/4</span>
+                          {setTierStates(setId, n).map((t) => (
+                            <span key={t.pieces} className={`ml-2 ${t.active ? 'text-emerald-300' : 'text-slate-500'}`}>
+                              {t.active ? '✓' : '○'}{t.pieces}: {t.text}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
+                {(() => {
+                  const equippedDefs = GEAR_SLOTS
+                    .map((s) => sq.gear[s])
+                    .filter((uid): uid is string => !!uid)
+                    .map((uid) => d.collection.find((g) => g.uid === uid))
+                    .filter((g): g is GearInstance => !!g)
+                    .map((g) => GEAR_BY_ID[g.defId])
+                    .filter((def): def is NonNullable<typeof def> => !!def);
+                  const wornEverywhere = new Set(d.squads.flatMap((s2) => GEAR_SLOTS.map((s3) => s2.gear[s3])).filter(Boolean) as string[]);
+                  const stashDefs = d.collection
+                    .filter((g) => !wornEverywhere.has(g.uid))
+                    .map((g) => GEAR_BY_ID[g.defId])
+                    .filter((def): def is NonNullable<typeof def> => !!def);
+                  const hints = recruit ? synergyHints(equippedDefs, stashDefs, recruit.tags) : [];
+                  if (hints.length === 0) return null;
+                  return (
+                    <div className="mt-1 rounded bg-slate-900/70 p-1.5">
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-amber-300/90">💡 Синергии</div>
+                      {hints.slice(0, 3).map((h) => (
+                        <div key={h.setId} className="text-[10px] text-slate-300">
+                          {h.icon} {h.name}: <span className="font-bold text-slate-100">{h.have}/{h.nextPieces}</span> — {h.nextBonusText}
+                          {h.availableInStash > 0 && <span className="text-sky-300"> · в коллекции: {h.availableInStash} шт.</span>}
+                          {h.reason === 'archetype' && <span className="text-slate-500"> · подходит архетипу</span>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {c.abilities.length > 0 && (
                   <div className="mt-1 space-y-0.5 text-[10px] text-amber-100/80">
                     {c.abilities.map((ab, i) => (
