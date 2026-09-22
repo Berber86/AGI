@@ -1,0 +1,22 @@
+# зависимости
+node_modules/
+
+# сборка
+dist/
+dist-ssr/
+*.local
+
+# логи
+logs
+*.log
+npm-debug.log*
+
+# редакторы / ОС
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# тесты / кэш
+coverage/
+.vite/
