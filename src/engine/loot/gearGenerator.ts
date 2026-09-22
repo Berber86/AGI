@@ -105,7 +105,7 @@ export function generateGear(rng: Rng, opts: GenerateGearOptions): GearInstance 
     rarity = RARITIES[RARITIES.indexOf(rarity) - 1]!;
     pool = pickPool(rarity, opts.slot, opts.setId, !opts.bare);
   }
-  if (pool.length === 0) pool = GEAR_POOL;
+  if (pool.length === 0) pool = GEAR_POOL.filter((d) => !d.questOnly);
   const def = rng.pick(pool);
   const quality = opts.bare ? 0.9 : Math.round(rng.float(0.85, 1.15) * 100) / 100;
   return {
@@ -119,7 +119,7 @@ export function generateGear(rng: Rng, opts: GenerateGearOptions): GearInstance 
 }
 
 function pickPool(rarity: Rarity, slot?: GearSlot, setId?: string, allowSet = true) {
-  const all = gearOfRarity(rarity).filter((d) => allowSet || !d.setId);
+  const all = gearOfRarity(rarity).filter((d) => (allowSet || !d.setId) && !d.questOnly);
   if (setId && slot) {
     const p = all.filter((d) => d.setId === setId && d.slot === slot);
     if (p.length) return p;

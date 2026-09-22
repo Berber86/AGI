@@ -20,3 +20,6 @@ npm-debug.log*
 # тесты / кэш
 coverage/
 .vite/
+
+# инкрементальные сборочные кэши TS
+*.tsbuildinfo

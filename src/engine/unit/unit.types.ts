@@ -100,6 +100,8 @@ export interface GearDef {
   tags?: UnitTag[];
   targeting?: TargetingRule;
   flavor?: string;
+  /** Квестовый предмет: не выпадает из лута и не craft'ится — только наградой за испытание. */
+  questOnly?: boolean;
 }
 
 /** Случайный аффикс на экземпляре предмета. */
@@ -118,6 +120,8 @@ export interface GearInstance {
   affixes: Affix[];
   /** Номер цикла, в котором выпал предмет (для статистики и будущего скейлинга). */
   cycle: number;
+  /** Если предмет — награда за квест, здесь его идентификатор. */
+  quest?: string;
 }
 
 /** Бонус сета за N предметов. */

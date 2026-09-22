@@ -6,6 +6,7 @@ import { CityPanel } from '@/components/city/CityPanel';
 import { TechTreePanel } from '@/components/techtree/TechTreePanel';
 import { ArmyBuilderPanel } from '@/components/armybuilder/ArmyBuilderPanel';
 import { WorkshopPanel } from '@/components/workshop/WorkshopPanel';
+import { HallOfFame } from '@/components/fame/HallOfFame';
 import { BattleScreen } from '@/components/battle/BattleScreen';
 import { PrepModal } from '@/components/battle/PrepModal';
 import { useGameStore } from '@/store/useGameStore';
@@ -16,6 +17,7 @@ const TABS = [
   { id: 'tech', label: 'Технологии', icon: '🔬' },
   { id: 'army', label: 'Армия', icon: '🛡️' },
   { id: 'workshop', label: 'Мастерская', icon: '⚙️' },
+  { id: 'fame', label: 'Слава', icon: '🏆' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -54,6 +56,7 @@ export default function App() {
         {tab === 'tech' && <TechTreePanel />}
         {tab === 'army' && <ArmyBuilderPanel />}
         {tab === 'workshop' && <WorkshopPanel />}
+        {tab === 'fame' && <HallOfFame />}
       </main>
 
       <footer className="border-t border-slate-800/60 px-4 py-3 text-center text-[10px] text-slate-600">

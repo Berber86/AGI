@@ -30,6 +30,15 @@ export interface PlayerStats {
   longestBattle: number;
   bossKills: number;
   cyclesCompleted: number;
+  /** Победы в стычках (фарм-бои вне карты). */
+  skirmishWins: number;
+  /** Текущая и лучшая серия побед подряд. */
+  winStreak: number;
+  bestWinStreak: number;
+  /** Победы, в которых участвовал рекрут (recruitId → количество). */
+  winsByRecruit: Record<string, number>;
+  /** Победы по стихии урона (element → количество). */
+  winsByElement: Record<string, number>;
 }
 
 export interface ActiveBattle {
@@ -61,4 +70,8 @@ export interface GameData {
   stats: PlayerStats;
   battle: ActiveBattle | null;
   notices: Notice[];
+  /** Выполненные достижения (идентификаторы). */
+  achievementsDone: string[];
+  /** Квестовые шестерёнки: questId → получено. */
+  quests: Record<string, boolean>;
 }

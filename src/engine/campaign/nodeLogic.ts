@@ -78,7 +78,11 @@ export function generateSkirmish(campaignSeed: number, cycle: number, layer: num
 }
 
 function buildEncounter(rng: Rng, kind: NodeKind, layer: number, cycle: number, nodeId: string, overrideKind?: 'skirmish'): Encounter {
-  const templates = kind === 'boss' ? BOSS_TEMPLATES : kind === 'elite' ? ELITE_TEMPLATES : BATTLE_TEMPLATES;
+  let templates = kind === 'boss' ? BOSS_TEMPLATES : kind === 'elite' ? ELITE_TEMPLATES : BATTLE_TEMPLATES;
+  // Боссовый шаблон ротируется по циклу: сложность цикла стабильна, variety — между циклами.
+  if (kind === 'boss' && BOSS_TEMPLATES.length > 0) {
+    templates = [BOSS_TEMPLATES[cycle % BOSS_TEMPLATES.length]!];
+  }
   const tpl = rng.pick(templates);
   const statScale = enemyStatScale(cycle, layer);
   const enemies: SquadSetup[] = tpl.units.map((u, i) => {

@@ -79,6 +79,12 @@ export const GEAR_POOL: GearDef[] = [
   g({ id: 'hunter_compass', name: 'Компас охотника', icon: '🧭', slot: 'trinket', rarity: 'legendary', stats: { acc: 10, range: 1 }, abilities: [{ key: 'targetPref', tag: 'ranged' }], flavor: 'Стрелка всегда указывает на лучника.' }),
   g({ id: 'perpetuum', name: 'Вечный двигатель', icon: '✨', slot: 'core', rarity: 'legendary', stats: { spd: 6, atk: 8 }, abilities: [{ key: 'doubleStrike', chance: 35 }], flavor: 'Шестерёнка, которая не останавливается.' }),
   g({ id: 'titan_core', name: 'Ядро Титана', icon: '🗿', slot: 'core', rarity: 'legendary', stats: { hp: 100, def: 15 }, abilities: [{ key: 'retaliate', pct: 60 }], flavor: 'Ударь — и тебе ответит гора.' }),
+
+  // ============ КВЕСТОВЫЕ: только награда за испытания, не из лута ============
+  g({ id: 'solar_lance', name: 'Солнечное копьё', icon: '🔆', slot: 'weapon', rarity: 'legendary', element: 'fire', questOnly: true, stats: { atk: 17, crit: 8, armorPen: 20 }, abilities: [{ key: 'firstStrike' }], flavor: 'Выковано в сердце звезды. Награда поджигателю.' }),
+  g({ id: 'phoenix_crown', name: 'Венец Феникса', icon: '👑', slot: 'trinket', rarity: 'legendary', element: 'fire', questOnly: true, stats: { hp: 45, morale: 30 }, abilities: [{ key: 'regen', hp: 12 }], flavor: 'Кто не потерял никого — не потеряет и себя.' }),
+  g({ id: 'cog_of_ages', name: 'Шестерня Веков', icon: '🕰️', slot: 'core', rarity: 'legendary', questOnly: true, stats: { atk: 10, def: 12, spd: 3 }, flavor: 'Она вращала первый Цикл. И повернёт следующий.' }),
+  g({ id: 'warlord_seal', name: 'Печать Военачальника', icon: '🎖️', slot: 'trinket', rarity: 'legendary', questOnly: true, stats: { atk: 6, morale: 30 }, abilities: [{ key: 'rally', morale: 10 }], flavor: 'Пять побед подряд не забываются. И не прощаются.' }),
 ];
 
 export const GEAR_BY_ID: Record<string, GearDef> = Object.fromEntries(GEAR_POOL.map((d) => [d.id, d]));

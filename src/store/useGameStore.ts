@@ -3,6 +3,8 @@ import { CAMPAIGN_NODE_BY_ID as NODE_BY_ID, NODE_KIND_META } from '@/data/campai
 import { BUILDING_BY_ID as BUILDING_LOOKUP } from '@/data/buildings';
 import { RECRUIT_BY_ID, PLAYER_RECRUIT_IDS } from '@/data/recruits';
 import { TECH_BY_ID as TECH_LOOKUP } from '@/data/techs';
+import { QUEST_BY_ID as QUEST_LOOKUP } from '@/data/quests';
+import { GEAR_BY_ID } from '@/data/gear';
 import type { Encounter } from '@/engine/campaign/nodeLogic';
 import { generateEncounter, generateSkirmish, isCycleComplete, LOOT_COUNT, TICKS_FOR_NODE, treasureLoot } from '@/engine/campaign/nodeLogic';
 import { BattleSim } from '@/engine/combat/simulateFight';
@@ -10,6 +12,7 @@ import type { MomentumTactic } from '@/engine/combat/combat.types';
 import { cityTick, canAfford, addResources, buildingCost, ZERO_RESOURCES } from '@/engine/economy/cityTick';
 import { activeDogmas, collectModifiers, craftDiscount, lootCountBonus, lootRarityBonus } from '@/engine/economy/techTree';
 import { canCraft, craftCost, craftGear, rollLoot, SALVAGE_ORE } from '@/engine/loot/gearGenerator';
+import { analyzeBattle, achievementProgress, ACHIEVEMENTS, completedQuests, progressInputOf, questRewardInstance } from '@/engine/progression/meta';
 import { computeUnit } from '@/engine/unit/computeUnit';
 import { GEAR_SLOTS, type GearInstance, type GearSlot, type Modifier, type Resources, type SquadSetup } from '@/engine/unit/unit.types';
 import { combineSeed, createRng } from '@/utils/rng';
@@ -31,6 +34,8 @@ export interface BattleSession {
   nodeId: string;
   kind: ActiveBattle['kind'];
   encounter: Encounter;
+  /** Отряды игрока, участвовавшие в бою (для статистики и анализа). */
+  playerSquadIds: string[];
 }
 
 /** Граф переходов кампании: из узла → в какие узлы можно идти. */
@@ -38,8 +43,49 @@ const NEXT_OF: Record<string, string[]> = Object.fromEntries(
   Object.entries(NODE_BY_ID).map(([id, n]) => [id, n.next]),
 );
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const MAX_SQUADS = 3;
+
+/** Дефолтная статистика (единая точка для новых игр и миграций). */
+function defaultStats(): GameData['stats'] {
+  return {
+    battles: 0, wins: 0, losses: 0, draws: 0, gearFound: 0, crafted: 0,
+    longestBattle: 0, bossKills: 0, cyclesCompleted: 0,
+    skirmishWins: 0, winStreak: 0, bestWinStreak: 0,
+    winsByRecruit: {}, winsByElement: {},
+  };
+}
+
+/** Миграция старых сохранений (v1 → v2): дозаполняем новые поля. */
+export function migrate(raw: unknown): GameData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const d = raw as Partial<GameData> & { version?: number };
+  if (d.version !== 1 && d.version !== 2) return null;
+  const stats = { ...defaultStats(), ...(d.stats ?? {}) };
+  const out: GameData = {
+    ...(freshShape() as GameData),
+    ...d,
+    version: SAVE_VERSION,
+    stats,
+    achievementsDone: d.achievementsDone ?? [],
+    quests: d.quests ?? {},
+  };
+  return out;
+}
+
+// Заготовка формы (нужна до объявления freshData в порядке инициализации модуля).
+function freshShape(): Omit<GameData, 'version'> {
+  return {
+    cycle: 1, day: 0, campaignSeed: 0,
+    resources: { ...START_RESOURCES },
+    buildings: {}, techs: [],
+    collection: [], squads: [],
+    campaign: { currentNodeId: 'start', completed: [], skirmishCount: 0, battleAttempts: 0 },
+    stats: defaultStats(),
+    battle: null, notices: [],
+    achievementsDone: [], quests: {},
+  };
+}
 
 const START_RESOURCES: Resources = { food: 60, ore: 20, science: 30, gold: 60 };
 
@@ -68,9 +114,11 @@ function freshData(seed?: number): GameData {
     collection: startingCollection(),
     squads: startingSquads(),
     campaign: { currentNodeId: 'start', completed: [], skirmishCount: 0, battleAttempts: 0 },
-    stats: { battles: 0, wins: 0, losses: 0, draws: 0, gearFound: 0, crafted: 0, longestBattle: 0, bossKills: 0, cyclesCompleted: 0 },
+    stats: defaultStats(),
     battle: null,
     notices: [{ id: 1, text: 'Цикл 1. Собери отряд и выдвигайся.', tone: 'info' }],
+    achievementsDone: [],
+    quests: {},
   };
 }
 
@@ -119,7 +167,8 @@ let noticeId = 100;
 
 export const useGameStore = create<GameStore>()((set, get) => {
   const saved = loadGame();
-  const initial = saved && saved.version === SAVE_VERSION ? saved : freshData();
+  const migrated = saved ? migrate(saved) : null;
+  const initial = migrated ?? freshData();
 
   const mutate = (fn: (d: GameData) => void): void => {
     set((state) => {
@@ -192,6 +241,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         draft.buildings[id] = level + 1;
         draft.notices = pushNotice(draft, `${b.icon} ${b.name} — уровень ${level + 1}`, 'success');
       });
+      checkMetaAchievements();
     },
 
     research(id) {
@@ -210,6 +260,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
           draft.notices = pushNotice(draft, `${last.icon} Догма активирована: ${last.name}`, 'success');
         }
       });
+      checkMetaAchievements();
     },
 
     hire(squadId, recruitId) {
@@ -223,6 +274,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         sq.recruitId = recruitId;
         draft.notices = pushNotice(draft, `${r.icon} ${r.name} нанят в «${sq.name}»`, 'success');
       });
+      checkMetaAchievements();
     },
 
     disband(squadId) {
@@ -321,6 +373,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         draft.notices = pushNotice(draft, `Слияние удалось: новый предмет ${result.rarity}`, 'success');
       });
       set({ craftSelection: [] });
+      checkMetaAchievements();
     },
 
     enterNode(nodeId) {
@@ -399,7 +452,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
         draft.campaign.battleAttempts += 1;
         draft.stats.battles += 1;
       });
-      set({ prep: null, session: { sim, nodeId: prep.nodeId, kind: prep.kind, encounter: prep.encounter }, simVersion: 0 });
+      const playerSquadIds = d.squads.filter((sq) => sq.recruitId && RECRUIT_BY_ID[sq.recruitId]).map((sq) => sq.id);
+      set({ prep: null, session: { sim, nodeId: prep.nodeId, kind: prep.kind, encounter: prep.encounter, playerSquadIds }, simVersion: 0 });
     },
 
     cancelPrep() {
@@ -442,8 +496,25 @@ export const useGameStore = create<GameStore>()((set, get) => {
         let loot: GearInstance[] = [];
         let income: Resources | null = null;
 
+        // --- статистика и мета-прогресс ---
+        const analysis = analyzeBattle(result, session.playerSquadIds);
         if (result.winner === 'player') {
           draft.stats.wins += 1;
+          if (kind === 'skirmish') draft.stats.skirmishWins += 1;
+          draft.stats.winStreak += 1;
+          draft.stats.bestWinStreak = Math.max(draft.stats.bestWinStreak, draft.stats.winStreak);
+          for (const sqId of session.playerSquadIds) {
+            const sq = draft.squads.find((x) => x.id === sqId);
+            if (sq?.recruitId) draft.stats.winsByRecruit[sq.recruitId] = (draft.stats.winsByRecruit[sq.recruitId] ?? 0) + 1;
+          }
+          for (const el of analysis.playerElements) {
+            draft.stats.winsByElement[el] = (draft.stats.winsByElement[el] ?? 0) + 1;
+          }
+        } else if (result.winner === 'enemy') {
+          draft.stats.winStreak = 0;
+        }
+
+        if (result.winner === 'player') {
           const count = LOOT_COUNT[kind] + lootCountBonus(mods);
           loot = rollLoot(rng, { source: kind, cycle: draft.cycle, count, rarityBonus: lootRarityBonus(mods) });
           const ticks = TICKS_FOR_NODE[kind];
@@ -468,9 +539,41 @@ export const useGameStore = create<GameStore>()((set, get) => {
           draft.stats.draws += 1;
         }
 
+        // --- достижения (в т.ч. требующие контекста боя) ---
+        const input = progressInputOf(draft, analysis);
+        for (const a of ACHIEVEMENTS) {
+          if (draft.achievementsDone.includes(a.id)) continue;
+          if (a.needsBattle && result.winner !== 'player') continue;
+          const p = achievementProgress(a, input);
+          if (p.cur >= p.goal) {
+            draft.achievementsDone.push(a.id);
+            draft.resources = addResources(draft.resources, a.reward);
+            draft.notices = pushNotice(draft, `${a.icon} Испытание: ${a.name} — ${a.rewardText}`, 'success');
+          }
+        }
+
+        // --- квестовые шестерёнки ---
+        for (const qid of completedQuests(draft, { isBossBattle: kind === 'boss', analysis })) {
+          if (draft.quests[qid]) continue;
+          const inst = questRewardInstance(qid, draft.cycle);
+          const q = QUEST_LOOKUP[qid];
+          if (!inst || !q) continue;
+          if (draft.collection.some((g) => g.uid === inst.uid)) {
+            draft.quests[qid] = true;
+            continue;
+          }
+          draft.collection.push({ uid: inst.uid, defId: inst.defId, rarity: 'legendary', quality: 1, affixes: [], cycle: inst.cycle, quest: qid });
+          draft.stats.gearFound += 1;
+          draft.quests[qid] = true;
+          const reward = GEAR_BY_ID[inst.defId];
+          draft.notices = pushNotice(draft, `${q.icon} Квест «${q.name}»: получена ${reward?.icon ?? ''} ${reward?.name ?? inst.defId}!`, 'success');
+        }
+
         draft.battle = { encounter: session.encounter, result, nodeId: session.nodeId, kind, loot, income };
         return { data: draft };
       });
+      // Мета-достижения без боя (коллекция изменилась квестовой наградой).
+      checkMetaAchievements();
     },
 
     clearSession() {
@@ -493,6 +596,30 @@ export const useGameStore = create<GameStore>()((set, get) => {
   // ---- вспомогательные функции замыкания ----
   function pushNotice(d: GameData, text: string, tone: Notice['tone']): Notice[] {
     return [...d.notices.slice(-29), { id: ++noticeId, text, tone }];
+  }
+
+  /** Достижения, не требующие боя: проверяются после любого мета-действия. */
+  function checkMetaAchievements(): void {
+    const d = get().data;
+    const input = progressInputOf(d, null);
+    const done = new Set(d.achievementsDone);
+    const newly: (typeof ACHIEVEMENTS)[number][] = [];
+    for (const a of ACHIEVEMENTS) {
+      if (a.needsBattle || done.has(a.id)) continue;
+      const p = achievementProgress(a, input);
+      if (p.cur >= p.goal) newly.push(a);
+    }
+    if (newly.length === 0) return;
+    set((state) => {
+      const draft = structuredClone(state.data);
+      for (const a of newly) {
+        if (draft.achievementsDone.includes(a.id)) continue;
+        draft.achievementsDone.push(a.id);
+        draft.resources = addResources(draft.resources, a.reward);
+        draft.notices = pushNotice(draft, `${a.icon} Испытание: ${a.name} — ${a.rewardText}`, 'success');
+      }
+      return { data: draft };
+    });
   }
 });
 

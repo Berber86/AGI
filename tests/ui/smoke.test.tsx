@@ -33,6 +33,12 @@ describe('UI smoke: приложение рендерится и петля кл
     expect(screen.getByText(/Иконки цивилизации/i)).toBeTruthy();
     fireEvent.click(screen.getByText(/Мастерская/));
     expect(screen.getByText(/Слияние 3 → 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByText(/Слава/));
+    expect(screen.getByText(/Статистика командира/i)).toBeTruthy();
+    expect(screen.getByText(/Испытания/i)).toBeTruthy();
+    expect(screen.getByText(/Квестовые шестерёнки/i)).toBeTruthy();
+    // Достижение «Первая кровь» ещё не выполнено, но квест-плитки отрисованы.
+    expect(screen.getAllByText(/Победи Босса цикла/i).length).toBeGreaterThan(0);
   });
 
   it('полный боевой цикл: расстановка → бой → итог → продолжить', async () => {
