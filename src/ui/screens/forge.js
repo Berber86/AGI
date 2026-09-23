@@ -3,8 +3,8 @@
 import { el, btn, mount, modal, tooltip } from '../dom.js';
 import { gearSVG } from '../art.js';
 import {
-  DISCOVERIES, DOMAINS, GEARS, GEAR_IDS, GEAR_PAIRS, RARITIES, KEYWORDS, eraOf,
-  ROMAN_ERA, S, compatible, checkCombination, generateCard, pairKey, blueprintCost, recruitCost,
+  DISCOVERIES, DOMAINS, GEARS, GEAR_IDS, GEAR_PAIRS, GEAR_TRIPLES, RARITIES, KEYWORDS, eraOf,
+  ROMAN_ERA, S, compatible, checkCombination, generateCard, pairKey, tripleKey, blueprintCost, recruitCost,
 } from '../shared.js';
 import { app, persist, toast } from '../app.js';
 import { renderForgePreview } from '../cards.js';
@@ -128,6 +128,32 @@ export function addedKeywords(ids, cand) {
   for (const id of ids) have.push(...(DISCOVERIES[id]?.gears || []));
   const seen = new Set();
   const out = [];
+
+  // Тройки считаем ПЕРЕД парами. Движок подавляет слабую парную версию свойства,
+  // если сработала тройка (Броня I + Броня III не складываются — остаётся III),
+  // поэтому подсказка обязана показывать именно тройку. При обратном порядке
+  // пара занимала свойство в seen, и игрок никогда не узнавал бы об усилении.
+  const all = [...new Set([...have, ...d.gears])];
+  for (let i = 0; i < all.length; i++) {
+    for (let j = i + 1; j < all.length; j++) {
+      for (let k = j + 1; k < all.length; k++) {
+        const combo = [all[i], all[j], all[k]];
+        // тройка обязана включать шестерню нового открытия — иначе она не «добавится»
+        if (!combo.some((g) => d.gears.includes(g))) continue;
+        const rec = GEAR_TRIPLES[tripleKey(...combo)];
+        if (!rec) continue;
+        const kw = KEYWORDS[rec.kw];
+        if (!kw || seen.has(kw.kw)) continue;
+        seen.add(kw.kw);
+        out.push({
+          name: rec.alias || kw.name, kw, lvl: rec.lvl ?? 1,
+          from: combo.map((g) => GEARS[g].name).join(' + '),
+          triple: true,
+        });
+      }
+    }
+  }
+
   for (const g of d.gears) {
     // пары новой шестерни с уже лежащими в станке
     for (const h of have) {
@@ -149,6 +175,7 @@ export function addedKeywords(ids, cand) {
       out.push({ name: rec.alias || kw.name, kw, from: `внутри «${d.name}»` });
     }
   }
+
   return out;
 }
 
@@ -249,14 +276,18 @@ function discChip(d, ids) {
     el('div', { class: 'disc__gears', html: d.gears.map((g) => gearSVG(g, 22)).join('') }),
     el('div', { class: 'disc__name', text: d.name }),
     el('div', { class: 'disc__meta', text: `+${d.atk}/+${d.hp}` }),
-    adds.length ? el('div', { class: 'disc__adds', text: adds.slice(0, 2).map((a) => a.name).join(' · ') }) : null,
+    adds.length ? el('div', { class: 'disc__adds' }, adds.slice(0, 2).map((a) => el('span', {
+      class: a.triple ? 'disc__add disc__add--triple' : 'disc__add',
+      title: a.triple ? 'Редкая комбинация трёх шестерёнок' : a.from,
+    }, [a.triple ? el('i', { class: 'disc__star', text: '✦' }) : null, a.name]))) : null,
     el('div', { class: 'disc__dom', text: DOMAINS[d.domain].glyph }),
   ]);
   tooltip(node, `<b>${d.name}</b> · эпоха ${ROMAN_ERA[d.era]} · ${DOMAINS[d.domain].name}<br>
     Шестерни: ${d.gears.map((g) => `${GEARS[g].name}`).join(', ')}<br>
     Вклад в юнита: +${d.atk} атаки, +${d.hp} здоровья<br>
     ${ids.length ? (comboOk ? '<span class="tip-ok">Сцепляется с набором ✓</span>' : '<span class="tip-bad">Не сцепляется: нет общей шестерни, домена или преемственности</span>') : ''}
-    ${adds.length ? '<br><span class="tip-kw">Добавит свойства: ' + adds.map((a) => `${a.name} (${a.from})`).join(', ') + '</span>' : ''}
+    ${adds.length ? '<br><span class="tip-kw">Добавит свойства: ' + adds.map((a) => `${a.triple ? '✦ ' : ''}${a.name} (${a.from})`).join(', ') + '</span>' : ''}
+    ${adds.some((a) => a.triple) ? '<br><span class="tip-sub">✦ — редкая комбинация ТРЁХ шестерёнок: её нет в матрице пар, и она заменяет слабую парную версию того же свойства</span>' : ''}
     ${ids.length === 0 ? '<br><span class="tip-sub">Первое открытие в станке: свойства появятся со вторым</span>' : ''}`);
   return node;
 }

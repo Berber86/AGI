@@ -268,6 +268,56 @@ export function pairToKeyword(g1, g2) {
 }
 
 // -----------------------------------------------------------------------------
+//  Тройные комбинации шестерёнок.
+//
+//  Матрица из 55 пар занята полностью, поэтому два свойства — Стойкость и
+//  Связь — были определены в KEYWORDS и честно реализованы в бою, но не
+//  выдавались ни одной картой: недостижимая механика и мёртвый код.
+//  Тройки закрывают этот пробел и заодно дают усиленные версии числовых
+//  свойств — награду за карту с тремя разными шестернями, то есть за
+//  редкость выше обычной.
+//
+//  Требование — три РАЗНЫЕ шестерни на карте. Усиление имеет смысл только для
+//  свойств, где уровень числовой (armor, thorns, poison, scry): у bulwark,
+//  resolve и bond движок проверяет наличие эффекта, а не его уровень.
+// -----------------------------------------------------------------------------
+export const GEAR_TRIPLES = {
+  // недостижимые прежде свойства
+  'alloy+bio+doctrine':     { kw: 'resolve', alias: 'Стойкость' },
+  'cipher+doctrine+psyche': { kw: 'bond',    alias: 'Связь' },
+  // усиленные версии пар (пара даёт lvl 1–2, тройка — lvl 3)
+  'alloy+mech+volt':        { kw: 'armor',  lvl: 3 },
+  'alloy+fire+volt':        { kw: 'thorns', lvl: 3 },
+  'bio+chem+psyche':        { kw: 'poison', lvl: 3 },
+  'cipher+optics+volt':     { kw: 'scry',   lvl: 3 },
+};
+
+export const tripleKey = (a, b, c) => [a, b, c].sort().join('+');
+
+/** Свойство, порождаемое тройкой шестерёнок. Форма совпадает с pairToKeyword. */
+export function tripleToKeyword(g1, g2, g3) {
+  const rec = GEAR_TRIPLES[tripleKey(g1, g2, g3)];
+  if (!rec) return null;
+  const base = KEYWORDS[rec.kw];
+  if (!base) return null;
+  const lvl = rec.lvl ?? base.param ?? 1;
+  return {
+    kw: rec.kw,
+    name: rec.alias || base.name,
+    fx: base.fx,
+    text: base.text,
+    lvl,
+    // тройка встречается реже пары и требует больше шестерёнок — она ценнее
+    priority: base.priority + 1,
+    value: base.value * (lvl > 1 ? 1 + 0.45 * (lvl - 1) : 1) * 1.15,
+    atk: base.atk || 0,
+    hp: base.hp || 0,
+    from: tripleKey(g1, g2, g3),
+    triple: true,
+  };
+}
+
+// -----------------------------------------------------------------------------
 //  Редкость = число слотов под шестерни.
 // -----------------------------------------------------------------------------
 export const RARITIES = [

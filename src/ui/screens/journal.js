@@ -1,7 +1,7 @@
 // Экран «Журнал»: события партии, статистика и справочник шестерёнок/свойств.
 import { el, tooltip } from '../dom.js';
 import { gearSVG } from '../art.js';
-import { GEARS, GEAR_IDS, GEAR_PAIRS, KEYWORDS, DOMAINS, RARITIES, ROMAN_ERA, S, eraOf, DISCOVERY_LIST } from '../shared.js';
+import { GEARS, GEAR_IDS, GEAR_PAIRS, GEAR_TRIPLES, KEYWORDS, DOMAINS, RARITIES, ROMAN_ERA, S, eraOf, DISCOVERY_LIST } from '../shared.js';
 import { app } from '../app.js';
 
 export function renderJournal() {
@@ -96,6 +96,26 @@ export function glossary() {
   }
   // свойства, которых нет в матрице пар (например, Регенерация объявлена отдельно)
   root.append(kwBox);
+
+  // тройки: редкие свойства, которых нет ни в одной паре
+  const triples = Object.entries(GEAR_TRIPLES);
+  if (triples.length) {
+    root.append(el('h4', {}, `Редкие комбинации трёх шестерёнок (${triples.length})`));
+    root.append(el('p', { class: 'hint' }, 'Эти свойства не рождаются ни из одной пары: нужны три разные шестерни на карте, то есть редкость выше обычной. Тройка заменяет слабую парную версию того же свойства, а не складывается с ней.'));
+    root.append(el('div', { class: 'triples' }, triples.map(([key, rec]) => {
+      const kw = KEYWORDS[rec.kw];
+      if (!kw) return null;
+      const gears = key.split('+');
+      return el('div', { class: 'triplecard' }, [
+        el('div', { class: 'triplecard__g', html: gears.map((g) => gearSVG(g, 24)).join('') }),
+        el('div', {}, [
+          el('div', { class: 'triplecard__n', text: `✦ ${rec.alias || kw.name}${rec.lvl && rec.lvl > 1 ? ' ' + 'I'.repeat(rec.lvl) : ''}` }),
+          el('div', { class: 'triplecard__gears', text: gears.map((g) => GEARS[g].name).join(' + ') }),
+          el('div', { class: 'triplecard__t', text: kw.text }),
+        ]),
+      ]);
+    }).filter(Boolean)));
+  }
 
   // эпохи
   root.append(el('h4', {}, 'Эпохи'));

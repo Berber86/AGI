@@ -7,7 +7,7 @@
 //  ограничивает, сколько свойств карта способна вместить.
 // =============================================================================
 
-import { GEARS, DOMAINS, ERAS, RARITIES, eraBase, eraOf, pairKey, pairToKeyword } from './gears.js';
+import { GEARS, DOMAINS, ERAS, RARITIES, eraBase, eraOf, pairKey, pairToKeyword, tripleKey, tripleToKeyword } from './gears.js';
 import { DISCOVERIES } from './discoveries.js';
 import { makeRng, hashString } from './rng.js';
 
@@ -152,6 +152,7 @@ export function generateCard(componentIds, opts = {}) {
   const distinctGears = Object.keys(gearCounts);
   const candidates = [];
   const seenPair = new Set();
+  const seenTriple = new Set();
   for (let i = 0; i < distinctGears.length; i++) {
     for (let j = i; j < distinctGears.length; j++) {
       const g1 = distinctGears[i], g2 = distinctGears[j];
@@ -163,6 +164,39 @@ export function generateCard(componentIds, opts = {}) {
       if (!kw) continue;
       const stack = (g1 === g2 ? gearCounts[g1] : Math.min(gearCounts[g1], gearCounts[g2]));
       candidates.push({ ...kw, stack, score: kw.value + 0.35 * (stack - 1) + (purity === 'pure' ? 0.5 : 0) });
+    }
+  }
+
+  // --- тройки шестерёнок: свойства, недостижимые парами, и усиленные версии ---
+  // Тройка требует три РАЗНЫЕ шестерни, поэтому доступна только картам
+  // редкости выше обычной — это осмысленная награда за число слотов.
+  // Тройка — награда за редкость выше обычной: у однослотной карты kwCap = 1,
+  // и сильнейшая комбинация на дешёвой обычной карте обесценила бы саму идею
+  // «редкость = число слотов». Некоторые открытия несут по три шестерни сами
+  // по себе, поэтому одного числа шестерёнок мало — требуем минимум два слота.
+  const tripleKws = new Set();
+  if (slots >= 2 && distinctGears.length >= 3) {
+    for (let i = 0; i < distinctGears.length; i++) {
+      for (let j = i + 1; j < distinctGears.length; j++) {
+        for (let k = j + 1; k < distinctGears.length; k++) {
+          const g1 = distinctGears[i], g2 = distinctGears[j], g3 = distinctGears[k];
+          const key = tripleKey(g1, g2, g3);
+          if (seenTriple.has(key)) continue;
+          seenTriple.add(key);
+          const kw = tripleToKeyword(g1, g2, g3);
+          if (!kw) continue;
+          tripleKws.add(kw.kw);
+          candidates.push({ ...kw, stack: 1, score: kw.value + 1.2 + (purity === 'pure' ? 0.5 : 0) });
+        }
+      }
+    }
+    // Тройка даёт усиленную версию свойства — слабая парная версия того же
+    // свойства убирается, иначе обе сложатся (lvl 1 + lvl 3 = 4) и карта
+    // получит вдвое больше, чем задумано.
+    if (tripleKws.size) {
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        if (!candidates[i].triple && tripleKws.has(candidates[i].kw)) candidates.splice(i, 1);
+      }
     }
   }
 
@@ -232,9 +266,11 @@ export function generateCard(componentIds, opts = {}) {
     components: discs.map((d, i) => ({ slot: i, disc: d.id, name: d.name, gears: d.gears.slice() })),
     gears: gearList,
     gearCounts,
-    keywords: chosen.map((k) => ({ kw: k.kw, name: k.name, text: k.text, fx: k.fx, lvl: k.lvl, value: k.value, from: k.from })),
+    // флаг triple сохраняется: интерфейс помечает такие свойства отдельно
+    // (это редкая комбинация трёх шестерёнок, а не обычная пара)
+    keywords: chosen.map((k) => ({ kw: k.kw, name: k.name, text: k.text, fx: k.fx, lvl: k.lvl, value: k.value, from: k.from, triple: !!k.triple })),
     unusedKeywords: candidates.filter((c) => !chosen.some((k) => k.kw === c.kw)).slice(0, 4)
-      .map((c) => ({ kw: c.kw, name: c.name, text: c.text, fx: c.fx, lvl: c.lvl, from: c.from })),
+      .map((c) => ({ kw: c.kw, name: c.name, text: c.text, fx: c.fx, lvl: c.lvl, from: c.from, triple: !!c.triple })),
     purity,
     atk, hp, cost, power,
   };

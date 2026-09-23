@@ -1070,3 +1070,21 @@ select.input { cursor: pointer; }
   .scout__vs { flex-wrap: wrap; }
   .scout__odds { order: 3; width: 100%; }
 }
+
+/* --- Тройные комбинации шестерёнок ---------------------------------------- */
+/* Редкое свойство из ТРЁХ шестерёнок: его нет в матрице пар, поэтому помечаем
+   звездой — иначе игрок не отличит его от обычной пары и не поймёт ценность. */
+.disc__add { display: inline; }
+.disc__add--triple { color: #f0d68a; font-weight: 700; }
+.disc__star { font-style: normal; margin-right: 1px; color: #f0d68a; }
+
+.triples { display: flex; flex-direction: column; gap: 6px; }
+.triplecard {
+  display: flex; gap: 9px; align-items: flex-start; padding: 7px 9px;
+  border-radius: 10px; background: #17140e; border: 1px solid var(--line);
+  border-left: 3px solid #f0d68a;
+}
+.triplecard__g { display: flex; gap: 2px; flex: none; }
+.triplecard__n { font-weight: 700; color: #f0d68a; font-size: 12.5px; }
+.triplecard__gears { font-size: 10.5px; color: var(--dim); }
+.triplecard__t { font-size: 11px; color: var(--muted); line-height: 1.4; margin-top: 2px; }

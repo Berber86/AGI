@@ -1111,5 +1111,84 @@ test('ни один клик по карте на любом экране не �
   app.tab = 'map'; render(); await sleep(10);
 });
 
+test('справочник показывает редкие комбинации трёх шестерёнок', async () => {
+  const st = freshHub('journal');
+  await sleep(20);
+  const { GEAR_TRIPLES, KEYWORDS } = await import('../src/engine/gears.js');
+  const n = Object.keys(GEAR_TRIPLES).length;
+  ge(n, 2, 'в матрице троек есть записи');
+
+  const cards = $$('.triplecard');
+  eq(cards.length, n, `в справочнике показаны все ${n} троек`);
+  const text = $('.glossary').textContent;
+  ok(text.includes('Редкие комбинации трёх шестерёнок'), 'раздел троек озаглавлен');
+  // оба прежде недостижимых свойства обязаны быть видны игроку
+  ok(text.includes(KEYWORDS.resolve.name), 'Стойкость в справочнике есть');
+  ok(text.includes(KEYWORDS.bond.name), 'Связь в справочнике есть');
+  ok(cards[0].textContent.includes('✦'), 'тройки помечены звездой');
+  ok(cards[0].querySelectorAll('svg').length === 3, 'у тройки показаны три шестерни: ' + cards[0].querySelectorAll('svg').length);
+});
+
+test('мастерская подсказывает тройку до того, как игрок её соберёт', async () => {
+  const st = freshHub('forge');
+  await sleep(10);
+  const { addedKeywords } = await import('../src/ui/screens/forge.js');
+  const { GEAR_TRIPLES, KEYWORDS, GEARS } = await import('../src/engine/gears.js');
+  const { DISCOVERIES } = await import('../src/engine/discoveries.js');
+  const { checkCombination, compatible } = await import('../src/engine/cardgen.js');
+
+  // Ищем пару, к которой третье открытие добавляет тройку, ПО ПРАВИЛАМ СТАНКА:
+  // chip считается доступным, только если новое открытие попарно совместимо со
+  // всеми уже выбранными (compatible) И набор проходит checkCombination — ровно
+  // это делает движковый compatibleWith(). Одного checkCombination мало: есть
+  // законные по нему наборы, которые станок справедливо не даёт собрать.
+  const buildable = (ids, cand) => ids.every((x) => compatible(x, cand))
+    && checkCombination([...ids, cand]).ok;
+
+  const pool = Object.values(DISCOVERIES);
+  let found = null;
+  outer:
+  for (let i = 0; i < pool.length && !found; i++) {
+    for (let j = i + 1; j < pool.length && !found; j++) {
+      const base = [pool[i].id, pool[j].id];
+      if (!compatible(base[0], base[1]) || !checkCombination(base).ok) continue;
+      for (let k = 0; k < pool.length; k++) {
+        if (k === i || k === j) continue;
+        if (!buildable(base, pool[k].id)) continue;
+        const triple = addedKeywords(base, pool[k].id).find((a) => a.triple);
+        if (triple) { found = { base, cand: pool[k].id, triple }; break outer; }
+      }
+    }
+  }
+  ok(found, 'нашёлся собираемый в станке случай, когда третье открытие замыкает тройку');
+  ok(found && buildable(found.base, found.cand),
+    `пример действительно собираем: ${found ? found.base.join('+') + '+' + found.cand : '—'}`);
+  ok(found.triple.name, 'у подсказанной тройки есть имя');
+  ok(found.triple.from.split('+').length === 3, 'в источнике три шестерни: ' + found.triple.from);
+  ok(found.triple.kw.text, 'и текст правила');
+
+  // тройка должна идти в списке первой — она ценнее пары
+  const all = addedKeywords(found.base, found.cand);
+  eq(all[0].triple, true, 'тройка показана раньше парных свойств');
+
+  // и появляться прямо на чипе открытия в интерфейсе
+  // Станок перечисляет только изученные открытия (st.researched), поэтому базу
+  // и кандидата нужно туда положить. S.research не годится: он проверяет
+  // предшественников и эпоху, а нужная тройка легко оказывается в поздней ветке
+  // дерева. Этот тест про отрисовку подсказки, а не про правила изучения,
+  // поэтому пишем в массив напрямую.
+  for (const id of [...found.base, found.cand]) if (!st.researched.includes(id)) st.researched.push(id);
+  ok(st.researched.includes(found.cand), 'кандидат в списке изученных и попадёт в станок');
+
+  const { forge } = await import('../src/ui/screens/forge.js');
+  forge.slots = 3; forge.picked = [...found.base];
+  render(); await sleep(20);
+  const star = $('.disc__add--triple');
+  ok(star, `в списке открытий тройка помечена звездой (база ${found.base.join('+')} → ${found.cand})`);
+  ok($('.disc__star'), 'звезда отрисована отдельным знаком');
+  ok(star.textContent.includes(found.triple.name),
+    `подпись звезды — имя тройки «${found.triple.name}»: ` + star.textContent);
+});
+
 // экспорт для запуска из tools
 export { renderBattle, boot };
