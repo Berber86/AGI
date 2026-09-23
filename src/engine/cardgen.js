@@ -124,9 +124,14 @@ const FLAVOR = [
  * @param {object} opts — { seed, allowChimeraBonus }
  * @returns {object|null} карта-проект (blueprint) или null, если набор несовместим
  */
-export function generateCard(componentIds, opts = {}) {
+// --- Контекст сборки --------------------------------------------------------
+// Всё, что нужно и генератору, и интерфейсу драфта: набор шестерёнок, чистота
+// линии, потолок свойств и ПОЛНЫЙ пул кандидатов. Вынесено из generateCard,
+// потому что интерфейс обязан показывать игроку тот же пул, из которого
+// генератор выбирает сам, — иначе подсказка и результат разъезжаются.
+function buildContext(componentIds) {
   const check = checkCombination(componentIds);
-  if (!check.ok) return null;
+  if (!check.ok) return { ok: false, reason: check.reason };
 
   const discs = componentIds.map((id) => DISCOVERIES[id]);
   const slots = discs.length;
@@ -134,9 +139,6 @@ export function generateCard(componentIds, opts = {}) {
   const era = Math.max(...discs.map((d) => d.era));
   const domain = dominantDomain(discs);
   const domainInfo = DOMAINS[domain];
-
-  const seed = opts.seed ?? hashString([...componentIds].sort().join('|'));
-  const rng = makeRng(seed);
 
   // --- мультимножество шестерёнок ---
   const gearList = [];
@@ -170,10 +172,8 @@ export function generateCard(componentIds, opts = {}) {
   // --- тройки шестерёнок: свойства, недостижимые парами, и усиленные версии ---
   // Тройка требует три РАЗНЫЕ шестерни, поэтому доступна только картам
   // редкости выше обычной — это осмысленная награда за число слотов.
-  // Тройка — награда за редкость выше обычной: у однослотной карты kwCap = 1,
-  // и сильнейшая комбинация на дешёвой обычной карте обесценила бы саму идею
-  // «редкость = число слотов». Некоторые открытия несут по три шестерни сами
-  // по себе, поэтому одного числа шестерёнок мало — требуем минимум два слота.
+  // Некоторые открытия несут по три шестерни сами по себе, поэтому одного
+  // числа шестерёнок мало — требуем минимум два слота.
   const tripleKws = new Set();
   if (slots >= 2 && distinctGears.length >= 3) {
     for (let i = 0; i < distinctGears.length; i++) {
@@ -205,19 +205,86 @@ export function generateCard(componentIds, opts = {}) {
   if (purity === 'chimera') kwCap += 1; // химера: больше свойств, слабее корпус
 
   candidates.sort((a, b) => (b.priority - a.priority) || (b.score - a.score) || a.name.localeCompare(b.name));
+
+  return {
+    ok: true, discs, slots, rarity, era, domain, domainInfo,
+    gearList, gearCounts, purity, kwCap, candidates, distinctGears,
+  };
+}
+
+/** Устойчивая метка кандидата: одно свойство может прийти из разных пар. */
+export const candidateId = (c) => `${c.kw}|${c.from}`;
+
+/**
+ * Полный пул кандидатов для набора открытий — то, из чего игрок выбирает.
+ * Возвращает { ok:false, reason } для несобираемого набора.
+ */
+export function candidatePool(componentIds) {
+  const ctx = buildContext(componentIds);
+  if (!ctx.ok) return ctx;
+  return {
+    ok: true,
+    slots: ctx.slots,
+    kwCap: ctx.kwCap,
+    purity: ctx.purity,
+    era: ctx.era,
+    domain: ctx.domain,
+    candidates: ctx.candidates.map((c, i) => ({
+      id: candidateId(c), kw: c.kw, name: c.name, text: c.text, fx: c.fx,
+      lvl: c.lvl || 1, value: c.value, from: c.from, triple: !!c.triple,
+      stack: c.stack, priority: c.priority, rank: i,
+    })),
+  };
+}
+
+/**
+ * Выбор свойств под потолок.
+ * draft — метки кандидатов в порядке выбора игрока; неизвестные игнорируются.
+ * Без draft работает авто-подбор по приоритету (прежнее поведение).
+ */
+export function selectKeywords(candidates, kwCap, draft) {
   const chosen = [];
   const usedKw = new Set();
-  for (const c of candidates) {
-    if (chosen.length >= kwCap) break;
+  const take = (c) => {
     if (usedKw.has(c.kw)) {
       // повтор того же свойства ⇒ усиление уровня
       const prev = chosen.find((x) => x.kw === c.kw);
-      if (prev && prev.fx !== 'statBoost' && prev.upgrades < 2) { prev.lvl += c.lvl || 1; prev.upgrades += 1; prev.name = romanize(prev); }
-      continue;
+      if (prev && prev.fx !== 'statBoost' && prev.upgrades < 2) {
+        prev.lvl += c.lvl || 1; prev.upgrades += 1; prev.name = romanize(prev);
+      }
+      return;
     }
     usedKw.add(c.kw);
     chosen.push({ ...c, lvl: c.lvl || 1, upgrades: 0 });
+  };
+  // Пустой массив — это осознанный выбор «карта без свойств» (самый дешёвый
+  // и быстрый вариант), а не откат к авто-подбору. Отличаем по типу, не по длине.
+  if (Array.isArray(draft)) {
+    const byId = new Map(candidates.map((c) => [candidateId(c), c]));
+    for (const id of draft) {
+      if (chosen.length >= kwCap) break;
+      const c = byId.get(id);
+      if (c) take(c);
+    }
+  } else {
+    for (const c of candidates) {
+      if (chosen.length >= kwCap) break;
+      take(c);
+    }
   }
+  return chosen;
+}
+
+export function generateCard(componentIds, opts = {}) {
+  const ctx = buildContext(componentIds);
+  if (!ctx.ok) return null;
+  const { slots, rarity, era, domain, domainInfo, gearList, gearCounts, purity, kwCap, discs } = ctx;
+
+  const seed = opts.seed ?? hashString([...componentIds].sort().join('|'));
+  const rng = makeRng(seed);
+
+  const chosen = selectKeywords(ctx.candidates, kwCap, opts.draft);
+  const drafted = Array.isArray(opts.draft);
 
   // --- характеристики ---
   const base = eraBase(era);
@@ -241,6 +308,8 @@ export function generateCard(componentIds, opts = {}) {
   hp = Math.max(1, Math.round(hp));
 
   // --- стоимость в энергии ---
+  // Свойства входят в силу карты, поэтому драфт — это настоящий размен:
+  // больше свойств ⇒ дороже карта и дольше её не сыграть.
   const power = atk * 1.15 + hp * 0.8 + chosen.reduce((s, k) => s + k.value, 0);
   const cap = eraOf(era).energyCap;
   const cost = Math.max(1, Math.min(cap, Math.round(power / BALANCE.costDivisor(era))));
@@ -269,8 +338,15 @@ export function generateCard(componentIds, opts = {}) {
     // флаг triple сохраняется: интерфейс помечает такие свойства отдельно
     // (это редкая комбинация трёх шестерёнок, а не обычная пара)
     keywords: chosen.map((k) => ({ kw: k.kw, name: k.name, text: k.text, fx: k.fx, lvl: k.lvl, value: k.value, from: k.from, triple: !!k.triple })),
-    unusedKeywords: candidates.filter((c) => !chosen.some((k) => k.kw === c.kw)).slice(0, 4)
+    unusedKeywords: ctx.candidates.filter((c) => !chosen.some((k) => k.kw === c.kw)).slice(0, 6)
       .map((c) => ({ kw: c.kw, name: c.name, text: c.text, fx: c.fx, lvl: c.lvl, from: c.from, triple: !!c.triple })),
+    // пул целиком нужен интерфейсу, чтобы показать выбор, а не только остаток
+    poolSize: ctx.candidates.length,
+    kwCap,
+    drafted,
+    draft: drafted ? chosen.map((k) => candidateId(k)) : null,
+    // сколько свойств игрок НЕ добрал до потолка — цена скорости в энергии
+    spareSlots: Math.max(0, kwCap - chosen.length),
     purity,
     atk, hp, cost, power,
   };

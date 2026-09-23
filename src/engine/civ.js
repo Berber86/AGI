@@ -7,7 +7,7 @@
 
 import { DISCOVERY_LIST, DISCOVERIES, isAvailable } from './discoveries.js';
 import { DOMAINS, DOMAIN_IDS, eraOf, MAX_ERA } from './gears.js';
-import { generateCard, compatible, blueprintCost } from './cardgen.js';
+import { generateCard, compatible, blueprintCost, candidatePool } from './cardgen.js';
 import { makeRng } from './rng.js';
 import { makeUnit } from './units.js';
 import { buildDeck } from './deck.js';
@@ -84,6 +84,108 @@ export function canAttackRegion(state, region) {
  * Собирает «цивилизацию»: набор изученных открытий и колоду юнитов,
  * сгенерированную тем же механизмом, что и карты игрока.
  */
+/**
+ * Предпочтения личностей при драфте свойств.
+ *
+ * Таблица ПОЛНАЯ: каждое свойство из словаря движка имеет вес для каждой из
+ * четырёх личностей. Черновик со списками «любимых» fx молча игнорировал целые
+ * семейства (etb*, death*), из-за чего соперники выбирали почти одинаково и
+ * личность оставалась лишь ручкой сложности. Теперь различие по существу.
+ *
+ * Порядок аргументов: aggro, swarm, midrange, control.
+ */
+export const FX_PROFILE = {
+  // --- темп и давление ---
+  haste:          [3.0, 1.0, 1.0, -1.0],
+  firstStrike:    [2.5, 0.0, 1.0,  0.5],
+  doubleStrike:   [2.5, 0.0, 1.0,  0.5],
+  trample:        [2.5, 0.5, 1.0,  0.0],
+  pierce:         [2.0, 0.0, 1.0,  0.5],
+  frenzy:         [2.5, 1.0, 0.0, -1.0],
+  zeal:           [2.0, 1.5, 0.5, -0.5],
+  overload:       [2.0, 0.0, 0.0, -1.0],
+  ignite:         [2.0, 0.0, 0.5,  0.0],
+  siege:          [2.0, 0.0, 1.5,  0.5],
+  reach:          [1.0, 0.5, 1.5,  2.0],
+  deathtouch:     [1.5, 0.0, 1.0,  2.5],
+  terror:         [1.5, 0.0, 0.5,  2.5],
+  // --- зачистка и подавление ---
+  poison:         [1.0, 0.0, 1.0,  3.0],
+  endPlague:      [-1.0, -1.0, 0.5, 3.0],
+  etbStun:        [0.5, 0.0, 1.0,  2.5],
+  corrode:        [0.5, 0.0, 1.0,  2.5],
+  deathZap:       [0.0, 0.0, 1.0,  2.0],
+  etbBlast:       [1.5, 0.0, 1.0,  2.0],
+  // --- корпус и выживаемость ---
+  armor:          [0.5, 2.0, 2.5,  2.5],
+  indestructible: [0.5, 1.5, 2.0,  3.0],
+  bulwark:        [0.0, 2.5, 2.0,  2.0],
+  shroud:         [0.0, 1.0, 1.5,  2.5],
+  vigilance:      [0.0, 1.5, 2.5,  2.5],
+  regenerate:     [0.0, 2.0, 2.0,  1.5],
+  lifelink:       [1.0, 2.0, 1.5,  1.0],
+  thorns:         [0.0, 1.5, 2.0,  2.0],
+  bond:           [0.0, 2.5, 1.5,  1.0],
+  resolve:        [0.0, 2.0, 2.0,  1.5],
+  statBoost:      [1.5, 1.0, 2.5,  1.5],
+  etbFortify:     [0.0, 2.0, 2.0,  2.0],
+  etbDivine:      [0.0, 1.5, 2.0,  2.5],
+  tactician:      [1.0, 1.0, 2.0,  2.5],
+  // --- рой и размножение ---
+  growth:         [1.5, 3.0, 1.5,  0.0],
+  etbSwarm:       [1.0, 3.0, 1.0,  0.0],
+  deathMartyr:    [0.5, 2.5, 1.5,  1.0],
+  deathEmp:       [0.5, 2.5, 1.5,  1.0],
+  etbInspire:     [1.0, 2.5, 1.5,  1.0],
+  // --- ценность и преимущество по картам ---
+  etbScry:        [0.5, 1.0, 1.5,  3.0],
+  etbCompute:     [0.5, 1.0, 2.0,  3.0],
+  etbDraw:        [0.0, 1.0, 2.0,  3.0],
+  endDraw:        [0.0, 1.0, 2.0,  3.0],
+  endUplink:      [0.0, 0.5, 1.5,  2.5],
+  etbBroadcast:   [0.0, 1.0, 1.5,  2.5],
+  etbRefine:      [0.0, 1.0, 2.0,  2.5],
+  etbDiscount:    [2.0, 1.5, 1.5,  1.5],
+  etbEnergy:      [1.5, 1.0, 1.5,  1.5],
+  etbAdapt:       [1.0, 1.5, 2.0,  2.0],
+  // --- жертва и посмертные эффекты ---
+  deathVolatile:  [1.5, 1.5, 0.5,  0.0],
+  deathRecall:    [0.5, 1.5, 1.5,  2.0],
+  deathWildfire:  [0.5, -0.5, 0.5, 2.0],
+  etbDrain:       [1.5, 1.5, 1.5,  2.0],
+  etbDiscard:     [0.5, 0.0, 1.0,  2.5],
+  etbExhaust:     [0.0, 0.0, 1.0,  2.0],
+};
+
+/** Индекс личности в FX_PROFILE. */
+const PERS_ORDER = { aggro: 0, swarm: 1, midrange: 2, control: 3 };
+
+/**
+ * Склонность к дешёвым свойствам: агрессия берёт много слабого и быстрого,
+ * контроль — мало дорогого и решающего.
+ */
+const CHEAP_BIAS = { aggro: 0.55, swarm: 0.35, midrange: 0.15, control: -0.25 };
+
+/**
+ * Драфт соперника: какие свойства из пула поставить на карту.
+ * Без этого драфт был бы только у игрока, и соперник системно получал бы
+ * худшие карты — сложность сломалась бы не в ту сторону.
+ */
+export function draftForRival(comps, personality) {
+  const pool = candidatePool(comps);
+  if (!pool.ok) return null;
+  const pi = PERS_ORDER[personality] ?? PERS_ORDER.midrange;
+  const cheap = CHEAP_BIAS[personality] ?? 0.15;
+  const scored = pool.candidates.map((c) => {
+    const prof = FX_PROFILE[c.fx] || [0, 0, 0, 0];
+    let s = c.priority * 0.6 + c.value + prof[pi];
+    s += cheap * (8 - Math.min(8, c.value));
+    if (c.triple) s += 0.6;
+    return { id: c.id, s };
+  }).sort((a, b) => b.s - a.s || a.id.localeCompare(b.id));
+  return scored.slice(0, pool.kwCap).map((x) => x.id);
+}
+
 export function buildRival(region, rng, difficulty = 1) {
   const era = region.era;
   const cfgEra = eraOf(era);
@@ -130,7 +232,7 @@ export function buildRival(region, rng, difficulty = 1) {
       comps.push(pickId);
     }
     if (comps.length !== slots) continue;
-    const bp = generateCard(comps, { seed: rng.next() * 1e9 });
+    const bp = generateCard(comps, { seed: rng.next() * 1e9, draft: draftForRival(comps, region.civ.personality) });
     if (!bp) continue;
     blueprints.push(bp);
   }

@@ -5,12 +5,19 @@ import { gearSVG } from '../art.js';
 import {
   DISCOVERIES, DOMAINS, GEARS, GEAR_IDS, GEAR_PAIRS, GEAR_TRIPLES, RARITIES, KEYWORDS, eraOf,
   ROMAN_ERA, S, compatible, checkCombination, generateCard, pairKey, tripleKey, blueprintCost, recruitCost,
+  candidatePool, selectKeywords,
 } from '../shared.js';
 import { app, persist, toast } from '../app.js';
-import { renderForgePreview } from '../cards.js';
+import { renderForgePreview, ROMAN } from '../cards.js';
 import { makeRng } from '../../engine/rng.js';
 
-const forge = { slots: 2, picked: [], filterGear: null, filterDomain: null, filterEra: 0, query: '' };
+// draft === null означает «авто-подбор по приоритету» — прежнее поведение.
+// Как только игрок трогает свойство, включается ручной режим: он сам решает,
+// что из пула поставить на карту и сколько свойств вообще брать.
+const forge = { slots: 2, picked: [], filterGear: null, filterDomain: null, filterEra: 0, query: '', draft: null };
+
+/** Смена набора открытий обнуляет выбор свойств: пул другой. */
+function resetDraft() { forge.draft = null; }
 
 export function renderForge() {
   const st = app.state;
@@ -42,7 +49,7 @@ function slotRack(st) {
       return el('button', {
         class: `rarbtn${forge.slots === n ? ' rarbtn--on' : ''}`,
         style: { '--c': r.color },
-        onclick: () => { forge.slots = n; forge.picked = forge.picked.slice(0, n); refreshForge(); },
+        onclick: () => { forge.slots = n; forge.picked = forge.picked.slice(0, n); resetDraft(); refreshForge(); },
         title: `${r.name}: ${n} слот(ов), свойств до ${r.kwCap}`,
       }, `${n}`);
     })),
@@ -58,7 +65,7 @@ function slotRack(st) {
     const d = id ? DISCOVERIES[id] : null;
     const cell = el('button', {
       class: `slotcell${d ? ' slotcell--on' : ''}`,
-      onclick: () => { forge.picked[i] = null; forge.picked = forge.picked.filter(Boolean); refreshForge(); },
+      onclick: () => { forge.picked[i] = null; forge.picked = forge.picked.filter(Boolean); resetDraft(); refreshForge(); },
     }, d ? [
       el('div', { class: 'slotcell__n', text: `слот ${i + 1}` }),
       el('div', { class: 'slotcell__gears', html: d.gears.map((g) => gearSVG(g, 30)).join('') }),
@@ -91,7 +98,7 @@ function slotRack(st) {
 
   box.append(el('div', { class: 'row' }, [
     btn('🎲 Случайный набор', () => { randomPick(st); refreshForge(); }),
-    btn('∅ Очистить', () => { forge.picked = []; refreshForge(); }),
+    btn('∅ Очистить', () => { forge.picked = []; resetDraft(); refreshForge(); }),
     btn('📖 Матрица шестерёнок', () => matrixModal()),
   ]));
   return box;
@@ -110,9 +117,9 @@ let bpCache = null;
 function currentBlueprint() {
   const ids = forge.picked.filter(Boolean);
   if (!ids.length) { bpCache = null; return null; }
-  const key = ids.join('|');
+  const key = ids.join('|') + '#' + (forge.draft ? forge.draft.join(',') : 'auto');
   if (bpCache && bpCache.key === key) return bpCache.value;
-  const value = generateCard(ids);
+  const value = generateCard(ids, { draft: forge.draft });
   bpCache = { key, value };
   return value;
 }
@@ -270,6 +277,7 @@ function discChip(d, ids) {
       if (alreadyIn || full) { toast(full ? 'Все слоты заняты — уберите одно открытие.' : 'Одно открытие можно поставить не более чем в два слота.', 'bad'); return; }
       if (!comboOk) { toast(checkCombination([...ids, d.id]).reason || 'Не сцепляется с текущим набором.', 'bad', 3600); return; }
       forge.picked.push(d.id);
+      resetDraft();
       refreshForge();
     },
   }, [
@@ -293,6 +301,82 @@ function discChip(d, ids) {
 }
 
 // -----------------------------------------------------------------------------
+/**
+ * Панель драфта свойств.
+ *
+ * Раньше генератор сам брал топ пула по приоритету, и игрок лишь наблюдал
+ * результат: пул в среднем 4–8 кандидатов на потолок 2–4, то есть выбор был,
+ * но его никто не делал. Здесь игрок сам решает, какие свойства поставить
+ * и брать ли потолок целиком — недобранные слоты делают карту дешевле в энергии.
+ */
+function draftPanel(st) {
+  const ids = forge.picked.filter(Boolean);
+  if (!ids.length) return null;
+  const pool = candidatePool(ids);
+  if (!pool.ok || !pool.candidates.length) return null;
+
+  const auto = forge.draft === null;
+  const autoKws = new Set(selectKeywords(pool.candidates, pool.kwCap, null).map((c) => c.kw));
+  const autoIds = pool.candidates.filter((c) => autoKws.has(c.kw)).map((c) => c.id);
+  const selIds = new Set(auto ? autoIds : forge.draft);
+  const selKws = new Set(pool.candidates.filter((c) => selIds.has(c.id)).map((c) => c.kw));
+
+  const toggle = (c) => {
+    const set = new Set(auto ? autoIds : forge.draft);
+    if (set.has(c.id)) set.delete(c.id);
+    else if (set.size >= pool.kwCap) {
+      toast(`Потолок этой карты — ${pool.kwCap} свойств. Сначала уберите одно из выбранных.`, 'bad', 3200);
+      return;
+    } else set.add(c.id);
+    forge.draft = [...set];
+    refreshForge();
+  };
+
+  const box = el('div', { class: 'draft' });
+  box.append(el('div', { class: 'draft__head' }, [
+    el('div', { class: 'draft__title' }, `Свойства · ${selKws.size}/${pool.kwCap}`),
+    el('div', { class: 'draft__pool' }, `в пуле ${pool.candidates.length}`),
+    auto ? null : btn('↺ Авто-подбор', () => { forge.draft = null; refreshForge(); }, 'ghost tiny'),
+  ]));
+
+  // Потолок заполнен — свободные варианты блокируются наглядно, а не отказывают
+  // тостом после клика. Иначе панель выглядит кликабельной, но не отвечает.
+  const full = selIds.size >= pool.kwCap;
+  const list = el('div', { class: 'draft__list' });
+  for (const c of pool.candidates) {
+    const on = selIds.has(c.id);
+    const locked = !on && full;
+    const lvl = (c.lvl || 1) > 1 ? ` ${ROMAN[Math.min(6, c.lvl)]}` : '';
+    const from = c.from.split('+').map((g) => GEARS[g]?.name || g).join(' + ');
+    const node = el('button', {
+      class: 'draft__opt' + (on ? ' is-on' : '') + (locked ? ' is-locked' : ''),
+      onclick: () => toggle(c),
+      disabled: locked,
+      title: locked
+        ? `Потолок ${pool.kwCap} свойств заполнен — сначала уберите одно из выбранных`
+        : `${c.text}\nОткуда: ${from}`,
+    }, [
+      el('span', { class: 'draft__mark' }, on ? '◉' : '○'),
+      el('span', { class: 'draft__name' }, `${c.name}${lvl}`),
+      c.triple ? el('span', { class: 'draft__triple', title: 'Редкая комбинация трёх шестерёнок' }, '✦') : null,
+      el('span', { class: 'draft__from' }, from),
+      el('span', { class: 'draft__val' }, `+${c.value.toFixed(1)}`),
+    ]);
+    list.append(node);
+  }
+  box.append(list);
+
+  const bp = currentBlueprint();
+  const spare = pool.kwCap - selKws.size;
+  box.append(el('div', { class: 'draft__foot' }, [
+    el('div', { class: 'draft__hint' }, spare > 0
+      ? `Недобрано слотов: ${spare}. Меньше свойств — дешевле карта в энергии и раньше выходит в бой.`
+      : `Потолок ${pool.kwCap} свойств заполнен. Уберите одно, чтобы взять другое: каждое свойство входит в силу карты и удорожает её.`),
+    bp ? el('div', { class: 'draft__now' }, `Сейчас: ${bp.atk}⚔ ${bp.hp}♥ за ${bp.cost}⚡`) : null,
+  ]));
+  return box;
+}
+
 function preview(st) {
   const box = el('div', { class: 'forge__preview' });
   const ids = forge.picked.filter(Boolean);
@@ -315,6 +399,8 @@ function preview(st) {
     return box;
   }
 
+  const panel = draftPanel(st);
+  if (panel) box.append(panel);
   box.append(renderForgePreview(bp));
 
   const existing = st.blueprints[bp.key];
@@ -326,12 +412,29 @@ function preview(st) {
   if (!existing) {
     const canAfford = st.materials >= cost;
     actions.append(btn(`🛠 Спроектировать за ${cost} 🧱`, () => {
-      const r = S.craft(st, ids);
+      const r = S.craft(st, ids, forge.draft);
       if (!r.ok) { toast(r.reason, 'bad', 3600); return; }
       persist(); toast(`Проект «${bp.name}» создан!`, 'ok'); refreshForge();
     }, 'primary', { disabled: !canAfford, title: canAfford ? '' : `Нужно ${cost} материалов, у вас ${st.materials}` }));
   } else {
     actions.append(el('div', { class: 'ok' }, `✓ Проект уже в мастерской. Юнитов в ростере: ${owned}.`));
+    // Перековка: пересобрать свойства готового проекта. Нанятые юниты не меняются —
+    // они уже собраны по прежнему чертежу, новая сборка касается будущих наймов.
+    // У проектов из старых сохранений поля draft нет вовсе — нормализуем к null,
+    // иначе кнопка перековки появлялась бы на ровном месте.
+    const stored = existing.draft || null;
+    const same = forge.draft === null ? stored === null
+      : stored !== null && forge.draft.slice().sort().join(',') === stored.slice().sort().join(',');
+    if (!same) {
+      const fee = S.recraftCost(bp);
+      const label = `🔧 Перековать за ${fee} 🧱`;
+      const afford = st.materials >= fee;
+      actions.append(btn(label, () => {
+        const r = S.recraft(st, bp.key, forge.draft);
+        if (!r.ok) { toast(r.reason, 'bad', 3600); return; }
+        persist(); toast(`«${r.bp.name}» перекован.`, 'ok'); refreshForge();
+      }, '', { disabled: !afford, title: afford ? 'Пересобрать свойства чертежа; нанятые юниты не изменятся' : `Нужно ещё ${fee - st.materials} материалов` }));
+    }
   }
   if (existing) {
     actions.append(el('div', { class: 'row' }, [
@@ -363,6 +466,7 @@ function doRecruit(st, key, n) {
 function randomPick(st) {
   const rng = makeRng(Math.random() * 1e9);
   forge.picked = [];
+  resetDraft();
   const ids = st.researched.slice();
   let guard = 0;
   while (forge.picked.length < forge.slots && guard++ < 200) {

@@ -1190,5 +1190,152 @@ test('мастерская подсказывает тройку до того, 
     `подпись звезды — имя тройки «${found.triple.name}»: ` + star.textContent);
 });
 
+// -----------------------------------------------------------------------------
+// Драфт свойств в Мастерской
+suite('Мастерская: драфт свойств');
+
+const DRAFT_COMPS = ['steel', 'automata', 'telegraph'];
+
+async function openDraftForge() {
+  const st = freshHub('forge');
+  await sleep(10);
+  const { forge } = await import('../src/ui/screens/forge.js');
+  forge.slots = DRAFT_COMPS.length;
+  forge.picked = [...DRAFT_COMPS];
+  forge.draft = null;
+  render();
+  await sleep(10);
+  return { st, forge };
+}
+
+test('панель драфта показывает весь пул, а не только выбранные свойства', async () => {
+  const { forge } = await openDraftForge();
+  const { candidatePool } = await import('../src/engine/cardgen.js');
+  const pool = candidatePool(DRAFT_COMPS);
+  ok(pool.ok, 'пул должен собраться');
+  ge(pool.candidates.length, pool.kwCap + 1, 'пул больше потолка');
+  eq($$('.draft__opt').length, pool.candidates.length, 'показан каждый кандидат');
+  ok($('.draft__title').textContent.includes(`${pool.kwCap}`), 'потолок виден в заголовке');
+  ok($('.draft__pool').textContent.includes(String(pool.candidates.length)), 'размер пула виден');
+  ok($('.draft__hint'), 'есть подсказка про размен');
+  ok($('.draft__now'), 'показаны текущие характеристики');
+});
+
+test('в авто-режиме подсвечен выбор генератора и нет кнопки сброса', async () => {
+  await openDraftForge();
+  const on = $$('.draft__opt.is-on').length;
+  ge(on, 1, 'авто-подбор что-то выбрал');
+  le(on, 3, 'и не превысил потолок');
+  eq($$('.draft__head .btn').length, 0, 'кнопка «Авто-подбор» нужна только в ручном режиме');
+});
+
+test('клик по свойству переключает выбор и пересчитывает карту', async () => {
+  const { forge } = await openDraftForge();
+  const before = $('.draft__now').textContent;
+  // снимаем первое выбранное и берём последнее из пула
+  $$('.draft__opt.is-on')[0].click();
+  await sleep(10);
+  ok(Array.isArray(forge.draft), 'включился ручной режим');
+  ok($('.draft__head .btn'), 'появилась кнопка возврата к авто-подбору');
+  const opts = $$('.draft__opt');
+  opts[opts.length - 1].click();
+  await sleep(10);
+  eq($$('.draft__opt.is-on').length, forge.draft.length, 'подсветка соответствует выбору');
+  ne($('.draft__now').textContent, before, 'характеристики пересчитаны');
+});
+
+test('потолок свойств не пробивается кликами', async () => {
+  const { forge } = await openDraftForge();
+  const { candidatePool } = await import('../src/engine/cardgen.js');
+  const cap = candidatePool(DRAFT_COMPS).kwCap;
+  // освобождаем слот: в авто-режиме потолок уже занят
+  $$('.draft__opt.is-on')[0].click();
+  await sleep(10);
+  for (let i = 0; i < cap + 3; i++) {
+    const free = $$('.draft__opt:not(.is-on):not([disabled])');
+    if (!free.length) break;
+    free[0].click();
+    await sleep(10);
+  }
+  le($$('.draft__opt.is-on').length, cap, 'больше потолка выбрать нельзя');
+  ok(Array.isArray(forge.draft), 'режим ручной');
+  le(forge.draft.length, cap, 'состояние тоже ограничено потолком');
+});
+
+test('при полном потолке свободные варианты заблокированы, а не молча отклоняются', async () => {
+  const { forge } = await openDraftForge();
+  const { candidatePool } = await import('../src/engine/cardgen.js');
+  const cap = candidatePool(DRAFT_COMPS).kwCap;
+  // авто-режим: потолок занят ⇒ все невыбранные заблокированы
+  const locked = $$('.draft__opt.is-locked');
+  ge(locked.length, 1, 'свободные варианты помечены как заблокированные');
+  ok(locked.every((n) => n.disabled), 'заблокированный вариант не нажимается');
+  ok(/Потолок/.test(locked[0].title), 'причина объяснена в подсказке: ' + locked[0].title);
+  ok(/Потолок/.test($('.draft__hint').textContent), 'и в тексте под списком');
+  // освободили слот ⇒ блокировка снята
+  $$('.draft__opt.is-on')[0].click();
+  await sleep(10);
+  le($$('.draft__opt.is-locked').length, locked.length - 1, 'появился доступный вариант');
+  ok($$('.draft__opt:not(.is-on):not([disabled])').length > 0, 'есть что выбрать');
+  eq(forge.draft.length, cap - 1, 'слот освобождён');
+});
+
+test('кнопка возврата восстанавливает авто-подбор', async () => {
+  const { forge } = await openDraftForge();
+  $$('.draft__opt.is-on')[0].click();
+  await sleep(10);
+  ok(forge.draft !== null, 'режим ручной');
+  $('.draft__head .btn').click();
+  await sleep(10);
+  eq(forge.draft, null, 'выбор сброшен к авто');
+  eq($$('.draft__head .btn').length, 0, 'кнопка сброса исчезла');
+});
+
+test('проектирование сохраняет выбор игрока, а не топ пула', async () => {
+  const { st, forge } = await openDraftForge();
+  for (const id of DRAFT_COMPS) if (!st.researched.includes(id)) st.researched.push(id);
+  st.materials = 5000;
+  render(); await sleep(10);
+  // освобождаем все слоты авто-подбора и берём одно свойство из конца пула —
+  // заведомо не то, что выбрал бы генератор
+  while ($$('.draft__opt.is-on').length) {
+    $$('.draft__opt.is-on')[0].click();
+    await sleep(10);
+  }
+  const opts = $$('.draft__opt');
+  opts[opts.length - 1].click();
+  await sleep(10);
+  eq($$('.draft__opt.is-on').length, 1, 'выбрано ровно одно свойство');
+  const wanted = $$('.draft__opt.is-on')[0].textContent;
+  const craftBtn = $$('.forge__actions .btn').find((b) => b.textContent.includes('Спроектировать'));
+  ok(craftBtn, 'кнопка проектирования на месте');
+  craftBtn.click();
+  await sleep(10);
+  const keys = Object.keys(st.blueprints);
+  eq(keys.length >= 1, true, 'проект создан');
+  const bp = st.blueprints[keys.find((k) => k.includes('steel')) || keys[keys.length - 1]];
+  ok(bp.drafted, 'чертёж помечен как драфт');
+  eq(bp.keywords.length, 1, 'ровно одно выбранное свойство');
+  ok(wanted.includes(bp.keywords[0].name), `в карточке то, что кликнули: ${bp.keywords[0].name} из «${wanted}»`);
+  eq(forge.draft.length, 1, 'выбор не сброшен после крафта');
+});
+
+test('у готового проекта появляется перековка с ценой', async () => {
+  const { st } = await openDraftForge();
+  for (const id of DRAFT_COMPS) if (!st.researched.includes(id)) st.researched.push(id);
+  st.materials = 5000;
+  S.craft(st, DRAFT_COMPS, []);
+  render(); await sleep(10);
+  // выбор игрока теперь авто, а сохранён пустой драфт — перековка нужна
+  const re = $$('.forge__actions .btn').find((b) => b.textContent.includes('Перековать'));
+  ok(re, 'кнопка перековки показана');
+  ok(/\d+/.test(re.textContent), 'в подписи есть цена: ' + re.textContent);
+  const before = st.materials;
+  re.click();
+  await sleep(10);
+  le(st.materials, before, 'плата взята');
+  ge(st.blueprints[[...DRAFT_COMPS].sort().join('+')].keywords.length, 1, 'свойства пересобраны');
+});
+
 // экспорт для запуска из tools
 export { renderBattle, boot };

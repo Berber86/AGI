@@ -171,13 +171,17 @@ export function advanceEra(state) {
 }
 
 // --- Мастерская: создание проектов и найм ------------------------------------
-export function canCraft(state, comps) {
+/**
+ * draft — выбор игрока: какие свойства из пула поставить на карту.
+ * Без него генератор берёт топ по приоритету (прежнее поведение).
+ */
+export function canCraft(state, comps, draft = null) {
   const chk = checkCombination(comps);
   if (!chk.ok) return { ok: false, reason: chk.reason };
   for (const id of comps) {
     if (!state.researched.includes(id)) return { ok: false, reason: `«${DISCOVERIES[id]?.name}» не изучено.` };
   }
-  const bp = generateCard(comps);
+  const bp = generateCard(comps, { draft });
   if (!bp) return { ok: false, reason: 'Не удалось собрать.' };
   const cost = blueprintCost(bp);
   if (state.blueprints[bp.key]) return { ok: false, reason: 'Такой проект уже есть — можно просто нанять юнитов.', bp };
@@ -185,14 +189,52 @@ export function canCraft(state, comps) {
   return { ok: true, bp, cost };
 }
 
-export function craft(state, comps) {
-  const chk = canCraft(state, comps);
+export function craft(state, comps, draft = null) {
+  const chk = canCraft(state, comps, draft);
   if (!chk.ok) return chk;
   state.materials -= chk.cost;
   state.blueprints[chk.bp.key] = chk.bp;
   state.stats.crafted += 1;
-  push(state, `🛠 Спроектирован «${chk.bp.name}» (${chk.bp.rarityName}, ${chk.bp.atk}/${chk.bp.hp} за ${chk.bp.cost}⚡) за ${chk.cost} материалов.`, 'good');
+  const kws = chk.bp.keywords.length
+    ? chk.bp.keywords.map((k) => k.name).join(', ')
+    : 'без свойств';
+  push(state, `🛠 Спроектирован «${chk.bp.name}» (${chk.bp.rarityName}, ${chk.bp.atk}/${chk.bp.hp} за ${chk.bp.cost}⚡; ${kws}) за ${chk.cost} материалов.`, 'good');
   return { ok: true, bp: chk.bp, cost: chk.cost };
+}
+
+/** Доля стоимости проекта, которую берут за переработку свойств. */
+export const REWORK_SHARE = 0.4;
+
+/**
+ * Цена перековки. Не зависит от того, какие свойства выбраны: стоимость проекта
+ * в материалах определяется открытиями и числом слотов, а ценой свойства служит
+ * энергия (bp.cost) — она уже растёт вместе с силой карты. Плата здесь только за
+ * сам факт переработки чертежа, чтобы смена решения не была бесплатной.
+ */
+export function recraftCost(bp) {
+  return Math.max(1, Math.round(blueprintCost(bp) * REWORK_SHARE));
+}
+
+/**
+ * Перековка: пересобрать свойства уже существующего проекта.
+ * Нанятые юниты не меняются: они уже собраны по прежнему чертежу.
+ */
+export function recraft(state, key, draft) {
+  const old = state.blueprints[key];
+  if (!old) return { ok: false, reason: 'Нет такого проекта.' };
+  const comps = old.components.map((c) => c.disc);
+  const next = generateCard(comps, { draft });
+  if (!next) return { ok: false, reason: 'Не удалось пересобрать.' };
+  const fee = recraftCost(next);
+  if (state.materials < fee) {
+    return { ok: false, reason: `Перековка стоит ${fee} материалов (есть ${state.materials}).`, bp: next };
+  }
+  state.materials -= fee;
+  state.blueprints[key] = next;
+  state.stats.recrafted = (state.stats.recrafted || 0) + 1;
+  const kws = next.keywords.length ? next.keywords.map((k) => k.name).join(', ') : 'без свойств';
+  push(state, `🔧 «${next.name}» перекован за ${fee} 🧱: ${kws} (${next.atk}/${next.hp} за ${next.cost}⚡).`, 'good');
+  return { ok: true, bp: next, fee };
 }
 
 export function unitCost(state, bpKey) {
