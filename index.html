@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Верфь на костях — космический рогалик</title>
+<meta name="description" content="Рогалик про сборку космического корабля из трофейных модулей: прозрачные шансы, заточка, отход из боя и четыре жизни на три сектора.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app" class="app">
+  <header id="statusbar" class="statusbar" hidden></header>
+  <main id="screen" class="screen" aria-live="polite"></main>
+  <section id="logpanel" class="logpanel" hidden>
+    <h2 class="logpanel__title">Журнал</h2>
+    <ol id="log-list" class="logpanel__list"></ol>
+  </section>
+</div>
+<div id="toasts" class="toasts" aria-live="assertive"></div>
+<noscript class="noscript">Игра работает на JavaScript: без него верфь не открыть.</noscript>
+<script type="module" src="src/ui/app.js"></script>
+</body>
+</html>

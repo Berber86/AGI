@@ -7,3 +7,8 @@ __pycache__/
 
 # Генерируемый HTML-отчёт визуализации метрик (история — в memory/09-metrics-history.json).
 docs/metrics.html
+
+# Зависимости интерфейса игры (jsdom для смоук-прогона) и локальный мусор.
+node_modules/
+.DS_Store
+*.log
