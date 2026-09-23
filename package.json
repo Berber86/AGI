@@ -1,0 +1,14 @@
+{
+  "name": "gears-of-ages",
+  "version": "1.0.0",
+  "description": "ШЕСТЕРНИ ЭПОХ — гибрид MTG и Civilization: юниты-карты генерируются из совместимости научных открытий",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "serve": "node tools/serve.mjs 8080"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.1"
+  }
+}

@@ -1,9 +1,6 @@
-# Эфемерные файлы одноразового допуска; результат сохраняется marker-ом в логе.
+node_modules/
 .runtime/
-
-# Локальные кэши Python.
-__pycache__/
-*.py[cod]
-
-# Генерируемый HTML-отчёт визуализации метрик (история — в memory/09-metrics-history.json).
-docs/metrics.html
+.cache/
+.runtime/
+*.log
+.DS_Store
