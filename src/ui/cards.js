@@ -76,6 +76,45 @@ function gearRow(gearCounts, size = 22, max = 8) {
   return box;
 }
 
+// --- объёмный наклон карты --------------------------------------------------
+// Один делегированный слушатель на документ вместо обработчика на каждой карте:
+// карт на экране бывает несколько десятков, а наклон нужен только той, что под
+// указателем. Координаты пишутся в CSS-переменные, вся работа — в стилях.
+let tiltArmed = false;
+function armTilt() {
+  if (tiltArmed || typeof document === 'undefined') return;
+  tiltArmed = true;
+  const w = typeof window !== 'undefined' ? window : null;
+  // Тач и «меньше движения» — без наклона: там он только мешает.
+  const fine = w && typeof w.matchMedia === 'function'
+    && w.matchMedia('(hover: hover) and (pointer: fine)').matches
+    && !w.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!fine) return;
+
+  let card = null;
+  document.addEventListener('pointermove', (e) => {
+    const hit = e.target instanceof Element ? e.target.closest('.card--tilt') : null;
+    if (hit !== card) {
+      if (card) { card.style.removeProperty('--rx'); card.style.removeProperty('--ry'); }
+      card = hit;
+    }
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const px = (e.clientX - r.left) / r.width;    // 0..1 по ширине
+    const py = (e.clientY - r.top) / r.height;    // 0..1 по высоте
+    card.style.setProperty('--ry', `${((px - 0.5) * 9).toFixed(2)}deg`);
+    card.style.setProperty('--rx', `${((0.5 - py) * 7).toFixed(2)}deg`);
+    card.style.setProperty('--mx', `${(px * 100).toFixed(1)}%`);
+    card.style.setProperty('--my', `${(py * 100).toFixed(1)}%`);
+  }, { passive: true });
+  document.addEventListener('pointerleave', () => {
+    if (!card) return;
+    card.style.removeProperty('--rx'); card.style.removeProperty('--ry');
+    card = null;
+  }, { passive: true });
+}
+
 /**
  * @param {object} entity — проект / юнит / боевая единица
  * @param {object} o — { size, onClick, selected, playable, dim, showKeywords, states, classes }
@@ -85,6 +124,9 @@ export function renderCard(entity, o = {}) {
   const size = o.size || 'md';
   const dom = DOMAINS[v.domain] || DOMAINS.craft;
   const cls = ['card', `card--${size}`, `rarity-${v.rarity || 'common'}`];
+  // Объёмный наклон — только для витринных размеров и только вне боя: в бою
+  // трансформацию карты уже занимают состояния (поворот, подсветка атаки).
+  if ((size === 'md' || size === 'lg') && !v.isBattle) cls.push('card--tilt');
   if (o.selected) cls.push('is-selected');
   if (o.playable) cls.push('is-playable');
   if (o.dim) cls.push('is-dim');
@@ -145,6 +187,7 @@ export function renderCard(entity, o = {}) {
     statsNode,
   ]));
 
+  armTilt();
   const node = el('div', { class: cls.join(' '), dataset: o.dataset || {} }, children);
   node.style.setProperty('--dom', dom.color);
   node.style.setProperty('--rarity', v.rarityColor);
