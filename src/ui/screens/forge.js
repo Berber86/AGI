@@ -102,10 +102,54 @@ function currentPurity() {
   return bp ? bp.purity : 'mixed';
 }
 
+/**
+ * generateCard дёргается на каждую перерисовку по нескольку раз (чистота линии,
+ * список пар, предпросмотр), поэтому результат кэшируем по набору открытий.
+ */
+let bpCache = null;
 function currentBlueprint() {
   const ids = forge.picked.filter(Boolean);
-  if (!ids.length) return null;
-  return generateCard(ids);
+  if (!ids.length) { bpCache = null; return null; }
+  const key = ids.join('|');
+  if (bpCache && bpCache.key === key) return bpCache.value;
+  const value = generateCard(ids);
+  bpCache = { key, value };
+  return value;
+}
+
+/**
+ * Какие пары шестерёнок добавит открытие, если положить его в следующий слот.
+ * Это главная информация в Мастерской: игрок выбирает не «+2/+3», а свойство.
+ */
+export function addedKeywords(ids, cand) {
+  const d = DISCOVERIES[cand];
+  if (!d) return [];
+  const have = [];
+  for (const id of ids) have.push(...(DISCOVERIES[id]?.gears || []));
+  const seen = new Set();
+  const out = [];
+  for (const g of d.gears) {
+    // пары новой шестерни с уже лежащими в станке
+    for (const h of have) {
+      const rec = GEAR_PAIRS[pairKey(g, h)];
+      if (!rec) continue;
+      const kw = KEYWORDS[rec.kw];
+      if (!kw || seen.has(kw.kw)) continue;
+      seen.add(kw.kw);
+      out.push({ name: rec.alias || kw.name, kw, from: `${GEARS[g].name} + ${GEARS[h].name}` });
+    }
+    // пара внутри самого открытия (две его шестерни)
+    for (const g2 of d.gears) {
+      if (g2 === g) continue;
+      const rec = GEAR_PAIRS[pairKey(g, g2)];
+      if (!rec) continue;
+      const kw = KEYWORDS[rec.kw];
+      if (!kw || seen.has(kw.kw)) continue;
+      seen.add(kw.kw);
+      out.push({ name: rec.alias || kw.name, kw, from: `внутри «${d.name}»` });
+    }
+  }
+  return out;
 }
 
 function pairList(bp) {
@@ -191,6 +235,7 @@ function discChip(d, ids) {
   const alreadyIn = ids.includes(d.id) && ids.filter((x) => x === d.id).length >= 2;
   const fits = ids.length === 0 || ids.every((x) => compatible(x, d.id));
   const comboOk = !full && !alreadyIn && fits && checkCombination([...ids, d.id]).ok;
+  const adds = comboOk ? addedKeywords(ids, d.id) : [];
   const node = el('div', {
     class: `disc${comboOk ? ' disc--ok' : ' disc--no'}${ids.includes(d.id) ? ' disc--in' : ''}`,
     style: { '--c': DOMAINS[d.domain].color },
@@ -204,12 +249,15 @@ function discChip(d, ids) {
     el('div', { class: 'disc__gears', html: d.gears.map((g) => gearSVG(g, 22)).join('') }),
     el('div', { class: 'disc__name', text: d.name }),
     el('div', { class: 'disc__meta', text: `+${d.atk}/+${d.hp}` }),
+    adds.length ? el('div', { class: 'disc__adds', text: adds.slice(0, 2).map((a) => a.name).join(' · ') }) : null,
     el('div', { class: 'disc__dom', text: DOMAINS[d.domain].glyph }),
   ]);
   tooltip(node, `<b>${d.name}</b> · эпоха ${ROMAN_ERA[d.era]} · ${DOMAINS[d.domain].name}<br>
     Шестерни: ${d.gears.map((g) => `${GEARS[g].name}`).join(', ')}<br>
     Вклад в юнита: +${d.atk} атаки, +${d.hp} здоровья<br>
-    ${ids.length ? (comboOk ? '<span class="tip-ok">Сцепляется с набором ✓</span>' : '<span class="tip-bad">Не сцепляется: нет общей шестерни, домена или преемственности</span>') : ''}`);
+    ${ids.length ? (comboOk ? '<span class="tip-ok">Сцепляется с набором ✓</span>' : '<span class="tip-bad">Не сцепляется: нет общей шестерни, домена или преемственности</span>') : ''}
+    ${adds.length ? '<br><span class="tip-kw">Добавит свойства: ' + adds.map((a) => `${a.name} (${a.from})`).join(', ') + '</span>' : ''}
+    ${ids.length === 0 ? '<br><span class="tip-sub">Первое открытие в станке: свойства появятся со вторым</span>' : ''}`);
   return node;
 }
 

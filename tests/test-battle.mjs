@@ -3,7 +3,7 @@ import {
   createBattle, startTurn, endTurn, resolveCombat, beginCombat, canAttack, canPlay, playCard,
   isAlive, unitAtk, unitHp, unitArmor, side, enemySide, makeBattleUnit, aggregateFx,
   dealDamage, damageLeader, legalBlockers, assignBlock, bulwarkHp, autoBlock, terrorLocked,
-  boardRoom, maxBlocks, drawCards,
+  boardRoom, maxBlocks, drawCards, predictCombat, predictUnblocked, cloneBattle,
 } from '../src/engine/battle.js';
 import { autoplay } from '../src/engine/autoplay.js';
 import { aiDeclareAttack, aiPlayOne } from '../src/engine/ai.js';
@@ -613,4 +613,233 @@ test('автоблок защищает от летала, когда это в�
   autoBlock(b, 'foe');
   eq((b.blockers[atk.uid] || []).length, 1, 'при летале ИИ обязан блокировать');
   eq(b.blockers[atk.uid][0], wall.uid);
+});
+
+
+// --- прогноз боя -------------------------------------------------------------
+suite('Бой: прогноз (predictCombat)');
+
+/**
+ * Прогоняет сценарий дважды — сначала прогнозом, затем настоящим боем —
+ * и сверяет урон лидерам и списки потерь. Прогноз обязан совпадать точно,
+ * иначе интерфейс будет обещать игроку не то, что случится.
+ */
+function assertPrediction(name, setup, blocksFor) {
+  const mk = () => {
+    const b = mkBattle([], [], 1);
+    const ids = setup(b);
+    b.phase = 'main1';
+    b.attacking = ids.atk;
+    return { b, ids };
+  };
+
+  const { b: pb, ids: pids } = mk();
+  const blocks = blocksFor(pids);
+  const beforeP = { me: pb.sides.me.leader.hp, foe: pb.sides.foe.leader.hp };
+  const p = predictCombat(pb, blocks);
+
+  const { b: rb, ids: rids } = mk();
+  const beforeR = { me: rb.sides.me.leader.hp, foe: rb.sides.foe.leader.hp };
+  rb.blockers = {};
+  for (const [aid, list] of Object.entries(blocksFor(rids))) if (list.length) assignBlock(rb, aid, list);
+  resolveCombat(rb);
+  const realLoss = { me: rb.sides.me.grave.map((u) => u.name), foe: rb.sides.foe.grave.map((u) => u.name) };
+
+  eq(p.leaderDelta.me, rb.sides.me.leader.hp - beforeR.me, `${name}: урон моему лидеру`);
+  eq(p.leaderDelta.foe, rb.sides.foe.leader.hp - beforeR.foe, `${name}: урон лидеру соперника`);
+  eq(beforeP.me, beforeR.me, `${name}: прогноз не изменил живой бой`);
+  eq(p.losses.me.map((x) => x.name).sort().join(','), realLoss.me.sort().join(','), `${name}: мои потери`);
+  eq(p.losses.foe.map((x) => x.name).sort().join(','), realLoss.foe.sort().join(','), `${name}: потери соперника`);
+}
+
+test('прогноз совпадает с настоящим боем: атака без блока', () => {
+  assertPrediction('без блока', (b) => ({ atk: [deploy(b, 'me', bp('А', 4, 4)).uid] }), () => ({}));
+});
+
+test('прогноз совпадает: взаимный размен через блок', () => {
+  assertPrediction('размен', (b) => {
+    const a = deploy(b, 'me', bp('А', 4, 4));
+    const d = deploy(b, 'foe', bp('Д', 4, 4));
+    return { atk: [a.uid], d };
+  }, (ids) => ({ [ids.atk[0]]: [ids.d.uid] }));
+});
+
+test('прогноз совпадает: Топот пропускает избыток в лидера', () => {
+  assertPrediction('топот', (b) => {
+    const a = deploy(b, 'me', bp('А', 7, 4, 1, [{ fx: 'trample' }]));
+    const d = deploy(b, 'foe', bp('Д', 1, 2));
+    return { atk: [a.uid], d };
+  }, (ids) => ({ [ids.atk[0]]: [ids.d.uid] }));
+});
+
+test('прогноз совпадает: Первый удар убивает блокера до ответного удара', () => {
+  assertPrediction('первый удар', (b) => {
+    const a = deploy(b, 'me', bp('А', 3, 3, 1, [{ fx: 'firstStrike' }]));
+    const d = deploy(b, 'foe', bp('Д', 3, 3));
+    return { atk: [a.uid], d };
+  }, (ids) => ({ [ids.atk[0]]: [ids.d.uid] }));
+});
+
+test('прогноз совпадает: Двойной удар бьёт дважды', () => {
+  assertPrediction('двойной удар', (b) => {
+    const a = deploy(b, 'me', bp('А', 2, 4, 1, [{ fx: 'doubleStrike' }]));
+    const d = deploy(b, 'foe', bp('Д', 1, 4));
+    return { atk: [a.uid], d };
+  }, (ids) => ({ [ids.atk[0]]: [ids.d.uid] }));
+});
+
+test('прогноз совпадает: Шипы возвращают урон атакующему', () => {
+  assertPrediction('шипы', (b) => {
+    const a = deploy(b, 'me', bp('А', 2, 2));
+    const d = deploy(b, 'foe', bp('Д', 1, 6, 1, [{ fx: 'thorns', lvl: 2 }]));
+    return { atk: [a.uid], d };
+  }, (ids) => ({ [ids.atk[0]]: [ids.d.uid] }));
+});
+
+test('прогноз совпадает: два атакующих, Стратег блокирует двоих', () => {
+  assertPrediction('стратег', (b) => {
+    const a1 = deploy(b, 'me', bp('А1', 3, 3));
+    const a2 = deploy(b, 'me', bp('А2', 2, 2));
+    const wall = deploy(b, 'foe', bp('Стратег', 2, 8, 1, [{ fx: 'tactician' }]));
+    return { atk: [a1.uid, a2.uid], wall };
+  }, (ids) => ({ [ids.atk[0]]: [ids.wall.uid], [ids.atk[1]]: [ids.wall.uid] }));
+});
+
+test('прогноз не мутирует живой бой и не тратит его случайность', () => {
+  const b = mkBattle([], [], 1);
+  const a = deploy(b, 'me', bp('А', 4, 4));
+  deploy(b, 'foe', bp('Д', 2, 5));
+  b.phase = 'main1'; b.attacking = [a.uid];
+  const hpMe = b.sides.me.leader.hp, hpFoe = b.sides.foe.leader.hp;
+  const logLen = b.log.length;
+  const dmgBefore = b.sides.foe.board.map((u) => u.damage).join(',');
+  for (let i = 0; i < 5; i++) predictCombat(b, {});
+  eq(b.sides.me.leader.hp, hpMe);
+  eq(b.sides.foe.leader.hp, hpFoe);
+  eq(b.log.length, logLen, 'прогноз не пишет в журнал настоящего боя');
+  eq(b.sides.foe.board.map((u) => u.damage).join(','), dmgBefore);
+  eq(b.blockers && Object.keys(b.blockers).length, 0, 'прогноз не назначает блоки в настоящем бою');
+});
+
+test('клон боя независим: ГПСЧ отдельный, данные равны', () => {
+  const b = mkBattle([], [], 2);
+  deploy(b, 'me', bp('А', 3, 3));
+  const c = cloneBattle(b, 'test');
+  ne(c, b);
+  eq(c.sides.me.board.length, b.sides.me.board.length);
+  eq(c.sides.me.board[0].uid, b.sides.me.board[0].uid, 'uid сохраняются — по ним интерфейс ищет ячейки');
+  eq(c.__clone, true);
+  // Эталон — второй такой же бой (mkBattle детерминирован по сиду 'test'),
+  // чей ГПСЧ никто не трогал. Прогоняем клон и прогноз, затем сверяем потоки.
+  const ref = mkBattle([], [], 2);
+  deploy(ref, 'me', bp('А', 3, 3));
+  for (let i = 0; i < 5; i++) { c.rng.int(1e6); predictCombat(b, {}); }
+  eq(b.rng.int(1e6), ref.rng.int(1e6), 'ГПСЧ настоящего боя не сдвинут ни клоном, ни прогнозом');
+});
+
+test('predictUnblocked считает суммарный урон лидеру без блоков', () => {
+  const b = mkBattle([], [], 1);
+  const a = deploy(b, 'me', bp('А', 4, 4));
+  const c = deploy(b, 'me', bp('Б', 3, 3));
+  const sick = deploy(b, 'me', bp('В', 9, 9));
+  b.phase = 'main1'; b.attacking = [a.uid, c.uid];
+  const p = predictUnblocked(b);
+  eq(p.dmg, 7);
+  eq(p.count, 2);
+  eq(p.names.join(','), 'А,Б');
+  // юнит не в списке атакующих не учитывается
+  eq(predictUnblocked(b, [sick.uid]).dmg, 9);
+  eq(predictUnblocked(b, []).dmg, 0);
+});
+
+test('predictUnblocked учитывает Двойной удар: юнит бьёт лидера дважды', () => {
+  const b = mkBattle([], [], 1);
+  const twin = deploy(b, 'me', bp('Двойник', 3, 3, 1, [{ fx: 'doubleStrike' }]));
+  const first = deploy(b, 'me', bp('Первый', 4, 4, 1, [{ fx: 'firstStrike' }]));
+  b.phase = 'main1'; b.attacking = [twin.uid, first.uid];
+  const p = predictUnblocked(b);
+  // Двойной удар проходит оба фильтра dealRound → 3+3, Первый удар меняет порядок, не сумму → 4
+  eq(p.gross, 10, 'сумма урона: 3×2 + 4');
+  eq(p.dmg, 10);
+  ok(p.names.some((n) => n.includes('×2')), 'двойной удар помечен в списке: ' + p.names.join(', '));
+
+  // сверяем с настоящим боем без блоков
+  const b2 = mkBattle([], [], 1);
+  const t2 = deploy(b2, 'me', bp('Двойник', 3, 3, 1, [{ fx: 'doubleStrike' }]));
+  const f2 = deploy(b2, 'me', bp('Первый', 4, 4, 1, [{ fx: 'firstStrike' }]));
+  b2.phase = 'main1'; b2.attacking = [t2.uid, f2.uid]; b2.blockers = {};
+  const hpBefore = side(b2, 'foe').leader.hp;
+  resolveCombat(b2);
+  eq(hpBefore - side(b2, 'foe').leader.hp, 10, 'прогноз совпал с реальным уроном лидеру');
+});
+
+test('predictUnblocked вычитает броню лидера, которую гасит damageLeader', () => {
+  const b = mkBattle([], [], 1);
+  const a = deploy(b, 'me', bp('А', 5, 5));
+  side(b, 'foe').leader.armor = 3;
+  b.phase = 'main1'; b.attacking = [a.uid];
+  const p = predictUnblocked(b);
+  eq(p.gross, 5, 'валовый урон');
+  eq(p.absorbed, 3, 'броня поглотила 3');
+  eq(p.dmg, 2, 'лидеру дойдёт 2');
+  eq(p.armorLeft, 0, 'броня израсходована');
+
+  const hpBefore = side(b, 'foe').leader.hp;
+  resolveCombat(b);
+  eq(hpBefore - side(b, 'foe').leader.hp, p.dmg, 'прогноз совпал с боем');
+});
+
+test('predictCombat не подменяет блоки автоблоком, когда защищается ИИ', () => {
+  // resolveCombat сам ставит автоблок при defSide.isHuman === false. Прогноз
+  // обязан показывать назначение игрока, а не чужую расстановку: иначе на этапе
+  // атаки интерфейс обещает урон, которого в бою не будет.
+  const mk = () => {
+    const b = mkBattle([], [], 1);
+    side(b, 'foe').isHuman = false;              // защищается ИИ
+    const a = deploy(b, 'me', bp('Атакующий', 4, 4));
+    deploy(b, 'foe', bp('Заступник', 2, 5));     // ИИ закрыл бы им
+    b.phase = 'combatDeclare'; b.active = 'me'; b.attacking = [a.uid]; b.blockers = {};
+    return b;
+  };
+
+  const snap = predictCombat(mk(), {});          // «блокировать нечем/не будем»
+  eq(snap.leaderDelta.foe, -4, 'без блоков весь урон уходит лидеру ИИ');
+  eq(snap.damageToDefender, 4);
+  eq(snap.blocked, false, 'автоблок не подставился');
+
+  // а если игрок сам назначил блок — прогноз обязан показать именно его
+  const b2 = mk();
+  const blocker = side(b2, 'foe').board[0];
+  const snap2 = predictCombat(b2, { [b2.attacking[0]]: [blocker.uid] });
+  eq(snap2.blocked, true, 'назначение игрока принято');
+  eq(snap2.leaderDelta.foe, 0, 'урон лидеру не прошёл — его закрыли');
+  ok(snap2.wounded.some((w) => w.uid === blocker.uid), 'урон получил именно назначенный блокер');
+
+  // клон не должен испортить настоящий бой
+  const b3 = mk();
+  predictCombat(b3, {});
+  eq(Object.keys(b3.blockers).length, 0, 'b.blockers не тронут прогнозом');
+});
+
+test('прогноз помечает приблизительность при случайных целях', () => {
+  const plain = mkBattle([], [], 1);
+  deploy(plain, 'me', bp('А', 2, 2));
+  eq(predictCombat(plain, {}).approximate, false, 'обычный бой — точный прогноз');
+
+  const zappy = mkBattle([], [], 1);
+  deploy(zappy, 'me', bp('Разрядник', 1, 1, 1, [{ fx: 'deathZap', lvl: 3 }]));
+  deploy(zappy, 'foe', bp('Д', 5, 5));
+  zappy.phase = 'main1'; zappy.attacking = [zappy.sides.me.board[0].uid];
+  eq(predictCombat(zappy, {}).approximate, true, 'Разряд выбирает цель случайно — прогноз приблизительный');
+});
+
+test('прогноз видит победу/поражение до её наступления', () => {
+  const b = mkBattle([], [], 1);
+  const a = deploy(b, 'me', bp('А', 9, 9));
+  b.sides.foe.leader.hp = 3;
+  b.phase = 'main1'; b.attacking = [a.uid];
+  const p = predictCombat(b, {});
+  ok(p.over, 'прогноз должен предвидеть конец боя');
+  eq(p.over.winner, 'me');
+  eq(b.over, null, 'настоящий бой ещё не закончен');
 });

@@ -548,8 +548,10 @@ export function resolveCombat(b) {
   const atkUnits = attackers(b);
   if (atkUnits.length === 0) { log(b, 'Атаки нет.', 'dim'); afterCombat(b); return; }
 
-  // автоблок, если защищается ИИ
-  if (!defSide.isHuman) autoBlock(b, defSide.id);
+  // Автоблок, если защищается ИИ. Отключается флагом noAutoBlock: прогнозы
+  // задают блоки явно, и autoBlock() обнулил бы их (он начинает с b.blockers = {}),
+  // из-за чего игрок видел бы на этапе атаки чужую расстановку вместо своей.
+  if (!defSide.isHuman && !b.noAutoBlock) autoBlock(b, defSide.id);
 
   log(b, `⚔ В атаку: ${atkUnits.map((u) => u.name).join(', ')}.`, 'head');
   for (const [aid, bids] of Object.entries(b.blockers)) {
@@ -769,6 +771,148 @@ function summarizeSide(b, id) {
     name: s.name, hp: Math.max(0, s.leader.hp), maxHp: s.leader.maxHp, armor: s.leader.armor,
     energy: s.energy, maxEnergy: s.maxEnergy, hand: s.hand.length, deck: s.deck.length,
     board: s.board.filter(isAlive).length, grave: s.grave.length, fatigue: s.fatigue,
+  };
+}
+
+// ---------------------------------------------------------------------------
+//  Прогноз боя
+//  Интерфейсу нужно показывать «что будет, если подтвердить блок» ДО того, как
+//  урон нанесён. Вместо приближённой формулы, которая неминуемо разъехалась бы
+//  с правилами, бой клонируется и прогоняется настоящим resolveCombat.
+//  Клон дешёвый (~17 КБ, ~1 мс), а результат — точный.
+// ---------------------------------------------------------------------------
+
+/**
+ * Глубокая копия боя, пригодная для «что если». ГПСЧ заменяется на отдельный
+ * детерминированный поток, чтобы прогноз не съедал случайность настоящего боя.
+ */
+export function cloneBattle(b, tag = 'preview') {
+  const copy = JSON.parse(JSON.stringify(b, (k, v) => (k === 'rng' ? undefined : v)));
+  copy.rng = makeRng(`${b.seed ?? 'battle'}:${tag}:${b.round}:${b.sides.me.turns}`);
+  copy.__clone = true;
+  return copy;
+}
+
+/** Снимок здоровья юнитов и лидеров — для сравнения «до/после».
+ *  Юниты хранятся ПО СТОРОНАМ: uid уникальны в пределах боя, но плоская карта
+ *  провоцировала приписать потерю не той стороне. */
+function healthSnapshot(b) {
+  const snap = { units: { me: {}, foe: {} }, leaders: {} };
+  for (const id of ['me', 'foe']) {
+    const s = side(b, id);
+    snap.leaders[id] = s.leader.hp;
+    for (const u of s.board) snap.units[id][u.uid] = { hp: Math.max(0, unitHp(u) - (u.damage || 0)), max: unitHp(u), name: u.name };
+  }
+  return snap;
+}
+
+/** Есть ли среди участников свойства со случайной целью (прогноз становится оценкой). */
+function hasRandomTargets(b) {
+  for (const id of ['me', 'foe']) {
+    for (const u of side(b, id).board) {
+      if (u.fx.deathZap || u.fx.etbBlast || u.fx.deathWildfire) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Прогноз разрешения текущего боя.
+ * @param {object} b — живой бой (не изменяется)
+ * @param {object|null} blocks — карта uid атакующего → [uid блокеров]; null ⇒ взять b.blockers
+ * @returns {{leaderDelta:{me:number,foe:number}, losses:{me:Array,foe:Array},
+ *            wounded:Array, over:object|null, approximate:boolean, damageToDefender:number}}
+ */
+export function predictCombat(b, blocks = null) {
+  const sim = cloneBattle(b, 'predict');
+  const attackerSide = sim.active;
+  const defenderSide = other(attackerSide);
+
+  // Назначаем блоки на клоне. assignBlock проверяет легальность, поэтому
+  // недопустимые пары просто отсеются — интерфейс увидит честный прогноз.
+  // noAutoBlock обязателен: иначе resolveCombat переназначит блоки сам, когда
+  // защищается ИИ, и прогноз перестанет соответствовать тому, что задал игрок.
+  sim.noAutoBlock = true;
+  sim.blockers = {};
+  const wanted = blocks ?? b.blockers ?? {};
+  for (const [aid, list] of Object.entries(wanted)) {
+    if (Array.isArray(list) && list.length) assignBlock(sim, aid, list);
+  }
+
+  const before = healthSnapshot(sim);
+  // Флаг фиксируем ДО разрешения: afterCombat() очищает sim.blockers, и если
+  // считать после, «заблокировано» всегда будет false.
+  const blocked = Object.values(sim.blockers).some((v) => v && v.length);
+  if (!sim.phase.startsWith('combat')) sim.phase = 'combatDeclare';
+  resolveCombat(sim);
+  const after = healthSnapshot(sim);
+
+  const losses = { me: [], foe: [] };
+  const wounded = [];
+  for (const id of ['me', 'foe']) {
+    for (const [uid, was] of Object.entries(before.units[id])) {
+      const now = after.units[id][uid];
+      // юнита нет в снимке «после» ⇒ он погиб и убран с поля cleanup()
+      if (!now) { losses[id].push({ uid, name: was.name, hp: was.hp }); continue; }
+      const lost = was.hp - now.hp;
+      if (lost > 0) wounded.push({ uid, side: id, name: now.name, lost, hp: now.hp, max: now.max, dies: now.hp <= 0 });
+    }
+  }
+  // Сколько урона атака нанесла защищающейся стороне (юниты + лидер).
+  const toDefender = wounded.filter((w) => w.side === defenderSide).reduce((sum, w) => sum + w.lost, 0)
+    + losses[defenderSide].reduce((sum, l) => sum + (l.hp || 0), 0)
+    + Math.max(0, before.leaders[defenderSide] - after.leaders[defenderSide]);
+
+  return {
+    leaderDelta: {
+      me: after.leaders.me - before.leaders.me,
+      foe: after.leaders.foe - before.leaders.foe,
+    },
+    losses,
+    wounded,
+    over: sim.over || null,
+    approximate: hasRandomTargets(b),
+    damageToDefender: toDefender,
+    attackerSide,
+    defenderSide,
+    blocked,
+  };
+}
+
+/**
+ * Прогноз урона лидеру, если атаку НЕ заблокируют. Нужен на этапе объявления
+ * атакующих, когда блоки соперника ещё не известны.
+ */
+export function predictUnblocked(b, attackingUids = null) {
+  const ids = attackingUids ?? b.attacking;
+  const atkSide = side(b, b.active);
+  const defSide = side(b, other(b.active));
+  let gross = 0;
+  const names = [];
+  for (const uid of ids) {
+    const u = atkSide.board.find((x) => x.uid === uid);
+    if (!u || !isAlive(u)) continue;
+    const a = unitAtk(b, u);
+    if (a <= 0) continue;
+    // dealRound вызывается дважды (Первый удар, затем обычный), и юнит с Двойным
+    // ударом проходит оба фильтра — значит бьёт лидера два раза. Первый удар
+    // меняет лишь порядок, не сумму.
+    const hits = u.fx.doubleStrike ? 2 : 1;
+    gross += a * hits;
+    names.push(hits > 1 ? `${u.name} ×2` : u.name);
+  }
+  // damageLeader() сначала гасит урон бронёй лидера (даёт «Укрепление»), поэтому
+  // «сумма атак» и «сколько реально снимут» — разные числа. Без этого прогноз на
+  // этапе объявления атаки расходился с тем, что происходило в бою.
+  const armor = defSide.leader.armor || 0;
+  const absorbed = Math.min(armor, gross);
+  return {
+    dmg: gross - absorbed,
+    gross,
+    absorbed,
+    armorLeft: Math.max(0, armor - gross),
+    names,
+    count: names.length,
   };
 }
 

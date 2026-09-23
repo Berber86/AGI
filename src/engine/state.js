@@ -8,7 +8,7 @@ import { DISCOVERIES, DISCOVERY_LIST, isAvailable } from './discoveries.js';
 import { DOMAINS, eraOf, MAX_ERA, ERAS } from './gears.js';
 import { generateCard, checkCombination, blueprintCost, recruitCost } from './cardgen.js';
 import { generateWorld, buildRival, applyDifficulty, canAttackRegion, HOME_POS } from './civ.js';
-import { makeUnit, grantExperience, vetTier } from './units.js';
+import { makeUnit, grantExperience, vetTier, VET_NAMES } from './units.js';
 import { buildDeck } from './deck.js';
 import { makeRng } from './rng.js';
 import { createBattle } from './battle.js';
@@ -324,17 +324,26 @@ export function finishBattle(state, battle, outcome) {
   state.science += inc.science;
   state.materials += inc.materials;
 
-  // опыт: все юниты колоды получают XP; павшие в бою помечаются
+  // опыт: все юниты колоды получают XP; павшие в бою помечаются.
+  // Повышения собираются в rewards.veterans — экран итогов показывает их отдельно,
+  // чтобы рост армии был заметен, а не тонул в журнале.
   const fallen = new Set((battle.sides.me.grave || []).map((u) => u.srcId).filter(Boolean));
+  const veterans = [];
   for (const u of state.roster) {
     if (!state.deck.includes(u.id)) continue;
+    const before = vetTier(u);
     const leveled = grantExperience(u, { won, died: fallen.has(u.id) });
-    if (leveled) push(state, `🎖 «${u.blueprint.name}» получает уровень ветеранства ${vetTier(u)}: +1/+1 навсегда${vetTier(u) >= 3 && u.blueprint.unusedKeywords?.length ? ` и отпирает «${u.blueprint.unusedKeywords[0].name}»` : ''}.`, 'good');
+    if (leveled) {
+      const tier = vetTier(u);
+      const awakens = tier >= 3 ? (u.blueprint.unusedKeywords?.[0]?.name || null) : null;
+      veterans.push({ id: u.id, name: u.blueprint.name, tier, title: VET_NAMES[tier], awakens, died: fallen.has(u.id), xp: u.xp, before });
+      push(state, `🎖 «${u.blueprint.name}» получает уровень ветеранства ${tier}: +1/+1 навсегда${awakens ? ` и отпирает «${awakens}»` : ''}.`, 'good');
+    }
   }
   state.stats.kills += (battle.sides.foe.grave || []).length;
   state.stats.lost += fallen.size;
 
-  const rewards = { science: inc.science, materials: inc.materials, region: null, stolen: null };
+  const rewards = { science: inc.science, materials: inc.materials, region: null, stolen: null, veterans };
   if (won) {
     state.stats.wins += 1;
     state.defeatStreak = 0;

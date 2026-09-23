@@ -35,7 +35,11 @@ export async function run() {
   const dim = (s) => `\x1b[2m${s}\x1b[0m`;
   for (const f of failed) {
     console.log(red('  ✗ ' + f.name));
-    console.log(dim('      ' + String(f.err.message || f.err).split('\n').join('\n      ')));
+    // Провал утверждения понятен из сообщения; настоящая ошибка (TypeError и пр.)
+    // без стека не диагностируется, поэтому для не-ассертов печатаем стек.
+    const isAssert = f.err instanceof AssertError;
+    const body = isAssert ? String(f.err.message || f.err) : String(f.err.stack || f.err);
+    console.log(dim('      ' + body.split('\n').slice(0, isAssert ? 4 : 7).join('\n      ')));
   }
   console.log(`\n${green(pass + ' пройдено')}${failed.length ? ', ' + red(failed.length + ' провалено') : ''} · всего ${tests.length}`);
   return failed.length ? 1 : 0;

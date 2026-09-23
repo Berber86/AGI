@@ -56,10 +56,14 @@ export function renderDeck() {
   const units = info.units.slice().sort((a, b) => SORT[sortMode](a, b));
   if (!units.length) list.append(el('div', { class: 'dim' }, 'Колода пуста. Добавьте юнитов справа или нажмите «Автосбор».'));
   for (const u of units) {
+    // карту в колоде можно рассмотреть: клик открывает тот же разбор,
+    // что и в ростере (какая пара шестерёнок дала какое свойство)
     const cell = el('div', { class: 'deckcell' }, [
-      renderCard(u, { size: 'sm' }),
+      renderCard(u, { size: 'sm', onClick: () => detailModal(u, { mode: 'deck' }) }),
       btn('✕', () => { st.deck = st.deck.filter((x) => x !== u.id); persist(); refresh(); }, 'sm danger-ghost'),
     ]);
+    tooltip(cell, `<b>${u.blueprint.name}</b> — ${u.blueprint.atk}/${u.blueprint.hp}, ${u.blueprint.cost} ⚡<br>
+      <span class="tip-sub">Клик — разбор карты · ✕ — убрать из колоды</span>`);
     list.append(cell);
   }
   left.append(list);

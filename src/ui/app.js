@@ -4,6 +4,7 @@
 // =============================================================================
 
 import { el, mount, clear, modal, btn } from './dom.js';
+import { delta, confirmBox } from './fx.js';
 import * as S from '../engine/state.js';
 import { DOMAINS, ERAS, eraOf, ROMAN_ERA } from './shared.js';
 import { renderTitle } from './screens/title.js';
@@ -47,7 +48,7 @@ export function render() {
 
   app.topbar = el('header', { class: 'topbar' });
   app.tabs = el('nav', { class: 'tabs' });
-  app.view = el('main', { class: 'view' });
+  app.view = el('main', { class: 'view', id: 'view', tabindex: '-1' });
   mount(app.root, app.topbar, app.tabs, app.view);
   renderTopbar(app.topbar);
   renderTabs(app.tabs);
@@ -65,6 +66,9 @@ export function refresh() {
   }
 }
 
+/** Прошлые значения ресурсов — чтобы рисовать «+24 🔬» при изменении. */
+let lastRes = null;
+
 export function renderTopbar(node) {
   if (!node || !app.state) return;
   const st = app.state;
@@ -77,27 +81,41 @@ export function renderTopbar(node) {
       ]),
     ]),
     el('div', { class: 'topbar__res' }, [
-      resChip('🔬', 'Наука', st.science, `Доход за ход: +${S.ECONOMY.income(st).science}`),
-      resChip('🧱', 'Материалы', st.materials, `Доход за ход: +${S.ECONOMY.income(st).materials}`),
-      resChip('🚩', 'Регионы', `${st.conquered}/${st.world.regions.length}`, 'Присоединённые земли дают доход'),
-      resChip('⚔', 'Побед', `${st.stats.wins}/${st.stats.battles}`, `Проектов ${Object.keys(st.blueprints).length}, юнитов ${st.roster.length}`),
+      resChip('🔬', 'Наука', st.science, `Доход за ход: +${S.ECONOMY.income(st).science}`, 'science'),
+      resChip('🧱', 'Материалы', st.materials, `Доход за ход: +${S.ECONOMY.income(st).materials}`, 'materials'),
+      resChip('🚩', 'Регионы', `${st.conquered}/${st.world.regions.length}`, 'Присоединённые земли дают доход', 'regions'),
+      resChip('⚔', 'Побед', `${st.stats.wins}/${st.stats.battles}`, `Проектов ${Object.keys(st.blueprints).length}, юнитов ${st.roster.length}`, 'wins'),
     ]),
     el('div', { class: 'topbar__act' }, [
       btn('🏗 Развитие', () => { S.develop(st); persist(); toast(`+${S.ECONOMY.income(st, S.ECONOMY.developShare).science}🔬 +${S.ECONOMY.income(st, S.ECONOMY.developShare).materials}🧱`, 'ok'); refresh(); }, '', { title: 'Мирный ход: доход без боя' }),
       btn('📖 Правила', () => modal('Правила и словарь', renderHelp())),
       btn('💾', () => { persist(); toast('Сохранено', 'ok'); }, '', { title: 'Сохранить' }),
-      btn('☰', () => menuModal()),
+      btn('☰', () => menuModal(), '', { title: 'Меню партии', aria: 'Меню партии' }),
     ]),
   );
+  lastRes = {
+    science: st.science, materials: st.materials,
+    regions: st.conquered, wins: st.stats.wins,
+  };
 }
 
-function resChip(icon, label, value, title) {
-  const node = el('div', { class: 'res' }, [
+function resChip(icon, label, value, title, key) {
+  const node = el('div', { class: 'res', dataset: { res: key } }, [
     el('span', { class: 'res__i', text: icon }),
     el('span', { class: 'res__v', text: String(value) }),
     el('span', { class: 'res__l', text: label }),
   ]);
   node.title = title || '';
+
+  // Изменение ресурса показываем всплывающей дельтой: экономика становится
+  // осязаемой, игрок видит ПРИЧИНУ изменения числа, а не только итог.
+  const prev = lastRes ? lastRes[key] : null;
+  const numeric = typeof value === 'number' ? value : parseInt(String(value), 10);
+  if (prev !== null && Number.isFinite(numeric) && Number.isFinite(prev) && numeric !== prev) {
+    node.classList.add('res--bump');
+    setTimeout(() => node.classList.remove('res--bump'), 620);
+    delta(node.querySelector('.res__v'), numeric - prev, key === 'science' ? ' 🔬' : key === 'materials' ? ' 🧱' : '');
+  }
   return node;
 }
 
@@ -120,8 +138,14 @@ export function menuModal() {
       btn('📤 Экспорт JSON', () => exportSave()),
       btn('📥 Импорт JSON', () => importSave()),
       btn('🔥 В главное меню', () => { app.screen = 'title'; closeModal(); render(); }, 'danger'),
-      btn('♻ Начать заново', () => {
-        if (confirm('Удалить текущую партию и начать новую?')) { S.clearSaved(); app.state = null; app.screen = 'title'; closeModal(); render(); }
+      btn('♻ Начать заново', async () => {
+        const yes = await confirmBox({
+          title: 'Начать заново?',
+          text: `Партия «${app.state?.civName}» (эпоха ${app.state?.era}, регионов ${app.state?.conquered}) будет удалена безвозвратно. Экспортируйте JSON, если хотите её сохранить.`,
+          ok: 'Удалить и начать', cancel: 'Отмена', danger: true,
+        });
+        if (!yes) return;
+        S.clearSaved(); app.state = null; app.screen = 'title'; lastRes = null; closeModal(); render();
       }, 'danger'),
     ]),
     el('div', { class: 'small dim' }, `Сид партии: ${app.state?.seed} · сложность ${app.state?.difficulty} · ходов ${app.state?.stats.turns}`),
@@ -156,9 +180,13 @@ export function persist() {
   if (app.state) S.save(app.state);
 }
 
+const MAX_TOASTS = 4;
 export function toast(text, kind = 'info', ms = 2600) {
   if (!app.toasts) return;
-  const t = el('div', { class: `toast toast--${kind}`, text });
+  // не даём стопке уведомлений захватить экран: старейшие убираем сразу
+  while (app.toasts.children.length >= MAX_TOASTS) app.toasts.firstElementChild?.remove();
+  const t = el('div', { class: `toast toast--${kind}`, text, role: kind === 'bad' ? 'alert' : 'status' });
+  t.addEventListener('click', () => { t.classList.remove('is-on'); setTimeout(() => t.remove(), 200); });
   app.toasts.append(t);
   requestAnimationFrame(() => t.classList.add('is-on'));
   setTimeout(() => { t.classList.remove('is-on'); setTimeout(() => t.remove(), 320); }, ms);

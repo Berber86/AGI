@@ -1,5 +1,6 @@
 // Экран «Карта мира»: регионы, соперники, смена эпохи, начало боя.
 import { el, btn, mount, clear, modal, tooltip } from '../dom.js';
+import { tryAdvanceEra } from '../era-up.js';
 import { gearSVG } from '../art.js';
 import { DOMAINS, eraOf, ROMAN_ERA, S, PERSONALITIES, HOME_POS, canAttackRegion, buildRival, applyDifficulty, rivalPower } from '../shared.js';
 import { app, render, persist, toast } from '../app.js';
@@ -40,7 +41,7 @@ function mapSVG(st) {
     const locked = !canAttackRegion(st, r);
     const fill = r.conquered ? DOMAINS[st.legacy].color : locked ? '#2b3038' : c;
     const rad = r.boss ? 5.4 : 3.4 + r.era * 0.22;
-    nodes += `<g class="rnode${locked && !r.conquered ? ' rnode--locked' : ''}${selected === r.id ? ' rnode--sel' : ''}" data-id="${r.id}">
+    nodes += `<g class="rnode${locked && !r.conquered ? ' rnode--locked' : ''}${selected === r.id ? ' rnode--sel' : ''}" data-id="${r.id}" tabindex="0" role="button" aria-label="${r.name}, эпоха ${ROMAN_ERA[r.era]}, ${r.conquered ? 'ваша земля' : r.civ.name}">
       <circle cx="${r.x}" cy="${r.y}" r="${rad}" fill="${fill}" opacity="${r.conquered ? 0.55 : locked ? 0.5 : 0.92}" stroke="${selected === r.id ? '#fff' : '#0d0f13'}" stroke-width="${selected === r.id ? 0.9 : 0.5}"/>
       ${r.boss ? `<circle cx="${r.x}" cy="${r.y}" r="${rad + 1.6}" fill="none" stroke="${c}" stroke-width="0.4" stroke-dasharray="1 1"/>` : ''}
       <text x="${r.x}" y="${r.y + 1.3}" text-anchor="middle" font-size="${rad * 0.9}" fill="#0d0f13" font-weight="800">${r.conquered ? '✓' : ROMAN_ERA[r.era]}</text>
@@ -60,8 +61,26 @@ function mapSVG(st) {
   box.querySelectorAll('.rnode').forEach((g) => {
     g.style.cursor = 'pointer';
     g.addEventListener('click', () => { selected = g.dataset.id; refreshMap(); });
+    g.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selected = g.dataset.id; refreshMap(); }
+    });
+    const region = st.world.regions.find((r) => r.id === g.dataset.id);
+    if (region) tooltip(g, regionTip(st, region));
   });
   return box;
+}
+
+function regionTip(st, r) {
+  const dom = DOMAINS[r.civ.domains[0]];
+  const locked = !canAttackRegion(st, r);
+  if (r.conquered) return `<b>${r.name}</b> · ваша земля<br><span class="tip-ok">✓ присоединён, доход учтён</span>`;
+  const rows = [
+    `<b>${r.name}</b> · эпоха ${ROMAN_ERA[r.era]}`,
+    `<span class="tip-sub">${r.civ.name} · ${dom.glyph} ${dom.name} · ${PERSONALITIES[r.civ.personality].name}</span>`,
+    `Награда: ${r.reward.science} 🔬, ${r.reward.materials} 🧱${r.boss ? ' <b class="tip-kw">(босс ×3)</b>' : ''}`,
+    locked ? `<span class="tip-bad">🔒 нужна эпоха ${Math.max(1, r.era - 1)}+</span>` : '<span class="tip-ok">⚔ можно атаковать</span>',
+  ];
+  return rows.join('<br>');
 }
 
 function refreshMap() {
@@ -183,7 +202,7 @@ function showAutoReport(b, region, won) {
     ]),
     el('div', { class: 'logbox logbox--tall' }, b.log.map((l) => el('div', { class: `log log--${l.kind}` }, l.text))),
   ]);
-  modal(`Автобой: ${region.name}`, body, { footer: [btn('Закрыть', () => document.querySelector('.modal')?.remove(), 'primary')] });
+  const m = modal(`Автобой: ${region.name}`, body, { footer: [btn('Закрыть', () => m.close(), 'primary')] });
 }
 
 // -----------------------------------------------------------------------------
@@ -204,9 +223,8 @@ function eraPanel(st) {
   ]));
   const chk = S.canAdvanceEra(st);
   box.append(btn('🏛 Сменить эпоху', () => {
-    const res = S.advanceEra(st);
+    const res = tryAdvanceEra(st, { onChange: () => { persist(); render(); } });
     if (!res.ok) toast(res.reason, 'bad', 4200);
-    else { persist(); toast(`Эпоха ${ROMAN_ERA[st.era]} — ${eraOf(st.era).name}!`, 'ok', 4000); render(); }
   }, chk.ok ? 'primary' : '', { disabled: !chk.ok, title: chk.ok ? '' : chk.reason }));
   return box;
 }

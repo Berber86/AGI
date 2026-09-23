@@ -1,8 +1,12 @@
 // Экран «Наука»: дерево открытий и смена эпох.
 import { el, btn, mount, tooltip } from '../dom.js';
 import { gearSVG } from '../art.js';
-import { DISCOVERIES, DISCOVERY_LIST, DOMAINS, GEARS, GEAR_IDS, ROMAN_ERA, S, eraOf, isAvailable, MAX_ERA } from '../shared.js';
+import {
+  DISCOVERIES, DISCOVERY_LIST, DOMAINS, GEARS, GEAR_IDS, ROMAN_ERA, S, eraOf, isAvailable, MAX_ERA,
+  compatible, pairKey, KEYWORDS, GEAR_PAIRS,
+} from '../shared.js';
 import { app, persist, toast, render, renderTopbar } from '../app.js';
+import { tryAdvanceEra } from '../era-up.js';
 
 const filt = { gear: null, domain: null };
 
@@ -82,9 +86,8 @@ function headPanel(st) {
     req(`📜 Открытия эпохи ${st.era}`, r.discoveries.have, r.discoveries.need),
   ]));
   box.append(btn(`🏛 Сменить эпоху → ${ROMAN_ERA[r.next]} (${eraOf(r.next).name})`, () => {
-    const res = S.advanceEra(st);
-    if (!res.ok) { toast(res.reason, 'bad', 4200); return; }
-    persist(); toast(`Наступила эпоха ${ROMAN_ERA[st.era]} — ${eraOf(st.era).name}!`, 'ok', 4200); render();
+    const res = tryAdvanceEra(st, { onChange: () => { persist(); render(); } });
+    if (!res.ok) toast(res.reason, 'bad', 4200);
   }, chk.ok ? 'primary' : '', { disabled: !chk.ok, title: chk.ok ? '' : chk.reason }));
   return box;
 }
@@ -97,10 +100,31 @@ function req(label, have, need) {
   ]);
 }
 
+/**
+ * Что открытие даёт ВПЕРЁД: какие открытия отпирает, какое свойство рождает
+ * собственная пара его шестерёнок и со сколькими изученными оно сцепляется.
+ * Без этого выбор исследования — слепой: игрок видит только предшественников.
+ */
+export function forwardInfo(st, d, set) {
+  const children = DISCOVERY_LIST.filter((x) => x.prereq.includes(d.id));
+  const openable = children.filter((c) => c.prereq.every((p) => set.has(p) || p === d.id));
+  const links = [...set].filter((id) => id !== d.id && compatible(id, d.id)).length;
+
+  // собственная пара шестерёнок: открытие с двумя шестернями даёт свойство
+  // даже в одиночном слоте
+  let ownPair = null;
+  if (d.gears.length >= 2) {
+    const rec = GEAR_PAIRS[pairKey(d.gears[0], d.gears[1])];
+    if (rec) ownPair = { kw: KEYWORDS[rec.kw], alias: rec.alias || null };
+  }
+  return { children, openable, links, ownPair };
+}
+
 function discNode(st, d, set, locked) {
   const researched = set.has(d.id);
   const avail = !researched && !locked && isAvailable(d.id, set);
   const afford = st.science >= d.cost;
+  const fwd = forwardInfo(st, d, set);
   const cls = ['discn'];
   if (researched) cls.push('discn--done');
   else if (avail) cls.push('discn--avail');
@@ -114,29 +138,40 @@ function discNode(st, d, set, locked) {
         el('span', {}, `+${d.atk}/+${d.hp}`),
       ]),
       d.prereq.length ? el('div', { class: 'discn__pre', text: `нужно: ${d.prereq.map((p) => DISCOVERIES[p]?.name || p).join(', ')}` }) : null,
+      fwd.children.length ? el('div', { class: 'discn__next' }, [
+        el('span', { class: 'discn__next-l', text: 'открывает' }),
+        el('span', { class: 'discn__next-v', text: fwd.children.map((c) => c.name).join(', ') }),
+      ]) : null,
+      fwd.ownPair ? el('div', { class: 'discn__pair' }, [
+        el('span', { class: 'discn__next-l', text: 'пара' }),
+        el('b', {}, fwd.ownPair.alias || fwd.ownPair.kw.name),
+        el('span', { class: 'dim' }, `${GEARS[d.gears[0]].name} + ${GEARS[d.gears[1]].name}`),
+      ]) : null,
     ]),
     el('div', { class: 'discn__cost' }, researched
       ? el('b', { class: 'tick' }, '✓')
       : el('span', {}, [`🔬 ${d.cost}`])),
   ]);
-  tooltip(node, `<b>${d.name}</b> · эпоха ${ROMAN_ERA[d.era]}<br>
+  tooltip(node, `<b>${d.name}</b> · эпоха ${ROMAN_ERA[d.era]} · ${DOMAINS[d.domain].name}<br>
     Шестерни: ${d.gears.map((g) => GEARS[g].name).join(', ')}<br>
     Вклад в юнита: +${d.atk} атаки, +${d.hp} здоровья<br>
-    Цена изучения: ${d.cost} 🔬<br>
-    ${d.prereq.length ? 'Предшественники: ' + d.prereq.map((p) => DISCOVERIES[p]?.name).join(', ') : 'Предшественников нет'}`);
+    Цена изучения: ${d.cost} 🔬${avail && !afford ? ' <span class="tip-bad">(не хватает ' + (d.cost - st.science) + ')</span>' : ''}<br>
+    ${d.prereq.length ? 'Предшественники: ' + d.prereq.map((p) => DISCOVERIES[p]?.name).join(', ') + '<br>' : 'Предшественников нет<br>'}
+    ${fwd.children.length ? '<span class="tip-ok">Открывает: ' + fwd.children.map((c) => c.name).join(', ') + '</span><br>' : ''}
+    ${fwd.ownPair ? 'Своя пара шестерёнок даёт <span class="tip-kw">' + (fwd.ownPair.alias || fwd.ownPair.kw.name) + '</span>: ' + fwd.ownPair.kw.text + '<br>' : ''}
+    <span class="tip-sub">Сцепляется с ${fwd.links} изученными открытиями — столько же путей в Мастерской</span>`);
   if (avail && !researched) {
     node.style.cursor = 'pointer';
+    if (!afford) node.classList.add('discn--poor');
     node.addEventListener('click', () => {
       const r = S.research(st, d.id);
-      if (!r.ok) { toast(r.reason, 'bad'); return; }
+      if (!r.ok) { toast(r.reason, 'bad', 3200); return; }
       persist();
       toast(`🔬 «${d.name}» изучено (${d.gears.map((g) => GEARS[g].name).join('+')})`, 'ok');
       refresh();
       const tb = document.querySelector('.topbar');
       if (tb) renderTopbar(tb);
     });
-  } else if (!afford && avail) {
-    node.style.cursor = 'not-allowed';
   }
   return node;
 }

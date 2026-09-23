@@ -8,4 +8,17 @@ await import('./test-battle.mjs');
 await import('./test-state.mjs');
 await import('./test-balance.mjs');
 
+// UI-набор требует jsdom — единственную dev-зависимость. Если её нет,
+// набор честно пропускается, а не роняет весь прогон.
+try {
+  await import('jsdom');
+  await import('./test-ui.mjs');
+} catch (e) {
+  if (e?.code === 'ERR_MODULE_NOT_FOUND' || /jsdom/.test(String(e?.message))) {
+    console.log('\x1b[2m  UI-тесты пропущены: не установлен jsdom (npm install)\x1b[0m');
+  } else {
+    throw e;
+  }
+}
+
 process.exit(await run());
