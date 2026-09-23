@@ -169,6 +169,18 @@ export const KEYWORDS = {
   plague:        { name: 'Мор',              fx: 'endPlague',     value: 3.4, priority: 8, param: 1,
                    text: 'В конце вашего хода: все вражеские юниты получают N урона.' },
 
+  // --- командование: очки, которыми оплачиваются атакующие и блокирующие ---
+  // Эти свойства делают бюджет раунда осью борьбы: юнит со «Знаменем» становится
+  // приоритетной целью, а не ещё одним телом на линии.
+  banner:        { name: 'Знамя',    fx: 'banner', value: 3.0, priority: 7,
+                   text: 'Пока этот юнит жив, ваш бюджет очков командования в этом раунде больше на 1.' },
+  panic:         { name: 'Паника',   fx: 'panic',  value: 3.0, priority: 7,
+                   text: 'Пока этот юнит жив, бюджет очков командования противника в этом раунде меньше на 1.' },
+  staff:         { name: 'Штаб',     fx: 'staff',  value: 2.8, priority: 6,
+                   text: 'Ваши юниты стоят на 1 очко командования дешевле (но не меньше 1).' },
+  drill:         { name: 'Муштра',   fx: 'drill',  value: 3.2, priority: 7,
+                   text: 'Блокирует двоих и не тратит на блок очки командования: выученный строй держит линию сам.' },
+
   // --- свойства от состава: врождённое свойство шестерни -------------------
   // Работают, даже когда шестерня на карте одна. Слабее парных (priority 2),
   // поэтому в авто-подборе уступают настоящим комбинациям, но гарантируют, что
@@ -350,6 +362,12 @@ export const GEAR_TRIPLES = {
   'alloy+fire+volt':        { kw: 'thorns', lvl: 3 },
   'bio+chem+psyche':        { kw: 'poison', lvl: 3 },
   'cipher+optics+volt':     { kw: 'scry',   lvl: 3 },
+  // командование — редкие и особые свойства, поэтому живут на тройках:
+  // матрица из 55 пар занята полностью, и замена осиротила бы чужое свойство
+  'alloy+doctrine+mech':    { kw: 'banner', alias: 'Знамя' },
+  'doctrine+fire+psyche':   { kw: 'panic',  alias: 'Паника' },
+  'cipher+doctrine+optics': { kw: 'staff',  alias: 'Штаб' },
+  'mech+optics+volt':       { kw: 'drill',  alias: 'Муштра' },
 };
 
 // -----------------------------------------------------------------------------
@@ -466,12 +484,12 @@ export const rarityBySlots = (slots) => RARITIES[Math.max(1, Math.min(4, slots))
 // -----------------------------------------------------------------------------
 export const ERAS = [
   null,
-  { id: 1, name: 'Древность',      leaderHp: 22, slots: 4, deckSize: 10, energyCap: 5,  draw: 1, handLimit: 5, startHand: 3, sciAdvance: 0,    mat: 1.0 },
-  { id: 2, name: 'Античность',     leaderHp: 42, slots: 5, deckSize: 12, energyCap: 6,  draw: 1, handLimit: 6, startHand: 4, sciAdvance: 130,  mat: 1.2 },
-  { id: 3, name: 'Средневековье',  leaderHp: 66, slots: 5, deckSize: 14, energyCap: 7,  draw: 1, handLimit: 6, startHand: 4, sciAdvance: 300,  mat: 1.45 },
-  { id: 4, name: 'Порох',          leaderHp: 100, slots: 6, deckSize: 16, energyCap: 8,  draw: 1, handLimit: 7, startHand: 4, sciAdvance: 560,  mat: 1.75 },
-  { id: 5, name: 'Индустрия',      leaderHp: 150, slots: 7, deckSize: 18, energyCap: 9,  draw: 2, handLimit: 7, startHand: 5, sciAdvance: 950,  mat: 2.1 },
-  { id: 6, name: 'Атом',           leaderHp: 220, slots: 8, deckSize: 20, energyCap: 10, draw: 2, handLimit: 8, startHand: 5, sciAdvance: null, mat: 2.5 },
+  { id: 1, name: 'Древность',      leaderHp: 22, slots: 4, deckSize: 10, energyCap: 5,  draw: 1, handLimit: 5, startHand: 3, sciAdvance: 0,    mat: 1.0, cp: 3 },
+  { id: 2, name: 'Античность',     leaderHp: 42, slots: 5, deckSize: 12, energyCap: 6,  draw: 1, handLimit: 6, startHand: 4, sciAdvance: 130,  mat: 1.2, cp: 4 },
+  { id: 3, name: 'Средневековье',  leaderHp: 66, slots: 5, deckSize: 14, energyCap: 7,  draw: 1, handLimit: 6, startHand: 4, sciAdvance: 300,  mat: 1.45, cp: 4 },
+  { id: 4, name: 'Порох',          leaderHp: 100, slots: 6, deckSize: 16, energyCap: 8,  draw: 1, handLimit: 7, startHand: 4, sciAdvance: 560,  mat: 1.75, cp: 5 },
+  { id: 5, name: 'Индустрия',      leaderHp: 150, slots: 7, deckSize: 18, energyCap: 9,  draw: 2, handLimit: 7, startHand: 5, sciAdvance: 950,  mat: 2.1, cp: 6 },
+  { id: 6, name: 'Атом',           leaderHp: 220, slots: 8, deckSize: 20, energyCap: 10, draw: 2, handLimit: 8, startHand: 5, sciAdvance: null, mat: 2.5, cp: 7 },
 ];
 
 export const eraOf = (n) => ERAS[Math.max(1, Math.min(6, n))];

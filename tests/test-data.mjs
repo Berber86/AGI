@@ -119,6 +119,8 @@ test('все fx из свойств поддержаны боевым движк
     'etbBlast', 'etbExhaust', 'etbStun', 'etbBroadcast', 'etbInspire', 'etbAdapt', 'etbDivine',
     'etbFortify', 'etbRefine', 'etbSwarm', 'deathZap', 'deathWildfire', 'deathVolatile', 'deathEmp',
     'deathMartyr', 'deathRecall', 'ignite', 'corrode', 'poison', 'endUplink', 'endDraw', 'endPlague',
+    // очки командования: бюджет раунда и всё, что на него влияет
+    'banner', 'panic', 'staff', 'drill',
   ]);
   for (const [id, k] of Object.entries(KEYWORDS)) ok(supported.has(k.fx), `${id}: fx «${k.fx}» не поддержан движком`);
 });

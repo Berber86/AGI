@@ -1258,6 +1258,15 @@ select.input { cursor: pointer; }
 }
 .bunit__to--open { border-color: rgba(255, 143, 106, .45); color: #ffa98c; }
 .bunit__sick { position: absolute; left: -4px; bottom: -4px; z-index: 5; font-size: var(--fs-12); filter: drop-shadow(0 1px 2px #000); }
+/* Цена юнита в очках командования — видна до клика, а не в тексте отказа */
+.bunit__cp {
+  position: absolute; top: 2px; left: 2px; z-index: 3;
+  padding: 0 4px; font-size: 10px; line-height: 1.55; font-weight: 700;
+  color: var(--brass-100); background: rgba(8, 10, 14, .82);
+  border: 1px solid var(--brass-600); border-radius: var(--r-xs);
+  font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.bunit__cp--free { color: var(--good-2); border-color: var(--good); }
 
 /* Лента фаз: рельса с горящим сегментом текущей фазы. */
 .ribbon {

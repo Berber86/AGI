@@ -180,7 +180,8 @@ export function canBlock(b, u, attacker) {
   return true;
 }
 
-export function maxBlocks(u) { return u.fx.tactician ? 2 : 1; }
+/** Сколько атакующих держит юнит: Стратег и Муштра добавляют по одному. */
+export function maxBlocks(u) { return 1 + (u.fx.tactician ? 1 : 0) + (u.fx.drill ? 1 : 0); }
 
 export function boardRoom(b, sideId) {
   return b.cfg.slots - side(b, sideId).board.filter(isAlive).length;
@@ -189,6 +190,152 @@ export function boardRoom(b, sideId) {
 export function effectiveCost(b, u) {
   const s = side(b, u.owner);
   return Math.max(0, u.cost - (s.discount > 0 ? 1 : 0) - (b.phase.startsWith('main') && s.refineTurn === b.turnId ? 1 : 0));
+}
+
+// ---------------------------------------------------------------------------
+//  Очки командования
+//
+//  Бюджет раунда, которым оплачиваются атакующие и блокирующие. Без него фаза
+//  атаки была плоской: 42–60% атак не доносили до лидера ни единицы урона,
+//  потому что защищающийся закрывал всё, а атакующему было неважно, кем бить.
+//
+//  Состояние намеренно ПРОИЗВОДНОЕ: ничего не копится в счётчике, бюджет и
+//  трата пересчитываются из `b.cfg.cp`, досок и списков атакующих/блокирующих.
+//  Иначе снятие атакующего, гибель знаменосца в середине раунда и симуляция
+//  прогноза начали бы расходиться с настоящим боем.
+// ---------------------------------------------------------------------------
+
+/** Бой не должен вставать намертво: хотя бы одно очко всегда есть. */
+export const MIN_CP = 1;
+
+/** Потолок вклада аур. Без него три «Знамени» дали бы +3 и экономика раунда
+ *  уехала бы в снежный ком, а прогноз перестал бы читаться. */
+export const CP_AURA_CAP = 2;
+
+/** Есть ли на стороне живой носитель fx. */
+const hasAura = (b, sideId, fx) => side(b, sideId).board.some((u) => isAlive(u) && u.fx[fx]);
+
+/**
+ * Суммарный уровень ауры на стороне. Считаем уровни, а не головы: свойства в
+ * этой игре растут с ветеранством и с драфтом, поэтому «Знамя II» обязано
+ * отличаться от «Знамя I». Потолок CP_AURA_CAP не даёт уйти в снежный ком.
+ */
+function auraSum(b, sideId, fx) {
+  return side(b, sideId).board.filter(isAlive).reduce((sum, u) => sum + (u.fx[fx] || 0), 0);
+}
+
+/**
+ * Базовый бюджет обороны: сколько угроз сторона успевает закрыть за раунд,
+ * пока её не организовали «Знамя» и «Тактик».
+ *
+ * Замер показал: на атаке очки командования почти не связывают бой — юнитов на
+ * поле в среднем 2.1–2.6 при бюджете 3–7, поэтому атакующий и так отправляет
+ * всех, кого хочет. А симптом плоского боя (42–60% фаз атаки без урона лидеру)
+ * создаёт защита, которая закрывает всё. Ограничивать надо реакцию, а не
+ * намерение: атака остаётся щедрой, а закрыть удаётся не каждого.
+ */
+export const DEF_CP_BASE = 1;
+
+/**
+ * Настраиваемый переопределитель бюджета обороны (b.cfg.cpDef).
+ * Нужен не только тюнингу: без него невозможно честно замерить вклад очков
+ * командования — базлайновый прогон должен уметь снять лимит и с атаки, и с
+ * обороны (tools/dbg-cp.mjs ставит cp: 99 и cpDef: 99).
+ */
+
+/**
+ * Бюджет стороны на этот раунд для данного режима ('attack' | 'block').
+ * «Знамя» прибавляет своё, «Паника» у противника — отнимает.
+ *
+ * Асимметрия намеренная. Контролируемый замер (tools/dbg-cp.mjs, 60 боёв на
+ * эпоху, тот же прогон с неограниченным бюджетом как базлайн) показал: атаку
+ * очки командования почти не связывают — юнитов на поле в среднем 2.1–2.6 при
+ * бюджете 3–7, атакующий и так отправляет всех, кого хочет. Плоский бой (42–60%
+ * фаз атаки без урона лидеру) создаёт защита, закрывающая всё подряд. Узкая
+ * оборона лечит симптом во всех шести эпохах сразу: бои короче (эпоха 6: 11.9
+ * раунда против 14.2), урон лидеру выше базлайна (32.8 против 23.3), пустых фаз
+ * меньше (53% против 61%). Ограничивать надо реакцию, а не намерение.
+ *
+ * Очко платится за уникального блокирующего, а не за каждое назначение, поэтому
+ * «Тактик» закрывает двоих за одно очко, а «Муштра» — двоих бесплатно.
+ */
+export function cpBudget(b, sideId, mode = 'attack') {
+  const bonus = Math.min(CP_AURA_CAP, auraSum(b, sideId, 'banner'));
+  const penalty = Math.min(CP_AURA_CAP, auraSum(b, other(sideId), 'panic'));
+  const own = mode === 'block' ? (b.cfg.cpDef ?? DEF_CP_BASE) : (b.cfg.cp || MIN_CP);
+  return Math.max(MIN_CP, own + bonus - penalty);
+}
+
+/**
+ * Цена юнита в очках командования. Дорогие юниты требуют больше внимания штаба,
+ * поэтому в поздних эпохах, когда средняя стоимость карты растёт, в атаку
+ * уходит меньше тел — бои становятся выборочнее, а не длиннее.
+ * «Штаб» удешевляет всех своих, «Муштра» блокирует бесплатно.
+ */
+export function cpCost(b, u, mode = 'attack') {
+  if (mode === 'block' && u.fx.drill) return 0;
+  let c = 1 + (u.cost >= 6 ? 1 : 0) + (u.cost >= 9 ? 1 : 0);
+  if (hasAura(b, u.owner, 'staff')) c = Math.max(1, c - 1);
+  return c;
+}
+
+/** Очки, уже потраченные на объявленных атакующих. */
+export function cpSpentAttack(b) {
+  return attackers(b).reduce((sum, u) => sum + cpCost(b, u, 'attack'), 0);
+}
+
+/** Сколько очков осталось на атаку в этом раунде. */
+export function cpLeftAttack(b) {
+  return Math.max(0, cpBudget(b, b.active) - cpSpentAttack(b));
+}
+
+/**
+ * Уникальные блокирующие стороны. Один юнит платит один раз, даже если держит
+ * двоих атакующих: иначе «Муштра» и Стратег теряли бы смысл под бюджетом.
+ */
+export function uniqueBlockers(b, sideId) {
+  const s = side(b, sideId);
+  const ids = new Set();
+  for (const list of Object.values(b.blockers)) for (const id of list) ids.add(id);
+  return [...ids].map((id) => s.board.find((u) => u.uid === id)).filter((u) => u && isAlive(u));
+}
+
+/** Очки, уже потраченные на блок (без списка `extra`, который ещё только назначается). */
+export function cpSpentBlock(b, sideId, exceptAttackerUid = null) {
+  const s = side(b, sideId);
+  const ids = new Set();
+  for (const [aid, list] of Object.entries(b.blockers)) {
+    if (aid === exceptAttackerUid) continue;
+    for (const id of list) ids.add(id);
+  }
+  return [...ids]
+    .map((id) => s.board.find((u) => u.uid === id))
+    .filter((u) => u && isAlive(u))
+    .reduce((sum, u) => sum + cpCost(b, u, 'block'), 0);
+}
+
+/** Сколько очков осталось на блок у стороны. */
+export function cpLeftBlock(b, sideId, exceptAttackerUid = null) {
+  return Math.max(0, cpBudget(b, sideId, 'block') - cpSpentBlock(b, sideId, exceptAttackerUid));
+}
+
+/**
+ * Можно ли объявить юнита атакующим — с внятной причиной для интерфейса.
+ * Снятие атакующего разрешено всегда: очки возвращаются, так как траты
+ * производные.
+ */
+export function canDeclareAttack(b, u) {
+  if (!u) return { ok: false, reason: 'Нет такого юнита.' };
+  if (b.phase !== 'combatDeclare') return { ok: false, reason: 'Сейчас не фаза объявления атаки.' };
+  if (b.active !== u.owner) return { ok: false, reason: 'Это не ваш ход.' };
+  if (b.attacking.includes(u.uid)) return { ok: true, reason: '' };
+  if (!canAttack(b, u)) return { ok: false, reason: 'Юнит не может атаковать.' };
+  const cost = cpCost(b, u, 'attack');
+  const left = cpLeftAttack(b);
+  if (left < cost) {
+    return { ok: false, reason: `Не хватает очков командования: нужно ${cost}, осталось ${left}.` };
+  }
+  return { ok: true, reason: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -486,14 +633,27 @@ export function beginCombat(b) {
   b.phase = 'combatDeclare';
   b.attacking = [];
   b.blockers = {};
+  // Бюджет показываем сразу: игрок обязан понимать ограничение ДО того, как
+  // начнёт выбирать атакующих, а не узнавать о нём из отказа.
+  const mine = cpBudget(b, b.active, 'attack');
+  // Обороняющемуся нужен бюджет ОБРОНЫ: показывать ему атаку — значит подменить
+  // число, которым он сейчас пользуется при выборе блокирующих.
+  const theirs = cpBudget(b, other(b.active), 'block');
+  log(b, `🎖 Очки командования: ${side(b, b.active).name} атакует — ${mine}, ${side(b, other(b.active)).name} обороняется — ${theirs}.`, 'info');
   return true;
 }
 
 export function toggleAttacker(b, u) {
-  if (b.phase !== 'combatDeclare' || b.active !== u.owner) return false;
-  if (!canAttack(b, u)) return false;
+  if (!u) return false;
   const i = b.attacking.indexOf(u.uid);
-  if (i >= 0) b.attacking.splice(i, 1); else b.attacking.push(u.uid);
+  // снятие атакующего не требует проверки бюджета: очки производные и вернутся сами
+  if (i >= 0) {
+    if (b.phase !== 'combatDeclare' || b.active !== u.owner) return false;
+    b.attacking.splice(i, 1);
+    return true;
+  }
+  if (!canDeclareAttack(b, u).ok) return false;
+  b.attacking.push(u.uid);
   return true;
 }
 
@@ -502,9 +662,32 @@ export function attackers(b) {
   return b.attacking.map((id) => s.board.find((u) => u.uid === id)).filter((u) => u && isAlive(u));
 }
 
+/**
+ * Сколько атакующих уже держит этот блокирующий (не считая указанного).
+ *
+ * Отдельная функция нужна, чтобы «кого можно выбрать» и «кого движок реально
+ * назначит» считали вместимость одинаково. Раньше legalBlockers смотрел только
+ * на оплату и предлагал юнита, уже исчерпавшего свой предел блоков, — игрок
+ * кликал, а assignBlock молча его выбрасывал.
+ */
+export function blockUsage(b, blockerUid, exceptAttackerUid = null) {
+  let n = 0;
+  for (const [aid, list] of Object.entries(b.blockers)) {
+    if (aid === exceptAttackerUid) continue;
+    if (list.includes(blockerUid)) n++;
+  }
+  return n;
+}
+
 export function legalBlockers(b, attacker) {
   const def = enemySide(b, attacker.owner);
-  return def.board.filter((u) => canBlock(b, u, attacker));
+  // Уже назначенные где-то блокирующие оплачены один раз, поэтому остаются
+  // доступны; новому нужно помещаться в остаток бюджета.
+  const paid = new Set(uniqueBlockers(b, def.id).map((u) => u.uid));
+  const room = cpLeftBlock(b, def.id, attacker.uid);
+  return def.board.filter((u) => canBlock(b, u, attacker)
+    && blockUsage(b, u.uid, attacker.uid) < maxBlocks(u)
+    && (paid.has(u.uid) || cpCost(b, u, 'block') <= room));
 }
 
 export function assignBlock(b, attackerUid, blockerUids) {
@@ -517,12 +700,23 @@ export function assignBlock(b, attackerUid, blockerUids) {
     if (aid === attackerUid) continue;
     for (const id of list) usage[id] = (usage[id] || 0) + 1;
   }
+  const usedElsewhere = (uid) => blockUsage(b, uid, attackerUid);
+  // Очки командования защищающегося: уже назначенные у ДРУГИХ атакующих
+  // оплачены один раз и повторно не тарифицируются.
+  let room = cpLeftBlock(b, def.id, attackerUid);
+  const paying = new Set(Object.keys(usage));
   const clean = [];
   for (const id of blockerUids) {
     const u = def.board.find((x) => x.uid === id);
     if (!u || !isAlive(u) || !canBlock(b, u, atk)) continue;
     if (clean.includes(u.uid)) continue;
-    if ((usage[u.uid] || 0) + clean.filter((x) => x === u.uid).length >= maxBlocks(u)) continue;
+    if (usedElsewhere(u.uid) + clean.filter((x) => x === u.uid).length >= maxBlocks(u)) continue;
+    if (!paying.has(u.uid)) {
+      const cost = cpCost(b, u, 'block');
+      if (cost > room) continue;            // не хватает очков командования
+      room -= cost;
+      paying.add(u.uid);
+    }
     clean.push(u.uid);
   }
   b.blockers[attackerUid] = clean;
@@ -725,10 +919,18 @@ export function autoBlock(b, defenderId) {
   // сортируем атакующих по угрозе
   const ordered = attackersList.slice().sort((x, y) => unitAtk(b, y) - unitAtk(b, x));
 
+  // Бюджет командования защищающегося: один юнит платит один раз, даже если
+  // держит двоих атакующих.
+  let room = cpBudget(b, defenderId, 'block');
+  const paid = new Set();
+  // Носителя ауры жалко тратить на блок: пока он жив, бюджет работает на нас.
+  const auraValue = (u) => (u.fx.banner ? 10 : 0) + (u.fx.staff ? 8 : 0) + (u.fx.panic ? 8 : 0);
+
   for (const a of ordered) {
     const dmg = unitAtk(b, a);
     if (dmg <= 0) continue;
-    const legal = pool.filter((u) => usedCount.get(u.uid) < maxBlocks(u) && canBlock(b, u, a));
+    const legal = pool.filter((u) => usedCount.get(u.uid) < maxBlocks(u) && canBlock(b, u, a)
+      && (paid.has(u.uid) || cpCost(b, u, 'block') <= room));
     if (!legal.length) continue;
 
     // ищем выгодный размен: убиваем атакующего и выживаем сами
@@ -738,13 +940,17 @@ export function autoBlock(b, defenderId) {
       const kills = a.fx.deathtouch ? false : (myDmg >= unitHp(a) - a.damage || (u.fx.deathtouch && myDmg > 0));
       const survives = dmg < unitHp(u) - u.damage + unitArmor(u) && !(a.fx.deathtouch);
       const score = (kills ? 100 : 0) + (survives ? 60 : 0) + (a.fx.deathtouch ? -200 : 0)
-        + myDmg * 2 - unitPower(u) * 0.4 + (u.fx.indestructible ? 50 : 0);
+        + myDmg * 2 - unitPower(u) * 0.4 + (u.fx.indestructible ? 50 : 0)
+        - (!survives ? auraValue(u) : 0);
       if (!best || score > best.score) best = { u, score, kills, survives };
     }
     if (!best) continue;
-    const worth = mustBlock ? best.u && true : (best.kills || best.survives || dmg >= def.leader.hp * 0.25);
+    // Когда бюджета не хватает даже на частичный блок, смертельная угроза
+    // перевешивает бережливость: ауру тратить можно, проигрывать — нельзя.
+    const worth = mustBlock ? true : (best.kills || best.survives || dmg >= def.leader.hp * 0.25);
     if (worth) {
       usedCount.set(best.u.uid, usedCount.get(best.u.uid) + 1);
+      if (!paid.has(best.u.uid)) { room -= cpCost(b, best.u, 'block'); paid.add(best.u.uid); }
       b.blockers[a.uid] = [best.u.uid];
     }
   }
@@ -771,6 +977,8 @@ function summarizeSide(b, id) {
     name: s.name, hp: Math.max(0, s.leader.hp), maxHp: s.leader.maxHp, armor: s.leader.armor,
     energy: s.energy, maxEnergy: s.maxEnergy, hand: s.hand.length, deck: s.deck.length,
     board: s.board.filter(isAlive).length, grave: s.grave.length, fatigue: s.fatigue,
+    cp: cpBudget(b, id, id === b.active ? 'attack' : 'block'),
+    cpSpent: s.id === b.active ? cpSpentAttack(b) : cpSpentBlock(b, id),
   };
 }
 
@@ -815,6 +1023,27 @@ export function diagnoseBattle(b) {
     .map(([name, total]) => ({ name, total }));
 
   const topDamage = { me: rank(dmgTo.me), foe: rank(dmgTo.foe) };
+
+  // --- атрибуция очков командования по журналу ---
+  // «🎖 Очки командования: X атакует — N, Y обороняется — M.»
+  // Читаем именно журнал, а не поле: к концу боя юниты мертвы, а то, как бюджет
+  // менялся раунд за раундом, важно для разбора. Новое состояние не заводим.
+  const cpSeen = { me: { atk: [], def: [] }, foe: { atk: [], def: [] } };
+  const reCp = /^🎖 Очки командования: (.+?) атакует — (\d+), (.+?) обороняется — (\d+)\.$/;
+  for (const entry of b.log) {
+    const m = reCp.exec(entry.text);
+    if (!m) continue;
+    const atkId = m[1] === me.name ? 'me' : 'foe';
+    const defId = m[3] === me.name ? 'me' : 'foe';
+    cpSeen[atkId].atk.push(Number(m[2]));
+    cpSeen[defId].def.push(Number(m[4]));
+  }
+  const span = (arr) => (arr.length ? { min: Math.min(...arr), max: Math.max(...arr), rounds: arr.length } : null);
+  const cp = {
+    base: b.cfg.cp || MIN_CP,
+    me: { attack: span(cpSeen.me.atk), defense: span(cpSeen.me.def) },
+    foe: { attack: span(cpSeen.foe.atk), defense: span(cpSeen.foe.def) },
+  };
   const fatigue = { me: me.fatigue, foe: foe.fatigue };
   const suddenDeath = rounds >= 21;
   const margin = { me: Math.max(0, me.leader.hp), foe: Math.max(0, foe.leader.hp) };
@@ -859,9 +1088,25 @@ export function diagnoseBattle(b) {
     verdict.push(`Бой дошёл до внезапной смерти (${rounds} раундов): с 21-го раунда оба лидера теряют по 2 здоровья.`);
     advice.push('Затяжные бои решаются не уроном, а тем, у кого больше здоровья лидера. Эпоха выше — бои длиннее.');
   }
+  // --- что очки командования сделали с этим боем ---
+  const myAtk = cp.me.attack;
+  const myDef = cp.me.defense;
+  if (myAtk && myAtk.max < cp.base) {
+    verdict.push(`«Паника» соперника урезала вашу атаку до ${myAtk.min}–${myAtk.max} очков вместо ${cp.base}.`);
+    advice.push('Атакуйте дешевле: Штаб снимает с юнита очко, а источник Паники стоит убрать первым ударом.');
+  } else if (myAtk && myAtk.max > cp.base) {
+    verdict.push(`«Знамя» поднимало вашу атаку до ${myAtk.max} очков при базе эпохи ${cp.base}.`);
+  }
+  if (myDef && myDef.max > DEF_CP_BASE) {
+    verdict.push(`Оборону удавалось расширить до ${myDef.max} — это дали Знамя или Тактик.`);
+  } else if (myDef) {
+    verdict.push('Оборона всю игру закрывала одну угрозу за раунд: больше не позволял бюджет.');
+    advice.push('Оборону расширяют Знамя и Тактик, а Муштра блокирует бесплатно и держит двоих.');
+  }
+
   if (!advice.length && lost) advice.push('Загляните в журнал боя ниже: там видно каждый размен и каждую назначенную блокировку.');
 
-  return { winner, rounds, verdict, advice, margin, topDamage, fatigue, suddenDeath, reason: b.over?.reason || '' };
+  return { winner, rounds, verdict, advice, margin, topDamage, fatigue, suddenDeath, cp, reason: b.over?.reason || '' };
 }
 
 // ---------------------------------------------------------------------------

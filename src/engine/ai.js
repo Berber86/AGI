@@ -6,10 +6,41 @@
 
 import {
   side, enemySide, isAlive, unitAtk, unitHp, unitArmor, canAttack, canPlay, playCard,
-  legalBlockers, effectiveCost, boardRoom, log,
+  legalBlockers, effectiveCost, boardRoom, log, cpBudget, cpCost, maxBlocks,
 } from './battle.js';
 
 export const powerOf = (u) => u.atk * 1.15 + u.hp * 0.8 + u.keywords.reduce((s, k) => s + (k.value || 1), 0);
+
+/**
+ * Насколько ИИ бережёт юнита как блокирующего носителя ауры.
+ * Атакующий не может выбрать целью отдельного юнита, поэтому «приоритетная
+ * цель» здесь работает иначе: защищающемуся становится жалко закрывать
+ * знаменосца, и он держит его в тылу — линия слабеет.
+ */
+const auraValue = (u) => (u.fx.banner ? 10 : 0) + (u.fx.staff ? 8 : 0) + (u.fx.panic ? 8 : 0);
+
+/**
+ * Жадный отбор под бюджет очков командования: сначала лучшее на очко.
+ * Дорогой юнит пропускается, а не обрывает набор — иначе остаток бюджета
+ * сгорал бы впустую.
+ */
+function fitIntoCp(b, sideId, units, value) {
+  let room = cpBudget(b, sideId);
+  const out = [];
+  const ranked = units.slice().sort((x, y) => (value(y) / cpCost(b, y, 'attack')) - (value(x) / cpCost(b, x, 'attack')));
+  for (const u of ranked) {
+    const cost = cpCost(b, u, 'attack');
+    if (cost > room) continue;
+    room -= cost;
+    out.push(u.uid);
+  }
+  return out;
+}
+
+const sumAtk = (b, s, uids) => uids.reduce((sum, id) => {
+  const u = s.board.find((x) => x.uid === id);
+  return sum + (u ? unitAtk(b, u) : 0);
+}, 0);
 
 // ---------------------------------------------------------------------------
 //  Главная фаза: что выставить
@@ -83,20 +114,27 @@ export function aiDeclareAttack(b, sideId) {
   const totalDmg = ready.reduce((sum, u) => sum + unitAtk(b, u), 0);
   const foeDefence = foe.leader.hp + foe.leader.armor;
 
-  // Летал — бьём всем.
+  // Летал — бьём всем, что влезает в бюджет командования. Если бюджета на
+  // летал не хватает, падаем в обычную оценку: частичный штурм не выигрывает бой.
   if (totalDmg >= foeDefence && !foe.board.filter(isAlive).length) {
-    b.attacking = ready.map((u) => u.uid);
-    log(b, `${s.name}: общий штурм — летал!`, 'bad');
-    return b.attacking;
+    const picked = fitIntoCp(b, sideId, ready, (u) => unitAtk(b, u));
+    if (sumAtk(b, s, picked) >= foeDefence) {
+      b.attacking = picked;
+      log(b, `${s.name}: общий штурм — летал!`, 'bad');
+      return b.attacking;
+    }
   }
   const unblockable = ready.filter((u) => legalBlockers(b, u).length === 0);
   if (totalDmg >= foeDefence && unblockable.reduce((x, u) => x + unitAtk(b, u), 0) >= foeDefence) {
-    b.attacking = unblockable.map((u) => u.uid);
-    return b.attacking;
+    const picked = fitIntoCp(b, sideId, unblockable, (u) => unitAtk(b, u));
+    if (sumAtk(b, s, picked) >= foeDefence) {
+      b.attacking = picked;
+      return b.attacking;
+    }
   }
 
   const foeBoard = foe.board.filter(isAlive);
-  const chosen = [];
+  const scored = [];
 
   for (const u of ready) {
     const dmg = unitAtk(b, u);
@@ -135,9 +173,14 @@ export function aiDeclareAttack(b, sideId) {
     if (s.leader.hp <= foeBoard.reduce((x, q) => x + unitAtk(b, q), 0) && !u.fx.haste) score -= 3;
 
     score += b.rng.next() * 1.2;
-    if (score > 4.4) chosen.push(u.uid);
+    if (score > 4.4) scored.push({ u, score });
   }
 
+  // Порог отсечки решает, кого ИИ ХОЧЕТ отправить; бюджет командования решает,
+  // кого он может себе позволить. Без второго шага соперник играл бы не по тем
+  // правилам, что и человек.
+  const byScore = new Map(scored.map((x) => [x.u.uid, x.score]));
+  const chosen = fitIntoCp(b, sideId, scored.map((x) => x.u), (u) => byScore.get(u.uid));
   b.attacking = chosen;
   return chosen;
 }
@@ -157,10 +200,14 @@ export function suggestBlocks(b, defenderId) {
   const lethalRisk = incoming >= def.leader.hp + def.leader.armor;
 
   const ordered = attackers.slice().sort((x, y) => unitAtk(b, y) - unitAtk(b, x));
+  let room = cpBudget(b, defenderId, 'block');
+  const paid = new Set();
   for (const a of ordered) {
     const dmg = unitAtk(b, a);
     if (dmg <= 0) continue;
-    const legal = pool.filter((u) => used.get(u.uid) < (u.fx.tactician ? 2 : 1) && canBlockFor(b, u, a));
+    // maxBlocks — единый источник: хардкод «Стратег ? 2 : 1» не видел Муштру
+    const legal = pool.filter((u) => used.get(u.uid) < maxBlocks(u) && canBlockFor(b, u, a)
+      && (paid.has(u.uid) || cpCost(b, u, 'block') <= room));
     if (!legal.length) continue;
     let best = null;
     for (const u of legal) {
@@ -169,12 +216,14 @@ export function suggestBlocks(b, defenderId) {
       const survives = dmg < unitHp(u) - u.damage + unitArmor(u) && !a.fx.deathtouch;
       const score = (kills ? 100 : 0) + (survives ? 60 : 0) + (kills && survives ? 40 : 0)
         + (a.fx.deathtouch ? -150 : 0) + (u.fx.indestructible ? 40 : 0) + (u.fx.regenerate && !u.regenUsed ? 30 : 0)
-        + myDmg * 2 - powerOf(u) * 0.35 - (u.fx.deathWildfire ? -10 : 0);
+        + myDmg * 2 - powerOf(u) * 0.35 - (u.fx.deathWildfire ? -10 : 0)
+        - (!survives ? auraValue(u) : 0);
       if (!best || score > best.score) best = { u, score, kills, survives };
     }
     if (!best) continue;
     if (lethalRisk || best.kills || best.survives || dmg >= def.leader.hp * 0.3) {
       used.set(best.u.uid, used.get(best.u.uid) + 1);
+      if (!paid.has(best.u.uid)) { room -= cpCost(b, best.u, 'block'); paid.add(best.u.uid); }
       out[a.uid] = [best.u.uid];
     }
   }

@@ -5,6 +5,8 @@ import {
   dealDamage, damageLeader, legalBlockers, assignBlock, bulwarkHp, autoBlock, terrorLocked,
   boardRoom, maxBlocks, drawCards, predictCombat, predictUnblocked, predictDefense, cloneBattle,
   diagnoseBattle,
+  cpBudget, cpCost, cpSpentAttack, cpSpentBlock, cpLeftAttack, cpLeftBlock,
+  canDeclareAttack, toggleAttacker, attackers, blockUsage, DEF_CP_BASE, MIN_CP, CP_AURA_CAP,
 } from '../src/engine/battle.js';
 import { autoplay } from '../src/engine/autoplay.js';
 import { aiDeclareAttack, aiPlayOne } from '../src/engine/ai.js';
@@ -962,4 +964,209 @@ test('прогноз видит победу/поражение до её нас
   ok(p.over, 'прогноз должен предвидеть конец боя');
   eq(p.over.winner, 'me');
   eq(b.over, null, 'настоящий бой ещё не закончен');
+});
+
+
+// -----------------------------------------------------------------------------
+suite('Бой: очки командования');
+
+test('бюджет атаки задаёт эпоха, бюджет обороны узкий по замыслу', () => {
+  const b = mkBattle([], [], 1);
+  eq(b.cfg.cp, 3, 'эпоха 1: три очка на атаку');
+  eq(cpBudget(b, 'me', 'attack'), b.cfg.cp);
+  eq(DEF_CP_BASE, 1, 'оборона закрывает одну угрозу, пока её не организовали');
+  eq(cpBudget(b, 'me', 'block'), DEF_CP_BASE);
+});
+
+test('бюджет атаки растёт от эпохи к эпохе, оборона — нет', () => {
+  const b1 = mkBattle([], [], 1);
+  const b6 = mkBattle([], [], 6);
+  eq(cpBudget(b1, 'me', 'attack'), 3);
+  eq(cpBudget(b6, 'me', 'attack'), 7);
+  ok(cpBudget(b6, 'me', 'attack') > cpBudget(b1, 'me', 'attack'), 'поздние эпохи commandуют большим');
+  eq(cpBudget(b6, 'me', 'block'), DEF_CP_BASE, 'оборона одинаково узка в любую эпоху');
+});
+
+test('«Знамя» прибавляет очки по уровню ключевого слова', () => {
+  const b = mkBattle([], [], 1);
+  deploy(b, 'me', bp('Знаменосец', 1, 1, 1, [{ fx: 'banner', lvl: 1 }]));
+  eq(cpBudget(b, 'me', 'attack'), 4, 'Знамя I: +1 к атаке');
+  eq(cpBudget(b, 'me', 'block'), 2, 'Знамя I: +1 к обороне — строй организован');
+});
+
+test('«Знамя» II сильнее «Знамя» I', () => {
+  const b = mkBattle([], [], 1);
+  deploy(b, 'me', bp('Великое знамя', 1, 1, 1, [{ fx: 'banner', lvl: 2 }]));
+  eq(cpBudget(b, 'me', 'attack'), 5, 'Знамя II: +2');
+});
+
+test('ауры упираются в потолок, как бы их ни было много', () => {
+  eq(CP_AURA_CAP, 2);
+  const b = mkBattle([], [], 1);
+  for (let i = 0; i < 3; i++) deploy(b, 'me', bp('Знамя' + i, 1, 1, 1, [{ fx: 'banner', lvl: 1 }]));
+  eq(cpBudget(b, 'me', 'attack'), 5, 'три Знамени I дают +2, а не +3');
+});
+
+test('«Паника» снимает очки противника', () => {
+  const b = mkBattle([], [], 1);
+  deploy(b, 'foe', bp('Паникёр', 1, 1, 1, [{ fx: 'panic', lvl: 1 }]));
+  eq(cpBudget(b, 'me', 'attack'), 2, 'Паника I: −1 чужой атаке');
+  eq(cpBudget(b, 'foe', 'attack'), 3, 'на свой бюджет Паника не влияет');
+});
+
+test('пол бюджета не пробивается: атаковать можно всегда хоть кем-то', () => {
+  const b = mkBattle([], [], 1);
+  for (let i = 0; i < 4; i++) deploy(b, 'foe', bp('Паника' + i, 1, 1, 1, [{ fx: 'panic', lvl: 1 }]));
+  eq(MIN_CP, 1);
+  eq(cpBudget(b, 'me', 'attack'), MIN_CP, 'четыре Паники не обнуляют атаку');
+});
+
+test('«Знамя» и «Паника» гасят друг друга', () => {
+  const b = mkBattle([], [], 1);
+  deploy(b, 'me', bp('Знамя', 1, 1, 1, [{ fx: 'banner', lvl: 1 }]));
+  deploy(b, 'foe', bp('Паника', 1, 1, 1, [{ fx: 'panic', lvl: 1 }]));
+  eq(cpBudget(b, 'me', 'attack'), 3, 'ауры взаимно уничтожились');
+});
+
+test('цена юнита в очках растёт с его стоимостью в энергии', () => {
+  const b = mkBattle([], [], 1);
+  const cheap = deploy(b, 'me', bp('Дешёвый', 1, 1, 2));
+  const mid = deploy(b, 'me', bp('Средний', 1, 1, 6));
+  const heavy = deploy(b, 'me', bp('Тяжёлый', 1, 1, 9));
+  eq(cpCost(b, cheap, 'attack'), 1);
+  eq(cpCost(b, mid, 'attack'), 2, 'порог 6 энергии — второе очко');
+  eq(cpCost(b, heavy, 'attack'), 3, 'порог 9 энергии — третье очко');
+});
+
+test('«Штаб» удешевляет своих, но не ниже одного очка', () => {
+  const b = mkBattle([], [], 1);
+  deploy(b, 'me', bp('Штаб', 1, 1, 1, [{ fx: 'staff' }]));
+  const heavy = deploy(b, 'me', bp('Тяжёлый', 1, 1, 9));
+  const cheap = deploy(b, 'me', bp('Дешёвый', 1, 1, 2));
+  eq(cpCost(b, heavy, 'attack'), 2, 'со Штабом 9 энергии: 3 → 2');
+  eq(cpCost(b, cheap, 'attack'), 1, 'пол цены — одно очко, дешевле некуда');
+});
+
+test('«Муштра» блокирует бесплатно и закрывает двоих', () => {
+  const b = mkBattle([], [], 1);
+  const d = deploy(b, 'foe', bp('Муштра', 1, 8, 1, [{ fx: 'drill' }]));
+  eq(cpCost(b, d, 'block'), 0, 'блок не тратит очков командования');
+  eq(cpCost(b, d, 'attack'), 1, 'в атаке Муштра платит как все');
+  eq(maxBlocks(d), 2, 'натренированный строй держит двоих');
+});
+
+test('очко платится за уникального блокирующего, а не за каждое назначение', () => {
+  const b = mkBattle([], [], 1);
+  const t = deploy(b, 'foe', bp('Тактик', 1, 8, 1, [{ fx: 'tactician' }]));
+  const a1 = deploy(b, 'me', bp('А1', 1, 1));
+  const a2 = deploy(b, 'me', bp('А2', 1, 1));
+  eq(cpBudget(b, 'foe', 'block'), 1, 'одно очко обороны');
+  b.phase = 'combatDeclare'; b.attacking = [a1.uid, a2.uid]; b.blockers = {};
+  assignBlock(b, a1.uid, [t.uid]);
+  assignBlock(b, a2.uid, [t.uid]);
+  eq(b.blockers[a1.uid].length, 1);
+  eq(b.blockers[a2.uid].length, 1, 'Тактик держит обоих за одно очко');
+  eq(cpSpentBlock(b, 'foe'), 1, 'потрачено ровно одно очко');
+});
+
+test('второй блокирующий при обороне в одно очко не проходит', () => {
+  const b = mkBattle([], [], 1);
+  const d1 = deploy(b, 'foe', bp('Оборона1', 1, 8));
+  const d2 = deploy(b, 'foe', bp('Оборона2', 1, 8));
+  const a1 = deploy(b, 'me', bp('А1', 1, 1));
+  const a2 = deploy(b, 'me', bp('А2', 1, 1));
+  b.phase = 'combatDeclare'; b.attacking = [a1.uid, a2.uid]; b.blockers = {};
+  assignBlock(b, a1.uid, [d1.uid]);
+  assignBlock(b, a2.uid, [d2.uid]);
+  eq(b.blockers[a1.uid].length, 1);
+  eq(b.blockers[a2.uid].length, 0, 'на второго блокирующего очков нет');
+  eq(cpLeftBlock(b, 'foe'), 0);
+});
+
+test('legalBlockers не предлагает тех, кого не оплатить', () => {
+  const b = mkBattle([], [], 1);
+  deploy(b, 'foe', bp('Оборона1', 1, 8));
+  const d2 = deploy(b, 'foe', bp('Оборона2', 1, 8));
+  const a1 = deploy(b, 'me', bp('А1', 1, 1));
+  const a2 = deploy(b, 'me', bp('А2', 1, 1));
+  b.phase = 'combatDeclare'; b.attacking = [a1.uid, a2.uid]; b.blockers = {};
+  assignBlock(b, a1.uid, [d2.uid]);
+  eq(legalBlockers(b, a2).length, 0, 'бюджет обороны исчерпан — выбирать некого');
+});
+
+test('объявление атаки тратит очки, снятие объявления их возвращает', () => {
+  const b = mkBattle([], [], 1);
+  const a1 = deploy(b, 'me', bp('А1', 1, 1, 2));
+  const a2 = deploy(b, 'me', bp('А2', 1, 1, 2));
+  b.phase = 'combatDeclare';
+  eq(cpLeftAttack(b), 3);
+  ok(toggleAttacker(b, a1), 'первый объявлен');
+  eq(cpSpentAttack(b), 1);
+  eq(cpLeftAttack(b), 2);
+  ok(toggleAttacker(b, a2), 'второй объявлен');
+  eq(cpLeftAttack(b), 1);
+  ok(toggleAttacker(b, a1), 'снятие объявления');
+  eq(cpLeftAttack(b), 2, 'очко вернулось — бюджет производный, не счётчик');
+});
+
+test('canDeclareAttack объясняет отказ исчерпанным бюджетом', () => {
+  const b = mkBattle([], [], 1);
+  const heavy = deploy(b, 'me', bp('Тяжёлый', 1, 1, 9));
+  const cheap = deploy(b, 'me', bp('Дешёвый', 1, 1, 2));
+  b.phase = 'combatDeclare';
+  eq(cpCost(b, heavy, 'attack'), 3, 'тяжёлый стоит весь бюджет эпохи 1');
+  ok(canDeclareAttack(b, heavy).ok, 'пока бюджет цел — проходит');
+  toggleAttacker(b, heavy);
+  eq(cpLeftAttack(b), 0);
+  const refused = canDeclareAttack(b, cheap);
+  eq(refused.ok, false, 'очков не осталось');
+  ok(/очк/i.test(refused.reason), 'причина называет очки командования: ' + refused.reason);
+});
+
+test('AI не объявляет больше атакующих, чем позволяет бюджет', () => {
+  const b = mkBattle([], [], 1);
+  for (let i = 0; i < 6; i++) deploy(b, 'me', bp('Рой' + i, 2, 2, 3));
+  b.phase = 'main1';
+  beginCombat(b);
+  aiDeclareAttack(b, 'me');
+  const budget = cpBudget(b, 'me', 'attack');
+  ok(cpSpentAttack(b) <= budget, `потрачено ${cpSpentAttack(b)} из ${budget}`);
+  ok(attackers(b).length > 0, 'AI всё-таки атакует');
+  ok(attackers(b).length < 6, 'но не всем полем сразу — бюджет связывает');
+});
+
+test('прогноз не становится приблизительным из-за очков командования', () => {
+  const b = mkBattle([], [], 1);
+  const a = deploy(b, 'me', bp('А', 3, 3, 2));
+  deploy(b, 'foe', bp('Д', 1, 5));
+  b.phase = 'main1'; b.attacking = [a.uid];
+  eq(predictCombat(b, {}).approximate, false, 'ОЧ детерминированы — прогноз точный');
+});
+
+test('разбор боя возвращает бюджеты атаки и обороны обеих сторон', () => {
+  const b = mkBattle([], [], 1);
+  for (let i = 0; i < 3; i++) { deploy(b, 'me', bp('М' + i, 3, 4, 3)); deploy(b, 'foe', bp('Ф' + i, 3, 4, 3)); }
+  autoplay(b);
+  const d = diagnoseBattle(b);
+  ok(d.cp, 'в разборе есть раздел очков командования');
+  eq(d.cp.base, b.cfg.cp, 'база эпохи названа честно');
+  ok(d.cp.me.attack && d.cp.me.attack.rounds > 0, 'бюджет атаки игрока виден по раундам');
+  ok(d.cp.me.defense && d.cp.me.defense.rounds > 0, 'бюджет обороны игрока виден по раундам');
+  eq(d.cp.me.defense.max, DEF_CP_BASE, 'без аур оборона закрывает одну угрозу');
+  ok(d.verdict.some((v) => /Оборона всю игру закрывала одну угрозу/.test(v)), 'разбор объясняет узость обороны');
+  ok(d.advice.some((a) => /Муштра/.test(a)), 'и подсказывает, чем её расширить');
+});
+
+test('разбор видит, как Знамя и Паника меняли бюджет', () => {
+  const b = mkBattle([], [], 1);
+  for (let i = 0; i < 3; i++) { deploy(b, 'me', bp('М' + i, 3, 4, 3)); deploy(b, 'foe', bp('Ф' + i, 3, 4, 3)); }
+  deploy(b, 'me', bp('Знамя', 1, 4, 2, [{ fx: 'banner', lvl: 2 }]));
+  deploy(b, 'foe', bp('Паника', 1, 4, 2, [{ fx: 'panic', lvl: 1 }]));
+  autoplay(b);
+  const d = diagnoseBattle(b);
+  // Знамя II даёт +2, Паника соперника −1: 3 + 2 − 1 = 4
+  eq(d.cp.me.attack.max, 4, 'атака: база 3 + Знамя II − Паника');
+  eq(d.cp.me.defense.max, 2, 'оборона: база 1 + Знамя II − Паника');
+  eq(d.cp.foe.defense.max, DEF_CP_BASE, 'у соперника аур нет — оборона обычная');
+  ok(d.verdict.some((v) => /Знамя.*поднимало вашу атаку до 4/.test(v)), 'Знамя названо источником: ' + d.verdict.join(' | '));
 });

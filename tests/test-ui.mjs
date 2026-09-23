@@ -1390,5 +1390,113 @@ test('правила в пустом станке объясняют новые 
   ok(/разлад/i.test(rules.textContent), 'про разлад рассказано');
 });
 
+// -----------------------------------------------------------------------------
+suite('UI: очки командования');
+
+/** Доводит бой до фазы объявления атаки силами интерфейса. */
+async function toDeclare(b) {
+  const brief = $('.modal .modal__foot .btn');
+  if (brief) { click(brief); await sleep(10); }
+  const go = $$('button').find((n) => /В атаку/.test(n.textContent));
+  ok(go, 'кнопка «В атаку» видна');
+  click(go);
+  await sleep(10);
+  eq(b.phase, 'combatDeclare', 'фаза объявления атаки');
+}
+
+test('кнопка «Всеми» не обходит бюджет командования', async () => {
+  const b = freshBattle();
+  for (let i = 0; i < 6; i++) put(b, 'me', 'Рой' + i, 2, 2);
+  for (const u of b.sides.me.board) { u.sick = false; u.exhausted = false; }
+  render();
+  await toDeclare(b);
+
+  const budget = B.cpBudget(b, 'me', 'attack');
+  ok(budget < 6, `бюджет ${budget} обязан быть меньше шести юнитов, иначе тест ничего не проверяет`);
+
+  const all = $$('button').find((n) => /Всеми/.test(n.textContent));
+  ok(all, 'кнопка «Всеми» видна');
+  click(all);
+  await sleep(10);
+
+  eq(B.attackers(b).length, budget, 'объявлено ровно столько, сколько оплачено');
+  eq(B.cpSpentAttack(b), budget, 'потрачен весь бюджет и ни очком больше');
+  eq(B.cpLeftAttack(b), 0);
+});
+
+test('горячая клавиша A тоже упирается в бюджет', async () => {
+  const b = freshBattle();
+  for (let i = 0; i < 6; i++) put(b, 'me', 'Рой' + i, 2, 2);
+  for (const u of b.sides.me.board) { u.sick = false; u.exhausted = false; }
+  render();
+  await toDeclare(b);
+  key('a');
+  await sleep(20);
+  eq(B.cpSpentAttack(b), B.cpBudget(b, 'me', 'attack'), 'клавиша не пробивает потолок');
+});
+
+test('цена в очках видна до клика, а не в отказе после', async () => {
+  const b = freshBattle();
+  put(b, 'me', 'Дешёвый', 2, 2);
+  put(b, 'me', 'Тяжёлый', 5, 5);
+  b.sides.me.board.forEach((u) => { u.sick = false; u.exhausted = false; });
+  render();
+  await toDeclare(b);
+
+  const badges = $$('.bunit__cp');
+  eq(badges.length, 2, 'бейдж цены на каждом юните, которого можно объявить');
+  ok(badges.every((n) => /🎖\d/.test(n.textContent)), 'в бейдже число очков');
+  const msg = $('.controls__msg').textContent;
+  ok(/Очки командования/.test(msg), 'в сообщении фазы назван бюджет');
+  ok(msg.includes(`из ${B.cpBudget(b, 'me', 'attack')}`), 'показан именно бюджет атаки этой эпохи');
+});
+
+test('отказ «Всеми» объясняет, сколько юнитов не влезло', async () => {
+  const b = freshBattle();
+  for (let i = 0; i < 6; i++) put(b, 'me', 'Рой' + i, 2, 2);
+  for (const u of b.sides.me.board) { u.sick = false; u.exhausted = false; }
+  render();
+  await toDeclare(b);
+  const all = $$('button').find((n) => /Всеми/.test(n.textContent));
+  click(all);
+  await sleep(20);
+  const t = $$('.toast').map((n) => n.textContent).join(' ');
+  ok(/не влезли в бюджет/i.test(t), 'тост называет причину: ' + t);
+});
+
+test('консоль блока считает очки по неподтверждённым назначениям', async () => {
+  const b = freshBattle();
+  put(b, 'me', 'Оборона1', 1, 6);
+  put(b, 'me', 'Оборона2', 1, 6);
+  const foes = [put(b, 'foe', 'Налётчик1', 3, 3), put(b, 'foe', 'Налётчик2', 3, 3)];
+  await foeAttacks(b, foes);
+
+  const budget = B.cpBudget(b, 'me', 'block');
+  eq(budget, 1, 'оборона закрывает одну угрозу');
+  const before = $('.controls__msg').textContent;
+  ok(before.includes(`${budget} из ${budget}`), 'до выбора показан полный бюджет: ' + before);
+  eq($$('.atkrow').length, 2, 'два атакующих в консоли');
+
+  click($$('.atkrow')[0]);
+  await sleep(10);
+  const cell = $$('.bunit[data-side="me"]').find((c) => c.textContent.includes('Оборона1'));
+  ok(cell, 'свой юнит виден в консоли');
+  click(cell);
+  await sleep(10);
+
+  const after = $('.controls__msg').textContent;
+  ok(after.includes(`0 из ${budget}`), 'бюджет уменьшился ДО подтверждения: ' + after);
+
+  // второго блокирующего не оплатить — интерфейс обязан отказать, а не промолчать
+  click($$('.atkrow')[1]);
+  await sleep(10);
+  const cell2 = $$('.bunit[data-side="me"]').find((c) => c.textContent.includes('Оборона2'));
+  click(cell2);
+  await sleep(20);
+  const t = $$('.toast').map((n) => n.textContent).join(' ');
+  ok(/Не хватает очков командования/.test(t), 'отказ назван вслух: ' + t);
+  eq($('.controls__msg').textContent, after, 'бюджет не ушёл в минус');
+});
+
 // экспорт для запуска из tools
 export { renderBattle, boot };

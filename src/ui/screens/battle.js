@@ -22,6 +22,7 @@ import { renderCard, ROMAN } from '../cards.js';
 import { S, DOMAINS } from '../shared.js';
 import {
   startTurn, endTurn, resolveCombat, beginCombat, toggleAttacker, playCard, canPlay, canAttack,
+  cpBudget, cpSpentAttack, cpSpentBlock, cpLeftAttack, cpLeftBlock, cpCost, canDeclareAttack, maxBlocks,
   isAlive, unitAtk, unitHp, side, legalBlockers, assignBlock, effectiveCost, boardRoom,
   predictCombat, predictUnblocked, predictDefense, diagnoseBattle,
   log as blog,
@@ -136,6 +137,7 @@ function leaderBar(b, id) {
     ]),
     el('div', { class: 'leader__nums' }, [
       num('⚡', `${s.energy}/${s.maxEnergy || 0}`, 'энергия сейчас / потолок хода'),
+      num('🎖', `${cpLeft(b, id)}/${cpBudget(b, id, id === b.active && b.phase === 'combatDeclare' ? 'attack' : 'block')}`, cpTitle(b, id)),
       num('🂠', s.hand.length, 'карт в руке'),
       num('⛁', s.deck.length, 'в колоде'),
       num('☠', s.grave.length, 'пало в этом бою'),
@@ -144,6 +146,16 @@ function leaderBar(b, id) {
   ]);
 }
 const num = (i, v, t) => el('span', { class: 'num', title: t }, [el('i', {}, i), el('b', {}, String(v))]);
+
+/** Сколько очков командования осталось у стороны в этом раунде. */
+function cpLeft(b, id) {
+  return b.phase === 'combatDeclare' && b.active === id ? cpLeftAttack(b) : cpLeftBlock(b, id);
+}
+
+function cpTitle(b, id) {
+  const who = id === 'me' ? 'ваших' : 'противника';
+  return `очки командования ${who}: осталось / бюджет раунда. Ими оплачиваются атакующие и блокирующие; «Знамя» прибавляет, чужая «Паника» отнимает.`;
+}
 
 // --- ряды поля ---------------------------------------------------------------
 function rowOf(b, id) {
@@ -154,6 +166,23 @@ function rowOf(b, id) {
     row.append(units[i] ? unitCell(b, units[i], id, i) : el('div', { class: 'bslot bslot--empty' }, id === 'me' ? '＋' : ''));
   }
   return row;
+}
+
+/**
+ * «Всеми» — но в пределах бюджета командования.
+ * Раньше кнопка писала в b.attacking напрямую и пробивала потолок: соперник
+ * играл по правилам, а игрок — нет. Отказ объясняем, а не глотаем.
+ */
+function declareAllAttackers(b) {
+  let added = 0, refused = 0;
+  for (const u of side(b, 'me').board.filter(isAlive)) {
+    if (!canAttack(b, u) || b.attacking.includes(u.uid)) continue;
+    if (toggleAttacker(b, u)) added++; else refused++;
+  }
+  if (refused) {
+    toast(`Очков командования хватило на ${added}. Ещё ${refused} не влезли в бюджет раунда (${cpLeftAttack(b)} из ${cpBudget(b, 'me')} свободно).`, 'bad', 4200);
+  }
+  paint();
 }
 
 function unitCell(b, u, id, pos) {
@@ -199,6 +228,22 @@ function unitCell(b, u, id, pos) {
     wrap.append(el('div', { class: 'bunit__to bunit__to--open', text: 'не заблокирован' }));
   }
   if (u.sick && !u.exhausted) wrap.append(el('div', { class: 'bunit__sick', text: '⏳' }));
+
+  // Цену в очках командования показываем ДО клика: отказ без видимой цены
+  // выглядит как произвол, а с ценой игрок сам видит, кого не хватает.
+  const deciding = !b.over && id === 'me'
+    && (uiState.blockingMode || (b.phase === 'combatDeclare' && b.active === 'me'));
+  if (deciding) {
+    const mode = uiState.blockingMode ? 'block' : 'attack';
+    const cost = cpCost(b, u, mode);
+    wrap.append(el('div', {
+      class: 'bunit__cp' + (cost === 0 ? ' bunit__cp--free' : ''),
+      text: `🎖${cost}`,
+      title: cost === 0
+        ? 'Не стоит очков командования (Муштра)'
+        : `Стоит ${cost} очк${cost === 1 ? 'о' : 'а'} командования в этой фазе`,
+    }));
+  }
   return wrap;
 }
 
@@ -219,7 +264,11 @@ function onUnitClick(b, u, id) {
   // моя фаза атаки
   if (id === 'me' && b.active === 'me' && b.phase === 'combatDeclare') {
     if (!toggleAttacker(b, u)) {
-      if (u.exhausted) toast('Юнит истощён: он уже действовал.', 'bad');
+      // причину спрашиваем у движка: он знает и про очки командования, которые
+      // интерфейс иначе не смог бы объяснить
+      const why = canDeclareAttack(b, u);
+      if (why.reason) toast(why.reason, 'bad', 3200);
+      else if (u.exhausted) toast('Юнит истощён: он уже действовал.', 'bad');
       else if (u.sick) toast('Болезнь выставления: юнит может атаковать со следующего хода (Рывок снимает её).', 'bad');
       else toast('Этот юнит не может атаковать.', 'bad');
     }
@@ -230,6 +279,38 @@ function onUnitClick(b, u, id) {
 }
 
 /** Поставить/снять блокера; обновляет консоль и прогноз. */
+/**
+ * Очки командования, уже обещанные отложенным блоком.
+ * Консоль блока хранит назначения в uiState.blocks, а не в b.blockers, поэтому
+ * остаток нужно считать именно от отложенного состояния — иначе панель
+ * показывала бы полный бюджет и разрешала набрать сверх него, а commitBlocks
+ * молча выбрасывал бы лишнее. Прогноз перестал бы совпадать с реальностью.
+ */
+function pendingBlockCost(b) {
+  const ids = new Set(Object.values(uiState.blocks).flat());
+  return [...ids]
+    .map((id) => side(b, 'me').board.find((u) => u.uid === id))
+    .filter((u) => u && isAlive(u))
+    .reduce((sum, u) => sum + cpCost(b, u, 'block'), 0);
+}
+
+function cpLeftPending(b) {
+  return Math.max(0, cpBudget(b, 'me', 'block') - pendingBlockCost(b));
+}
+
+/**
+ * Почему юнит не может держать ещё одного атакующего.
+ * Лимит дают свойства, и их теперь два — Стратег и Муштра, складывающиеся до
+ * трёх. Называем источник, иначе цифра выглядит произвольной.
+ */
+function blockCapReason(u, cap) {
+  const words = { 1: 'одного', 2: 'двоих', 3: 'троих' };
+  const sources = [u.fx.tactician ? 'Стратег' : null, u.fx.drill ? 'Муштра' : null].filter(Boolean);
+  return sources.length
+    ? `${sources.join(' и ')} позволяет держать ${words[cap] || cap}. Больше — нельзя.`
+    : 'Юнит уже блокирует другого атакующего.';
+}
+
 function toggleBlock(b, attackerUid, u) {
   const atk = b.sides.foe.board.find((x) => x.uid === attackerUid);
   if (!atk) { toast('Атакующий исчез.', 'bad'); return; }
@@ -242,9 +323,22 @@ function toggleBlock(b, attackerUid, u) {
     uiState.blocks[attackerUid] = cur.filter((x) => x !== u.uid);
   } else {
     const elsewhere = Object.entries(uiState.blocks).filter(([k]) => k !== attackerUid).flatMap(([, v]) => v);
-    const cap = u.fx.tactician ? 2 : 1;
+    // maxBlocks — единый источник: хардкод «Стратег ? 2 : 1» не знал про Муштру
+    const cap = maxBlocks(u);
     if (elsewhere.filter((x) => x === u.uid).length >= cap) {
-      toast(u.fx.tactician ? 'Стратег уже блокирует двоих.' : 'Юнит уже блокирует другого атакующего.', 'bad'); return;
+      toast(blockCapReason(u, cap), 'bad'); return;
+    }
+    // Юнит, уже стоящий в блоке у другого атакующего, оплачен один раз.
+    const alreadyPaying = Object.values(uiState.blocks).flat().includes(u.uid);
+    if (!alreadyPaying) {
+      const cost = cpCost(b, u, 'block');
+      const left = cpLeftPending(b);
+      if (cost > left) {
+        toast(cost === 0
+          ? 'Не хватает очков командования.'
+          : `Не хватает очков командования на блок: нужно ${cost}, осталось ${left}.`, 'bad', 3600);
+        return;
+      }
     }
     uiState.blocks[attackerUid] = [...cur, u.uid];
   }
@@ -487,6 +581,8 @@ function controls(b) {
   }
 
   if (uiState.blockingMode) {
+    box.append(el('div', { class: 'controls__msg' },
+      `🛡 Выберите блокирующих. Очки командования: ${cpLeftPending(b)} из ${cpBudget(b, 'me', 'block')}. Каждый блокирующий стоит очков один раз, даже если держит двоих; «Муштра» блокирует бесплатно.`));
     box.append(btn('⚙ Автоблок', () => {
       uiState.blocks = suggestBlocks(b, 'me') || {};
       predictionCache = null; paint();
@@ -516,16 +612,14 @@ function controls(b) {
       // показываем оба уточнения, чтобы число не выглядело взятым с потолка
       const armorNote = unblocked.absorbed ? ` (броня лидера гасит ${unblocked.absorbed}${unblocked.armorLeft ? `, останется ${unblocked.armorLeft}` : ''})` : '';
       const twinNote = unblocked.names.some((x) => x.includes('×2')) ? ', двойной удар учтён' : '';
+      const cpNote = `Очки командования: ${cpLeftAttack(b)} из ${cpBudget(b, 'me')}`;
       box.append(el('div', { class: 'controls__msg' }, n
-        ? `⚔ Атакуют ${unblocked.count}. Без блока лидер получил бы ${unblocked.dmg}${armorNote}${twinNote}. Клик по своему юниту — добавить или убрать.`
-        : '⚔ Отметьте юнитов для атаки или пропустите бой.'));
+        ? `⚔ Атакуют ${unblocked.count}. ${cpNote}. Без блока лидер получил бы ${unblocked.dmg}${armorNote}${twinNote}. Клик по своему юниту — добавить или убрать.`
+        : `⚔ Отметьте юнитов для атаки или пропустите бой. ${cpNote}.`));
       // Соперник-ИИ блокирует всегда, поэтому «урон без блока» в реальном бою
       // почти не случается. Показываем ожидаемый исход — тем же движком.
       if (n) box.append(defenseForecast(b));
-      box.append(btn('⚔ Всеми', () => {
-        for (const u of side(b, 'me').board.filter(isAlive)) if (canAttack(b, u) && !b.attacking.includes(u.uid)) b.attacking.push(u.uid);
-        paint();
-      }, '', { hint: 'A' }));
+      box.append(btn('⚔ Всеми', () => declareAllAttackers(b), '', { hint: 'A' }));
       box.append(btn('∅ Никем', () => { b.attacking = []; paint(); }, '', { hint: 'X' }));
       box.append(btn('✅ Подтвердить атаку', () => confirmAttack(b), 'primary', { hint: 'Enter', disabled: !n }));
       box.append(btn('↩ Отмена', () => { b.phase = 'main1'; b.attacking = []; paint(); }, 'ghost', { hint: 'Esc' }));
@@ -731,7 +825,7 @@ function bindKeys(b) {
       }
       if (k === 'a' || k === 'ф') {
         e.preventDefault();
-        for (const u of side(b, 'me').board.filter(isAlive)) if (canAttack(b, u) && !b.attacking.includes(u.uid)) b.attacking.push(u.uid);
+        declareAllAttackers(b); return;
         paint(); return;
       }
       if (k === 'x' || k === 'ч') { e.preventDefault(); b.attacking = []; paint(); return; }
