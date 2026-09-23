@@ -7,7 +7,13 @@
 //  ограничивает, сколько свойств карта способна вместить.
 // =============================================================================
 
-import { GEARS, DOMAINS, ERAS, RARITIES, eraBase, eraOf, pairKey, pairToKeyword, tripleKey, tripleToKeyword } from './gears.js';
+import {
+  GEARS, DOMAINS, ERAS, RARITIES, eraBase, eraOf, pairKey, pairToKeyword, tripleKey, tripleToKeyword,
+  soloToKeyword, resonanceToKeyword, conflictToKeyword, RESONANCE_MIN,
+} from './gears.js';
+
+/** Насколько разлад ослабляет гармоничное свойство конфликтной пары. */
+export const CONFLICT_WEAKEN = 0.6;
 import { DISCOVERIES } from './discoveries.js';
 import { makeRng, hashString } from './rng.js';
 
@@ -165,7 +171,27 @@ function buildContext(componentIds) {
       const kw = pairToKeyword(g1, g2);
       if (!kw) continue;
       const stack = (g1 === g2 ? gearCounts[g1] : Math.min(gearCounts[g1], gearCounts[g2]));
-      candidates.push({ ...kw, stack, score: kw.value + 0.35 * (stack - 1) + (purity === 'pure' ? 0.5 : 0) });
+      const pureBonus = purity === 'pure' ? 0.5 : 0;
+
+      // --- разлад: эти шестерни мешают друг другу ---
+      // Гармоничное свойство НЕ удаляется, а ослабляется: 51 свойство имеет
+      // единственный источник-пару, и замена осиротила бы его (Regeneration
+      // осталась бы с обработчиком в движке, но недостижимой). Ослабление
+      // сохраняет контент, а «Разлад» рядом даёт настоящую альтернативу —
+      // игрок выбирает между вялой гармонией и острой, но хрупкой сборкой.
+      const rift = conflictToKeyword(g1, g2);
+      if (rift) {
+        const weak = {
+          ...kw,
+          lvl: Math.max(1, (kw.lvl || 1) - 1),
+          value: kw.value * CONFLICT_WEAKEN,
+          weakened: true,
+        };
+        candidates.push({ ...weak, stack, score: weak.value + 0.35 * (stack - 1) + pureBonus });
+        candidates.push({ ...rift, stack, score: rift.value + 0.4 + pureBonus });
+        continue;
+      }
+      candidates.push({ ...kw, stack, score: kw.value + 0.35 * (stack - 1) + pureBonus });
     }
   }
 
@@ -200,6 +226,30 @@ function buildContext(componentIds) {
     }
   }
 
+  // --- резонанс: шестерня, собранная в количестве RESONANCE_MIN и больше ---
+  // Награда за связную сборку: одна шестерня много раз звучит громче, чем
+  // разнобой из пар. Кандидат сильнее парных по ценности, но не по приоритету.
+  for (const g of distinctGears) {
+    if (gearCounts[g] < RESONANCE_MIN) continue;
+    const kw = resonanceToKeyword(g);
+    if (!kw) continue;
+    candidates.push({ ...kw, stack: gearCounts[g], score: kw.value + 0.8 + (purity === 'pure' ? 0.5 : 0) });
+  }
+
+  // --- врождённое свойство шестерни ---
+  // Кандидат-запас: чинит карты из одного открытия, которые раньше оставались
+  // вовсе без свойств (одна шестерня не строит пару). Подавляется только для
+  // бинарных fx — «Закал» рядом с «Бронёй» был бы дублем, а вот «Отладка» +0/+1
+  // и «Жар» +1/+0 дают разные числа и остаются осмысленным выбором.
+  const blockedFx = new Set(candidates.filter((c) => c.fx !== 'statBoost').map((c) => c.fx));
+  for (const g of distinctGears) {
+    const kw = soloToKeyword(g);
+    if (!kw) continue;
+    if (kw.fx !== 'statBoost' && blockedFx.has(kw.fx)) continue;
+    blockedFx.add(kw.fx);
+    candidates.push({ ...kw, stack: gearCounts[g], score: kw.value * 0.6 + (purity === 'pure' ? 0.3 : 0) });
+  }
+
   // --- сколько свойств помещается на карту ---
   let kwCap = rarity.kwCap;
   if (purity === 'chimera') kwCap += 1; // химера: больше свойств, слабее корпус
@@ -232,6 +282,9 @@ export function candidatePool(componentIds) {
     candidates: ctx.candidates.map((c, i) => ({
       id: candidateId(c), kw: c.kw, name: c.name, text: c.text, fx: c.fx,
       lvl: c.lvl || 1, value: c.value, from: c.from, triple: !!c.triple,
+      solo: !!c.solo, resonance: !!c.resonance, conflict: !!c.conflict, weakened: !!c.weakened,
+      // atk/hp нужны интерфейсу: размен «+2/−1» у разлада обязан быть читаемым
+      atk: c.atk || 0, hp: c.hp || 0,
       stack: c.stack, priority: c.priority, rank: i,
     })),
   };
@@ -337,9 +390,9 @@ export function generateCard(componentIds, opts = {}) {
     gearCounts,
     // флаг triple сохраняется: интерфейс помечает такие свойства отдельно
     // (это редкая комбинация трёх шестерёнок, а не обычная пара)
-    keywords: chosen.map((k) => ({ kw: k.kw, name: k.name, text: k.text, fx: k.fx, lvl: k.lvl, value: k.value, from: k.from, triple: !!k.triple })),
+    keywords: chosen.map((k) => ({ kw: k.kw, name: k.name, text: k.text, fx: k.fx, lvl: k.lvl, value: k.value, from: k.from, triple: !!k.triple, solo: !!k.solo, resonance: !!k.resonance, conflict: !!k.conflict, weakened: !!k.weakened, atk: k.atk || 0, hp: k.hp || 0 })),
     unusedKeywords: ctx.candidates.filter((c) => !chosen.some((k) => k.kw === c.kw)).slice(0, 6)
-      .map((c) => ({ kw: c.kw, name: c.name, text: c.text, fx: c.fx, lvl: c.lvl, from: c.from, triple: !!c.triple })),
+      .map((c) => ({ kw: c.kw, name: c.name, text: c.text, fx: c.fx, lvl: c.lvl, from: c.from, triple: !!c.triple, solo: !!c.solo, resonance: !!c.resonance, conflict: !!c.conflict, weakened: !!c.weakened, atk: c.atk || 0, hp: c.hp || 0 })),
     // пул целиком нужен интерфейсу, чтобы показать выбор, а не только остаток
     poolSize: ctx.candidates.length,
     kwCap,

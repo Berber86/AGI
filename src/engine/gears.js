@@ -168,6 +168,66 @@ export const KEYWORDS = {
                    text: 'В конце вашего хода: возьмите карту.' },
   plague:        { name: 'Мор',              fx: 'endPlague',     value: 3.4, priority: 8, param: 1,
                    text: 'В конце вашего хода: все вражеские юниты получают N урона.' },
+
+  // --- свойства от состава: врождённое свойство шестерни -------------------
+  // Работают, даже когда шестерня на карте одна. Слабее парных (priority 2),
+  // поэтому в авто-подборе уступают настоящим комбинациям, но гарантируют, что
+  // карта из одного открытия не остаётся вовсе без свойств.
+  soloMech:      { name: 'Отладка',   fx: 'statBoost', value: 1.0, priority: 2, atk: 0, hp: 1,
+                   text: '+0/+1 — механизм выверен до последнего зуба.' },
+  soloFire:      { name: 'Жар',       fx: 'statBoost', value: 1.0, priority: 2, atk: 1, hp: 0,
+                   text: '+1/+0 — горение не гаснет, пока есть топливо.' },
+  soloAlloy:     { name: 'Закал',     fx: 'armor',     value: 1.1, priority: 2, param: 1,
+                   text: 'Получаемый урон снижается на 1: сам сплав держит удар.' },
+  soloDoctrine:  { name: 'Догмат',    fx: 'statBoost', value: 1.0, priority: 2, atk: 0, hp: 1,
+                   text: '+0/+1 — уверенность держит строй крепче брони.' },
+  soloOptics:    { name: 'Дальнозор', fx: 'reach',     value: 1.1, priority: 2,
+                   text: 'Может блокировать юнитов с Осадным: оптика видит дальше.' },
+  soloBio:       { name: 'Живучесть', fx: 'lifelink',  value: 1.2, priority: 2,
+                   text: 'Нанесённый урон лечит вашего лидера: живое тянется к жизни.' },
+  soloVolt:      { name: 'Искра',     fx: 'haste',     value: 1.2, priority: 3,
+                   text: 'Может атаковать в тот же ход, когда выставлен.' },
+  soloChem:      { name: 'Едкость',   fx: 'statBoost', value: 1.0, priority: 2, atk: 1, hp: 0,
+                   text: '+1/+0 — реактив разъедает всё, чего касается.' },
+  soloCipher:    { name: 'Пробой',    fx: 'pierce',    value: 1.1, priority: 2,
+                   text: 'Урон игнорирует Броню цели: шифр находит щель.' },
+  soloPsyche:    { name: 'Воля',      fx: 'statBoost', value: 1.0, priority: 2, atk: 0, hp: 1,
+                   text: '+0/+1 — психея не даёт корпусу сломаться.' },
+
+  // --- свойства от состава: резонанс (шестерня встретилась 3+ раза) --------
+  // Награда за связную сборку: чем больше одной шестерни, тем громче она звучит.
+  resMech:       { name: 'Синхронизм', fx: 'vigilance', value: 2.4, priority: 5,
+                   text: 'Не истощается после атаки: шестерни идут в такт.' },
+  resFire:       { name: 'Пожар',      fx: 'statBoost', value: 2.8, priority: 5, atk: 3, hp: 0,
+                   text: '+3/+0 — огонь разошёлся не на шутку.' },
+  resAlloy:      { name: 'Монолит',    fx: 'statBoost', value: 2.8, priority: 5, atk: 0, hp: 3,
+                   text: '+0/+3 — сплав лёг единым массивом.' },
+  resDoctrine:   { name: 'Собор',      fx: 'statBoost', value: 2.8, priority: 5, atk: 1, hp: 2,
+                   text: '+1/+2 — доктрина собрала вокруг себя остальных.' },
+  resOptics:     { name: 'Фокус',      fx: 'statBoost', value: 2.8, priority: 5, atk: 2, hp: 1,
+                   text: '+2/+1 — все линзы сведены в одну точку.' },
+  resBio:        { name: 'Плодородие', fx: 'growth',    value: 2.6, priority: 5,
+                   text: 'В начале вашего хода получает +1/+1: жизнь берёт своё.' },
+  resVolt:       { name: 'Сверхток',   fx: 'statBoost', value: 2.8, priority: 5, atk: 2, hp: 1,
+                   text: '+2/+1 — контур перегружен, но держит.' },
+  resChem:       { name: 'Катализ',    fx: 'statBoost', value: 2.8, priority: 5, atk: 2, hp: 1,
+                   text: '+2/+1 — реакция пошла быстрее, чем рассчитывали.' },
+  resCipher:     { name: 'Алгоритм',   fx: 'statBoost', value: 2.8, priority: 5, atk: 1, hp: 2,
+                   text: '+1/+2 — шифр сам достраивает недостающие звенья.' },
+  resPsyche:     { name: 'Экстаз',     fx: 'zeal',      value: 2.6, priority: 5,
+                   text: 'Рвётся в бой: психея перегорает и вспыхивает ярче.' },
+
+  // --- свойства от состава: разлад (две шестерни не работают вместе) --------
+  // Заменяют гармоничное парное свойство на двустороннее: химера получает
+  // больше слотов, но худшие варианты — это настоящая цена смешения линий.
+  riftCipherDoctrine: { name: 'Раскол',      fx: 'statBoost', value: 1.6, priority: 4, atk: 2, hp: -1,
+                        text: '+2/−1 — расчёт не терпит веры, а вера не терпит расчёта.' },
+  riftBioVolt:        { name: 'Отторжение',  fx: 'statBoost', value: 1.8, priority: 4, atk: 2, hp: -2,
+                        text: '+2/−2 — живое не уживается с током.' },
+  riftMechPsyche:     { name: 'Опустошение', fx: 'statBoost', value: 2.0, priority: 4, atk: 3, hp: -2,
+                        text: '+3/−2 — механизм вытесняет душу.' },
+  riftBioCipher:      { name: 'Подмена',     fx: 'statBoost', value: 1.6, priority: 4, atk: 2, hp: -1,
+                        text: '+2/−1 — плоть переписана кодом.' },
 };
 
 // -----------------------------------------------------------------------------
@@ -291,6 +351,76 @@ export const GEAR_TRIPLES = {
   'bio+chem+psyche':        { kw: 'poison', lvl: 3 },
   'cipher+optics+volt':     { kw: 'scry',   lvl: 3 },
 };
+
+// -----------------------------------------------------------------------------
+//  Свойства от состава: врождённое свойство шестерни, резонанс и разлад.
+//  Все три слоя переиспользуют существующие fx, поэтому боевой движок и таблица
+//  предпочтений личностей покрывают их без правок.
+// -----------------------------------------------------------------------------
+
+/** Врождённое свойство шестерни: работает, даже когда шестерня на карте одна. */
+export const GEAR_SOLO = {
+  mech: 'soloMech', fire: 'soloFire', alloy: 'soloAlloy', doctrine: 'soloDoctrine',
+  optics: 'soloOptics', bio: 'soloBio', volt: 'soloVolt', chem: 'soloChem',
+  cipher: 'soloCipher', psyche: 'soloPsyche',
+};
+
+/** Сколько раз шестерня должна встретиться на карте, чтобы зазвучал резонанс. */
+export const RESONANCE_MIN = 3;
+
+/** Резонанс: награда за связную сборку из одной шестерни. */
+export const GEAR_RESONANCE = {
+  mech: 'resMech', fire: 'resFire', alloy: 'resAlloy', doctrine: 'resDoctrine',
+  optics: 'resOptics', bio: 'resBio', volt: 'resVolt', chem: 'resChem',
+  cipher: 'resCipher', psyche: 'resPsyche',
+};
+
+/**
+ * Разлад: пары шестерёнок, которые не дают гармоничного свойства.
+ * Парное свойство заменяется двусторонним — игрок сам решает в драфте,
+ * брать ли размен «атака вместо корпуса».
+ */
+export const GEAR_CONFLICTS = {
+  'cipher+doctrine': 'riftCipherDoctrine',
+  'bio+volt':        'riftBioVolt',
+  'mech+psyche':     'riftMechPsyche',
+  'bio+cipher':      'riftBioCipher',
+};
+
+/** Общая форма записи свойства — та же, что возвращает pairToKeyword. */
+function composeKeyword(id, from, extra = {}) {
+  const base = KEYWORDS[id];
+  if (!base) return null;
+  return {
+    kw: id,
+    name: base.name,
+    fx: base.fx,
+    text: base.text,
+    lvl: base.param ?? 1,
+    priority: base.priority,
+    value: base.value,
+    atk: base.atk || 0,
+    hp: base.hp || 0,
+    from,
+    ...extra,
+  };
+}
+
+export function soloToKeyword(gear) {
+  const id = GEAR_SOLO[gear];
+  return id ? composeKeyword(id, gear, { solo: true }) : null;
+}
+
+export function resonanceToKeyword(gear) {
+  const id = GEAR_RESONANCE[gear];
+  return id ? composeKeyword(id, gear, { resonance: true }) : null;
+}
+
+export function conflictToKeyword(g1, g2) {
+  const key = pairKey(g1, g2);
+  const id = GEAR_CONFLICTS[key];
+  return id ? composeKeyword(id, key, { conflict: true }) : null;
+}
 
 export const tripleKey = (a, b, c) => [a, b, c].sort().join('+');
 

@@ -1196,12 +1196,12 @@ suite('Мастерская: драфт свойств');
 
 const DRAFT_COMPS = ['steel', 'automata', 'telegraph'];
 
-async function openDraftForge() {
+async function openDraftForge(comps = DRAFT_COMPS) {
   const st = freshHub('forge');
   await sleep(10);
   const { forge } = await import('../src/ui/screens/forge.js');
-  forge.slots = DRAFT_COMPS.length;
-  forge.picked = [...DRAFT_COMPS];
+  forge.slots = comps.length;
+  forge.picked = [...comps];
   forge.draft = null;
   render();
   await sleep(10);
@@ -1335,6 +1335,59 @@ test('у готового проекта появляется перековка
   await sleep(10);
   le(st.materials, before, 'плата взята');
   ge(st.blueprints[[...DRAFT_COMPS].sort().join('+')].keywords.length, 1, 'свойства пересобраны');
+});
+
+test('врождённое свойство помечено: карта из одного открытия не пустая', async () => {
+  await openDraftForge(['fire_mastery']);
+  const opts = $$('.draft__opt');
+  ge(opts.length, 1, 'пул не пуст — ровно это и чинил этап Б');
+  ok($$('.draft__cat.is-solo').length >= 1, 'метка «врожд.» показана');
+  ok(opts.some((n) => /Жар/.test(n.textContent)), 'свойство Горения на месте: ' + opts.map((n) => n.textContent).join(' | '));
+});
+
+test('резонанс показан только при трёх одинаковых шестернях', async () => {
+  await openDraftForge(['wheel', 'pottery', 'masonry']);   // mech ×3
+  ok($$('.draft__cat.is-resonance').length >= 1, 'метка «резонанс» показана');
+  const res = $$('.draft__opt').find((n) => /Синхронизм/.test(n.textContent));
+  ok(res, 'резонанс Механики в списке');
+  ok(/трижды|связная/i.test(res.title) || res.querySelector('.draft__cat').title.length > 10,
+    'метка объясняет, откуда резонанс: ' + res.querySelector('.draft__cat').title);
+
+  await openDraftForge(['wheel', 'pottery']);              // mech ×2
+  eq($$('.draft__cat.is-resonance').length, 0, 'без третьей шестерни резонанса нет');
+});
+
+test('разлад помечен, а гармоничное свойство рядом — как ослабленное', async () => {
+  await openDraftForge(['coinage', 'chieftain']);          // cipher + doctrine
+  ok($$('.draft__cat.is-conflict').length >= 1, 'метка «разлад» показана');
+  ok($$('.draft__cat.is-weakened').length >= 1, 'ослабленное свойство помечено');
+  const rift = $$('.draft__opt').find((n) => /Раскол/.test(n.textContent));
+  ok(rift, '«Раскол» в списке');
+  const delta = rift.querySelector('.draft__delta');
+  ok(delta, 'размен показан числами, а не только текстом');
+  ok(delta.textContent.includes('+2') && delta.textContent.includes('−1'),
+    'размен читается как +2/−1: ' + delta.textContent);
+  ok(delta.className.includes('is-bad'), 'потеря корпуса выделена цветом');
+});
+
+test('размен показан и у обычных числовых свойств', async () => {
+  await openDraftForge(['wheel', 'stonework', 'masonry']);
+  const deltas = $$('.draft__delta');
+  ge(deltas.length, 1, 'у числовых свойств виден размен');
+  ok(deltas.every((n) => /^[+\u2212-]\d+\/[+\u2212-]?\d+$/.test(n.textContent.trim())),
+    'формат единый: ' + deltas.map((n) => n.textContent).join(' '));
+});
+
+test('правила в пустом станке объясняют новые слои состава', async () => {
+  freshHub('forge');
+  await sleep(10);
+  const { forge } = await import('../src/ui/screens/forge.js');
+  forge.slots = 2; forge.picked = []; forge.draft = null;
+  render(); await sleep(10);
+  const rules = $('.rules-mini');
+  ok(rules, 'сводка правил показана');
+  ok(/резонанс/i.test(rules.textContent), 'про резонанс рассказано');
+  ok(/разлад/i.test(rules.textContent), 'про разлад рассказано');
 });
 
 // экспорт для запуска из tools

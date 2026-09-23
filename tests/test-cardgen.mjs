@@ -3,7 +3,11 @@ import {
   generateCard, checkCombination, compatible, blueprintCost, recruitCost,
 } from '../src/engine/cardgen.js';
 import { DISCOVERY_LIST, DISCOVERIES } from '../src/engine/discoveries.js';
-import { GEAR_PAIRS, GEAR_TRIPLES, KEYWORDS, RARITIES, pairKey, tripleKey, tripleToKeyword, eraOf } from '../src/engine/gears.js';
+import {
+  GEAR_PAIRS, GEAR_TRIPLES, KEYWORDS, RARITIES, pairKey, tripleKey, tripleToKeyword, eraOf,
+  GEAR_SOLO, GEAR_RESONANCE, GEAR_CONFLICTS, RESONANCE_MIN, GEARS,
+} from '../src/engine/gears.js';
+import { candidatePool, CONFLICT_WEAKEN } from '../src/engine/cardgen.js';
 import { makeRng } from '../src/engine/rng.js';
 
 suite('Генератор карт: совместимость');
@@ -100,9 +104,12 @@ test('обычная карта вмещает ровно одно свойст�
 
 suite('Генератор карт: шестерни и свойства');
 
-test('свойства берутся ровно из матриц пар и троек шестерёнок', () => {
+test('каждое свойство прослеживается до одной из таблиц состава', () => {
+  // Слоёв стало пять: пары, тройки, врождённое свойство шестерни, резонанс
+  // и разлад. Инвариант прежний по духу — ничего «из воздуха», — но таблицы
+  // теперь все перечислены явно, иначе новое свойство прошло бы незамеченным.
   const rng = makeRng('pairs');
-  let pairs = 0, triples = 0;
+  let pairs = 0, triples = 0, solos = 0, rifts = 0;
   for (let i = 0; i < 800; i++) {
     const ids = pickCompatible(rng, 1 + rng.int(4));
     if (!ids) continue;
@@ -110,15 +117,33 @@ test('свойства берутся ровно из матриц пар и т�
     if (!c) continue;
     for (const k of c.keywords) {
       const gears = (k.from || '').split('+');
-      ge(gears.length, 2, `${c.name}: свойство ${k.name} без комбинации шестерёнок`);
-      // каждая шестерня комбинации обязана реально лежать на карте
+      ge(gears.length, 1, `${c.name}: свойство ${k.name} без источника`);
+      // каждая шестерня источника обязана реально лежать на карте
       for (const g of gears) ge(c.gearCounts[g] || 0, 1, `${c.name}: шестерня ${g} не входит в карту`);
 
-      if (gears.length === 2) {
-        const rec = GEAR_PAIRS[pairKey(gears[0], gears[1])];
-        ok(rec, `${c.name}: пара ${k.from} отсутствует в матрице`);
-        eq(rec.kw, k.kw, `${c.name}: ${k.from} должно давать ${rec.kw}`);
-        pairs++;
+      if (gears.length === 1) {
+        const g = gears[0];
+        if (k.resonance) {
+          eq(GEAR_RESONANCE[g], k.kw, `${c.name}: резонанс ${g}`);
+          ge(c.gearCounts[g] || 0, RESONANCE_MIN, `${c.name}: резонанс без ${RESONANCE_MIN} шестерёнок`);
+        } else {
+          eq(GEAR_SOLO[g], k.kw, `${c.name}: врождённое свойство ${g}`);
+          eq(k.solo, true, `${c.name}: врождённое свойство помечено`);
+          solos++;
+        }
+      } else if (gears.length === 2) {
+        const key = pairKey(gears[0], gears[1]);
+        const riftId = GEAR_CONFLICTS[key];
+        if (riftId && riftId === k.kw) {
+          eq(k.conflict, true, `${c.name}: разлад помечен`);
+          rifts++;
+        } else {
+          const rec = GEAR_PAIRS[key];
+          ok(rec, `${c.name}: пара ${k.from} отсутствует в матрице`);
+          eq(rec.kw, k.kw, `${c.name}: ${k.from} должно давать ${rec.kw}`);
+          if (riftId) eq(k.weakened, true, `${c.name}: свойство конфликтной пары ослаблено`);
+          pairs++;
+        }
       } else {
         eq(gears.length, 3, `${c.name}: комбинация длиннее тройки: ${k.from}`);
         const rec = GEAR_TRIPLES[tripleKey(...gears)];
@@ -131,6 +156,106 @@ test('свойства берутся ровно из матриц пар и т�
   }
   ge(pairs, 100, `парные свойства встречаются массово (найдено ${pairs})`);
   ge(triples, 1, `тройные свойства достижимы (найдено ${triples})`);
+  ge(solos, 1, `врождённые свойства достижимы (найдено ${solos})`);
+  ge(rifts, 1, `разлад достижим (найдено ${rifts})`);
+});
+
+suite('Генератор карт: свойства от состава');
+
+test('карта из одного открытия больше не бывает без свойств', () => {
+  // 12 открытий несут одну шестерню: пару из неё не построить, и раньше такие
+  // карты рождались пустыми (9 из 26 в первых эпохах). Врождённое свойство
+  // шестерни закрывает эту дыру по построению.
+  const single = DISCOVERY_LIST.filter((d) => d.gears.length === 1);
+  eq(single.length, 12, 'одношестерёночных открытий двенадцать');
+  for (const d of single) {
+    const bp = generateCard([d.id]);
+    ok(bp, `${d.id}: карта собирается`);
+    ge(bp.keywords.length, 1, `${d.id}: пустая карта — нет даже врождённого свойства`);
+    eq(bp.keywords[0].solo, true, `${d.id}: свойство должно быть врождённым`);
+    eq(bp.keywords[0].kw, GEAR_SOLO[d.gears[0]], `${d.id}: врождённое свойство своей шестерни`);
+  }
+});
+
+test('врождённое свойство есть у каждой шестерни и оно слабее парных', () => {
+  for (const g of Object.keys(GEARS)) {
+    const id = GEAR_SOLO[g];
+    ok(id, `${g}: нет врождённого свойства`);
+    const k = KEYWORDS[id];
+    ok(k, `${g}: свойство ${id} не объявлено в словаре`);
+    le(k.priority, 3, `${g}: врождённое свойство не должно спорить с парными`);
+    le(k.value, 1.5, `${g}: врождённое свойство обязано быть слабым`);
+  }
+});
+
+test('врождённое свойство не дублирует бинарный fx, но разрешает разные числа', () => {
+  // alloy даёт «Закал» (armor). alloy+mech даёт «Броню» (armor) — два armor на
+  // одной карте были бы дублем, поэтому врождённое подавляется. А вот «Отладка»
+  // +0/+1 и «Жар» +1/+0 дают разные числа и остаются осмысленным выбором.
+  const p = candidatePool(['wheel', 'stonework']);
+  ok(p.ok, p.reason || 'набор собирается');
+  const armors = p.candidates.filter((c) => c.fx === 'armor');
+  le(armors.length, 1, 'не больше одного armor в пуле');
+  const boosted = p.candidates.filter((c) => c.fx === 'statBoost' && c.solo);
+  ge(boosted.length, 1, 'врождённые числовые свойства не подавляются друг другом');
+});
+
+test('резонанс появляется только при RESONANCE_MIN одинаковых шестернях', () => {
+  const trio = ['wheel', 'pottery', 'masonry'];   // mech ×3
+  const p = candidatePool(trio);
+  ok(p.ok, p.reason || 'набор собирается');
+  ge(p.candidates.filter((c) => c.resonance).length, 1, 'резонанс механики в пуле');
+  const res = p.candidates.find((c) => c.resonance);
+  eq(res.kw, GEAR_RESONANCE.mech, 'резонанс именно своей шестерни');
+  ge(res.stack, RESONANCE_MIN, 'счётчик шестерни отражён');
+
+  const duo = ['wheel', 'pottery'];
+  const p2 = candidatePool(duo);
+  if (p2.ok) eq(p2.candidates.filter((c) => c.resonance).length, 0, 'без трёх шестерёнок резонанса нет');
+});
+
+test('разлад ослабляет гармоничное свойство, а не удаляет его', () => {
+  const pair = ['coinage', 'chieftain'];   // cipher + doctrine
+  const p = candidatePool(pair);
+  ok(p.ok, p.reason || 'набор собирается');
+  const rift = p.candidates.find((c) => c.conflict);
+  ok(rift, 'разлад в пуле');
+  eq(rift.kw, GEAR_CONFLICTS['cipher+doctrine']);
+  const weak = p.candidates.find((c) => c.weakened);
+  ok(weak, 'ослабленное гармоничное свойство осталось в пуле');
+  eq(weak.kw, GEAR_PAIRS['cipher+doctrine'].kw, 'это то же самое свойство пары');
+  const base = KEYWORDS[weak.kw];
+  ok(Math.abs(weak.value - base.value * CONFLICT_WEAKEN) < 1e-9,
+    `ослаблено ровно в ${CONFLICT_WEAKEN}: было ${base.value}, стало ${weak.value}`);
+  ok(rift.atk > 0 && rift.hp < 0, `разлад двусторонний: +${rift.atk}/−${-rift.hp}`);
+});
+
+test('разлад не осиротил ни одно свойство: словарь по-прежнему достижим', () => {
+  // Конфликт заменяет гармонию, поэтому легко потерять свойство целиком:
+  // 51 свойство имеет единственный источник-пару. Проверяем, что каждое
+  // объявленное свойство хотя бы где-то встречается в пулах.
+  const seen = new Set();
+  const ids = DISCOVERY_LIST.map((d) => d.id);
+  for (let i = 0; i < ids.length; i++) {
+    for (const slots of [1, 2, 3, 4]) {
+      const cs = [];
+      for (let s = 0; s < slots; s++) {
+        const cand = ids.filter((id) => cs.every((x) => compatible(x, id)) && cs.filter((x) => x === id).length < 2);
+        if (!cand.length) break;
+        cs.push(cand[(i * 31 + s * 17) % cand.length]);
+      }
+      if (cs.length !== slots) continue;
+      const p = candidatePool(cs);
+      if (p.ok) for (const c of p.candidates) seen.add(c.kw);
+    }
+  }
+  // пары обязаны остаться достижимыми, кроме тех, что попали в разлад
+  for (const [key, rec] of Object.entries(GEAR_PAIRS)) {
+    if (Object.values(GEAR_CONFLICTS).includes(rec.kw)) continue;
+    ok(seen.has(rec.kw), `свойство пары ${key} (${rec.kw}) недостижимо`);
+  }
+  for (const id of Object.values(GEAR_SOLO)) ok(seen.has(id), `врождённое ${id} недостижимо`);
+  for (const id of Object.values(GEAR_CONFLICTS)) ok(seen.has(id), `разлад ${id} недостижим`);
 });
 
 test('тройка подавляет слабую парную версию того же свойства', () => {

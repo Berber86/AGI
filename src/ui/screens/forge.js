@@ -16,6 +16,9 @@ import { makeRng } from '../../engine/rng.js';
 // что из пула поставить на карту и сколько свойств вообще брать.
 const forge = { slots: 2, picked: [], filterGear: null, filterDomain: null, filterEra: 0, query: '', draft: null };
 
+/** Знаковое число с типографским минусом. */
+const signed = (n) => (n >= 0 ? `+${n}` : `\u2212${Math.abs(n)}`);
+
 /** Смена набора открытий обнуляет выбор свойств: пул другой. */
 function resetDraft() { forge.draft = null; }
 
@@ -348,6 +351,17 @@ function draftPanel(st) {
     const locked = !on && full;
     const lvl = (c.lvl || 1) > 1 ? ` ${ROMAN[Math.min(6, c.lvl)]}` : '';
     const from = c.from.split('+').map((g) => GEARS[g]?.name || g).join(' + ');
+    // Размен у числовых свойств важнее абстрактной ценности: «+2/−1» читается
+    // сразу, а «1.6» не говорит игроку ничего.
+    // Минус — типографский (U+2212), как в текстах свойств: «+2/−1», а не «+2/-1».
+    const delta = (c.atk || c.hp)
+      ? el('span', { class: 'draft__delta' + (c.hp < 0 ? ' is-bad' : '') },
+        `${signed(c.atk)}/${signed(c.hp)}`)
+      : null;
+    const cat = c.conflict ? { cls: 'is-conflict', label: 'разлад', title: 'Шестерни мешают друг другу: свойство даёт атаку в обмен на корпус' }
+      : c.resonance ? { cls: 'is-resonance', label: 'резонанс', title: 'Связная сборка: одна шестерня встретилась трижды и зазвучала громче' }
+      : c.solo ? { cls: 'is-solo', label: 'врожд.', title: 'Врождённое свойство шестерни: работает, даже когда она одна' }
+      : null;
     const node = el('button', {
       class: 'draft__opt' + (on ? ' is-on' : '') + (locked ? ' is-locked' : ''),
       onclick: () => toggle(c),
@@ -358,8 +372,11 @@ function draftPanel(st) {
     }, [
       el('span', { class: 'draft__mark' }, on ? '◉' : '○'),
       el('span', { class: 'draft__name' }, `${c.name}${lvl}`),
-      c.triple ? el('span', { class: 'draft__triple', title: 'Редкая комбинация трёх шестерёнок' }, '✦') : null,
+      c.triple ? el('span', { class: 'draft__cat is-triple', title: 'Редкая комбинация трёх шестерёнок' }, '✦') : null,
+      cat ? el('span', { class: `draft__cat ${cat.cls}`, title: cat.title }, cat.label) : null,
+      c.weakened ? el('span', { class: 'draft__cat is-weakened', title: 'Разлад рядом ослабил это свойство: оно осталось, но работает вполсилы' }, 'ослаблено') : null,
       el('span', { class: 'draft__from' }, from),
+      delta,
       el('span', { class: 'draft__val' }, `+${c.value.toFixed(1)}`),
     ]);
     list.append(node);
@@ -394,6 +411,8 @@ function preview(st) {
         el('div', {}, '4 слота → Мифическая · до 4 свойств'),
         el('div', {}, 'Химера (3+ домена) → +1 свойство, −10% характеристик'),
         el('div', {}, 'Чистая линия (1 домен) → +8% характеристик'),
+        el('div', {}, 'Шестерня ×3 → резонанс: сильное свойство связной сборки'),
+        el('div', {}, 'Враждующие шестерни → разлад: гармоничное свойство слабеет, рядом появляется размен «атака вместо корпуса»'),
       ]),
     ]));
     return box;

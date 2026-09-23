@@ -167,6 +167,19 @@ const PERS_ORDER = { aggro: 0, swarm: 1, midrange: 2, control: 3 };
 const CHEAP_BIAS = { aggro: 0.55, swarm: 0.35, midrange: 0.15, control: -0.25 };
 
 /**
+ * Отношение к разладу: свойство даёт атаку в обмен на корпус.
+ * Агрессия такой размен любит, контроль — нет, потому что контроль живёт
+ * именно корпусом и длинной партией.
+ */
+const RIFT_BIAS = { aggro: 1.6, swarm: -0.4, midrange: -0.2, control: -1.4 };
+
+/** Резонанс — награда за связную сборку, его хотят все. */
+const RESONANCE_BIAS = 1.0;
+
+/** Врождённое свойство — заполнитель: берём, только если ничего лучшего нет. */
+const SOLO_PENALTY = -0.6;
+
+/**
  * Драфт соперника: какие свойства из пула поставить на карту.
  * Без этого драфт был бы только у игрока, и соперник системно получал бы
  * худшие карты — сложность сломалась бы не в ту сторону.
@@ -181,6 +194,9 @@ export function draftForRival(comps, personality) {
     let s = c.priority * 0.6 + c.value + prof[pi];
     s += cheap * (8 - Math.min(8, c.value));
     if (c.triple) s += 0.6;
+    if (c.conflict) s += RIFT_BIAS[personality] ?? 0;
+    if (c.resonance) s += RESONANCE_BIAS;
+    if (c.solo) s += SOLO_PENALTY;
     return { id: c.id, s };
   }).sort((a, b) => b.s - a.s || a.id.localeCompare(b.id));
   return scored.slice(0, pool.kwCap).map((x) => x.id);
