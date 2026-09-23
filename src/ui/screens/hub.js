@@ -7,7 +7,7 @@ import { renderForge } from './forge.js';
 import { renderRoster } from './roster.js';
 import { renderDeck } from './deck.js';
 import { renderJournal } from './journal.js';
-import { ROMAN_ERA } from '../shared.js';
+import { ROMAN_ERA, MAX_ERA } from '../shared.js';
 
 export const HUB_TABS = [
   { id: 'map', label: 'Карта мира', icon: '🗺', render: renderMap },
@@ -26,6 +26,9 @@ const GOALS_KEY = 'gears-of-ages:goals-hidden';
  * Мастерская → Ростер → Колода → Бой → Наука → Экспансия.
  */
 export function objectives(st) {
+  // число регионов берём из мира партии, а не из константы: знаменатель цели
+  // «Возьмите Сердцевину» обязан совпадать с реальной картой
+  const regionTotal = st.world?.regions?.length ?? 0;
   const wins = st.stats?.wins || 0;
   const crafted = st.stats?.crafted || 0;
   const recruited = st.stats?.recruited || 0;
@@ -72,9 +75,10 @@ export function objectives(st) {
     {
       id: 'crown', tab: 'map', icon: '👑',
       text: 'Возьмите Сердцевину',
-      hint: 'Финальный регион эпохи Атома. Чтобы дойти до него, нужно сменить шесть эпох.',
+      hint: `Финальный регион эпохи Атома. Чтобы дойти до него, нужно пройти ${MAX_ERA} эпох.`,
       done: !!st.victory,
-      progress: st.victory ? '✓' : `${st.conquered || 0}/10`,
+      // знаменатель — из мира: регионов может быть не 10, если мир изменится
+      progress: st.victory ? '✓' : `${Math.min(st.conquered || 0, regionTotal)}/${regionTotal}`,
     },
   ];
 }

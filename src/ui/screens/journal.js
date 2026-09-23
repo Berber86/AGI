@@ -1,7 +1,7 @@
 // Экран «Журнал»: события партии, статистика и справочник шестерёнок/свойств.
 import { el, tooltip } from '../dom.js';
 import { gearSVG } from '../art.js';
-import { GEARS, GEAR_IDS, GEAR_PAIRS, KEYWORDS, DOMAINS, RARITIES, ROMAN_ERA, S, eraOf } from '../shared.js';
+import { GEARS, GEAR_IDS, GEAR_PAIRS, KEYWORDS, DOMAINS, RARITIES, ROMAN_ERA, S, eraOf, DISCOVERY_LIST } from '../shared.js';
 import { app } from '../app.js';
 
 export function renderJournal() {
@@ -17,7 +17,8 @@ export function renderJournal() {
     stat('Поражений', st.stats.losses),
     stat('Проектов', Object.keys(st.blueprints).length),
     stat('Юнитов', st.roster.length),
-    stat('Открытий', `${st.researched.length}/80`),
+    // знаменатель берём из данных: было зашито «/80» при 85 открытиях
+    stat('Открытий', `${st.researched.length}/${DISCOVERY_LIST.length}`),
     stat('Регионов', `${st.conquered}/${st.world.regions.length}`),
     stat('Убито врагов', st.stats.kills),
     stat('Пало своих', st.stats.lost),

@@ -351,3 +351,64 @@ test('корректная десериализация отвергает чу�
   try { S.deserialize('{"v":99}'); } catch { threw = true; }
   ok(threw);
 });
+
+test('validateSave принимает настоящую партию и объясняет каждый отказ', () => {
+  const st = fresh();
+  eq(S.validateSave(st).ok, true, 'свежая партия валидна');
+  eq(S.validateSave(JSON.parse(S.serialize(st))).ok, true, 'и после сериализации тоже');
+
+  // каждая проверка обязана возвращать понятную причину, а не просто false
+  const cases = [
+    [null, 'объект'],
+    [{}, 'версия'],
+    [{ ...structuredClone(st), v: 2 }, 'версия'],
+    [{ ...structuredClone(st), civName: '' }, 'имени'],
+    [{ ...structuredClone(st), era: 99 }, 'эпоха'],
+    [{ ...structuredClone(st), era: 0 }, 'эпоха'],
+    [{ ...structuredClone(st), researched: null }, 'открытий'],
+    [{ ...structuredClone(st), roster: 'не массив' }, 'ростера'],
+    [{ ...structuredClone(st), deck: undefined }, 'колоды'],
+    [{ ...structuredClone(st), blueprints: null }, 'чертежей'],
+    [{ ...structuredClone(st), world: { regions: [] } }, 'карты мира'],
+    [{ ...structuredClone(st), science: NaN }, 'ресурсы'],
+    [{ ...structuredClone(st), stats: null }, 'статистики'],
+  ];
+  for (const [broken, word] of cases) {
+    const r = S.validateSave(broken);
+    eq(r.ok, false, `отклонено: ${word}`);
+    ok(typeof r.reason === 'string' && r.reason.length > 3, `причина внятная для «${word}»: ${r.reason}`);
+  }
+});
+
+test('validateSave ловит внутреннюю несогласованность, а не только форму', () => {
+  const st = fresh();
+  st.materials = 9000;
+  S.craft(st, ['fire_mastery', 'stonework']);
+  S.recruit(st, Object.keys(st.blueprints).at(-1), 2);
+
+  // колода ссылается на юнита, которого нет в ростере — интерфейс упал бы
+  const badDeck = JSON.parse(S.serialize(st));
+  badDeck.deck = [...badDeck.deck, 'юнита-с-таким-id-нет'];
+  const r1 = S.validateSave(badDeck);
+  eq(r1.ok, false, 'битая ссылка в колоде отклонена');
+  ok(r1.reason.includes('несуществующих'), 'причина указывает на колоду: ' + r1.reason);
+
+  // юнит без чертежа — карта не отрисуется
+  const badUnit = JSON.parse(S.serialize(st));
+  badUnit.roster.push({ id: 'u-bad', xp: 0 });
+  const r2 = S.validateSave(badUnit);
+  eq(r2.ok, false, 'юнит без чертежа отклонён');
+  ok(r2.reason.includes('чертежа'), 'причина указывает на чертеж: ' + r2.reason);
+});
+
+test('deserialize сообщает причину отказа текстом, пригодным для тоста', () => {
+  const msgs = [];
+  for (const bad of ['не json вовсе', '{"v":99}', '[]', '{"v":1}']) {
+    try { S.deserialize(bad); msgs.push('НЕ ОТКЛОНЕНО: ' + bad); }
+    catch (e) { msgs.push(e.message); }
+  }
+  eq(msgs.length, 4, 'все четыре случая отклонены');
+  ok(!msgs.some((m) => m.startsWith('НЕ ОТКЛОНЕНО')), 'провалов нет');
+  ok(msgs[0].includes('JSON'), 'нечитаемый файл назван JSON-ом: ' + msgs[0]);
+  ok(msgs.every((m) => m.length > 5), 'каждое сообщение осмысленно: ' + msgs.join(' | '));
+});

@@ -5,6 +5,7 @@ import { gearSVG } from '../art.js';
 import { DOMAINS, GEARS, GEAR_IDS, ROMAN_ERA, S, eraOf, vetTier, VET_NAMES } from '../shared.js';
 import { app, persist, toast, render } from '../app.js';
 import { renderCard } from '../cards.js';
+import { unitDetailModal } from './roster.js';
 
 let style = 'balanced';
 let sortMode = 'cost';
@@ -59,7 +60,7 @@ export function renderDeck() {
     // карту в колоде можно рассмотреть: клик открывает тот же разбор,
     // что и в ростере (какая пара шестерёнок дала какое свойство)
     const cell = el('div', { class: 'deckcell' }, [
-      renderCard(u, { size: 'sm', onClick: () => detailModal(u, { mode: 'deck' }) }),
+      renderCard(u, { size: 'sm', onClick: () => unitDetailModal(u) }),
       btn('✕', () => { st.deck = st.deck.filter((x) => x !== u.id); persist(); refresh(); }, 'sm danger-ghost'),
     ]);
     tooltip(cell, `<b>${u.blueprint.name}</b> — ${u.blueprint.atk}/${u.blueprint.hp}, ${u.blueprint.cost} ⚡<br>

@@ -14,7 +14,7 @@
 
 import {
   createBattle, startTurn, endTurn, beginCombat, resolveCombat,
-  autoBlock, other, side, predictCombat, predictUnblocked, attackers, isAlive,
+  autoBlock, other, side, predictCombat, predictUnblocked, predictDefense, attackers, isAlive,
 } from '../src/engine/battle.js';
 import { generateWorld, buildRival, applyDifficulty } from '../src/engine/civ.js';
 import { aiPlayOne, aiDeclareAttack } from '../src/engine/ai.js';
@@ -69,6 +69,9 @@ function oneBattle(seed, era, acc) {
           }
         }
 
+        // --- прогноз обороны ИИ: ровно то, что показывает этап объявления атаки ---
+        const snapD = predictDefense(b);
+
         // --- назначаем блоки и прогнозируем именно этот вариант ---
         const plan = autoBlock(b, def);
         const hpBefore = { me: hpOf(b, 'me'), foe: hpOf(b, 'foe') };
@@ -76,6 +79,22 @@ function oneBattle(seed, era, acc) {
 
         // --- разрешаем настоящий бой теми же блоками ---
         resolveCombat(b);
+
+        // predictDefense обязан сойтись с настоящим боем: он и есть сценарий,
+        // который resolveCombat разыграет (автоблок ИИ)
+        if (!snapD.approximate) {
+          acc.defense++;
+          const okDef = ['me', 'foe'].every((id) => snapD.leaderDelta[id] === hpOf(b, id) - hpBefore[id]);
+          if (okDef) acc.defenseExact++;
+          else if (acc.failures.length < 6) {
+            acc.mismatch++;
+            acc.failures.push({
+              seed, era, round: b.round, расхождение: 'defense',
+              прогноз: snapD.leaderDelta, реально: { me: hpOf(b, 'me') - hpBefore.me, foe: hpOf(b, 'foe') - hpBefore.foe },
+              план: snapD.plan && snapD.plan.length,
+            });
+          }
+        }
 
         for (const id of ['me', 'foe']) {
           const predicted = snap.leaderDelta[id];
@@ -110,7 +129,7 @@ function oneBattle(seed, era, acc) {
   return b;
 }
 
-const acc = { total: 0, exact: 0, approximate: 0, mismatch: 0, unblocked: 0, unblockedExact: 0, failures: [] };
+const acc = { total: 0, exact: 0, approximate: 0, mismatch: 0, unblocked: 0, unblockedExact: 0, defense: 0, defenseExact: 0, failures: [] };
 const t0 = Date.now();
 let battles = 0;
 for (let era = 1; era <= 6; era++) {
@@ -123,6 +142,7 @@ console.log(`объявлений атаки: ${acc.total} прогнозов л
 console.log(`  точных:        ${acc.exact} (${pct(acc.exact, acc.total)}%)`);
 console.log(`  приблизительных: ${acc.approximate} (${pct(acc.approximate, acc.total)}%) — свойства со случайной целью`);
 console.log(`  РАСХОЖДЕНИЙ:   ${acc.mismatch}`);
+console.log(`прогноз обороны ИИ: ${acc.defenseExact}/${acc.defense} точных случаев совпал с настоящим боем (${pct(acc.defenseExact, acc.defense)}%)`);
 console.log(`инвариант «без блока»: ${acc.unblockedExact}/${acc.unblocked} точных случаев — быстрая сумма атак совпала с прогоном движком (${pct(acc.unblockedExact, acc.unblocked)}%)`);
 
 if (acc.failures.length) {

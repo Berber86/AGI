@@ -23,7 +23,7 @@ import { S, DOMAINS } from '../shared.js';
 import {
   startTurn, endTurn, resolveCombat, beginCombat, toggleAttacker, playCard, canPlay, canAttack,
   isAlive, unitAtk, unitHp, side, legalBlockers, assignBlock, effectiveCost, boardRoom,
-  predictCombat, predictUnblocked,
+  predictCombat, predictUnblocked, predictDefense, diagnoseBattle,
   log as blog,
 } from '../../engine/battle.js';
 import { aiPlayOne, aiDeclareAttack, suggestBlocks } from '../../engine/ai.js';
@@ -443,6 +443,41 @@ function blockConsole(b) {
 }
 
 // --- кнопки ------------------------------------------------------------------
+/**
+ * Ожидаемый исход атаки: как именно соперник заблокирует и чем это кончится.
+ * Считается predictDefense — настоящим движком на копии боя, поэтому числа
+ * совпадают с тем, что произойдёт (кроме свойств со случайной целью).
+ */
+function defenseForecast(b) {
+  const p = predictDefense(b);
+  const def = p.defenderSide;
+  const myLosses = p.losses.me;
+  const foeLosses = p.losses.foe;
+  const toLeader = Math.max(0, -p.leaderDelta[def]);
+
+  const head = el('div', { class: 'forecast__head' }, [
+    el('span', { class: 'forecast__title' }, p.blocked ? '🛡 Соперник заблокирует' : '⚔ Соперник не сможет заблокировать'),
+    el('span', { class: `forecast__num${toLeader ? ' forecast__num--hit' : ''}` },
+      toLeader ? `лидеру ${toLeader}` : 'лидеру 0'),
+    p.approximate ? el('span', { class: 'forecast__approx', title: 'У участников есть свойства со случайной целью: итог по лидерам точен, распределение урона — нет' }, '≈') : null,
+  ]);
+
+  const rows = (p.plan || []).map((pair) => el('div', { class: 'forecast__pair' }, [
+    el('b', {}, pair.attackerName), el('span', { class: 'dim' }, ' → '),
+    el('span', {}, pair.blockers.join(', ')),
+  ]));
+
+  const casualties = [];
+  if (myLosses.length) casualties.push(el('span', { class: 'forecast__bad' }, `потеряете: ${myLosses.map((l) => l.name).join(', ')}`));
+  if (foeLosses.length) casualties.push(el('span', { class: 'forecast__good' }, `у соперника падут: ${foeLosses.map((l) => l.name).join(', ')}`));
+  if (p.over) casualties.push(el('span', { class: p.over.winner === 'me' ? 'forecast__good' : 'forecast__bad' },
+    p.over.winner === 'me' ? '⚑ атака заканчивает бой в вашу пользу' : '⚠ бой закончится не в вашу пользу'));
+
+  return el('div', { class: 'forecast' }, [head,
+    rows.length ? el('div', { class: 'forecast__rows' }, rows) : null,
+    casualties.length ? el('div', { class: 'forecast__casualties' }, casualties) : null]);
+}
+
 function controls(b) {
   const box = el('div', { class: 'controls' });
   if (b.over) {
@@ -482,8 +517,11 @@ function controls(b) {
       const armorNote = unblocked.absorbed ? ` (броня лидера гасит ${unblocked.absorbed}${unblocked.armorLeft ? `, останется ${unblocked.armorLeft}` : ''})` : '';
       const twinNote = unblocked.names.some((x) => x.includes('×2')) ? ', двойной удар учтён' : '';
       box.append(el('div', { class: 'controls__msg' }, n
-        ? `⚔ Атакуют ${unblocked.count}. Если соперник не заблокирует, лидер получит ${unblocked.dmg}${armorNote}${twinNote}. Клик по своему юниту — добавить или убрать.`
+        ? `⚔ Атакуют ${unblocked.count}. Без блока лидер получил бы ${unblocked.dmg}${armorNote}${twinNote}. Клик по своему юниту — добавить или убрать.`
         : '⚔ Отметьте юнитов для атаки или пропустите бой.'));
+      // Соперник-ИИ блокирует всегда, поэтому «урон без блока» в реальном бою
+      // почти не случается. Показываем ожидаемый исход — тем же движком.
+      if (n) box.append(defenseForecast(b));
       box.append(btn('⚔ Всеми', () => {
         for (const u of side(b, 'me').board.filter(isAlive)) if (canAttack(b, u) && !b.attacking.includes(u.uid)) b.attacking.push(u.uid);
         paint();
@@ -822,6 +860,32 @@ function finishScreen(b) {
 
 function regionName() { return app.battleCtx?.region?.name || ''; }
 
+/**
+ * Разбор исхода: почему бой закончился именно так. Награды отвечают на «что я
+ * получил», но не на «что мне исправить» — а это главный источник обучения.
+ */
+function diagnosisBlock(d, won) {
+  const rows = [];
+  for (const v of d.verdict) rows.push(el('div', { class: 'diag__row' }, [
+    el('span', { class: 'diag__mark' }, '·'), el('span', {}, v),
+  ]));
+  const tips = d.advice.map((a) => el('div', { class: 'diag__tip' }, [
+    el('span', { class: 'diag__mark' }, '→'), el('span', {}, a),
+  ]));
+  const top = d.topDamage.me.slice(0, 3);
+  return el('div', { class: `diag${won ? ' diag--won' : ' diag--lost'}` }, [
+    el('h4', {}, won ? 'Как прошёл бой' : 'Почему бой проигран'),
+    el('div', { class: 'diag__list' }, rows),
+    tips.length ? el('div', { class: 'diag__advice' }, tips) : null,
+    top.length ? el('div', { class: 'diag__top' }, [
+      el('span', { class: 'diag__top-l' }, 'урон вашему лидеру'),
+      ...top.map((t) => el('span', { class: 'diag__chip', title: `«${t.name}» снял ${t.total} здоровья за бой` }, [
+        el('b', {}, String(t.total)), el('span', {}, t.name),
+      ])),
+    ]) : null,
+  ]);
+}
+
 function showAftermath(b, { won, rewards }) {
   const st = app.state;
   const vetLines = (rewards.veterans || []);
@@ -835,6 +899,7 @@ function showAftermath(b, { won, rewards }) {
       el('div', { class: 'kv__row' }, [el('span', {}, 'Пало ваших юнитов'), el('b', {}, String(b.sides.me.grave.length))]),
       el('div', { class: 'kv__row' }, [el('span', {}, 'Убито врагов'), el('b', {}, String(b.sides.foe.grave.length))]),
     ]),
+    diagnosisBlock(diagnoseBattle(b), won),
     el('h4', {}, 'Награды'),
     el('div', { class: 'deckstats' }, [
       el('div', { class: 'dstat' }, [el('b', {}, `+${rewards.science}`), el('span', {}, 'наука 🔬')]),

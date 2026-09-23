@@ -3,7 +3,8 @@ import {
   createBattle, startTurn, endTurn, resolveCombat, beginCombat, canAttack, canPlay, playCard,
   isAlive, unitAtk, unitHp, unitArmor, side, enemySide, makeBattleUnit, aggregateFx,
   dealDamage, damageLeader, legalBlockers, assignBlock, bulwarkHp, autoBlock, terrorLocked,
-  boardRoom, maxBlocks, drawCards, predictCombat, predictUnblocked, cloneBattle,
+  boardRoom, maxBlocks, drawCards, predictCombat, predictUnblocked, predictDefense, cloneBattle,
+  diagnoseBattle,
 } from '../src/engine/battle.js';
 import { autoplay } from '../src/engine/autoplay.js';
 import { aiDeclareAttack, aiPlayOne } from '../src/engine/ai.js';
@@ -819,6 +820,125 @@ test('predictCombat не подменяет блоки автоблоком, к�
   const b3 = mk();
   predictCombat(b3, {});
   eq(Object.keys(b3.blockers).length, 0, 'b.blockers не тронут прогнозом');
+});
+
+test('predictDefense совпадает с настоящим боем, где защищается ИИ', () => {
+  // resolveCombat сам назначает автоблок при defSide.isHuman === false, поэтому
+  // прогноз «без блока» не совпадёт с реальностью. predictDefense обязан совпасть.
+  const mk = () => {
+    const b = mkBattle([], [], 1);
+    side(b, 'foe').isHuman = false;
+    const a1 = deploy(b, 'me', bp('Таран', 6, 4));
+    const a2 = deploy(b, 'me', bp('Лучник', 2, 2));
+    deploy(b, 'foe', bp('Заступник', 2, 7));
+    deploy(b, 'foe', bp('Стенка', 1, 9));
+    b.phase = 'combatDeclare'; b.active = 'me'; b.attacking = [a1.uid, a2.uid]; b.blockers = {};
+    return b;
+  };
+
+  const p = predictDefense(mk());
+  ok(p.blocked, 'ИИ выставил блоки');
+  ok(Array.isArray(p.plan) && p.plan.length > 0, 'план расстановки возвращён');
+  ok(p.plan.every((x) => x.attackerName && x.blockers.length), 'в плане есть имена: ' + JSON.stringify(p.plan));
+
+  // сверяем с настоящим боем
+  const real = mk();
+  const hpFoe = side(real, 'foe').leader.hp;
+  const hpMe = side(real, 'me').leader.hp;
+  resolveCombat(real);
+  eq(side(real, 'foe').leader.hp - hpFoe, p.leaderDelta.foe, 'урон лидеру ИИ совпал');
+  eq(side(real, 'me').leader.hp - hpMe, p.leaderDelta.me, 'ответный урон нашему лидеру совпал');
+
+  // потери тоже обязаны совпасть
+  const realDeadFoe = side(real, 'foe').grave.length;
+  eq(p.losses.foe.length, realDeadFoe, 'число павших у соперника совпало');
+
+  // настоящий бой не тронут прогнозом
+  const untouched = mk();
+  predictDefense(untouched);
+  eq(Object.keys(untouched.blockers).length, 0, 'b.blockers не изменён');
+  eq(side(untouched, 'foe').leader.hp, eraOf(1).leaderHp, 'здоровье лидера не тронуто');
+});
+
+test('predictDefense и predictCombat расходятся там, где ИИ блокирует', () => {
+  const mk = () => {
+    const b = mkBattle([], [], 1);
+    side(b, 'foe').isHuman = false;
+    const a = deploy(b, 'me', bp('Таран', 6, 4));
+    deploy(b, 'foe', bp('Заступник', 2, 7));
+    b.phase = 'combatDeclare'; b.active = 'me'; b.attacking = [a.uid]; b.blockers = {};
+    return b;
+  };
+  const free = predictCombat(mk(), {});
+  const defended = predictDefense(mk());
+  eq(free.leaderDelta.foe, -6, 'без блока весь урон лидеру');
+  eq(defended.leaderDelta.foe, 0, 'ИИ закрыл — лидеру не дошло');
+  eq(free.blocked, false);
+  eq(defended.blocked, true);
+  // damageToDefender считает урон по всей стороне (юниты + лидер), поэтому
+  // совпадать суммы вправе: 6 в лидера и 6 в блокера — разные раскладки
+  eq(free.damageToDefender, 6);
+  eq(defended.damageToDefender, 6);
+  eq(free.wounded.filter((w) => w.side === 'foe').length, 0, 'без блока юниты соперника целы');
+  ok(defended.wounded.some((w) => w.side === 'foe' && w.name === 'Заступник'),
+    'при блоке урон принял на себя Заступник');
+});
+
+test('diagnoseBattle объясняет поражение и называет источник урона', () => {
+  const b = mkBattle([], [], 1);
+  const a = deploy(b, 'me', bp('Таран', 5, 5));
+  const wall = deploy(b, 'foe', bp('Стенолом', 7, 8));
+  b.phase = 'combatDeclare'; b.active = 'foe'; b.attacking = [wall.uid]; b.blockers = {};
+  side(b, 'me').isHuman = true; side(b, 'foe').isHuman = true;
+  // два удара в лидера: 7 + 7 = 14 из 22
+  resolveCombat(b);
+  b.phase = 'combatDeclare'; b.attacking = [wall.uid]; b.blockers = {};
+  side(b, 'foe').board.push(deploy(b, 'foe', bp('Подмога', 1, 1)));
+  resolveCombat(b);
+  // добиваем напрямую, чтобы бой завершился
+  damageLeader(b, 'me', side(b, 'me').leader.hp);
+  ok(b.over, 'бой завершён');
+
+  const d = diagnoseBattle(b);
+  eq(d.winner, 'foe', 'победитель определён');
+  ok(d.verdict.length >= 1, 'есть хотя бы одна строка вердикта');
+  ok(d.verdict.some((v) => v.includes('Ваш лидер пал')), 'вердикт говорит о падении лидера');
+  ok(d.topDamage.me.some((t) => t.name === 'Стенолом' && t.total >= 7),
+    'урон приписан конкретному юниту: ' + JSON.stringify(d.topDamage.me.slice(0, 3)));
+  ok(d.advice.length >= 1, 'есть совет, что исправить');
+  eq(d.margin.me, 0, 'здоровье павшего лидера — ноль');
+  ok(!d.verdict.some((v) => v.includes('undefined')), 'в вердикте нет undefined');
+  ok(!d.verdict.some((v) => /нанесла «[^УВ]/.test(v)), 'согласование рода верно: ' + d.verdict.join(' | '));
+});
+
+test('diagnoseBattle отмечает Усталость и внезапную смерть', () => {
+  const deck = Array.from({ length: 2 }, (_, i) => ({ id: 'd' + i, blueprint: bp('ю' + i, 1, 1), xp: 0, battles: 0 }));
+  const b = mkBattle(deck, deck, 1);
+  // выжигаем колоду СОПЕРНИКА: каждый пустой добор растит его Усталость
+  for (let i = 0; i < 6 && !b.over; i++) drawCards(b, 'foe', 3);
+  ge(side(b, 'foe').fatigue, 1, 'Усталость накоплена у соперника');
+  b.round = 22;                                  // имитируем затяжной бой
+  if (!b.over) damageLeader(b, 'foe', side(b, 'foe').leader.hp);
+  const d = diagnoseBattle(b);
+  eq(d.winner, 'me', 'соперник пал — от Усталости или добивания');
+  ok(d.suddenDeath, 'внезапная смерть отмечена при round >= 21');
+  ok(d.verdict.some((v) => v.includes('внезапной смерти')), 'вердикт упоминает внезапную смерть');
+  ok(d.verdict.some((v) => v.includes('Усталость')), 'вердикт упоминает Усталость');
+  eq(d.fatigue.foe, side(b, 'foe').fatigue, 'Усталость соперника передана в разбор');
+});
+
+test('diagnoseBattle не падает на бою без журнала урона', () => {
+  const b = mkBattle([], [], 1);
+  damageLeader(b, 'me', side(b, 'me').leader.hp);
+  const d = diagnoseBattle(b);
+  eq(d.winner, 'foe');
+  ok(Array.isArray(d.topDamage.me), 'список источников всегда массив');
+  // damageLeader без источника пишет строку без «— …»; такой урон не должен
+  // всплывать чипом «неизвестно» в разборе
+  ok(!d.topDamage.me.some((t) => t.name === 'неизвестно'), 'неприписанный урон не показывается');
+  ok(d.topDamage.me.every((t) => t.total > 0 && t.name), 'каждый источник осмыслен: ' + JSON.stringify(d.topDamage.me));
+  ok(Array.isArray(d.advice), 'советы всегда массив');
+  ok(!d.verdict.some((v) => v.includes('undefined') || v.includes('NaN')), 'в вердикте нет мусора');
 });
 
 test('прогноз помечает приблизительность при случайных целях', () => {

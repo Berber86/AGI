@@ -398,9 +398,41 @@ export function develop(state) {
 // --- Сохранение --------------------------------------------------------------
 export function serialize(state) { return JSON.stringify(state); }
 
+/**
+ * Проверка сохранённой партии.
+ *
+ * Одного `v === 1` мало: интерфейс импортирует файл, выбранный игроком, и
+ * подставляет его как текущее состояние. Обрубленный или чужой JSON с той же
+ * версией уронил бы приложение на первой же отрисовке — и уронил бы уже после
+ * того, как партия перезаписана. Поэтому сначала валидируем, потом подставляем.
+ *
+ * @returns {{ok:boolean, reason?:string}}
+ */
+export function validateSave(s) {
+  if (!s || typeof s !== 'object') return { ok: false, reason: 'файл не содержит объект партии' };
+  if (s.v !== 1) return { ok: false, reason: `неверная версия сохранения (нужна 1, получено ${s.v ?? '—'})` };
+  if (typeof s.civName !== 'string' || !s.civName) return { ok: false, reason: 'нет имени цивилизации' };
+  if (!Number.isInteger(s.era) || s.era < 1 || s.era > MAX_ERA) return { ok: false, reason: `недопустимая эпоха: ${s.era}` };
+  if (!Array.isArray(s.researched)) return { ok: false, reason: 'нет списка изученных открытий' };
+  if (!Array.isArray(s.roster)) return { ok: false, reason: 'нет ростера юнитов' };
+  if (!Array.isArray(s.deck)) return { ok: false, reason: 'нет колоды' };
+  if (!s.blueprints || typeof s.blueprints !== 'object') return { ok: false, reason: 'нет чертежей проектов' };
+  if (!s.world || !Array.isArray(s.world.regions) || !s.world.regions.length) return { ok: false, reason: 'нет карты мира' };
+  if (!Number.isFinite(s.science) || !Number.isFinite(s.materials)) return { ok: false, reason: 'ресурсы повреждены' };
+  if (!s.stats || typeof s.stats !== 'object') return { ok: false, reason: 'нет статистики партии' };
+  // ростер обязан ссылаться на существующие чертежи — иначе карта не отрисуется
+  const missing = s.roster.find((u) => !u || !u.blueprint);
+  if (missing !== undefined) return { ok: false, reason: 'в ростере есть юнит без чертежа' };
+  const unknown = s.deck.filter((id) => !s.roster.some((u) => u && u.id === id));
+  if (unknown.length) return { ok: false, reason: `колода ссылается на ${unknown.length} несуществующих юнитов` };
+  return { ok: true };
+}
+
 export function deserialize(text) {
-  const s = JSON.parse(text);
-  if (!s || s.v !== 1) throw new Error('Неверный формат сохранения');
+  let s;
+  try { s = JSON.parse(text); } catch { throw new Error('файл не является корректным JSON'); }
+  const chk = validateSave(s);
+  if (!chk.ok) throw new Error(chk.reason);
   return s;
 }
 

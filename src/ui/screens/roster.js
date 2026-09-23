@@ -83,7 +83,7 @@ function bpCard(st, bp) {
   return node;
 }
 
-function detailModal(st, bp, units) {
+export function detailModal(st, bp, units) {
   const price = recruitCost(bp, eraOf(st.era).mat);
   const body = el('div', { class: 'detail' }, [
     renderCard(bp, { size: 'lg', tooltip: false }),
@@ -118,6 +118,18 @@ function detailModal(st, bp, units) {
       btn('Закрыть', () => m.close()),
     ],
   });
+}
+
+/**
+ * Разбор карты по экземпляру юнита.
+ * «Колоде» и «Ростеру» нужен один и тот же модал, но входят они по-разному:
+ * ростер знает чертёж и список экземпляров, колода — только юнита.
+ */
+export function unitDetailModal(u) {
+  const st = app.state;
+  const bp = u.blueprint || st.blueprints[u.bpKey];
+  if (!bp) return toast('Чертёж юнита не найден', 'bad');
+  return detailModal(st, bp, st.roster.filter((x) => x.bpKey === bp.key));
 }
 
 function refresh() {

@@ -15,6 +15,19 @@ const dom = new JSDOM(
   `<!doctype html><html><body><div id="app"></div><div id="fx" aria-hidden="true"></div><div id="toasts"></div></body></html>`,
   { pretendToBeVisual: true, url: 'http://localhost/' },
 );
+/**
+ * Ошибки из обработчиков событий jsdom НЕ пробрасывает наружу: dispatchEvent
+ * возвращает управление как ни в чём не бывало, а исключение уходит в
+ * window.onerror. Без этой ловушки клик по элементу с несуществующей функцией
+ * в обработчике выглядел бы как успех — именно так в колоде прижился вызов
+ * detailModal без импорта.
+ */
+const uiErrors = [];
+dom.window.addEventListener('error', (e) => {
+  uiErrors.push(e.message || String(e.error || e));
+});
+export const takeUiErrors = () => uiErrors.splice(0, uiErrors.length);
+
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
@@ -30,8 +43,9 @@ dom.window.Element.prototype.getBoundingClientRect = function () {
   return { x: 10, y: 20, left: 10, top: 20, right: 110, bottom: 160, width: 100, height: 140, toJSON() {} };
 };
 
-const { app, boot, render, toast } = await import('../src/ui/app.js');
+const { app, boot, render, toast, persist } = await import('../src/ui/app.js');
 const { renderBattle, resetBattleUi } = await import('../src/ui/screens/battle.js');
+const { resetMapUi } = await import('../src/ui/screens/map.js');
 const S = await import('../src/engine/state.js');
 const B = await import('../src/engine/battle.js');
 const { el, modal } = await import('../src/ui/dom.js');
@@ -303,8 +317,10 @@ test('горячие клавиши главной фазы: A в атаку, E 
 
   key('a'); await sleep(20);
   ge(b.attacking.length, 1, 'A в фазе атаки добавляет всех');
+  ok($('.forecast'), 'на этапе объявления атаки виден ожидаемый исход');
   key('x'); await sleep(20);
   eq(b.attacking.length, 0, 'X снимает выделение');
+  eq($$('.forecast').length, 0, 'без атакующих прогноз обороны не показывается');
 
   key('Escape'); await sleep(20);
   eq(b.phase, 'main1', 'Escape возвращает в главную фазу');
@@ -312,6 +328,104 @@ test('горячие клавиши главной фазы: A в атаку, E 
   const roundBefore = b.round;
   key('e'); await sleep(80);
   ok(b.round > roundBefore || b.active === 'foe', 'E заканчивает ход');
+});
+
+test('панель ожидаемого исхода показывает расстановку соперника', async () => {
+  const b = freshBattle();
+  await sleep(30);
+  // ставим атакующего и блокера соперника напрямую, чтобы сценарий был предсказуем
+  const { side: bside } = await import('../src/engine/battle.js');
+  const atk = bside(b, 'me').board[0] || null;
+  bside(b, 'foe').isHuman = false;
+  b.phase = 'combatDeclare'; b.active = 'me';
+  b.attacking = atk ? [atk.uid] : [];
+  b.blockers = {};
+  renderBattle(b); await sleep(20);
+
+  if (!b.attacking.length) { ok(true, 'на поле нечего вести в атаку — панель не нужна'); return; }
+
+  const panel = $('.forecast');
+  ok(panel, 'панель ожидаемого исхода отрисована');
+  const text = panel.textContent;
+  ok(text.includes('Соперник заблокирует') || text.includes('не сможет заблокировать'),
+    'заголовок говорит, будет ли блок: ' + text.slice(0, 60));
+  ok(/лидеру\s+\d+/.test(text), 'показан урон лидеру: ' + text.slice(0, 80));
+
+  // число в панели обязано совпадать с прогнозом движка
+  const { predictDefense } = await import('../src/engine/battle.js');
+  const p = predictDefense(b);
+  const expect = Math.max(0, -p.leaderDelta[p.defenderSide]);
+  ok(text.includes(`лидеру ${expect}`), `в панели «лидеру ${expect}»: ` + text.slice(0, 90));
+
+  if (p.blocked) {
+    ok($$('.forecast__pair').length > 0, 'показано, кого чем закроют');
+    ok($$('.forecast__pair')[0].textContent.includes('→'), 'пара «атакующий → блокер»');
+  }
+  renderBattle(b); await sleep(10);
+});
+
+test('экран итогов объясняет, почему бой закончился именно так', async () => {
+  const b = freshBattle();
+  await sleep(30);
+  const { damageLeader, side: bside } = await import('../src/engine/battle.js');
+
+  // наносим настоящий урон юнитом, чтобы в журнале появился источник
+  const foe = bside(b, 'foe').board[0] || null;
+  if (foe) {
+    b.phase = 'combatDeclare'; b.active = 'foe';
+    b.attacking = [foe.uid]; b.blockers = {};
+    const { resolveCombat } = await import('../src/engine/battle.js');
+    resolveCombat(b);
+  }
+  // добиваем лидера игрока — бой заканчивается поражением
+  damageLeader(b, 'me', bside(b, 'me').leader.hp);
+  ok(b.over, 'бой завершён');
+
+  // renderBattle() возвращает непримонтированный узел, поэтому перерисовываем
+  // приложение целиком и открываем итоги кнопкой — как это сделал бы игрок
+  render();
+  await sleep(30);
+  const openBtn = $$('.btn').find((x) => x.textContent.includes('Итоги боя'));
+  ok(openBtn, 'после завершения боя доступна кнопка «Итоги боя»');
+  click(openBtn);
+  await sleep(40);
+
+  const diag = $('.diag');
+  ok(diag, 'блок разбора исхода отрисован');
+  ok(diag.classList.contains('diag--lost'), 'поражение оформлено как поражение');
+  const text = diag.textContent;
+  ok(text.includes('Почему бой проигран'), 'заголовок объясняет поражение: ' + text.slice(0, 40));
+  ok($$('.diag__row').length >= 1, 'есть хотя бы одна строка вердикта');
+  ok(!text.includes('undefined') && !text.includes('NaN'), 'в разборе нет мусора: ' + text.slice(0, 120));
+
+  // награды и итог партии остаются на месте — разбор их не вытеснил
+  ok($('.aftermath'), 'экран итогов на месте');
+  ok($('.aftermath').textContent.includes('Награды'), 'награды показаны');
+  ok($('.modal'), 'всё это в модальном окне');
+});
+
+test('экран итогов при победе хвалит и советует, если было на грани', async () => {
+  const b = freshBattle();
+  await sleep(30);
+  const { damageLeader, side: bside } = await import('../src/engine/battle.js');
+  // почти убиваем собственного лидера, затем добиваем соперника
+  damageLeader(b, 'me', bside(b, 'me').leader.hp - 2);
+  damageLeader(b, 'foe', bside(b, 'foe').leader.hp);
+  eq(b.over?.winner, 'me', 'победа за игроком');
+
+  render();
+  await sleep(30);
+  const openBtn = $$('.btn').find((x) => x.textContent.includes('Итоги боя'));
+  ok(openBtn, 'кнопка «Итоги боя» на месте');
+  click(openBtn);
+  await sleep(40);
+
+  const diag = $('.diag');
+  ok(diag, 'блок разбора есть и при победе');
+  ok(diag.classList.contains('diag--won'), 'оформлен как победа');
+  ok(diag.textContent.includes('Как прошёл бой'), 'заголовок победы: ' + diag.textContent.slice(0, 40));
+  ok($$('.diag__tip').length >= 1, 'дана подсказка — победа была на грани');
+  ok($('.diag__tip').textContent.length > 10, 'подсказка осмысленна');
 });
 
 test('пробел тоже заканчивает ход', async () => {
@@ -586,6 +700,7 @@ suite('UI: путеводитель «Путь цивилизации»');
 function freshHub(tab = 'map') {
   localStorage.clear();
   resetBattleUi();
+  resetMapUi();   // выбор региона живёт на уровне модуля и «залипает» между тестами
   app.battle = null; app.battleCtx = null;
   app.state = S.newGame({ civName: 'Путь-Град', seed: 'ui-goals', legacy: 'craft', difficulty: 1 });
   app.screen = 'hub'; app.tab = tab;
@@ -788,6 +903,212 @@ test('смена эпохи из Науки открывает тот же эк�
   } else {
     ok(true, 'гейт эпохи не выполнен — кнопка заблокирована с объяснением');
   }
+});
+
+test('журнал показывает верный знаменатель открытий и меню сохранений на месте', async () => {
+  const st = freshHub('journal');
+  await sleep(20);
+  const { DISCOVERY_LIST } = await import('../src/engine/discoveries.js');
+  const text = $('.journal').textContent;
+  // было зашито «/80» при 85 открытиях в данных
+  ok(text.includes(`/${DISCOVERY_LIST.length}`),
+    `знаменатель равен числу открытий в данных (${DISCOVERY_LIST.length}): ` + text.slice(0, 200));
+  ok(!text.includes('/80'), 'зашитого «/80» больше нет');
+  ok(text.includes('Летопись') && text.includes('Справочник'), 'разделы журнала на месте');
+  ok($$('.gearcard').length === 10, 'в справочнике все 10 шестерёнок');
+
+  // меню: экспорт/импорт доступны, а перезапуск партии требует подтверждения
+  const { menuModal } = await import('../src/ui/app.js');
+  menuModal();
+  await sleep(20);
+  const labels = $$('.modal .btn').map((b) => b.textContent);
+  ok(labels.some((l) => l.includes('Экспорт')), 'экспорт JSON доступен: ' + labels.join(' | '));
+  ok(labels.some((l) => l.includes('Импорт')), 'импорт JSON доступен');
+  ok(labels.some((l) => l.includes('Начать заново')), 'перезапуск партии доступен');
+  $$('.modal').forEach((m) => m.remove());
+});
+
+test('разведка региона сравнивает силы с вашей колодой и выносит вердикт', async () => {
+  const st = freshHub('map');
+  await sleep(20);
+  const { DISCOVERY_LIST } = await import('../src/engine/discoveries.js');
+
+  // знаменатель открытий берётся из данных, а не зашит как «/80»
+  const mapText = $('.screen--map').textContent;
+  ok(new RegExp(`/\\s*${DISCOVERY_LIST.length}`).test(mapText),
+    'в обзоре державы верный знаменатель открытий');
+  ok(!mapText.includes('/ 80'), 'зашитого «/80» на карте больше нет');
+
+  // выбираем первый доступный регион кликом по узлу карты
+  const nodes = $$('.rnode');
+  ok(nodes.length >= 10, 'карта отрисована: ' + nodes.length + ' узлов');
+  let opened = null;
+  for (const g of nodes) {
+    click(g); await sleep(15);
+    if ($('.scout')) { opened = g.dataset.id; break; }
+  }
+  ok(opened, 'нашёлся доступный регион с панелью разведки');
+
+  const scout = $('.scout');
+  const text = scout.textContent;
+  // пара «вы ↔ соперник» с вердиктом посередине
+  ok($('.scout__vs'), 'блок сравнения сил отрисован');
+  const cols = $$('.scout__col');
+  eq(cols.length, 2, 'две колонки: вы и соперник');
+  ok(cols[0].textContent.includes('Вы'), 'первая колонка — ваша');
+  const odds = $('.scout__odds');
+  ok(odds, 'вердикт между колонками');
+  ok(/\d+%/.test(odds.textContent), 'показано соотношение в процентах: ' + odds.textContent);
+  ok(['good', 'even', 'warn', 'bad'].some((t) => odds.classList.contains('scout__odds--' + t)),
+    'вердикт окрашен по тону: ' + odds.className);
+
+  // каждая строка теперь «вы / соперник», а не одно число
+  for (const label of ['Суммарная атака', 'Суммарное здоровье', 'Свойств', 'Юнитов в колоде']) {
+    const row = $$('.kv__row').find((r) => r.textContent.includes(label));
+    ok(row, `строка «${label}» есть`);
+    ok(/\d+\s*\/\s*\d+/.test(row.textContent), `«${label}» показывает пару чисел: ` + row.textContent);
+  }
+
+  // подсказка объясняет, что делать с этой разницей
+  const tip = $('.scout__tip');
+  ok(tip && tip.textContent.length > 20, 'дана содержательная подсказка: ' + (tip && tip.textContent.slice(0, 60)));
+  ok(!text.includes('undefined') && !text.includes('NaN'), 'в разведке нет мусора');
+});
+
+test('вердикт разведки меняется от слабого соперника к сильному', async () => {
+  // функция не экспортируется, поэтому проверяем через движок: та же формула
+  // на разных колодах обязана давать разные оценки
+  const { rivalPower } = await import('../src/engine/civ.js');
+  const mk = (n, atk, hp, kw) => ({ deck: Array.from({ length: n }, () => ({
+    blueprint: { atk, hp, keywords: Array.from({ length: kw }, () => ({})) },
+  })) });
+  const weak = rivalPower(mk(8, 1, 2, 0));
+  const strong = rivalPower(mk(8, 6, 9, 2));
+  ok(strong.score > weak.score * 2, 'сильная колода оценивается заметно выше');
+  // формула та же, что и для своей колоды: atk + hp*0.7 + kw*3
+  eq(weak.score, Math.round(8 * 1 + 8 * 2 * 0.7 + 0), 'оценка считается по документированной формуле');
+});
+
+test('знаменатели во всех экранах берутся из данных, а не зашиты', async () => {
+  // Ошибка «зашито /80 при 85 открытиях» встретилась в журнале и на карте,
+  // «зашито /10 регионов» — в путеводителе и на заставке. Сторож на все экраны.
+  const st = freshHub('map');
+  await sleep(20);
+  const { DISCOVERY_LIST } = await import('../src/engine/discoveries.js');
+  const regions = st.world.regions.length;
+  const N = DISCOVERY_LIST.length;
+
+  const bad = [];
+  const check = (screen, text) => {
+    // дроби «X/Y», где Y обязан быть настоящим итогом
+    for (const m of text.matchAll(/(\d+)\s*\/\s*(\d+)/g)) {
+      const y = Number(m[2]);
+      if (y === N || y === regions) continue;                    // верный знаменатель
+      const x = Number(m[1]);
+      if (x <= y && y <= regions + N && (y === 80 || y === 10)) bad.push(`${screen}: «${m[0]}»`);
+    }
+  };
+
+  for (const tab of ['map', 'forge', 'science', 'roster', 'deck', 'journal']) {
+    app.tab = tab; render(); await sleep(15);
+    const node = $(`.screen--${tab}`) || $('.hub');
+    if (node) check(tab, node.textContent);
+  }
+  // путеводитель живёт над вкладками
+  const goals = $('.goals');
+  if (goals) check('путеводитель', goals.textContent);
+
+  eq(bad.length, 0, 'зашитых знаменателей нет: ' + bad.join(', '));
+
+  // positive-проверка: настоящие итоги присутствуют там, где должны
+  app.tab = 'journal'; render(); await sleep(15);
+  ok($('.journal').textContent.includes(`/${N}`), 'в журнале знаменатель открытий из данных');
+  app.tab = 'map'; render(); await sleep(15);
+  ok(new RegExp(`/\\s*${N}`).test($('.screen--map').textContent), 'на карте знаменатель открытий из данных');
+
+  // цель «Возьмите Сердцевину» показывает столько регионов, сколько их в мире
+  const { objectives } = await import('../src/ui/screens/hub.js');
+  const crown = objectives(st).find((o) => o.id === 'crown');
+  ok(crown, 'цель с Сердцевиной есть');
+  ok(crown.progress.endsWith(`/${regions}`), `прогресс цели знает число регионов (${regions}): ${crown.progress}`);
+  ok(!crown.progress.endsWith('/10') || regions === 10, 'число регионов не зашито');
+});
+
+test('заставка показывает число регионов из сохранения', async () => {
+  const st = freshHub('map');
+  await sleep(10);
+  const regions = st.world.regions.length;
+  st.conquered = 4;
+  persist();                       // заставка читает сохранение из localStorage
+  const { renderTitle } = await import('../src/ui/screens/title.js');
+  app.screen = 'title';
+  const node = renderTitle();
+  const text = node.textContent;
+  ok(text.includes(`регионов 4/${regions}`),
+    `подпись сохранения знает число регионов (${regions}): ` + text.slice(-160));
+  ok(!/регионов \d+\/10\b/.test(text) || regions === 10, 'на заставке ничего не зашито');
+  app.screen = 'hub'; render(); await sleep(10);
+});
+
+test('клик по карте в колоде открывает разбор (регрессия на несуществующий импорт)', async () => {
+  // deck.js звал detailModal без импорта — клик падал с ReferenceError, а
+  // ui-smoke и остальные тесты по карточкам колоды не кликали
+  const st = freshHub('deck');
+  await sleep(20);
+  const cell = $('.deckcell .card') || $('.deckcell');
+  ok(cell, 'в колоде есть хотя бы одна карта');
+  click(cell);
+  await sleep(30);
+  const m = $('.modal');
+  ok(m, 'клик по карте колоды открыл модал разбора');
+  ok($('.detail'), 'в модале показан разбор карты');
+  ok($('.detail').textContent.includes('Состав'), 'разбор показывает состав слотов');
+  $$('.modal').forEach((x) => x.remove());
+});
+
+test('ни один клик по карте на любом экране не бросает ошибку', async () => {
+  // Сплошной обход: свободная переменная в обработчике — это ReferenceError
+  // в момент клика, а не в момент загрузки модуля, поэтому линковка и
+  // отрисовка её не ловят. Проходим все вкладки и кликаем каждую карту.
+  const st = freshHub('map');
+  await sleep(20);
+  const failures = [];
+  // на карте кликабельны SVG-узлы регионов, а не карточки — свой селектор
+  const SELECTORS = {
+    map: '.rnode',
+    forge: '.card, .disc, .slot',
+    science: '.discn',
+    roster: '.card, .bpcell',
+    deck: '.card, .deckcell, .poolcell',
+    journal: '.gearcard, .rarcard, .domcard, .kwcard',
+  };
+
+  for (const tab of Object.keys(SELECTORS)) {
+    app.tab = tab; render(); await sleep(20);
+    const cells = $$(SELECTORS[tab]);
+    let clicked = 0;
+    takeUiErrors();
+    for (const c of cells) {
+      if (!c.isConnected) continue;
+      try {
+        click(c);
+        await sleep(6);
+        clicked++;
+      } catch (e) {
+        failures.push(`${tab}: ${e.constructor.name}: ${e.message}`);
+      }
+      // jsdom уносит ошибки обработчиков в window.onerror, а не в вызывающий код
+      for (const msg of takeUiErrors()) failures.push(`${tab}: обработчик бросил: ${msg}`);
+      // закрываем всё, что открылось, чтобы не мешать следующему клику
+      document.querySelectorAll('.modal').forEach((x) => x.remove());
+      const overlay = document.querySelector('.modal-bg');
+      if (overlay) overlay.remove();
+    }
+    ok(clicked > 0, `на вкладке «${tab}» есть что кликнуть (найдено ${cells.length})`);
+  }
+
+  eq(failures.length, 0, 'клики по картам не падают: ' + failures.slice(0, 4).join(' | '));
+  app.tab = 'map'; render(); await sleep(10);
 });
 
 // экспорт для запуска из tools

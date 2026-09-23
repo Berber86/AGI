@@ -7,6 +7,9 @@ await import('./test-cardgen.mjs');
 await import('./test-battle.mjs');
 await import('./test-state.mjs');
 await import('./test-balance.mjs');
+// статический сторож: висячая ссылка в обработчике не видна ни линковке ESM,
+// ни отрисовке — она падает только в момент клика
+await import('./test-lint.mjs');
 
 // UI-набор требует jsdom — единственную dev-зависимость. Если её нет,
 // набор честно пропускается, а не роняет весь прогон.

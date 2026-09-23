@@ -984,3 +984,89 @@ select.input { cursor: pointer; }
   background: #1a1710; border-radius: 7px; padding: 0 3px; margin-top: 1px;
 }
 .disc--no .disc__adds { display: none; }
+
+/* --- Ожидаемый исход атаки -------------------------------------------------- */
+/* Соперник-ИИ блокирует всегда, поэтому «урон без блока» — число, которого в
+   реальном бою почти не бывает. Панель показывает ожидаемый исход. */
+.forecast {
+  margin-top: 6px; padding: 7px 9px; border-radius: 10px;
+  background: #17140e; border: 1px solid var(--line);
+  border-left: 3px solid #6f8fb5;
+}
+.forecast__head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.forecast__title { font-size: 11.5px; font-weight: 700; letter-spacing: .02em; color: #a9c4e0; }
+.forecast__num { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.forecast__num--hit { color: #e8a33d; }
+.forecast__approx {
+  font-size: 12px; font-weight: 800; color: var(--warn); cursor: help;
+  border: 1px solid var(--warn); border-radius: 6px; padding: 0 4px;
+}
+.forecast__rows { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+.forecast__pair { font-size: 11px; color: var(--muted); line-height: 1.35; }
+.forecast__pair b { color: var(--text); font-weight: 600; }
+.forecast__casualties { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; font-size: 10.5px; }
+.forecast__bad { color: #e07a6a; }
+.forecast__good { color: #8fc98a; }
+@media (max-width: 900px) {
+  .forecast__num { margin-left: 0; }
+}
+
+/* --- Разбор исхода боя ------------------------------------------------------ */
+.diag {
+  margin-top: 10px; padding: 9px 11px; border-radius: 10px;
+  background: #16130d; border: 1px solid var(--line);
+}
+.diag--won { border-left: 3px solid #6fae6a; }
+.diag--lost { border-left: 3px solid #b5644f; }
+.diag h4 { margin: 0 0 5px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+.diag__list, .diag__advice { display: flex; flex-direction: column; gap: 3px; }
+.diag__row { display: flex; gap: 6px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.diag__advice { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.diag__tip { display: flex; gap: 6px; font-size: 12px; color: #e0c07a; line-height: 1.45; }
+.diag__mark { flex: none; color: var(--dim); font-weight: 700; }
+.diag__top { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 8px; }
+.diag__top-l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin-right: 2px; }
+.diag__chip {
+  display: inline-flex; gap: 4px; align-items: baseline; font-size: 10.5px;
+  background: #1e1a12; border: 1px solid var(--line); border-radius: 8px; padding: 1px 6px;
+  max-width: 100%; overflow: hidden;
+}
+.diag__chip b { color: #e08a6a; font-variant-numeric: tabular-nums; }
+.diag__chip span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- Разведка: сравнение сил ----------------------------------------------- */
+/* «Оценка угрозы 47» без сравнения с собственной колодой не помогает выбрать
+   регион, поэтому силы показаны парой «вы ↔ соперник» с вердиктом посередине. */
+.scout__vs {
+  display: flex; align-items: center; gap: 8px; margin: 4px 0 8px;
+  padding: 7px 9px; border-radius: 10px; background: #17140e; border: 1px solid var(--line);
+}
+.scout__col { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; flex: 1; }
+.scout__who {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.scout__score { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); line-height: 1.1; }
+.scout__odds {
+  flex: none; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 4px 9px; border-radius: 9px; border: 1px solid var(--line); text-align: center;
+}
+.scout__odds span:first-child { font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.scout__ratio { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.scout__odds--good { border-color: #4f7a4a; background: #16211494; }
+.scout__odds--good span:first-child { color: #8fc98a; }
+.scout__odds--even { border-color: #7a6f3f; background: #211e1494; }
+.scout__odds--even span:first-child { color: #e0d08a; }
+.scout__odds--warn { border-color: #8a6234; background: #241a1194; }
+.scout__odds--warn span:first-child { color: #e8a33d; }
+.scout__odds--bad { border-color: #8a4436; background: #24141194; }
+.scout__odds--bad span:first-child { color: #e07a6a; }
+.scout__tip { margin: 2px 0 8px; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
+.scout__tip--good { color: #a5cda1; }
+.scout__tip--even { color: #d6cb9a; }
+.scout__tip--warn { color: #e0b578; }
+.scout__tip--bad { color: #dd9484; }
+@media (max-width: 900px) {
+  .scout__vs { flex-wrap: wrap; }
+  .scout__odds { order: 3; width: 100%; }
+}

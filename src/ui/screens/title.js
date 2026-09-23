@@ -100,7 +100,7 @@ export function renderTitle() {
       btn('⚙ Основать цивилизацию', start, 'primary big'),
       saved ? btn('↺ Продолжить партию', () => { app.state = saved; app.screen = 'hub'; render(); }, 'big') : null,
     ]),
-    saved ? el('div', { class: 'small dim row row--center' }, `Сохранение: ${saved.civName}, эпоха ${saved.era}, регионов ${saved.conquered}/10`) : null,
+    saved ? el('div', { class: 'small dim row row--center' }, `Сохранение: ${saved.civName}, эпоха ${saved.era}, регионов ${saved.conquered}/${saved.world?.regions?.length ?? '?'}`) : null,
   ]));
 
   return root;

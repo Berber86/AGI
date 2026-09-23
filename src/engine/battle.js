@@ -774,6 +774,96 @@ function summarizeSide(b, id) {
   };
 }
 
+/**
+ * Разбор исхода боя — почему он закончился именно так.
+ *
+ * Экран итогов показывает награды, но не объясняет поражение, а это главный
+ * источник обучения в игре. Сигналы берутся из структурированного состояния
+ * (здоровье, Усталость, кладбища) и из журнала — только для атрибуции урона,
+ * потому что «кто именно снял здоровье лидеру» больше нигде не хранится.
+ *
+ * @param {object} b завершённый бой
+ * @returns {{winner:string, rounds:number, verdict:string[], advice:string[],
+ *            margin:{me:number,foe:number}, topDamage:{me:Array,foe:Array},
+ *            fatigue:{me:number,foe:number}, suddenDeath:boolean, reason:string}}
+ */
+/** Согласование сказуемого: имена юнитов мужского рода, а «Усталость» и
+ *  «Внезапная смерть» — женского. */
+const feminine = (name) => name === 'Усталость' || name === 'Внезапная смерть';
+
+export function diagnoseBattle(b) {
+  const me = side(b, 'me');
+  const foe = side(b, 'foe');
+  const winner = b.over?.winner || null;
+  const rounds = b.round;
+
+  // --- атрибуция урона лидерам по журналу ---
+  // «💥 Лидер X теряет N здоровья (h/m) — «Имя».»
+  const dmgTo = { me: {}, foe: {} };
+  const reDmg = /^💥 Лидер (.+?) теряет (\d+) здоровья(?:.*?— (.+?))?\.$/;
+  for (const entry of b.log) {
+    const m = reDmg.exec(entry.text);
+    if (!m) continue;
+    // урон без источника (damageLeader вызван напрямую) не attribuтируется:
+    // чип «неизвестно» в разборе — шум, а не подсказка
+    if (!m[3]) continue;
+    const who = m[1] === me.name ? 'me' : 'foe';
+    const src = m[3].replace(/^Топот /, '').replace(/[«»]/g, '');
+    dmgTo[who][src] = (dmgTo[who][src] || 0) + Number(m[2]);
+  }
+  const rank = (obj) => Object.entries(obj).sort((x, y) => y[1] - x[1])
+    .map(([name, total]) => ({ name, total }));
+
+  const topDamage = { me: rank(dmgTo.me), foe: rank(dmgTo.foe) };
+  const fatigue = { me: me.fatigue, foe: foe.fatigue };
+  const suddenDeath = rounds >= 21;
+  const margin = { me: Math.max(0, me.leader.hp), foe: Math.max(0, foe.leader.hp) };
+
+  // урон, снятый с лидера за всю игру: сумма Усталости растёт как 1+2+3…
+  const fatigueDamage = (n) => (n * (n + 1)) / 2;
+
+  const verdict = [];
+  const advice = [];
+  const lost = winner === 'foe';
+  const won = winner === 'me';
+
+  if (winner === 'draw') verdict.push('Оба лидера пали одновременно — ничья.');
+
+  const myTop = topDamage.me[0];
+  const foeTop = topDamage.foe[0];
+
+  if (lost) {
+    verdict.push(`Ваш лидер пал на ${rounds}-м раунде. У лидера соперника осталось ${margin.foe} HP.`);
+    if (myTop) verdict.push(`Больше всего урона вам ${feminine(myTop.name) ? 'нанесла' : 'нанёс'} источник «${myTop.name}» — ${myTop.total}.`);
+    if (fatigueDamage(fatigue.me) >= 3) {
+      verdict.push(`Колода опустела: Усталость сняла ${fatigueDamage(fatigue.me)} здоровья (${fatigue.me} пустых доборов).`);
+      advice.push('Колода мала для такой длины боя — добавьте юнитов до предела эпохи или добивайте соперника быстрее.');
+    }
+    if (margin.foe <= Math.max(4, Math.round(foe.leader.maxHp * 0.15))) {
+      advice.push(`Не хватило совсем: ${margin.foe} HP. Попробуйте оставить больше атакующих незаблокированными или снять блок с самого сильного.`);
+    }
+    if (me.grave.length > foe.grave.length + 1) {
+      verdict.push(`Потери: ${me.grave.length} ваших против ${foe.grave.length} у соперника.`);
+      advice.push('Размены были не в вашу пользу — блокируйте так, чтобы ваш юнит убивал и выживал (консоль блока показывает это до подтверждения).');
+    }
+  } else if (won) {
+    verdict.push(`Лидер соперника пал на ${rounds}-м раунде. Ваш лидер закончил с ${margin.me}/${me.leader.maxHp} HP.`);
+    if (foeTop) verdict.push(`Основной урон сопернику ${feminine(foeTop.name) ? 'нанесла' : 'нанёс'} «${foeTop.name}» — ${foeTop.total}.`);
+    if (margin.me <= Math.max(4, Math.round(me.leader.maxHp * 0.15))) {
+      advice.push('Победа на грани: лидер почти пал. Стоит укрепить колоду или брать регион слабее.');
+    }
+    if (fatigueDamage(fatigue.foe) >= 3) verdict.push(`Колода соперника опустела — Усталость сняла с него ${fatigueDamage(fatigue.foe)}.`);
+  }
+
+  if (suddenDeath) {
+    verdict.push(`Бой дошёл до внезапной смерти (${rounds} раундов): с 21-го раунда оба лидера теряют по 2 здоровья.`);
+    advice.push('Затяжные бои решаются не уроном, а тем, у кого больше здоровья лидера. Эпоха выше — бои длиннее.');
+  }
+  if (!advice.length && lost) advice.push('Загляните в журнал боя ниже: там видно каждый размен и каждую назначенную блокировку.');
+
+  return { winner, rounds, verdict, advice, margin, topDamage, fatigue, suddenDeath, reason: b.over?.reason || '' };
+}
+
 // ---------------------------------------------------------------------------
 //  Прогноз боя
 //  Интерфейсу нужно показывать «что будет, если подтвердить блок» ДО того, как
@@ -824,19 +914,43 @@ function hasRandomTargets(b) {
  *            wounded:Array, over:object|null, approximate:boolean, damageToDefender:number}}
  */
 export function predictCombat(b, blocks = null) {
-  const sim = cloneBattle(b, 'predict');
+  return runPrediction(b, { blocks, aiDefense: false });
+}
+
+/**
+ * Прогноз того, как защищающийся ИИ встретит атаку. resolveCombat назначает
+ * автоблок сам, когда защищается не человек, поэтому «урон без блока» — число,
+ * которого в реальном бою почти никогда не бывает. Этот прогноз показывает
+ * ожидаемый исход и конкретную расстановку соперника.
+ * @returns {object} снимок как у predictCombat плюс `plan` — кого чем закроют
+ */
+export function predictDefense(b) {
+  return runPrediction(b, { blocks: null, aiDefense: true });
+}
+
+/** Общий прогон боя на клоне: один и тот же код для обоих видов прогноза. */
+function runPrediction(b, { blocks = null, aiDefense = false } = {}) {
+  const sim = cloneBattle(b, aiDefense ? 'predict-defense' : 'predict');
   const attackerSide = sim.active;
   const defenderSide = other(attackerSide);
 
-  // Назначаем блоки на клоне. assignBlock проверяет легальность, поэтому
-  // недопустимые пары просто отсеются — интерфейс увидит честный прогноз.
-  // noAutoBlock обязателен: иначе resolveCombat переназначит блоки сам, когда
-  // защищается ИИ, и прогноз перестанет соответствовать тому, что задал игрок.
-  sim.noAutoBlock = true;
-  sim.blockers = {};
-  const wanted = blocks ?? b.blockers ?? {};
-  for (const [aid, list] of Object.entries(wanted)) {
-    if (Array.isArray(list) && list.length) assignBlock(sim, aid, list);
+  let plan = null;
+  if (aiDefense) {
+    // считаем расстановку ИИ явно, чтобы вернуть её интерфейсу, и запрещаем
+    // resolveCombat переназначать её второй раз
+    plan = autoBlock(sim, defenderSide);
+    sim.noAutoBlock = true;
+  } else {
+    // Назначаем блоки на клоне. assignBlock проверяет легальность, поэтому
+    // недопустимые пары просто отсеются — интерфейс увидит честный прогноз.
+    // noAutoBlock обязателен: иначе resolveCombat переназначит блоки сам, когда
+    // защищается ИИ, и прогноз перестанет соответствовать тому, что задал игрок.
+    sim.noAutoBlock = true;
+    sim.blockers = {};
+    const wanted = blocks ?? b.blockers ?? {};
+    for (const [aid, list] of Object.entries(wanted)) {
+      if (Array.isArray(list) && list.length) assignBlock(sim, aid, list);
+    }
   }
 
   const before = healthSnapshot(sim);
@@ -876,6 +990,14 @@ export function predictCombat(b, blocks = null) {
     attackerSide,
     defenderSide,
     blocked,
+    // расстановка ИИ с именами — интерфейс показывает, кого именно закроют
+    plan: plan ? Object.entries(plan)
+      .filter(([, list]) => list && list.length)
+      .map(([aid, list]) => ({
+        attacker: aid,
+        attackerName: (side(sim, attackerSide).board.find((u) => u.uid === aid) || {}).name || aid,
+        blockers: list.map((id) => (side(sim, defenderSide).board.find((u) => u.uid === id) || {}).name || id),
+      })) : null,
   };
 }
 

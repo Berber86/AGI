@@ -2,13 +2,23 @@
 import { el, btn, mount, clear, modal, tooltip } from '../dom.js';
 import { tryAdvanceEra } from '../era-up.js';
 import { gearSVG } from '../art.js';
-import { DOMAINS, eraOf, ROMAN_ERA, S, PERSONALITIES, HOME_POS, canAttackRegion, buildRival, applyDifficulty, rivalPower } from '../shared.js';
+import { DOMAINS, eraOf, ROMAN_ERA, S, PERSONALITIES, HOME_POS, canAttackRegion, buildRival, applyDifficulty, rivalPower, DISCOVERY_LIST, effectiveBlueprint } from '../shared.js';
 import { app, render, persist, toast } from '../app.js';
 import { renderCard } from '../cards.js';
 import { autoplay } from '../../engine/autoplay.js';
 import { makeRng } from '../../engine/rng.js';
 
 let selected = null;
+
+/**
+ * Сброс состояния экрана карты.
+ *
+ * `selected` живёт на уровне модуля, поэтому между партиями (и между тестами)
+ * он удерживает выбранный регион — а renderMap показывает либо панель региона,
+ * либо обзор державы, так что «залипший» выбор прячет целый экран.
+ * Симметрично resetBattleUi() на боевом экране.
+ */
+export function resetMapUi() { selected = null; }
 
 export function renderMap() {
   const st = app.state;
@@ -104,7 +114,7 @@ function overviewPanel(st) {
     kv('Эпоха', `${ROMAN_ERA[st.era]} · ${eraOf(st.era).name}`),
     kv('Здоровье лидера в бою', eraOf(st.era).leaderHp),
     kv('Колода', `${info.count}/${info.max} (минимум ${info.min})`),
-    kv('Открытий изучено', `${st.researched.length} / 80`),
+    kv('Открытий изучено', `${st.researched.length} / ${DISCOVERY_LIST.length}`),
     kv('Проектов / юнитов', `${Object.keys(st.blueprints).length} / ${st.roster.length}`),
     kv('Доход за ход', `+${S.ECONOMY.income(st).science} 🔬  +${S.ECONOMY.income(st).materials} 🧱`),
   ]));
@@ -150,15 +160,34 @@ function regionPanel(st, region) {
   const rng = makeRng(`${st.seed}:scout:${region.id}:${st.stats.battles}`);
   const rival = applyDifficulty(buildRival(region, rng, st.difficulty), st.difficulty);
   const p = rivalPower(rival);
+  // Оценка угрозы сама по себе бесполезна: игроку не с чем её сравнить.
+  // Считаем свою колоду той же формулой (с поправкой на ветеранство) и
+  // выносим вердикт — иначе выбор региона остаётся гаданием.
+  const mine = myDeckPower(st);
+  const odds = verdictOf(mine.score, p.score);
   box.append(el('div', { class: 'scout' }, [
     el('h4', {}, 'Разведка (приблизительно)'),
-    el('div', { class: 'kv' }, [
-      kv('Юнитов в колоде', rival.deck.length),
-      kv('Суммарная атака', p.atk),
-      kv('Суммарное здоровье', p.hp),
-      kv('Свойств', p.kw),
-      kv('Оценка угрозы', p.score),
+    el('div', { class: 'scout__vs' }, [
+      el('div', { class: 'scout__col' }, [
+        el('span', { class: 'scout__who' }, 'Вы'),
+        el('b', { class: 'scout__score' }, String(mine.score)),
+      ]),
+      el('div', { class: `scout__odds scout__odds--${odds.tone}` }, [
+        el('span', {}, odds.label),
+        el('span', { class: 'scout__ratio' }, odds.ratio),
+      ]),
+      el('div', { class: 'scout__col' }, [
+        el('span', { class: 'scout__who' }, region.civ.name),
+        el('b', { class: 'scout__score' }, String(p.score)),
+      ]),
     ]),
+    el('div', { class: 'kv' }, [
+      kv('Юнитов в колоде', `${mine.count} / ${rival.deck.length}`),
+      kv('Суммарная атака', `${mine.atk} / ${p.atk}`),
+      kv('Суммарное здоровье', `${mine.hp} / ${p.hp}`),
+      kv('Свойств', `${mine.kw} / ${p.kw}`),
+    ]),
+    el('p', { class: `scout__tip scout__tip--${odds.tone}`, text: odds.tip }),
     el('div', { class: 'scout__cards' }, rival.deck.slice(0, 8).map((u) => renderCard(u, { size: 'xs' }))),
   ]));
 
@@ -171,6 +200,28 @@ function regionPanel(st, region) {
   ]));
   if (!ready) box.append(el('div', { class: 'warn' }, `Колода: ${info.count}/${info.min}–${info.max}. Соберите её во вкладке «Колода».`));
   return box;
+}
+
+/**
+ * Сила собственной колоды той же формулой, что и rivalPower, — иначе сравнивать
+ * бессмысленно. Ветеранство учитывается: юнит 3-го звания реально сильнее чертежа.
+ */
+function myDeckPower(st) {
+  const units = st.deck.map((id) => st.roster.find((u) => u.id === id)).filter(Boolean);
+  const decks = units.map((u) => ({ blueprint: effectiveBlueprint(u) }));
+  const p = rivalPower({ deck: decks });
+  return { ...p, count: units.length };
+}
+
+/** Вердикт по соотношению сил: что делать игроку с этой разницей. */
+function verdictOf(my, foe) {
+  const r = foe > 0 ? my / foe : (my > 0 ? 2 : 1);
+  const ratio = `${Math.round(r * 100)}%`;
+  if (r >= 1.3) return { tone: 'good', label: 'вы заметно сильнее', ratio, tip: 'Хорошая цель: перевес сил на вашей стороне. Бой должен пройти без больших потерь.' };
+  if (r >= 1.05) return { tone: 'good', label: 'небольшой перевес', ratio, tip: 'Перевес на вашей стороне, но размен может быть дорогим — следите за прогнозом в консоли блока.' };
+  if (r >= 0.9) return { tone: 'even', label: 'силы равны', ratio, tip: 'Бой на равных: исход решит розыгрыш и блокирование. Если хотите надёжнее — сначала укрепите колоду или возьмите регион слабее.' };
+  if (r >= 0.7) return { tone: 'warn', label: 'соперник сильнее', ratio, tip: 'Вы уступаете. Стоит нанять ещё юнитов, собрать колоду плотнее или атаковать более слабую землю — поражение откатит доход.' };
+  return { tone: 'bad', label: 'вы намного слабее', ratio, tip: 'Почти верное поражение. Смените эпоху, изучите открытия и пересоберите колоду, прежде чем идти сюда.' };
 }
 
 function startFight(st, region, auto) {

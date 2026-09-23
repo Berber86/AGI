@@ -156,22 +156,45 @@ export function menuModal() {
 
 function exportSave() {
   const blob = new Blob([S.serialize(app.state)], { type: 'application/json' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: `gears-of-ages-${app.state.seed}.json` });
+  const url = URL.createObjectURL(blob);
+  const a = el('a', { href: url, download: `gears-of-ages-${app.state.seed}.json` });
   document.body.append(a); a.click(); a.remove();
+  // объект живёт в памяти браузера, пока его не отозвать
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('Сохранение выгружено в файл', 'ok');
 }
 
+/**
+ * Импорт партии. Файл выбирает игрок, поэтому содержимое непроверенное:
+ * сначала парсим и валидируем, и только потом спрашиваем согласие и
+ * подменяем текущую партию. Иначе один неверный клик по файлу уничтожил бы
+ * текущий прогресс, а битый JSON уронил бы приложение уже после перезаписи.
+ */
 function importSave() {
   const inp = el('input', { type: 'file', accept: '.json,application/json' });
   inp.addEventListener('change', async () => {
     const f = inp.files?.[0];
     if (!f) return;
+    let next;
     try {
-      const text = await f.text();
-      const parsed = JSON.parse(text);
-      if (!parsed || parsed.v !== 1) throw new Error('неверный формат');
-      app.state = parsed; app.screen = 'hub'; app.tab = 'map'; persist(); render();
-      toast('Партия загружена', 'ok');
-    } catch (e) { toast('Не удалось импортировать: ' + e.message, 'bad'); }
+      next = S.deserialize(await f.text());
+    } catch (e) {
+      toast('Не удалось импортировать: ' + e.message, 'bad', 4200);
+      return;
+    }
+    const cur = app.state;
+    const describe = (x) => `«${x.civName}» · эпоха ${ROMAN_ERA[x.era] || x.era} · регионов ${x.conquered} · ходов ${x.stats?.turns ?? 0}`;
+    const yes = await confirmBox({
+      title: 'Загрузить партию из файла?',
+      text: cur
+        ? `Текущая партия ${describe(cur)} будет заменена на ${describe(next)}. Действие нельзя отменить — если хотите сохранить текущую, сначала выгрузите её в JSON.`
+        : `Будет загружена партия ${describe(next)}.`,
+      ok: 'Загрузить', cancel: 'Отмена', danger: !!cur,
+    });
+    if (!yes) { toast('Импорт отменён — текущая партия не тронута', 'info'); return; }
+    app.state = next; app.screen = 'hub'; app.tab = 'map';
+    persist(); render();
+    toast(`Партия ${describe(next)} загружена`, 'ok', 3600);
   });
   inp.click();
 }
