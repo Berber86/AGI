@@ -1,4 +1,4 @@
-// main.js - Master Entry Point for 3D Bonsai Simulator
+// main.js - Master Entry Point with AAA Post-Processing Pipeline
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Environment } from './models/Environment.js';
@@ -6,10 +6,10 @@ import { PotAndSoil } from './models/PotAndSoil.js';
 import { BonsaiTree } from './models/BonsaiTree.js';
 import { BonsaiGame } from './simulation/BonsaiGame.js';
 import { BonsaiUI } from './ui/BonsaiUI.js';
+import { PostProcessing } from './graphics/PostProcessing.js';
 import './ui/bonsai.css';
 
 function initApp() {
-  // 1. Canvas Container & WebGL Renderer
   const container = document.getElementById('canvas-container');
   if (!container) return;
 
@@ -27,12 +27,12 @@ function initApp() {
     antialias: true,
     alpha: false,
     powerPreference: 'high-performance',
-    preserveDrawingBuffer: true // Required for photo studio snapshot
+    preserveDrawingBuffer: true
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // High-fidelity cinematic PBR rendering
+  // AAA Cinematic PBR rendering setup
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -40,24 +40,24 @@ function initApp() {
 
   container.appendChild(renderer.domElement);
 
-  // 2. Camera Controls (OrbitControls)
+  // OrbitControls
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
   controls.target.set(0, 2.2, 0);
   controls.minDistance = 3.0;
   controls.maxDistance = 14.0;
-  controls.maxPolarAngle = Math.PI / 2 - 0.02; // Keep camera above tatami floor
+  controls.maxPolarAngle = Math.PI / 2 - 0.02;
   controls.update();
 
-  // 3. Build Japanese Environment (Tokonoma room, shoji, tatami, lantern, incense)
+  // Environment (Tokonoma, tatami, shoji, lantern, incense, shishi-odoshi)
   const environment = new Environment(scene);
 
-  // 4. Build Ceramic Pot & Akadama Soil
+  // Ceramic Pot & Akadama Soil PBR
   const potAndSoil = new PotAndSoil(scene);
   potAndSoil.setupDefaultZenDressing();
 
-  // 5. Build Bonsai Tree
+  // Bonsai Tree with organic gnarls & PBR
   const tree = new BonsaiTree(scene, {
     species: 'pine',
     style: 'moyogi',
@@ -66,7 +66,7 @@ function initApp() {
     soilY: potAndSoil.getSoilSurfaceY()
   });
 
-  // 6. Simulator Life Cycle & Game Engine
+  // Simulator Engine & Game Loop
   const game = new BonsaiGame(
     tree,
     potAndSoil,
@@ -76,10 +76,13 @@ function initApp() {
     renderer.domElement
   );
 
-  // 7. Exquisite Japanese Zen UI
+  // AAA Cinematic Post-Processing (UnrealBloom + Vignette + FXAA)
+  const postProcessing = new PostProcessing(renderer, scene, camera);
+
+  // Japanese Zen UI
   const ui = new BonsaiUI(game, potAndSoil, tree, environment);
 
-  // 8. Animation & Render Loop
+  // Animation Loop
   const clock = new THREE.Clock();
 
   function animate() {
@@ -88,30 +91,32 @@ function initApp() {
     const delta = clock.getDelta();
     const elapsed = clock.getElapsedTime();
 
-    // Update camera controls
     controls.update();
 
-    // Update tree particles (pruning debris)
-    tree.update(delta);
+    // Wind sway & falling particle physics
+    tree.update(delta, elapsed);
 
-    // Update atmospheric particles (incense smoke, dust motes, drifting petals)
+    // Incense smoke, dust motes, drifting petals, shishi-odoshi rocker arm
     environment.update(delta, elapsed);
 
-    // Update game simulation (water droplets, timers)
+    // Water shower particles
     game.update(delta);
 
-    // Render 3D Scene
-    renderer.render(scene, camera);
+    // Render through AAA post-processing pipeline
+    postProcessing.render();
   }
 
   animate();
 
-  // 9. Window Resize Handling
+  // Resize handler
   window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    camera.aspect = w / h;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(w, h);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    postProcessing.setSize(w, h);
   });
 }
 

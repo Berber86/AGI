@@ -1,4 +1,4 @@
-// TextureGenerator.js - High-fidelity procedural textures for Bonsai 3D
+// TextureGenerator.js - AAA Procedural PBR Textures & Normal Map Synthesis
 import * as THREE from 'three';
 
 export class TextureGenerator {
@@ -6,7 +6,6 @@ export class TextureGenerator {
     this.cache = new Map();
   }
 
-  // Helper to create a canvas
   createCanvas(width, height) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -15,294 +14,567 @@ export class TextureGenerator {
     return { canvas, ctx };
   }
 
-  // 1. Japanese Black Pine Bark (Кора черной сосны - грубые чешуйки и глубокие борозды)
-  getPineBarkTexture() {
-    if (this.cache.has('pine_bark')) return this.cache.get('pine_bark');
+  // Convert heightmap canvas into a tangent-space Normal Map using Sobel operator
+  createNormalMapFromHeight(sourceCanvas, strength = 2.5) {
+    const w = sourceCanvas.width;
+    const h = sourceCanvas.height;
+    const sCtx = sourceCanvas.getContext('2d');
+    const imgData = sCtx.getImageData(0, 0, w, h);
+    const data = imgData.data;
 
-    const { canvas, ctx } = this.createCanvas(512, 512);
+    const { canvas: nCanvas, ctx: nCtx } = this.createCanvas(w, h);
+    const nImgData = nCtx.createImageData(w, h);
+    const nData = nImgData.data;
 
-    // Base deep dark brown
-    ctx.fillStyle = '#2b231d';
-    ctx.fillRect(0, 0, 512, 512);
+    // Helper to sample height (grayscale luminosity)
+    const sampleH = (x, y) => {
+      const cx = (x + w) % w;
+      const cy = (y + h) % h;
+      const idx = (cy * w + cx) * 4;
+      return (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114) / 255.0;
+    };
 
-    // Fissured scaly plates
-    for (let y = 0; y < 512; y += 18) {
-      for (let x = 0; x < 512; x += 32) {
-        const ox = (Math.random() - 0.5) * 8;
-        const oy = (Math.random() - 0.5) * 6;
-        const w = 28 + (Math.random() - 0.5) * 10;
-        const h = 16 + (Math.random() - 0.5) * 6;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        // Sobel filter
+        const tl = sampleH(x - 1, y - 1);
+        const l  = sampleH(x - 1, y);
+        const bl = sampleH(x - 1, y + 1);
+        const t  = sampleH(x, y - 1);
+        const b  = sampleH(x, y + 1);
+        const tr = sampleH(x + 1, y - 1);
+        const r  = sampleH(x + 1, y);
+        const br = sampleH(x + 1, y + 1);
 
-        // Bark plate shading
-        const tone = 40 + Math.floor(Math.random() * 30);
-        const r = tone + 10;
-        const g = tone;
-        const b = tone - 8;
-        ctx.fillStyle = `rgb(${r},${g},${b})`;
+        const dX = (tr + 2.0 * r + br) - (tl + 2.0 * l + bl);
+        const dY = (bl + 2.0 * b + br) - (tl + 2.0 * t + tr);
 
-        ctx.beginPath();
-        ctx.roundRect(x + ox, y + oy, w, h, 4);
-        ctx.fill();
+        let nx = -dX * strength;
+        let ny = -dY * strength;
+        let nz = 1.0;
 
-        // Highlight top edge
-        ctx.strokeStyle = `rgba(130, 105, 85, 0.4)`;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        nx /= len;
+        ny /= len;
+        nz /= len;
 
-        // Shadow bottom edge
-        ctx.strokeStyle = `rgba(15, 10, 8, 0.7)`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(x + ox, y + oy + h);
-        ctx.lineTo(x + ox + w, y + oy + h);
-        ctx.stroke();
+        const outIdx = (y * w + x) * 4;
+        nData[outIdx]     = Math.floor((nx * 0.5 + 0.5) * 255);
+        nData[outIdx + 1] = Math.floor((ny * 0.5 + 0.5) * 255);
+        nData[outIdx + 2] = Math.floor((nz * 0.5 + 0.5) * 255);
+        nData[outIdx + 3] = 255;
       }
     }
 
-    // Vertical fissure streaks
-    for (let i = 0; i < 70; i++) {
-      const vx = Math.random() * 512;
-      ctx.strokeStyle = 'rgba(12, 8, 6, 0.85)';
-      ctx.lineWidth = 2 + Math.random() * 3;
-      ctx.beginPath();
-      ctx.moveTo(vx, 0);
-      let curX = vx;
-      for (let vy = 0; vy < 512; vy += 25) {
-        curX += (Math.random() - 0.5) * 6;
-        ctx.lineTo(curX, vy);
+    nCtx.putImageData(nImgData, 0, 0);
+    const normalTex = new THREE.CanvasTexture(nCanvas);
+    normalTex.wrapS = THREE.RepeatWrapping;
+    normalTex.wrapT = THREE.RepeatWrapping;
+    return normalTex;
+  }
+
+  // 1. Japanese Black Pine Bark: Diffuse, Normal & Roughness Maps
+  getPineBarkPBR() {
+    if (this.cache.has('pine_pbr')) return this.cache.get('pine_pbr');
+
+    const size = 1024;
+    const { canvas: dCanvas, ctx: dCtx } = this.createCanvas(size, size);
+    const { canvas: hCanvas, ctx: hCtx } = this.createCanvas(size, size);
+    const { canvas: rCanvas, ctx: rCtx } = this.createCanvas(size, size);
+
+    // Height base
+    hCtx.fillStyle = '#444444';
+    hCtx.fillRect(0, 0, size, size);
+
+    // Diffuse base: dark charcoaly brown
+    dCtx.fillStyle = '#221a14';
+    dCtx.fillRect(0, 0, size, size);
+
+    // Roughness base: mostly matte
+    rCtx.fillStyle = '#cccccc';
+    rCtx.fillRect(0, 0, size, size);
+
+    // Fissured scaly pine plates
+    const rows = 36;
+    const cols = 22;
+    const dy = size / rows;
+    const dx = size / cols;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = c * dx + (r % 2 === 0 ? 0 : dx * 0.5);
+        const y = r * dy;
+        const ox = (Math.random() - 0.5) * 12;
+        const oy = (Math.random() - 0.5) * 8;
+        const pw = dx * (0.8 + Math.random() * 0.35);
+        const ph = dy * (0.75 + Math.random() * 0.3);
+
+        // Height: raised plate
+        const plateH = 140 + Math.floor(Math.random() * 80);
+        hCtx.fillStyle = `rgb(${plateH},${plateH},${plateH})`;
+        hCtx.beginPath();
+        hCtx.roundRect(x + ox, y + oy, pw, ph, 8);
+        hCtx.fill();
+
+        // Diffuse: plate tone
+        const baseShade = 38 + Math.floor(Math.random() * 28);
+        dCtx.fillStyle = `rgb(${baseShade + 12}, ${baseShade + 2}, ${baseShade - 6})`;
+        dCtx.beginPath();
+        dCtx.roundRect(x + ox, y + oy, pw, ph, 8);
+        dCtx.fill();
+
+        // Edge highlights on top
+        dCtx.strokeStyle = 'rgba(150, 120, 95, 0.45)';
+        dCtx.lineWidth = 2.5;
+        dCtx.stroke();
+
+        // Roughness: plates are slightly smoother than cracks
+        rCtx.fillStyle = '#aaaaaa';
+        rCtx.beginPath();
+        rCtx.roundRect(x + ox, y + oy, pw, ph, 8);
+        rCtx.fill();
       }
-      ctx.stroke();
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2, 6);
-    this.cache.set('pine_bark', texture);
-    return texture;
-  }
+    // Deep vertical cracks / fissures
+    for (let i = 0; i < 90; i++) {
+      let cx = Math.random() * size;
+      const lw = 3 + Math.random() * 5;
 
-  // 2. Japanese Maple Bark (Кора клена - гладкая, благородная серо-коричневая)
-  getMapleBarkTexture() {
-    if (this.cache.has('maple_bark')) return this.cache.get('maple_bark');
+      hCtx.strokeStyle = '#050505';
+      hCtx.lineWidth = lw;
+      hCtx.beginPath();
+      hCtx.moveTo(cx, 0);
 
-    const { canvas, ctx } = this.createCanvas(512, 512);
+      dCtx.strokeStyle = 'rgba(10, 6, 4, 0.95)';
+      dCtx.lineWidth = lw;
+      dCtx.beginPath();
+      dCtx.moveTo(cx, 0);
 
-    // Warm silver-grey wood base
-    ctx.fillStyle = '#5c544d';
-    ctx.fillRect(0, 0, 512, 512);
+      rCtx.strokeStyle = '#ffffff';
+      rCtx.lineWidth = lw;
+      rCtx.beginPath();
+      rCtx.moveTo(cx, 0);
 
-    // Subtle vertical fiber striations
-    for (let x = 0; x < 512; x += 2) {
-      const alpha = 0.08 + Math.random() * 0.12;
-      const shade = Math.random() > 0.5 ? 255 : 30;
-      ctx.fillStyle = `rgba(${shade}, ${shade}, ${shade}, ${alpha})`;
-      ctx.fillRect(x, 0, 1 + Math.random() * 2, 512);
-    }
-
-    // Gentle lenticel speckles
-    for (let i = 0; i < 400; i++) {
-      const lx = Math.random() * 512;
-      const ly = Math.random() * 512;
-      ctx.fillStyle = 'rgba(40, 35, 30, 0.35)';
-      ctx.fillRect(lx, ly, 3 + Math.random() * 4, 1.2);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2, 4);
-    this.cache.set('maple_bark', texture);
-    return texture;
-  }
-
-  // 3. Shimpaku Juniper Bark (Волокнистая красноватая кора можжевельника)
-  getJuniperBarkTexture() {
-    if (this.cache.has('juniper_bark')) return this.cache.get('juniper_bark');
-
-    const { canvas, ctx } = this.createCanvas(512, 512);
-
-    // Rich cinnamon/reddish-brown base
-    ctx.fillStyle = '#4a2c1f';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Stringy fibrous peeling ribbons
-    for (let i = 0; i < 150; i++) {
-      const x = Math.random() * 512;
-      const w = 2 + Math.random() * 4;
-      ctx.fillStyle = Math.random() > 0.4 ? 'rgba(125, 70, 48, 0.45)' : 'rgba(40, 20, 14, 0.6)';
-      ctx.fillRect(x, 0, w, 512);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2, 5);
-    this.cache.set('juniper_bark', texture);
-    return texture;
-  }
-
-  // 4. Deadwood Jin / Shari (Мертвая белесая древесина, отполированная веками)
-  getDeadwoodTexture() {
-    if (this.cache.has('deadwood')) return this.cache.get('deadwood');
-
-    const { canvas, ctx } = this.createCanvas(512, 512);
-
-    // Bleached bone-white wood
-    ctx.fillStyle = '#e8ded4';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Fine weathered grain lines
-    for (let x = 0; x < 512; x += 3) {
-      const alpha = 0.05 + Math.random() * 0.1;
-      ctx.fillStyle = `rgba(160, 145, 130, ${alpha})`;
-      ctx.fillRect(x, 0, 1.5, 512);
-    }
-
-    // Weathered fissures
-    for (let i = 0; i < 20; i++) {
-      const x = Math.random() * 512;
-      ctx.strokeStyle = 'rgba(120, 105, 95, 0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      let cx = x;
-      for (let y = 0; y < 512; y += 30) {
-        cx += (Math.random() - 0.5) * 4;
-        ctx.lineTo(cx, y);
+      for (let cy = 0; cy < size; cy += 30) {
+        cx += (Math.random() - 0.5) * 10;
+        hCtx.lineTo(cx, cy);
+        dCtx.lineTo(cx, cy);
+        rCtx.lineTo(cx, cy);
       }
-      ctx.stroke();
+      hCtx.stroke();
+      dCtx.stroke();
+      rCtx.stroke();
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(1, 4);
-    this.cache.set('deadwood', texture);
-    return texture;
+    // Lichen specks (Зеленоватые лишайники на старой коре)
+    for (let l = 0; l < 400; l++) {
+      const lx = Math.random() * size;
+      const ly = Math.random() * size;
+      const lr = 2 + Math.random() * 6;
+      dCtx.fillStyle = Math.random() > 0.4 ? 'rgba(95, 115, 80, 0.35)' : 'rgba(125, 140, 100, 0.25)';
+      dCtx.beginPath();
+      dCtx.arc(lx, ly, lr, 0, Math.PI * 2);
+      dCtx.fill();
+    }
+
+    const diffuseTex = new THREE.CanvasTexture(dCanvas);
+    diffuseTex.wrapS = THREE.RepeatWrapping;
+    diffuseTex.wrapT = THREE.RepeatWrapping;
+    diffuseTex.repeat.set(2, 6);
+
+    const normalTex = this.createNormalMapFromHeight(hCanvas, 3.2);
+    normalTex.repeat.set(2, 6);
+
+    const roughnessTex = new THREE.CanvasTexture(rCanvas);
+    roughnessTex.wrapS = THREE.RepeatWrapping;
+    roughnessTex.wrapT = THREE.RepeatWrapping;
+    roughnessTex.repeat.set(2, 6);
+
+    const result = { map: diffuseTex, normalMap: normalTex, roughnessMap: roughnessTex };
+    this.cache.set('pine_pbr', result);
+    return result;
   }
 
-  // 5. Pine Needle Foliage Sprite (Хвоя черной сосны - реалистичные пучки игл)
+  // 2. Deadwood Jin / Shari PBR (Белесая выветренная древесина веков)
+  getDeadwoodPBR() {
+    if (this.cache.has('deadwood_pbr')) return this.cache.get('deadwood_pbr');
+
+    const size = 1024;
+    const { canvas: dCanvas, ctx: dCtx } = this.createCanvas(size, size);
+    const { canvas: hCanvas, ctx: hCtx } = this.createCanvas(size, size);
+
+    // Weathered bone-white driftwood
+    dCtx.fillStyle = '#f0e8de';
+    dCtx.fillRect(0, 0, size, size);
+
+    hCtx.fillStyle = '#888888';
+    hCtx.fillRect(0, 0, size, size);
+
+    // Long fibrous weathered wood grain
+    for (let x = 0; x < size; x += 2) {
+      const alpha = 0.08 + Math.random() * 0.14;
+      const shade = 160 + Math.floor(Math.random() * 40);
+      dCtx.fillStyle = `rgba(${shade}, ${shade - 10}, ${shade - 20}, ${alpha})`;
+      dCtx.fillRect(x, 0, 1.5, size);
+
+      const hVal = Math.floor(128 + (Math.random() - 0.5) * 50);
+      hCtx.fillStyle = `rgb(${hVal},${hVal},${hVal})`;
+      hCtx.fillRect(x, 0, 1.5, size);
+    }
+
+    // Weather cracks
+    for (let i = 0; i < 35; i++) {
+      let cx = Math.random() * size;
+      dCtx.strokeStyle = 'rgba(100, 85, 75, 0.4)';
+      dCtx.lineWidth = 1.5;
+      dCtx.beginPath();
+      dCtx.moveTo(cx, 0);
+
+      hCtx.strokeStyle = '#222222';
+      hCtx.lineWidth = 2.0;
+      hCtx.beginPath();
+      hCtx.moveTo(cx, 0);
+
+      for (let cy = 0; cy < size; cy += 40) {
+        cx += (Math.random() - 0.5) * 6;
+        dCtx.lineTo(cx, cy);
+        hCtx.lineTo(cx, cy);
+      }
+      dCtx.stroke();
+      hCtx.stroke();
+    }
+
+    const diffuseTex = new THREE.CanvasTexture(dCanvas);
+    diffuseTex.wrapS = THREE.RepeatWrapping;
+    diffuseTex.wrapT = THREE.RepeatWrapping;
+    diffuseTex.repeat.set(1, 4);
+
+    const normalTex = this.createNormalMapFromHeight(hCanvas, 2.2);
+    normalTex.repeat.set(1, 4);
+
+    const result = { map: diffuseTex, normalMap: normalTex };
+    this.cache.set('deadwood_pbr', result);
+    return result;
+  }
+
+  // 3. Celadon Crackle Glaze PBR (Селадоновый фарфор с глубоким кракелюром)
+  getCeladonPBR() {
+    if (this.cache.has('celadon_pbr')) return this.cache.get('celadon_pbr');
+
+    const size = 1024;
+    const { canvas: dCanvas, ctx: dCtx } = this.createCanvas(size, size);
+    const { canvas: hCanvas, ctx: hCtx } = this.createCanvas(size, size);
+
+    // Pale jade celadon glaze
+    dCtx.fillStyle = '#a8c5b3';
+    dCtx.fillRect(0, 0, size, size);
+
+    hCtx.fillStyle = '#eeeeee';
+    hCtx.fillRect(0, 0, size, size);
+
+    // Delicate spiderweb crackle lines (Каннюр)
+    dCtx.strokeStyle = 'rgba(45, 65, 55, 0.55)';
+    dCtx.lineWidth = 1.2;
+
+    hCtx.strokeStyle = '#333333';
+    hCtx.lineWidth = 2.0;
+
+    const crackCount = 180;
+    const pts = [];
+    for (let i = 0; i < crackCount; i++) {
+      pts.push({ x: Math.random() * size, y: Math.random() * size });
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const dx = pts[i].x - pts[j].x;
+        const dy = pts[i].y - pts[j].y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 90) {
+          dCtx.beginPath();
+          dCtx.moveTo(pts[i].x, pts[i].y);
+          dCtx.lineTo(pts[j].x, pts[j].y);
+          dCtx.stroke();
+
+          hCtx.beginPath();
+          hCtx.moveTo(pts[i].x, pts[i].y);
+          hCtx.lineTo(pts[j].x, pts[j].y);
+          hCtx.stroke();
+        }
+      }
+    }
+
+    const diffuseTex = new THREE.CanvasTexture(dCanvas);
+    diffuseTex.wrapS = THREE.RepeatWrapping;
+    diffuseTex.wrapT = THREE.RepeatWrapping;
+
+    const normalTex = this.createNormalMapFromHeight(hCanvas, 2.8);
+
+    const result = { map: diffuseTex, normalMap: normalTex };
+    this.cache.set('celadon_pbr', result);
+    return result;
+  }
+
+  // 4. Akadama Clay Soil PBR (Гранулированная глина Акадама с нормалями)
+  getAkadamaSoilPBR(moisture = 0.65) {
+    const key = `akadama_pbr_${Math.round(moisture * 10)}`;
+    if (this.cache.has(key)) return this.cache.get(key);
+
+    const size = 1024;
+    const { canvas: dCanvas, ctx: dCtx } = this.createCanvas(size, size);
+    const { canvas: hCanvas, ctx: hCtx } = this.createCanvas(size, size);
+    const { canvas: rCanvas, ctx: rCtx } = this.createCanvas(size, size);
+
+    // Soil base color (dry is pale ochre, wet is rich dark umber)
+    const rBase = Math.floor(65 * (1 - moisture * 0.45));
+    const gBase = Math.floor(45 * (1 - moisture * 0.45));
+    const bBase = Math.floor(30 * (1 - moisture * 0.45));
+
+    dCtx.fillStyle = `rgb(${rBase}, ${gBase}, ${bBase})`;
+    dCtx.fillRect(0, 0, size, size);
+
+    hCtx.fillStyle = '#444444';
+    hCtx.fillRect(0, 0, size, size);
+
+    // Roughness: wet soil is much glossier
+    const rVal = Math.floor(220 - moisture * 140);
+    rCtx.fillStyle = `rgb(${rVal},${rVal},${rVal})`;
+    rCtx.fillRect(0, 0, size, size);
+
+    // 8000 rounded granular pellets
+    for (let i = 0; i < 8000; i++) {
+      const gx = Math.random() * size;
+      const gy = Math.random() * size;
+      const gr = 3.0 + Math.random() * 6.5;
+
+      // Height pellet dome
+      const gradH = hCtx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      gradH.addColorStop(0, '#ffffff');
+      gradH.addColorStop(0.8, '#888888');
+      gradH.addColorStop(1, '#222222');
+      hCtx.fillStyle = gradH;
+      hCtx.beginPath();
+      hCtx.arc(gx, gy, gr, 0, Math.PI * 2);
+      hCtx.fill();
+
+      // Diffuse pellet
+      const dVar = (Math.random() - 0.5) * 26;
+      const pr = Math.max(0, Math.min(255, rBase + dVar + 14));
+      const pg = Math.max(0, Math.min(255, gBase + dVar + 10));
+      const pb = Math.max(0, Math.min(255, bBase + dVar + 4));
+
+      dCtx.fillStyle = `rgb(${pr}, ${pg}, ${pb})`;
+      dCtx.beginPath();
+      dCtx.arc(gx, gy, gr, 0, Math.PI * 2);
+      dCtx.fill();
+    }
+
+    const diffuseTex = new THREE.CanvasTexture(dCanvas);
+    diffuseTex.wrapS = THREE.RepeatWrapping;
+    diffuseTex.wrapT = THREE.RepeatWrapping;
+    diffuseTex.repeat.set(3, 3);
+
+    const normalTex = this.createNormalMapFromHeight(hCanvas, 3.5);
+    normalTex.repeat.set(3, 3);
+
+    const roughnessTex = new THREE.CanvasTexture(rCanvas);
+    roughnessTex.wrapS = THREE.RepeatWrapping;
+    roughnessTex.wrapT = THREE.RepeatWrapping;
+    roughnessTex.repeat.set(3, 3);
+
+    const result = { map: diffuseTex, normalMap: normalTex, roughnessMap: roughnessTex };
+    this.cache.set(key, result);
+    return result;
+  }
+
+  // 5. Velvet Green Moss PBR (Бархатистый мох Кокэ)
+  getMossPBR() {
+    if (this.cache.has('moss_pbr')) return this.cache.get('moss_pbr');
+
+    const size = 1024;
+    const { canvas: dCanvas, ctx: dCtx } = this.createCanvas(size, size);
+    const { canvas: hCanvas, ctx: hCtx } = this.createCanvas(size, size);
+
+    // Emerald moss base
+    dCtx.fillStyle = '#1e5223';
+    dCtx.fillRect(0, 0, size, size);
+
+    hCtx.fillStyle = '#555555';
+    hCtx.fillRect(0, 0, size, size);
+
+    // Micro moss nodules
+    for (let i = 0; i < 14000; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const r = 2.0 + Math.random() * 4.5;
+
+      const g = 80 + Math.floor(Math.random() * 95);
+      const yl = 40 + Math.floor(Math.random() * 50);
+      dCtx.fillStyle = `rgba(${yl}, ${g}, 30, 0.75)`;
+      dCtx.beginPath();
+      dCtx.arc(x, y, r, 0, Math.PI * 2);
+      dCtx.fill();
+
+      hCtx.fillStyle = Math.random() > 0.5 ? '#dddddd' : '#777777';
+      hCtx.beginPath();
+      hCtx.arc(x, y, r * 0.7, 0, Math.PI * 2);
+      hCtx.fill();
+    }
+
+    const diffuseTex = new THREE.CanvasTexture(dCanvas);
+    diffuseTex.wrapS = THREE.RepeatWrapping;
+    diffuseTex.wrapT = THREE.RepeatWrapping;
+    diffuseTex.repeat.set(4, 4);
+
+    const normalTex = this.createNormalMapFromHeight(hCanvas, 3.0);
+    normalTex.repeat.set(4, 4);
+
+    const result = { map: diffuseTex, normalMap: normalTex };
+    this.cache.set('moss_pbr', result);
+    return result;
+  }
+
+  // 6. Realistic Multi-Cluster Pine Needles Sprite (Хвоя)
   getPineFoliageTexture() {
-    if (this.cache.has('pine_foliage')) return this.cache.get('pine_foliage');
+    if (this.cache.has('pine_foliage_hd')) return this.cache.get('pine_foliage_hd');
 
-    const { canvas, ctx } = this.createCanvas(256, 256);
-    ctx.clearRect(0, 0, 256, 256);
+    const size = 512;
+    const { canvas, ctx } = this.createCanvas(size, size);
+    ctx.clearRect(0, 0, size, size);
 
-    const cx = 128;
-    const cy = 128;
+    const cx = size / 2;
+    const cy = size / 2;
 
-    // Draw radial needle tufts radiating outward
-    const needleCount = 65;
-    for (let i = 0; i < needleCount; i++) {
-      const angle = (i / needleCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
-      const length = 55 + Math.random() * 55;
-      const endX = cx + Math.cos(angle) * length;
-      const endY = cy + Math.sin(angle) * length;
+    // Draw realistic paired pine needles with needle sheath (фасцикула)
+    const clusters = 14;
+    for (let c = 0; c < clusters; c++) {
+      const cAngle = (c / clusters) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const cDist = 20 + Math.random() * 70;
+      const baseX = cx + Math.cos(cAngle) * cDist;
+      const baseY = cy + Math.sin(cAngle) * cDist;
 
-      // Color variation between deep evergreen and fresh spring tip
-      const green = 65 + Math.floor(Math.random() * 45);
-      const r = 25 + Math.floor(Math.random() * 20);
-      ctx.strokeStyle = `rgba(${r}, ${green}, 35, 0.9)`;
-      ctx.lineWidth = 1.8 + Math.random() * 1.0;
-
+      // Brown basal sheath
+      ctx.fillStyle = '#4a3319';
       ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(angle) * 8, cy + Math.sin(angle) * 8);
-      // Slight natural needle curve
-      const cpX = cx + Math.cos(angle + 0.1) * (length * 0.5);
-      const cpY = cy + Math.sin(angle + 0.1) * (length * 0.5);
-      ctx.quadraticCurveTo(cpX, cpY, endX, endY);
-      ctx.stroke();
-
-      // Sharp lighter tip
-      ctx.fillStyle = 'rgba(85, 120, 50, 0.85)';
-      ctx.beginPath();
-      ctx.arc(endX, endY, 1.2, 0, Math.PI * 2);
+      ctx.arc(baseX, baseY, 4, 0, Math.PI * 2);
       ctx.fill();
+
+      // Radiate 6-8 paired needles from each cluster
+      const needleCount = 8;
+      for (let n = 0; n < needleCount; n++) {
+        const nAngle = cAngle + (n / needleCount - 0.5) * 1.6 + (Math.random() - 0.5) * 0.2;
+        const nLen = 65 + Math.random() * 75;
+        const endX = baseX + Math.cos(nAngle) * nLen;
+        const endY = baseY + Math.sin(nAngle) * nLen;
+
+        // Needle gradient from deep pine green to fresh sunlit apex
+        const nGrad = ctx.createLinearGradient(baseX, baseY, endX, endY);
+        nGrad.addColorStop(0, 'rgba(25, 60, 25, 0.95)');
+        nGrad.addColorStop(0.7, 'rgba(40, 105, 45, 0.9)');
+        nGrad.addColorStop(1, 'rgba(95, 155, 60, 0.85)');
+
+        ctx.strokeStyle = nGrad;
+        ctx.lineWidth = 2.2 + Math.random() * 0.8;
+
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        const cpX = baseX + Math.cos(nAngle + 0.08) * (nLen * 0.5);
+        const cpY = baseY + Math.sin(nAngle + 0.08) * (nLen * 0.5);
+        ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+        ctx.stroke();
+
+        // Tip shine
+        ctx.fillStyle = 'rgba(175, 220, 110, 0.8)';
+        ctx.beginPath();
+        ctx.arc(endX, endY, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    // Dense cluster core
-    const gradient = ctx.createRadialGradient(cx, cy, 2, cx, cy, 40);
-    gradient.addColorStop(0, 'rgba(25, 55, 20, 0.95)');
-    gradient.addColorStop(1, 'rgba(35, 75, 30, 0)');
-    ctx.fillStyle = gradient;
+    // Dense central cluster
+    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
+    coreGrad.addColorStop(0, 'rgba(20, 50, 20, 0.95)');
+    coreGrad.addColorStop(1, 'rgba(25, 65, 25, 0)');
+    ctx.fillStyle = coreGrad;
     ctx.beginPath();
-    ctx.arc(cx, cy, 40, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 60, 0, Math.PI * 2);
     ctx.fill();
 
     const texture = new THREE.CanvasTexture(canvas);
-    this.cache.set('pine_foliage', texture);
+    this.cache.set('pine_foliage_hd', texture);
     return texture;
   }
 
-  // 6. Japanese Maple Leaf Foliage (Дланевидный лист момидзи)
+  // 7. Japanese Maple Leaf HD
   getMapleLeafTexture(colorMode = 'autumn') {
-    const key = `maple_${colorMode}`;
+    const key = `maple_hd_${colorMode}`;
     if (this.cache.has(key)) return this.cache.get(key);
 
-    const { canvas, ctx } = this.createCanvas(256, 256);
-    ctx.clearRect(0, 0, 256, 256);
+    const size = 512;
+    const { canvas, ctx } = this.createCanvas(size, size);
+    ctx.clearRect(0, 0, size, size);
 
-    const cx = 128;
-    const cy = 160;
+    const cx = size / 2;
+    const cy = size * 0.65;
 
-    // Colors: Autumn scarlet/crimson or Summer emerald
     const isAutumn = colorMode === 'autumn';
-    const baseColor = isAutumn ? '#d63031' : '#27ae60';
-    const edgeColor = isAutumn ? '#e17055' : '#2ecc71';
-    const centerColor = isAutumn ? '#7c1314' : '#1e824c';
+    const baseColor = isAutumn ? '#c0292b' : '#229954';
+    const highlightColor = isAutumn ? '#e67e22' : '#2ecc71';
 
-    // 5 pointed maple leaf lobes
-    const lobeAngles = [-0.65, -0.32, 0, 0.32, 0.65];
-    const lobeLengths = [65, 85, 105, 85, 65];
+    const lobeAngles = [-0.68, -0.34, 0, 0.34, 0.68];
+    const lobeLengths = [130, 175, 220, 175, 130];
 
     ctx.save();
     ctx.translate(cx, cy);
 
-    ctx.fillStyle = baseColor;
-    ctx.strokeStyle = edgeColor;
-    ctx.lineWidth = 1.5;
-
-    // Draw five serrated lobes
+    // Leaf silhouette with serrated edges
     ctx.beginPath();
     ctx.moveTo(0, 0);
 
-    lobeAngles.forEach((angle, idx) => {
-      const len = lobeLengths[idx];
-      const tipX = Math.sin(angle) * len;
-      const tipY = -Math.cos(angle) * len;
+    lobeAngles.forEach((ang, i) => {
+      const len = lobeLengths[i];
+      const tipX = Math.sin(ang) * len;
+      const tipY = -Math.cos(ang) * len;
 
-      const sideL_X = Math.sin(angle - 0.12) * (len * 0.7);
-      const sideL_Y = -Math.cos(angle - 0.12) * (len * 0.7);
-      const sideR_X = Math.sin(angle + 0.12) * (len * 0.7);
-      const sideR_Y = -Math.cos(angle + 0.12) * (len * 0.7);
+      const sL_X = Math.sin(ang - 0.12) * (len * 0.72);
+      const sL_Y = -Math.cos(ang - 0.12) * (len * 0.72);
+      const sR_X = Math.sin(ang + 0.12) * (len * 0.72);
+      const sR_Y = -Math.cos(ang + 0.12) * (len * 0.72);
 
-      ctx.lineTo(sideL_X, sideL_Y);
+      ctx.lineTo(sL_X, sL_Y);
       ctx.lineTo(tipX, tipY);
-      ctx.lineTo(sideR_X, sideR_Y);
+      ctx.lineTo(sR_X, sR_Y);
     });
 
     ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
 
-    // Leaf veins
-    ctx.strokeStyle = isAutumn ? 'rgba(255, 215, 0, 0.45)' : 'rgba(200, 255, 180, 0.4)';
-    ctx.lineWidth = 1.2;
-    lobeAngles.forEach((angle, idx) => {
-      const len = lobeLengths[idx];
+    // Rich gradient fill
+    const grad = ctx.createRadialGradient(0, -100, 20, 0, -100, 240);
+    grad.addColorStop(0, highlightColor);
+    grad.addColorStop(0.7, baseColor);
+    grad.addColorStop(1, isAutumn ? '#6b1111' : '#145a32');
+
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Golden / light veins
+    ctx.strokeStyle = isAutumn ? 'rgba(255, 230, 150, 0.55)' : 'rgba(210, 255, 180, 0.55)';
+    ctx.lineWidth = 2.2;
+    lobeAngles.forEach((ang, i) => {
+      const len = lobeLengths[i];
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(Math.sin(angle) * len * 0.85, -Math.cos(angle) * len * 0.85);
+      ctx.lineTo(Math.sin(ang) * len * 0.88, -Math.cos(ang) * len * 0.88);
       ctx.stroke();
     });
 
-    // Stem
-    ctx.strokeStyle = isAutumn ? '#8b1e0f' : '#166534';
-    ctx.lineWidth = 2.5;
+    // Petiole stem
+    ctx.strokeStyle = isAutumn ? '#7a1910' : '#196f3d';
+    ctx.lineWidth = 4.0;
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(5, 25, 0, 50);
+    ctx.quadraticCurveTo(8, 50, 0, 90);
     ctx.stroke();
 
     ctx.restore();
@@ -312,334 +584,185 @@ export class TextureGenerator {
     return texture;
   }
 
-  // 7. Sakura Cherry Blossom Petal Sprite (Лепестки цветущей сакуры)
+  // 8. Sakura Cherry Blossom Petal HD
   getSakuraFlowerTexture() {
-    if (this.cache.has('sakura_flower')) return this.cache.get('sakura_flower');
+    if (this.cache.has('sakura_flower_hd')) return this.cache.get('sakura_flower_hd');
 
-    const { canvas, ctx } = this.createCanvas(256, 256);
-    ctx.clearRect(0, 0, 256, 256);
+    const size = 512;
+    const { canvas, ctx } = this.createCanvas(size, size);
+    ctx.clearRect(0, 0, size, size);
 
-    const cx = 128;
-    const cy = 128;
+    const cx = size / 2;
+    const cy = size / 2;
 
-    // 5 soft blush pink heart-notched petals
+    // 5 delicate petals
     for (let i = 0; i < 5; i++) {
-      const angle = (i / 5) * Math.PI * 2;
+      const ang = (i / 5) * Math.PI * 2;
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(angle);
+      ctx.rotate(ang);
 
-      // Petal gradient
-      const grad = ctx.createLinearGradient(0, 0, 0, -60);
-      grad.addColorStop(0, 'rgba(255, 210, 225, 0.95)');
-      grad.addColorStop(0.6, 'rgba(255, 235, 242, 0.9)');
-      grad.addColorStop(1, 'rgba(255, 248, 250, 0.85)');
+      const grad = ctx.createLinearGradient(0, 0, 0, -120);
+      grad.addColorStop(0, 'rgba(255, 205, 222, 0.98)');
+      grad.addColorStop(0.65, 'rgba(255, 238, 245, 0.92)');
+      grad.addColorStop(1, 'rgba(255, 252, 253, 0.88)');
 
       ctx.fillStyle = grad;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.bezierCurveTo(-26, -22, -32, -50, -10, -60);
-      ctx.lineTo(0, -54); // Notch in center of petal
-      ctx.lineTo(10, -60);
-      ctx.bezierCurveTo(32, -50, 26, -22, 0, 0);
+      ctx.bezierCurveTo(-55, -45, -65, -100, -22, -125);
+      ctx.lineTo(0, -112); // Petal notch
+      ctx.lineTo(22, -125);
+      ctx.bezierCurveTo(65, -100, 55, -45, 0, 0);
       ctx.fill();
 
-      // Subtle translucent edge stroke
-      ctx.strokeStyle = 'rgba(255, 185, 205, 0.6)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(255, 175, 198, 0.75)';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       ctx.restore();
     }
 
-    // Flower center: golden stamen filaments and ruby pistil
-    ctx.fillStyle = '#f39c12';
-    for (let j = 0; j < 14; j++) {
-      const sa = (j / 14) * Math.PI * 2;
-      const slen = 16 + Math.random() * 8;
+    // Pistils and golden stamens
+    for (let j = 0; j < 20; j++) {
+      const sa = (j / 20) * Math.PI * 2;
+      const slen = 30 + Math.random() * 18;
       const sx = cx + Math.cos(sa) * slen;
       const sy = cy + Math.sin(sa) * slen;
 
-      ctx.strokeStyle = '#f1c40f';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#f39c12';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.lineTo(sx, sy);
       ctx.stroke();
 
+      ctx.fillStyle = '#f1c40f';
       ctx.beginPath();
-      ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+      ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Deep ruby core
+    // Ruby center
     ctx.fillStyle = '#c0392b';
     ctx.beginPath();
-    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
     ctx.fill();
 
     const texture = new THREE.CanvasTexture(canvas);
-    this.cache.set('sakura_flower', texture);
+    this.cache.set('sakura_flower_hd', texture);
     return texture;
   }
 
-  // 8. Juniper Foliage Pad (Можжевеловые облака - плотная чешуевидная зелень)
+  // 9. Juniper Foliage Pad HD
   getJuniperFoliageTexture() {
-    if (this.cache.has('juniper_foliage')) return this.cache.get('juniper_foliage');
+    if (this.cache.has('juniper_foliage_hd')) return this.cache.get('juniper_foliage_hd');
 
-    const { canvas, ctx } = this.createCanvas(256, 256);
-    ctx.clearRect(0, 0, 256, 256);
+    const size = 512;
+    const { canvas, ctx } = this.createCanvas(size, size);
+    ctx.clearRect(0, 0, size, size);
 
-    const cx = 128;
-    const cy = 128;
+    const cx = size / 2;
+    const cy = size / 2;
 
-    // Dense cloud-like clusters
-    for (let r = 70; r > 5; r -= 10) {
-      const count = Math.floor(r * 0.8);
+    for (let r = 140; r > 10; r -= 15) {
+      const count = Math.floor(r * 1.2);
       for (let i = 0; i < count; i++) {
         const a = Math.random() * Math.PI * 2;
-        const dist = Math.random() * r;
-        const px = cx + Math.cos(a) * dist;
-        const py = cy + Math.sin(a) * dist;
+        const d = Math.random() * r;
+        const px = cx + Math.cos(a) * d;
+        const py = cy + Math.sin(a) * d;
 
-        const shade = 70 + Math.floor(Math.random() * 45);
-        ctx.fillStyle = `rgba(28, ${shade}, 45, 0.85)`;
-
+        const shade = 65 + Math.floor(Math.random() * 60);
+        ctx.fillStyle = `rgba(22, ${shade}, 45, 0.88)`;
         ctx.beginPath();
-        ctx.ellipse(px, py, 6 + Math.random() * 4, 3 + Math.random() * 3, Math.random() * Math.PI, 0, Math.PI * 2);
+        ctx.ellipse(px, py, 12 + Math.random() * 8, 6 + Math.random() * 5, Math.random() * Math.PI, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
     const texture = new THREE.CanvasTexture(canvas);
-    this.cache.set('juniper_foliage', texture);
+    this.cache.set('juniper_foliage_hd', texture);
     return texture;
   }
 
-  // 9. Velvet Green Moss (Бархатистый мох кокэ - подушечки мха для почвы)
-  getMossTexture() {
-    if (this.cache.has('moss_texture')) return this.cache.get('moss_texture');
-
-    const { canvas, ctx } = this.createCanvas(512, 512);
-
-    // Deep forest green base
-    ctx.fillStyle = '#225424';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Thousands of tiny moss nodules
-    for (let i = 0; i < 6000; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const size = 1.5 + Math.random() * 3.5;
-
-      const green = 80 + Math.floor(Math.random() * 80);
-      const yellow = 40 + Math.floor(Math.random() * 40);
-      ctx.fillStyle = `rgba(${yellow}, ${green}, 25, 0.7)`;
-
-      ctx.beginPath();
-      ctx.arc(x, y, size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(4, 4);
-    this.cache.set('moss_texture', texture);
-    return texture;
-  }
-
-  // 10. Akadama Granular Soil (Гранулированная глина Акадама)
-  getAkadamaSoilTexture(moisture = 0.6) {
-    const key = `akadama_${Math.round(moisture * 10)}`;
-    if (this.cache.has(key)) return this.cache.get(key);
-
-    const { canvas, ctx } = this.createCanvas(512, 512);
-
-    // Dry soil is pale tan, wet soil is rich dark umber
-    const rBase = Math.floor(65 * (1 - moisture * 0.5));
-    const gBase = Math.floor(45 * (1 - moisture * 0.5));
-    const bBase = Math.floor(32 * (1 - moisture * 0.5));
-    ctx.fillStyle = `rgb(${rBase}, ${gBase}, ${bBase})`;
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Akadama clay rounded granules
-    for (let i = 0; i < 4500; i++) {
-      const gx = Math.random() * 512;
-      const gy = Math.random() * 512;
-      const r = 2.5 + Math.random() * 4.5;
-
-      const delta = (Math.random() - 0.5) * 20;
-      const gr = Math.max(0, Math.min(255, rBase + delta + 15));
-      const gg = Math.max(0, Math.min(255, gBase + delta + 10));
-      const gb = Math.max(0, Math.min(255, bBase + delta));
-
-      ctx.fillStyle = `rgb(${gr}, ${gg}, ${gb})`;
-      ctx.beginPath();
-      ctx.arc(gx, gy, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Top highlight if wet
-      if (moisture > 0.4) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.12 * moisture})`;
-        ctx.beginPath();
-        ctx.arc(gx - 1, gy - 1, r * 0.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(3, 3);
-    this.cache.set(key, texture);
-    return texture;
-  }
-
-  // 11. Pot Glazes: Celadon Crackle (Селадон с кракелюром)
-  getCeladonGlazeTexture() {
-    if (this.cache.has('celadon')) return this.cache.get('celadon');
-
-    const { canvas, ctx } = this.createCanvas(512, 512);
-
-    // Pale jade-green celadon base
-    ctx.fillStyle = '#9cb8a6';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Spiderweb crackle lines (Каннюр / Кракелюр)
-    ctx.strokeStyle = 'rgba(70, 90, 80, 0.45)';
-    ctx.lineWidth = 1;
-
-    // Voronoi-like polygonal crackle cells
-    const points = [];
-    for (let i = 0; i < 120; i++) {
-      points.push({ x: Math.random() * 512, y: Math.random() * 512 });
-    }
-
-    for (let i = 0; i < points.length; i++) {
-      for (let j = i + 1; j < points.length; j++) {
-        const dx = points[i].x - points[j].x;
-        const dy = points[i].y - points[j].y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 65) {
-          ctx.beginPath();
-          ctx.moveTo(points[i].x, points[i].y);
-          ctx.lineTo(points[j].x, points[j].y);
-          ctx.stroke();
-        }
-      }
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    this.cache.set('celadon', texture);
-    return texture;
-  }
-
-  // 12. Tokoname Terracotta Pot Texture (Матовая токонамэ-керамика)
-  getTokonamePotTexture() {
-    if (this.cache.has('tokoname_pot')) return this.cache.get('tokoname_pot');
-
-    const { canvas, ctx } = this.createCanvas(512, 512);
-
-    // Warm unglazed iron-rich clay
-    ctx.fillStyle = '#6b3f2b';
-    ctx.fillRect(0, 0, 512, 512);
-
-    // Micro specks and pottery wheel marks
-    for (let y = 0; y < 512; y += 4) {
-      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(125, 75, 55, 0.15)' : 'rgba(75, 40, 25, 0.2)';
-      ctx.fillRect(0, y, 512, 2);
-    }
-
-    for (let i = 0; i < 1500; i++) {
-      const px = Math.random() * 512;
-      const py = Math.random() * 512;
-      ctx.fillStyle = Math.random() > 0.5 ? 'rgba(35, 18, 12, 0.5)' : 'rgba(165, 110, 85, 0.3)';
-      ctx.fillRect(px, py, 1.5, 1.5);
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    this.cache.set('tokoname_pot', texture);
-    return texture;
-  }
-
-  // 13. Traditional Tatami Mat (Татами с плетением и зеленой каймой хери)
+  // 10. Tatami Rush Straw HD
   getTatamiTexture() {
-    if (this.cache.has('tatami')) return this.cache.get('tatami');
+    if (this.cache.has('tatami_hd')) return this.cache.get('tatami_hd');
 
-    const { canvas, ctx } = this.createCanvas(512, 512);
+    const size = 1024;
+    const { canvas, ctx } = this.createCanvas(size, size);
 
-    // Natural dried igusa rush straw
-    ctx.fillStyle = '#c5b88a';
-    ctx.fillRect(0, 0, 512, 512);
+    // Natural dried igusa rush
+    ctx.fillStyle = '#c4b685';
+    ctx.fillRect(0, 0, size, size);
 
-    // Woven rush ribbing
-    for (let x = 0; x < 512; x += 4) {
-      ctx.fillStyle = (x % 8 === 0) ? 'rgba(150, 135, 95, 0.4)' : 'rgba(230, 215, 175, 0.3)';
-      ctx.fillRect(x, 0, 2, 512);
+    // Vertical rush ribs
+    for (let x = 0; x < size; x += 4) {
+      ctx.fillStyle = (x % 8 === 0) ? 'rgba(140, 125, 85, 0.45)' : 'rgba(235, 222, 185, 0.35)';
+      ctx.fillRect(x, 0, 2, size);
     }
 
     // Horizontal weave breaks
-    for (let y = 0; y < 512; y += 12) {
-      ctx.fillStyle = 'rgba(120, 105, 75, 0.25)';
-      ctx.fillRect(0, y, 512, 1);
+    for (let y = 0; y < size; y += 16) {
+      ctx.fillStyle = 'rgba(100, 85, 60, 0.3)';
+      ctx.fillRect(0, y, size, 1.5);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(6, 6);
-    this.cache.set('tatami', texture);
+    this.cache.set('tatami_hd', texture);
     return texture;
   }
 
-  // 14. Polished Lacquer Wood Display Table (Лакированный столик сёку)
-  getLacqueredWoodTexture() {
-    if (this.cache.has('lacquer_wood')) return this.cache.get('lacquer_wood');
+  // 11. Urushi Lacquer Wood Display Table (Традиционный японский лак уруси)
+  getLacqueredWoodPBR() {
+    if (this.cache.has('lacquer_pbr')) return this.cache.get('lacquer_pbr');
 
-    const { canvas, ctx } = this.createCanvas(512, 512);
+    const size = 1024;
+    const { canvas: dCanvas, ctx: dCtx } = this.createCanvas(size, size);
 
-    // Deep dark cedar/hinoki lacquer
-    ctx.fillStyle = '#221510';
-    ctx.fillRect(0, 0, 512, 512);
+    // Deep luminous black-red Urushi lacquer (Кэйдзи / Нури)
+    dCtx.fillStyle = '#180e0a';
+    dCtx.fillRect(0, 0, size, size);
 
-    // Subtle rich warm wood grain
-    for (let y = 0; y < 512; y += 6) {
-      const alpha = 0.15 + Math.random() * 0.15;
-      ctx.fillStyle = `rgba(65, 35, 22, ${alpha})`;
-      ctx.fillRect(0, y, 512, 3);
+    // Subtle grain ribbons of Japanese cedar / hinoki
+    for (let y = 0; y < size; y += 8) {
+      const alpha = 0.12 + Math.random() * 0.16;
+      dCtx.fillStyle = `rgba(75, 30, 18, ${alpha})`;
+      dCtx.fillRect(0, y, size, 4);
     }
 
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    this.cache.set('lacquer_wood', texture);
-    return texture;
+    const diffuseTex = new THREE.CanvasTexture(dCanvas);
+    diffuseTex.wrapS = THREE.RepeatWrapping;
+    diffuseTex.wrapT = THREE.RepeatWrapping;
+
+    const result = { map: diffuseTex };
+    this.cache.set('lacquer_pbr', result);
+    return result;
   }
 
-  // 15. Shoji Washi Paper (Японская бумага васи)
+  // 12. Shoji Mulberry Washi Paper HD (Васи)
   getShojiPaperTexture() {
-    if (this.cache.has('shoji_paper')) return this.cache.get('shoji_paper');
+    if (this.cache.has('shoji_hd')) return this.cache.get('shoji_hd');
 
-    const { canvas, ctx } = this.createCanvas(512, 512);
+    const size = 1024;
+    const { canvas, ctx } = this.createCanvas(size, size);
 
-    // Soft warm translucent ivory
-    ctx.fillStyle = '#f8f4ec';
-    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#faf6ed';
+    ctx.fillRect(0, 0, size, size);
 
-    // Mulberry bark fibers (Кодзо)
-    for (let i = 0; i < 400; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
-      const len = 8 + Math.random() * 18;
+    // Natural mulberry kozo fibers
+    for (let i = 0; i < 900; i++) {
+      const x = Math.random() * size;
+      const y = Math.random() * size;
+      const len = 12 + Math.random() * 26;
       const ang = Math.random() * Math.PI;
 
-      ctx.strokeStyle = 'rgba(180, 165, 145, 0.25)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(170, 150, 130, 0.3)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
@@ -647,7 +770,7 @@ export class TextureGenerator {
     }
 
     const texture = new THREE.CanvasTexture(canvas);
-    this.cache.set('shoji_paper', texture);
+    this.cache.set('shoji_hd', texture);
     return texture;
   }
 }

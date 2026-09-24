@@ -1,4 +1,4 @@
-// PotAndSoil.js - Traditional Japanese Bonsai Containers, Akadama Soil & Moss Dressing
+// PotAndSoil.js - AAA Traditional Japanese Containers, PBR Soil & Velvet Moss
 import * as THREE from 'three';
 import { textureGen } from '../textures/TextureGenerator.js';
 
@@ -13,8 +13,8 @@ export class PotAndSoil {
     this.decorationsGroup = new THREE.Group();
     this.group.add(this.decorationsGroup);
 
-    this.currentPotStyle = 'oval'; // oval, rectangular, cascade, round
-    this.currentGlaze = 'tokoname'; // tokoname, celadon, obsidian, cobalt
+    this.currentPotStyle = 'oval';
+    this.currentGlaze = 'tokoname';
     this.moisture = 0.65;
     this.mossPatches = [];
     this.suisekiStones = [];
@@ -26,79 +26,81 @@ export class PotAndSoil {
   getGlazeMaterial(glazeType) {
     switch (glazeType) {
       case 'celadon': {
-        const tex = textureGen.getCeladonGlazeTexture();
+        const pbr = textureGen.getCeladonPBR();
         return new THREE.MeshPhysicalMaterial({
-          map: tex,
-          roughness: 0.15,
+          map: pbr.map,
+          normalMap: pbr.normalMap,
+          normalScale: new THREE.Vector2(1.8, 1.8),
+          roughness: 0.12,
           metalness: 0.05,
-          clearcoat: 0.8,
-          clearcoatRoughness: 0.1,
+          clearcoat: 0.95,
+          clearcoatRoughness: 0.08,
           color: 0xa4c2b0
         });
       }
       case 'obsidian': {
-        return new THREE.MeshStandardMaterial({
-          color: 0x1c1b1a,
-          roughness: 0.55,
-          metalness: 0.15
+        const pbr = textureGen.getPineBarkPBR();
+        return new THREE.MeshPhysicalMaterial({
+          color: 0x181716,
+          normalMap: pbr.normalMap,
+          normalScale: new THREE.Vector2(0.6, 0.6),
+          roughness: 0.42,
+          metalness: 0.15,
+          clearcoat: 0.5
         });
       }
       case 'cobalt': {
         return new THREE.MeshPhysicalMaterial({
-          color: 0x1b3b6f,
-          roughness: 0.2,
-          metalness: 0.1,
-          clearcoat: 0.9
+          color: 0x163462,
+          roughness: 0.18,
+          metalness: 0.08,
+          clearcoat: 0.95,
+          clearcoatRoughness: 0.06
         });
       }
       case 'tokoname':
       default: {
-        const tex = textureGen.getTokonamePotTexture();
+        const pbr = textureGen.getPineBarkPBR();
         return new THREE.MeshStandardMaterial({
-          map: tex,
+          color: 0x7a4332,
+          normalMap: pbr.normalMap,
+          normalScale: new THREE.Vector2(0.7, 0.7),
           roughness: 0.72,
-          metalness: 0.05,
-          color: 0x7c4735
+          metalness: 0.04
         });
       }
     }
   }
 
   buildPotAndSoil() {
-    // Remove existing
     if (this.potMesh) this.group.remove(this.potMesh);
     if (this.soilMesh) this.group.remove(this.soilMesh);
 
     const potMat = this.getGlazeMaterial(this.currentGlaze);
-
-    // 1. Build Pot based on style
     const potGroup = new THREE.Group();
 
     if (this.currentPotStyle === 'oval') {
-      // Oval shallow pot (Даэн)
-      const potGeo = new THREE.CylinderGeometry(2.3, 1.9, 0.75, 48, 1);
-      potGeo.scale(1.25, 1, 0.9); // Elliptical stretch
+      const potGeo = new THREE.CylinderGeometry(2.35, 1.95, 0.78, 56, 1);
+      potGeo.scale(1.26, 1, 0.9);
       const outerPot = new THREE.Mesh(potGeo, potMat);
       outerPot.castShadow = true;
       outerPot.receiveShadow = true;
-      outerPot.position.y = 0.375;
+      outerPot.position.y = 0.39;
       potGroup.add(outerPot);
 
-      // Rim ring
-      const rimGeo = new THREE.TorusGeometry(2.32, 0.07, 16, 48);
-      rimGeo.scale(1.25, 0.9, 1);
+      const rimGeo = new THREE.TorusGeometry(2.36, 0.075, 16, 56);
+      rimGeo.scale(1.26, 0.9, 1);
       rimGeo.rotateX(Math.PI / 2);
       const rim = new THREE.Mesh(rimGeo, potMat);
-      rim.position.y = 0.75;
+      rim.position.y = 0.78;
       potGroup.add(rim);
 
-      // Cloud feet (4 feet)
-      const footGeo = new THREE.BoxGeometry(0.35, 0.18, 0.3);
+      const footGeo = new THREE.BoxGeometry(0.38, 0.18, 0.32);
       const footPositions = [
-        [1.8, 0.09, 1.0],
-        [-1.8, 0.09, 1.0],
-        [1.8, 0.09, -1.0],
-        [-1.8, 0.09, -1.0]
+        [1.85, 0.09, 1.05],
+        [-1.85, 0.09, 1.05],
+        [1.85, 0.09, -1.05],
+        [-1.85, 0.09, -1.05]
       ];
       footPositions.forEach(([x, y, z]) => {
         const foot = new THREE.Mesh(footGeo, potMat);
@@ -107,41 +109,41 @@ export class PotAndSoil {
         potGroup.add(foot);
       });
 
-      // Soil geometry: slightly convex ellipse dome
-      const soilGeo = new THREE.CylinderGeometry(2.18, 2.18, 0.15, 48);
-      soilGeo.scale(1.22, 1, 0.88);
+      const soilGeo = new THREE.CylinderGeometry(2.22, 2.22, 0.16, 56);
+      soilGeo.scale(1.24, 1, 0.88);
+      const soilPBR = textureGen.getAkadamaSoilPBR(this.moisture);
       const soilMat = new THREE.MeshStandardMaterial({
-        map: textureGen.getAkadamaSoilTexture(this.moisture),
-        roughness: 0.85 - this.moisture * 0.25,
+        map: soilPBR.map,
+        normalMap: soilPBR.normalMap,
+        normalScale: new THREE.Vector2(2.0, 2.0),
+        roughnessMap: soilPBR.roughnessMap,
+        roughness: 0.82 - this.moisture * 0.35,
         metalness: 0.02
       });
       this.soilMesh = new THREE.Mesh(soilGeo, soilMat);
-      this.soilMesh.position.y = 0.72;
+      this.soilMesh.position.y = 0.74;
       this.soilMesh.receiveShadow = true;
       this.group.add(this.soilMesh);
 
     } else if (this.currentPotStyle === 'rectangular') {
-      // Rectangular pot with corner bevels (Тёхокэй)
-      const potGeo = new THREE.BoxGeometry(4.8, 0.8, 3.4);
+      const potGeo = new THREE.BoxGeometry(4.85, 0.82, 3.45);
       const outerPot = new THREE.Mesh(potGeo, potMat);
       outerPot.castShadow = true;
       outerPot.receiveShadow = true;
-      outerPot.position.y = 0.4;
+      outerPot.position.y = 0.41;
       potGroup.add(outerPot);
 
-      // Upper rim band
-      const rimGeo = new THREE.BoxGeometry(5.0, 0.1, 3.6);
+      const rimGeo = new THREE.BoxGeometry(5.05, 0.1, 3.65);
       const rim = new THREE.Mesh(rimGeo, potMat);
-      rim.position.y = 0.75;
+      rim.position.y = 0.78;
       potGroup.add(rim);
 
-      // 4 feet
-      const footGeo = new THREE.BoxGeometry(0.5, 0.15, 0.4);
+      const footGeo = new THREE.BoxGeometry(0.52, 0.16, 0.42);
       const footPositions = [
-        [2.0, 0.075, 1.3],
-        [-2.0, 0.075, 1.3],
-        [2.0, 0.075, -1.3],
-        [-2.0, 0.075, -1.3]
+        [2.05, 0.08, 1.35],
+        [-2.05, 0.08, 1.35],
+        [2.05, 0.08, -1.35],
+        [-2.05, 0.08, -1.35]
       ];
       footPositions.forEach(([x, y, z]) => {
         const foot = new THREE.Mesh(footGeo, potMat);
@@ -150,93 +152,99 @@ export class PotAndSoil {
         potGroup.add(foot);
       });
 
-      // Soil plane
-      const soilGeo = new THREE.BoxGeometry(4.6, 0.15, 3.2);
+      const soilGeo = new THREE.BoxGeometry(4.65, 0.16, 3.25);
+      const soilPBR = textureGen.getAkadamaSoilPBR(this.moisture);
       const soilMat = new THREE.MeshStandardMaterial({
-        map: textureGen.getAkadamaSoilTexture(this.moisture),
-        roughness: 0.85 - this.moisture * 0.25,
+        map: soilPBR.map,
+        normalMap: soilPBR.normalMap,
+        normalScale: new THREE.Vector2(2.0, 2.0),
+        roughnessMap: soilPBR.roughnessMap,
+        roughness: 0.82 - this.moisture * 0.35,
         metalness: 0.02
       });
       this.soilMesh = new THREE.Mesh(soilGeo, soilMat);
-      this.soilMesh.position.y = 0.72;
+      this.soilMesh.position.y = 0.74;
       this.soilMesh.receiveShadow = true;
       this.group.add(this.soilMesh);
 
     } else if (this.currentPotStyle === 'cascade') {
-      // Deep tall hexagonal pot for Kengai (Роккаку)
-      const potGeo = new THREE.CylinderGeometry(1.6, 1.1, 2.2, 6);
+      const potGeo = new THREE.CylinderGeometry(1.65, 1.15, 2.3, 6);
       const outerPot = new THREE.Mesh(potGeo, potMat);
       outerPot.castShadow = true;
       outerPot.receiveShadow = true;
-      outerPot.position.y = 1.1;
+      outerPot.position.y = 1.15;
       potGroup.add(outerPot);
 
-      const rimGeo = new THREE.CylinderGeometry(1.72, 1.6, 0.15, 6);
+      const rimGeo = new THREE.CylinderGeometry(1.78, 1.65, 0.16, 6);
       const rim = new THREE.Mesh(rimGeo, potMat);
-      rim.position.y = 2.15;
+      rim.position.y = 2.22;
       potGroup.add(rim);
 
-      // 3 feet
       for (let i = 0; i < 3; i++) {
         const a = (i / 3) * Math.PI * 2;
-        const footGeo = new THREE.BoxGeometry(0.35, 0.2, 0.35);
+        const footGeo = new THREE.BoxGeometry(0.38, 0.22, 0.38);
         const foot = new THREE.Mesh(footGeo, potMat);
-        foot.position.set(Math.cos(a) * 0.95, 0.1, Math.sin(a) * 0.95);
+        foot.position.set(Math.cos(a) * 0.98, 0.11, Math.sin(a) * 0.98);
         foot.castShadow = true;
         potGroup.add(foot);
       }
 
-      // Soil top
-      const soilGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.15, 6);
+      const soilGeo = new THREE.CylinderGeometry(1.55, 1.55, 0.16, 6);
+      const soilPBR = textureGen.getAkadamaSoilPBR(this.moisture);
       const soilMat = new THREE.MeshStandardMaterial({
-        map: textureGen.getAkadamaSoilTexture(this.moisture),
-        roughness: 0.85 - this.moisture * 0.25,
+        map: soilPBR.map,
+        normalMap: soilPBR.normalMap,
+        normalScale: new THREE.Vector2(2.0, 2.0),
+        roughnessMap: soilPBR.roughnessMap,
+        roughness: 0.82 - this.moisture * 0.35,
         metalness: 0.02
       });
       this.soilMesh = new THREE.Mesh(soilGeo, soilMat);
-      this.soilMesh.position.y = 2.12;
+      this.soilMesh.position.y = 2.2;
       this.soilMesh.receiveShadow = true;
       this.group.add(this.soilMesh);
 
     } else {
-      // Round shallow lotus pot (Мару)
-      const potGeo = new THREE.CylinderGeometry(2.1, 1.7, 0.7, 36);
+      // Round lotus pot
+      const potGeo = new THREE.CylinderGeometry(2.15, 1.75, 0.72, 48);
       const outerPot = new THREE.Mesh(potGeo, potMat);
       outerPot.castShadow = true;
       outerPot.receiveShadow = true;
-      outerPot.position.y = 0.35;
+      outerPot.position.y = 0.36;
       potGroup.add(outerPot);
 
-      const rimGeo = new THREE.TorusGeometry(2.12, 0.06, 16, 36);
+      const rimGeo = new THREE.TorusGeometry(2.16, 0.065, 16, 48);
       rimGeo.rotateX(Math.PI / 2);
       const rim = new THREE.Mesh(rimGeo, potMat);
-      rim.position.y = 0.7;
+      rim.position.y = 0.72;
       potGroup.add(rim);
 
       for (let i = 0; i < 4; i++) {
         const a = (i / 4) * Math.PI * 2;
-        const footGeo = new THREE.BoxGeometry(0.35, 0.16, 0.3);
+        const footGeo = new THREE.BoxGeometry(0.36, 0.18, 0.32);
         const foot = new THREE.Mesh(footGeo, potMat);
-        foot.position.set(Math.cos(a) * 1.5, 0.08, Math.sin(a) * 1.5);
+        foot.position.set(Math.cos(a) * 1.55, 0.09, Math.sin(a) * 1.55);
         potGroup.add(foot);
       }
 
-      const soilGeo = new THREE.CylinderGeometry(2.0, 2.0, 0.15, 36);
+      const soilGeo = new THREE.CylinderGeometry(2.05, 2.05, 0.16, 48);
+      const soilPBR = textureGen.getAkadamaSoilPBR(this.moisture);
       const soilMat = new THREE.MeshStandardMaterial({
-        map: textureGen.getAkadamaSoilTexture(this.moisture),
-        roughness: 0.85 - this.moisture * 0.25,
+        map: soilPBR.map,
+        normalMap: soilPBR.normalMap,
+        normalScale: new THREE.Vector2(2.0, 2.0),
+        roughnessMap: soilPBR.roughnessMap,
+        roughness: 0.82 - this.moisture * 0.35,
         metalness: 0.02
       });
       this.soilMesh = new THREE.Mesh(soilGeo, soilMat);
-      this.soilMesh.position.y = 0.68;
+      this.soilMesh.position.y = 0.7;
       this.soilMesh.receiveShadow = true;
       this.group.add(this.soilMesh);
     }
 
     this.potMesh = potGroup;
     this.group.add(this.potMesh);
-
-    // Refresh moss and stones on the new pot
     this.refreshDecorations();
   }
 
@@ -255,35 +263,37 @@ export class PotAndSoil {
   setMoisture(val) {
     this.moisture = Math.max(0, Math.min(1, val));
     if (this.soilMesh && this.soilMesh.material) {
-      this.soilMesh.material.map = textureGen.getAkadamaSoilTexture(this.moisture);
-      this.soilMesh.material.roughness = 0.85 - this.moisture * 0.25;
+      const pbr = textureGen.getAkadamaSoilPBR(this.moisture);
+      this.soilMesh.material.map = pbr.map;
+      this.soilMesh.material.normalMap = pbr.normalMap;
+      this.soilMesh.material.roughnessMap = pbr.roughnessMap;
+      this.soilMesh.material.roughness = 0.82 - this.moisture * 0.35;
       this.soilMesh.material.needsUpdate = true;
     }
   }
 
-  // Get the base soil surface Y level for planting tree
   getSoilSurfaceY() {
-    if (this.currentPotStyle === 'cascade') {
-      return 2.15;
-    }
-    return 0.75;
+    return this.currentPotStyle === 'cascade' ? 2.22 : 0.76;
   }
 
-  // Place moss cushion (Кокэ)
+  // Velvet 3D Moss Cushion
   addMossPatch(x = null, z = null) {
     const soilY = this.getSoilSurfaceY();
-    const px = x !== null ? x : (Math.random() - 0.5) * 2.2;
-    const pz = z !== null ? z : (Math.random() - 0.5) * 1.6;
+    const px = x !== null ? x : (Math.random() - 0.5) * 2.3;
+    const pz = z !== null ? z : (Math.random() - 0.5) * 1.7;
 
-    const r = 0.28 + Math.random() * 0.22;
-    const mossGeo = new THREE.SphereGeometry(r, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
-    mossGeo.scale(1, 0.45, 1);
+    const r = 0.3 + Math.random() * 0.24;
+    const mossGeo = new THREE.SphereGeometry(r, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    mossGeo.scale(1, 0.42, 1);
 
+    const pbr = textureGen.getMossPBR();
     const mossMat = new THREE.MeshStandardMaterial({
-      map: textureGen.getMossTexture(),
-      roughness: 0.95,
+      map: pbr.map,
+      normalMap: pbr.normalMap,
+      normalScale: new THREE.Vector2(2.5, 2.5),
+      roughness: 0.94,
       metalness: 0.0,
-      color: 0x5fa44a
+      color: 0x589e44
     });
 
     const mossMesh = new THREE.Mesh(mossGeo, mossMat);
@@ -297,14 +307,13 @@ export class PotAndSoil {
     return mossMesh;
   }
 
-  // Place natural decorative stone (Суйсэки)
+  // Natural Suiseki Stone with Quartz Relief
   addSuisekiStone(x = null, z = null) {
     const soilY = this.getSoilSurfaceY();
-    const px = x !== null ? x : 1.2 + (Math.random() - 0.5) * 0.4;
-    const pz = z !== null ? z : 0.4 + (Math.random() - 0.5) * 0.4;
+    const px = x !== null ? x : 1.25 + (Math.random() - 0.5) * 0.4;
+    const pz = z !== null ? z : 0.45 + (Math.random() - 0.5) * 0.4;
 
-    const stoneGeo = new THREE.DodecahedronGeometry(0.28 + Math.random() * 0.15, 1);
-    // Deform vertices for natural rugged mountain stone
+    const stoneGeo = new THREE.DodecahedronGeometry(0.32 + Math.random() * 0.16, 2);
     const pos = stoneGeo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       const vx = pos.getX(i);
@@ -312,21 +321,24 @@ export class PotAndSoil {
       const vz = pos.getZ(i);
       pos.setXYZ(
         i,
-        vx * (0.8 + Math.sin(vy * 8) * 0.2),
-        vy * (0.7 + Math.cos(vx * 6) * 0.15),
-        vz * (0.8 + Math.sin(vz * 7) * 0.2)
+        vx * (0.8 + Math.sin(vy * 9) * 0.22),
+        vy * (0.65 + Math.cos(vx * 7) * 0.16),
+        vz * (0.8 + Math.sin(vz * 8) * 0.22)
       );
     }
     stoneGeo.computeVertexNormals();
 
+    const pbr = textureGen.getPineBarkPBR();
     const stoneMat = new THREE.MeshStandardMaterial({
-      color: 0x3d4144,
-      roughness: 0.8,
-      metalness: 0.1
+      color: 0x363a3d,
+      normalMap: pbr.normalMap,
+      normalScale: new THREE.Vector2(1.2, 1.2),
+      roughness: 0.78,
+      metalness: 0.08
     });
 
     const stoneMesh = new THREE.Mesh(stoneGeo, stoneMat);
-    stoneMesh.position.set(px, soilY + 0.12, pz);
+    stoneMesh.position.set(px, soilY + 0.14, pz);
     stoneMesh.rotation.set(Math.random(), Math.random(), Math.random());
     stoneMesh.castShadow = true;
     stoneMesh.receiveShadow = true;
@@ -336,30 +348,28 @@ export class PotAndSoil {
     return stoneMesh;
   }
 
-  // Add organic fertilizer cake (Абиси / Хилё)
   addFertilizerCake(x = null, z = null) {
     const soilY = this.getSoilSurfaceY();
-    const px = x !== null ? x : -1.2 + (Math.random() - 0.5) * 0.3;
-    const pz = z !== null ? z : -0.5 + (Math.random() - 0.5) * 0.3;
+    const px = x !== null ? x : -1.25 + (Math.random() - 0.5) * 0.3;
+    const pz = z !== null ? z : -0.55 + (Math.random() - 0.5) * 0.3;
 
-    const cakeGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.08, 16);
+    const cakeGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.09, 16);
     const cakeMat = new THREE.MeshStandardMaterial({
-      color: 0x2e2015,
+      color: 0x2d1f14,
       roughness: 0.95
     });
 
     const cakeMesh = new THREE.Mesh(cakeGeo, cakeMat);
-    cakeMesh.position.set(px, soilY + 0.04, pz);
+    cakeMesh.position.set(px, soilY + 0.045, pz);
     cakeMesh.castShadow = true;
 
-    // Small protective basket cage
-    const cageGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.12, 8, 1, true);
+    const cageGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.13, 8, 1, true);
     const cageMat = new THREE.MeshStandardMaterial({
-      color: 0x274e13,
+      color: 0x224911,
       wireframe: true
     });
     const cage = new THREE.Mesh(cageGeo, cageMat);
-    cage.position.set(px, soilY + 0.06, pz);
+    cage.position.set(px, soilY + 0.065, pz);
 
     const fGroup = new THREE.Group();
     fGroup.add(cakeMesh);
@@ -386,20 +396,14 @@ export class PotAndSoil {
     });
   }
 
-  // Populate default tasteful Japanese dressing
   setupDefaultZenDressing() {
     this.clearDecorations();
-    // 5-6 moss cushions
-    this.addMossPatch(-0.8, -0.4);
-    this.addMossPatch(0.7, 0.5);
-    this.addMossPatch(-0.5, 0.6);
-    this.addMossPatch(0.9, -0.3);
-    this.addMossPatch(0.1, -0.8);
-
-    // 1 classical suiseki stone
-    this.addSuisekiStone(1.3, 0.2);
-
-    // 1 fertilizer cage
-    this.addFertilizerCake(-1.2, 0.4);
+    this.addMossPatch(-0.85, -0.42);
+    this.addMossPatch(0.75, 0.52);
+    this.addMossPatch(-0.52, 0.62);
+    this.addMossPatch(0.92, -0.32);
+    this.addMossPatch(0.12, -0.82);
+    this.addSuisekiStone(1.35, 0.22);
+    this.addFertilizerCake(-1.25, 0.42);
   }
 }
