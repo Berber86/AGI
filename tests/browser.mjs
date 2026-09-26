@@ -2,8 +2,16 @@
 // Требует: playwright-core и путь к chromium в CHROME_PATH (по умолчанию — /tmp/chromium-bin/chromium).
 // Запуск: node tests/browser.mjs [url] [папка_для_скриншотов]
 
-import { chromium } from 'playwright-core';
 import fs from 'node:fs';
+
+let chromium;
+try {
+  ({ chromium } = await import('playwright-core'));
+} catch {
+  console.error('Нужен playwright-core: npm install && npx playwright install chromium');
+  console.error('Либо укажите путь к своему браузеру в CHROME_PATH.');
+  process.exit(2);
+}
 
 const URL = process.argv[2] ?? 'http://127.0.0.1:8080/index.html';
 const SHOTS = process.argv[3] ?? '/tmp/shots';
@@ -13,6 +21,11 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const errors = [];
 let failures = 0;
 const check = (cond, msg) => { if (!cond) { console.error('  ✗ ' + msg); failures++; } else console.log('  ✓ ' + msg); };
+
+if (!fs.existsSync(EXEC)) {
+  console.error(`Браузер не найден: ${EXEC}. Установите Chromium или задайте CHROME_PATH.`);
+  process.exit(2);
+}
 
 const browser = await chromium.launch({
   executablePath: EXEC,
