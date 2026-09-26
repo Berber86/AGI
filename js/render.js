@@ -246,15 +246,19 @@ export class Renderer {
           const sway = Math.sin(t * 0.5 + f.seed) * 0.06;
           ctx.rotate(hash01(f.seed) * 0.7 + sway);
           if (kind === 0) {
-            const n = 6 + Math.floor(hash01(f.seed) * 5);
+            // кустистый коралл: веточки с «полипами» на концах
+            const n = 5 + Math.floor(hash01(f.seed) * 4);
+            // основание колонии
+            ctx.fillStyle = rgba('#2b3a42', 0.5 + depthR * 0.3);
+            ctx.beginPath(); ctx.ellipse(0, f.r * 0.1, f.r * 0.55, f.r * 0.34, 0, 0, TAU); ctx.fill();
             for (let i = 0; i < n; i++) {
               const a = (i / n) * TAU + hash01(f.seed + i) * 0.5;
-              const len = f.r * (0.45 + hash01(f.seed + i * 3) * 0.75);
+              const len = f.r * (0.4 + hash01(f.seed + i * 3) * 0.6);
               const hue = ['#2f7f6a', '#7c4f8f', '#a8632f', '#3f6f9f', '#b0708f'][i % 5];
-              ctx.strokeStyle = rgba(shade(hue, 0.18), 0.5 + depthR * 0.4);
-              ctx.lineWidth = 3 + hash01(f.seed + i * 7) * 3;
-              ctx.lineCap = 'round';
               const wob = Math.sin(t * 0.9 + i) * 3;
+              ctx.lineCap = 'round';
+              ctx.strokeStyle = rgba(shade(hue, 0.05), 0.55 + depthR * 0.35);
+              ctx.lineWidth = 5 + hash01(f.seed + i * 7) * 3;
               ctx.beginPath();
               ctx.moveTo(Math.cos(a) * f.r * 0.15, Math.sin(a) * f.r * 0.15);
               ctx.quadraticCurveTo(
@@ -262,8 +266,17 @@ export class Renderer {
                 Math.cos(a) * len + wob * 1.6, Math.sin(a) * len,
               );
               ctx.stroke();
-              ctx.fillStyle = rgba(shade(hue, 0.4), 0.35 + depthR * 0.35);
-              ctx.beginPath(); ctx.arc(Math.cos(a) * len + wob * 1.6, Math.sin(a) * len, 2.6, 0, TAU); ctx.fill();
+              // полипы: мелкие точки вдоль веточки
+              const polyps = 3;
+              for (let k = 1; k <= polyps; k++) {
+                const u = k / (polyps + 1);
+                const px = Math.cos(a) * len * u + wob * u * 1.6;
+                const py = Math.sin(a) * len * u;
+                ctx.fillStyle = rgba(shade(hue, 0.45), 0.4 + depthR * 0.35);
+                ctx.beginPath(); ctx.arc(px, py, 2.2 + u * 1.6, 0, TAU); ctx.fill();
+              }
+              ctx.fillStyle = rgba(shade(hue, 0.55), 0.5 + depthR * 0.4);
+              ctx.beginPath(); ctx.arc(Math.cos(a) * len + wob * 1.6, Math.sin(a) * len, 3.2, 0, TAU); ctx.fill();
             }
           } else if (kind === 1) {
             const n = 4 + Math.floor(hash01(f.seed) * 4);
@@ -283,22 +296,23 @@ export class Renderer {
               ctx.beginPath(); ctx.arc(x0, y0 - h, 5 + hash01(f.seed + i * 11) * 4, 0, TAU); ctx.fill();
             }
           } else {
-            for (let i = 0; i < 4; i++) {
-              const a = (i / 4) * TAU + 0.4;
-              const hue = ['#4fa38f', '#9b6fb8', '#b07a4f', '#5f87b8'][i % 4];
-              const rr = f.r * (0.5 + hash01(f.seed + i) * 0.4);
-              ctx.save();
-              ctx.rotate(a + Math.sin(t * 0.5 + i) * 0.08);
-              const g = ctx.createRadialGradient(rr * 0.2, 0, 3, 0, 0, rr);
-              g.addColorStop(0, rgba(shade(hue, 0.35), 0.55 + depthR * 0.35));
-              g.addColorStop(1, rgba(shade(hue, -0.5), 0.25 + depthR * 0.2));
+            // мшистая подушка: перекрывающиеся мягкие пятна
+            const n = 7 + Math.floor(hash01(f.seed * 2.3) * 5);
+            for (let i = 0; i < n; i++) {
+              const a = hash01(f.seed + i * 13) * TAU;
+              const dd = f.r * (0.15 + hash01(f.seed + i * 5) * 0.6);
+              const rr = f.r * (0.22 + hash01(f.seed + i * 3) * 0.3);
+              const hue = ['#4fa38f', '#7cb06a', '#b07a4f', '#6f8fb8'][i % 4];
+              const bx = Math.cos(a) * dd + Math.sin(t * 0.6 + i) * 2;
+              const by = Math.sin(a) * dd * 0.9;
+              const g = ctx.createRadialGradient(bx, by - rr * 0.3, rr * 0.15, bx, by, rr);
+              g.addColorStop(0, rgba(shade(hue, 0.35), 0.5 + depthR * 0.35));
+              g.addColorStop(1, rgba(shade(hue, -0.45), 0.25 + depthR * 0.2));
               ctx.fillStyle = g;
-              ctx.beginPath();
-              ctx.moveTo(0, 0);
-              ctx.quadraticCurveTo(rr * 0.6, -rr * 0.75, rr, 0);
-              ctx.quadraticCurveTo(rr * 0.6, rr * 0.4, 0, 0);
-              ctx.fill();
-              ctx.restore();
+              ctx.beginPath(); ctx.arc(bx, by, rr, 0, TAU); ctx.fill();
+              ctx.strokeStyle = rgba(shade(hue, 0.5), 0.18);
+              ctx.lineWidth = 1.2;
+              ctx.beginPath(); ctx.arc(bx, by, rr * 0.62, 0, TAU); ctx.stroke();
             }
           }
           ctx.restore();

@@ -72,16 +72,10 @@ const SIDE_POOL = [
   },
 ];
 
+// Цель стадии считается каждый раз из состояния мира — она всегда честная:
+// расти → добыть гены → обзавестись союзниками → завершить стадию.
 const STAGE_GOAL_TEXT = [
   'Зародить жизнь: найди пищу и расти',
-  'Размер 3: укрепи мембрану',
-  'Размер 5: займи свою нишу в океане',
-  'Размер 7: стань заметной силой',
-  'Найди первый древний ген в реликтовом поле',
-  'Размер 9: обзаведись союзниками (3 вида)',
-  'Собери 2 древних гена',
-  'Размер 10: вершина стадии клетки',
-  'Собери 3 древних гена — и жди пробуждения',
 ];
 
 export class QuestSystem {
@@ -153,22 +147,31 @@ export class QuestSystem {
     }
   }
 
+  // Цель стадии: всегда показывает следующий осмысленный шаг.
+  stageGoal() {
+    const g = this.game, p = g.player;
+    const need3 = CFG.progression.relicGenesForWin;
+    if (p.tier < CFG.player.maxTier) {
+      return { text: `Расти: достигни размера ${p.tier + 1}`, progress: 0, need: 0 };
+    }
+    if (p.relicGenes < need3) {
+      return { text: `Найди древние гены в реликтовых полях`, progress: p.relicGenes, need: need3 };
+    }
+    if (g.finaleStarted && !g.won) {
+      return { text: 'Донеси гены в гнездо или убей Левиафана', progress: 0, need: 0 };
+    }
+    const friendly = Object.values(p.rep).filter((r) => r.rep >= CFG.progression.allyThreshold).length;
+    if (friendly < 3) {
+      return { text: 'Заведи союзников: подружись с 3 видами (танец или кормление)', progress: friendly, need: 3 };
+    }
+    return { text: 'Собери 3 древних гена и заверши стадию', progress: 0, need: 0 };
+  }
+
   refreshStage() {
-    const p = this.game.player;
-    const relics = p.relicGenes;
-    let step = 0;
-    if (p.tier >= 10 && relics >= 3) step = 8;
-    else if (relics >= 3) step = 8;
-    else if (p.tier >= 10) step = 7;
-    else if (relics >= 2) step = 6;
-    else if (p.tier >= 9) step = 5;
-    else if (relics >= 1) step = 4;
-    else if (p.tier >= 7) step = 3;
-    else if (p.tier >= 5) step = 2;
-    else if (p.tier >= 3) step = 1;
-    if (step !== this.stageStep) {
-      this.stageStep = step;
-      this.game.emit('stageGoal', { step, text: STAGE_GOAL_TEXT[step] });
+    const goal = this.stageGoal();
+    if (goal.text !== this._stageText) {
+      this._stageText = goal.text;
+      this.game.emit('stageGoal', { text: goal.text });
     }
   }
 
@@ -212,7 +215,8 @@ export class QuestSystem {
   // Данные для интерфейса: цель стадии + активные поручения.
   list() {
     const g = this.game, p = g.player;
-    const stage = { id: 'stage', name: 'Цель стадии', desc: STAGE_GOAL_TEXT[this.stageStep], main: true, kind: 'stage' };
+    const sg = this.stageGoal();
+    const stage = { id: 'stage', name: 'Цель стадии', desc: sg.text, progress: sg.progress, need: sg.need, main: true, kind: 'stage' };
     return [stage, ...this.side.map((m) => ({
       id: m.id, name: m.name, desc: m.desc, reward: m.reward,
       progress: Math.floor(Math.min(m.progress, m.need)), need: m.need, done: m.done,
