@@ -1,13 +1,26 @@
 // ui.js — интерфейс: экраны, HUD, редактор генома, бестиарий, достижения, задания.
 // Модуль читает состояние игры и вызывает методы движка; игровой логики тут нет.
 
-import { CFG, LINEAGES, DIFFICULTY_ORDER } from './config.js';
+import { CFG, LINEAGES, DIFFICULTY_ORDER, LAND_PATHS, LAND_DIFFICULTY } from './config.js';
 import { PARTS, PART_LIST, TABS, partUnlocked, nextLevelCost, partSlots } from './parts.js';
 import { SPECIES, FAMILY, FAMILY_NAME, FOOD_KINDS } from './species.js';
-import { MILESTONES, Meta } from './meta.js';
+import { Meta, MILESTONES, LAND_MILESTONES, ALL_MILESTONES } from './meta.js';
 import { evolveCost, tryEvolve, refundGenome, partSlotsUsed, activeAbility, lineageById } from './player.js';
+import {
+  LANDPARTS, LAND_PART_LIST, LAND_ABILITIES, TABS as LAND_TABS, landPartUnlocked, landNextLevelCost,
+  landEffectText, landPartSlots, socialStat,
+} from './landparts.js';
+import {
+  LAND_SPECIES, LAND_FAMILY_NAME, SOCIAL_ACTIONS, LAND_FOOD_KINDS, socialLiked,
+} from './landspecies.js';
+import {
+  landEvolveCost, tryLandEvolve, landRefund, landPartSlotsUsed, landActiveAbility,
+  landPathById, landDifficultyById,
+} from './landplayer.js';
 import { drawGenomePreview } from './render.js';
+import { drawLandPreview } from './landrender.js';
 import { drawPortrait } from './cellrender.js';
+import { drawLandPortrait } from './landcreature.js';
 import { clamp, fmt, fmtTime, dist, rgba } from './util.js';
 
 const $ = (id) => document.getElementById(id);
@@ -36,7 +49,12 @@ export class UI {
     const inGame = !['scr-load', 'scr-title', 'scr-newrun'].includes(id);
     hud.classList.toggle('hidden', !inGame);
   }
-  hideAll() { this.show(this.activeScreen); }
+  // Спрятать все экраны: activeScreen сбрасывается, иначе hideAll/show вернут
+  // поверх игры экран, с которого её начали.
+  hideAll() {
+    this.activeScreen = '';
+    for (const el of document.querySelectorAll('.screen')) el.classList.remove('show');
+  }
   isScreen(id) { return this.activeScreen === id; }
   screenIsMenu() { return ['scr-title', 'scr-newrun', 'scr-help', 'scr-codex', 'scr-milestones', 'scr-settings'].includes(this.activeScreen); }
 
@@ -47,7 +65,13 @@ export class UI {
     click('btn-continue', () => this.app.continueRun());
     click('btn-newrun', () => { this.renderNewRun(); this.show('scr-newrun'); });
     click('btn-newrun-back', () => this.show('scr-title'));
-    click('btn-newrun-start', () => this.app.startNewRun(this.sel.lineage, this.sel.difficulty));
+    click('btn-newrun-start', () => this.app.startNewRun(this.sel));
+    click('btn-win-land', () => this.app.landingFromCell());
+    click('btn-win-continue', () => this.app.continueAfterWin());
+    for (const b of document.querySelectorAll('#social-bar .sact')) {
+      b.addEventListener('click', () => this.app.socialAction(b.dataset.action));
+    }
+    click('btn-social', () => { this.app.resume(); this.app.trySocial(); });
     click('btn-codex', () => { this.renderCodex(); this.show('scr-codex'); });
     click('btn-milestones', () => { this.renderMilestones(); this.show('scr-milestones'); });
     click('btn-settings', () => { this.renderSettings(); this.show('scr-settings'); });
@@ -72,7 +96,7 @@ export class UI {
         if (this.app.state === 'paused') this.app.resume(); else this.show('scr-title');
       });
     }
-    this.sel = { lineage: LINEAGES[0].id, difficulty: 'normal' };
+    this.sel = { stage: 'ocean', lineage: LINEAGES[0].id, path: LAND_PATHS[0].id, difficulty: 'normal' };
     window.addEventListener('orientationchange', () => setTimeout(() => this.updateRotateHint(), 200));
     this.updateRotateHint();
   }
@@ -87,16 +111,31 @@ export class UI {
   bindGame(game) {
     this.game = game;
     const app = this.app;
+    this.stage = game.stage ?? 'ocean';
+    document.getElementById('hud').classList.toggle('land', this.stage === 'land');
+    if (this.stage === 'land') this.bindLandEvents(game);
 
     game.on('grow', ({ tier }) => {
       app.audio.play('grow');
       this.toast(`Размер ${tier}! Клетка выросла`, 'gold');
       this.showHint('Рост открыл новые ячейки генома. Загляни в «Мутировать».', 'grow' + tier);
     });
-    game.on('evolve', ({ id, level }) => {
+    // Таблица частей зависит от стадии: у зверя свои части тела, у клетки — органеллы.
+    // Раньше обработчик всегда смотрел в океанскую таблицу и падал на росте наземной части.
+    game.on('evolve', ({ id, level, part }) => {
       app.audio.play('evolve');
-      this.toast(`${PARTS[id].name} → уровень ${level}`, 'good');
-      const abId = PARTS[id].levels[level - 1]?.eff.abilityId;
+      if (this.stage === 'land') {
+        const lp = part ?? LANDPARTS[id];
+        if (!lp) return;
+        this.toast(`${lp.name} → уровень ${level}`, 'good');
+        const abId = lp.levels?.[level - 1]?.eff?.abilityId;
+        if (abId) this.toast(`Новая способность: ${LAND_ABILITIES[abId]?.name ?? abId} — кнопка слева от рывка`, 'gold');
+        return;
+      }
+      const op = PARTS[id];
+      if (!op) return;
+      this.toast(`${op.name} → уровень ${level}`, 'good');
+      const abId = op.levels[level - 1]?.eff.abilityId;
       if (abId) this.toast(`Новая способность: ${ABILITY_NAME[abId] ?? abId} — кнопка слева от рывка`, 'gold');
     });
     game.on('relic', ({ count }) => {
@@ -155,6 +194,49 @@ export class UI {
     });
   }
 
+  // События стадии суши: те, что общие, уже подписаны выше, здесь — свои.
+  bindLandEvents(game) {
+    const app = this.app;
+    game.on('socialStart', ({ species, seq }) => {
+      app.audio.play('ui');
+      const hints = seq.map((a) => `${SOCIAL_ACTIONS.find((x) => x.id === a).icon}`).join(' ');
+      this.toast(`Знакомство с «${species.name}». Ждёт: ${hints}`, 'gold');
+      this.showHint(`У каждого вида свои вкусы. «${species.name}» любит ${species.social.likes.map((l) => SOCIAL_ACTIONS.find((x) => x.id === l).name.toLowerCase()).join(' и ')}`
+        + (species.social.hates ? `, а не выносит «${SOCIAL_ACTIONS.find((x) => x.id === species.social.hates).name.toLowerCase()}»` : ''), 'social_' + species.id, 9000);
+    });
+    game.on('socialStep', ({ ok, action }) => {
+      if (ok) app.audio.play('quest');
+      else { app.audio.play('hurt'); this.toast('Не то действие — зверь теряет интерес', 'bad'); }
+      void action;
+    });
+    game.on('socialEnd', ({ species, success }) => {
+      if (success) this.toast(`«${species.name}» привык к тебе`, 'good');
+      else this.toast(`«${species.name}» убежал`, 'bad');
+    });
+    game.on('ally', ({ species, count }) => {
+      app.audio.play('grow');
+      this.toast(`Союзный вид: «${species.name}» (${count} зверей рядом)`, 'gold');
+      this.showHint('Союзники бьют твоих врагов. Отведи три союзных вида к тотему ◉ — и стадия будет пройдена мирно.', 'sworn', 11000);
+    });
+    game.on('sworn', ({ species, count }) => {
+      app.audio.play('relic');
+      this.toast(`«${species.name}» присягнул тотему (${count}/3)`, 'gold');
+    });
+    game.on('drink', () => { app.audio.play('ui'); });
+    game.on('rest', ({ seconds }) => {
+      app.audio.play('evolve');
+      this.toast(`Отдых: прошло ${Math.round(seconds)} с`, 'good');
+      this.showHint('У тотема зверь спит до утра: восстанавливает силы и здоровье.', 'rest', 8000);
+    });
+    game.on('creatureCurious', ({ species }) => {
+      this.showHint(`«${species.name}» подходит сам: нажми «Общение» и ответь ему взаимностью.`, 'curious', 8000);
+    });
+    game.on('roar', () => app.audio.play('sonic'));
+    game.on('glide', () => { app.audio.play('dash'); this.haptic(10); });
+    game.on('venomSpit', () => app.audio.play('toxin'));
+    game.on('musk', () => app.audio.play('ink'));
+  }
+
   toast(text, kind = '') {
     const box = $('toasts');
     const el = document.createElement('div');
@@ -184,6 +266,7 @@ export class UI {
   }
 
   updateHud(game) {
+    if ((game.stage ?? 'ocean') === 'land') return this.updateLandHud(game);
     const p = game.player;
     const st = p.stats;
     const hpPct = clamp(p.hp / p.maxHp, 0, 1);
@@ -276,6 +359,124 @@ export class UI {
     this.updateQuests(game);
   }
 
+  // HUD зверя: сытость, вода, силы, биом, тотем вместо гнезда, панель общения.
+  updateLandHud(game) {
+    const p = game.player;
+    const st = p.stats;
+    const hpPct = clamp(p.hp / p.maxHp, 0, 1);
+    $('bar-hp-fill').style.width = `${hpPct * 100}%`;
+    $('bar-hp-txt').textContent = `${Math.ceil(p.hp)}/${Math.round(p.maxHp)}`;
+    $('bar-hp-fill').parentElement.classList.toggle('low', hpPct < 0.3);
+
+    const satPct = clamp(p.satiety / st.maxSatiety, 0, 1);
+    $('bar-sat-fill').style.width = `${satPct * 100}%`;
+    $('bar-sat-txt').textContent = `Сытость ${Math.round(p.satiety)}`;
+    $('bar-sat-fill').parentElement.classList.toggle('low', satPct < 0.2);
+
+    const watPct = clamp(p.water / st.maxWater, 0, 1);
+    $('bar-wat-fill').style.width = `${watPct * 100}%`;
+    $('bar-wat-txt').textContent = `Вода ${Math.round(p.water)}`;
+    $('bar-wat-fill').parentElement.classList.toggle('low', watPct < 0.2);
+
+    const staPct = clamp(p.stamina / st.maxStamina, 0, 1);
+    $('bar-sta-fill').style.width = `${staPct * 100}%`;
+    $('bar-sta-txt').textContent = `Силы ${Math.round(p.stamina)}`;
+
+    const need = CFG.land.player.growth[Math.min(p.tier - 1, CFG.land.player.growth.length - 1)] ?? 1;
+    $('bar-gr-fill').style.width = `${p.tier >= CFG.land.player.maxTier ? 100 : clamp(p.biomass / need, 0, 1) * 100}%`;
+    $('bar-gr-txt').textContent = p.tier >= CFG.land.player.maxTier ? 'Полный рост' : `Рост: ${Math.floor(p.biomass)}/${need}`;
+
+    $('dna-txt').textContent = Math.floor(p.dna);
+    $('tier-txt').textContent = p.tier;
+    const path = landPathById(p.path);
+    const allied = Object.values(p.sympathy ?? {}).filter((x) => x.allied).length;
+    $('diet-chip').textContent = `${path.icon} ${path.name}`;
+    const rep = $('rep-chip');
+    const allies = game.countAllies();
+    if (allies > 0 || allied > 0) {
+      rep.classList.remove('hidden');
+      rep.textContent = `Союзники ${allies} · Видов ${allied} · Клятва ${p.flags.sworn ?? 0}/3`;
+    } else rep.classList.add('hidden');
+
+    const names = { shore: 'Прибрежье', plain: 'Луга', forest: 'Лес', rock: 'Скалы' };
+    document.querySelector('.zone-name').textContent = names[game.biome];
+    document.querySelector('.zone-depth').textContent = game.raining ? 'идёт дождь' : `трава ${(game.vegetationAt(p.x, p.y) * 100).toFixed(0)}%`;
+    $('radar-zone').textContent = names[game.biome];
+
+    const hours = Math.floor(game.dayPhase * 24);
+    const mins = Math.floor((game.dayPhase * 24 % 1) * 60);
+    const dayN = 1 + Math.floor(game.time / CFG.land.day.length);
+    document.querySelector('.clock-icon').textContent = game.lightLevel > 0.6 ? '☀' : game.lightLevel > 0.4 ? '☁' : '☾';
+    document.querySelector('.clock-text').textContent = `${game.lightLevel > 0.6 ? 'День' : game.lightLevel > 0.4 ? 'Сумерки' : 'Ночь'} ${dayN} · ${String(hours % 24).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+
+    // способность
+    const ab = landActiveAbility(p);
+    const ico = $('ability-ico'), nm = $('ability-name'), cd = $('ability-cd');
+    if (ab) {
+      ico.textContent = ab.icon; nm.textContent = ab.short ?? ab.name;
+      cd.style.transform = `scaleY(${clamp(p.cooldowns.ability / ab.cd, 0, 1)})`;
+      $('btn-ability').classList.toggle('ready', p.cooldowns.ability <= 0);
+      $('btn-ability').classList.remove('disabled');
+    } else {
+      ico.textContent = '✷'; nm.textContent = 'нет';
+      cd.style.transform = 'scaleY(1)';
+      $('btn-ability').classList.add('disabled');
+    }
+    $('dash-cd').style.transform = `scaleY(${clamp(p.cooldowns.dash / CFG.land.player.dashCooldown, 0, 1)})`;
+
+    // кнопка тотема: рядом — геном и отдых, далеко — путь домой
+    const nest = $('btn-nest');
+    const dTotem = dist(p.x, p.y, p.totemPos.x, p.totemPos.y);
+    const finalRace = (p.flags.sworn ?? 0) >= 2;
+    if (dTotem < 340) {
+      nest.querySelector('.act-name').textContent = finalRace ? 'Тотем!' : 'Отдых';
+      nest.classList.add('armed');
+    } else {
+      nest.querySelector('.act-name').textContent = 'Тотем';
+      nest.classList.remove('armed');
+    }
+    if (finalRace && !this._finalHintShown) {
+      this._finalHintShown = true;
+      this.showHint('Осталось привести союзный вид к тотему ◉ — или убить владыку в скалах.', 'finalRace', 12000);
+    }
+    $('nest-cd').style.transform = `scaleY(${clamp(p.cooldowns.totem / 40, 0, 1)})`;
+
+    // полоса владыки
+    const boss = game.tyrant && !game.tyrant.dead ? game.tyrant : null;
+    document.getElementById('hud').classList.toggle('boss-fight', !!boss);
+    const bb = $('boss-bar');
+    if (boss) {
+      bb.classList.remove('hidden');
+      $('boss-name').textContent = boss.sp.name.toUpperCase();
+      $('boss-hp-fill').style.width = `${clamp(boss.hp / boss.maxHp, 0, 1) * 100}%`;
+    } else bb.classList.add('hidden');
+
+    $('danger-vignette').classList.toggle('on', hpPct < 0.3 || !!boss || satPct < 0.12 || watPct < 0.12);
+    this.updateSocialBar(game);
+    this.updateQuests(game);
+  }
+
+  // Панель общения: появляется, когда идёт знакомство, и подсвечивает нужное действие.
+  updateSocialBar(game) {
+    const bar = $('social-bar');
+    const p = game.player;
+    if (!p.social?.active) { bar.classList.add('hidden'); this._socialSig = null; return; }
+    bar.classList.remove('hidden');
+    const sp = game.creatures.find((c) => c === p.social.target)?.sp;
+    const sig = `${p.social.species}:${p.social.step}:${p.social.seq.join(',')}`;
+    if (sig !== this._socialSig) {
+      this._socialSig = sig;
+      $('social-species').textContent = sp ? `${sp.name} · шаг ${Math.min(p.social.step + 1, p.social.seq.length)}/${p.social.seq.length}` : '—';
+      const needed = p.social.seq[p.social.step];
+      for (const b of document.querySelectorAll('#social-bar .sact')) {
+        const act = b.dataset.action;
+        b.classList.toggle('want', act === needed);
+        b.classList.toggle('bad', sp ? sp.social.hates === act : false);
+      }
+    }
+    $('social-timer').textContent = `${Math.max(0, p.social.timer).toFixed(1)} с`;
+  }
+
   updateQuests(game) {
     const list = game.quests.list();
     const sig = list.map((m) => `${m.id}:${m.progress}/${m.need}${m.done ? 'd' : ''}`).join('|');
@@ -298,8 +499,66 @@ export class UI {
   // ================= Геном =================
   renderNewRun() {
     const app = this.app;
+    // --- выбор стадии
+    const stages = [
+      { id: 'ocean', name: 'Первичный океан', icon: '≈', desc: 'Стадия клетки: ешь, расти, мутируй, собери гены и выйди на берег.' },
+      { id: 'land', name: 'Выход на сушу', icon: '▲', desc: 'Стадия зверя: сытость, вода, стада и хищники. Победа — стая или клыки.' },
+    ];
+    const sbox = $('stage-cards');
+    sbox.innerHTML = '';
+    for (const st of stages) {
+      const el = document.createElement('button');
+      el.className = `card${this.sel.stage === st.id ? ' sel' : ''}`;
+      el.innerHTML = `<h4>${st.icon} ${st.name}</h4><p>${st.desc}</p>`;
+      el.addEventListener('click', () => {
+        app.audio.play('ui');
+        this.sel.stage = st.id;
+        this.renderNewRun();
+      });
+      sbox.appendChild(el);
+    }
+    const isLand = this.sel.stage === 'land';
+    $('stage-desc').textContent = isLand
+      ? 'Дорожка развития определяет стартовые части тела и повадки зверя.'
+      : 'Родословная определяет стартовые органеллы и доступные мутации.';
+
     const box = $('lineage-cards');
     box.innerHTML = '';
+    if (isLand) {
+      for (const path of LAND_PATHS) {
+        const locked = path.unlock && !app.meta.achSet.has(path.unlock);
+        const el = document.createElement('button');
+        el.className = `card${this.sel.path === path.id && !locked ? ' sel' : ''}${locked ? ' locked' : ''}`;
+        el.innerHTML = `<h4>${path.icon} ${path.name}${locked ? ' 🔒' : ''}</h4><p>${path.desc}</p>
+          <div class="tags">${path.perks.map((p) => `<span class="tag">${p}</span>`).join('')}</div>
+          ${locked ? '<p class="tiny bad">Откроется достижением «Титан» (8-й размер на суше)</p>' : ''}`;
+        el.addEventListener('click', () => {
+          if (locked) { this.toast('Дорожка закрыта: нужно достижение «Титан»', 'bad'); return; }
+          app.audio.play('ui');
+          this.sel.path = path.id;
+          this.renderNewRun();
+        });
+        box.appendChild(el);
+      }
+    } else {
+      this._renderLineages(box);
+    }
+
+    const dbox = $('difficulty-cards');
+    dbox.innerHTML = '';
+    const src = isLand ? LAND_DIFFICULTY : CFG.difficulty;
+    for (const id of DIFFICULTY_ORDER) {
+      const d = src[id];
+      const el = document.createElement('button');
+      el.className = `card${this.sel.difficulty === id ? ' sel' : ''}`;
+      el.innerHTML = `<h4>${d.name}</h4><p>${d.desc}</p>`;
+      el.addEventListener('click', () => { app.audio.play('ui'); this.sel.difficulty = id; this.renderNewRun(); });
+      dbox.appendChild(el);
+    }
+  }
+
+  _renderLineages(box) {
+    const app = this.app;
     for (const lin of LINEAGES) {
       const locked = lin.unlock && !app.meta.achSet.has(lin.unlock);
       const el = document.createElement('button');
@@ -315,16 +574,6 @@ export class UI {
       });
       box.appendChild(el);
     }
-    const dbox = $('difficulty-cards');
-    dbox.innerHTML = '';
-    for (const id of DIFFICULTY_ORDER) {
-      const d = CFG.difficulty[id];
-      const el = document.createElement('button');
-      el.className = `card${this.sel.difficulty === id ? ' sel' : ''}`;
-      el.innerHTML = `<h4>${d.name}</h4><p>${d.desc}</p>`;
-      el.addEventListener('click', () => { app.audio.play('ui'); this.sel.difficulty = id; this.renderNewRun(); });
-      dbox.appendChild(el);
-    }
   }
 
   openGenome(game) {
@@ -335,6 +584,7 @@ export class UI {
 
   renderGenome() {
     const game = this.game;
+    if ((game.stage ?? 'ocean') === 'land') return this.renderLandGenome();
     const p = game.player;
     $('g-dna').textContent = Math.floor(p.dna);
     $('g-slots').textContent = `${partSlotsUsed(p)}/${p.stats.slots}`;
@@ -407,6 +657,96 @@ export class UI {
     this._renderGenomeStats();
   }
 
+  // Редактор зверя: те же принципы, что у клетки (ячейки, уровни, возврат ДНК),
+  // но части тела видны на превью и у соседей по берегу.
+  renderLandGenome() {
+    const game = this.game;
+    const p = game.player;
+    $('g-dna').textContent = Math.floor(p.dna);
+    $('g-slots').textContent = `${landPartSlotsUsed(p)}/${p.stats.slots}`;
+    $('g-upkeep').textContent = p.stats.upkeep.toFixed(2);
+
+    const tabs = $('g-tabs');
+    tabs.innerHTML = '';
+    for (const t of LAND_TABS) {
+      const el = document.createElement('button');
+      el.className = `tab${this.tab === t.id ? ' sel' : ''}`;
+      el.textContent = t.name;
+      el.addEventListener('click', () => { this.app.audio.play('ui'); this.tab = t.id; this.renderLandGenome(); });
+      tabs.appendChild(el);
+    }
+    if (!LAND_TABS.some((t) => t.id === this.tab)) this.tab = LAND_TABS[0].id;
+
+    const box = $('g-parts');
+    box.innerHTML = '';
+    const list = LAND_PART_LIST.filter((part) => part.tab === this.tab);
+    const nearTotem = dist(p.x, p.y, p.totemPos.x, p.totemPos.y) < 340;
+    for (const part of list) {
+      const lvl = p.parts[part.id] ?? 0;
+      const lock = landPartUnlocked(part, p.tier, this.app.meta.achSet);
+      const cost = landEvolveCost(game, part.id);
+      const el = document.createElement('div');
+      el.className = `part${lvl >= part.maxLevel ? ' maxed' : ''}${!lock.ok ? ' locked' : ''}${lvl > 0 ? ' installed' : ''}`;
+      const effNow = lvl > 0 ? landEffectText(part.levels[lvl - 1].eff) : '';
+      const effNext = cost ? landEffectText(part.levels[lvl].eff) : '';
+      el.innerHTML = `
+        <div class="part-ico">${part.icon}</div>
+        <div class="part-body">
+          <div class="part-name"><span>${part.name}</span>
+            <span class="lv">${Array.from({ length: part.maxLevel }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</span>
+          </div>
+          <div class="part-desc">${part.desc}</div>
+          ${lvl > 0 ? `<div class="part-meta">сейчас: ${effNow}</div>` : ''}
+          ${cost ? `<div class="part-meta">дальше: ${effNext} <span class="cost">${cost.total} ДНК</span>${cost.surcharge ? `<span class="up">+${Math.round(cost.surcharge * 100)}% вне тотема</span>` : ''} <span class="slots">ячеек: ${part.slots}</span></div>` : '<div class="part-meta">максимальный уровень</div>'}
+          ${!lock.ok ? `<div class="req">🔒 ${lock.why}</div>` : ''}
+        </div>
+        <div class="part-btns">
+          <button class="buy" ${(!cost || !lock.ok || p.dna < cost.total) ? 'disabled' : ''}>${cost ? (lvl > 0 ? 'Улучшить' : 'Отрастить') : 'МАКС'}</button>
+          ${lvl > 0 && part.slots > 0 ? '<button class="rm">Убрать</button>' : ''}
+        </div>`;
+      el.querySelector('.buy')?.addEventListener('click', () => {
+        const r = tryLandEvolve(game, part.id);
+        this.toast(r.msg, r.ok ? 'good' : 'bad');
+        if (r.ok) {
+          this.app.audio.play('evolve');
+          p.counters.evolves = (p.counters.evolves ?? 0) + 1;
+          this.renderLandGenome();
+          this.updateHud(game);
+        }
+      });
+      el.querySelector('.rm')?.addEventListener('click', () => {
+        const r = landRefund(game, part.id);
+        this.toast(r.msg, r.ok ? '' : 'bad');
+        if (r.ok) { this.app.recompute(); this.renderLandGenome(); }
+      });
+      box.appendChild(el);
+    }
+
+    $('g-hint').textContent = nearTotem
+      ? 'У тотема части тела отрастают дешевле. Ячеек больше с каждым размером.'
+      : 'Ты вдали от тотема: части тела дороже на 25%. Вернись к тотему ◉ для скидки.';
+
+    this._renderLandStats();
+  }
+
+  _renderLandStats() {
+    const p = this.game.player;
+    const s = p.stats;
+    const rows = [
+      ['Здоровье', `${Math.round(s.maxHp)} (броня ${Math.round((1 - 1 / (1 + s.armor / 30)) * 100)}%)`],
+      ['Скорость', `${Math.round(s.baseSpeed)} (бег ×${(CFG.land.player.sprintMul * s.sprintMul).toFixed(2)})`],
+      ['Поворот', s.turnRate.toFixed(1)],
+      ['Укус', `${s.biteDmg.toFixed(1)} ×${s.biteRate.toFixed(2)}`],
+      ['Сытость', `${Math.round(s.maxSatiety)} (−${s.satietyDrain.toFixed(2)}/с)`],
+      ['Вода', `${Math.round(s.maxWater)} (−${s.waterDrain.toFixed(2)}/с)`],
+      ['Силы', `${Math.round(s.maxStamina)} (+${s.staminaRegen.toFixed(1)}/с)`],
+      ['Симпатия', `+${Math.round(s.socialGain * 100)}%`],
+      ['Обзор', Math.round(s.vision)],
+      ['Ячейки', `${landPartSlotsUsed(p)}/${s.slots}`],
+    ];
+    $('g-stats').innerHTML = rows.map(([k, v]) => `<div class="st"><span>${k}</span><b>${v}</b></div>`).join('');
+  }
+
   _effectsText(eff) {
     const names = {
       maxHp: 'Здоровье', speedMul: 'Скорость', turnMul: 'Управляемость', armor: 'Броня', regen: 'Регенерация',
@@ -447,7 +787,8 @@ export class UI {
 
   tickGenomePreview(t) {
     if (!this.game || !this.isScreen('scr-genome')) return;
-    drawGenomePreview($('g-canvas'), this.game.player, t);
+    if ((this.game.stage ?? 'ocean') === 'land') drawLandPreview($('g-canvas'), this.game.player, t);
+    else drawGenomePreview($('g-canvas'), this.game.player, t);
   }
 
   // ================= Бестиарий =================
@@ -455,6 +796,7 @@ export class UI {
     const meta = this.app.meta;
     const box = $('codex-list');
     box.innerHTML = '';
+    this._renderLandCodex(box);
     const groups = {};
     for (const sp of SPECIES) (groups[sp.family] ??= []).push(sp);
     for (const fam of Object.keys(groups)) {
@@ -492,7 +834,55 @@ export class UI {
         box.appendChild(el);
       }
     }
-    $('codex-count').textContent = `${meta.codexSet.size}/${SPECIES.length}`;
+    $('codex-count').textContent = `${meta.codexSet.size}/${SPECIES.length + LAND_SPECIES.length}`;
+  }
+
+  // Раздел суши в бестиарии: портреты видов рисует тот же модуль, что и саму игру.
+  _renderLandCodex(box) {
+    const meta = this.app.meta;
+    const head = document.createElement('h3');
+    head.textContent = 'Суша · звери берега';
+    box.appendChild(head);
+    const groups = {};
+    for (const sp of LAND_SPECIES) (groups[sp.family] ??= []).push(sp);
+    for (const fam of Object.keys(groups)) {
+      const sub = document.createElement('h3');
+      sub.textContent = LAND_FAMILY_NAME[fam] ?? fam;
+      sub.className = 'muted';
+      box.appendChild(sub);
+      for (const sp of groups[fam]) {
+        const seen = meta.codexSet.has(sp.id);
+        const el = document.createElement('div');
+        el.className = `codex-entry${seen ? '' : ' locked'}`;
+        if (!seen) {
+          el.innerHTML = `<h4><span>???</span><span class="muted tiny">не изучен</span></h4>
+            <p>Встреться с этим зверем на берегу, чтобы открыть запись.</p>`;
+          box.appendChild(el);
+          continue;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = 72; canvas.height = 72;
+        canvas.style.cssText = 'width:56px;height:56px;float:left;margin:0 10px 6px 0;border-radius:50%';
+        drawLandPortrait(canvas.getContext('2d'), sp, 72, 1);
+        el.appendChild(canvas);
+        const likes = sp.social.likes.map((l) => SOCIAL_ACTIONS.find((x) => x.id === l)?.name).join(', ') || '—';
+        const hates = SOCIAL_ACTIONS.find((x) => x.id === sp.social.hates)?.name;
+        el.insertAdjacentHTML('beforeend', `<h4><span>${sp.icon} ${sp.name}</span><span class="tiny muted">размер ${sp.tierMin}–${sp.tierMax}</span></h4>
+          <p class="lore">${sp.lore}</p>
+          <p>${sp.habitat}</p>
+          <div class="stats">
+            <span>Здоровье ×${sp.hpMul.toFixed(2)}</span>
+            <span>Урон ×${sp.dmgMul.toFixed(2)}</span>
+            <span>Скорость ×${sp.speedMul.toFixed(2)}</span>
+            <span>характер: ${sp.nature}</span>
+            <span>любит: ${likes}</span>
+            ${hates ? `<span>не выносит: ${hates}</span>` : ''}
+            ${sp.nocturnal ? '<span>ночной</span>' : ''}
+            ${sp.boss ? '<span>☠ владыка</span>' : ''}
+          </div>`);
+        box.appendChild(el);
+      }
+    }
   }
 
   // ================= Достижения =================
@@ -500,13 +890,14 @@ export class UI {
     const meta = this.app.meta;
     const box = $('ms-list');
     box.innerHTML = '';
-    for (const m of MILESTONES) {
-      const done = meta.achSet.has(m.id);
-      const el = document.createElement('div');
-      el.className = `ms-entry${done ? ' done' : ''}`;
-      el.innerHTML = `<h4><span>${done ? '★ ' : '· '}${m.name}</span><span class="rew">+${m.reward} ДНК</span></h4><p>${m.desc}</p>`;
-      box.appendChild(el);
-    }
+    const section = (title, list) => {
+      const h = document.createElement('h3');
+      h.textContent = title;
+      box.appendChild(h);
+      for (const m of list) this._renderMilestone(m, box);
+    };
+    section('Океан · стадия клетки', MILESTONES);
+    section('Суша · стадия зверя', LAND_MILESTONES);
     const legacy = document.createElement('div');
     legacy.innerHTML = `<h3>Наследие вида — глобальная ДНК: <b>${Math.round(meta.data.dna)}</b></h3>
       <p class="tiny muted">Тратится между жизнями и остаётся навсегда.</p>`;
@@ -532,7 +923,15 @@ export class UI {
       }
       box.appendChild(el);
     }
-    $('ms-count').textContent = `${meta.achSet.size}/${MILESTONES.length}`;
+    $('ms-count').textContent = `${meta.achSet.size}/${ALL_MILESTONES.length}`;
+  }
+
+  _renderMilestone(m, box) {
+    const done = this.app.meta.achSet.has(m.id);
+    const el = document.createElement('div');
+    el.className = `ms-entry${done ? ' done' : ''}`;
+    el.innerHTML = `<h4><span>${done ? '★ ' : '· '}${m.name}</span><span class="rew">+${m.reward} ДНК</span></h4><p>${m.desc}</p>`;
+    box.appendChild(el);
   }
 
   // ================= Задания =================
@@ -540,6 +939,8 @@ export class UI {
     const box = $('missions-list');
     box.innerHTML = '';
     if (!this.game) return;
+    const isLand = (this.game.stage ?? 'ocean') === 'land';
+    $('missions-title').textContent = isLand ? 'Задания берега' : 'Задания океана';
     const list = this.game.quests.list();
     for (const m of list) {
       const el = document.createElement('div');
@@ -551,7 +952,7 @@ export class UI {
       box.appendChild(el);
     }
     const act = document.createElement('div');
-    act.innerHTML = `<h3>Событие океана</h3>`;
+    act.innerHTML = `<h3>${isLand ? 'Погода и события берега' : 'Событие океана'}</h3>`;
     const ev = this.game.event;
     act.insertAdjacentHTML('beforeend', ev
       ? `<div class="mission"><h4>${ev.name}</h4><p>${ev.desc}</p></div>`
@@ -635,7 +1036,59 @@ export class UI {
   // ================= Помощь =================
   renderHelp() {
     const box = $('help-body');
+    const land = (this.game?.stage ?? this.app.stage) === 'land';
     box.innerHTML = `
+      ${land ? this._landHelp() : this._oceanHelp()}`;
+    void land;
+  }
+
+  // Справка стадии суши: ресурсы, грунт, общение, два пути к победе.
+  _landHelp() {
+    return `
+      <h3>Где ты</h3>
+      <p>Твой вид выбрался на берег. Клетка осталась в воде — теперь ты зверь: три ресурса вместо одного,
+      четыре биома вместо глубины и соседи, с которыми можно договориться.</p>
+      <h3>Ресурсы</h3>
+      <ul>
+        <li><span class="k">Здоровье</span> — как обычно, восстанавливается вне боя и во сне.</li>
+        <li><span class="k">Сытость</span> — падает всегда, еда поднимает. На нуле зверь слабеет и гибнет.</li>
+        <li><span class="k">Вода</span> — самая частая причина смерти новичка. Пить можно только у водоёмов (синие пятна)
+            и под дождём. Без воды зверь гибнет быстрее, чем от хищника.</li>
+        <li><span class="k">Силы</span> — запас на бег и рывок. Держи палец на кнопке рывка, чтобы бежать:
+            быстрее, но силы кончаются.</li>
+      </ul>
+      <h3>Грунт</h3>
+      <ul>
+        <li><b>Прибрежье</b> — открытый песок, быстро бегать.</li>
+        <li><b>Луга</b> — трава и еда, чуть медленнее.</li>
+        <li><b>Лес</b> — густо, много укрытий, засады, медленно.</li>
+        <li><b>Скалы</b> — голый камень, мало воды, живёт владыка. Роющие когти облегчают лазание.</li>
+      </ul>
+      <h3>Общение вместо драки</h3>
+      <ul>
+        <li>Подойди к зверю и нажми кнопку <span class="k">«Общение»</span> — начнётся знакомство.</li>
+        <li>У каждого вида свои вкусы: один любит пение, другой — танец, третий — позу или ласку.
+            Внизу появится панель из четырёх действий, нужное подсвечено.</li>
+        <li>Ошибка — вид теряет интерес. Три удачных действия подряд делают вид союзником.</li>
+        <li>Союзники дерутся за тебя. Отведи союзный вид к тотему — он присягнёт. Три присягнувших вида = мирная победа.</li>
+        <li>Усиливают общение: горловой мешок, перья, грива, мозг вожака.</li>
+      </ul>
+      <h3>Два пути к победе</h3>
+      <ul>
+        <li><b>Стая:</b> три союзных вида у тотема.</li>
+        <li><b>Сила:</b> убить Ящера-владыку в скалах. Он просыпается, когда зверь подрос (размер 4 и выше).</li>
+      </ul>
+      <h3>Тело</h3>
+      <ul>
+        <li>Части тела покупаются в редакторе (кнопка ◉ у тотема или в паузе). Каждая видна на звере —
+            и у тебя, и у соседей по берегу.</li>
+        <li>У тотема мутации без наценки, вдали — +25%. Убирая часть, вернёшь 60% ДНК.</li>
+        <li>Ночью часть зверей спит, но выходят ночные охотники: без глаз и нюха видно только ближний круг.</li>
+      </ul>`;
+  }
+
+  _oceanHelp() {
+    return `
       <h3>Что происходит</h3>
       <p>Ты — клетка в древнем океане. Ешь биомассу, расти, мутируй, заводи союзников и найди три древних гена, чтобы завершить стадию клетки.</p>
       <h3>Управление</h3>
@@ -692,13 +1145,28 @@ export class UI {
         <li>Гибель не отменяет прогресс: достижения и глобальная ДНК остаются, бестиарий пополняется.</li>
         <li>Наследие даёт стартовую ДНК и здоровье — покупается в «Достижениях».</li>
         <li>Можно возродиться в гнезде, потеряв часть запаса ДНК, или начать новую жизнь.</li>
+      </ul>
+      <h3>Выход на сушу</h3>
+      <ul>
+        <li>Пройдя стадию клетки, жми <span class="k">«Выйти на сушу»</span> — начнётся вторая стадия,
+            игра пойдёт за зверя. Можно и сразу выбрать стадию зверя в «Новой жизни».</li>
+        <li>Подробные правила берега — в этой же справке, раздел появится после перехода.</li>
       </ul>`;
   }
 
   // ================= Экраны итогов =================
   renderDeath(stats, canRespawn, deathCount) {
     const box = $('death-stats');
-    box.innerHTML = `
+    const isLand = stats.stage === 'land';
+    box.innerHTML = isLand
+      ? `
+      <div class="st"><b>${stats.tier}</b><span>размер</span></div>
+      <div class="st"><b>${stats.kills}</b><span>убийств</span></div>
+      <div class="st"><b>${fmtTime(stats.time)}</b><span>прожито</span></div>
+      <div class="st"><b>${stats.sworn ?? 0}/3</b><span>присягнувших видов</span></div>
+      <div class="st"><b>${stats.dances}</b><span>знакомств</span></div>
+      <div class="st"><b>${stats.drinks ?? 0}</b><span>глотков воды</span></div>`
+      : `
       <div class="st"><b>${stats.tier}</b><span>размер</span></div>
       <div class="st"><b>${stats.kills}</b><span>убийств</span></div>
       <div class="st"><b>${fmtTime(stats.time)}</b><span>прожито</span></div>
@@ -710,7 +1178,9 @@ export class UI {
     if (canRespawn) {
       const btn = document.createElement('button');
       btn.className = 'big primary';
-      btn.textContent = `Возродиться в гнезде (−${Math.round(CFG.dna.respawnDnaLoss * 100)}% ДНК)`;
+      btn.textContent = isLand
+        ? `Очнуться у тотема (−${Math.round(CFG.dna.respawnDnaLoss * 100)}% ДНК)`
+        : `Возродиться в гнезде (−${Math.round(CFG.dna.respawnDnaLoss * 100)}% ДНК)`;
       btn.addEventListener('click', () => this.app.respawn());
       actions.appendChild(btn);
     }
@@ -730,8 +1200,32 @@ export class UI {
     actions.appendChild(info);
   }
 
+  // Итог побед двух видов: стая или сила.
+  _renderLandWin(stats, metaGain, reason) {
+    const box = $('win-body');
+    const lore = reason === 'tyrant'
+      ? 'Ящер-владыка пал, и скалы замолчали. Стада вернулись на тропы, а твой вид стал хозяином берега:'
+        + ' следующий шаг эволюции — уже не зверь, а разум. Третья стадия ждёт впереди.'
+      : 'Три союзных вида присягнули тотему. Стая не забыла, кто её собрал: твой вид доказал,'
+        + ' что выживает не самый зубастый, а самый нужный. Следующая стадия — уже не зверь, а разум.';
+    box.innerHTML = `
+      <div class="st wide lore">${lore}</div>
+      <div class="st"><b>${stats.tier}</b><span>размер зверя</span></div>
+      <div class="st"><b>${stats.kills}</b><span>убийств</span></div>
+      <div class="st"><b>${fmtTime(stats.time)}</b><span>прожито</span></div>
+      <div class="st"><b>${stats.dances}</b><span>знакомств</span></div>
+      <div class="st"><b>${stats.sworn ?? 0}/3</b><span>видов в стае</span></div>
+      <div class="st"><b>+${metaGain}</b><span>глобальной ДНК</span></div>
+      <div class="st"><b>${this.app.meta.achSet.size}</b><span>достижений всего</span></div>`;
+  }
+
   renderWin(stats, metaGain, reason) {
     const box = $('win-body');
+    const isLand = stats.stage === 'land';
+    $('win-title').textContent = isLand ? 'Стадия зверя пройдена' : 'Стадия клетки пройдена';
+    $('btn-win-land').classList.toggle('hidden', isLand);
+    $('btn-win-continue').textContent = isLand ? 'Остаться на берегу (свободная игра)' : 'Остаться в воде (свободная игра)';
+    if (isLand) return this._renderLandWin(stats, metaGain, reason);
     const lore = reason === 'nest'
       ? 'Три древних гена возвращены в гнездо, где началась жизнь. Колония приняла новое знание:'
         + ' твой вид выходит на берег эволюции, оставляя океан позади. Следующая стадия — уже не вода.'

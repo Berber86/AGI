@@ -9,6 +9,7 @@ import {
   createPlayer, updatePlayer, recomputeStats, consumeFood, damagePlayer, gainDna,
   activeAbility, summary, applySlow, pushPlayer,
 } from './player.js';
+import { initEffects, EffectsMethods } from './effects.js';
 import { EventSystem } from './events.js';
 import { QuestSystem } from './quests.js';
 
@@ -33,8 +34,6 @@ export class Game extends Emitter {
     this.threat = 1;
     this.currentPush = null;
     this.canAnywhereEvolve = false;
-    this.shakeAmt = 0;
-    this.shakeX = 0; this.shakeY = 0;
     this.freePlay = false;
     this.won = false;
     this.stats = { spawns: 0, kills: 0, deaths: 0, maxTier: 1, playTime: 0 };
@@ -52,12 +51,9 @@ export class Game extends Emitter {
 
     this.creatures = [];
     this.foods = [];
-    this.particles = [];
+    initEffects(this);          // частицы, всплывающие числа, облака, тряска (effects.js)
     this.projectiles = [];
     this.features = [];
-    this.inkClouds = [];
-    this.floaters = [];
-    this._eatFloatT = 0;
 
     this.events = new EventSystem(this);
     this.quests = new QuestSystem(this);
@@ -257,25 +253,7 @@ export class Game extends Emitter {
     return f;
   }
 
-  // ================================================================
-  // Частицы и эффекты
-  // ================================================================
-  spawnParticle(x, y, kind, color, size = 3, vx = 0, vy = 0, life = 1) {
-    if (this.particles.length > CFG.spawn.maxParticles * (this.settings.quality.particles ?? 1)) return;
-    this.particles.push({ x, y, vx, vy, kind, color, size, life, maxLife: life, dead: false });
-  }
-  spawnRing(x, y, r, color) {
-    if (this.particles.length > 400) return;
-    this.particles.push({ x, y, vx: 0, vy: 0, kind: 'ring', color, size: r * 0.35, life: 0.6, maxLife: 0.6, dead: false });
-  }
-  spawnInkCloud(x, y, r) {
-    for (let i = 0; i < 16; i++) {
-      const a = this.rng.angle(), d = this.rng.next() * r;
-      this.spawnParticle(x + Math.cos(a) * d, y + Math.sin(a) * d, 'goo', '#0a1a2a', r * 0.18, 0, 0, 4.5);
-    }
-    this.inkClouds.push({ x, y, r, life: 5.5 });
-    this.emit('ink', { x, y, r });
-  }
+  // Снаряд (спора стрекача, ядовитый плевок) — только у подводной стадии.
   spawnProjectile(from, angle, def) {
     const speed = def.speed;
     this.projectiles.push({
@@ -286,13 +264,10 @@ export class Game extends Emitter {
     });
     this.emit('shot', { x: from.x, y: from.y });
   }
-  shake(amount) { this.shakeAmt = Math.min(24, this.shakeAmt + amount); }
 
-  // Всплывающий текст: «+12 ДНК», «−8», «ТАНЕЦ!»
-  float(text, x, y, color = '#dff6ff', size = 13) {
-    if (this.floaters.length > 34) return;
-    this.floaters.push({ text, x, y, color, size, life: 1.1, maxLife: 1.1, vy: -26, vx: (this.rng.next() - 0.5) * 12, dead: false });
-  }
+  // Частицы, всплывающие числа, кольца, облака и тряска — в effects.js (EffectsMethods).
+  // Здесь только то, что делает облако именно с клеткой: чернила гасят скорость.
+  onCloudContact(ink, d) { applySlow(this, 0.6, 0.35); }
 
   // существо съело биомассу: экосистема потребляет еду сама
   consumeByCreature(c, food) {
@@ -674,9 +649,7 @@ export class Game extends Emitter {
     this._resolveContacts(dt);
     this._updateProjectiles(dt);
     this._updateFoods(dt);
-    this._updateInk(dt);
-    this._updateParticles(dt);
-    this._updateFloaters(dt);
+    this.updateEffects(dt);
     this._updateFeatures(dt);
     this._cull(dt);
 
@@ -690,10 +663,6 @@ export class Game extends Emitter {
       }
     }
     this.quests.update(dt);
-    this.shakeAmt = Math.max(0, this.shakeAmt - dt * CFG.camera.shakeDecay);
-    const a = this.rng.angle();
-    this.shakeX = Math.cos(this.globalTime * 60) * this.shakeAmt;
-    this.shakeY = Math.sin(this.globalTime * 71) * this.shakeAmt;
 
     this.stats.playTime += dt;
     this.stats.maxTier = Math.max(this.stats.maxTier, p.tier);
@@ -702,7 +671,9 @@ export class Game extends Emitter {
   _dayLight() {
     // 0 — полночь, 0.5 — полдень
     const t = this.dayPhase;
-    const curve = 0.5 - 0.5 * Math.cos((t - 0.25) * TAU);   // 0 в 0:00, 1 в 12:00
+    // 0 в полночь, 1 в полдень. Раньше здесь стоял сдвиг (t − 0.25): солнце всходило
+    // в 18:00, и утренняя игра шла в темноте, хотя часы показывали утро.
+    const curve = 0.5 - 0.5 * Math.cos(t * TAU);
     const biome = this.biome;
     const bl = { shallows: 1, reef: 0.78, trench: 0.5, abyss: 0.2 }[biome] ?? 1;
     return clamp(0.16 + curve * 0.86 * bl, 0.12, 1);
@@ -859,38 +830,6 @@ export class Game extends Emitter {
     this.foods = this.foods.filter((f) => !f.dead);
   }
 
-  _updateInk(dt) {
-    for (const ink of this.inkClouds) {
-      ink.life -= dt;
-      const d = dist(ink.x, ink.y, this.player.x, this.player.y);
-      if (d < ink.r && this.player.alive) applySlow(this, 0.6, 0.35);
-    }
-    if (this.inkClouds.length) this.inkClouds = this.inkClouds.filter((i) => i.life > 0);
-  }
-
-  _updateFloaters(dt) {
-    for (const f of this.floaters) {
-      f.life -= dt;
-      f.y += f.vy * dt; f.x += f.vx * dt;
-      f.vy *= 1 - 1.2 * dt;
-      if (f.life <= 0) f.dead = true;
-    }
-    this.floaters = this.floaters.filter((f) => !f.dead);
-  }
-
-  _updateParticles(dt) {
-    for (const q of this.particles) {
-      if (q.dead) continue;
-      q.life -= dt;
-      if (q.life <= 0) { q.dead = true; continue; }
-      q.x += q.vx * dt; q.y += q.vy * dt;
-      q.vx *= 1 - 2.2 * dt; q.vy *= 1 - 2.2 * dt;
-      if (q.kind === 'bubble') q.vy -= 22 * dt;
-      if (q.kind === 'goo') q.vx += Math.sin(this.time * 3 + q.x) * 6 * dt;
-    }
-    this.particles = this.particles.filter((q) => !q.dead);
-  }
-
   _updateBiome() {
     const b = this.biome;
     if (b !== this._biome) {
@@ -1034,3 +973,6 @@ export class Game extends Emitter {
     return g;
   }
 }
+
+// Частицы, кольца, всплывающие числа, облака и тряска — общие для обеих стадий.
+Object.assign(Game.prototype, EffectsMethods);

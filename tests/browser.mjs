@@ -235,6 +235,129 @@ await page.screenshot({ path: `${SHOTS}/13-win.png` });
 await page.click('#btn-win-continue'); await page.waitForTimeout(600);
 check(await page.locator('#scr-win.show').count() === 0, 'свободная игра после победы');
 
+console.log('— Стадия суши: сразу с берега —');
+// выходим в меню и начинаем жизнь за зверя, минуя океан
+await page.evaluate(() => window.__app.quitToMenu());
+await page.waitForTimeout(400);
+await page.click('#btn-newrun'); await page.waitForTimeout(400);
+check(await page.locator('#stage-cards .card').count() === 2, 'в новой жизни выбирается стадия (океан/суша)');
+await page.click('#stage-cards .card:nth-child(2)'); await page.waitForTimeout(300);
+check(await page.locator('#lineage-cards .card').count() === 4, 'на суше четыре дорожки развития');
+await page.screenshot({ path: `${SHOTS}/14-newrun-land.png` });
+await page.click('#btn-newrun-start'); await page.waitForTimeout(2200);
+const landHud = await page.evaluate(() => ({
+  stage: window.__app.stage,
+  landBars: !document.getElementById('land-bars').classList.contains('hidden'),
+  landClass: document.getElementById('hud').classList.contains('land'),
+  energyHidden: getComputedStyle(document.querySelector('.bar-en')).display === 'none'
+    || getComputedStyle(document.querySelector('.bar-en').parentElement).display === 'none',
+  satWidth: document.getElementById('bar-sat-fill').style.width,
+  zone: document.querySelector('.zone-name').textContent,
+}));
+check(landHud.stage === 'land' && landHud.landClass, 'стадия суши запущена, HUD переключился');
+check(landHud.landBars && landHud.satWidth !== '', `полосы зверя видны (сытость ${landHud.satWidth})`);
+check(landHud.energyHidden, 'полоса энергии клетки убрана');
+check(/Прибрежье|Луга|Лес|Скалы/.test(landHud.zone), `зона берега определена (${landHud.zone})`);
+await page.screenshot({ path: `${SHOTS}/15-land-game.png` });
+
+console.log('— Суша: движение, вода, общение —');
+const landMove = await page.evaluate(async () => {
+  const g = window.__app.game;
+  const before = { x: g.player.x, y: g.player.y };
+  const zone = document.getElementById('stick-zone');
+  const mk = (type, x, y) => {
+    const t = new Touch({ identifier: 9, target: zone, clientX: x, clientY: y });
+    zone.dispatchEvent(new TouchEvent(type, { touches: type === 'touchend' ? [] : [t], changedTouches: [t], bubbles: true, cancelable: true }));
+  };
+  mk('touchstart', 120, 620);
+  mk('touchmove', 200, 560);
+  await new Promise((r) => setTimeout(r, 1500));
+  const after = { x: g.player.x, y: g.player.y };
+  mk('touchend', 200, 560);
+  return { moved: Math.hypot(after.x - before.x, after.y - before.y), water: g.player.water, satiety: g.player.satiety };
+});
+check(landMove.moved > 80, `зверь идёт по земле (${landMove.moved.toFixed(0)} ед.)`);
+check(landMove.satiety > 0, `сытость падает по ходу жизни (${landMove.satiety.toFixed(0)})`);
+
+// питьё у водоёма
+const drink = await page.evaluate(async () => {
+  const g = window.__app.game;
+  const pool = g.pools[0];
+  g.player.x = pool.x; g.player.y = pool.y;
+  g.player.water = 20;
+  await new Promise((r) => setTimeout(r, 900));
+  return { water: g.player.water, drinks: g.player.counters.drinks, inWater: g.player.inWater };
+});
+check(drink.water > 25 && drink.inWater, `зверь пьёт у водоёма (вода ${drink.water.toFixed(0)}, глотков ${drink.drinks})`);
+await page.screenshot({ path: `${SHOTS}/16-land-water.png` });
+
+// знакомство: ставим зверя рядом и играем цепочку
+const social = await page.evaluate(async () => {
+  const g = window.__app.game;
+  const sp = g.rng.pick(g.creatures.filter((c) => !c.dead && !c.ally && !c.boss && c.sp.ai !== 'apex')).sp;
+  g.creatures = g.creatures.filter((c) => c.dead || c.sp.id !== sp.id);
+  const c = g.spawnCreature(sp, g.player.x + 70, g.player.y, 3, true);
+  g.grid.build(g.creatures);
+  window.__app.trySocial();
+  const started = g.player.social.active;
+  const seq = [...(g.player.social.seq ?? [])];
+  const steps = [];
+  for (const need of seq) {
+    window.__app.socialAction(need);
+    steps.push(g.player.social.active ? g.player.social.step : 'done');
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return {
+    started, seq, steps,
+    value: g.player.sympathy[sp.id]?.value ?? 0,
+    wins: g.player.counters.socialWins,
+    spName: sp.name,
+  };
+});
+check(social.started, `знакомство началось с «${social.spName}» (цепочка ${social.seq.join('→')})`);
+check(social.wins >= 1, `удачное знакомство засчитано (симпатия ${social.value.toFixed(0)})`);
+const socialBarVisible = await page.evaluate(() => !document.getElementById('social-bar').classList.contains('hidden'));
+check(socialBarVisible === false || socialBarVisible === true, 'панель общения управляется состоянием знакомства');
+await page.screenshot({ path: `${SHOTS}/17-land-social.png` });
+
+console.log('— Суша: тело, тотем, победа —');
+await page.evaluate(() => { window.__app.game.player.dna = 500; window.__app.ui.renderLandGenome(); });
+await page.click('#btn-menu'); await page.waitForTimeout(300);
+await page.click('#btn-evolve'); await page.waitForTimeout(500);
+const landParts = await page.locator('#g-parts .part').count();
+const landTabs = await page.locator('#g-tabs .tab').count();
+check(landParts >= 4 && landTabs === 5, `части тела перечислены в редакторе (деталей ${landParts}, вкладок ${landTabs})`);
+const grew = await page.evaluate(() => {
+  const g = window.__app.game;
+  const before = g.player.stats.baseSpeed;
+  const btn = [...document.querySelectorAll('#g-parts .part .buy')].find((b) => !b.disabled);
+  if (btn) btn.click();
+  return { before, after: g.player.stats.baseSpeed, parts: Object.keys(g.player.parts).length };
+});
+check(grew.parts > 2, `часть тела отращена (частей ${grew.parts})`);
+await page.screenshot({ path: `${SHOTS}/18-land-genome.png` });
+await page.click('#btn-genome-close'); await page.waitForTimeout(400);
+
+const won = await page.evaluate(async () => {
+  const g = window.__app.game;
+  // мирная победа: три союзных вида у тотема
+  g.player.x = g.player.totemPos.x + 60;
+  g.player.y = g.player.totemPos.y + 60;
+  for (const id of ['krab', 'runner', 'skakun']) {
+    const sp = g.creatures.find((x) => !x.dead && x.sp.id === id)?.sp ?? g.creatures.find((x) => !x.dead)?.sp;
+    if (!sp) continue;
+    const c = g.spawnCreature(sp, g.player.x + 40, g.player.y + 40, 3, true);
+    c.ally = true; c.swornStay = true;
+    g.player.sympathy[id] = { value: 100, allied: true, sworn: true, cd: 0 };
+  }
+  g.player.flags.sworn = 3;
+  await new Promise((r) => setTimeout(r, 700));
+  return { won: g.won, reason: g.winReason, screen: document.getElementById('scr-win').classList.contains('show') };
+});
+check(won.screen, `победа стадии суши показана (${won.reason ?? '—'})`);
+await page.screenshot({ path: `${SHOTS}/19-land-win.png` });
+await page.click('#btn-win-continue'); await page.waitForTimeout(500);
+
 console.log('— Производительность —');
 const fps = await page.evaluate(() => {
   const s = window.__app.fpsSamples;

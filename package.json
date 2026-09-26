@@ -7,9 +7,11 @@
   "scripts": {
     "serve": "python3 -m http.server 8080 --bind 0.0.0.0",
     "test": "node tests/smoke.mjs",
+    "test:land": "node tests/land.mjs",
     "test:balance": "node tests/balance.mjs",
     "test:control": "node tests/control.mjs",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs",
+    "test:all": "node tests/smoke.mjs && node tests/land.mjs && node tests/control.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0"

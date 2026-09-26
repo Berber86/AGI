@@ -1,13 +1,16 @@
 // main.js — сборка приложения: профиль, звук, ввод, рендер, интерфейс, игровой цикл.
 
-import { CFG } from './config.js';
+import { CFG, LAND_PATHS } from './config.js';
 import { Game as World } from './core.js';
-import { Meta, MILESTONES } from './meta.js';
+import { LandGame } from './landcore.js';
+import { Meta, MILESTONES, ALL_MILESTONES } from './meta.js';
 import { Renderer } from './render.js';
+import { LandRenderer } from './landrender.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
 import { UI } from './ui.js';
 import { canCallAlly, callAlly, recomputeStats, lineageById } from './player.js';
+import { recomputeLandStats, landPathById, landDifficultyById, landSummary } from './landplayer.js';
 import { clamp, dist } from './util.js';
 
 class App {
@@ -16,6 +19,7 @@ class App {
     this.audio = new Audio();
     this.input = new Input();
     this.state = 'load';          // load | menu | playing | paused | dead | win
+    this.stage = 'ocean';         // активная стадия: ocean | land
     this.game = null;
     this.fpsSamples = [];
     this.autoQualityChecked = false;
@@ -85,15 +89,17 @@ class App {
     const m = this.meta;
     document.getElementById('btn-continue').disabled = !m.hasRun();
     document.getElementById('codex-count').textContent = `${m.codexSet.size}`;
-    document.getElementById('ms-count').textContent = `${m.achSet.size}/${MILESTONES.length}`;
+    document.getElementById('ms-count').textContent = `${m.achSet.size}/${ALL_MILESTONES.length}`;
     const st = m.data.stats;
+    const beach = st.beachReached ? ' · Берег: да' : '';
     document.getElementById('best-line').textContent =
-      `Жизней: ${st.runs} · Побед: ${st.wins} · Лучший размер: ${st.bestTier} · Глобальная ДНК: ${Math.round(m.data.dna)}`;
+      `Жизней: ${st.runs} · Побед: ${st.wins} · Лучший размер: ${st.bestTier}${beach} · Глобальная ДНК: ${Math.round(m.data.dna)}`;
   }
 
   applySettings() {
     this.renderer.settings = this.meta.settings;
     this.renderer.resize();
+    if (this.activeRenderer) this.activeRenderer.settings = this.meta.settings;
     this.audio.setEnabled(this.meta.settings.audio);
     this.audio.setMusic(this.meta.settings.music);
     this.input.autoBite = !!this.meta.settings.autoBite;
@@ -122,9 +128,14 @@ class App {
     return game;
   }
 
-  startNewRun(lineage, difficulty) {
-    const game = this.buildWorld({ lineage, difficulty });
+  // Старт новой жизни: стадию выбирает игрок, дальше всё одинаково.
+  startNewRun(sel) {
+    const opts = typeof sel === 'string' ? { lineage: sel } : (sel ?? {});
+    if (opts.stage === 'land') return this.startLandRun(opts);
+    const lineage = opts.lineage ?? 'omni';
+    const game = this.buildWorld({ lineage, difficulty: opts.difficulty ?? 'normal' });
     this.deathsThisRun = 0;
+    this.meta.beginRun();
     this.attachGame(game);
     this.state = 'playing';
     this.enterWorld();
@@ -134,16 +145,82 @@ class App {
     setTimeout(() => this.ui.showHint('Зелёные и золотые частицы подтягиваются к мембране — это работа ваших органелл, а не магнит в мире.', 'magnet', 8000), 12000);
   }
 
+  buildLandWorld(opts) {
+    const game = new LandGame({
+      settings: this.meta.settings,
+      meta: this.meta,
+      difficulty: opts.difficulty ?? 'normal',
+      path: opts.path ?? LAND_PATHS[0].id,
+      seed: opts.seed ?? (Date.now() % 100000) + 3,
+      deathCount: this.deathsThisRun,
+      fromCell: opts.fromCell ?? null,
+    });
+    const up = this.meta.data.upgrades;
+    game.player.dna += (up.startDna ?? 0) * 12;      // наследие вида работает и на суше
+    if (up.hardy) {
+      game.player.parts.hide = Math.max(game.player.parts.hide ?? 0, up.hardy);
+      recomputeLandStats(game.player);
+      game.player.hp = game.player.maxHp;
+    }
+    return game;
+  }
+
+  startLandRun(opts) {
+    const path = opts.path ?? LAND_PATHS[0].id;
+    const game = this.buildLandWorld({ path, difficulty: opts.difficulty, fromCell: opts.fromCell });
+    this.deathsThisRun = 0;
+    this.meta.beginRun();
+    this.attachGame(game);
+    this.state = 'playing';
+    this.enterWorld();
+    this.audio.unlock();
+    const p = landPathById(path);
+    this.ui.toast(`На берегу: ${p.name}`, 'good');
+    this.ui.showHint('Держи палец на экране — зверь бежит за пальцем. Кнопка рывка с зажатием даёт бег.', 'land_start', 9000);
+    setTimeout(() => this.ui.showHint('Полоска «Вода» падает всегда: ищи синие пятна водоёмов и пей.', 'land_water', 8000), 11000);
+    setTimeout(() => this.ui.showHint('Подойди к зверю и нажми «Общение»: у каждого вида свои любимые действия.', 'land_social', 9000), 22000);
+  }
+
+  // Переход из океана на берег: наследие стадии клетки переносится в новую жизнь.
+  landingFromCell() {
+    const prev = this.game;
+    const carry = prev ? {
+      tier: prev.player.tier,
+      lineage: prev.player.lineage,
+      relicGenes: prev.player.relicGenes ?? 0,
+      parts: { ...prev.player.parts },
+    } : null;
+    if (carry) {
+      this.meta.data.stats.beachReached = true;
+      this.meta.addDna(40);       // за сам переход
+      this.meta.save();
+    }
+    this.startLandRun({ path: this.pickLandPath(carry), difficulty: prev?.difficulty ?? 'normal', fromCell: carry });
+    this.ui.toast('Вид выходит на берег: океан позади', 'gold');
+    if (carry?.relicGenes) this.ui.toast(`Древние гены дают +${Math.min(60, carry.tier * 5)} ДНК на новом берегу`, 'good');
+  }
+
+  // Дорожка суши подбирается по тому, кем вид был в воде.
+  pickLandPath(carry) {
+    const lin = carry?.lineage;
+    if (lin === 'carn') return 'predator';
+    if (lin === 'herb') return 'grazer';
+    if (lin === 'symb') return 'social';
+    return LAND_PATHS[0].id;
+  }
+
   continueRun() {
     const data = this.meta.data.save;
     if (!data) return;
     try {
-      const game = World.deserialize(data, { settings: this.meta.settings, meta: this.meta, difficulty: data.difficulty });
+      const Ctor = data.stage === 'land' ? LandGame : World;
+      const game = Ctor.deserialize(data, { settings: this.meta.settings, meta: this.meta, difficulty: data.difficulty });
       this.deathsThisRun = 0;
+      this.meta.beginRun();
       this.attachGame(game);
       this.state = 'playing';
       this.enterWorld();
-      this.ui.toast('Погружение продолжается', 'good');
+      this.ui.toast(data.stage === 'land' ? 'Зверь продолжает путь' : 'Погружение продолжается', 'good');
     } catch (e) {
       console.error(e);
       this.ui.toast('Сохранение повреждено', 'bad');
@@ -152,18 +229,31 @@ class App {
   }
 
   enterWorld() {
-    for (const el of document.querySelectorAll('.screen')) el.classList.remove('show');
+    this.ui.hideAll();
     document.getElementById('hud').classList.remove('hidden');
   }
 
   attachGame(game) {
     this.game = game;
+    this.stage = game.stage ?? 'ocean';
+    this.appRenderer = this.renderer;
+    this.renderer = this.pickRenderer(this.stage);
     this.ui.bindGame(game);
     this.lastMilestoneCheck = 0;
     this.autosaveT = 0;
     // камера сразу на игроке, чтобы не было рывка
     this.renderer.cam.x = game.player.x;
     this.renderer.cam.y = game.player.y;
+  }
+
+  // Рендерер по стадии: вода и суша рисуют по-разному, но контракт один.
+  pickRenderer(stage) {
+    if (stage === 'land') {
+      this.landRenderer ??= new LandRenderer(document.getElementById('world'), this.meta.settings);
+      return this.landRenderer;
+    }
+    this.waterRenderer ??= new Renderer(document.getElementById('world'), this.meta.settings);
+    return this.waterRenderer;
   }
 
   pause() {
@@ -203,6 +293,11 @@ class App {
     const p = this.game?.player;
     if (!p) return;
     if (this.state !== 'playing') return;
+    if (this.stage === 'land') {
+      const res = this.game.useAbility();
+      if (!res.ok && res.why) this.ui.toast(res.why, 'bad');
+      return;
+    }
     if (!p.stats.abilityId) {
       this.ui.toast('Активной способности нет. Её дают мутации: токсины, звуковой орган, электроциты, реактивный сифон, хроматофоры.', 'bad');
       return;
@@ -214,6 +309,7 @@ class App {
   nestAction() {
     const game = this.game;
     if (!game || this.state !== 'playing') return;
+    if (this.stage === 'land') return this.totemAction();
     const p = game.player;
     const d = dist(p.x, p.y, p.nestPos.x, p.nestPos.y);
     if (d < 320) { this.openGenome(); return; }
@@ -230,6 +326,53 @@ class App {
     p.dna -= cost;
     p.cooldowns.nest = 40;
     this.teleportToNest();
+  }
+
+  // Тотемы суши: рядом — редактор тела и отдых до утра, далеко — дорога домой.
+  totemAction() {
+    const game = this.game;
+    const p = game.player;
+    const d = dist(p.x, p.y, p.totemPos.x, p.totemPos.y);
+    if (d < 340) {
+      const rest = game.restAtTotem();
+      if (rest.ok) return;
+      if (p.hp < p.maxHp * 0.75 || game.lightLevel < 0.45) this.ui.toast(rest.why, '');
+      this.openGenome();
+      return;
+    }
+    if (p.cooldowns.totem > 0) { this.ui.toast(`Тотем: перезарядка ${Math.ceil(p.cooldowns.totem)} с`, ''); return; }
+    const cost = p.tier <= 2 ? 0 : 12;
+    if (p.dna < cost) { this.ui.toast(`Дорога к тотему стоит ${cost} ДНК`, 'bad'); return; }
+    p.dna -= cost;
+    p.cooldowns.totem = 40;
+    for (let i = 0; i < 22; i++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * 120;
+      game.spawnParticle(p.x + Math.cos(a) * r, p.y + Math.sin(a) * r, 'leaf', '#bfe6a0', 3, 0, -30, 1.2);
+    }
+    p.x = p.totemPos.x + (Math.random() - 0.5) * 160;
+    p.y = p.totemPos.y + (Math.random() - 0.5) * 160;
+    p.vx = 0; p.vy = 0;
+    p.invuln = 1.4;
+    this.renderer.cam.x = p.x; this.renderer.cam.y = p.y;
+    game.spawnRing(p.x, p.y, 90, '#9fe6a0');
+    this.ui.toast('Ты у тотема: можно отрастить части тела или поспать', 'good');
+  }
+
+  // Общение (стадия суши)
+  trySocial() {
+    const game = this.game;
+    if (!game || this.stage !== 'land' || this.state !== 'playing') return;
+    const c = game.nearestCreature(game.player.x, game.player.y, CFG.land.social.startRadius + 40, (o) => !o.dead && !o.ally && !o.boss);
+    if (!c) { this.ui.toast('Рядом нет зверя, с которым можно познакомиться', 'bad'); return; }
+    const res = game.trySocial(c);
+    if (!res.ok) this.ui.toast(res.why ?? 'Не получилось', 'bad');
+  }
+
+  socialAction(action) {
+    const game = this.game;
+    if (!game || this.stage !== 'land') return;
+    if (!game.player.social.active) { this.trySocial(); return; }
+    game.socialAction(action);
   }
 
   teleportToNest() {
@@ -249,30 +392,41 @@ class App {
 
   respawn() {
     const game = this.game, p = game.player;
+    const land = this.stage === 'land';
     const loss = [CFG.dna.respawnDnaLoss, 0.35, 0.45][Math.min(this.deathsThisRun, 2)];
     p.dna = Math.floor(p.dna * (1 - loss));
     p.biomass *= (1 - CFG.dna.respawnBiomassLoss);
     p.hp = p.maxHp;
-    p.energy = p.maxEnergy;
     p.alive = true;
-    p.poison.t = 0; p.slow.t = 0; p.stun = 0;
     p.invuln = 3;
-    p.x = p.nestPos.x + (Math.random() - 0.5) * 100;
-    p.y = p.nestPos.y + (Math.random() - 0.5) * 100;
     p.vx = 0; p.vy = 0;
+    if (land) {
+      p.satiety = p.maxSatiety * 0.6;
+      p.water = p.maxWater * 0.6;
+      p.stamina = p.maxStamina;
+      p.bleed.t = 0; p.poison.t = 0; p.slow.t = 0;
+      p.x = p.totemPos.x + (Math.random() - 0.5) * 180;
+      p.y = p.totemPos.y + (Math.random() - 0.5) * 180;
+    } else {
+      p.energy = p.maxEnergy;
+      p.poison.t = 0; p.slow.t = 0; p.stun = 0;
+      p.x = p.nestPos.x + (Math.random() - 0.5) * 100;
+      p.y = p.nestPos.y + (Math.random() - 0.5) * 100;
+    }
     this.deathsThisRun++;
     this.renderer.cam.x = p.x; this.renderer.cam.y = p.y;
     this.state = 'playing';
     this.enterWorld();
-    this.ui.toast('Новая мембрана выросла в гнезде', 'good');
+    this.ui.toast(land ? 'Зверь очнулся у тотема' : 'Новая мембрана выросла в гнезде', 'good');
   }
 
   onDeath(stats) {
     const game = this.game;
     this.state = 'dead';
     this.audio.play('death');
-    // теряем незафиксированные реликтовые гены — их нужно донести до гнезда
-    const canRespawn = !game.boss && this.deathsThisRun < 3;
+    // в бою с владыкой стадии возрождения нет — только новая жизнь
+    const boss = game.boss ?? game.tyrant;
+    const canRespawn = !boss && this.deathsThisRun < 3;
     this.meta.save();
     this.ui.renderDeath(stats, canRespawn, this.deathsThisRun);
     this.ui.show('scr-dead');
@@ -285,8 +439,12 @@ class App {
     const before = this.meta.data.dna;
     this.meta.onRunEnd(this.game, { won: true });
     const gain = this.meta.data.dna - before;
+    const land = this.stage === 'land';
+    this.meta.data.stats.beachReached = this.meta.data.stats.beachReached || land;
+    this.meta.save();
     this.game.freePlay = true;
     if (this.game.boss) { this.game.boss.dead = true; this.game.boss = null; }
+    if (this.game.tyrant) { this.game.tyrant.dead = true; this.game.tyrant = null; }
     this.meta.clearRun();
     this.ui.renderWin(stats, gain, this.game.winReason ?? 'boss');
     this.ui.show('scr-win');
@@ -295,8 +453,9 @@ class App {
 
   continueAfterWin() {
     this.state = 'playing';
+    this.meta.beginRun();
     this.enterWorld();
-    this.ui.toast('Свободная игра: океан остаётся твоим', 'good');
+    this.ui.toast(this.stage === 'land' ? 'Свободная игра: берег остаётся твоим' : 'Свободная игра: океан остаётся твоим', 'good');
   }
 
   // =============== игровой цикл ===============
@@ -345,7 +504,8 @@ class App {
         this.radarT = 0;
         this.renderer.drawRadar(document.getElementById('radar'), this.game);
       }
-      const intensity = this.game.boss ? 1 : this.game.event ? 0.7 : 0.4;
+      const boss = this.game.boss ?? this.game.tyrant;
+      const intensity = boss ? 1 : this.game.event ? 0.7 : 0.4;
       this.audio.updateMusic(dt, intensity);
     }
     this.previewT += dt;
@@ -362,6 +522,12 @@ class App {
     if (this.game.time - this.lastMilestoneCheck < 1) return;
     this.lastMilestoneCheck = this.game.time;
     const fresh = this.meta.newMilestones(this.game);
+    if (this.stage === 'land') {
+      const p = this.game.player;
+      if (this.game.event?.id === 'drought' && this.game.events.current?.goalDone) p.flags.droughtSurvived = true;
+      if (this.game.raining && p.counters.drinks > 0) p.flags.rainDrunk = true;
+      if (this.game.lightLevel < 0.35 && p.runTime > 20) p.flags.nightSurvived = true;
+    }
     for (const m of fresh) {
       this.audio.play('quest');
       this.ui.toast(`★ ${m.name} · +${m.reward} глобальной ДНК`, 'gold');

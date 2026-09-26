@@ -170,6 +170,9 @@ export class ValueNoise {
 
 // Цвета: смешение hex-строк.
 export function mixHex(a, b, t) {
+  // t зажимается в [0,1]: иначе канал уходит за 255, и «hex» получается битым
+  // (#11104ff) — canvas такой цвет молча не принимает, а рисование падает.
+  t = clamp(t, 0, 1);
   const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
   const r = Math.round(lerp((pa >> 16) & 255, (pb >> 16) & 255, t));
   const g = Math.round(lerp((pa >> 8) & 255, (pb >> 8) & 255, t));

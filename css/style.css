@@ -420,3 +420,44 @@ button.big b { color: var(--gold); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* ================= Стадия суши ================= */
+/* Ресурсы зверя: сытость, вода, силы */
+.land-bars { display: none; flex-direction: column; gap: 4px; }
+#hud.land #land-bars { display: flex; }
+/* прячем полосы энергии и роста: у зверя вместо них сытость, вода и силы */
+#hud.land .hud-bars > .bar-row:nth-child(2),
+#hud.land .hud-bars > .bar-row:nth-child(3) { display: none; }
+.bar-sat i { background: linear-gradient(90deg, #ffd08a, #ff8f5c); }
+.bar-wat i { background: linear-gradient(90deg, #9fe6ff, #4fb8f0); }
+.bar-sta i { background: linear-gradient(90deg, #d8ff9f, #9fe66b); }
+.ico-sat { color: #ffcf8a; }
+.ico-wat { color: #9fe6ff; }
+.ico-sta { color: #d8ff9f; }
+
+/* Панель общения: появляется, когда идёт знакомство */
+.social-bar {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--safe-b) + 96px); width: min(94vw, 420px);
+  background: rgba(6, 20, 30, 0.82); border: 1px solid var(--line); border-radius: 14px;
+  padding: 7px 9px; pointer-events: auto; backdrop-filter: blur(6px);
+  display: flex; flex-direction: column; gap: 6px; z-index: 4;
+}
+.social-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.72rem; }
+#social-species { color: var(--acc); font-weight: 600; }
+#social-timer { color: var(--muted); font-size: 0.66rem; }
+.social-actions { display: flex; gap: 6px; }
+.sact {
+  flex: 1 1 0; min-width: 0; border: 1px solid rgba(126, 232, 255, 0.25);
+  background: radial-gradient(circle at 40% 30%, rgba(30, 90, 120, 0.75), rgba(6, 28, 42, 0.85));
+  color: var(--txt); border-radius: 12px; padding: 6px 2px;
+  display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 0.62rem;
+}
+.sact b { font-size: 1rem; line-height: 1.05; }
+.sact.want { border-color: rgba(159, 230, 160, 0.85); box-shadow: 0 0 12px rgba(159, 230, 160, 0.35); }
+.sact.bad { opacity: 0.55; }
+.sact:active { transform: scale(0.96); }
+
+/* Выбор стадии в меню новой жизни */
+#stage-cards .card h4 { font-size: 0.9rem; }
+#stage-cards .card p { font-size: 0.72rem; }

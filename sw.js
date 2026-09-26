@@ -1,11 +1,15 @@
 // sw.js — офлайн-кэш: игра работает без сети после первого запуска.
-const CACHE = 'primordial-ocean-v2';
+const CACHE = 'primordial-ocean-v3';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon.svg', './css/style.css',
   './js/main.js', './js/core.js', './js/config.js', './js/parts.js', './js/species.js',
   './js/cellrender.js', './js/render.js', './js/ui.js', './js/player.js', './js/ai.js',
   './js/events.js', './js/quests.js', './js/meta.js', './js/audio.js', './js/input.js',
   './js/util.js',
+  // вторая стадия: выход на сушу
+  './js/effects.js', './js/landcore.js', './js/landplayer.js', './js/landparts.js',
+  './js/landspecies.js', './js/landcreature.js', './js/landai.js', './js/landevents.js',
+  './js/landquests.js', './js/landrender.js',
 ];
 
 self.addEventListener('install', (e) => {

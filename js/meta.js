@@ -31,6 +31,30 @@ export const MILESTONES = [
   { id: 'ms_win', name: 'Стадия пройдена', desc: 'Донести три древних гена в гнездо.', reward: 120, cond: (g) => g.won },
 ];
 
+
+// Достижения стадии суши. Часть из них открывает новые части тела и дорожки развития —
+// ровно так же, как подводные достижения открывают органеллы и родословную «Симбионт».
+export const LAND_MILESTONES = [
+  { id: 'land_first_step', name: 'Первый шаг', desc: 'Съесть первый плод на земле.', reward: 12, stage: 'land', cond: (g) => (g.player.counters.fruits ?? 0) >= 1 },
+  { id: 'land_armor', name: 'Костяной панцирь', desc: 'Съесть 10 древних костей. Открывает костяные пластины.', reward: 26, stage: 'land', cond: (g) => (g.player.counters.bones ?? 0) >= 10 },
+  { id: 'land_grow5', name: 'Крупный зверь', desc: 'Достичь пятого размера на суше.', reward: 40, stage: 'land', cond: (g) => g.player.tier >= 5 },
+  { id: 'land_titan', name: 'Титан', desc: 'Достичь восьмого размера. Открывает дорожку «Титан».', reward: 70, stage: 'land', cond: (g) => g.player.tier >= 8 },
+  { id: 'land_drink', name: 'Не забывай пить', desc: 'Напиться у водоёма 10 раз.', reward: 20, stage: 'land', cond: (g) => (g.player.counters.drinks ?? 0) >= 10 },
+  { id: 'land_drought', name: 'Сквозь засуху', desc: 'Пережить засуху с водой в теле.', reward: 30, stage: 'land', cond: (g) => !!g.player.flags.droughtSurvived },
+  { id: 'land_rain', name: 'Дождевая вода', desc: 'Напиться под дождём.', reward: 18, stage: 'land', cond: (g) => !!g.player.flags.rainDrunk },
+  { id: 'land_night', name: 'Ночной зверь', desc: 'Провести ночь на земле.', reward: 24, stage: 'land', cond: (g) => !!g.player.flags.nightSurvived },
+  { id: 'land_social1', name: 'Язык зверей', desc: 'Провести первое удачное знакомство.', reward: 22, stage: 'land', cond: (g) => (g.player.counters.socialWins ?? 0) >= 1 },
+  { id: 'land_social10', name: 'Посол', desc: 'Провести 10 удачных знакомств.', reward: 45, stage: 'land', cond: (g) => (g.player.counters.socialWins ?? 0) >= 10 },
+  { id: 'land_ally', name: 'Первая стая', desc: 'Завести первый союзный вид.', reward: 40, stage: 'land', cond: (g) => Object.values(g.player.sympathy ?? {}).some((s) => s.allied) },
+  { id: 'land_ally3', name: 'Вожак', desc: 'Завести три союзных вида.', reward: 60, stage: 'land', cond: (g) => Object.values(g.player.sympathy ?? {}).filter((s) => s.allied).length >= 3 },
+  { id: 'land_sworn', name: 'Клятва стаи', desc: 'Привести три союзных вида к тотему — победа без крови.', reward: 130, stage: 'land', cond: (g) => g.won && g.winReason === 'sworn' },
+  { id: 'land_tyrant', name: 'Конец владыки', desc: 'Убить Ящера-владыку.', reward: 130, stage: 'land', cond: (g) => !!g.player.flags.tyrantKilled },
+  { id: 'land_glide', name: 'Планер', desc: 'Воспользоваться планированием 5 раз. Открывает крылья.', reward: 34, stage: 'land', cond: (g) => (g.player.counters.glides ?? 0) >= 5 },
+  { id: 'land_eggs', name: 'Гнездокрад', desc: 'Утащить 5 яиц из кладок.', reward: 28, stage: 'land', cond: (g) => (g.player.counters.eggs ?? 0) >= 5 },
+  { id: 'land_pacifist', name: 'Мирный зверь', desc: 'Достичь пятого размера, не убив ни одного зверя.', reward: 60, stage: 'land', cond: (g) => g.player.tier >= 5 && g.player.counters.kills === 0 },
+  { id: 'land_storm', name: 'Хозяин скал', desc: 'Побывать в скалах.', reward: 16, stage: 'land', cond: (g) => !!g.player.flags.visitedRock },
+];
+
 const DEFAULT_SETTINGS = {
   quality: 'medium',
   audio: true,
@@ -43,6 +67,8 @@ const DEFAULT_SETTINGS = {
   leftHanded: false,
   screenShake: true,
 };
+
+export const ALL_MILESTONES = [...MILESTONES, ...LAND_MILESTONES];
 
 export class Meta {
   constructor() {
@@ -72,7 +98,9 @@ export class Meta {
 
   newMilestones(game) {
     const out = [];
-    for (const m of MILESTONES) {
+    // достижения суши проверяются только в стадии суши и наоборот: условия разные
+    const pool = game.stage === 'land' ? LAND_MILESTONES : MILESTONES;
+    for (const m of pool) {
       if (this.achSet.has(m.id)) continue;
       let ok = false;
       try { ok = m.cond(game); } catch { ok = false; }
@@ -83,6 +111,9 @@ export class Meta {
   }
 
   onRunEnd(game, { won }) {
+    // Итог жизни подводится ровно один раз: движок и интерфейс зовут этот метод оба.
+    if (this._runEnded) return;
+    this._runEnded = true;
     const p = game.player;
     const st = this.data.stats;
     st.runs++;
@@ -91,13 +122,16 @@ export class Meta {
     st.bestTime = Math.max(st.bestTime, p.runTime);
     st.totalKills += p.counters.kills;
     if (!won) st.deaths++;
-    // за жизнь тоже платят: реликтовые гены и рост
-    this.addDna(p.relicGenes * 12 + p.tier * 3 + (won ? 60 : 0) + Math.floor(p.counters.kills / 6));
+    // за жизнь тоже платят: древние гены (в океане), присягнувшие виды (на суше) и рост
+    const relics = p.relicGenes ?? p.flags?.sworn ?? 0;
+    this.addDna(relics * 12 + p.tier * 3 + (won ? 60 : 0) + Math.floor(p.counters.kills / 6));
     this.data.save = null;
     this.save();
   }
 
   // -------- Внутрисессионное сохранение («Продолжить погружение») --------
+  beginRun() { this._runEnded = false; }
+
   saveRun(game) {
     try {
       this.data.save = game.serialize();

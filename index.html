@@ -37,9 +37,9 @@
       </div>
     </div>
 
-    <!-- Полоса здоровья Левиафана -->
+    <!-- Полоса здоровья владыки стадии -->
     <div class="boss-bar hidden" id="boss-bar">
-      <div class="name">ЛЕВИАФАН РЕЛИКТОВЫЙ</div>
+      <div class="name" id="boss-name">ЛЕВИАФАН РЕЛИКТОВЫЙ</div>
       <div class="track"><i id="boss-hp-fill" style="width:100%"></i></div>
     </div>
 
@@ -64,6 +64,21 @@
       </div>
       <div class="chip-row">
         <span class="chip chip-diet" id="diet-chip">Всеяден</span>
+      </div>
+      <!-- Ресурсы суши: сытость, вода, силы -->
+      <div id="land-bars" class="land-bars">
+        <div class="bar-row">
+          <span class="bar-ico ico-sat">◍</span>
+          <div class="bar bar-sat"><i id="bar-sat-fill"></i><b id="bar-sat-txt">Сытость</b></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-ico ico-wat">≋</span>
+          <div class="bar bar-wat"><i id="bar-wat-fill"></i><b id="bar-wat-txt">Вода</b></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-ico ico-sta">✦</span>
+          <div class="bar bar-sta"><i id="bar-sta-fill"></i><b id="bar-sta-txt">Силы</b></div>
+        </div>
       </div>
     </div>
 
@@ -100,6 +115,17 @@
           <span class="act-ico">◉</span><span class="act-name">Гнездо</span>
           <i class="act-cd" id="nest-cd"></i>
         </button>
+      </div>
+    </div>
+
+    <!-- Общение (стадия суши): выбранный вид и четыре действия -->
+    <div id="social-bar" class="social-bar hidden">
+      <div class="social-head"><span id="social-species">—</span><span id="social-timer"></span></div>
+      <div class="social-actions">
+        <button class="sact" data-action="sing"><b>♪</b><span>Пение</span></button>
+        <button class="sact" data-action="dance"><b>♫</b><span>Танец</span></button>
+        <button class="sact" data-action="pose"><b>✋</b><span>Поза</span></button>
+        <button class="sact" data-action="groom"><b>♥</b><span>Ласка</span></button>
       </div>
     </div>
 
@@ -143,7 +169,9 @@
     <section class="screen" id="scr-newrun">
       <div class="panel wide">
         <h2>Новая жизнь</h2>
-        <p class="muted">Родословная определяет стартовые органеллы и доступные мутации.</p>
+        <h3>Стадия</h3>
+        <div class="cards small" id="stage-cards"></div>
+        <p class="muted" id="stage-desc">Родословная определяет стартовые органеллы и доступные мутации.</p>
         <div class="cards" id="lineage-cards"></div>
         <h3>Среда</h3>
         <div class="cards small" id="difficulty-cards"></div>
@@ -230,6 +258,7 @@
         <div class="btn-col">
           <button class="big primary" id="btn-resume">Продолжить</button>
           <button class="big" id="btn-evolve">Мутировать · геном</button>
+          <button class="big hidden" id="btn-social">Общение (суша)</button>
           <button class="big" id="btn-pause-codex">Бестиарий</button>
           <button class="big" id="btn-pause-missions">Задания</button>
           <button class="big" id="btn-pause-settings">Настройки</button>
@@ -242,7 +271,7 @@
     <section class="screen" id="scr-missions">
       <div class="panel wide">
         <div class="row-between">
-          <h2>Задания океана</h2>
+          <h2 id="missions-title">Задания океана</h2>
           <button class="icon-btn" data-close="scr-missions">✕</button>
         </div>
         <div class="missions" id="missions-list"></div>
@@ -261,10 +290,11 @@
     <!-- Победа стадии -->
     <section class="screen" id="scr-win">
       <div class="panel wide">
-        <h2 class="good">Стадия клетки пройдена</h2>
+        <h2 class="good" id="win-title">Стадия клетки пройдена</h2>
         <div id="win-body"></div>
         <div class="btn-col">
-          <button class="big primary" id="btn-win-continue">Остаться в океане (свободная игра)</button>
+          <button class="big primary hidden" id="btn-win-land">Выйти на сушу ›</button>
+          <button class="big primary" id="btn-win-continue">Остаться в воде (свободная игра)</button>
           <button class="big ghost" id="btn-win-menu">В меню</button>
         </div>
       </div>
