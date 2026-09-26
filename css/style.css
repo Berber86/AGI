@@ -139,19 +139,30 @@ body { touch-action: none; user-select: none; -webkit-user-select: none; }
   position: absolute; left: 0; right: 0; bottom: 0;
   height: calc(46vh + var(--safe-b)); pointer-events: none;
 }
-.stick-zone { position: absolute; left: 0; bottom: 0; width: 58%; height: 100%; touch-action: none; }
+.stick-zone {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 58%;
+  touch-action: none; z-index: 1;
+}
 .stick-base {
   position: absolute; width: 116px; height: 116px; border-radius: 50%;
   background: radial-gradient(circle, rgba(79, 227, 193, 0.14), rgba(79, 227, 193, 0.03) 70%, transparent);
   border: 1px solid rgba(126, 232, 255, 0.28); transform: translate(-50%, -50%);
 }
+/* мёртвая зона: внутри неё клетка не двигается (гасит дрожание пальца) */
+.stick-base::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: calc(var(--dz, 8px) * 2); height: calc(var(--dz, 8px) * 2);
+  margin: calc(var(--dz, 8px) * -1) 0 0 calc(var(--dz, 8px) * -1);
+  border-radius: 50%; border: 1px dashed rgba(126, 232, 255, 0.35);
+}
 .stick-knob {
-  position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px;
+  position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  transform: scale(0.9);
   border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgba(210, 255, 250, 0.95), rgba(79, 227, 193, 0.55));
   box-shadow: 0 0 18px rgba(79, 227, 193, 0.5);
 }
 .actions {
-  position: absolute; right: calc(var(--safe-r) + 12px); bottom: calc(var(--safe-b) + 14px);
+  position: absolute; z-index: 3; right: calc(var(--safe-r) + 12px); bottom: calc(var(--safe-b) + 14px);
   display: flex; align-items: flex-end; gap: 8px; max-width: 62vw;
 }
 .act {

@@ -5,6 +5,7 @@
 import { CFG } from './config.js';
 import { SPECIES_BY_ID } from './species.js';
 import { clamp, dist } from './util.js';
+import { applySlow } from './player.js';
 
 const DEFS = [
   {
@@ -147,7 +148,7 @@ const DEFS = [
         const d = dist(cl.x, cl.y, p.x, p.y);
         if (d < cl.r && p.invuln <= 0) {
           g.damagePlayer(3.6 * dt, null, { armorPierce: true });
-          p.slow.t = Math.max(p.slow.t, 0.3); p.slow.factor = Math.min(p.slow.factor, 0.75);
+          applySlow(g, 0.75, 0.3);
         }
         if (g.rng.chance(dt * 4)) {
           const a = g.rng.angle(), dd = g.rng.next() * cl.r;

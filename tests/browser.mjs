@@ -99,6 +99,32 @@ await page.evaluate(() => {
 await page.waitForTimeout(1600);
 await page.evaluate(() => window.__mk('touchmove', window.__c.cx + 70, window.__c.cy - 60));
 await page.waitForTimeout(600);
+// шайба стика должна лежать ПОД пальцем, а подложка — в точке касания:
+// раньше база позиционировалась координатами вьюпорта внутри сдвинутого контейнера
+// и рисовалась на пол-экрана ниже пальца (игрок водил вслепую).
+// короткий сдвиг (меньше полного хода стика): шайба обязана стоять точно под пальцем
+await page.evaluate(() => window.__mk('touchmove', window.__c.cx + 20, window.__c.cy - 14));
+await page.waitForTimeout(150);
+const knobGeo = await page.evaluate(() => {
+  const mid = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; };
+  return { knob: mid('stick-knob'), base: mid('stick-base'), finger: { x: window.__c.cx + 20, y: window.__c.cy - 14 }, start: { x: window.__c.cx, y: window.__c.cy },
+    hidden: document.getElementById('stick-base').classList.contains('hidden') };
+});
+const dKnob = Math.hypot(knobGeo.knob.x - knobGeo.finger.x, knobGeo.knob.y - knobGeo.finger.y);
+const dBase = Math.hypot(knobGeo.base.x - knobGeo.start.x, knobGeo.base.y - knobGeo.start.y);
+check(!knobGeo.hidden, 'подложка стика видна при касании');
+check(dKnob < 3, `шайба стика под пальцем (смещение ${dKnob.toFixed(1)} px)`);
+check(dBase < 3, `подложка стика в точке касания (смещение ${dBase.toFixed(1)} px)`);
+// и полный ход не выпускает шайбу за пределы подложки
+await page.evaluate(() => window.__mk('touchmove', window.__c.cx + 140, window.__c.cy - 120));
+await page.waitForTimeout(120);
+const reach = await page.evaluate(() => {
+  const mid = (id) => { const b = document.getElementById(id).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; };
+  const k = mid('stick-knob'), b = mid('stick-base');
+  return { d: Math.hypot(k.x - b.x, k.y - b.y), half: document.getElementById('stick-base').getBoundingClientRect().width / 2 };
+});
+check(reach.d <= reach.half - 8, `шайба не выходит за подложку (${reach.d.toFixed(0)} из ${reach.half.toFixed(0)} px)`);
+await page.evaluate(() => window.__mk('touchmove', window.__c.cx + 70, window.__c.cy - 60));
 const after = await page.evaluate(() => ({ x: window.__app.game.player.x, y: window.__app.game.player.y, speed: Math.hypot(window.__app.game.player.vx, window.__app.game.player.vy) }));
 const moved = Math.hypot(after.x - before.x, after.y - before.y);
 check(moved > 60, `клетка плывёт по стику (пройдено ${moved.toFixed(0)} единиц)`);

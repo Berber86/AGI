@@ -7,7 +7,7 @@ import { SPECIES_BY_ID, FOOD_KINDS, biomeOf, pickSpecies, rollTier, FAMILY } fro
 import { updateCreature } from './ai.js';
 import {
   createPlayer, updatePlayer, recomputeStats, consumeFood, damagePlayer, gainDna,
-  activeAbility, summary,
+  activeAbility, summary, applySlow, pushPlayer,
 } from './player.js';
 import { EventSystem } from './events.js';
 import { QuestSystem } from './quests.js';
@@ -325,15 +325,15 @@ export class Game extends Emitter {
   // Помощники для игрока
   // ================================================================
   magnetFood(x, y, radius, dt) {
-    const list = this.foodsNear(x, y, radius);
+    const list = this.foodsNear(x, y, radius + 40);
     for (const f of list) {
       if (f.dead) continue;
       const dx = x - f.x, dy = y - f.y;
       const d = Math.max(1, hypot(dx, dy));
-      const pull = (1 - d / radius) * 240;
+      const pull = (1 - Math.min(1, d / radius)) * 240;
       f.vx += (dx / d) * pull * dt;
       f.vy += (dy / d) * pull * dt;
-      f.pulled = true;
+      if (d < radius) { f.pulledAt = this.time; f.pullRadius = radius; }
     }
   }
 
@@ -749,10 +749,11 @@ export class Game extends Emitter {
         const dmg = c.dmg * (strong ? 0.55 : 0.3) * CFG.player.spikelessContact * 1.4;
         const dealt = damagePlayer(this, dmg, c, { poison: c.sp.venom ?? 0 });
         if (dealt > 0) {
-          c.contactCd = 0.65;
+          c.contactCd = CFG.knockback.duration;
           const a = Math.atan2(p.y - c.y, p.x - c.x);
-          p.vx += Math.cos(a) * (strong ? 260 : 160) * (1 - p.stats.knockResist);
-          p.vy += Math.sin(a) * (strong ? 260 : 160) * (1 - p.stats.knockResist);
+          const base = strong ? CFG.knockback.heavy : CFG.knockback.light;
+          const sizeK = clamp(c.r / Math.max(1, p.r), 0.7, 1.8);
+          pushPlayer(this, Math.cos(a), Math.sin(a), base * sizeK);
           this.emit('contact', { x: p.x, y: p.y, dmg: dealt });
         }
       }
@@ -764,8 +765,9 @@ export class Game extends Emitter {
           c.contactCd2 = 0.5;
           this.hitCreature(c, p.stats.spikeDmg * (1 + p.tier * 0.12), { fromPlayer: true, ignoreArmor: p.stats.armorPierce > 0 });
           const a = Math.atan2(c.y - p.y, c.x - p.x);
-          c.vx += Math.cos(a) * p.stats.spikeKnock * (1 - (c.sp.parts?.armor ? 0.3 : 0));
-          c.vy += Math.sin(a) * p.stats.spikeKnock * (1 - (c.sp.parts?.armor ? 0.3 : 0));
+          const kb = p.stats.spikeKnock * (p.stats.massMul ?? 1) * (1 - (c.sp.parts?.armor ? 0.3 : 0));
+          c.vx += Math.cos(a) * kb;
+          c.vy += Math.sin(a) * kb;
         }
       }
       // союзники и хищники кусают друг друга и игрока
@@ -861,10 +863,7 @@ export class Game extends Emitter {
     for (const ink of this.inkClouds) {
       ink.life -= dt;
       const d = dist(ink.x, ink.y, this.player.x, this.player.y);
-      if (d < ink.r && this.player.alive) {
-        this.player.slow.t = Math.max(this.player.slow.t, 0.35);
-        this.player.slow.factor = Math.min(this.player.slow.factor, 0.6);
-      }
+      if (d < ink.r && this.player.alive) applySlow(this, 0.6, 0.35);
     }
     if (this.inkClouds.length) this.inkClouds = this.inkClouds.filter((i) => i.life > 0);
   }

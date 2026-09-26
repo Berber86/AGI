@@ -419,12 +419,26 @@ export class Renderer {
 
   _drawFoods(ctx, game, view, dt) {
     const q = this.quality;
+    const p = game.player;
     for (const f of game.foods) {
       const kind = FOOD_KINDS[f.kind];
       if (!kind) continue;
       const r = kind.r * f.scale * (f.kind === 'relic' ? 1.4 + Math.sin(game.globalTime * 2) * 0.1 : 1);
       if (!this._visible(f.x, f.y, r * 3, view)) continue;
-      if (kind.relic && q.glow < 1) { drawFood(ctx, kind, f.x, f.y, game.globalTime, f.seed, f.scale); continue; }
+      // струйка притяжения: показывает, что частицу подтягивает сама клетка,
+      // а не «магнит» в мире (фича органелл: фильтр, реснички, люциферин)
+      if (game.time - (f.pulledAt ?? -9) < 0.07 && p.alive) {
+        const dx = p.x - f.x, dy = p.y - f.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const len = Math.min(30, d * 0.42);
+        ctx.strokeStyle = rgba(kind.color, 0.22);
+        ctx.lineWidth = Math.max(1, r * 0.5);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(f.x + (dx / d) * r, f.y + (dy / d) * r);
+        ctx.lineTo(f.x + (dx / d) * (r + len), f.y + (dy / d) * (r + len));
+        ctx.stroke();
+      }
       drawFood(ctx, kind, f.x, f.y, game.globalTime, f.seed, f.scale);
     }
   }

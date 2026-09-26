@@ -73,6 +73,7 @@ export function recomputeStats(p, lin = lineageById(p.lineage), diff = CFG.diffi
     slowOnBite: e.slowOnBite ?? 0,
     slowFactor: e.slowFactor ?? 0.5,
     knockResist: clamp(e.knockResist ?? 0, 0, 0.85),
+    slowResist: clamp(e.slowResist ?? 0, 0, 0.85),
     lifeSteal: e.lifeSteal ?? 0,
     plantVal: (1 + (e.plantVal ?? 0)) * (lin.mods.plantBonus ?? 1),
     meatVal: (1 + (e.meatVal ?? 0)) * (lin.mods.meatBonus ?? 1),
@@ -228,6 +229,44 @@ export function gainDna(game, amount, reason = '') {
   const p = game.player;
   p.dna += amount * CFG.difficulty[p.difficulty].dnai * p.stats.dnaMul;
   if (reason) game.emit('dna', { amount, reason });
+}
+
+// ------------------------------------------------------------------
+// Внешние воздействия: замедление и толчки.
+// Вынесены в помощники, чтобы все источники (чернила, споры, биссус, удары)
+// работали одинаково и учитывали защиту клетки.
+// ------------------------------------------------------------------
+export function applySlow(game, factor, time) {
+  const p = game.player;
+  const resist = clamp(p.stats.slowResist ?? 0, 0, 0.85);
+  const eff = 1 - (1 - factor) * (1 - resist);
+  p.slow.t = Math.max(p.slow.t, time);
+  p.slow.factor = Math.min(p.slow.factor ?? 1, eff);
+  return eff;
+}
+
+export function pushPlayer(game, dx, dy, force, opts = {}) {
+  const p = game.player;
+  const len = hypot(dx, dy) || 1;
+  // масса (хитин, гидроскелет) и плавники гасят отброс
+  const mass = Math.max(0, (p.stats.massMul ?? 1) - 1) * 1.4;
+  const resist = clamp((p.stats.knockResist ?? 0) + mass, 0, 0.8);
+  const f = force * (1 - resist);
+  p.vx += (dx / len) * f;
+  p.vy += (dy / len) * f;
+  game.lastPush = { x: p.x, y: p.y, nx: dx / len, ny: dy / len, force: f, t: game.time };
+  const n = Math.round(clamp(f / 45, 2, 7));
+  for (let i = 0; i < n; i++) {
+    const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.9;
+    game.spawnParticle(p.x + Math.cos(a) * p.r * 0.9, p.y + Math.sin(a) * p.r * 0.9, 'spark',
+      '#bfefff', 2.6, Math.cos(a) * 220, Math.sin(a) * 220, 0.5);
+  }
+  if (!game.hints?.push && game.emit) {
+    game.hints = game.hints ?? {};
+    game.hints.push = true;
+    game.emit('hint', { key: 'push', text: 'Тебя толкнуло. Масса (хитин) и плавники уменьшают отброс.' });
+  }
+  return f;
 }
 
 // ------------------------------------------------------------------
@@ -390,7 +429,7 @@ export function updatePlayer(game, dt, input) {
   if (input.ability) game.useAbility?.();
 
   // --- магнит для пищи + поедание
-  const magnet = CFG.player.magnetBase + s.magnet + 6 * p.tier;
+  const magnet = Math.min(210, CFG.player.magnetBase + s.magnet + 2.5 * p.tier);
   game.magnetFood(p.x, p.y, magnet, dt);
   game.handleEating?.();
 
@@ -405,7 +444,8 @@ function updateDance(game, dt, speed, input) {
   const p = game.player;
   if (p.dance.lastAttack > 0) p.dance.lastAttack -= dt;
   const near = game.nearestCreature(p.x, p.y, 170, (c) => c.sp.family !== 'plant');
-  const moving = speed > p.stats.baseSpeed * 0.55;
+  // танец начинается только когда стик отпущен — замедление от чернил или спор его не запускает
+  const moving = hypot(input?.ax ?? 0, input?.ay ?? 0) > 0.22 || speed > p.stats.baseSpeed * 0.9;
   const harmedRecently = game.time - p.lastDamageAt < 2.5;
 
   if (!near || moving || harmedRecently || p.dance.lastAttack > 0) {

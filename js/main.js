@@ -58,6 +58,7 @@ class App {
       canvas: document.getElementById('world'),
     });
     this.input.autoBite = !!this.meta.settings.autoBite;
+    this.input.sens = this.meta.settings.sens ?? 'normal';
 
     // разблокировка звука первым касанием
     const unlock = () => { this.audio.unlock(); window.removeEventListener('pointerdown', unlock); };
@@ -96,6 +97,7 @@ class App {
     this.audio.setEnabled(this.meta.settings.audio);
     this.audio.setMusic(this.meta.settings.music);
     this.input.autoBite = !!this.meta.settings.autoBite;
+    this.input.sens = this.meta.settings.sens ?? 'normal';
     this.meta.save();
   }
 
@@ -128,7 +130,8 @@ class App {
     this.enterWorld();
     this.audio.unlock();
     this.ui.toast(`Жизнь началась: ${lineageById(lineage).name}`, 'good');
-    this.ui.showHint('Держи палец на экране — клетка плывёт и кусает всё впереди.', 'start');
+    this.ui.showHint('Веди палец по экрану — клетка плывёт за ним и кусает всё впереди.', 'start');
+    setTimeout(() => this.ui.showHint('Зелёные и золотые частицы подтягиваются к мембране — это работа ваших органелл, а не магнит в мире.', 'magnet', 8000), 12000);
   }
 
   continueRun() {

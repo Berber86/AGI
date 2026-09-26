@@ -4,6 +4,7 @@
 import { ROLE, FAMILY } from './species.js';
 import { CFG } from './config.js';
 import { clamp, damp, angleDamp, dist, hypot, TAU, angleDiff } from './util.js';
+import { applySlow } from './player.js';
 
 // ------------------------------------------------------------------
 // Восприятие: насколько далеко существо замечает игрока и других.
@@ -147,7 +148,7 @@ export function updateCreature(game, c, dt) {
     const dd = dist(c.x, c.y, p.x, p.y);
     if (dd < c.sp.hazard.radius + p.r && p.alive) {
       game.damagePlayer(c.sp.hazard.dps * dt, c, {});
-      p.slow.t = Math.max(p.slow.t, 0.4); p.slow.factor = Math.min(p.slow.factor, c.sp.hazard.slow);
+      applySlow(game, c.sp.hazard.slow, 0.4);
     }
   }
   if (c.sp.trail === 'poison') {
@@ -211,6 +212,20 @@ function think(game, c) {
 // ------------------------------------------------------------------
 function updatePeaceful(game, c, dt) {
   const p = game.player;
+
+  // Приманка (люциферин 2 ур.): мелкая живность плывёт на свет клетки и не может
+  // совладать со страхом — в этом её смысл. Раненая живность не клюёт 4 секунды.
+  if (p.stats.attractSmall > 0 && !c.ally && c.r < p.r * 0.85
+      && (game.time - (c.hurtAt ?? -99)) > 4) {
+    const dd = dist(c.x, c.y, p.x, p.y);
+    const range = 200 + p.r * 2.2;
+    if (dd < range && dd > p.r + c.r + 14) {
+      c.flee = null;
+      steer(game, c, p.x, p.y, 0.5, dt);
+      c.behavior = 'attracted';
+      return;
+    }
+  }
 
   if (c.flee && c.flee.t > 0) {
     c.flee.t -= 0.016;

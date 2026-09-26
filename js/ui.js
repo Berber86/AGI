@@ -141,6 +141,7 @@ export class UI {
     game.on('win', ({ stats, reason }) => this.app.onWin(stats, reason));
     game.on('death', ({ stats }) => this.app.onDeath(stats));
     game.on('stageGoal', ({ text }) => this.toast(`Цель: ${text}`, ''));
+    game.on('hint', ({ text, key }) => this.showHint(text, key ?? text, 7000));
     game.on('biomeChange', ({ to }) => {
       const names = { shallows: 'Мелководье', reef: 'Коралловый риф', trench: 'Разлом', abyss: 'Бездна' };
       const tips = {
@@ -600,6 +601,9 @@ export class UI {
     toggle('Эмбиент-музыка', 'Тихие тона океана.', meta.settings.music, (v) => { meta.settings.music = v; this.app.audio.setMusic(v); });
     toggle('Вибрация', 'Отклик при уроне и рывке.', meta.settings.haptics, (v) => { meta.settings.haptics = v; });
     toggle('Подсказки', 'Обучение и советы в игре.', meta.settings.showHints, (v) => { meta.settings.showHints = v; });
+    seg('Чувствительность стика', 'Меньше — плавнее управление, больше — отзывчивее.',
+      [{ label: 'Плавно', value: 'low' }, { label: 'Обычно', value: 'normal' }, { label: 'Резко', value: 'high' }],
+      meta.settings.sens, (v) => { meta.settings.sens = v; this.app.input.sens = v; });
     toggle('Авто-рывок', 'Рывок при отпускании стика.', meta.settings.autoDash, (v) => { meta.settings.autoDash = v; });
     toggle('Авто-укус', 'Кусать без удержания экрана.', meta.settings.autoBite, (v) => { meta.settings.autoBite = v; this.app.input.autoBite = v; });
 
@@ -641,6 +645,20 @@ export class UI {
         <li><span class="k">Особая кнопка</span> — способность, открытая мутацией (шок, ультразвук, ядовитое облако…).</li>
         <li><span class="k">◉</span> — у гнезда открывает геном; рядом с другом — зов стаи; иначе — подсказка пути домой.</li>
         <li>Клавиатура: <span class="k">WASD</span>, <span class="k">Space</span> — рывок, <span class="k">E</span> — способность, <span class="k">F</span> — гнездо, <span class="k">Esc</span> — пауза.</li>
+      </ul>
+      <h3>Почему клетку «тянет»</h3>
+      <ul>
+        <li><b>Еда летит к вам</b> — это ваши органеллы: фильтр, реснички, люциферин создают
+            ток воды вокруг мембраны (видно по светящимся струйкам). Радиус виден на глазок,
+            точнее — в «Геномах»: «Притяжение пищи».</li>
+        <li><b>Толчки</b> — при столкновении с более крупной клеткой вас отбрасывает. Масса
+            (хитиновая мантия, гидроскелет) и плавники уменьшают отброс до −80%.</li>
+        <li><b>Течение</b> — во время приливного шторма весь океан тянет к центру: это событие,
+            на экране горит баннер «Приливный шторм».</li>
+        <li><b>Замедление</b> — чернила сепиолы, споры микото и биссусовые нити гасят скорость;
+            «Скользкая мембрана» 3 уровня даёт стойкость.</li>
+        <li><b>Приманка</b> — люциферин 2 уровня притягивает к вам мелкую живность: она плывёт
+            сама, это не ошибка.</li>
       </ul>
       <h3>Как расти</h3>
       <ul>

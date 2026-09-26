@@ -1,5 +1,5 @@
 // sw.js — офлайн-кэш: игра работает без сети после первого запуска.
-const CACHE = 'primordial-ocean-v1';
+const CACHE = 'primordial-ocean-v2';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './icon.svg', './css/style.css',
   './js/main.js', './js/core.js', './js/config.js', './js/parts.js', './js/species.js',

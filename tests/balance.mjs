@@ -34,26 +34,36 @@ function bot(game, dt) {
   const out = { ax: 0, ay: 0, bite: true, dash: false, ability: false };
   if (!p.alive) return out;
 
-  // 1) угроза рядом?
+  // 1) угроза рядом? (плюс облако спор микото — его бот тоже обходит)
   let threat = null, td = 1e9;
   for (const c of game.creaturesNear(p.x, p.y, 420)) {
     if (c.dead || c.ally) continue;
     const r = c.r / p.r;
+    if (c.sp.hazard?.type === 'spores' && dist(p.x, p.y, c.x, c.y) < c.sp.hazard.radius + 60) {
+      const d = dist(p.x, p.y, c.x, c.y);
+      if (d < td) { td = d; threat = c; }
+    }
     if (r > 1.25 && (c.hunt || r > 1.55)) {
       const d = dist(p.x, p.y, c.x, c.y);
       if (d < td) { td = d; threat = c; }
     }
   }
   // 2) цель для еды
+  const st0 = game._botState;
+  const banned = (o) => {
+    if (!st0?.black || !o) return false;
+    const until = st0.black.get(`${Math.round(o.x / 40)},${Math.round(o.y / 40)}`);
+    return until !== undefined && until > game.time;
+  };
   let target = null, best = 1e9;
   for (const f of game.foodsNear(p.x, p.y, 700)) {
-    if (f.dead) continue;
+    if (f.dead || banned(f)) continue;
     const d = dist(p.x, p.y, f.x, f.y);
     const w = f.kind === 'relic' ? 0.25 : f.kind === 'chunk' ? 0.8 : 1;
     if (d * w < best) { best = d * w; target = f; }
   }
   for (const c of game.creaturesNear(p.x, p.y, 460)) {
-    if (c.dead || c.ally || c.sp.family === 'plant') continue;
+    if (c.dead || c.ally || c.sp.family === 'plant' || banned(c)) continue;
     if (c.r * 1.2 > p.r) continue;
     const d = dist(p.x, p.y, c.x, c.y);
     if (d < best * 0.8 && d < 380) { best = d; target = c; }
@@ -75,6 +85,30 @@ function bot(game, dt) {
     // патруль по кругу
     const a = game.time * 0.2;
     out.ax = Math.cos(a); out.ay = Math.sin(a);
+  }
+
+  // 3) застряли? (упёрлись в камень/риф и трёмся) — обходим боком.
+  // Без этого бот зависает на месте на минуты и портит замер темпа.
+  const st = game._botState ?? (game._botState = { acc: 0, detour: 0, side: 1, lx: p.x, ly: p.y });
+  const wants = Math.hypot(out.ax, out.ay) > 0.1;
+  st.acc += dt;
+  if (st.detour > 0) st.detour -= dt;
+  st.black ??= new Map();
+  if (st.acc >= 0.5) {
+    const moved = dist(p.x, p.y, st.lx, st.ly);
+    if (moved < 20 && wants && !out.dash) {
+      st.detour = 1.1;
+      st.side = st.side === 1 ? -1 : 1;
+      // цель, к которой не пробиться, помечаем недоступной на 20 с
+      if (target) st.black.set(`${Math.round(target.x / 40)},${Math.round(target.y / 40)}`, game.time + 20);
+      st.stuck = (st.stuck ?? 0) + 1;
+    }
+    st.lx = p.x; st.ly = p.y; st.acc = 0;
+  }
+  if (st.detour > 0 && wants) {
+    const a = Math.atan2(out.ay, out.ax) + st.side * (Math.PI / 2) * 0.85;
+    out.ax = Math.cos(a); out.ay = Math.sin(a);
+    out.ability = false;
   }
   return out;
 }
@@ -134,4 +168,6 @@ for (const difficulty of ['calm', 'normal', 'harsh', 'abyss']) {
     ].join(' '));
   }
 }
-console.log('\nОриентиры: до 5-го размера — примерно 1.5–2.5 мин, до 10-го — 5–8 мин.');
+console.log('\nОриентиры (бот-эвристика, разброс неизбежен): 5-й размер — 1–4 мин, 10-й — 3–8 мин.');
+console.log('Смотрите на разброс и на строки своей сложности, а не на отдельную жизнь: бот');
+console.log('не уходит из-под контактного яда и не собирает пищу галсами, как человек.');

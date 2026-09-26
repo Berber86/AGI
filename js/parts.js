@@ -621,18 +621,22 @@ export function partUnlocked(part, tier, ach) {
   return { ok: true };
 }
 
-// Итоговые эффекты установленного набора деталей: parts = { id: level }
+// Итоговые эффекты установленного набора деталей: parts = { id: level }.
+//
+// ВАЖНО: уровни деталей — это итоговые значения, а не прибавки друг к другу.
+// Для каждой детали берётся эффект её ТЕКУЩЕГО уровня (в таблицах уровней
+// значения монотонно растут). Так цифры, которые видит игрок в редакторе
+// («сейчас» и «дальше»), совпадают с тем, что он получает.
 export function aggregate(parts) {
   const eff = {};
   for (const id in parts) {
     const p = PARTS[id]; if (!p) continue;
-    const lvl = Math.min(parts[id], p.maxLevel);
-    for (let i = 0; i < lvl; i++) {
-      const e = p.levels[i].eff;
-      for (const k in e) {
-        if (k === 'abilityId') { (eff.abilities ??= []).push(e[k]); continue; }
-        eff[k] = (eff[k] ?? 0) + e[k];
-      }
+    const lvl = Math.min(parts[id] ?? 0, p.maxLevel);
+    if (lvl <= 0) continue;
+    const e = p.levels[lvl - 1].eff;
+    for (const k in e) {
+      if (k === 'abilityId') { (eff.abilities ??= []).push(e[k]); continue; }
+      eff[k] = (eff[k] ?? 0) + e[k];
     }
   }
   if (eff.abilities) {

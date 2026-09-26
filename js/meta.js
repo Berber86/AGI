@@ -38,6 +38,8 @@ const DEFAULT_SETTINGS = {
   haptics: true,
   showHints: true,
   autoDash: false,
+  autoBite: false,
+  sens: 'normal',          // чувствительность виртуального стика
   leftHanded: false,
   screenShake: true,
 };
