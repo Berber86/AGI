@@ -393,6 +393,40 @@ console.log('— 13. Цвета и рисование без canvas —');
   const cellStub = { parts: { legs: 3, fangs: 2, armor: 1 }, features: ['legs', 'fangs', 'armor'], featureLvls: { legs: 3, fangs: 2, armor: 1 }, path: 'predator', color: '#8fd8b0', color2: '#eaffea' };
   drawCreature(stubCtx, specFromPlayer(cellStub, { x: 0, y: 0, r: 24 }), 0.5);
   check(true, 'зверь игрока рисуется теми же путями');
+
+  // признак вида обязан менять силуэт: «когти» носили шесть видов, но ветки
+  // отрисовки не было, и рост части не был виден вовсе
+  const lineWork = (features, lvls) => {
+    let total = 0, cur = null;
+    const ctx = new Proxy({}, {
+      get(_, prop) {
+        if (prop === 'canvas') return { width: 100, height: 100 };
+        if (prop === 'createRadialGradient' || prop === 'createLinearGradient') return () => ({ addColorStop() {} });
+        if (prop === 'moveTo') return (x, y) => { cur = [x, y]; };
+        if (prop === 'lineTo') return (x, y) => { if (cur) total += Math.hypot(x - cur[0], y - cur[1]); };
+        return () => {};
+      },
+      set() { return true; },
+    });
+    const sp = LAND_SPECIES_BY_ID.bloodtracker;
+    const spec = specFromSpecies(sp, { x: 0, y: 0, r: 20 });
+    spec.features = new Set(features);
+    spec.lvls = lvls;
+    drawCreature(ctx, spec, 1.2);
+    return total;
+  };
+  const noClaws = lineWork(['fangs', 'mane'], {});
+  const claws1 = lineWork(['fangs', 'mane', 'claws'], { claws: 1 });
+  const claws4 = lineWork(['fangs', 'mane', 'claws'], { claws: 4 });
+  check(claws1 > noClaws + 1, `когти рисуются (штрихов на ${(claws1 - noClaws).toFixed(0)} больше)`);
+  check(claws4 > claws1 + 1, `когти растут с уровнем части (${claws1.toFixed(0)} → ${claws4.toFixed(0)})`);
+  // у каждого признака видов должна быть ветка отрисовки (кроме параметров плана тела)
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('../js/landcreature.js', import.meta.url), 'utf8');
+  const planDriven = new Set(['tail']);
+  const silent = [...new Set(LAND_SPECIES.flatMap((sp) => sp.features ?? []))]
+    .filter((f) => !planDriven.has(f) && !src.includes(`'${f}'`));
+  check(silent.length === 0, silent.length ? `признаки без отрисовки: ${silent.join(', ')}` : 'у всех признаков видов есть ветка отрисовки');
 }
 
 console.log('— 14. Наследие подводной стадии —');
