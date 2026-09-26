@@ -125,6 +125,32 @@ function think(game, c) {
   }
   c.flee = null;
 
+  // 2.5) родной тотем: дом зверя. Внутри безопасного круга хищники не охотятся,
+  // а тех, кто забрёл к самому тотему, мягко вытесняет наружу. Без этого после
+  // смерти у тотема начиналась петля: возрождение — удар — возрождение.
+  const home = p.totemPos;
+  const dHome = dist(p.x, p.y, home.x, home.y);
+  // падальщики (гиена) тоже бросаются на ослабевшего зверя — их считаем наравне с хищниками
+  const hostileRole = c.sp.hostile || c.sp.family === LAND_FAMILY.PREDATOR
+    || role === LAND_AI.HUNT || role === LAND_AI.AMBUSH || role === LAND_AI.GUARD || role === LAND_AI.SCAVENGE;
+  if (!c.boss && hostileRole && p.alive && dHome < L.totem.safeRadius) {
+    c.huntPlayer = false;
+    c.huntTarget = null;
+    if (dist(c.x, c.y, home.x, home.y) < L.totem.pushRadius) {
+      // забрался к самому тотему — уводим наружу
+      const a = Math.atan2(c.y - home.y, c.x - home.x) || game.rng.angle();
+      c.moveTo = {
+        x: clamp(home.x + Math.cos(a) * L.totem.pushRadius * 1.2, -game.radius + 120, game.radius - 120),
+        y: clamp(home.y + Math.sin(a) * L.totem.pushRadius * 1.2, -game.radius + 120, game.radius - 120),
+      };
+      c.moveSpeed = L.totem.pushSpeed;
+      return;
+    }
+    // уже за кругом — пусть живёт своей жизнью, но не бегает по кромке за игроком
+    wander(game, c, 0.55);
+    return;
+  }
+
   // 3) ночные охотники активны только в темноте
   if (c.nocturnal && !night) {
     c.moveTo = c.den ? { x: c.den.x, y: c.den.y } : null;
@@ -251,8 +277,26 @@ function thinkGuard(game, c, p, dp, threatRatio) {
 }
 
 function thinkApex(game, c, p, dp) {
-  // владыка: три фазы — рывок к цели, рёв с призывом, ярость
+  // владыка: три фазы — рывок к цели, рёв с призывом, ярость.
+  // Арена: владыка не уходит от костяного трона дальше своего радиуса охоты.
+  // Без этого он провожал игрока через весь берег, а в третьей фазе (игрок под
+  // замедлением, владыка быстрее) убежать было нельзя вообще — только умирать.
   const phase = c.phase ?? 1;
+  if (c.boss) {
+    const th = game.throne;
+    const arenaR = (L.tyrant.arena?.radius ?? 300) + (c.aggroRange ?? 1100);
+    const playerFar = dist(p.x, p.y, th.x, th.y) > (c.aggroRange ?? 1100);
+    const selfFar = dist(c.x, c.y, th.x, th.y) > arenaR;
+    if (playerFar || selfFar) {
+      c.leash = true;
+      c.huntPlayer = false;
+      const home = dist(c.x, c.y, th.x, th.y);
+      if (home > 110) { c.moveTo = { x: th.x, y: th.y }; c.moveSpeed = 0.85; }
+      else { c.moveTo = null; wander(game, c, 0.25); }
+      return;
+    }
+    c.leash = false;
+  }
   if (dp < (c.aggroRange ?? 1100)) {
     c.moveTo = { x: p.x, y: p.y };
     c.moveSpeed = phase === 3 ? 1.3 : phase === 2 ? 1.05 : 0.95;
@@ -297,7 +341,12 @@ function wander(game, c, speedMul) {
 function onPlayerContact(game, c, d) {
   const p = game.player;
   const bigger = c.r >= p.r * 0.95;
-  if (!c.ally && bigger && c.contactCd <= 0 && (c.huntPlayer || c.sp.family === LAND_FAMILY.PREDATOR || c.sp.ai === LAND_AI.APEX)) {
+  // У владыки свой контактный удар (см. _updateTyrant): общий путь хищника для него
+  // не работает — иначе он бил двумя системами сразу, делил одну перезарядку с ними
+  // и выдавал ~60 урона в секунду вместо ~18. Бой был непроходимым.
+  if (c.boss) {
+    // шипы игрока должны работать и по владыке
+  } else if (!c.ally && bigger && c.contactCd <= 0 && (c.huntPlayer || c.sp.family === LAND_FAMILY.PREDATOR || c.sp.ai === LAND_AI.APEX)) {
     c.contactCd = 0.7;
     const dmg = c.dmg * (c.r > p.r * 1.15 ? 0.6 : 0.35);
     const dealt = landDamagePlayer(game, dmg, c, { poison: c.sp.venom ?? 0, bleed: c.sp.venom ? 0 : 1.0 });

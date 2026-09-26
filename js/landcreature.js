@@ -168,12 +168,27 @@ function drawLegs(ctx, c, r, P, walk, amp, lv) {
     ctx.moveTo(hx, hy);
     ctx.quadraticCurveTo(hx + r * 0.1, hy + side * len * 0.22, fx, fy - lift * r * 0.12);
     ctx.stroke();
-    // ступня/коготь
+    // ступня
     ctx.lineWidth = Math.max(2, r * 0.1);
     ctx.beginPath();
     ctx.moveTo(fx - r * 0.1, fy - lift * r * 0.12);
     ctx.lineTo(fx + r * 0.12, fy - lift * r * 0.12);
     ctx.stroke();
+    // когти: длина зависит от уровня части «Когти» (признак claws носят и виды)
+    if (c.features.has('claws')) {
+      const cl = (lv ? lv('claws') : 1);
+      const len2 = r * (0.16 + 0.07 * cl);
+      ctx.lineWidth = Math.max(1, r * 0.06);
+      ctx.strokeStyle = shade(c.color2 ?? c.color, -0.25);
+      for (let k2 = 0; k2 < 3; k2++) {
+        const ox = fx + (k2 - 1) * r * 0.11;
+        ctx.beginPath();
+        ctx.moveTo(ox, fy - lift * r * 0.12);
+        ctx.lineTo(ox + r * 0.05, fy - lift * r * 0.12 + side * len2);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = color;
+    }
   }
 }
 

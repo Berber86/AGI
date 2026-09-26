@@ -10,8 +10,9 @@
     "test:land": "node tests/land.mjs",
     "test:balance": "node tests/balance.mjs",
     "test:control": "node tests/control.mjs",
+    "test:fuzz": "node tests/fuzz.mjs 3 all",
     "test:browser": "node tests/browser.mjs",
-    "test:all": "node tests/smoke.mjs && node tests/land.mjs && node tests/control.mjs"
+    "test:all": "node tests/smoke.mjs && node tests/land.mjs && node tests/control.mjs && node tests/fuzz.mjs 3 all"
   },
   "devDependencies": {
     "playwright-core": "^1.63.0"

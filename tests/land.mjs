@@ -407,6 +407,137 @@ console.log('— 14. Наследие подводной стадии —');
   check(g.carriedFromCell?.tier === 7, 'наследие записано в мир');
 }
 
+console.log('— 15. Регрессии на найденные ошибки —');
+{
+  // (а) прозрачность не должна попадать в строку цветом вида «3.8e-16»
+  const rgba = (await import('../js/util.js')).rgba;
+  check(rgba('#fff0d8', 0.5) === 'rgba(255,240,216,0.5)', `rgba печатает прозрачность обычным числом (${rgba('#fff0d8', 0.5)})`);
+  const tiny = rgba('#fff0d8', 0.5 * 7.7e-16);
+  check(!/e-/.test(tiny), `затухающая прозрачность не превращается в экспоненту (${tiny})`);
+  check(rgba('#fff0d8', 7) === 'rgba(255,240,216,1)', 'прозрачность выше единицы обрезается');
+
+  // (б) сытость и вода не выходят за пределы даже в дождь и в голод
+  const g1 = makeGame();
+  g1.player.maxSatiety = 500; g1.player.maxWater = 400;
+  g1.player.satiety = 490; g1.player.water = 395;
+  g1.events.force('rain');
+  step(g1, 20, { ax: 0.3, ay: 0.4 });
+  check(g1.player.water <= g1.player.maxWater + 1e-6 && g1.player.satiety <= g1.player.maxSatiety + 1e-6,
+    `дождь не переливает воду и сытость (${g1.player.water.toFixed(1)}/${g1.player.maxWater}, ${g1.player.satiety.toFixed(1)}/${g1.player.maxSatiety})`);
+  g1.player.satiety = 0; g1.player.water = 0;
+  step(g1, 6, { ax: 0, ay: 0 });
+  check(g1.player.satiety >= 0 && g1.player.water >= 0, 'ресурсы не уходят в минус при голоде');
+
+  // (в) обрыв: толчок не выбрасывает зверя за границу берега
+  const g2 = makeGame();
+  let warned = 0;
+  g2.on('boundary', () => warned++);
+  g2.player.x = g2.radius - 4; g2.player.y = 0;
+  g2.player.vx = 4000; g2.player.vy = 900;
+  step(g2, 3, { ax: 1, ay: 0 });
+  const outside = Math.hypot(g2.player.x, g2.player.y);
+  check(outside <= g2.radius + 1e-6, `зверь остаётся на берегу (${outside.toFixed(0)} ≤ ${g2.radius})`);
+  check(warned > 0, `обрыв предупреждает игрока (${warned} раз)`);
+
+  // (г) подмена события закрывает предыдущее, а не оставляет его следы
+  const g3 = makeGame();
+  const ended = [];
+  g3.on('eventEnd', ({ id }) => ended.push(id));
+  g3.events.force('rain');
+  step(g3, 3, { ax: 0, ay: 0 });
+  const rainId = g3.event?.id;
+  const rainT = g3.events.current?.t ?? 0;
+  check(g3.raining === true, 'дождь включается');
+  g3.events.force('drought');
+  check(rainId === 'rain' && g3.event?.id === 'drought', `подмена события подхватывает новое (${rainId} → ${g3.event?.id})`);
+  check(ended.includes('rain'), `закрытие старого события объявлено (${ended.join(', ')})`);
+  // главный след дождя: флаг g.raining. Без закрытия он оставался включённым навсегда.
+  check(g3.raining === false, 'флаг дождя снят вместе со сменой события');
+  check((g3.events.current?.t ?? 99) < rainT, `счётчик нового события начат с нуля (${(g3.events.current?.t ?? 99).toFixed(1)} с)`);
+
+  // (д) размер стада берётся из настроек
+  const g4 = makeGame();
+  const packs = [];
+  for (let i = 0; i < 6; i++) {
+    const before = g4.creatures.filter((c) => c.migrating).length;
+    g4.events.force('migration');
+    // стадо прошлого события ещё живо: считаем только свежих «мигрантов»
+    packs.push(g4.creatures.filter((c) => c.migrating).length - before);
+  }
+  const range = CFG.land.spawn.migrationPack;
+  check(packs.every((n) => n >= range[0] && n <= range[1]),
+    `размер стада берётся из настроек (${packs.join(', ')} при ${range.join('..')})`);
+
+  // (е) у тотема хищники не охотятся — иначе смерть у дома превращается в петлю
+  const g5 = makeGame();
+  g5.player.x = 0; g5.player.y = 0; g5.player.invuln = 0;
+  const hunters = [
+    g5.spawnCreature(LAND_SPECIES_BY_ID.bloodtracker, 90, 0, 4, true),
+    g5.spawnCreature(LAND_SPECIES_BY_ID.meadow_hunter, -260, 120, 4, true),
+    g5.spawnCreature(LAND_SPECIES_BY_ID.hyena, 40, 300, 4, true),
+  ];
+  // голодные звери охотятся, сытые — нет: проверяем именно правило дома
+  for (const h of hunters) { h.huntPlayer = true; h.hunger = 0.9; }
+  let hurt = 0;
+  g5.on('playerHit', () => hurt++);
+  step(g5, 14, { ax: 0, ay: 0 });
+  check(hurt === 0, `у тотема хищники не наносят урона (ударов ${hurt})`);
+  check(hunters.every((h) => !h.huntPlayer), 'в безопасном круге тотема хищники не охотятся');
+  check(hunters.some((h) => Math.hypot(h.x, h.y) > CFG.land.totem.safeRadius),
+    `забредшего к тотему хищника вытесняет наружу (${hunters.map((h) => Math.hypot(h.x, h.y).toFixed(0)).join(', ')})`);
+  const h0 = hunters[0];
+  g5.player.x = g5.radius * 0.6; g5.player.y = 0;
+  h0.x = g5.player.x + 160; h0.y = 0;
+  h0.hunger = 0.9;
+  step(g5, 2, { ax: 0, ay: 0 });
+  check(h0.huntPlayer, 'вдали от дома хищник снова охотится');
+
+  // (ж) владыка бьёт одним ударом, а не двумя системами сразу
+  const g6 = makeGame();
+  g6.player.tier = 6;
+  for (const c of [...g6.creatures]) c.dead = true;
+  const boss = g6.spawnTyrant();
+  let taken = 0;
+  g6.on('playerHit', ({ dmg }) => { taken += dmg; });
+  for (let i = 0; i < 300; i++) {
+    g6.player.x = boss.x; g6.player.y = boss.y;
+    g6.player.invuln = 0;
+    g6.update(1 / 60, { ax: 0, ay: 0 });
+  }
+  const perSec = taken / 5;
+  check(perSec > 0.05 * boss.dmg && perSec < 0.5 * boss.dmg,
+    `владыка бьёт в одиночку, без двойного урона (${perSec.toFixed(1)} урона/с при силе удара ${boss.dmg.toFixed(0)})`);
+
+  // (з) владыка слабее на малом размере и грознее на большом
+  const g7 = makeGame();
+  g7.player.tier = 4;
+  const small = g7.spawnTyrant().maxHp;
+  const g8 = makeGame();
+  g8.player.tier = 8;
+  const big = g8.spawnTyrant().maxHp;
+  check(small < big, `здоровье владыки растёт вместе со зверем (${small.toFixed(0)} → ${big.toFixed(0)})`);
+
+  // (и) недостижимой присяги не бывает: симпатия упирается в 100
+  const unreachable = Object.values(LAND_SPECIES_BY_ID).filter((sp) => sp.tame < 999 && sp.tame > 96);
+  check(unreachable.length === 0, unreachable.length ? `присяга недостижима: ${unreachable.map((s) => s.id).join(', ')}` : 'ни у одного вида присяга не выше 96');
+
+  // (к) знакомство обрывается, если партнёра съели
+  const g9 = makeGame();
+  const partner = g9.spawnCreature(LAND_SPECIES_BY_ID.puffpaw, g9.player.x + 60, g9.player.y, 2, true);
+  const started = startSocial(g9, partner);
+  check(started.ok, `знакомство началось (${started.why ?? 'ок'})`);
+  partner.dead = true;
+  step(g9, 0.2, { ax: 0, ay: 0 });
+  check(!g9.player.social.active, 'знакомство с погибшим партнёром закрывается само');
+
+  // (л) полоса знакомства есть в разметке и обновляется кодом
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../js/ui.js', import.meta.url), 'utf8');
+  check(html.includes('social-progress'), 'в разметке есть полоса знакомства (#social-progress)');
+  check(ui.includes('social-progress'), 'код обновляет полосу знакомства');
+}
+
 console.log('');
 if (fails) { console.error(`ПРОВАЛЕНО ПРОВЕРОК: ${fails}`); process.exit(1); }
 console.log('ВСЕ ПРОВЕРКИ СУШИ ПРОЙДЕНЫ');

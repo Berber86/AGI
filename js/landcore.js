@@ -530,14 +530,21 @@ export class LandGame extends Emitter {
   // ================================================================
   spawnTyrant() {
     if (this.tyrant) return this.tyrant;
+    const p = this.player;
     const sp = LAND_SPECIES_BY_ID.tyrant;
     const c = this.spawnCreature(sp, this.throne.x, this.throne.y, 9, true, {});
     c.aggroRange = L.tyrant.huntRadius;
     c.phase = 1;
     c.boss = true;
     c.alpha = false;
-    c.maxHp = (14 + 9 * 9) * sp.hpMul * this.diff.hp * 0.85;
+    // Здоровье владыки масштабируется под размер игрока: при фиксированных 525 hp
+    // бой на 4-м размере длился 80 с непрерывных укусов (проигрыш без шансов),
+    // а на 8-м с полным телом заканчивался за 3 секунды.
+    const scale = clamp(0.55 + 0.055 * p.tier, 0.7, 1.05);
+    c.maxHp = (14 + 9 * 9) * sp.hpMul * this.diff.hp * 0.85 * scale;
     c.hp = c.maxHp;
+    c.baseSpeed = c.speed;         // нужны, чтобы снять бафф третьей фазы при отходе
+    c.baseDmg = c.dmg;
     this.tyrant = c;
     this.tyrantAwake = true;
     this.emit('bossSpawn', { name: sp.name });
@@ -549,6 +556,22 @@ export class LandGame extends Emitter {
     const p = this.player;
     const boss = this.tyrant;
     if (!boss || boss.dead) return;
+    // Игрок ушёл из владений владыки: тот возвращается к трону, затягивает раны
+    // и снова становится спокойным (первая фаза). Так у игрока всегда есть выход.
+    if (boss.leash) {
+      if (!boss.leashTold) {
+        boss.leashTold = true;
+        this.emit('banner', { text: 'Владыка не покидает трон и затягивает раны', kind: '' });
+      }
+      boss.hp = Math.min(boss.maxHp, boss.hp + boss.maxHp * 0.05 * dt);
+      if (boss.phase !== 1) {
+        boss.phase = 1;
+        boss.speed = boss.baseSpeed ?? boss.speed;
+        boss.dmg = boss.baseDmg ?? boss.dmg;
+      }
+      return;
+    }
+    boss.leashTold = false;
     const frac = boss.hp / boss.maxHp;
     const wantPhase = frac > 0.66 ? 1 : frac > 0.33 ? 2 : 3;
     if (wantPhase !== boss.phase) {
@@ -572,11 +595,14 @@ export class LandGame extends Emitter {
         this.float('ЯРОСТЬ', boss.x, boss.y - boss.r - 20, '#ff6b6b', 18);
       }
     }
-    // таранная атака и ядовитая кровь в третьей фазе
+    // таранная атака и ядовитая кровь в третьей фазе.
+    // Замеры боя показали: при перезарядке 0.9 с и уроне 0.4 зверь в упор умирал
+    // за 11 с, а владыку ковырял 60 с — «укусил и отскочил» не работало вообще.
+    // Окно кайта стало больше, удар мягче, третья фаза по-прежнему бьёт сквозь броню.
     const d = dist(boss.x, boss.y, p.x, p.y);
     if (d < boss.r + p.r + 10 && boss.contactCd <= 0 && p.alive) {
-      boss.contactCd = 0.9;
-      const dmg = boss.dmg * (boss.phase === 3 ? 0.5 : 0.4);
+      boss.contactCd = 1.25;
+      const dmg = boss.dmg * (boss.phase === 3 ? 0.42 : 0.3);
       landDamagePlayer(this, dmg, boss, { armorPierce: boss.phase === 3 });
       const a = Math.atan2(p.y - boss.y, p.x - boss.x);
       p.vx += Math.cos(a) * 280 * (1 - p.stats.knockResist);
@@ -726,6 +752,14 @@ export class LandGame extends Emitter {
     if (p.tier >= L.tyrant.minTier && (nearThrone || this.biome === 'rock')) {
       this.spawnTyrant();
       this.emit('banner', { text: 'Из костяного трона поднимается владыка', kind: 'bad' });
+      // Честное предупреждение: на 4-м размере бой почти наверняка проигран,
+      // и игрок должен знать, что отход — это выход, а не трусость.
+      if (p.tier < 6) {
+        this.emit('banner', {
+          text: `Владыку не одолеть в размере ${p.tier}. Уходи из скал и расти — или ищи стаю.`,
+          kind: 'bad',
+        });
+      }
     }
   }
 

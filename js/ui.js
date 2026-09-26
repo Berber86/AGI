@@ -168,7 +168,9 @@ export class UI {
     game.on('eventEnd', () => this.showEventBanner(null));
     game.on('questDone', ({ mission, reward }) => { app.audio.play('quest'); this.toast(`Задание выполнено: ${mission.name} (+${reward} ДНК)`, 'gold'); });
     game.on('banner', ({ text, kind }) => this.toast(text, kind));
-    game.on('boundary', () => this.toast('Дальше — поверхностная плёнка. Поверни назад.', 'bad'));
+    game.on('boundary', () => this.toast(this.stage === 'land'
+      ? 'Дальше обрыв: там нет ни еды, ни воды. Поверни назад.'
+      : 'Дальше — поверхностная плёнка. Поверни назад.', 'bad'));
     game.on('shock', () => app.audio.play('shock'));
     game.on('sonic', () => app.audio.play('sonic'));
     game.on('toxin', () => app.audio.play('toxin'));
@@ -464,6 +466,14 @@ export class UI {
     bar.classList.remove('hidden');
     const sp = game.creatures.find((c) => c === p.social.target)?.sp;
     const sig = `${p.social.species}:${p.social.step}:${p.social.seq.join(',')}`;
+    // прогресс до присяги виден прямо в панели: раньше требование вида было скрыто,
+    // и игрок не понимал, сколько ещё знакомств нужно.
+    const st = p.sympathy?.[p.social.species];
+    if (st && sp) {
+      $('social-progress').textContent = st.allied
+        ? 'вид уже союзный'
+        : `до присяги ${Math.round(st.value)}/${sp.tame} (симпатия ${Math.round(st.value)}%)`;
+    }
     if (sig !== this._socialSig) {
       this._socialSig = sig;
       $('social-species').textContent = sp ? `${sp.name} · шаг ${Math.min(p.social.step + 1, p.social.seq.length)}/${p.social.seq.length}` : '—';
@@ -824,6 +834,7 @@ export class UI {
           <div class="stats">
             <span>Здоровье ×${sp.hpMul.toFixed(2)}</span>
             <span>Урон ×${sp.dmgMul.toFixed(2)}</span>
+            <span>${sp.tame < 999 ? `Присяга при симпатии ${sp.tame}` : 'Не приручается'}</span>
             <span>Скорость ×${sp.speedMul.toFixed(2)}</span>
             ${sp.venom ? `<span>Яд ${sp.venom}</span>` : ''}
             ${sp.ranged ? '<span>Дальний бой</span>' : ''}

@@ -94,7 +94,7 @@ export function recomputeLandStats(p, path = landPathById(p.path), diff = landDi
     sprintMul: 1 + (e.sprintMul ?? 0) * (m.staminaMul ?? 1),
     turnMul: 1 + (e.turnMul ?? 0),
     climb: landClamp(e.climb ?? 0, 0, 0.9),
-    biteDmg: (1 + (e.biteDmg ?? 0) * 0.09) * (m.biteBonus ?? 1),
+    biteDmg: P.biteDmgBase * (1 + (e.biteDmg ?? 0) * 0.09) * (m.biteBonus ?? 1),
     biteRate: 1 + (e.biteRate ?? 0),
     bleed: e.bleed ?? 0,
     poison: e.poison ?? 0,
@@ -520,15 +520,39 @@ export function updateLandPlayer(game, dt, input) {
   p.satiety -= s.satietyDrain * restMod * dt * (game.event?.id === 'drought' ? 1.15 : 1);
   p.water -= s.waterDrain * restMod * dt * (game.event?.id === 'drought' ? 1.9 : 1) * (swimming ? 0.2 : 1);
   if (game.raining) p.water += 2.2 * dt;
-  if (p.satiety <= 0) {
-    p.hp -= P.starve * dt;
-    if (game.rng.chance(dt * 4)) game.spawnParticle(p.x, p.y, 'goo', '#ff8f8f', 2);
+  // Ресурсы зажимаются в [0, максимум]: без этого дождь наливал воду «с горкой»
+  // (полоса уходила за 100%), а голод уводил сытость в минус.
+  p.satiety = clamp(p.satiety, 0, s.maxSatiety);
+  p.water = clamp(p.water, 0, s.maxWater);
+  const starving = p.satiety <= 0;
+  const thirsty = p.water <= 0;
+  if (starving || thirsty) {
+    // Голод и жажда бьют по здоровью напрямую, минуя броню, но обязаны гасить
+    // восстановление: иначе «Жировой горб» с регеном больше 3/с делал зверя
+    // бессмертным при пустой сытости — фаззер поймал зверя живым на нуле.
+    p.lastDamageAt = game.time;
+    if (starving) {
+      p.hp -= P.starve * dt;
+      if (game.rng.chance(dt * 4)) game.spawnParticle(p.x, p.y, 'goo', '#ff8f8f', 2);
+    }
+    if (thirsty) {
+      p.hp -= P.dehydrate * dt;
+      if (game.rng.chance(dt * 5)) game.spawnParticle(p.x, p.y, 'dust', '#ffd8a0', 2);
+    }
+    p.hungryT = (p.hungryT ?? 0) + dt;
+    if (p.hungryT > 1.5) {
+      p.hungryT = 0;
+      game.emit('banner', {
+        text: starving ? 'Голод грызёт зверя: найди еду' : 'Жажда сушит зверя: найди воду',
+        kind: 'bad',
+      });
+    }
+  } else p.hungryT = 0;
+  if (p.hp <= 0) {
+    p.hp = 0;
+    killLandPlayer(game, { name: starving ? 'Голод' : 'Жажда' });
+    return;
   }
-  if (p.water <= 0) {
-    p.hp -= P.dehydrate * dt;
-    if (game.rng.chance(dt * 5)) game.spawnParticle(p.x, p.y, 'dust', '#ffd8a0', 2);
-  }
-  if (p.hp <= 0) { p.hp = 0; killLandPlayer(game, null); return; }
   if (game.time - p.lastDamageAt > P.noCombatTime && !p.resting) {
     p.hp = Math.min(p.maxHp, p.hp + (s.regen + P.regenOutOfCombat) * dt);
   }
@@ -582,6 +606,23 @@ export function updateLandPlayer(game, dt, input) {
   // лазание по камням: без когтей камень тормозит сильнее
   p.x += p.vx * dt;
   p.y += p.vy * dt;
+
+  // --- граница берега: обрыв по краю мира.
+  // Раньше это была только картинка: зверь уходил за кромку в пустоту (а толчок
+  // владыки мог выбросить его туда силой), хотя снаружи нет ни еды, ни водоёмов.
+  const wr = game.radius;
+  const dOut = Math.hypot(p.x, p.y);
+  if (dOut > wr) {
+    const nx = p.x / dOut, ny = p.y / dOut;
+    p.x = nx * wr; p.y = ny * wr;
+    // гасим движение наружу, оставляя скольжение вдоль кромки
+    const outward = p.vx * nx + p.vy * ny;
+    if (outward > 0) { p.vx -= nx * outward * 1.6; p.vy -= ny * outward * 1.6; }
+    if (game.time - (game.lastBoundaryWarn ?? -9) > 5) {
+      game.lastBoundaryWarn = game.time;
+      game.emit('boundary', {});
+    }
+  }
 
   // --- укус
   if (p.cooldowns.bite > 0) p.cooldowns.bite -= dt;

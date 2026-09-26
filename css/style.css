@@ -436,6 +436,12 @@ button.big b { color: var(--gold); font-weight: 700; }
 .ico-sta { color: #d8ff9f; }
 
 /* Панель общения: появляется, когда идёт знакомство */
+.social-progress {
+  padding: 2px 12px 6px;
+  font-size: 12px;
+  color: #9fd8c8;
+  text-align: center;
+}
 .social-bar {
   position: absolute; left: 50%; transform: translateX(-50%);
   bottom: calc(var(--safe-b) + 96px); width: min(94vw, 420px);

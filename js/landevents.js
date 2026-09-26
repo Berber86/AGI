@@ -70,7 +70,11 @@ const DEFS = [
       const sp = g.rng.pick([LAND_SPECIES_BY_ID.hoof, LAND_SPECIES_BY_ID.runner, LAND_SPECIES_BY_ID.cliffram, LAND_SPECIES_BY_ID.puffpaw]);
       g.eventData = { sp, killed: 0 };
       const base = g.rng.angle();
-      for (let i = 0; i < 14; i++) {
+      // размер стада из настроек: раньше число 14 было вписано в код, и правка
+      // CFG.land.spawn.migrationPack ничего не меняла
+      const pack = CFG.land.spawn.migrationPack ?? [8, 14];
+      const count = g.rng.int(pack[0], pack[1]);
+      for (let i = 0; i < count; i++) {
         const a = base + g.rng.range(-0.45, 0.45);
         const d = g.rng.range(520, 1100);
         const c = g.spawnCreature(sp, g.player.x + Math.cos(a) * d, g.player.y + Math.sin(a) * d, g.rng.int(Math.max(2, g.player.tier - 1), g.player.tier + 2), true);
@@ -163,7 +167,12 @@ export class LandEventSystem {
 
   force(id) {
     const def = this.defs.find((d) => d.id === id);
-    if (def) { this.cooldown = 999; this.current = null; this.start(def); }
+    if (!def) return;
+    // Сначала честно закрываем текущее событие: без этого при подмене события
+    // оставались его следы (флаг дождя, разлитые водоёмы, длительность).
+    if (this.current) this.end();
+    this.cooldown = 999;
+    this.start(def);
   }
 
   end() {

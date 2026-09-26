@@ -43,7 +43,6 @@ export const CFG = {
     baseSpeed: 134,        // единиц в секунду
     speedPerTier: -0.018,  // крупнее — чуть медленнее
     accelLambda: 7.4,      // плавность разгона
-    turnLambda: 9.0,
     radius: 17,
     radiusPerTier: 2.6,
     baseEnergy: 105,
@@ -55,7 +54,6 @@ export const CFG = {
     dashInvuln: 0.3,       // кадры неуязвимости в рывке
     biteCooldown: 0.42,
     biteDmg: 10,
-    biteReach: 1.16,       // множитель к сумме радиусов
     spikelessContact: 0.55,// доля контактного урона без шипов
     vision: 470,
     regenOutOfCombat: 1.6, // ХП/с вне боя
@@ -64,7 +62,6 @@ export const CFG = {
     eatRadius: 1.08,       // множитель касания пищи
     magnetBase: 62,        // базовый радиус притяжения пищи (растёт от ресничек и люциферина)
     eatHeal: 0.6,          // ХП за съеденную биомассу
-    dnaPerBiomass: 0.16,
     growth: [19, 35, 56, 80, 110, 147, 189, 237, 291], // биомасса на переход к следующему уровню
     maxTier: 10,
     genomeSlotBase: 6,
@@ -76,12 +73,6 @@ export const CFG = {
   dna: {
     firstSpeciesBonus: 14,
     kill: [3, 20],         // диапазон за обычную добычу (масштабируется уровнем)
-    plantChance: 0.07,
-    plantValue: 1,
-    relicSite: 26,
-    eggLay: 0,             // кладка яйца платная отдельно
-    nestCost: 45,
-    nestCooldown: 25,
     respawnDnaLoss: 0.25,  // доля потерянной ДНК при гибели
     respawnBiomassLoss: 0.22,
   },
@@ -89,10 +80,8 @@ export const CFG = {
   // ---------------- Награды и рост ----------------
   progression: {
     relicGenesForWin: 3,
-    alliesForWin: 3,
     repPerKill: -7,
     repPerFeed: 6,
-    repPerShare: 11,
     allyThreshold: 62,
     hostileThreshold: -45,
     allyCallCost: 18,
@@ -109,14 +98,8 @@ export const CFG = {
     spawnMaxDist: 1250,
     despawnDist: 1500,
     foodDespawnDist: 1250,
-    populationScale: {
-      calm: 0.72, normal: 1.0, harsh: 1.22, abyss: 1.5,
-    },
     bloomMultiplier: 3.2,
     bloomDuration: 46,
-    migrationEvery: [105, 190],
-    migrationPack: [4, 9],
-    tideEvery: [70, 130],
     tideDuration: 22,
     tideStrength: 118,
   },
@@ -132,14 +115,8 @@ export const CFG = {
   // ---------------- Боевые правила ----------------
   combat: {
     edibleRatio: 1.22,     // меньше этого множителя радиуса — можно проглотить
-    sameSpeciesRepLoss: 1.6,
-    poisonTick: 0.5,
-    burnArmor: 0.35,       // доля урона, проходящая сквозь броню у обычных укусов
     corpseChunks: [2, 4],
-    corpseValue: [1.4, 2.6],
-    spikeDamageScale: 0.85,
     chainRadius: 190,
-    bossPhaseTwo: 0.5,
   },
 
   // ---------------- Качество графики ----------------
@@ -155,7 +132,6 @@ export const CFG = {
     light: 150,            // толчок от равной клетки
     heavy: 240,            // толчок от крупной клетки
     duration: 0.65,        // пауза между толчками по одной цели
-    spikeBase: 130,        // масштаб отбрасывания от шипов
   },
 
   // ================================================================
@@ -181,7 +157,6 @@ export const CFG = {
       baseSpeed: 150,        // единиц в секунду
       speedPerTier: -0.012,  // крупный зверь чуть неповоротливее
       accelLambda: 6.4,
-      turnLambda: 7.6,
       starve: 3.0,           // урон в секунду при нулевой сытости
       dehydrate: 3.4,        // урон в секунду при нуле воды
       baseSatiety: 130,
@@ -199,14 +174,12 @@ export const CFG = {
       dashPower: 620,
       dashInvuln: 0.28,
       biteCooldown: 0.5,
-      biteDmg: 10,
-      biteReach: 1.24,       // множитель к сумме радиусов
+      biteDmgBase: 1,        // база формулы укуса: база · (1 + бонусы частей · 0.09)
       vision: 520,
       regenOutOfCombat: 1.8,
       noCombatTime: 7,
       eatRadius: 1.1,
       eatHeal: 0.5,
-      dnaPerBite: 0.14,
       growth: [20, 38, 62, 92, 128, 170, 218],  // биомасса на переход к следующему размеру
       maxTier: 8,
       genomeSlotBase: 5,
@@ -225,19 +198,26 @@ export const CFG = {
       spawnMaxDist: 1150,
       despawnDist: 1450,
       foodDespawnDist: 1200,
-      migrationEvery: [110, 200],
-      migrationPack: [5, 11],
+      migrationPack: [8, 14],
       packChance: 0.45,      // шанс, что рядом появится ещё пара сородичей
     },
 
     // Общение: цепочка действий по «характеру» вида.
+    // Родной тотем: дом зверя. Внутри safeRadius хищники не охотятся на игрока,
+    // а забредших в круг мягко вытесняют наружу — иначе после смерти у тотема
+    // начиналась петля: возрождение, 3 с неуязвимости и новый удар в спину.
+    totem: {
+      safeRadius: 320,       // круг, где игрок в безопасности
+      pushRadius: 430,       // из этого круга хищников вытесняет
+      pushSpeed: 0.95,
+    },
+
     social: {
       stepTime: 2.8,         // секунд на одно действие
       sequence: 3,           // действий в успешной цепочке
       startRadius: 190,      // с какого расстояния можно начать знакомство
       keepRadius: 300,       // дальше партнёр уходит, и знакомство срывается
       hatePenalty: 6,        // симпатия за нелюбимое действие
-      failPenalty: 10,       // симпатия за провал цепочки
       cooldown: 4,           // секунд между попытками с одним видом
       allyFollow: 620,       // радиус, внутри которого союзники держатся за игроком
       swornRadius: 420,      // радиус присяги у тотема
@@ -254,7 +234,6 @@ export const CFG = {
     dive: {
       // Заход в воду: зверь не рыба, но мелководье переплывает
       waterSlow: 0.72,
-      thirstRelief: 1.0,
     },
   },
 
@@ -262,7 +241,6 @@ export const CFG = {
     toastDuration: 3.1,
     hintTime: 9,
     autosaveEvery: 20,
-    fpsSample: 2.5,
     maxDelta: 0.05,
   },
 };

@@ -63,6 +63,10 @@ export const LAND_FOOD_KINDS = {
 //   social.hates — действие, которое вид не выносит
 //   nature       — характер: shy (пугливый), bold (дерзкий), proud (гордый), playful (игривый)
 //   tame         — сколько симпатии нужно для союза
+// `tame` — симпатия, при которой вид присягает. Симпатия хранится в диапазоне 0..100,
+// поэтому требование больше 100 недостижимо: у «Кровоследа» стояло 110, у «Каменного
+// жора» — 105, и приручить их было нельзя вообще, а игрок этого никак не видел.
+// Правило: tame ≤ 96, проверяется в tests/land.mjs.
 export const LAND_SPECIES = [
   // ------------------------------ Прибрежье
   {
@@ -164,7 +168,7 @@ export const LAND_SPECIES = [
     tierMin: 3, tierMax: 10, hpMul: 1.15, dmgMul: 1.6, speedMul: 1.0, sizeMul: 1.1,
     weight: { shore: 0.2, plain: 0.8, forest: 3.2, rock: 0.4 },
     plan: 'serpent', features: ['fangs', 'venom', 'eyes'], colors: ['#8fe08f', '#dfffd0'],
-    diet: 'carn', social: { likes: ['groom'], hates: 'sing' }, nature: 'proud', tame: 100, venom: 3.2,
+    diet: 'carn', social: { likes: ['groom'], hates: 'sing' }, nature: 'proud', tame: 96, venom: 3.2,
     lore: 'В зарослях не видно ни головы, ни хвоста — только две щели глаз. Ядовит с рождения.',
     habitat: 'Спит в папоротниках, бьёт на расстоянии броска.',
   },
@@ -200,7 +204,7 @@ export const LAND_SPECIES = [
     tierMin: 4, tierMax: 10, hpMul: 1.35, dmgMul: 1.7, speedMul: 1.2, sizeMul: 1.15,
     weight: { shore: 0.2, plain: 1.6, forest: 2.4, rock: 1.0 },
     plan: 'quadruped', features: ['fangs', 'mane', 'claws'], colors: ['#ff8f8f', '#ffe0e0'],
-    diet: 'carn', social: { likes: ['pose'], hates: 'groom' }, nature: 'bold', tame: 110, packSize: 2,
+    diet: 'carn', social: { likes: ['pose'], hates: 'groom' }, nature: 'bold', tame: 96, packSize: 2,
     lore: 'Идёт по следу крови, пока жертва не упадёт. Уважает только тех, кто больше его.',
     habitat: 'Патрулирует границы леса, выходит на охоту в сумерках.',
   },
@@ -229,7 +233,7 @@ export const LAND_SPECIES = [
     tierMin: 5, tierMax: 10, hpMul: 1.7, dmgMul: 1.5, speedMul: 0.92, sizeMul: 1.25,
     weight: { shore: 0.4, plain: 1.0, forest: 0.8, rock: 2.8 },
     plan: 'serpent', features: ['jaws', 'armor', 'spikes'], colors: ['#a0a8b8', '#e0e6f0'],
-    diet: 'omni', social: { likes: ['groom'], hates: 'sing' }, nature: 'bold', tame: 105,
+    diet: 'omni', social: { likes: ['groom'], hates: 'sing' }, nature: 'bold', tame: 94,
     lore: 'Ест кости, камни и старые панцири. Кажется глупым, пока не откусит тебе хвост.',
     habitat: 'Греется у гейзеров, переваривая каменную крошку.',
   },
