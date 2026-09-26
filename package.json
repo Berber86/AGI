@@ -1,0 +1,16 @@
+{
+  "name": "primordial-ocean",
+  "version": "1.0.0",
+  "description": "Первичный океан — мобильная эволюционная игра про стадию клетки (переосмысление первой стадии Spore)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8080 --bind 0.0.0.0",
+    "test": "node tests/smoke.mjs",
+    "test:balance": "node tests/balance.mjs",
+    "test:browser": "node tests/browser.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

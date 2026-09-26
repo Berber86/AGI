@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#04141f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Первичный океан — эволюционная игра про клетку. Клон первой стадии Spore, переработанный и расширенный.">
+<title>Первичный океан — стадия клетки</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= ИГРОВОЙ МИР ================= -->
+  <canvas id="world" aria-label="Игровое поле"></canvas>
+
+  <!-- ================= HUD ================= -->
+  <div id="hud" class="hidden">
+    <!-- Верхняя панель состояния -->
+    <div class="hud-top">
+      <div class="hud-left">
+        <div class="zone-chip">
+          <span class="zone-name">Мелководье</span>
+          <span class="zone-depth">глубина 0 м</span>
+        </div>
+        <div class="clock-chip" title="Смена дня и ночи">
+          <span class="clock-icon">☀</span><span class="clock-text">День 1 · 06:00</span>
+        </div>
+      </div>
+      <div class="hud-right">
+        <button id="btn-menu" class="icon-btn" aria-label="Меню">☰</button>
+      </div>
+    </div>
+
+    <!-- Полоса здоровья Левиафана -->
+    <div class="boss-bar hidden" id="boss-bar">
+      <div class="name">ЛЕВИАФАН РЕЛИКТОВЫЙ</div>
+      <div class="track"><i id="boss-hp-fill" style="width:100%"></i></div>
+    </div>
+
+    <!-- Полоски: мембрана, энергия, рост -->
+    <div class="hud-bars">
+      <div class="bar-row">
+        <span class="bar-ico ico-hp">♥</span>
+        <div class="bar bar-hp"><i id="bar-hp-fill"></i><b id="bar-hp-txt">92/92</b></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-ico ico-en">⚡</span>
+        <div class="bar bar-en"><i id="bar-en-fill"></i><b id="bar-en-txt">100</b></div>
+      </div>
+      <div class="bar-row">
+        <span class="bar-ico ico-gr">✦</span>
+        <div class="bar bar-gr"><i id="bar-gr-fill"></i><b id="bar-gr-txt">Рост: 0/30</b></div>
+      </div>
+      <div class="chip-row">
+        <span class="chip chip-dna">ДНК <b id="dna-txt">0</b></span>
+        <span class="chip chip-tier">Разм. <b id="tier-txt">1</b></span>
+        <span class="chip chip-rep hidden" id="rep-chip"></span>
+      </div>
+      <div class="chip-row">
+        <span class="chip chip-diet" id="diet-chip">Всеяден</span>
+      </div>
+    </div>
+
+    <!-- Радар + трекер заданий -->
+    <div class="hud-side">
+      <div class="radar-wrap">
+        <canvas id="radar" width="132" height="132"></canvas>
+        <span class="radar-zone" id="radar-zone">Мелководье</span>
+      </div>
+      <div class="quests" id="quest-tracker"></div>
+      <div class="event-banner hidden" id="event-banner"></div>
+    </div>
+
+    <!-- Нижняя часть: джойстик и кнопки -->
+    <div class="hud-bottom">
+      <div id="stick-zone" class="stick-zone">
+        <div class="stick-base hidden" id="stick-base">
+          <div class="stick-knob" id="stick-knob"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="act act-ability" id="btn-ability" aria-label="Особая способность">
+          <span class="act-ico" id="ability-ico">✷</span>
+          <span class="act-name" id="ability-name">нет</span>
+          <i class="act-cd" id="ability-cd"></i>
+        </button>
+        <button class="act act-dash" id="btn-dash" aria-label="Рывок">
+          <span class="act-ico">»</span><span class="act-name">Рывок</span>
+          <i class="act-cd" id="dash-cd"></i>
+        </button>
+        <button class="act act-nest" id="btn-nest" aria-label="Гнездо">
+          <span class="act-ico">◉</span><span class="act-name">Гнездо</span>
+          <i class="act-cd" id="nest-cd"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Всплывающие подсказки и уведомления -->
+    <div id="toasts" class="toasts"></div>
+    <div id="hint" class="hint hidden"></div>
+    <div id="danger-vignette" class="danger-vignette"></div>
+  </div>
+
+  <!-- ================= ЭКРАНЫ ================= -->
+  <div id="screens">
+
+    <!-- Загрузка -->
+    <section class="screen show" id="scr-load">
+      <div class="panel wide center">
+        <h1 class="logo">Первичный<br><span>океан</span></h1>
+        <p class="sub">стадия клетки · мобильная эволюционная игра</p>
+        <div class="load-bar"><i id="load-fill"></i></div>
+        <p class="muted" id="load-text">Проращиваем спору…</p>
+      </div>
+    </section>
+
+    <!-- Главное меню -->
+    <section class="screen" id="scr-title">
+      <div class="panel wide">
+        <h1 class="logo small">Первичный<br><span>океан</span></h1>
+        <p class="sub">Ты — одна клетка в древнем океане. Ешь, мутируй, выживай.</p>
+        <div class="btn-col">
+          <button class="big primary" id="btn-continue">Продолжить погружение</button>
+          <button class="big" id="btn-newrun">Новая жизнь</button>
+          <button class="big" id="btn-codex">Бестиарий <b id="codex-count"></b></button>
+          <button class="big" id="btn-milestones">Достижения <b id="ms-count"></b></button>
+          <button class="big" id="btn-settings">Настройки</button>
+          <button class="big ghost" id="btn-help">Как играть</button>
+        </div>
+        <p class="muted tiny" id="best-line"></p>
+      </div>
+    </section>
+
+    <!-- Выбор линии и сложности -->
+    <section class="screen" id="scr-newrun">
+      <div class="panel wide">
+        <h2>Новая жизнь</h2>
+        <p class="muted">Родословная определяет стартовые органеллы и доступные мутации.</p>
+        <div class="cards" id="lineage-cards"></div>
+        <h3>Среда</h3>
+        <div class="cards small" id="difficulty-cards"></div>
+        <div class="btn-row">
+          <button class="big ghost" id="btn-newrun-back">Назад</button>
+          <button class="big primary" id="btn-newrun-start">Зародить жизнь</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Геном (редактор клетки) -->
+    <section class="screen" id="scr-genome">
+      <div class="panel wide genome">
+        <div class="genome-head">
+          <h2>Геном</h2>
+          <div class="genome-res">
+            <span class="chip chip-dna">ДНК <b id="g-dna">0</b></span>
+            <span class="chip">Ячейки <b id="g-slots">0/7</b></span>
+            <span class="chip">Обмен <b id="g-upkeep">0</b>/с</span>
+          </div>
+        </div>
+        <div class="genome-preview">
+          <canvas id="g-canvas" width="600" height="360"></canvas>
+          <div class="genome-stats" id="g-stats"></div>
+        </div>
+        <div class="tabs" id="g-tabs"></div>
+        <div class="parts" id="g-parts"></div>
+        <p class="muted tiny" id="g-hint">Мутация у гнезда — без обмена ДНК. В открытом океане — +25% к цене.</p>
+        <div class="btn-row">
+          <button class="big ghost" id="btn-genome-close">К клетке</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Бестиарий -->
+    <section class="screen" id="scr-codex">
+      <div class="panel wide">
+        <div class="row-between">
+          <h2>Бестиарий</h2>
+          <button class="icon-btn" data-close="scr-codex">✕</button>
+        </div>
+        <div class="codex-list" id="codex-list"></div>
+      </div>
+    </section>
+
+    <!-- Достижения -->
+    <section class="screen" id="scr-milestones">
+      <div class="panel wide">
+        <div class="row-between">
+          <h2>Достижения</h2>
+          <button class="icon-btn" data-close="scr-milestones">✕</button>
+        </div>
+        <p class="muted tiny">За достижения дают ДНК и открывают новые органеллы. Прогресс сохраняется между жизнями.</p>
+        <div class="ms-list" id="ms-list"></div>
+      </div>
+    </section>
+
+    <!-- Настройки -->
+    <section class="screen" id="scr-settings">
+      <div class="panel wide">
+        <div class="row-between">
+          <h2>Настройки</h2>
+          <button class="icon-btn" data-close="scr-settings">✕</button>
+        </div>
+        <div class="settings" id="settings-list"></div>
+      </div>
+    </section>
+
+    <!-- Помощь -->
+    <section class="screen" id="scr-help">
+      <div class="panel wide">
+        <div class="row-between">
+          <h2>Как играть</h2>
+          <button class="icon-btn" data-close="scr-help">✕</button>
+        </div>
+        <div class="help" id="help-body"></div>
+      </div>
+    </section>
+
+    <!-- Пауза -->
+    <section class="screen" id="scr-pause">
+      <div class="panel">
+        <h2>Пауза</h2>
+        <div class="btn-col">
+          <button class="big primary" id="btn-resume">Продолжить</button>
+          <button class="big" id="btn-evolve">Мутировать · геном</button>
+          <button class="big" id="btn-pause-codex">Бестиарий</button>
+          <button class="big" id="btn-pause-missions">Задания</button>
+          <button class="big" id="btn-pause-settings">Настройки</button>
+          <button class="big ghost" id="btn-quit">Выйти в меню</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Задания -->
+    <section class="screen" id="scr-missions">
+      <div class="panel wide">
+        <div class="row-between">
+          <h2>Задания океана</h2>
+          <button class="icon-btn" data-close="scr-missions">✕</button>
+        </div>
+        <div class="missions" id="missions-list"></div>
+      </div>
+    </section>
+
+    <!-- Смерть -->
+    <section class="screen" id="scr-dead">
+      <div class="panel">
+        <h2 class="bad">Мембрана разорвана</h2>
+        <div class="death-stats" id="death-stats"></div>
+        <div class="btn-col" id="death-actions"></div>
+      </div>
+    </section>
+
+    <!-- Победа стадии -->
+    <section class="screen" id="scr-win">
+      <div class="panel wide">
+        <h2 class="good">Стадия клетки пройдена</h2>
+        <div id="win-body"></div>
+        <div class="btn-col">
+          <button class="big primary" id="btn-win-continue">Остаться в океане (свободная игра)</button>
+          <button class="big ghost" id="btn-win-menu">В меню</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="rotate-hint" class="rotate-hint hidden">Поверни телефон вертикально — так удобнее</div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+<noscript><p style="color:#fff;padding:2rem">Для игры нужен JavaScript.</p></noscript>
+</body>
+</html>

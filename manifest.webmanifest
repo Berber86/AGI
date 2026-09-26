@@ -1,0 +1,15 @@
+{
+  "name": "Первичный океан — стадия клетки",
+  "short_name": "Океан",
+  "description": "Мобильная эволюционная игра: клетка в древнем океане. Ешь, мутируй, выживай.",
+  "lang": "ru",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#04141f",
+  "theme_color": "#04141f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
