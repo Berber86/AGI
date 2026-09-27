@@ -1,0 +1,2459 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infinite Forge — Рождение цивилизаций</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0a0612;
+            color: #e0e0e0;
+            min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 20% 0%, rgba(120, 50, 200, 0.15), transparent 50%),
+                radial-gradient(ellipse at 80% 100%, rgba(220, 80, 60, 0.12), transparent 50%);
+        }
+
+        /* ====== TOP BAR ====== */
+        .top-bar {
+            background: rgba(20, 15, 35, 0.85);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #3d2a5c;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .top-bar .logo {
+            font-weight: bold;
+            font-size: 1.1em;
+            background: linear-gradient(135deg, #c77dff, #e94560);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            white-space: nowrap;
+        }
+        .top-bar .nav { display: flex; gap: 4px; margin-left: 20px; }
+        .top-bar .nav button {
+            padding: 6px 14px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: #a08ec0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .top-bar .nav button.active {
+            background: #2d1f4a;
+            border-color: #6b4fa3;
+            color: #fff;
+        }
+        .top-bar .nav button:hover { background: #241840; }
+        .top-bar label { color: #888; font-size: 0.85em; }
+        .top-bar input {
+            flex: 1;
+            min-width: 180px;
+            padding: 6px 12px;
+            background: #0f0a1e;
+            border: 1px solid #3d2a5c;
+            border-radius: 6px;
+            color: #e0e0e0;
+        }
+        .top-bar .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #f85149; }
+        .top-bar .status-dot.ok { background: #3fb950; }
+        .legacy-link {
+            color: #888;
+            font-size: 0.8em;
+            text-decoration: none;
+            border: 1px solid #333;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+        .legacy-link:hover { border-color: #6b4fa3; color: #c77dff; }
+
+        /* ====== CONTAINER ====== */
+        .container { max-width: 1100px; margin: 0 auto; padding: 25px 20px; }
+        h1 {
+            font-size: 2em;
+            text-align: center;
+            background: linear-gradient(135deg, #c77dff 0%, #e94560 50%, #ffb347 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .subtitle { text-align: center; color: #9888b8; margin-bottom: 30px; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+
+        /* ====== FORGE ====== */
+        .forge-panel {
+            background: rgba(30, 20, 55, 0.6);
+            border: 1px solid #3d2a5c;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        .forge-panel h2 {
+            color: #c77dff;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .prompt-input {
+            width: 100%;
+            min-height: 120px;
+            padding: 15px;
+            background: #0f0a1e;
+            border: 2px solid #3d2a5c;
+            border-radius: 12px;
+            color: #e0e0e0;
+            font-size: 1em;
+            font-family: inherit;
+            resize: vertical;
+            line-height: 1.5;
+        }
+        .prompt-input:focus { outline: none; border-color: #c77dff; }
+        .prompt-hint {
+            font-size: 0.85em;
+            color: #7868a0;
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        /* ====== TAGS ====== */
+        .tags-section { margin-top: 20px; }
+        .tags-section h3 {
+            color: #a08ec0;
+            font-size: 0.95em;
+            margin-bottom: 10px;
+        }
+        .tags-group { margin-bottom: 12px; }
+        .tags-group-label {
+            font-size: 0.75em;
+            color: #7868a0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+        .tags-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tag-chip {
+            padding: 5px 12px;
+            background: #1a1030;
+            border: 1px solid #3d2a5c;
+            border-radius: 20px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #b0a0d0;
+        }
+        .tag-chip:hover { border-color: #c77dff; }
+        .tag-chip.active {
+            background: linear-gradient(135deg, #6b4fa3, #c77dff);
+            border-color: #c77dff;
+            color: #fff;
+        }
+        .tag-chip.locked { opacity: 0.35; cursor: not-allowed; }
+        .tag-chip .tag-required { color: #f0a050; font-size: 0.8em; margin-left: 4px; }
+
+        /* ====== FORGE BUTTON ====== */
+        .forge-btn {
+            width: 100%;
+            padding: 16px;
+            margin-top: 25px;
+            font-size: 1.2em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #6b4fa3, #c77dff, #e94560);
+            background-size: 200% 200%;
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+            animation: gradient-shift 4s ease infinite;
+        }
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .forge-btn:hover:not(:disabled) { transform: scale(1.02); box-shadow: 0 8px 30px rgba(199, 125, 255, 0.3); }
+        .forge-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* ====== CARDS GRID ====== */
+        .cards-section { margin-top: 30px; }
+        .cards-section h2 {
+            color: #c77dff;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        /* ====== GAME CARD ====== */
+        .game-card {
+            aspect-ratio: 5/7;
+            border-radius: 16px;
+            padding: 18px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            transition: 0.3s;
+            overflow: hidden;
+        }
+        .game-card:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 15px 40px rgba(199, 125, 255, 0.3); }
+        .game-card.type-unit { background: linear-gradient(160deg, #2d1f4a, #1a1030); border: 2px solid #6b4fa3; }
+        .game-card.type-spell { background: linear-gradient(160deg, #4a1f3d, #301028); border: 2px solid #e94560; }
+        .game-card.type-structure { background: linear-gradient(160deg, #1f3d4a, #102830); border: 2px solid #4fc3f7; }
+        .game-card .card-costs {
+            display: flex;
+            gap: 10px;
+            position: absolute;
+            top: 12px;
+            right: 12px;
+        }
+        .cost-badge {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.7em;
+        }
+        .cost-badge.drop-cost { background: #4a7cff; color: white; }
+        .cost-badge.action-cost { background: #ff6b4a; color: white; }
+        .cost-badge .cost-num { font-size: 1.3em; line-height: 1; }
+        .cost-badge .cost-label { font-size: 0.65em; opacity: 0.8; }
+        .game-card .card-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #fff;
+            margin-top: 30px;
+            margin-bottom: 4px;
+        }
+        .game-card.type-unit .card-name { color: #c77dff; }
+        .game-card.type-spell .card-name { color: #e94560; }
+        .game-card.type-structure .card-name { color: #4fc3f7; }
+        .game-card .card-type {
+            font-size: 0.75em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        .game-card .card-art {
+            height: 90px;
+            background: linear-gradient(135deg, rgba(199,125,255,0.1), rgba(233,69,96,0.1));
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+        }
+        .game-card .card-desc {
+            font-size: 0.82em;
+            color: #c0b8d8;
+            line-height: 1.4;
+            flex: 1;
+            margin-bottom: 10px;
+        }
+        .game-card .card-stats {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .stat-chip {
+            padding: 3px 8px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            font-size: 0.75em;
+            color: #e0e0e0;
+        }
+        .stat-chip.hp { color: #ff6b6b; }
+        .stat-chip.atk { color: #ffd93d; }
+        .game-card .card-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .card-tag {
+            padding: 2px 8px;
+            background: rgba(107,79,163,0.3);
+            border-radius: 10px;
+            font-size: 0.7em;
+            color: #c77dff;
+        }
+        .card-tag.tag-era {
+            background: rgba(205,127,50,0.25);
+            color: #f0a050;
+            border: 1px solid rgba(205,127,50,0.4);
+        }
+        .card-tag.tag-ancient {
+            background: rgba(120,90,60,0.3);
+            color: #c9a876;
+        }
+        .card-tag.tag-bronze {
+            background: rgba(205,127,50,0.3);
+            color: #f0b060;
+        }
+        .card-monkey {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            font-size: 1.2em;
+            cursor: help;
+        }
+        .ban-tooltip {
+            font-size: 0.7em;
+            color: #f0a050;
+            font-style: italic;
+            margin-top: 4px;
+            padding-top: 4px;
+            border-top: 1px dashed rgba(240,160,80,0.3);
+        }
+
+        /* ====== SPINNER ====== */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #3d2a5c;
+            border-top-color: #c77dff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .error-bar {
+            background: rgba(248,81,73,0.15);
+            border: 1px solid #f85149;
+            color: #f88;
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .forge-loading {
+            text-align: center;
+            padding: 40px;
+            color: #c77dff;
+        }
+        .forge-loading .flavor {
+            font-style: italic;
+            color: #9888b8;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .save-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 12px;
+            background: #238636;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .save-btn:hover { background: #2ea043; }
+        .save-btn.saved { background: #1a5a28; cursor: default; }
+
+        /* ====== COLLECTION ====== */
+        .collection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .empty-collection {
+            text-align: center;
+            padding: 60px 20px;
+            color: #7868a0;
+        }
+        .empty-collection .icon { font-size: 4em; margin-bottom: 15px; }
+
+        /* ====== COLLECTION TOOLBAR ====== */
+        .coll-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .coll-search {
+            flex: 1;
+            min-width: 150px;
+            padding: 8px 14px;
+            background: #0f0a1e;
+            border: 1px solid #3d2a5c;
+            border-radius: 8px;
+            color: #e0e0e0;
+        }
+        .filter-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .filter-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid #3d2a5c;
+            color: #a08ec0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .filter-btn.active { background: #2d1f4a; border-color: #c77dff; color: #fff; }
+
+        /* ====== DECK STATS ====== */
+        .deck-stats {
+            background: rgba(30, 20, 55, 0.6);
+            border: 1px solid #3d2a5c;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+        }
+        .deck-stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .deck-stat {
+            text-align: center;
+            padding: 10px;
+            background: #0f0a1e;
+            border-radius: 10px;
+        }
+        .deck-stat .ds-val { font-size: 1.6em; font-weight: bold; }
+        .deck-stat .ds-label { font-size: 0.65em; color: #888; text-transform: uppercase; margin-top: 2px; letter-spacing: 1px; }
+        .ds-purple { color: #c77dff; }
+        .ds-pink { color: #e94560; }
+        .ds-blue { color: #4fc3f7; }
+        .ds-gold { color: #ffd93d; }
+        .ds-green { color: #3fb950; }
+        .ds-white { color: #e0e0e0; }
+
+        .mana-curve {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            height: 100px;
+            padding: 10px;
+            background: #0f0a1e;
+            border-radius: 10px;
+        }
+        .mana-bar-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .mana-bar {
+            width: 100%;
+            background: linear-gradient(180deg, #4a7cff, #6b4fa3);
+            border-radius: 4px 4px 0 0;
+            min-height: 2px;
+            transition: height 0.3s;
+        }
+        .mana-bar-label {
+            font-size: 0.7em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .mana-bar-count {
+            font-size: 0.75em;
+            color: #c77dff;
+            margin-bottom: 2px;
+        }
+
+        .deck-ready {
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .deck-ready.ok { background: rgba(35,134,54,0.2); border: 1px solid #238636; color: #3fb950; }
+        .deck-ready.no { background: rgba(248,81,73,0.15); border: 1px solid #f85149; color: #f88; }
+
+        .in-deck-badge {
+            position: absolute;
+            top: 12px;
+            left: 44px;
+            background: #e94560;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+            z-index: 2;
+        }
+
+        .card-footer {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .mini-btn {
+            flex: 1;
+            padding: 4px;
+            font-size: 0.75em;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #3d2a5c;
+            color: #a08ec0;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .mini-btn:hover { background: rgba(233,69,96,0.2); border-color: #e94560; color: #fff; }
+        .mini-btn.add { color: #3fb950; border-color: #238636; }
+        .mini-btn.add:hover { background: rgba(35,134,54,0.2); }
+        .mini-btn.remove { color: #f85149; border-color: #8b0000; }
+        .mini-btn.remove:hover { background: rgba(139,0,0,0.2); }
+        .mini-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .clear-deck-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #8b0000;
+            color: #f85149;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .clear-deck-btn:hover { background: rgba(139,0,0,0.2); }
+
+        /* ============================================
+           BATTLE SCREEN
+           ============================================ */
+        .battle-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .player-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 18px;
+            background: rgba(30,20,55,0.6);
+            border: 1px solid #3d2a5c;
+            border-radius: 12px;
+            flex: 1;
+            min-width: 220px;
+        }
+        .player-banner.enemy { border-color: #8b0000; }
+        .player-banner.me { border-color: #238636; }
+        .player-banner.enemy.targetable {
+            cursor: crosshair;
+            box-shadow: 0 0 15px #f85149;
+            animation: pulse 1s infinite;
+        }
+        .player-banner.enemy.targetable:hover { background: rgba(248,81,73,0.1); }
+        .player-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+        .enemy .player-avatar { background: rgba(139,0,0,0.2); }
+        .me .player-avatar { background: rgba(35,134,54,0.2); }
+        .player-info { flex: 1; }
+        .player-name { font-weight: bold; font-size: 1em; }
+        .enemy .player-name { color: #f88; }
+        .me .player-name { color: #3fb950; }
+        .hp-bar-wrap {
+            height: 8px;
+            background: #0a0612;
+            border-radius: 4px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        .hp-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        .hp-bar-fill.hp-enemy { background: linear-gradient(90deg, #8b0000, #f85149); }
+        .hp-bar-fill.hp-me { background: linear-gradient(90deg, #238636, #3fb950); }
+        .hp-text { font-size: 0.75em; color: #888; margin-top: 2px; }
+
+        .turn-indicator {
+            text-align: center;
+            padding: 8px 20px;
+            background: #2d1f4a;
+            border: 2px solid #c77dff;
+            border-radius: 25px;
+            font-weight: bold;
+        }
+        .turn-indicator.enemy { border-color: #f85149; color: #f88; }
+        .turn-indicator.me { border-color: #3fb950; color: #3fb950; }
+
+        /* ===== Mana Bar ===== */
+        .mana-display {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 10px;
+        }
+        .mana-pip-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(30,20,55,0.6);
+            border-radius: 20px;
+        }
+        .mana-pip {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid #4a7cff;
+        }
+        .mana-pip.available { background: #4a7cff; box-shadow: 0 0 8px #4a7cff; }
+        .mana-pip.spent { background: #1a1030; border-color: #3d2a5c; }
+        .mana-label {
+            font-size: 0.8em;
+            color: #a08ec0;
+            margin-left: 4px;
+        }
+        .action-mana .mana-pip { border-color: #ff6b4a; }
+        .action-mana .mana-pip.available { background: #ff6b4a; box-shadow: 0 0 8px #ff6b4a; }
+
+        /* ===== Battlefield ===== */
+        .battlefield {
+            background: radial-gradient(ellipse at center, rgba(107,79,163,0.15), rgba(10,6,18,0.6));
+            border: 2px solid #3d2a5c;
+            border-radius: 16px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .row-label {
+            text-align: center;
+            font-size: 0.7em;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 8px 0;
+        }
+        .row-label.enemy { color: #f88; }
+        .row-label.me { color: #3fb950; }
+        .battlefield-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            min-height: 130px;
+        }
+        .bf-slot {
+            min-height: 120px;
+            background: rgba(15,10,30,0.5);
+            border: 2px dashed #3d2a5c;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s;
+            position: relative;
+        }
+        .bf-slot.droppable { border-color: #c77dff; background: rgba(199,125,255,0.08); cursor: pointer; }
+        .bf-slot.droppable:hover { background: rgba(199,125,255,0.2); }
+
+        /* ===== Unit on battlefield (small card) ===== */
+        .bf-unit {
+            width: 100%;
+            height: 120px;
+            border-radius: 8px;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.75em;
+            cursor: pointer;
+            position: relative;
+            transition: 0.2s;
+        }
+        .bf-unit.enemy {
+            background: linear-gradient(160deg, rgba(139,0,0,0.5), rgba(50,0,0,0.5));
+            border: 2px solid #f85149;
+        }
+        .bf-unit.me {
+            background: linear-gradient(160deg, rgba(35,80,36,0.5), rgba(20,50,20,0.5));
+            border: 2px solid #3fb950;
+        }
+        .bf-unit.selectable { box-shadow: 0 0 12px #ffd93d; cursor: pointer; }
+        .bf-unit.selected { box-shadow: 0 0 16px #fff; transform: scale(1.05); }
+        .bf-unit.exhausted { opacity: 0.5; filter: grayscale(0.5); }
+        .bf-unit.attacked { animation: attack-flash 0.5s; }
+        .bf-unit.damaged { animation: dmg-shake 0.4s; }
+        @keyframes attack-flash {
+            0%,100% { transform: none; }
+            50% { transform: translateY(-20px) scale(1.1); box-shadow: 0 0 20px #fff; }
+        }
+        @keyframes dmg-shake {
+            0%,100% { transform: none; }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+        .bf-unit-emoji { font-size: 1.8em; line-height: 1; }
+        .bf-unit-name { font-weight: bold; text-align: center; font-size: 0.75em; line-height: 1.1; }
+        .bf-unit-stats {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            font-weight: bold;
+        }
+        .bf-unit-stats .atk { color: #ffd93d; }
+        .bf-unit-stats .hp { color: #ff6b6b; }
+        .bf-unit-buffs {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 0.8em;
+        }
+        .bf-target {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 1.1em;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%,100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.3); }
+        }
+
+        /* ===== Spell/structure effect overlay ===== */
+        .bf-spell-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            border-radius: 10px;
+            background: rgba(233,69,96,0.3);
+            pointer-events: none;
+            animation: spell-burst 0.8s forwards;
+        }
+        @keyframes spell-burst {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.2); }
+            100% { opacity: 0; transform: scale(1.5); }
+        }
+
+        /* ===== Hand ===== */
+        .hand-section {
+            margin-top: 15px;
+        }
+        .hand-section h3 {
+            color: #a08ec0;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .hand {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 8px 2px;
+            min-height: 200px;
+        }
+        .hand .game-card {
+            min-width: 150px;
+            max-width: 150px;
+            aspect-ratio: 5/7;
+            cursor: pointer;
+            transition: 0.2s;
+            flex-shrink: 0;
+        }
+        .hand .game-card:hover { transform: translateY(-12px); }
+        .hand .game-card.selected-hand { transform: translateY(-20px); box-shadow: 0 10px 30px rgba(199,125,255,0.5); }
+        .hand .game-card.unplayable { opacity: 0.4; cursor: not-allowed; }
+        .hand .game-card .card-name { font-size: 0.9em; margin-top: 22px; }
+        .hand .game-card .card-type { font-size: 0.6em; margin-bottom: 4px; }
+        .hand .game-card .card-art { height: 40px; font-size: 2em; margin-bottom: 4px; }
+        .hand .game-card .card-desc {
+            font-size: 0.62em;
+            line-height: 1.2;
+            margin-bottom: 4px;
+            max-height: 40px;
+            overflow: hidden;
+        }
+        .hand .game-card .card-costs { top: 6px; right: 6px; }
+        .hand .game-card .cost-badge { width: 26px; height: 26px; }
+        .hand .game-card .cost-badge .cost-num { font-size: 1em; }
+        .hand .game-card .cost-badge .cost-label { display: none; }
+        .hand .game-card .card-stats { margin-bottom: 2px; }
+        .hand .game-card .stat-chip { font-size: 0.6em; padding: 1px 5px; }
+        .hand .game-card .ban-tooltip { display: none; }
+        .hand .game-card .card-monkey { display: none; }
+
+        /* ===== End turn / battle log ===== */
+        .battle-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .end-turn-btn {
+            flex: 1;
+            padding: 14px;
+            font-size: 1.1em;
+            font-weight: bold;
+            background: linear-gradient(135deg, #e94560, #c77dff);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .end-turn-btn:hover:not(:disabled) { transform: scale(1.02); }
+        .end-turn-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .concede-btn {
+            padding: 14px 20px;
+            background: #2d1f4a;
+            color: #888;
+            border: 1px solid #3d2a5c;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+        .battle-log {
+            background: #0f0a1e;
+            border-radius: 10px;
+            padding: 10px;
+            max-height: 140px;
+            overflow-y: auto;
+            font-size: 0.8em;
+            color: #a08ec0;
+        }
+        .log-entry { padding: 3px 0; border-bottom: 1px solid rgba(107,79,163,0.1); }
+        .log-entry.me { color: #3fb950; }
+        .log-entry.enemy { color: #f88; }
+        .log-entry.system { color: #c77dff; font-style: italic; }
+
+        /* ===== Battle end modal ===== */
+        .battle-end-content { text-align: center; padding: 20px; }
+        .battle-end-icon { font-size: 4em; margin-bottom: 10px; }
+        .battle-end-title { font-size: 1.8em; font-weight: bold; margin-bottom: 10px; }
+        .battle-end-title.win { color: #3fb950; }
+        .battle-end-title.lose { color: #f85149; }
+    </style>
+</head>
+<body>
+
+    <!-- Battle end modal -->
+    <div class="modal-overlay" id="battle-end-modal">
+        <div class="modal" style="max-width:500px;">
+            <div class="battle-end-content" id="battle-end-content"></div>
+            <div class="modal-buttons">
+                <button class="btn-cancel" onclick="switchScreen('deck')">К колоде</button>
+                <button class="btn-confirm" onclick="startBattle()">⚔️ Ещё раз</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="top-bar">
+        <span class="logo">⚒️ Infinite Forge</span>
+        <div class="nav">
+            <button class="active" data-screen="forge" onclick="switchScreen('forge')">⚒️ Кузница</button>
+            <button data-screen="collection" onclick="switchScreen('collection')">📚 Коллекция <span id="coll-count" style="color:#c77dff">(0)</span></button>
+            <button data-screen="deck" onclick="switchScreen('deck')">🎴 Колода <span id="deck-count" style="color:#e94560">(0/10)</span></button>
+            <button data-screen="battle" onclick="startBattle()" id="battle-nav-btn">⚔️ Бой</button>
+        </div>
+        <label>🔑 Hydra API:</label>
+        <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()">
+        <div class="status-dot" id="api-status"></div>
+        <a href="tribes-legacy.html" class="legacy-link" target="_blank">🏛️ Tribes (legacy)</a>
+    </div>
+
+    <div class="container">
+
+        <!-- ========== FORGE SCREEN ========== -->
+        <div id="screen-forge" class="screen active">
+            <h1>⚒️ Кузница цивилизации</h1>
+            <p class="subtitle">Древний мир → Бронзовый век. Опиши отряд, военный манёвр или постройку — ИИ выкует сбалансированную карту.</p>
+
+            <div class="forge-panel">
+                <h2>📝 Твой замысел</h2>
+                <textarea id="prompt-input" class="prompt-input"
+                    placeholder="Например: Отряд чумных крыс, которые после смерти заражают соседних врагов ядом"></textarea>
+                <div class="prompt-hint">💡 Примеры: «Отряд копейщиков из плодородной долины», «Ночной набег кочевников на амбары», «Глинобитная стена с башнями». Конкретнее промпт — честнее баланс.</div>
+
+                <h3>🏷️ Контекст цивилизации</h3>
+
+                    <div class="tags-group">
+                        <div class="tags-group-label">Регион / ландшафт</div>
+                        <div class="tags-grid" id="tags-biome"></div>
+                    </div>
+                    <div class="tags-group">
+                        <div class="tags-group-label">Род войск</div>
+                        <div class="tags-grid" id="tags-archetype"></div>
+                    </div>
+                    <div class="tags-group">
+                        <div class="tags-group-label">Постройки</div>
+                        <div class="tags-grid" id="tags-structure"></div>
+                    </div>
+                    <div style="font-size:0.8em; color:#7868a0; margin-top:8px;">
+                        📜 На старте доступны все контексты Древнего мира. Бронзовый век открывается через постройку мастерских и захват регионов с меднорудными/оловянными землями.
+                    </div>
+
+                <button class="forge-btn" id="forge-btn" onclick="forgeCard()">⚒️ ВЫКОВАТЬ КАРТУ</button>
+                <div id="forge-error" class="error-bar" style="display:none"></div>
+                <div id="forge-loading" class="forge-loading" style="display:none">
+                    <span class="spinner"></span> ИИ-Балансировщик куёт твою карту...
+                    <div class="flavor" id="forge-flavor">Кузнечный молот бьёт по наковальне смыслов...</div>
+                </div>
+            </div>
+
+            <div class="cards-section">
+                <h2>🔥 Результат ковки</h2>
+                <div id="forge-result" style="display:flex; justify-content:center;">
+                    <div style="color:#7868a0; padding:40px; text-align:center">
+                        Твоя новая карта появится здесь
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== COLLECTION SCREEN ========== -->
+        <div id="screen-collection" class="screen">
+            <h1>📚 Моя коллекция</h1>
+            <p class="subtitle">Все карты, которые ты выковал. Клик ➕ чтобы добавить в колоду, ➖ чтобы убрать</p>
+
+            <div class="coll-toolbar">
+                <input type="text" id="coll-search" class="coll-search" placeholder="🔍 Поиск по названию/описанию/тегам..." oninput="renderCollection()">
+                <div class="filter-btns" id="coll-filter">
+                    <button class="filter-btn active" data-type="all" onclick="setCollFilter('all')">Все</button>
+                    <button class="filter-btn" data-type="unit" onclick="setCollFilter('unit')">🗡️ Юниты</button>
+                    <button class="filter-btn" data-type="spell" onclick="setCollFilter('spell')">✨ Заклинания</button>
+                    <button class="filter-btn" data-type="structure" onclick="setCollFilter('structure')">🏰 Сооружения</button>
+                </div>
+            </div>
+
+            <div id="collection-grid" class="cards-grid"></div>
+            <div id="collection-empty" class="empty-collection">
+                <div class="icon">📭</div>
+                <div>У тебя пока нет сохранённых карт.</div>
+                <div style="margin-top:8px; font-size:0.9em">Вернись в Кузницу и создай свою первую карту!</div>
+            </div>
+        </div>
+
+        <!-- ========== DECK SCREEN ========== -->
+        <div id="screen-deck" class="screen">
+            <h1>🎴 Моя колода</h1>
+            <p class="subtitle">Собери колоду из 10 карт для боя. Максимум 10 карт в колоде.</p>
+
+            <div class="deck-stats">
+                <div class="deck-stats-row" id="deck-stats-row"></div>
+                <h3 style="color:#a08ec0; font-size:0.85em; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px">📊 Кривая маны</h3>
+                <div class="mana-curve" id="mana-curve"></div>
+                <div id="deck-ready" class="deck-ready"></div>
+                <div style="text-align:center; margin-top:10px">
+                    <button class="clear-deck-btn" onclick="clearDeck()">🗑️ Очистить колоду</button>
+                </div>
+            </div>
+
+            <div id="deck-grid" class="cards-grid"></div>
+            <div id="deck-empty" class="empty-collection">
+                <div class="icon">🎴</div>
+                <div>Колода пуста.</div>
+                <div style="margin-top:8px; font-size:0.9em">Перейди в Коллекцию и добавь карты в колоду (кнопка ➕).</div>
+            </div>
+        </div>
+
+        <!-- ========== BATTLE SCREEN ========== -->
+        <div id="screen-battle" class="screen">
+            <h1>⚔️ Битва</h1>
+            <p class="subtitle" id="battle-subtitle">Враг у порога!</p>
+
+            <!-- Banners -->
+            <div class="battle-top">
+                <div class="player-banner enemy">
+                    <div class="player-avatar">👹</div>
+                    <div class="player-info">
+                        <div class="player-name">Тёмный Лорд</div>
+                        <div class="hp-bar-wrap">
+                            <div class="hp-bar-fill hp-enemy" id="enemy-hp-bar" style="width:100%"></div>
+                        </div>
+                        <div class="hp-text">HP: <span id="enemy-hp">20</span>/20</div>
+                    </div>
+                </div>
+                <div class="turn-indicator me" id="turn-indicator">ХОД 1 — ТЫ</div>
+                <div class="player-banner me">
+                    <div class="player-avatar">🧙</div>
+                    <div class="player-info">
+                        <div class="player-name" id="me-name">Ты</div>
+                        <div class="hp-bar-wrap">
+                            <div class="hp-bar-fill hp-me" id="me-hp-bar" style="width:100%"></div>
+                        </div>
+                        <div class="hp-text">HP: <span id="me-hp">20</span>/20</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mana -->
+            <div class="mana-display">
+                <div class="mana-pip-row" id="drop-mana-pips">
+                    <span class="mana-label" id="drop-mana-label">💎 0/0</span>
+                </div>
+                <div class="mana-pip-row action-mana" id="action-mana-pips">
+                    <span class="mana-label" id="action-mana-label">⚡ 0/0</span>
+                </div>
+                <div class="mana-pip-row">
+                    <span class="mana-label">📚 Колода: <span id="deck-remaining">0</span></span>
+                </div>
+            </div>
+
+            <!-- Battlefield -->
+            <div class="battlefield">
+                <div class="row-label enemy">🔻 ТЫЛ ВРАГА</div>
+                <div class="battlefield-row" id="enemy-back-row"></div>
+                <div class="row-label enemy">⚔️ АВАНГАРД ВРАГА</div>
+                <div class="battlefield-row" id="enemy-front-row"></div>
+
+                <div style="height:2px; background:linear-gradient(90deg, transparent, #c77dff, transparent); margin:10px 0;"></div>
+
+                <div class="row-label me">⚔️ ТВОЙ АВАНГАРД</div>
+                <div class="battlefield-row" id="me-front-row"></div>
+                <div class="row-label me">🔻 ТВОЙ ТЫЛ</div>
+                <div class="battlefield-row" id="me-back-row"></div>
+            </div>
+
+            <!-- Hand -->
+            <div class="hand-section">
+                <h3>🖐️ Твоя рука <span style="color:#888;font-weight:normal;font-size:0.8em">(выбери карту)</span></h3>
+                <div class="hand" id="hand"></div>
+            </div>
+
+            <!-- Actions & log -->
+            <div class="battle-actions">
+                <button class="end-turn-btn" id="end-turn-btn" onclick="battleEndTurn()">⏭️ Завершить ход</button>
+                <button class="concede-btn" onclick="concedeBattle()">🏳️ Сдаться</button>
+            </div>
+            <h3 style="color:#a08ec0; font-size:0.85em; margin-bottom:6px;">📜 Журнал боя</h3>
+            <div class="battle-log" id="battle-log"></div>
+        </div>
+
+    </div>
+
+    <script>
+    // ============================================
+    // КОНСТАНТЫ И СОСТОЯНИЕ
+    // ============================================
+    const AVAILABLE_TAGS = {
+        // Регионы / ландшафт
+        biome: [
+            { id: 'river', label: '🌊 Великая река' },
+            { id: 'steppe', label: '🌾 Степь' },
+            { id: 'forest', label: '🌲 Лес' },
+            { id: 'desert', label: '🏜️ Пустыня' },
+            { id: 'swamp', label: '🐊 Болота' },
+            { id: 'hills', label: '⛰️ Холмы' },
+            { id: 'mountain', label: '🏔️ Горы' },
+            { id: 'coast', label: '🏖️ Побережье' },
+            { id: 'tundra', label: '❄️ Тундра' },
+            { id: 'valley', label: '🏞️ Плодородная долина' }
+        ],
+        // Род войск / тактическая роль
+        archetype: [
+            { id: 'militia', label: '🪨 Ополчение' },
+            { id: 'spearman', label: '🔺 Копейщики' },
+            { id: 'slinger', label: '🪨 Пращники' },
+            { id: 'archer', label: '🏹 Лучники' },
+            { id: 'axeman', label: '🪓 Топорники' },
+            { id: 'chariot', label: '🛞 Колесницы' },
+            { id: 'cavalry', label: '🐎 Конница' },
+            { id: 'elite', label: '👑 Элитные воины' },
+            { id: 'worker', label: '👷 Рабочие/строители' },
+            { id: 'shaman', label: '🌿 Жрец/знахарь' }
+        ],
+        // Тип построек
+        structure: [
+            { id: 'wall', label: '🧱 Стены/укрепления' },
+            { id: 'granary', label: '🌾 Амбар' },
+            { id: 'temple', label: '🏛️ Святилище' },
+            { id: 'workshop', label: '🔨 Мастерская' },
+            { id: 'watchtower', label: '🗼 Дозорная башня' },
+            { id: 'camp', label: '⛺ Военный лагерь' }
+        ]
+    };
+
+    const CARD_TYPES = {
+        unit: { label: 'ОТРЯД', icon: '⚔️', cls: 'type-unit' },
+        spell: { label: 'МАНЁВР', icon: '📜', cls: 'type-spell' },
+        structure: { label: 'ПОСТРОЙКА', icon: '🏗️', cls: 'type-structure' }
+    };
+
+    const MAX_HAND = 7; // оставим ссылку на старую константу для совместимости
+
+    // ===========================================
+    // ЭПОХИ (технологические уровни)
+    // Бронзовый век — развитая стадия, наносит на 1 урона больше древнего мира.
+    // Урон древних юнитов против бронзовых уменьшен на 1.
+    // ===========================================
+    const ERA_ANCIENT = 'ancient';   // Древний мир / каменный век — кремень, кость, дубины
+    const ERA_BRONZE  = 'bronze';    // Бронзовый век — бронзовое оружие, колесницы, города-государства
+    const ERA_DAMAGE_BONUS = { [ERA_ANCIENT]: 0, [ERA_BRONZE]: 0 };
+    // При столкновении: юнит бронзы получает +1 к атаке против древнего (это значит древний получает на 1 больше урона),
+    // а юнит древнего наносит на 1 меньше (но не меньше 1).
+    function eraAttackMultiplier(attackerEra, defenderEra) {
+        if (attackerEra === ERA_BRONZE && defenderEra === ERA_ANCIENT) return +1; // доп. урон бронзы по древним
+        return 0;
+    }
+    function eraDamageReduction(attackerEra, defenderEra) {
+        // Древние юниты наносят на 1 меньше бронзовым (броня лучше защищает)
+        if (attackerEra === ERA_ANCIENT && defenderEra === ERA_BRONZE) return 1;
+        return 0;
+    }
+
+    let selectedTags = { biome: [], archetype: [], structure: [] };
+    let collection = JSON.parse(localStorage.getItem('iforge_collection') || '[]');
+    let deck = JSON.parse(localStorage.getItem('iforge_deck') || '[]');
+    let lastForged = null;
+    let collFilter = 'all';
+    const DECK_LIMIT = 10;
+
+    // ============================================
+    // ИНИЦИАЛИЗАЦИЯ
+    // ============================================
+    window.onload = function() {
+        const key = localStorage.getItem('iforge_hydra_key') || '';
+        document.getElementById('api-key-input').value = key;
+        document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
+
+        // Очищаем колоду от карт, которых больше нет в коллекции, и обрезаем до лимита
+        const collIds = new Set(collection.map(c => c.id));
+        deck = deck.filter(id => collIds.has(id)).slice(0, DECK_LIMIT);
+        saveDeck();
+
+        renderTags();
+        updateDeckCount();
+        renderCollection();
+    };
+
+    // ============================================
+    // API KEY
+    // ============================================
+    function saveApiKey() {
+        const key = document.getElementById('api-key-input').value.trim();
+        localStorage.setItem('iforge_hydra_key', key);
+        document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
+    }
+    function getApiKey() { return localStorage.getItem('iforge_hydra_key') || ''; }
+
+    // ============================================
+    // НАВИГАЦИЯ
+    // ============================================
+    function switchScreen(screen) {
+        // Если уходим с экрана боя — сбрасываем битву
+        const onBattle = document.getElementById('screen-battle').classList.contains('active');
+        if (onBattle && screen !== 'battle' && battle) {
+            if (!confirm('Покинуть битву? Прогресс будет потерян.')) return;
+        }
+        hideModals();
+        if (onBattle && screen !== 'battle') {
+            battle = null;
+        }
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById('screen-' + screen).classList.add('active');
+        document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
+        if (screen === 'collection') renderCollection();
+        if (screen === 'deck') renderDeck();
+    }
+
+    // ============================================
+    // ТЕГИ
+    // ============================================
+    function renderTags() {
+        Object.entries(AVAILABLE_TAGS).forEach(([group, tags]) => {
+            const container = document.getElementById('tags-' + group);
+            if (!container) return;
+            container.innerHTML = tags.map(t =>
+                `<span class="tag-chip" data-group="${group}" data-id="${t.id}" onclick="toggleTag('${group}','${t.id}')">${t.label}</span>`
+            ).join('');
+        });
+    }
+
+    function toggleTag(group, id) {
+        const idx = selectedTags[group].indexOf(id);
+        if (idx === -1) selectedTags[group].push(id);
+        else selectedTags[group].splice(idx, 1);
+        document.querySelector(`.tag-chip[data-group="${group}"][data-id="${id}"]`)
+            .classList.toggle('active', idx === -1);
+    }
+
+    // ============================================
+    // ВЫБОР ТИПА КАРТЫ АВТОМАТОМ (можно добавить UI позже)
+    // ============================================
+    // Пока — просим LLM определить тип по описанию
+
+    // ============================================
+    // КОВКА КАРТЫ (ЗАПРОС К LLM)
+    // ============================================
+    async function forgeCard() {
+        const prompt = document.getElementById('prompt-input').value.trim();
+        const errorEl = document.getElementById('forge-error');
+        const loadingEl = document.getElementById('forge-loading');
+        const resultEl = document.getElementById('forge-result');
+        const btn = document.getElementById('forge-btn');
+        const flavors = [
+            'Кузнечный молот бьёт по наковальне смыслов...',
+            'ИИ взвешивает баланс на весах судьбы...',
+            'Математика игры сопротивляется твоей воле...',
+            'Лапа Обезьяны присматривает за ковкой...',
+            'Из искры воображения рождается карта...',
+            'Теги сплетаются в единый узор силы...'
+        ];
+
+        errorEl.style.display = 'none';
+        if (!prompt || prompt.length < 5) {
+            errorEl.textContent = 'Опиши свою идею подробнее (минимум 5 символов)';
+            errorEl.style.display = 'block'; return;
+        }
+        const key = getApiKey();
+        if (!key) {
+            errorEl.textContent = 'Нужен API-ключ HydraAI (поле вверху, dashboard.hydraai.ru)';
+            errorEl.style.display = 'block'; return;
+        }
+
+        btn.disabled = true;
+        resultEl.innerHTML = '';
+        loadingEl.style.display = 'block';
+        document.getElementById('forge-flavor').textContent = flavors[Math.floor(Math.random() * flavors.length)];
+
+        const allTags = [
+            ...selectedTags.biome.map(id => AVAILABLE_TAGS.biome.find(t => t.id === id).label),
+            ...selectedTags.archetype.map(id => AVAILABLE_TAGS.archetype.find(t => t.id === id).label),
+            ...selectedTags.structure.map(id => AVAILABLE_TAGS.structure.find(t => t.id === id).label)
+        ];
+
+        const systemPrompt = `Ты — ИИ-Кузнец и Балансировщик для ИСТОРИЧЕСКОЙ стратегической ККИ "Infinite Forge" про становление цивилизаций.
+Сеттинг — реалистичный ДРЕВНИЙ МИР и БРОНЗОВЫЙ ВЕК. НИКАКОЙ МАГИИ, драконов, нежити, демонов, огненных шаров и прочего фэнтези. Всё рационально и исторически обосновано: оружие из камня/кости/бронзы, племена, первые города, стены, колесницы, амбары, разведка, набеги, караваны, ритуалы предков и т.д.
+
+ЭПОХИ (критически важно):
+- "ancient" (Древний мир / каменный век) — каменные топоры, копья с кремнёвыми наконечниками, пращи, дубины, кожаные щиты, племенные ополчения, частоколы. Простая экипировка, юниты слабее.
+- "bronze" (Бронзовый век) — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские. Это РАЗВИТАЯ стадия.
+БАЛАНС ЭПОХ: юниты БРОНЗОВОГО века превосходят древних. Бронза бьёт камень. Древние юниты наносят на 1 урона меньше по бронзовым (но не меньше 1). Бронзовые наносят на 1 больше по древним.
+
+ТИПЫ КАРТ:
+- "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
+- "spell" — это НЕ МАГИЯ, а ВОЕННЫЙ МАНЁВР / событие (Ночной набег, Ложное отступление, Мобилизация, Разведка боем, Поджог амбаров, Караван с бронзой, Племенной сход, Сбор дани).
+- "structure" — постройка (частокол, глинобитная стена, амбар, святилище предков, мастерская, дозорная башня, военный лагерь, загон для скота, террасы).
+
+=== МАТЕМАТИКА БАЛАНСА ===
+ДВЕ цены:
+- drop_cost 0-9 — ресурсы/организация для вывода карты.
+- action_cost 0-6 — приказы/логистика КАЖДЫЙ ХОД (для манёвров и построек = 0).
+
+ОТРЯДЫ (unit):
+- 1-drop: 1-2 HP, 1 ATK (ополчение, пращники)
+- 2-drop: 2-3 HP, 1-2 ATK (копейщики, лучники)
+- 3-drop: 3-4 HP, 2-3 ATK (топорники, конные разведчики)
+- 4-drop: 4-5 HP, 3-4 ATK (бронзовые мечники, тяж. пехота)
+- 5-drop+: 5-8 HP, 3-5 ATK (колесницы, тяж. конница, полководцы)
+Бронзовые юниты — минимум 3-4 маны, era="bronze". Древние — до 3 маны, era="ancient".
+
+МАНЁВРЫ (spell): drop_cost 1-6, action_cost=0, hp=0, atk=0. Точечные — 1-3, массовые/герой — 4-6.
+
+ПОСТРОЙКИ (structure): drop_cost 2-8, action_cost=0, atk=0, HP=3-8. Деревянные/глинобитные — HP 3-5, 2-4 маны (ancient). Каменные/бронзовые — HP 5-8, 5-8 маны (bronze).
+
+=== ЛАПА ОБЕЗЬЯНЫ ===
+За сверх-силу жёсткий штраф в monkey_paw (содержание съедает припасы, строительство затягивается, мятеж элиты, сброс руки, измотанность).
+
+=== ДОСТУПНЫЕ ТЕГИ ===
+${allTags.length ? allTags.join(', ') : 'только базовые племена Древнего мира (каменный век)'}
+
+Если запрос выходит за контекст (бронза без мастерской) — адаптируй под Древний мир либо давай с тяжёлым monkey_paw.
+
+=== ФОРМАТ ОТВЕТА (строго JSON, без markdown) ===
+{
+  "name": "Название 2-4 слова, русское, историческое",
+  "card_type": "unit" | "spell" | "structure",
+  "era": "ancient" | "bronze",
+  "emoji": "один исторический эмодзи (⚔️ 🏹 🪓 🛞 🐎 🪨 🧱 🏛️ 🔨 🗼 ⛺ 🌾 🔥 🚣)",
+  "drop_cost": число,
+  "action_cost": число,
+  "hp": число (0 для манёвров),
+  "atk": число (0 для манёвров/построек),
+  "description": "1-2 предложения, реалистично",
+  "tags": ["подходящие теги"],
+  "abilities": ["тактические способности"],
+  "monkey_paw": "" либо "штраф"
+}
+
+Язык: русский. Имена в духе "Копейщики долины", "Пращники холмов", "Ночной набег кочевников", "Частокол из дуба", "Бронзовые мечники", "Колесницы с серпами".`;
+
+        const userPrompt = `Вот моя идея:
+${prompt}
+
+Доступные теги: ${allTags.join(', ') || 'только базовые племена Древнего мира (каменный век)'}.
+
+Преврати идею в сбалансированную ИСТОРИЧЕСКУЮ карту Древнего мира или Бронзового века. Без магии. Если идея слишком сильная — применяй Лапу Обезьяны. Отвечай строго JSON.`;
+
+        try {
+            const resp = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${key}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: 'gpt-6-luna',
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: 0.75,
+                    max_tokens: 1200,
+                    response_format: { type: "json_object" }
+                })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error?.message || `HTTP ${resp.status}`);
+            }
+
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+            let content = data.choices[0].message.content;
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error('LLM не вернул JSON. Попробуй перековать.');
+
+            const card = JSON.parse(jsonMatch[0]);
+            if (!card.name || !card.card_type) throw new Error('Кузнец вернул неполную карту. Попробуй ещё раз.');
+
+            card.id = 'card_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            card.forgedAt = Date.now();
+            card.originalPrompt = prompt;
+            lastForged = card;
+
+            loadingEl.style.display = 'none';
+            resultEl.innerHTML = renderCard(card, 'forge');
+
+        } catch (e) {
+            loadingEl.style.display = 'none';
+            errorEl.textContent = '⚠️ ' + e.message;
+            errorEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // ============================================
+    // РЕНДЕР КАРТОЧКИ
+    // mode: 'forge' (свежевыкованная, с кнопкой "в коллекцию"),
+    //       'collection' (в коллекции, с кнопками + в колоду / удалить),
+    //       'deck' (в колоде, с кнопкой - убрать)
+    // ============================================
+    function renderCard(card, mode = 'collection') {
+        const typeDef = CARD_TYPES[card.card_type] || CARD_TYPES.unit;
+        const inDeck = deck.includes(card.id);
+        const deckFull = deck.length >= DECK_LIMIT;
+
+        const eraLabel = card.era === 'bronze' ? '🏺 БРОНЗА' : card.era === 'ancient' ? '🪨 ДРЕВНИЙ МИР' : '';
+        const eraTagClass = card.era === 'bronze' ? 'tag-era tag-bronze' : 'tag-era tag-ancient';
+
+        const statsHtml = card.card_type === 'unit' ? `
+            <span class="stat-chip hp">❤️ ${card.hp}</span>
+            <span class="stat-chip atk">⚔️ ${card.atk}</span>
+        ` : card.card_type === 'structure' ? `
+            <span class="stat-chip hp">❤️ ${card.hp}</span>
+            <span class="stat-chip">🏗️ Постройка</span>
+        ` : `<span class="stat-chip">📜 Манёвр</span>`;
+
+        const monkeyHtml = card.monkey_paw ? `
+            <div class="card-monkey" title="Лапа Обезьяны">🐾</div>
+            <div class="ban-tooltip">🐾 ${card.monkey_paw}</div>
+        ` : '';
+
+        const abilitiesHtml = card.abilities && card.abilities.length ?
+            `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${card.abilities.map(a => '• ' + a).join('<br>')}</div>` : '';
+
+        let footerHtml = '';
+        let inDeckBadge = '';
+
+        if (mode === 'forge') {
+            footerHtml = `<button class="save-btn" onclick="saveCard('${card.id}')" id="save-${card.id}">💾 Добавить в коллекцию</button>`;
+        } else if (mode === 'collection') {
+            inDeckBadge = inDeck ? `<div class="in-deck-badge">🎴 В КОЛОДЕ</div>` : '';
+            footerHtml = `<div class="card-footer">
+                ${inDeck
+                    ? `<button class="mini-btn remove" onclick="removeFromDeck('${card.id}')">➖ Убрать из колоды</button>`
+                    : `<button class="mini-btn add" onclick="addToDeck('${card.id}')" ${deckFull ? 'disabled' : ''}>➕ В колоду</button>`
+                }
+                <button class="mini-btn remove" onclick="deleteCard('${card.id}')">🗑️</button>
+            </div>`;
+        } else if (mode === 'deck') {
+            footerHtml = `<div class="card-footer">
+                <button class="mini-btn remove" onclick="removeFromDeck('${card.id}')">➖ Убрать из колоды</button>
+            </div>`;
+        }
+
+        return `
+            <div class="game-card ${typeDef.cls}" style="max-width:320px; width:100%">
+                ${inDeckBadge}
+                <div class="card-costs">
+                    <div class="cost-badge drop-cost">
+                        <span class="cost-num">${card.drop_cost}</span>
+                        <span class="cost-label">выход</span>
+                    </div>
+                    ${card.action_cost > 0 ? `
+                    <div class="cost-badge action-cost">
+                        <span class="cost-num">${card.action_cost}</span>
+                        <span class="cost-label">дейст</span>
+                    </div>` : ''}
+                </div>
+                ${monkeyHtml}
+                <div class="card-name">${card.name}</div>
+                <div class="card-type">${typeDef.icon} ${typeDef.label} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
+                <div class="card-art">${card.emoji || '⚒️'}</div>
+                <div class="card-desc">${card.description}</div>
+                ${abilitiesHtml}
+                <div class="card-stats">${statsHtml}</div>
+                <div class="card-tags">
+                    ${(card.tags || []).slice(0, 5).map(t => `<span class="card-tag">${t}</span>`).join('')}
+                </div>
+                ${footerHtml}
+            </div>
+        `;
+    }
+
+    // ============================================
+    // СОХРАНЕНИЕ В КОЛЛЕКЦИЮ
+    // ============================================
+    function saveCard(id) {
+        if (!lastForged || lastForged.id !== id) return;
+        if (collection.some(c => c.id === id)) return;
+        collection.unshift(lastForged);
+        localStorage.setItem('iforge_collection', JSON.stringify(collection));
+        const btn = document.getElementById('save-' + id);
+        btn.textContent = '✅ Добавлено в коллекцию';
+        btn.classList.add('saved');
+        btn.disabled = true;
+        updateCounters();
+    }
+
+    function deleteCard(id) {
+        collection = collection.filter(c => c.id !== id);
+        deck = deck.filter(did => did !== id);
+        saveDeck();
+        localStorage.setItem('iforge_collection', JSON.stringify(collection));
+        updateCounters();
+        renderCollection();
+    }
+
+    // ============================================
+    // РАБОТА С КОЛОДОЙ
+    // ============================================
+    function saveDeck() {
+        localStorage.setItem('iforge_deck', JSON.stringify(deck));
+        updateCounters();
+    }
+
+    function addToDeck(id) {
+        if (deck.length >= DECK_LIMIT) return;
+        if (deck.includes(id)) return;
+        deck.push(id);
+        saveDeck();
+        renderCollection();
+    }
+
+    function removeFromDeck(id) {
+        deck = deck.filter(did => did !== id);
+        saveDeck();
+        renderCollection();
+        // Если мы на экране колоды — перерисовываем
+        const deckScreen = document.getElementById('screen-deck');
+        if (deckScreen.classList.contains('active')) renderDeck();
+    }
+
+    function clearDeck() {
+        if (deck.length === 0) return;
+        if (!confirm('Очистить колоду? Все карты вернутся в коллекцию.')) return;
+        deck = [];
+        saveDeck();
+        renderCollection();
+        renderDeck();
+    }
+
+    function updateCounters() {
+        document.getElementById('coll-count').textContent = '(' + collection.length + ')';
+        document.getElementById('deck-count').textContent = `(${deck.length}/${DECK_LIMIT})`;
+    }
+
+    // ============================================
+    // ФИЛЬТР КОЛЛЕКЦИИ
+    // ============================================
+    function setCollFilter(type) {
+        collFilter = type;
+        document.querySelectorAll('#coll-filter .filter-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.type === type);
+        });
+        renderCollection();
+    }
+
+    // ============================================
+    // РЕНДЕР КОЛЛЕКЦИИ
+    // ============================================
+    function renderCollection() {
+        const grid = document.getElementById('collection-grid');
+        const empty = document.getElementById('collection-empty');
+        updateCounters();
+
+        const search = (document.getElementById('coll-search')?.value || '').toLowerCase().trim();
+
+        let cards = collection.slice();
+        if (collFilter !== 'all') {
+            cards = cards.filter(c => c.card_type === collFilter);
+        }
+        if (search) {
+            cards = cards.filter(c =>
+                (c.name || '').toLowerCase().includes(search) ||
+                (c.description || '').toLowerCase().includes(search) ||
+                (c.tags || []).some(t => t.toLowerCase().includes(search))
+            );
+        }
+
+        if (collection.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            empty.querySelector('div:nth-child(2)').textContent = 'У тебя пока нет сохранённых карт.';
+            return;
+        }
+        if (cards.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            empty.querySelector('div:nth-child(2)').textContent = 'Ни одна карта не соответствует фильтру.';
+            return;
+        }
+        empty.style.display = 'none';
+        grid.innerHTML = cards.map(c => renderCard(c, 'collection')).join('');
+    }
+
+    // ============================================
+    // РЕНДЕР КОЛОДЫ
+    // ============================================
+    function renderDeck() {
+        updateCounters();
+        const grid = document.getElementById('deck-grid');
+        const empty = document.getElementById('deck-empty');
+        const statsRow = document.getElementById('deck-stats-row');
+        const curve = document.getElementById('mana-curve');
+        const ready = document.getElementById('deck-ready');
+
+        const deckCards = deck.map(id => collection.find(c => c.id === id)).filter(Boolean);
+
+        if (deckCards.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+        } else {
+            empty.style.display = 'none';
+            grid.innerHTML = deckCards.map(c => renderCard(c, 'deck')).join('');
+        }
+
+        // === Статистика ===
+        const units = deckCards.filter(c => c.card_type === 'unit').length;
+        const spells = deckCards.filter(c => c.card_type === 'spell').length;
+        const structs = deckCards.filter(c => c.card_type === 'structure').length;
+        const avgDrop = deckCards.length
+            ? (deckCards.reduce((s, c) => s + (c.drop_cost || 0), 0) / deckCards.length).toFixed(1)
+            : '0.0';
+        const avgAction = deckCards.filter(c => c.action_cost > 0).length
+            ? (deckCards.filter(c => c.action_cost > 0).reduce((s, c) => s + (c.action_cost || 0), 0) / deckCards.filter(c => c.action_cost > 0).length).toFixed(1)
+            : '0';
+        const totalAtk = deckCards.reduce((s, c) => s + (c.atk || 0), 0);
+        const totalHp = deckCards.reduce((s, c) => s + (c.hp || 0), 0);
+
+        statsRow.innerHTML = `
+            <div class="deck-stat"><div class="ds-val ds-pink">${deckCards.length}/${DECK_LIMIT}</div><div class="ds-label">Карт</div></div>
+            <div class="deck-stat"><div class="ds-val ds-purple">${units}</div><div class="ds-label">Юнитов</div></div>
+            <div class="deck-stat"><div class="ds-val ds-gold">${spells}</div><div class="ds-label">Заклинаний</div></div>
+            <div class="deck-stat"><div class="ds-val ds-blue">${structs}</div><div class="ds-label">Сооружений</div></div>
+            <div class="deck-stat"><div class="ds-val ds-white">${avgDrop}</div><div class="ds-label">Средн. выход</div></div>
+            <div class="deck-stat"><div class="ds-val ds-white">${avgAction}</div><div class="ds-label">Средн. действие</div></div>
+            <div class="deck-stat"><div class="ds-val ds-gold">${totalAtk}</div><div class="ds-label">Сумм. атака</div></div>
+            <div class="deck-stat"><div class="ds-val ds-green">${totalHp}</div><div class="ds-label">Сумм. HP</div></div>
+        `;
+
+        // === Кривая маны (drop cost 0-7+) ===
+        const buckets = [0,0,0,0,0,0,0,0]; // 0,1,2,3,4,5,6,7+
+        deckCards.forEach(c => {
+            const cost = Math.min(7, c.drop_cost || 0);
+            buckets[cost]++;
+        });
+        const maxBucket = Math.max(1, ...buckets);
+        curve.innerHTML = buckets.map((count, i) => {
+            const label = i === 7 ? '7+' : i;
+            const h = Math.round((count / maxBucket) * 70);
+            return `<div class="mana-bar-wrap">
+                <span class="mana-bar-count">${count || ''}</span>
+                <div class="mana-bar" style="height:${h}px"></div>
+                <span class="mana-bar-label">${label}</span>
+            </div>`;
+        }).join('');
+
+        // === Готовность ===
+        if (deckCards.length === DECK_LIMIT) {
+            ready.className = 'deck-ready ok';
+            ready.innerHTML = '✅ Колода готова к битве! (10/10 карт)';
+        } else if (deckCards.length > DECK_LIMIT) {
+            ready.className = 'deck-ready no';
+            ready.innerHTML = `⚠️ Слишком много карт (${deckCards.length}/${DECK_LIMIT})`;
+        } else {
+            ready.className = 'deck-ready no';
+            ready.innerHTML = `⏳ Добавь ещё ${DECK_LIMIT - deckCards.length} карт для полной колоды`;
+        }
+    }
+
+    // ============================================
+    // БОЕВОЙ ДВИЖОК
+    // ============================================
+
+    // -------- Константы боя --------
+    const MAX_HP = 20;
+    const FRONT_SLOTS = 4;
+    const BACK_SLOTS = 4;
+    const START_HAND = 4;
+    const DROP_MANA_PER_TURN = 1;
+    const MAX_DROP_MANA = 10;
+    const STARTING_ACTION_MANA = 2;
+    const ACTION_MANA_PER_TURN = 1;
+    const MAX_ACTION_MANA = 8;
+    const HAND_LIMIT = 7;
+    const DRAW_PER_TURN = 1;
+
+    // -------- Состояние боя --------
+    let battle = null;
+    let selectedHandIdx = null;       // индекс карты в руке (выбрана для высадки)
+    let selectedUnitId = null;        // id юнита на поле (выбран для атаки)
+    let awaitingTarget = false;       // ждём выбора цели атаки
+    let animating = false;
+
+    // -------- Утилиты боя --------
+    function shuffle(arr) {
+        const a = arr.slice();
+        for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+    }
+
+    function cloneDeckCards(cards) {
+        return cards.map(c => {
+            const copy = JSON.parse(JSON.stringify(c));
+            delete copy.id;
+            // Нормализация эпохи (по умолчанию — Древний мир)
+            if (!copy.era) copy.era = ERA_ANCIENT;
+            return copy;
+        });
+    }
+
+    function uid() { return 'u_' + Math.random().toString(36).slice(2,10) + '_' + Date.now().toString(36); }
+
+    // -------- Генерация колоды врага (тестовая, без LLM) --------
+    function buildEnemyDeck() {
+        // Соседнее племя Древнего мира с 1-2 бронзовыми отрядами в качестве бонуса
+        return [
+            mkEnemyCard('Племенные копейщики', 'unit', '🔺', 1, 0, 1, 2, 'Ополчение из пастухов, вооружённых заострёнными кольями.', ['копьё', 'пехота']),
+            mkEnemyCard('Пращники из холмов', 'unit', '🪨', 1, 0, 1, 1, 'Бросают камни из-за спин пехоты.', ['пращники', 'дальний бой']),
+            mkEnemyCard('Охотники с луками', 'unit', '🏹', 2, 1, 2, 2, 'Лучники, привыкшие бить зверя с расстояния.', ['лучники']),
+            mkEnemyCard('Топорники племени', 'unit', '🪓', 2, 1, 2, 3, 'Каменные топоры и кожаные щиты.', ['топорники', 'пехота']),
+            mkEnemyCard('Разведчики на лошадях', 'unit', '🐎', 3, 1, 2, 3, 'Лёгкая конница, стремительный набег.', ['конница']),
+            mkEnemyCard('Дружина вождя', 'unit', '🛡️', 3, 2, 3, 4, 'Элитные воины с тяжёлыми дубинами.', ['элита']),
+            mkEnemyCard('Частокол', 'structure', '🧱', 2, 0, 0, 4, 'Деревянное заграждение, преграждающее проход.', ['укрепление'], ERA_ANCIENT),
+            mkEnemyCard('Ночной набег', 'spell', '🌙', 2, 0, 0, 0, 'Диверсия: наносит 3 урона одному отряду в авангарде.', ['набег']),
+            mkEnemyCard('Бронзовые наёмники', 'unit', '⚔️', 4, 2, 4, 5, 'Отряд наёмников, вооружённых бронзовыми мечами. Вымышленные у соседнего города.', ['наёмники', 'бронза'], ERA_BRONZE),
+            mkEnemyCard('Военный лагерь', 'structure', '⛺', 3, 0, 0, 4, 'Лагерь у границы. Каждый ход подтягиваются резервы (+1 к атаке ближайшего отряда).', ['лагерь'], ERA_ANCIENT)
+        ];
+    }
+    function mkEnemyCard(name, type, emoji, drop, action, atk, hp, desc, tags, era = ERA_ANCIENT) {
+        return { name, card_type: type, emoji, drop_cost: drop, action_cost: action, atk, hp, description: desc, tags, abilities: [], monkey_paw: '', era, id: uid() };
+    }
+
+    // -------- Старт боя --------
+    function startBattle() {
+        hideModals();
+        const deckCards = deck.map(id => {
+            const c = collection.find(x => x.id === id);
+            if (!c) return null;
+            // клонируем и пересоздаём id для инстансов
+            return JSON.parse(JSON.stringify(c));
+        }).filter(Boolean);
+
+        if (deckCards.length < DECK_LIMIT) {
+            alert(`Собери колоду из ${DECK_LIMIT} карт в разделе «Колода»! Сейчас в колоде: ${deckCards.length}.`);
+            switchScreen('deck');
+            return;
+        }
+        // Если вдруг больше 10 — берём первые 10
+        deckCards = deckCards.slice(0, DECK_LIMIT);
+
+        // Сохраняем ник для баннера
+        try {
+            const meName = localStorage.getItem('tribes_username') || 'Герой';
+            document.getElementById('me-name').textContent = meName;
+        } catch(e){}
+
+        function cloneCard(c) {
+            const copy = JSON.parse(JSON.stringify(c));
+            delete copy.id; // удаляем id коллекции, будет instanceId
+            return copy;
+        }
+
+        const enemyCards = shuffle(buildEnemyDeck().map(c => {
+            const copy = JSON.parse(JSON.stringify(c));
+            delete copy.id;
+            return copy;
+        }));
+        const myCards = shuffle(cloneDeckCards(deckCards));
+
+        battle = {
+            turn: 1,
+            whoseTurn: 'me', // me | enemy
+            me: {
+                hp: MAX_HP,
+                deck: myCards,
+                hand: [],
+                front: new Array(FRONT_SLOTS).fill(null),
+                back: new Array(BACK_SLOTS).fill(null),
+                dropMana: 1,
+                dropManaMax: 1,
+                actionMana: STARTING_ACTION_MANA,
+                actionManaMax: STARTING_ACTION_MANA
+            },
+            enemy: {
+                hp: MAX_HP,
+                deck: enemyCards,
+                hand: [],
+                front: new Array(FRONT_SLOTS).fill(null),
+                back: new Array(BACK_SLOTS).fill(null),
+                dropMana: 1,
+                dropManaMax: 1,
+                actionMana: STARTING_ACTION_MANA,
+                actionManaMax: STARTING_ACTION_MANA
+            },
+            log: []
+        };
+
+        // Раздаём стартовую руку
+        for (let i = 0; i < START_HAND; i++) { drawCard('me'); drawCard('enemy'); }
+
+        selectedHandIdx = null;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        animating = false;
+
+        switchScreen('battle');
+        logBattle('⚔️ Битва начинается!', 'system');
+        renderBattle();
+    }
+
+    function concedeBattle() {
+        if (!battle) return;
+        if (!confirm('Сдаться и вернуться в меню?')) return;
+        endBattle(false);
+    }
+
+    function endBattle(win) {
+        const content = document.getElementById('battle-end-content');
+        content.innerHTML = `
+            <div class="battle-end-icon">${win ? '🏆' : '💀'}</div>
+            <div class="battle-end-title ${win ? 'win' : 'lose'}">${win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}</div>
+            <p style="color:#888">${win ? 'Ты сокрушил Тёмного Лорда!' : 'Тёмный Лорд одержал верх...'}</p>
+        `;
+        document.getElementById('battle-end-modal').classList.add('active');
+        selectedHandIdx = null;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        animating = false;
+        // оставляем battle как есть, чтобы фон не сломался
+    }
+
+    function hideModals() {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+    }
+
+    // -------- ДРО КАРТ --------
+    function drawCard(who) {
+        const p = battle[who];
+        if (p.deck.length === 0) {
+            // Усталость: урон за пустую колоду
+            p.hp -= 2;
+            logBattle(`📭 ${who === 'me' ? 'Ты' : 'Враг'} тянешь из пустой колоды и получаешь 2 урона!`, who);
+            return;
+        }
+        if (p.hand.length >= HAND_LIMIT) {
+            const burned = p.deck.shift();
+            logBattle(`🔥 ${who === 'me' ? 'Ты сжигаешь' : 'Враг сжигает'} карту из-за переполнения руки: ${burned.name}`, who);
+            return;
+        }
+        const c = p.deck.shift();
+        c.instanceId = uid();
+        p.hand.push(c);
+    }
+
+    // -------- ЛОГ --------
+    function logBattle(msg, cls = '') {
+        if (!battle) return;
+        battle.log.unshift({ msg, cls });
+        if (battle.log.length > 80) battle.log.pop();
+    }
+
+    // ============================================
+    // РЕНДЕР БОЯ
+    // ============================================
+    function renderBattle() {
+        if (!battle) return;
+        const { me, enemy, whoseTurn, turn } = battle;
+
+        // HP
+        document.getElementById('me-hp').textContent = Math.max(0, me.hp);
+        document.getElementById('enemy-hp').textContent = Math.max(0, enemy.hp);
+        document.getElementById('me-hp-bar').style.width = Math.max(0, (me.hp / MAX_HP) * 100) + '%';
+        document.getElementById('enemy-hp-bar').style.width = Math.max(0, (enemy.hp / MAX_HP) * 100) + '%';
+
+        // Подсветка вражеского баннера как цели при выбранной атаке
+        const enemyBanner = document.querySelector('.player-banner.enemy');
+        if (enemyBanner) {
+            enemyBanner.classList.toggle('targetable', awaitingTarget && whoseTurn_isMe());
+        }
+
+        // Индикатор хода
+        const ti = document.getElementById('turn-indicator');
+        ti.className = 'turn-indicator ' + (whoseTurn === 'me' ? 'me' : 'enemy');
+        ti.textContent = `ХОД ${turn} — ${whoseTurn === 'me' ? 'ТЫ' : 'ВРАГ'}`;
+
+        // Мана
+        renderManaPips('drop-mana-pips', 'drop-mana-label', '💎', me.dropMana, me.dropManaMax);
+        renderManaPips('action-mana-pips', 'action-mana-label', '⚡', me.actionMana, me.actionManaMax);
+        document.getElementById('deck-remaining').textContent = me.deck.length;
+
+        // Поле
+        renderRow('enemy-back-row', enemy.back, 'enemy');
+        renderRow('enemy-front-row', enemy.front, 'enemy');
+        renderRow('me-front-row', me.front, 'me');
+        renderRow('me-back-row', me.back, 'me');
+
+        // Рука
+        renderHand();
+
+        // Кнопка конца хода
+        const btn = document.getElementById('end-turn-btn');
+        btn.disabled = whoseTurn !== 'me' || animating;
+        btn.textContent = whoseTurn === 'me' ? '⏭️ Завершить ход' : '⏳ Враг думает...';
+
+        // Лог
+        const logEl = document.getElementById('battle-log');
+        logEl.innerHTML = battle.log.slice(0, 30).map(e =>
+            `<div class="log-entry ${e.cls}">${e.msg}</div>`
+        ).join('');
+    }
+
+    function renderManaPips(containerId, labelId, icon, cur, max) {
+        const c = document.getElementById(containerId);
+        let html = '';
+        for (let i = 0; i < Math.max(max, 1); i++) {
+            html += `<div class="mana-pip ${i < cur ? 'available' : 'spent'}"></div>`;
+        }
+        c.innerHTML = html + `<span class="mana-label">${icon} ${cur}/${max}</span>`;
+    }
+
+    function renderRow(containerId, row, side) {
+        const el = document.getElementById(containerId);
+        const isFront = containerId.includes('front');
+        const isMyRow = side === 'me';
+
+        let html = '';
+        for (let i = 0; i < row.length; i++) {
+            const u = row[i];
+            if (!u) {
+                // Пустой слот — показываем как dnd-target только если:
+                // - наш ряд
+                // - выбрана карта в руке (юнит или структура)
+                // - маны на высадку хватает
+                let droppable = false;
+                if (isMyRow && selectedHandIdx !== null && !awaitingTarget && whoseTurn_isMe()) {
+                    const card = battle.me.hand[selectedHandIdx];
+                    if (card && battle.me.dropMana >= card.drop_cost) {
+                        if (card.card_type === 'structure' && !isFront) droppable = true;
+                        if (card.card_type === 'unit') droppable = true; // юнита можно ставить в любой ряд
+                    }
+                }
+                html += `<div class="bf-slot ${droppable ? 'droppable' : ''}" onclick="playCardTo(${i}, ${isFront})"></div>`;
+            } else {
+                const selectable = isMyRow && whoseTurn_isMe() && !u.exhausted && u.action_cost <= battle.me.actionMana && u.card_type === 'unit';
+                const targeted = awaitingTarget && !isMyRow; // атакуем вражеский ряд
+                const targetedMe = awaitingTarget && isMyRow && selectedUnitId; // пока не разрешаем атаковать своих
+                let cls = `bf-unit ${side}`;
+                if (selectable) cls += ' selectable';
+                if (selectedUnitId === u.instanceId) cls += ' selected';
+                if (u.exhausted) cls += ' exhausted';
+                if (u.justDamaged) cls += ' damaged';
+                if (u.justAttacked) cls += ' attacked';
+
+                const clickAction = isMyRow
+                    ? (selectable ? `onclick="selectMyUnit('${u.instanceId}')"` : (selectedUnitId === u.instanceId ? `onclick="cancelSelection()"` : ''))
+                    : (awaitingTarget ? `onclick="attackTarget('${u.instanceId}', 'unit')"` : '');
+
+                html += `<div class="${cls}" ${clickAction}>
+                    ${targeted ? '<span class="bf-target">🎯</span>' : ''}
+                    <div class="bf-unit-emoji">${u.emoji || '⚒️'}</div>
+                    <div class="bf-unit-name">${u.name}</div>
+                    <div class="bf-unit-stats">
+                        <span class="atk">⚔️${u.currentAtk ?? u.atk}</span>
+                        <span class="hp">❤️${u.currentHp}</span>
+                    </div>
+                </div>`;
+            }
+        }
+        el.innerHTML = html;
+    }
+
+    function whoseTurn_isMe() { return battle && battle.whoseTurn === 'me'; }
+
+    function renderHand() {
+        const el = document.getElementById('hand');
+        if (!whoseTurn_isMe()) {
+            el.innerHTML = '<div style="color:#888; padding:40px; text-align:center; width:100%">Ход врага...</div>';
+            return;
+        }
+        const hand = battle.me.hand;
+        if (hand.length === 0) {
+            el.innerHTML = '<div style="color:#888; padding:40px; text-align:center; width:100%">Рука пуста</div>';
+            return;
+        }
+        let html = '';
+        hand.forEach((card, idx) => {
+            const canDrop = battle.me.dropMana >= card.drop_cost;
+            const canPlay = canDrop; // спеллы тоже требуют drop маны
+            // Для спеллов нужна еще проверка action cost (0 у спеллов обычно)
+            let playable = canPlay;
+            const selected = selectedHandIdx === idx;
+            const unplayableCls = !playable ? 'unplayable' : '';
+            const selectedCls = selected ? 'selected-hand' : '';
+
+            // Компактный рендер для руки
+            const typeDef = CARD_TYPES[card.card_type] || CARD_TYPES.unit;
+            const statsHtml = card.card_type === 'unit'
+                ? `<span class="stat-chip hp">❤️${card.hp}</span><span class="stat-chip atk">⚔️${card.atk}</span>`
+                : card.card_type === 'structure' ? `<span class="stat-chip hp">❤️${card.hp}</span>` : `<span class="stat-chip">✨Спелл</span>`;
+
+            html += `<div class="game-card ${typeDef.cls} ${unplayableCls} ${selectedCls}" onclick="selectHandCard(${idx})">
+                <div class="card-costs">
+                    <div class="cost-badge drop-cost">
+                        <span class="cost-num">${card.drop_cost}</span>
+                    </div>
+                    ${card.action_cost > 0 ? `<div class="cost-badge action-cost">
+                        <span class="cost-num">${card.action_cost}</span>
+                    </div>` : ''}
+                </div>
+                <div class="card-name">${card.name}</div>
+                <div class="card-type">${typeDef.icon} ${typeDef.label}</div>
+                <div class="card-art">${card.emoji || '⚒️'}</div>
+                <div class="card-desc">${card.description}</div>
+                <div class="card-stats">${statsHtml}</div>
+            </div>`;
+        });
+        el.innerHTML = html;
+    }
+
+    // ============================================
+    // ДЕЙСТВИЯ ИГРОКА
+    // ============================================
+    function cancelSelection() {
+        selectedHandIdx = null;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        renderBattle();
+    }
+
+    function selectHandCard(idx) {
+        if (!whoseTurn_isMe() || animating) return;
+        const card = battle.me.hand[idx];
+        if (!card) return;
+        if (battle.me.dropMana < card.drop_cost) {
+            logBattle(`❌ Недостаточно маны выхода для ${card.name} (нужно ${card.drop_cost}💎)`, 'system');
+            return;
+        }
+
+        // Повторный клик по выбранной карте снимает выделение
+        if (selectedHandIdx === idx) {
+            cancelSelection();
+            return;
+        }
+
+        // Если это спелл без целей - сразу играем
+        if (card.card_type === 'spell') {
+            playSpellFromHand(idx, null);
+            return;
+        }
+
+        // Иначе выбираем слот на поле для высадки; сбрасываем режим выбора атаки
+        selectedHandIdx = idx;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        renderBattle();
+    }
+
+    function playCardTo(slotIdx, isFront) {
+        if (!whoseTurn_isMe() || selectedHandIdx === null) return;
+        const card = battle.me.hand[selectedHandIdx];
+        if (!card) return;
+
+        if (card.card_type === 'structure' && isFront) return; // нельзя ставить структуры в авангард
+
+        const rowArr = isFront ? battle.me.front : battle.me.back;
+        if (rowArr[slotIdx]) return;
+
+        // Нормализация на случай, если LLM вернёт невалидные значения
+        const dropCost = Math.max(0, parseInt(card.drop_cost) || 0);
+        const actionCost = Math.max(0, parseInt(card.action_cost) || 0);
+        const atk = Math.max(0, parseInt(card.atk) || 0);
+        const hp = Math.max(1, parseInt(card.hp) || 1);
+
+        // Высадим
+        battle.me.dropMana -= dropCost;
+        const unit = {
+            instanceId: uid(),
+            name: card.name || 'Безымянный',
+            emoji: card.emoji || '⚒️',
+            card_type: card.card_type || 'unit',
+            era: card.era || ERA_ANCIENT,
+            atk: atk,
+            hp: hp,
+            currentAtk: atk,
+            currentHp: hp,
+            action_cost: actionCost,
+            abilities: card.abilities || [],
+            exhausted: true, // только что высажен - не может атаковать в этот ход
+            justDamaged: false,
+            justAttacked: false,
+            isStructure: card.card_type === 'structure'
+        };
+        rowArr[slotIdx] = unit;
+        logBattle(`🧙 Ты выводишь ${card.name} (${dropCost}💎)`, 'me');
+
+        // Удаляем из руки
+        battle.me.hand.splice(selectedHandIdx, 1);
+        selectedHandIdx = null;
+        renderBattle();
+        checkBattleEnd();
+    }
+
+    function playSpellFromHand(idx, target) {
+        const card = battle.me.hand[idx];
+        if (!card || battle.me.dropMana < card.drop_cost) return;
+        battle.me.dropMana -= card.drop_cost;
+        battle.me.hand.splice(idx, 1);
+        selectedHandIdx = null;
+
+        // Простая логика спеллов: урон по вражескому герою = drop_cost*2, или по случайному юниту
+        // Определим урон по названию/описанию (простой эвристикой)
+        let damage = card.drop_cost * 2;
+        // Ищем урон в описании/тегах
+        if ((card.description || '').match(/(\d+)\s*урон/)) {
+            const m = (card.description || '').match(/(\d+)\s*урон/);
+            damage = parseInt(m[1]) || damage;
+        }
+
+        // Цель: первый вражеский юнит в авангарде, если есть — иначе герой
+        const frontEnemy = battle.enemy.front.find(u => u);
+        if (frontEnemy) {
+            dealDamage(frontEnemy, damage, 'enemy');
+            logBattle(`✨ Ты применяешь ${card.name} → ${frontEnemy.name} получает ${damage} урона!`, 'me');
+        } else {
+            battle.enemy.hp -= damage;
+            logBattle(`✨ Ты применяешь ${card.name} → Тёмный Лорд получает ${damage} урона!`, 'me');
+        }
+
+        cleanupDead();
+        selectedHandIdx = null;
+        renderBattle();
+        checkBattleEnd();
+    }
+
+    function selectMyUnit(instanceId) {
+        if (!whoseTurn_isMe() || animating) return;
+        // Найдём юнита
+        let unit = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === instanceId);
+        if (!unit || unit.exhausted || unit.isStructure) return;
+
+        if (battle.me.actionMana < unit.action_cost) {
+            logBattle(`❌ Недостаточно маны действия для ${unit.name} (нужно ${unit.action_cost}⚡)`, 'system');
+            return;
+        }
+
+        selectedUnitId = instanceId;
+        selectedHandIdx = null;
+        awaitingTarget = true;
+        logBattle(`🎯 ${unit.name} готов атаковать. Клик по врагу.`, 'me');
+        renderBattle();
+    }
+
+    function attackTarget(targetId, targetType) {
+        if (!awaitingTarget || !selectedUnitId) return;
+        const attacker = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === selectedUnitId);
+        if (!attacker) return;
+
+        let target = null;
+        let targetSide = null;
+        target = battle.enemy.front.concat(battle.enemy.back).find(u => u && u.instanceId === targetId);
+        targetSide = 'enemy';
+
+        // Если клик по вражескому баннеру/герою (передаётся targetType='hero')
+        if (targetType === 'hero') {
+            const enemyFrontBlock = battle.enemy.front.some(u => u);
+            const attackerIsFront = battle.me.front.includes(attacker);
+            if (enemyFrontBlock && !attackerIsFront) {
+                // Юниты в тылу не могут бить героя, пока враг держит авангард
+                logBattle(`❌ Авангард врага блокирует путь! ${attacker.name} стоит в тылу и не может атаковать героя напрямую.`, 'system');
+                return;
+            }
+            if (enemyFrontBlock) {
+                logBattle(`💨 ${attacker.name} прорывается сквозь авангард и бьёт героя!`, 'me');
+            }
+            // Урон герою — без модификаторов эпохи (герой абстрактный)
+            battle.enemy.hp -= attacker.currentAtk;
+            logBattle(`⚔️ ${attacker.name} атакует Тёмного Лорда → ${attacker.currentAtk} урона!`, 'me');
+        } else if (target) {
+            // Атака юнита: юниты из авангарда могут бить кого угодно; юниты из тыла могут бить только вражеский авангард
+            const targetIsEnemyFront = battle.enemy.front.includes(target);
+            const attackerIsFront = battle.me.front.includes(attacker);
+            if (!attackerIsFront && !targetIsEnemyFront && !target.isStructure) {
+                logBattle(`❌ ${attacker.name} стоит в тылу и может атаковать только авангард врага или сооружения.`, 'system');
+                return;
+            }
+            // Урон с учётом эпох: +1 бронза по древним, -1 древние по бронзе (мин 1)
+            let atkDmg = attacker.currentAtk + eraAttackBonus(attacker.era, target.era);
+            atkDmg = Math.max(1, atkDmg - eraDamageReduction(attacker.era, target.era));
+            const counter = target.isStructure ? 0 : (target.currentAtk ?? target.atk ?? 0);
+            let counterDmg = counter + eraAttackBonus(target.era, attacker.era);
+            counterDmg = Math.max(0, counterDmg - eraDamageReduction(target.era, attacker.era));
+            const eraNote = (eraAttackBonus(attacker.era, target.era) || eraDamageReduction(attacker.era, target.era))
+                ? ` (эпоха: ${atkDmg} урона)` : '';
+            dealDamage(target, atkDmg, 'enemy');
+            if (counter > 0 || counterDmg > 0) {
+                const finalCounter = Math.max(1, counterDmg) || 0;
+                dealDamage(attacker, finalCounter, 'me');
+            }
+            logBattle(`⚔️ ${attacker.name} бьётся с ${target.name} (${atkDmg}⚔️${finalCounter ? ' / '+finalCounter+'⚔️ встречный' : ''})${eraNote}`, 'me');
+            target.justDamaged = true;
+            attacker.justDamaged = true;
+            attacker.justAttacked = true;
+        }
+
+        attacker.exhausted = true;
+        battle.me.actionMana -= attacker.action_cost;
+
+        cleanupDead();
+        selectedUnitId = null;
+        awaitingTarget = false;
+        setTimeout(() => {
+            // Снимаем анимации после показа
+            [...(battle.me.front||[]), ...(battle.me.back||[]), ...(battle.enemy.front||[]), ...(battle.enemy.back||[])].forEach(u => {
+                if (u) { u.justAttacked = false; u.justDamaged = false; }
+            });
+            renderBattle();
+        }, 500);
+        renderBattle();
+        checkBattleEnd();
+    }
+
+    function dealDamage(unit, dmg, side) {
+        unit.currentHp -= dmg;
+        unit.justDamaged = true;
+    }
+
+    function cleanupDead() {
+        ['me','enemy'].forEach(side => {
+            ['front','back'].forEach(row => {
+                const r = battle[side][row];
+                for (let i = 0; i < r.length; i++) {
+                    const u = r[i];
+                    if (u && u.currentHp <= 0) {
+                        logBattle(`💀 ${side === 'me' ? 'Твой' : 'Вражеский'} юнит ${u.name} погибает!`, side);
+                        r[i] = null;
+                    }
+                }
+            });
+        });
+    }
+
+    function checkBattleEnd() {
+        if (battle.enemy.hp <= 0) { setTimeout(() => endBattle(true), 300); return true; }
+        if (battle.me.hp <= 0) { setTimeout(() => endBattle(false), 300); return true; }
+        return false;
+    }
+
+    // Атака героя врага кликом по баннеру
+    // Клик вне карт/слотов — отмена выбора
+    document.addEventListener('click', (e) => {
+        if (!battle) return;
+        if (!document.getElementById('screen-battle').classList.contains('active')) return;
+
+        const enemyBanner = e.target.closest('.player-banner.enemy');
+        if (enemyBanner && awaitingTarget) {
+            attackTarget(null, 'hero');
+            return;
+        }
+
+        // Клик по пустому полю (не по карте, не по слоту, не по руке, не по кнопкам) отменяет выбор
+        const onCard = e.target.closest('.game-card, .bf-unit, .bf-slot, .end-turn-btn, .concede-btn, .modal, .top-bar, .hand, .battle-log, .player-banner');
+        if (!onCard && (selectedHandIdx !== null || awaitingTarget)) {
+            cancelSelection();
+        }
+    });
+
+    // ============================================
+    // КОНЕЦ ХОДА
+    // ============================================
+    async function battleEndTurn() {
+        if (!whoseTurn_isMe() || animating) return;
+
+        // Пассивные эффекты структур - башни стреляют
+        fireStructures('me');
+        cleanupDead();
+        if (checkBattleEnd()) return;
+
+        // Передаём ход врагу
+        battle.whoseTurn = 'enemy';
+        selectedHandIdx = null;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        renderBattle();
+
+        // Даём небольшую паузу и выполняем ИИ ход
+        animating = true;
+        setTimeout(async () => {
+            await runEnemyTurn();
+            animating = false;
+            if (!battle) return;
+            // Новый ход игрока
+            battle.turn++;
+            battle.whoseTurn = 'me';
+            startOfTurn('me');
+            renderBattle();
+        }, 900);
+    }
+
+    function startOfTurn(who) {
+        const p = battle[who];
+        // Обновление маны
+        p.dropManaMax = Math.min(MAX_DROP_MANA, p.dropManaMax + DROP_MANA_PER_TURN);
+        p.dropMana = p.dropManaMax;
+        p.actionManaMax = Math.min(MAX_ACTION_MANA, p.actionManaMax + ACTION_MANA_PER_TURN);
+        p.actionMana = p.actionManaMax;
+
+        // Разморозка юнитов
+        [...p.front, ...p.back].forEach(u => {
+            if (u) {
+                u.exhausted = u.isStructure ? true : false; // сооружения не ходят
+                u.justAttacked = false;
+                u.justDamaged = false;
+            }
+        });
+
+        // Дро карты
+        drawCard(who);
+        logBattle(`🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Мана: 💎${p.dropMana}/${p.dropManaMax} ⚡${p.actionMana}/${p.actionManaMax}`, 'system');
+
+        fireStructures(who);
+        cleanupDead();
+    }
+
+    function fireStructures(who) {
+        const opp = who === 'me' ? 'enemy' : 'me';
+        const enemy = battle[opp];
+        const me = battle[who];
+        [...me.front, ...me.back].forEach(u => {
+            if (u && u.isStructure) {
+                // Башни бьют на 1 урон в ход по случайному юниту авангарда или герою
+                const targetFront = enemy.front.find(x => x);
+                if (targetFront) {
+                    dealDamage(targetFront, 1, opp);
+                    logBattle(`🏰 ${u.name} стреляет в ${targetFront.name} (-1 HP)`, who);
+                    targetFront.justDamaged = true;
+                } else {
+                    enemy.hp -= 1;
+                    logBattle(`🏰 ${u.name} стреляет в ${opp === 'me' ? 'тебя' : 'Тёмного Лорда'} (-1 HP)`, who);
+                }
+            }
+        });
+    }
+
+    // ============================================
+    // ИИ ОППОНЕНТА
+    // ============================================
+    async function runEnemyTurn() {
+        const delay = ms => new Promise(r => setTimeout(r, ms));
+        const e = battle.enemy;
+
+        startOfTurn('enemy');
+        renderBattle();
+        await delay(600);
+
+        // 1) Высадка карт: жадно пробуем сыграть самые дорогие, на которые хватает drop-маны
+        let attempts = 0;
+        while (attempts < 10) {
+            attempts++;
+            // Ищем карту которую можем сыграть
+            const playable = e.hand
+                .map((c, i) => ({ c, i }))
+                .filter(({ c }) => c.drop_cost <= e.dropMana)
+                .sort((a, b) => b.c.drop_cost - a.c.drop_cost);
+
+            if (playable.length === 0) break;
+
+            const { c: card, i: idx } = playable[0];
+
+            if (card.card_type === 'spell') {
+                // Играем спелл в случайную цель
+                e.dropMana -= card.drop_cost;
+                e.hand.splice(idx, 1);
+                const myFront = battle.me.front.find(u => u);
+                if (myFront) {
+                    dealDamage(myFront, card.drop_cost * 2, 'me');
+                    logBattle(`✨ Враг применяет ${card.name} в ${myFront.name} (-${card.drop_cost*2} HP)`, 'enemy');
+                    myFront.justDamaged = true;
+                } else {
+                    battle.me.hp -= card.drop_cost * 2;
+                    logBattle(`✨ Враг применяет ${card.name} в тебя (-${card.drop_cost*2} HP)`, 'enemy');
+                }
+                cleanupDead();
+                renderBattle();
+                await delay(500);
+                if (checkBattleEnd()) return;
+                continue;
+            }
+
+            // Юнит или структура: ищем свободный слот
+            let placed = false;
+            // Юнитов ставим в авангард если есть место, иначе в тыл
+            const tryRows = card.card_type === 'structure'
+                ? [e.back]
+                : [e.front, e.back];
+            for (const row of tryRows) {
+                for (let si = 0; si < row.length; si++) {
+                    if (!row[si]) {
+                        const eDrop = Math.max(0, parseInt(card.drop_cost) || 0);
+                        const eAct = Math.max(0, parseInt(card.action_cost) || 0);
+                        const eAtk = Math.max(0, parseInt(card.atk) || 0);
+                        const eHp = Math.max(1, parseInt(card.hp) || 1);
+                        e.dropMana -= eDrop;
+                        e.hand.splice(idx, 1);
+                        row[si] = {
+                            instanceId: uid(),
+                            name: card.name || 'Безымянный', emoji: card.emoji || '👺', card_type: card.card_type || 'unit',
+                            era: card.era || ERA_ANCIENT,
+                            atk: eAtk, hp: eHp,
+                            currentAtk: eAtk, currentHp: eHp,
+                            action_cost: eAct,
+                            abilities: card.abilities || [],
+                            exhausted: true, justDamaged: false, justAttacked: false,
+                            isStructure: card.card_type === 'structure'
+                        };
+                        logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
+                        placed = true;
+                        break;
+                    }
+                }
+                if (placed) break;
+            }
+            if (!placed) break;
+            renderBattle();
+            await delay(500);
+        }
+
+        // 2) Атаки всеми не-использованными юнитами, на которые хватает action-маны
+        let attackAttempts = 0;
+        while (attackAttempts < 15) {
+            attackAttempts++;
+            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && u.action_cost <= e.actionMana);
+            if (!attacker) break;
+
+            e.actionMana -= attacker.action_cost;
+
+            // Приоритет: бьём юниты игрока в авангарде, если есть; иначе героя
+            // Враг также соблюдает правило тыла: юниты в тылу бьют только авангард
+            const attackerIsFront = battle.enemy.front.includes(attacker);
+            let myFront = battle.me.front.find(u => u);
+            if (!attackerIsFront && !myFront) {
+                // Не может дотянуться
+                logBattle(`🚫 ${attacker.name} в тылу врага не может дотянуться до героя (авангард чист, но юнит в тылу).`, 'enemy');
+                attacker.exhausted = true;
+                renderBattle();
+                await delay(400);
+                continue;
+            }
+            if (myFront) {
+                // Урон с учётом эпох
+                let atkDmg = attacker.currentAtk + eraAttackBonus(attacker.era, myFront.era);
+                atkDmg = Math.max(1, atkDmg - eraDamageReduction(attacker.era, myFront.era));
+                const counterRaw = myFront.isStructure ? 0 : (myFront.currentAtk ?? myFront.atk ?? 0);
+                let counterDmg = counterRaw + eraAttackBonus(myFront.era, attacker.era);
+                counterDmg = Math.max(0, counterDmg - eraDamageReduction(myFront.era, attacker.era));
+                const counterFinal = myFront.isStructure ? 0 : Math.max(1, counterDmg);
+                const eraNote = (eraAttackBonus(attacker.era, myFront.era) || eraDamageReduction(attacker.era, myFront.era))
+                    ? ` (эпоха: ${atkDmg})` : '';
+                dealDamage(myFront, atkDmg, 'me');
+                if (counterRaw > 0 && counterFinal > 0) dealDamage(attacker, counterFinal, 'enemy');
+                logBattle(`⚔️ ${attacker.name} бьётся с ${myFront.name} (${atkDmg}⚔️${counterFinal ? ', встречный '+counterFinal : ''})${eraNote}`, 'enemy');
+                myFront.justDamaged = true;
+                attacker.justDamaged = true;
+                attacker.justAttacked = true;
+            } else {
+                battle.me.hp -= attacker.currentAtk;
+                logBattle(`⚔️ ${attacker.name} атакует ТЕБЯ → ${attacker.currentAtk} урона!`, 'enemy');
+                attacker.justAttacked = true;
+            }
+            attacker.exhausted = true;
+
+            cleanupDead();
+            // Прервём цикл если атакующий погиб от встречного урона
+            if (attacker.currentHp <= 0) {
+                renderBattle();
+                await delay(500);
+                continue;
+            }
+
+            renderBattle();
+            await delay(550);
+            if (checkBattleEnd()) return;
+        }
+
+        // Пассивки структур в конце хода врага уже сработают в начале хода игрока в startOfTurn
+    }
+
+    </script>
+</body>
+</html>
