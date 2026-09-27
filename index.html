@@ -198,6 +198,23 @@
             border-color: #e94560;
         }
 
+        .bot-mode-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+            color: #a0b8d0;
+            cursor: pointer;
+        }
+
+        .bot-mode-label input {
+            width: 18px;
+            height: 18px;
+            accent-color: #e94560;
+        }
+
         /* ============================================
            ЭКРАН ГЕНЕРАЦИИ ПЛЕМЕНИ
            ============================================ */
@@ -1160,6 +1177,10 @@
             <h1>🏛️ Tribes</h1>
             <p class="subtitle">Стратегия каменного века • 3 игрока</p>
             <input type="text" id="username-input" placeholder="Введи имя" maxlength="20" autocomplete="off">
+            <label class="bot-mode-label" for="bot-mode-checkbox">
+                <input type="checkbox" id="bot-mode-checkbox">
+                <span>🧪 Тестовый режим: я против ИИ (2 бота)</span>
+            </label>
             <button class="btn btn-primary btn-full" onclick="login()">Войти</button>
             <div class="error-text" id="login-error"></div>
         </div>
@@ -1580,6 +1601,11 @@ const EFFECT_LABELS = {
 
     let kickTarget = null;            // Имя игрока для кика
     let llmRequestInProgress = false; // Флаг запроса к LLM
+    let botMode = false;              // Тестовый режим: игра против ИИ-ботов
+    const BOT_DEFINITIONS = [
+        { name: 'Речные Волки', adjective: 'речное' },
+        { name: 'Горные Орлы', adjective: 'горное' }
+    ];
 
     // Локальные данные (не в Firebase до подтверждения хода)
     let localSettlers = {
@@ -1687,6 +1713,12 @@ function getBuildingBonuses(me) {
             document.getElementById('username-input').value = savedName;
         }
 
+        // Восстанавливаем режим ботов
+        const savedBotMode = localStorage.getItem('tribes_bot_mode');
+        if (savedBotMode === '1') {
+            document.getElementById('bot-mode-checkbox').checked = true;
+        }
+
         // Подписываемся на изменения в базе данных
         db.ref('game').on('value', snapshot => {
             gameData = snapshot.val();
@@ -1755,12 +1787,17 @@ function getBuildingBonuses(me) {
         // Все готовы — показываем игру
         showScreen('game');
 
-        // Запрашиваем LLM если нужно
+        // Запрашиваем LLM если нужно (только для живого игрока)
         if (!me.llmResponse && !me.llmLoading && !me.turnDone && !llmRequestInProgress) {
             requestLLM();
         }
 
         renderGame();
+
+        // В бот-режиме заставляем ботов сходить немедленно
+        if (botMode) {
+            setTimeout(runAllBotTurns, 400);
+        }
     }
 
     // ============================================
@@ -1769,55 +1806,56 @@ function getBuildingBonuses(me) {
     function login() {
         const name = document.getElementById('username-input').value.trim();
         const errorEl = document.getElementById('login-error');
+        botMode = document.getElementById('bot-mode-checkbox').checked;
+        localStorage.setItem('tribes_bot_mode', botMode ? '1' : '0');
 
         if (!name || name.length < 2) {
             errorEl.textContent = 'Имя должно быть минимум 2 символа';
             return;
         }
 
-        db.ref('game/players').once('value', snapshot => {
-            const players = snapshot.val() || {};
+        // В бот-режиме сначала полностью сбрасываем старую игру
+        const setupPlayer = (players) => {
             const existingNames = Object.keys(players);
-
             if (existingNames.includes(name)) {
-                // Существующий игрок — входим
                 currentUser = name;
                 localStorage.setItem('tribes_username', name);
                 errorEl.textContent = '';
-
-                // Восстанавливаем локальные данные поселенцев
                 if (players[name].settlers) {
                     localSettlers = { ...players[name].settlers };
                 }
-
                 handleState();
-
-            } else if (existingNames.length >= MAX_PLAYERS) {
-                // Слотов нет
+            } else if (existingNames.length >= MAX_PLAYERS && !botMode) {
                 errorEl.textContent = `Уже ${MAX_PLAYERS} игрока. Мест нет!`;
-
             } else {
-                // Новый игрок — регистрируем
                 const newPlayerData = defaultPlayerData();
-
                 db.ref('game/players/' + name).set(newPlayerData).then(() => {
-                    // Если это первый игрок — он админ
-                    if (existingNames.length === 0) {
+                    if (existingNames.length === 0 || botMode) {
                         db.ref('game/turn').set(1);
                         db.ref('game/admin').set(name);
                     }
-
                     currentUser = name;
                     localStorage.setItem('tribes_username', name);
                     errorEl.textContent = '';
                     localSettlers = { ...newPlayerData.settlers };
-
-                    // Сразу генерируем племя
                     rerollTribe();
                     showScreen('tribe');
                 });
             }
-        });
+        };
+
+        const proceed = () => {
+            db.ref('game/players').once('value', snapshot => {
+                setupPlayer(snapshot.val() || {});
+            });
+        };
+
+        if (botMode) {
+            // Сбрасываем игру, чтобы гарантированно получить чистую сессию с ботами
+            db.ref('game').remove().then(() => proceed());
+        } else {
+            proceed();
+        }
     }
 
     // ============================================
@@ -1885,7 +1923,327 @@ function getBuildingBonuses(me) {
             summary: summary,
             llmResponse: null,
             llmLoading: false
+        }).then(() => {
+            if (botMode) {
+                // Создаём ботов — ИИ-соперников
+                spawnBots();
+            }
         });
+    }
+
+    // ============================================\
+    // СОЗДАНИЕ БОТОВ-ИГРОКОВ
+    // ============================================\
+    function spawnBots() {
+        BOT_DEFINITIONS.forEach(bot => {
+            const bBiome = randomFrom(POOLS.biome);
+            const bGeo = randomFrom(POOLS.geography);
+            const bTrait = randomFrom(POOLS.trait);
+            const bNear = randomFrom(POOLS.nearby);
+
+            const botTribe = {
+                biome: bBiome.name, biomeDesc: bBiome.desc,
+                geography: bGeo.name, geographyDesc: bGeo.desc,
+                trait: bTrait.name, traitDesc: bTrait.desc,
+                nearby: bNear.name, nearbyDesc: bNear.desc
+            };
+
+            const botSummary = `${bot.adjective.charAt(0).toUpperCase() + bot.adjective.slice(1)} племя "${bot.name}" обитает в ${botTribe.biome}. Рядом ${botTribe.geography}. Черта: ${botTribe.trait}. Поблизости: ${botTribe.nearby}.`;
+
+            const botData = defaultPlayerData();
+            botData.tribe = botTribe;
+            botData.tribeConfirmed = true;
+            botData.summary = botSummary;
+            db.ref('game/players/' + bot.name).set(botData);
+        });
+    }
+
+    // ============================================\
+    // ПРОВЕРКА: ЯВЛЯЕТСЯ ЛИ ИГРОК БОТОМ
+    // ============================================\
+    function isBot(name) {
+        return botMode && BOT_DEFINITIONS.some(b => b.name === name);
+    }
+
+    // ============================================\
+    // ГЕНЕРАЦИЯ ХОДОВ БОТОВ (БЕЗ РЕАЛЬНОГО ЗАПРОСА К LLM)
+    // ============================================\
+    function generateBotResponse(bot, botName) {
+        const slots = getChoiceSlots(bot);
+        const s = slots;
+        const botDef = BOT_DEFINITIONS.find(b => b.name === botName);
+        const tribeAdj = botDef?.adjective || 'Древнее';
+
+        // Простые варианты без LLM
+        const science = [
+            { title: 'Наблюдения за звёздами', description: 'Старейшины изучают небо.', effects: { knowledge: 4, spirit: 1 } },
+            { title: 'Обработка шкур', description: 'Учимся выделывать шкуры зверей.', effects: { materials: 3, happiness: 2 } },
+            { title: 'Целебные травы', description: 'Собираем и сушим лекарственные растения.', effects: { knowledge: 2, health_regen: 4 } },
+            { title: 'Рыбная ловля', description: 'Плетём сети и ловим рыбу.', effects: { mult_food: 0.2, food: 2 } },
+            { title: 'Обряды плодородия', description: 'Просим духов послать потомство.', effects: { spirit: 2, pop_growth_chance: 0.1, food_consumption_mult: 1.05 } },
+            { title: 'Костровые рассказы', description: 'Вечера у огня укрепляют племя.', effects: { cohesion: 5, happiness: 3 } },
+            { title: 'Глиняная посуда', description: 'Лепим горшки для хранения.', effects: { materials: 2, knowledge: 2 } }
+        ];
+        const social = [
+            { title: 'Разделение труда', description: 'Каждый занимается своим делом.', effects: { materials: 3, knowledge: 2 } },
+            { title: 'Совет старейшин', description: 'Мудрейшие принимают решения.', effects: { cohesion: 6, happiness: 2, safety: 2 } },
+            { title: 'Военная подготовка', description: 'Молодёжь учится обращаться с копьями.', effects: { safety: 5, attack_mult: 0.15, happiness_decay: 0.5 } },
+            { title: 'Общая трапеза', description: 'Все едят вместе у большого костра.', effects: { happiness: 6, cohesion: 4, food_consumption_mult: 1.05 } },
+            { title: 'Личные запасы', description: 'Разрешаем хранить еду отдельно.', effects: { food: 3, materials: 2, cohesion: -3 } },
+            { title: 'Почитание предков', description: 'Кладбище тотемов напоминает об ушедших.', effects: { spirit: 4, cohesion: 3, health_regen: 1 } },
+            { title: 'Сезон обмена', description: 'Встречи с соседними родами.', effects: { materials: 4, spirit: 2, trade_efficiency: 0.1 } }
+        ];
+        const diplomacy = [
+            { title: 'Набег за припасами', description: 'Вооружённый отряд идёт грабить соседей.', effects: { food: 5, safety: -5 }, neighbor_effects: { food: -6, happiness: -10, safety: -8 } },
+            { title: 'Торговое посольство', description: 'Шлём дары в обмен на материалы.', effects: { materials: 4, trade_efficiency: 0.1 }, neighbor_effects: { materials: -2, happiness: 5 } },
+            { title: 'Демонстрация силы', description: 'Воины подходят к границе.', effects: { diplomacy_power: 0.1, safety: 3 }, neighbor_effects: { safety: -12, happiness: -5 } },
+            { title: 'Предложение союза', description: 'Предлагаем союз против врагов.', effects: { defense_mult: 0.15, diplomacy_defense: 0.1 }, neighbor_effects: { defense_mult: 0.1, happiness: 4 } },
+            { title: 'Культурный обмен', description: 'Обмен песнями и историями.', effects: { spirit: 3, choice_slots_bonus: 0.5 }, neighbor_effects: { spirit: 2, happiness: 5 } },
+            { title: 'Наблюдение издали', description: 'Разведчики следят за соседом.', effects: { knowledge: 2, safety: 2 }, neighbor_effects: {} },
+            { title: 'Дар еды', description: 'Посылаем еды голодающим соседям.', effects: { food: -3, happiness: 5, diplomacy_power: 0.15 }, neighbor_effects: { food: 4, happiness: 8 } }
+        ];
+        const buildings = [
+            { name: 'Хижина охотника', description: 'Укрытие для загонщиков дичи.', cost: 5, passive_effects: { mult_food: 0.15, food_consumption_mult: 0.95 } },
+            { name: 'Склад запасов', description: 'Ямы для хранения еды.', cost: 6, passive_effects: { food_per_turn: 1, materials: -2 } },
+            { name: 'Сторожевой пост', description: 'Костёр на высоком месте.', cost: 6, passive_effects: { safety_regen: 3, defense_mult: 0.15 } },
+            { name: 'Мастерская кремня', description: 'Здесь делают лучшие орудия.', cost: 7, passive_effects: { mult_materials: 0.2, knowledge: 1 } },
+            { name: 'Священный круг', description: 'Место для обрядов.', cost: 8, passive_effects: { spirit: 1, pop_growth_chance: 0.05, cohesion: 3 } },
+            { name: 'Коптильня', description: 'Долгое хранение мяса.', cost: 5, passive_effects: { food_per_turn: 2, food_consumption_mult: 0.9 } }
+        ];
+
+        const shuffle = arr => arr.slice().sort(() => Math.random() - 0.5);
+        const sciencePick = shuffle(science).slice(0, s);
+        const socialPick = shuffle(social).slice(0, s);
+        const diplomacyPick = shuffle(diplomacy).slice(0, s);
+        const newBuildings = shuffle(buildings)
+            .filter(b => !(bot.buildings || []).some(bb => bb.name === b.name))
+            .filter(b => !(bot.blueprints || []).some(bb => bb.name === b.name))
+            .slice(0, Math.random() < 0.7 ? 1 : 2);
+
+        return {
+            narrative: `${botName} продолжает своё существование. Жизнь идёт своим чередом.`,
+            summary: bot.summary + ' ' + tribeAdj.charAt(0).toUpperCase() + tribeAdj.slice(1) + ' племя развивается, изучая мир вокруг и укрепляя свой быт.',
+            science: sciencePick,
+            social: socialPick,
+            diplomacy: diplomacyPick,
+            unlocked_buildings: newBuildings
+        };
+    }
+
+    // ============================================\
+    // АВТОМАТИЧЕСКИЙ ХОД БОТА
+    // ============================================\
+    async function playBotTurn(botName) {
+        const botRef = db.ref('game/players/' + botName);
+        const snap = await botRef.once('value');
+        let bot = snap.val();
+        if (!bot || !bot.tribe) return;
+
+        // Пропускаем если бот уже сходил
+        if (bot.turnDone) return;
+
+        const turn = (gameData.turn || 1);
+        const mods = getPlayerModifiers(bot);
+        const buildingBonuses = getBuildingBonuses(bot);
+
+        // Генерируем синтетический ответ
+        const response = generateBotResponse(bot, botName);
+
+        // Добавляем новые чертежи
+        const existingBlueprints = bot.blueprints || [];
+        const builtNames = (bot.buildings || []).map(b => b.name);
+        const newBlueprints = response.unlocked_buildings.filter(b =>
+            !existingBlueprints.some(e => e.name === b.name) && !builtNames.includes(b.name)
+        );
+        const allBlueprints = [...existingBlueprints, ...newBlueprints];
+
+        // Эвристика бота: распределение поселенцев
+        let botSettlers = { food: 2, materials: 1, knowledge: 1, spirit: 1 };
+        const pop = bot.population || 5;
+        let assigned = 5;
+        // Если мало еды — добавляем на еду
+        if (bot.food < 5) {
+            const add = Math.min(pop - assigned, 2);
+            botSettlers.food += add; assigned += add;
+        }
+        // Остальных распределяем случайно
+        const keys = ['spirit', 'knowledge', 'materials', 'food'];
+        while (assigned < pop) {
+            const k = keys[Math.floor(Math.random() * keys.length)];
+            botSettlers[k]++; assigned++;
+        }
+
+        // Выбор вариантов (берём первый — это случайный, т.к. перемешан)
+        const scienceChoice = response.science[0];
+        const socialChoice = response.social[0];
+        const diploChoice = (turn >= 5 && response.diplomacy.length > 0) ? response.diplomacy[0] : null;
+
+        // Применяем эффекты как у игрока
+        let nf = bot.food, nm = bot.materials, nk = bot.knowledge, ns = bot.spirit;
+        let nmf = bot.mult_food || 1, nmm = bot.mult_materials || 1, nmk = bot.mult_knowledge || 1, nms = bot.mult_spirit || 1;
+        let nh = bot.health, nhp = bot.happiness, nsy = bot.safety, nc = bot.cohesion;
+        let np = bot.population;
+
+        // Добыча
+        nf += botSettlers.food * (nmf + (buildingBonuses.mult_food || 0)) + (buildingBonuses.food || 0);
+        nm += botSettlers.materials * (nmm + (buildingBonuses.mult_materials || 0)) + (buildingBonuses.materials || 0);
+        nk += botSettlers.knowledge * (nmk + (buildingBonuses.mult_knowledge || 0)) + (buildingBonuses.knowledge || 0);
+        ns += botSettlers.spirit * (nms + (buildingBonuses.mult_spirit || 0)) + (buildingBonuses.spirit || 0);
+        nh += buildingBonuses.health || 0;
+        nhp += buildingBonuses.happiness || 0;
+        nsy += buildingBonuses.safety || 0;
+        nc += buildingBonuses.cohesion || 0;
+
+        // Потребление
+        const consumption = np * FOOD_PER_POP * mods.food_consumption_mult + mods.food_consumption_flat;
+        nf -= Math.max(0, consumption);
+
+        // Эффекты выборов
+        const apply = (eff) => {
+            if (!eff) return;
+            if (eff.food) nf += +eff.food;
+            if (eff.materials) nm += +eff.materials;
+            if (eff.knowledge) nk += +eff.knowledge;
+            if (eff.spirit) ns += +eff.spirit;
+            if (eff.mult_food) nmf += +eff.mult_food;
+            if (eff.mult_materials) nmm += +eff.mult_materials;
+            if (eff.mult_knowledge) nmk += +eff.mult_knowledge;
+            if (eff.mult_spirit) nms += +eff.mult_spirit;
+            if (eff.health) nh += +eff.health;
+            if (eff.happiness) nhp += +eff.happiness;
+            if (eff.safety) nsy += +eff.safety;
+            if (eff.cohesion) nc += +eff.cohesion;
+            if (eff.population) np += +eff.population;
+        };
+        apply(scienceChoice.effects);
+        apply(socialChoice.effects);
+        if (diploChoice) apply(diploChoice.effects);
+
+        // Строительство: бот строит что может
+        let botBuildings = [...(bot.buildings || [])];
+        let blueprintsLeft = [...allBlueprints];
+        let builtNamesThisTurn = [];
+        for (let i = blueprintsLeft.length - 1; i >= 0; i--) {
+            const bp = blueprintsLeft[i];
+            const cost = Math.max(1, Math.floor(bp.cost * mods.build_cost_mult - mods.build_discount));
+            if (nm >= cost && !botBuildings.some(b => b.name === bp.name) && Math.random() < 0.6) {
+                nm -= cost;
+                botBuildings.push({ name: bp.name, passive_effects: bp.passive_effects || {} });
+                builtNamesThisTurn.push(bp.name);
+                blueprintsLeft.splice(i, 1);
+            }
+        }
+
+        // Голод
+        if (nf < 0) {
+            const dmg = Math.max(1, 10 - (mods.starvation_resistance || 0));
+            nh -= dmg;
+            nhp -= Math.max(1, 8 - (mods.starvation_resistance || 0) * 0.5);
+            if (nh < 20 && np > 2) { np--; nf = 0; }
+        }
+
+        // Деградация
+        nhp = Math.max(0, nhp - (mods.happiness_decay !== undefined ? mods.happiness_decay : 1));
+        nsy = Math.max(0, nsy - (mods.safety_decay !== undefined ? mods.safety_decay : 1));
+
+        // Регенерация
+        if (mods.health_regen) nh = Math.min(100, nh + mods.health_regen);
+        if (mods.happiness_regen) nhp = Math.min(100, nhp + mods.happiness_regen);
+        if (mods.safety_regen) nsy = Math.min(100, nsy + mods.safety_regen);
+
+        // Рост населения
+        const maxPop = mods.max_population || 20;
+        if (np < maxPop && nf > (mods.pop_growth_threshold_food || 8) && nh > (mods.pop_growth_threshold_health || 60) && nhp > (mods.pop_growth_threshold_happiness || 50)) {
+            if (Math.random() < (mods.pop_growth_chance || 0.25)) np++;
+        }
+
+        // Ограничения
+        nf = Math.max(0, Math.round(nf * 10) / 10);
+        nm = Math.max(0, Math.round(nm * 10) / 10);
+        nk = Math.max(0, Math.round(nk * 10) / 10);
+        ns = Math.max(0, Math.round(ns * 10) / 10);
+        nmf = Math.max(0.5, Math.round(nmf * 100) / 100);
+        nmm = Math.max(0.5, Math.round(nmm * 100) / 100);
+        nmk = Math.max(0.5, Math.round(nmk * 100) / 100);
+        nms = Math.max(0.5, Math.round(nms * 100) / 100);
+        nh = Math.max(0, Math.min(100, Math.round(nh)));
+        nhp = Math.max(0, Math.min(100, Math.round(nhp)));
+        nsy = Math.max(0, Math.min(100, Math.round(nsy)));
+        nc = Math.max(0, Math.min(100, Math.round(nc)));
+        np = Math.max(2, Math.min(maxPop, np));
+
+        // Корректировка поселенцев
+        let total = Object.values(botSettlers).reduce((a, b) => a + b, 0);
+        if (total > np) {
+            let ex = total - np;
+            for (const k of ['spirit', 'knowledge', 'materials', 'food']) {
+                while (ex > 0 && botSettlers[k] > 0) { botSettlers[k]--; ex--; }
+            }
+        }
+
+        // История
+        const history = bot.history || [];
+        history.push({
+            turn,
+            science: scienceChoice.title,
+            social: socialChoice.title,
+            diplomacy: diploChoice ? diploChoice.title : null,
+            built: builtNamesThisTurn.length ? builtNamesThisTurn.join(', ') : null
+        });
+
+        // Дипломатия: отправляем эффекты соседу
+        if (diploChoice && diploChoice.neighbor_effects) {
+            const playerNames = Object.keys(gameData.players);
+            const neighborName = getNeighbor(botName, playerNames);
+            if (neighborName) {
+                const neighborPending = (gameData.players[neighborName]?.pendingDiplo || []).slice();
+                const amp = {};
+                Object.entries(diploChoice.neighbor_effects).forEach(([k, v]) => {
+                    amp[k] = Math.round((+v) * (1 + (mods.diplomacy_power || 0)) * 100) / 100;
+                });
+                neighborPending.push({ from: botName, action: diploChoice.title, effects: amp, original_effects: diploChoice.neighbor_effects });
+                await db.ref('game/players/' + neighborName + '/pendingDiplo').set(neighborPending);
+            }
+        }
+
+        // Сохраняем всё
+        await botRef.update({
+            turnDone: true,
+            turnChoices: { turn, science: scienceChoice.title, social: socialChoice.title, diplomacy: diploChoice?.title || null, built: builtNamesThisTurn.join(', ') || null },
+            summary: response.summary,
+            history,
+            settlers: botSettlers,
+            food: nf, materials: nm, knowledge: nk, spirit: ns,
+            mult_food: nmf, mult_materials: nmm, mult_knowledge: nmk, mult_spirit: nms,
+            health: nh, happiness: nhp, safety: nsy, cohesion: nc,
+            population: np,
+            buildings: botBuildings,
+            blueprints: blueprintsLeft,
+            llmResponse: null,
+            llmLoading: false,
+            llmError: null
+        });
+    }
+
+    // ============================================\
+    // ЗАПУСК ХОДОВ ВСЕХ БОТОВ
+    // ============================================\
+    async function runAllBotTurns() {
+        if (!botMode) return;
+        // Свежие данные игроков
+        const snap = await db.ref('game/players').once('value');
+        const allPlayers = snap.val() || {};
+        const botNames = Object.keys(allPlayers).filter(n => isBot(n) && !allPlayers[n].turnDone);
+        for (const name of botNames) {
+            await playBotTurn(name);
+        }
+        // Проверяем: все ли готовы
+        const snap2 = await db.ref('game/players').once('value');
+        const p2 = snap2.val() || {};
+        const allDone = Object.keys(p2).every(n => p2[n].turnDone);
+        if (allDone) {
+            await processTurnEnd(p2);
+        }
     }
 
     // ============================================
