@@ -554,6 +554,12 @@
         }
         .player-banner.enemy { border-color: #8b0000; }
         .player-banner.me { border-color: #238636; }
+        .player-banner.enemy.targetable {
+            cursor: crosshair;
+            box-shadow: 0 0 15px #f85149;
+            animation: pulse 1s infinite;
+        }
+        .player-banner.enemy.targetable:hover { background: rgba(248,81,73,0.1); }
         .player-avatar {
             width: 44px;
             height: 44px;
@@ -1136,6 +1142,15 @@
     // НАВИГАЦИЯ
     // ============================================
     function switchScreen(screen) {
+        // Если уходим с экрана боя — сбрасываем битву
+        const onBattle = document.getElementById('screen-battle').classList.contains('active');
+        if (onBattle && screen !== 'battle' && battle) {
+            if (!confirm('Покинуть битву? Прогресс будет потерян.')) return;
+        }
+        hideModals();
+        if (onBattle && screen !== 'battle') {
+            battle = null;
+        }
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         document.getElementById('screen-' + screen).classList.add('active');
         document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
@@ -1621,6 +1636,14 @@ ${prompt}
         return a;
     }
 
+    function cloneDeckCards(cards) {
+        return cards.map(c => {
+            const copy = JSON.parse(JSON.stringify(c));
+            delete copy.id;
+            return copy;
+        });
+    }
+
     function uid() { return 'u_' + Math.random().toString(36).slice(2,10) + '_' + Date.now().toString(36); }
 
     // -------- Генерация колоды врага (тестовая, без LLM) --------
@@ -1652,24 +1675,32 @@ ${prompt}
             return JSON.parse(JSON.stringify(c));
         }).filter(Boolean);
 
-        if (deckCards.length < 1) {
-            alert('Сначала собери колоду в разделе «Колода»!');
+        if (deckCards.length < DECK_LIMIT) {
+            alert(`Собери колоду из ${DECK_LIMIT} карт в разделе «Колода»! Сейчас в колоде: ${deckCards.length}.`);
             switchScreen('deck');
             return;
         }
-        // Добиваем до 10 копиями последних карт если не хватает
-        while (deckCards.length < DECK_LIMIT) {
-            deckCards.push(JSON.parse(JSON.stringify(deckCards[deckCards.length - 1] || mkEnemyCard('Камень', 'unit', '🪨', 1, 0, 1, 1, 'Простой булыжник.', []))));
-        }
+        // Если вдруг больше 10 — берём первые 10
+        deckCards = deckCards.slice(0, DECK_LIMIT);
 
         // Сохраняем ник для баннера
         try {
-            const meName = localStorage.getItem('iforge_username') || 'Герой';
+            const meName = localStorage.getItem('tribes_username') || 'Герой';
             document.getElementById('me-name').textContent = meName;
         } catch(e){}
 
-        const enemyCards = shuffle(buildEnemyDeck());
-        const myCards = shuffle(deckCards);
+        function cloneCard(c) {
+            const copy = JSON.parse(JSON.stringify(c));
+            delete copy.id; // удаляем id коллекции, будет instanceId
+            return copy;
+        }
+
+        const enemyCards = shuffle(buildEnemyDeck().map(c => {
+            const copy = JSON.parse(JSON.stringify(c));
+            delete copy.id;
+            return copy;
+        }));
+        const myCards = shuffle(cloneDeckCards(deckCards));
 
         battle = {
             turn: 1,
@@ -1726,7 +1757,11 @@ ${prompt}
             <p style="color:#888">${win ? 'Ты сокрушил Тёмного Лорда!' : 'Тёмный Лорд одержал верх...'}</p>
         `;
         document.getElementById('battle-end-modal').classList.add('active');
-        battle = null;
+        selectedHandIdx = null;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        animating = false;
+        // оставляем battle как есть, чтобы фон не сломался
     }
 
     function hideModals() {
@@ -1771,6 +1806,12 @@ ${prompt}
         document.getElementById('enemy-hp').textContent = Math.max(0, enemy.hp);
         document.getElementById('me-hp-bar').style.width = Math.max(0, (me.hp / MAX_HP) * 100) + '%';
         document.getElementById('enemy-hp-bar').style.width = Math.max(0, (enemy.hp / MAX_HP) * 100) + '%';
+
+        // Подсветка вражеского баннера как цели при выбранной атаке
+        const enemyBanner = document.querySelector('.player-banner.enemy');
+        if (enemyBanner) {
+            enemyBanner.classList.toggle('targetable', awaitingTarget && whoseTurn_isMe());
+        }
 
         // Индикатор хода
         const ti = document.getElementById('turn-indicator');
@@ -1826,16 +1867,11 @@ ${prompt}
                 // - выбрана карта в руке (юнит или структура)
                 // - маны на высадку хватает
                 let droppable = false;
-                if (isMyRow && selectedHandIdx !== null && !awaitingTarget) {
+                if (isMyRow && selectedHandIdx !== null && !awaitingTarget && whoseTurn_isMe()) {
                     const card = battle.me.hand[selectedHandIdx];
-                    if (card) {
-                        const dropOnFront = (card.card_type === 'unit'); // юниты в авангард
-                        const dropOnBack = (card.card_type === 'unit' || card.card_type === 'structure'); // структуры и юниты в тыл (юниты лучники/маги - пока и туда можно, упрощ.)
-                        // Для простоты: юниты можно ставить и вперёд и в тыл, структуры только в тыл
-                        if (card.card_type === 'unit' && ((isFront) || (!isFront))) droppable = true;
+                    if (card && battle.me.dropMana >= card.drop_cost) {
                         if (card.card_type === 'structure' && !isFront) droppable = true;
-                        // Проверка маны
-                        if (battle.me.dropMana < card.drop_cost) droppable = false;
+                        if (card.card_type === 'unit') droppable = true; // юнита можно ставить в любой ряд
                     }
                 }
                 html += `<div class="bf-slot ${droppable ? 'droppable' : ''}" onclick="playCardTo(${i}, ${isFront})"></div>`;
@@ -1851,7 +1887,7 @@ ${prompt}
                 if (u.justAttacked) cls += ' attacked';
 
                 const clickAction = isMyRow
-                    ? (selectable ? `onclick="selectMyUnit('${u.instanceId}')"` : '')
+                    ? (selectable ? `onclick="selectMyUnit('${u.instanceId}')"` : (selectedUnitId === u.instanceId ? `onclick="cancelSelection()"` : ''))
                     : (awaitingTarget ? `onclick="attackTarget('${u.instanceId}', 'unit')"` : '');
 
                 html += `<div class="${cls}" ${clickAction}>
@@ -1919,23 +1955,36 @@ ${prompt}
     // ============================================
     // ДЕЙСТВИЯ ИГРОКА
     // ============================================
+    function cancelSelection() {
+        selectedHandIdx = null;
+        selectedUnitId = null;
+        awaitingTarget = false;
+        renderBattle();
+    }
+
     function selectHandCard(idx) {
         if (!whoseTurn_isMe() || animating) return;
         const card = battle.me.hand[idx];
         if (!card) return;
         if (battle.me.dropMana < card.drop_cost) {
-            logBattle(`❌ Недостаточно маны выхода для ${card.name}`, 'system');
+            logBattle(`❌ Недостаточно маны выхода для ${card.name} (нужно ${card.drop_cost}💎)`, 'system');
             return;
         }
 
-        // Если это спелл без целей - сразу играем (в MVP: спеллы просто бьют по герою или по случайному юниту, для простоты дамажат героя)
+        // Повторный клик по выбранной карте снимает выделение
+        if (selectedHandIdx === idx) {
+            cancelSelection();
+            return;
+        }
+
+        // Если это спелл без целей - сразу играем
         if (card.card_type === 'spell') {
             playSpellFromHand(idx, null);
             return;
         }
 
-        // Иначе выбираем слот на поле для высадки
-        selectedHandIdx = (selectedHandIdx === idx) ? null : idx;
+        // Иначе выбираем слот на поле для высадки; сбрасываем режим выбора атаки
+        selectedHandIdx = idx;
         selectedUnitId = null;
         awaitingTarget = false;
         renderBattle();
@@ -1951,18 +2000,24 @@ ${prompt}
         const rowArr = isFront ? battle.me.front : battle.me.back;
         if (rowArr[slotIdx]) return;
 
+        // Нормализация на случай, если LLM вернёт невалидные значения
+        const dropCost = Math.max(0, parseInt(card.drop_cost) || 0);
+        const actionCost = Math.max(0, parseInt(card.action_cost) || 0);
+        const atk = Math.max(0, parseInt(card.atk) || 0);
+        const hp = Math.max(1, parseInt(card.hp) || 1);
+
         // Высадим
-        battle.me.dropMana -= card.drop_cost;
+        battle.me.dropMana -= dropCost;
         const unit = {
             instanceId: uid(),
-            name: card.name,
-            emoji: card.emoji,
-            card_type: card.card_type,
-            atk: card.atk || 0,
-            hp: card.hp || 1,
-            currentAtk: card.atk || 0,
-            currentHp: card.hp || 1,
-            action_cost: card.action_cost || 0,
+            name: card.name || 'Безымянный',
+            emoji: card.emoji || '⚒️',
+            card_type: card.card_type || 'unit',
+            atk: atk,
+            hp: hp,
+            currentAtk: atk,
+            currentHp: hp,
+            action_cost: actionCost,
             abilities: card.abilities || [],
             exhausted: true, // только что высажен - не может атаковать в этот ход
             justDamaged: false,
@@ -1970,7 +2025,7 @@ ${prompt}
             isStructure: card.card_type === 'structure'
         };
         rowArr[slotIdx] = unit;
-        logBattle(`🧙 Ты выводишь ${card.name} (${card.drop_cost}💎)`, 'me');
+        logBattle(`🧙 Ты выводишь ${card.name} (${dropCost}💎)`, 'me');
 
         // Удаляем из руки
         battle.me.hand.splice(selectedHandIdx, 1);
@@ -2041,32 +2096,50 @@ ${prompt}
 
         // Если клик по вражескому баннеру/герою (передаётся targetType='hero')
         if (targetType === 'hero') {
-            // Проверим: есть ли юниты в авангарде - их надо пробить сначала (правило как в MTG)
             const enemyFrontBlock = battle.enemy.front.some(u => u);
-            if (enemyFrontBlock) {
-                // Разрешаем бить героя только если юнит в авангарде и пробивает? Для MVP разрешаем всегда и выводим предупреждение
-                logBattle(`⚠️ Авангард врага блокирует путь, но в MVP разрешено бить героя напрямую.`, 'system');
+            const attackerIsFront = battle.me.front.includes(attacker);
+            if (enemyFrontBlock && !attackerIsFront) {
+                // Юниты в тылу не могут бить героя, пока враг держит авангард
+                logBattle(`❌ Авангард врага блокирует путь! ${attacker.name} стоит в тылу и не может атаковать героя напрямую.`, 'system');
+                return;
             }
-            // атакуем героя
+            if (enemyFrontBlock) {
+                logBattle(`💨 ${attacker.name} прорывается сквозь авангард и бьёт героя!`, 'me');
+            }
             battle.enemy.hp -= attacker.currentAtk;
             logBattle(`⚔️ ${attacker.name} атакует Тёмного Лорда → ${attacker.currentAtk} урона!`, 'me');
         } else if (target) {
-            // Юнит vs юнит
+            // Атака юнита: юниты из авангарда могут бить кого угодно; юниты из тыла могут бить только вражеский авангард
+            const targetIsEnemyFront = battle.enemy.front.includes(target);
+            const attackerIsFront = battle.me.front.includes(attacker);
+            if (!attackerIsFront && !targetIsEnemyFront && !target.isStructure) {
+                logBattle(`❌ ${attacker.name} стоит в тылу и может атаковать только авангард врага или сооружения.`, 'system');
+                return;
+            }
+            // Юнит vs юнит: встречный урон только если юнит не сооружение и у него есть атака
+            const counter = target.isStructure ? 0 : (target.currentAtk ?? target.atk ?? 0);
             dealDamage(target, attacker.currentAtk, 'enemy');
-            dealDamage(attacker, target.currentAtk ?? target.atk, 'me');
-            logBattle(`⚔️ ${attacker.name} бьётся с ${target.name} (${attacker.currentAtk}⚔️ / ${target.currentAtk ?? target.atk}⚔️ встречный)`, 'me');
+            if (counter > 0) dealDamage(attacker, counter, 'me');
+            logBattle(`⚔️ ${attacker.name} бьётся с ${target.name} (${attacker.currentAtk}⚔️${counter > 0 ? ' / '+counter+'⚔️ встречный' : ''})`, 'me');
             target.justDamaged = true;
             attacker.justDamaged = true;
+            attacker.justAttacked = true;
         }
 
         attacker.exhausted = true;
-        attacker.justAttacked = true;
         battle.me.actionMana -= attacker.action_cost;
 
         cleanupDead();
         selectedUnitId = null;
         awaitingTarget = false;
-        setTimeout(() => renderBattle(), 50);
+        setTimeout(() => {
+            // Снимаем анимации после показа
+            [...(battle.me.front||[]), ...(battle.me.back||[]), ...(battle.enemy.front||[]), ...(battle.enemy.back||[])].forEach(u => {
+                if (u) { u.justAttacked = false; u.justDamaged = false; }
+            });
+            renderBattle();
+        }, 500);
+        renderBattle();
         checkBattleEnd();
     }
 
@@ -2097,12 +2170,21 @@ ${prompt}
     }
 
     // Атака героя врага кликом по баннеру
+    // Клик вне карт/слотов — отмена выбора
     document.addEventListener('click', (e) => {
-        if (!battle || !awaitingTarget) return;
-        // Атака героя через клик по баннеру или имени/аве
+        if (!battle) return;
+        if (!document.getElementById('screen-battle').classList.contains('active')) return;
+
         const enemyBanner = e.target.closest('.player-banner.enemy');
-        if (enemyBanner && document.getElementById('screen-battle').classList.contains('active')) {
+        if (enemyBanner && awaitingTarget) {
             attackTarget(null, 'hero');
+            return;
+        }
+
+        // Клик по пустому полю (не по карте, не по слоту, не по руке, не по кнопкам) отменяет выбор
+        const onCard = e.target.closest('.game-card, .bf-unit, .bf-slot, .end-turn-btn, .concede-btn, .modal, .top-bar, .hand, .battle-log, .player-banner');
+        if (!onCard && (selectedHandIdx !== null || awaitingTarget)) {
+            cancelSelection();
         }
     });
 
@@ -2149,7 +2231,7 @@ ${prompt}
         // Разморозка юнитов
         [...p.front, ...p.back].forEach(u => {
             if (u) {
-                u.exhausted = false;
+                u.exhausted = u.isStructure ? true : false; // сооружения не ходят
                 u.justAttacked = false;
                 u.justDamaged = false;
             }
@@ -2237,19 +2319,23 @@ ${prompt}
             for (const row of tryRows) {
                 for (let si = 0; si < row.length; si++) {
                     if (!row[si]) {
-                        e.dropMana -= card.drop_cost;
+                        const eDrop = Math.max(0, parseInt(card.drop_cost) || 0);
+                        const eAct = Math.max(0, parseInt(card.action_cost) || 0);
+                        const eAtk = Math.max(0, parseInt(card.atk) || 0);
+                        const eHp = Math.max(1, parseInt(card.hp) || 1);
+                        e.dropMana -= eDrop;
                         e.hand.splice(idx, 1);
                         row[si] = {
                             instanceId: uid(),
-                            name: card.name, emoji: card.emoji, card_type: card.card_type,
-                            atk: card.atk || 0, hp: card.hp || 1,
-                            currentAtk: card.atk || 0, currentHp: card.hp || 1,
-                            action_cost: card.action_cost || 0,
+                            name: card.name || 'Безымянный', emoji: card.emoji || '👺', card_type: card.card_type || 'unit',
+                            atk: eAtk, hp: eHp,
+                            currentAtk: eAtk, currentHp: eHp,
+                            action_cost: eAct,
                             abilities: card.abilities || [],
                             exhausted: true, justDamaged: false, justAttacked: false,
                             isStructure: card.card_type === 'structure'
                         };
-                        logBattle(`👹 Враг выводит ${card.name} (${card.drop_cost}💎)`, 'enemy');
+                        logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
                         placed = true;
                         break;
                     }
@@ -2271,11 +2357,22 @@ ${prompt}
             e.actionMana -= attacker.action_cost;
 
             // Приоритет: бьём юниты игрока в авангарде, если есть; иначе героя
-            const myFront = battle.me.front.find(u => u);
+            // Враг также соблюдает правило тыла: юниты в тылу бьют только авангард
+            const attackerIsFront = battle.enemy.front.includes(attacker);
+            let myFront = battle.me.front.find(u => u);
+            if (!attackerIsFront && !myFront) {
+                // Не может дотянуться
+                logBattle(`🚫 ${attacker.name} в тылу врага не может дотянуться до героя (авангард чист, но юнит в тылу).`, 'enemy');
+                attacker.exhausted = true;
+                renderBattle();
+                await delay(400);
+                continue;
+            }
             if (myFront) {
+                const counter = myFront.isStructure ? 0 : (myFront.currentAtk ?? myFront.atk ?? 0);
                 dealDamage(myFront, attacker.currentAtk, 'me');
-                dealDamage(attacker, myFront.currentAtk ?? myFront.atk, 'enemy');
-                logBattle(`⚔️ ${attacker.name} бьётся с ${myFront.name} (${attacker.currentAtk}⚔️)`, 'enemy');
+                if (counter > 0) dealDamage(attacker, counter, 'enemy');
+                logBattle(`⚔️ ${attacker.name} бьётся с ${myFront.name} (${attacker.currentAtk}⚔️${counter > 0 ? ', встречный '+counter : ''})`, 'enemy');
                 myFront.justDamaged = true;
                 attacker.justDamaged = true;
                 attacker.justAttacked = true;
@@ -2287,6 +2384,13 @@ ${prompt}
             attacker.exhausted = true;
 
             cleanupDead();
+            // Прервём цикл если атакующий погиб от встречного урона
+            if (attacker.currentHp <= 0) {
+                renderBattle();
+                await delay(500);
+                continue;
+            }
+
             renderBattle();
             await delay(550);
             if (checkBattleEnd()) return;
