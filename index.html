@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Infinite Forge — The Vibe CCG</title>
+    <title>Infinite Forge — Рождение цивилизаций</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -300,6 +300,19 @@
             border-radius: 10px;
             font-size: 0.7em;
             color: #c77dff;
+        }
+        .card-tag.tag-era {
+            background: rgba(205,127,50,0.25);
+            color: #f0a050;
+            border: 1px solid rgba(205,127,50,0.4);
+        }
+        .card-tag.tag-ancient {
+            background: rgba(120,90,60,0.3);
+            color: #c9a876;
+        }
+        .card-tag.tag-bronze {
+            background: rgba(205,127,50,0.3);
+            color: #f0b060;
         }
         .card-monkey {
             position: absolute;
@@ -884,34 +897,32 @@
 
         <!-- ========== FORGE SCREEN ========== -->
         <div id="screen-forge" class="screen active">
-            <h1>⚒️ Кузница Смыслов</h1>
-            <p class="subtitle">Опиши желаемого юнита, заклинание или сооружение — ИИ выкует сбалансированную карту</p>
+            <h1>⚒️ Кузница цивилизации</h1>
+            <p class="subtitle">Древний мир → Бронзовый век. Опиши отряд, военный манёвр или постройку — ИИ выкует сбалансированную карту.</p>
 
             <div class="forge-panel">
                 <h2>📝 Твой замысел</h2>
                 <textarea id="prompt-input" class="prompt-input"
                     placeholder="Например: Отряд чумных крыс, которые после смерти заражают соседних врагов ядом"></textarea>
-                <div class="prompt-hint">💡 Описывай способности, слабости, внешний вид. Конкретнее промпт — честнее баланс.</div>
+                <div class="prompt-hint">💡 Примеры: «Отряд копейщиков из плодородной долины», «Ночной набег кочевников на амбары», «Глинобитная стена с башнями». Конкретнее промпт — честнее баланс.</div>
 
-                <div class="tags-section">
-                    <h3>🏷️ Теги контекста (доступные тебе биомы)</h3>
+                <h3>🏷️ Контекст цивилизации</h3>
 
                     <div class="tags-group">
-                        <div class="tags-group-label">Стихии</div>
-                        <div class="tags-grid" id="tags-element"></div>
-                    </div>
-                    <div class="tags-group">
-                        <div class="tags-group-label">Биомы</div>
+                        <div class="tags-group-label">Регион / ландшафт</div>
                         <div class="tags-grid" id="tags-biome"></div>
                     </div>
                     <div class="tags-group">
-                        <div class="tags-group-label">Фракции / архетипы</div>
+                        <div class="tags-group-label">Род войск</div>
                         <div class="tags-grid" id="tags-archetype"></div>
                     </div>
-                    <div style="font-size:0.8em; color:#7868a0; margin-top:8px;">
-                        На старте доступны все теги (MVP). В полной версии теги будут открываться по мере захвата гексов на глобальной карте.
+                    <div class="tags-group">
+                        <div class="tags-group-label">Постройки</div>
+                        <div class="tags-grid" id="tags-structure"></div>
                     </div>
-                </div>
+                    <div style="font-size:0.8em; color:#7868a0; margin-top:8px;">
+                        📜 На старте доступны все контексты Древнего мира. Бронзовый век открывается через постройку мастерских и захват регионов с меднорудными/оловянными землями.
+                    </div>
 
                 <button class="forge-btn" id="forge-btn" onclick="forgeCard()">⚒️ ВЫКОВАТЬ КАРТУ</button>
                 <div id="forge-error" class="error-bar" style="display:none"></div>
@@ -1057,53 +1068,72 @@
     // КОНСТАНТЫ И СОСТОЯНИЕ
     // ============================================
     const AVAILABLE_TAGS = {
-        element: [
-            { id: 'fire', label: '🔥 Огонь' },
-            { id: 'ice', label: '❄️ Лёд' },
-            { id: 'nature', label: '🌿 Природа' },
-            { id: 'shadow', label: '🌑 Тень' },
-            { id: 'light', label: '✨ Свет' },
-            { id: 'storm', label: '⚡ Буря' },
-            { id: 'earth', label: '🪨 Земля' },
-            { id: 'water', label: '💧 Вода' },
-            { id: 'toxic', label: '☠️ Яд' },
-            { id: 'blood', label: '🩸 Кровь' },
-            { id: 'arcane', label: '🔮 Тайная магия' },
-            { id: 'metal', label: '⚙️ Металл' }
-        ],
+        // Регионы / ландшафт
         biome: [
-            { id: 'volcano', label: '🌋 Вулкан' },
-            { id: 'tundra', label: '❄️ Тундра' },
+            { id: 'river', label: '🌊 Великая река' },
+            { id: 'steppe', label: '🌾 Степь' },
             { id: 'forest', label: '🌲 Лес' },
             { id: 'desert', label: '🏜️ Пустыня' },
-            { id: 'swamp', label: '🐊 Болото' },
+            { id: 'swamp', label: '🐊 Болота' },
+            { id: 'hills', label: '⛰️ Холмы' },
             { id: 'mountain', label: '🏔️ Горы' },
-            { id: 'ocean', label: '🌊 Океан' },
-            { id: 'plains', label: '🌾 Равнины' },
-            { id: 'underdark', label: '🕳️ Подземелье' },
-            { id: 'ruins', label: '🏛️ Руины' }
+            { id: 'coast', label: '🏖️ Побережье' },
+            { id: 'tundra', label: '❄️ Тундра' },
+            { id: 'valley', label: '🏞️ Плодородная долина' }
         ],
+        // Род войск / тактическая роль
         archetype: [
-            { id: 'warrior', label: '⚔️ Воины' },
-            { id: 'mage', label: '🧙 Маги' },
-            { id: 'beast', label: '🐺 Звери' },
-            { id: 'undead', label: '💀 Нежить' },
-            { id: 'demon', label: '👹 Демоны' },
-            { id: 'spirit', label: '👻 Духи' },
-            { id: 'machine', label: '⚙️ Механизмы' },
-            { id: 'dragon', label: '🐉 Драконы' },
-            { id: 'peasant', label: '👨‍🌾 Ополчение' },
-            { id: 'elite', label: '👑 Элита' }
+            { id: 'militia', label: '🪨 Ополчение' },
+            { id: 'spearman', label: '🔺 Копейщики' },
+            { id: 'slinger', label: '🪨 Пращники' },
+            { id: 'archer', label: '🏹 Лучники' },
+            { id: 'axeman', label: '🪓 Топорники' },
+            { id: 'chariot', label: '🛞 Колесницы' },
+            { id: 'cavalry', label: '🐎 Конница' },
+            { id: 'elite', label: '👑 Элитные воины' },
+            { id: 'worker', label: '👷 Рабочие/строители' },
+            { id: 'shaman', label: '🌿 Жрец/знахарь' }
+        ],
+        // Тип построек
+        structure: [
+            { id: 'wall', label: '🧱 Стены/укрепления' },
+            { id: 'granary', label: '🌾 Амбар' },
+            { id: 'temple', label: '🏛️ Святилище' },
+            { id: 'workshop', label: '🔨 Мастерская' },
+            { id: 'watchtower', label: '🗼 Дозорная башня' },
+            { id: 'camp', label: '⛺ Военный лагерь' }
         ]
     };
 
     const CARD_TYPES = {
-        unit: { label: 'ЮНИТ', icon: '🗡️', cls: 'type-unit' },
-        spell: { label: 'ЗАКЛИНАНИЕ', icon: '✨', cls: 'type-spell' },
-        structure: { label: 'СООРУЖЕНИЕ', icon: '🏰', cls: 'type-structure' }
+        unit: { label: 'ОТРЯД', icon: '⚔️', cls: 'type-unit' },
+        spell: { label: 'МАНЁВР', icon: '📜', cls: 'type-spell' },
+        structure: { label: 'ПОСТРОЙКА', icon: '🏗️', cls: 'type-structure' }
     };
 
-    let selectedTags = { element: [], biome: [], archetype: [] };
+    const MAX_HAND = 7; // оставим ссылку на старую константу для совместимости
+
+    // ===========================================
+    // ЭПОХИ (технологические уровни)
+    // Бронзовый век — развитая стадия, наносит на 1 урона больше древнего мира.
+    // Урон древних юнитов против бронзовых уменьшен на 1.
+    // ===========================================
+    const ERA_ANCIENT = 'ancient';   // Древний мир / каменный век — кремень, кость, дубины
+    const ERA_BRONZE  = 'bronze';    // Бронзовый век — бронзовое оружие, колесницы, города-государства
+    const ERA_DAMAGE_BONUS = { [ERA_ANCIENT]: 0, [ERA_BRONZE]: 0 };
+    // При столкновении: юнит бронзы получает +1 к атаке против древнего (это значит древний получает на 1 больше урона),
+    // а юнит древнего наносит на 1 меньше (но не меньше 1).
+    function eraAttackMultiplier(attackerEra, defenderEra) {
+        if (attackerEra === ERA_BRONZE && defenderEra === ERA_ANCIENT) return +1; // доп. урон бронзы по древним
+        return 0;
+    }
+    function eraDamageReduction(attackerEra, defenderEra) {
+        // Древние юниты наносят на 1 меньше бронзовым (броня лучше защищает)
+        if (attackerEra === ERA_ANCIENT && defenderEra === ERA_BRONZE) return 1;
+        return 0;
+    }
+
+    let selectedTags = { biome: [], archetype: [], structure: [] };
     let collection = JSON.parse(localStorage.getItem('iforge_collection') || '[]');
     let deck = JSON.parse(localStorage.getItem('iforge_deck') || '[]');
     let lastForged = null;
@@ -1164,6 +1194,7 @@
     function renderTags() {
         Object.entries(AVAILABLE_TAGS).forEach(([group, tags]) => {
             const container = document.getElementById('tags-' + group);
+            if (!container) return;
             container.innerHTML = tags.map(t =>
                 `<span class="tag-chip" data-group="${group}" data-id="${t.id}" onclick="toggleTag('${group}','${t.id}')">${t.label}</span>`
             ).join('');
@@ -1218,75 +1249,73 @@
         document.getElementById('forge-flavor').textContent = flavors[Math.floor(Math.random() * flavors.length)];
 
         const allTags = [
-            ...selectedTags.element.map(id => AVAILABLE_TAGS.element.find(t => t.id === id).label),
             ...selectedTags.biome.map(id => AVAILABLE_TAGS.biome.find(t => t.id === id).label),
-            ...selectedTags.archetype.map(id => AVAILABLE_TAGS.archetype.find(t => t.id === id).label)
+            ...selectedTags.archetype.map(id => AVAILABLE_TAGS.archetype.find(t => t.id === id).label),
+            ...selectedTags.structure.map(id => AVAILABLE_TAGS.structure.find(t => t.id === id).label)
         ];
 
-        const systemPrompt = `Ты — ИИ-Кузнец и Балансировщик для ККИ "Infinite Forge". Игрок описывает карту текстом, а ТЫ превращаешь его идею в сбалансированную игровую карту по строгим правилам.
+        const systemPrompt = `Ты — ИИ-Кузнец и Балансировщик для ИСТОРИЧЕСКОЙ стратегической ККИ "Infinite Forge" про становление цивилизаций.
+Сеттинг — реалистичный ДРЕВНИЙ МИР и БРОНЗОВЫЙ ВЕК. НИКАКОЙ МАГИИ, драконов, нежити, демонов, огненных шаров и прочего фэнтези. Всё рационально и исторически обосновано: оружие из камня/кости/бронзы, племена, первые города, стены, колесницы, амбары, разведка, набеги, караваны, ритуалы предков и т.д.
+
+ЭПОХИ (критически важно):
+- "ancient" (Древний мир / каменный век) — каменные топоры, копья с кремнёвыми наконечниками, пращи, дубины, кожаные щиты, племенные ополчения, частоколы. Простая экипировка, юниты слабее.
+- "bronze" (Бронзовый век) — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские. Это РАЗВИТАЯ стадия.
+БАЛАНС ЭПОХ: юниты БРОНЗОВОГО века превосходят древних. Бронза бьёт камень. Древние юниты наносят на 1 урона меньше по бронзовым (но не меньше 1). Бронзовые наносят на 1 больше по древним.
+
+ТИПЫ КАРТ:
+- "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
+- "spell" — это НЕ МАГИЯ, а ВОЕННЫЙ МАНЁВР / событие (Ночной набег, Ложное отступление, Мобилизация, Разведка боем, Поджог амбаров, Караван с бронзой, Племенной сход, Сбор дани).
+- "structure" — постройка (частокол, глинобитная стена, амбар, святилище предков, мастерская, дозорная башня, военный лагерь, загон для скота, террасы).
 
 === МАТЕМАТИКА БАЛАНСА ===
-У карт есть ДВЕ цены:
-- drop_cost (Цена Высадки): 0-9 маны — сколько стоит разыграть карту из руки.
-- action_cost (Цена Действия): 0-6 маны — сколько юнит тратит КАЖДЫЙ ХОД на атаку/способность. Для заклинаний и сооружений = 0.
+ДВЕ цены:
+- drop_cost 0-9 — ресурсы/организация для вывода карты.
+- action_cost 0-6 — приказы/логистика КАЖДЫЙ ХОД (для манёвров и построек = 0).
 
-Правила баланса для ЮНИТОВ:
-- 1-drop (1 мана выход): 1-2 HP, 1 ATK, action_cost 0-1
-- 2-drop: 2-3 HP, 2 ATK, action_cost 1
-- 3-drop: 3-4 HP, 2-3 ATK, action_cost 1-2
-- 4-drop: 4-5 HP, 3-4 ATK, action_cost 2
-- 5-drop+: 5-8 HP, 4-6 ATK, action_cost 2-4
-- За каждую способность добавляй +1 к суммарной стоимости ИЛИ снижай статы.
+ОТРЯДЫ (unit):
+- 1-drop: 1-2 HP, 1 ATK (ополчение, пращники)
+- 2-drop: 2-3 HP, 1-2 ATK (копейщики, лучники)
+- 3-drop: 3-4 HP, 2-3 ATK (топорники, конные разведчики)
+- 4-drop: 4-5 HP, 3-4 ATK (бронзовые мечники, тяж. пехота)
+- 5-drop+: 5-8 HP, 3-5 ATK (колесницы, тяж. конница, полководцы)
+Бронзовые юниты — минимум 3-4 маны, era="bronze". Древние — до 3 маны, era="ancient".
 
-Правила баланса для ЗАКЛИНАНИЙ:
-- drop_cost 1-6, action_cost = 0, hp = 0, atk = 0
-- Одноразовые эффекты.
-- Массовый урон/лечение дороже точечного.
+МАНЁВРЫ (spell): drop_cost 1-6, action_cost=0, hp=0, atk=0. Точечные — 1-3, массовые/герой — 4-6.
 
-Правила баланса для СООРУЖЕНИЙ:
-- drop_cost 2-8, action_cost = 0, atk = 0
-- Дают пассивные эффекты за ход.
-- HP = 3-8 (их можно разрушить).
+ПОСТРОЙКИ (structure): drop_cost 2-8, action_cost=0, atk=0, HP=3-8. Деревянные/глинобитные — HP 3-5, 2-4 маны (ancient). Каменные/бронзовые — HP 5-8, 5-8 маны (bronze).
 
-=== МЕХАНИКА «ЛАПА ОБЕЗЬЯНЫ» (КРИТИЧЕСКИ ВАЖНО!) ===
-Если игрок просит что-то очень сильное ("неубиваемый дракон", "мгновенная победа", "бесконечный урон") — ТЫ ОБЯЗАТЕЛЬНО даёшь это, но добавляешь ОДНУ ЖЁСТКУЮ ПЛАТУ/ДЕБАФФ в поле "monkey_paw", например:
-- "Каждый ход сжигает по 2 карты из твоей руки"
-- "Умирает если не убьёт кого-то в этот же ход"
-- "Стоит 4 дополнительных действия на поддержку"
-- "При смерти наносит урон и тебе тоже"
-- "Призыв стоит всех остальных юнитов на столе"
-- "Карта сжигает половину твоей маны каждый ход"
-Баланс должен быть таким: карта СИЛЬНАЯ, но РИСКОВАННАЯ. Никогда не делай идеальных имбалансных карт без штрафа.
+=== ЛАПА ОБЕЗЬЯНЫ ===
+За сверх-силу жёсткий штраф в monkey_paw (содержание съедает припасы, строительство затягивается, мятеж элиты, сброс руки, измотанность).
 
-=== ДОСТУПНЫЕ ТЕГИ ИГРОКА ===
-${allTags.length ? allTags.join(', ') : 'базовые (стихии не выбраны — можно использовать любые обычные, но не экзотику)' }
+=== ДОСТУПНЫЕ ТЕГИ ===
+${allTags.length ? allTags.join(', ') : 'только базовые племена Древнего мира (каменный век)'}
 
-Если в описании есть сущность, не соответствующая тегам (например дракон при выбранной тундре без огня) — добавь штраф в monkey_paw или адаптируй карту под доступные теги (сделай ледяного дракона вместо огненного).
+Если запрос выходит за контекст (бронза без мастерской) — адаптируй под Древний мир либо давай с тяжёлым monkey_paw.
 
-=== ФОРМАТ ОТВЕТА ===
-Отвечай СТРОГО валидным JSON (без markdown, без \`\`\`), ровно этот объект:
+=== ФОРМАТ ОТВЕТА (строго JSON, без markdown) ===
 {
-  "name": "Название карты (2-4 слова, в стиле фэнтези)",
+  "name": "Название 2-4 слова, русское, историческое",
   "card_type": "unit" | "spell" | "structure",
-  "emoji": "один эмодзи, подходящий сути",
+  "era": "ancient" | "bronze",
+  "emoji": "один исторический эмодзи (⚔️ 🏹 🪓 🛞 🐎 🪨 🧱 🏛️ 🔨 🗼 ⛺ 🌾 🔥 🚣)",
   "drop_cost": число,
   "action_cost": число,
-  "hp": число (0 для спеллов),
-  "atk": число (0 для спеллов/структур),
-  "description": "Краткое описание что делает карта (1-2 предложения, в игровом стиле)",
-  "tags": ["массив", "тегов", "из", "доступных"],
-  "abilities": ["список", "ключевых", "способностей", "или эффектов"],
-  "monkey_paw": "либо пустая строка если карта сбалансирована, либо текст с суровым штрафом за силу"
+  "hp": число (0 для манёвров),
+  "atk": число (0 для манёвров/построек),
+  "description": "1-2 предложения, реалистично",
+  "tags": ["подходящие теги"],
+  "abilities": ["тактические способности"],
+  "monkey_paw": "" либо "штраф"
 }
 
-Язык: русский. Имя карты — на русском, с эпическим фэнтези-оттенком.`;
+Язык: русский. Имена в духе "Копейщики долины", "Пращники холмов", "Ночной набег кочевников", "Частокол из дуба", "Бронзовые мечники", "Колесницы с серпами".`;
 
         const userPrompt = `Вот моя идея:
 ${prompt}
 
-Доступные теги: ${allTags.join(', ') || 'только базовые, без экзотики'}.
+Доступные теги: ${allTags.join(', ') || 'только базовые племена Древнего мира (каменный век)'}.
 
-Преврати эту идею в сбалансированную карту. Если идея слишком сильная — применяй Лапу Обезьяны. Отвечай строго JSON.`;
+Преврати идею в сбалансированную ИСТОРИЧЕСКУЮ карту Древнего мира или Бронзового века. Без магии. Если идея слишком сильная — применяй Лапу Обезьяны. Отвечай строго JSON.`;
 
         try {
             const resp = await fetch('https://api.hydraai.ru/v1/chat/completions', {
@@ -1350,13 +1379,16 @@ ${prompt}
         const inDeck = deck.includes(card.id);
         const deckFull = deck.length >= DECK_LIMIT;
 
+        const eraLabel = card.era === 'bronze' ? '🏺 БРОНЗА' : card.era === 'ancient' ? '🪨 ДРЕВНИЙ МИР' : '';
+        const eraTagClass = card.era === 'bronze' ? 'tag-era tag-bronze' : 'tag-era tag-ancient';
+
         const statsHtml = card.card_type === 'unit' ? `
             <span class="stat-chip hp">❤️ ${card.hp}</span>
             <span class="stat-chip atk">⚔️ ${card.atk}</span>
         ` : card.card_type === 'structure' ? `
             <span class="stat-chip hp">❤️ ${card.hp}</span>
-            <span class="stat-chip">🏰 Сооружение</span>
-        ` : `<span class="stat-chip">✨ Заклинание</span>`;
+            <span class="stat-chip">🏗️ Постройка</span>
+        ` : `<span class="stat-chip">📜 Манёвр</span>`;
 
         const monkeyHtml = card.monkey_paw ? `
             <div class="card-monkey" title="Лапа Обезьяны">🐾</div>
@@ -1402,7 +1434,7 @@ ${prompt}
                 </div>
                 ${monkeyHtml}
                 <div class="card-name">${card.name}</div>
-                <div class="card-type">${typeDef.icon} ${typeDef.label}</div>
+                <div class="card-type">${typeDef.icon} ${typeDef.label} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
                 <div class="card-art">${card.emoji || '⚒️'}</div>
                 <div class="card-desc">${card.description}</div>
                 ${abilitiesHtml}
@@ -1640,6 +1672,8 @@ ${prompt}
         return cards.map(c => {
             const copy = JSON.parse(JSON.stringify(c));
             delete copy.id;
+            // Нормализация эпохи (по умолчанию — Древний мир)
+            if (!copy.era) copy.era = ERA_ANCIENT;
             return copy;
         });
     }
@@ -1648,21 +1682,22 @@ ${prompt}
 
     // -------- Генерация колоды врага (тестовая, без LLM) --------
     function buildEnemyDeck() {
+        // Соседнее племя Древнего мира с 1-2 бронзовыми отрядами в качестве бонуса
         return [
-            mkEnemyCard('Гоблин-копейщик', 'unit', '👺', 1, 0, 1, 2, 'Мелкий, но злобный.', ['гоблин', 'воин']),
-            mkEnemyCard('Гоблин-копейщик', 'unit', '👺', 1, 0, 1, 2, 'Мелкий, но злобный.', ['гоблин', 'воин']),
-            mkEnemyCard('Орк-рубака', 'unit', '👹', 2, 1, 2, 4, 'Тяжёлый топор и тяжёлый нрав.', ['орк', 'воин']),
-            mkEnemyCard('Тёмный маг', 'unit', '🧙‍♂️', 3, 2, 2, 3, 'Шепчет заклинания во тьме.', ['маг', 'тьма']),
-            mkEnemyCard('Скелет-лучник', 'unit', '💀', 2, 1, 2, 2, 'Стреляет из тыла.', ['нежить', 'лучник']),
-            mkEnemyCard('Огненный шар', 'spell', '🔥', 3, 0, 0, 0, 'Наносит 4 урона выбранному юниту.', ['огонь', 'урон']),
-            mkEnemyCard('Чумная крыса', 'unit', '🐀', 1, 0, 1, 1, 'После смерти заражает.', ['зверь']),
-            mkEnemyCard('Тролль', 'unit', '👺', 5, 3, 5, 6, 'Регенерирует 1 HP в ход.', ['тролль']),
-            mkEnemyCard('Тёмная башня', 'structure', '🗼', 4, 0, 0, 5, 'Наносит 1 урон в ход.', ['сооружение']),
-            mkEnemyCard('Удар тьмы', 'spell', '🌑', 2, 0, 0, 0, 'Наносит 3 урона.', ['тьма'])
+            mkEnemyCard('Племенные копейщики', 'unit', '🔺', 1, 0, 1, 2, 'Ополчение из пастухов, вооружённых заострёнными кольями.', ['копьё', 'пехота']),
+            mkEnemyCard('Пращники из холмов', 'unit', '🪨', 1, 0, 1, 1, 'Бросают камни из-за спин пехоты.', ['пращники', 'дальний бой']),
+            mkEnemyCard('Охотники с луками', 'unit', '🏹', 2, 1, 2, 2, 'Лучники, привыкшие бить зверя с расстояния.', ['лучники']),
+            mkEnemyCard('Топорники племени', 'unit', '🪓', 2, 1, 2, 3, 'Каменные топоры и кожаные щиты.', ['топорники', 'пехота']),
+            mkEnemyCard('Разведчики на лошадях', 'unit', '🐎', 3, 1, 2, 3, 'Лёгкая конница, стремительный набег.', ['конница']),
+            mkEnemyCard('Дружина вождя', 'unit', '🛡️', 3, 2, 3, 4, 'Элитные воины с тяжёлыми дубинами.', ['элита']),
+            mkEnemyCard('Частокол', 'structure', '🧱', 2, 0, 0, 4, 'Деревянное заграждение, преграждающее проход.', ['укрепление'], ERA_ANCIENT),
+            mkEnemyCard('Ночной набег', 'spell', '🌙', 2, 0, 0, 0, 'Диверсия: наносит 3 урона одному отряду в авангарде.', ['набег']),
+            mkEnemyCard('Бронзовые наёмники', 'unit', '⚔️', 4, 2, 4, 5, 'Отряд наёмников, вооружённых бронзовыми мечами. Вымышленные у соседнего города.', ['наёмники', 'бронза'], ERA_BRONZE),
+            mkEnemyCard('Военный лагерь', 'structure', '⛺', 3, 0, 0, 4, 'Лагерь у границы. Каждый ход подтягиваются резервы (+1 к атаке ближайшего отряда).', ['лагерь'], ERA_ANCIENT)
         ];
     }
-    function mkEnemyCard(name, type, emoji, drop, action, atk, hp, desc, tags) {
-        return { name, card_type: type, emoji, drop_cost: drop, action_cost: action, atk, hp, description: desc, tags, abilities: [], monkey_paw: '', id: uid() };
+    function mkEnemyCard(name, type, emoji, drop, action, atk, hp, desc, tags, era = ERA_ANCIENT) {
+        return { name, card_type: type, emoji, drop_cost: drop, action_cost: action, atk, hp, description: desc, tags, abilities: [], monkey_paw: '', era, id: uid() };
     }
 
     // -------- Старт боя --------
@@ -2013,6 +2048,7 @@ ${prompt}
             name: card.name || 'Безымянный',
             emoji: card.emoji || '⚒️',
             card_type: card.card_type || 'unit',
+            era: card.era || ERA_ANCIENT,
             atk: atk,
             hp: hp,
             currentAtk: atk,
@@ -2106,6 +2142,7 @@ ${prompt}
             if (enemyFrontBlock) {
                 logBattle(`💨 ${attacker.name} прорывается сквозь авангард и бьёт героя!`, 'me');
             }
+            // Урон герою — без модификаторов эпохи (герой абстрактный)
             battle.enemy.hp -= attacker.currentAtk;
             logBattle(`⚔️ ${attacker.name} атакует Тёмного Лорда → ${attacker.currentAtk} урона!`, 'me');
         } else if (target) {
@@ -2116,11 +2153,20 @@ ${prompt}
                 logBattle(`❌ ${attacker.name} стоит в тылу и может атаковать только авангард врага или сооружения.`, 'system');
                 return;
             }
-            // Юнит vs юнит: встречный урон только если юнит не сооружение и у него есть атака
+            // Урон с учётом эпох: +1 бронза по древним, -1 древние по бронзе (мин 1)
+            let atkDmg = attacker.currentAtk + eraAttackBonus(attacker.era, target.era);
+            atkDmg = Math.max(1, atkDmg - eraDamageReduction(attacker.era, target.era));
             const counter = target.isStructure ? 0 : (target.currentAtk ?? target.atk ?? 0);
-            dealDamage(target, attacker.currentAtk, 'enemy');
-            if (counter > 0) dealDamage(attacker, counter, 'me');
-            logBattle(`⚔️ ${attacker.name} бьётся с ${target.name} (${attacker.currentAtk}⚔️${counter > 0 ? ' / '+counter+'⚔️ встречный' : ''})`, 'me');
+            let counterDmg = counter + eraAttackBonus(target.era, attacker.era);
+            counterDmg = Math.max(0, counterDmg - eraDamageReduction(target.era, attacker.era));
+            const eraNote = (eraAttackBonus(attacker.era, target.era) || eraDamageReduction(attacker.era, target.era))
+                ? ` (эпоха: ${atkDmg} урона)` : '';
+            dealDamage(target, atkDmg, 'enemy');
+            if (counter > 0 || counterDmg > 0) {
+                const finalCounter = Math.max(1, counterDmg) || 0;
+                dealDamage(attacker, finalCounter, 'me');
+            }
+            logBattle(`⚔️ ${attacker.name} бьётся с ${target.name} (${atkDmg}⚔️${finalCounter ? ' / '+finalCounter+'⚔️ встречный' : ''})${eraNote}`, 'me');
             target.justDamaged = true;
             attacker.justDamaged = true;
             attacker.justAttacked = true;
@@ -2328,6 +2374,7 @@ ${prompt}
                         row[si] = {
                             instanceId: uid(),
                             name: card.name || 'Безымянный', emoji: card.emoji || '👺', card_type: card.card_type || 'unit',
+                            era: card.era || ERA_ANCIENT,
                             atk: eAtk, hp: eHp,
                             currentAtk: eAtk, currentHp: eHp,
                             action_cost: eAct,
@@ -2369,10 +2416,18 @@ ${prompt}
                 continue;
             }
             if (myFront) {
-                const counter = myFront.isStructure ? 0 : (myFront.currentAtk ?? myFront.atk ?? 0);
-                dealDamage(myFront, attacker.currentAtk, 'me');
-                if (counter > 0) dealDamage(attacker, counter, 'enemy');
-                logBattle(`⚔️ ${attacker.name} бьётся с ${myFront.name} (${attacker.currentAtk}⚔️${counter > 0 ? ', встречный '+counter : ''})`, 'enemy');
+                // Урон с учётом эпох
+                let atkDmg = attacker.currentAtk + eraAttackBonus(attacker.era, myFront.era);
+                atkDmg = Math.max(1, atkDmg - eraDamageReduction(attacker.era, myFront.era));
+                const counterRaw = myFront.isStructure ? 0 : (myFront.currentAtk ?? myFront.atk ?? 0);
+                let counterDmg = counterRaw + eraAttackBonus(myFront.era, attacker.era);
+                counterDmg = Math.max(0, counterDmg - eraDamageReduction(myFront.era, attacker.era));
+                const counterFinal = myFront.isStructure ? 0 : Math.max(1, counterDmg);
+                const eraNote = (eraAttackBonus(attacker.era, myFront.era) || eraDamageReduction(attacker.era, myFront.era))
+                    ? ` (эпоха: ${atkDmg})` : '';
+                dealDamage(myFront, atkDmg, 'me');
+                if (counterRaw > 0 && counterFinal > 0) dealDamage(attacker, counterFinal, 'enemy');
+                logBattle(`⚔️ ${attacker.name} бьётся с ${myFront.name} (${atkDmg}⚔️${counterFinal ? ', встречный '+counterFinal : ''})${eraNote}`, 'enemy');
                 myFront.justDamaged = true;
                 attacker.justDamaged = true;
                 attacker.justAttacked = true;
