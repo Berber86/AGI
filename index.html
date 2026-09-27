@@ -381,6 +381,122 @@
         }
         .empty-collection .icon { font-size: 4em; margin-bottom: 15px; }
 
+        /* ====== COLLECTION TOOLBAR ====== */
+        .coll-toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .coll-search {
+            flex: 1;
+            min-width: 150px;
+            padding: 8px 14px;
+            background: #0f0a1e;
+            border: 1px solid #3d2a5c;
+            border-radius: 8px;
+            color: #e0e0e0;
+        }
+        .filter-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+        .filter-btn {
+            padding: 6px 12px;
+            background: transparent;
+            border: 1px solid #3d2a5c;
+            color: #a08ec0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .filter-btn.active { background: #2d1f4a; border-color: #c77dff; color: #fff; }
+
+        /* ====== DECK STATS ====== */
+        .deck-stats {
+            background: rgba(30, 20, 55, 0.6);
+            border: 1px solid #3d2a5c;
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+        }
+        .deck-stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .deck-stat {
+            text-align: center;
+            padding: 10px;
+            background: #0f0a1e;
+            border-radius: 10px;
+        }
+        .deck-stat .ds-val { font-size: 1.6em; font-weight: bold; }
+        .deck-stat .ds-label { font-size: 0.65em; color: #888; text-transform: uppercase; margin-top: 2px; letter-spacing: 1px; }
+        .ds-purple { color: #c77dff; }
+        .ds-pink { color: #e94560; }
+        .ds-blue { color: #4fc3f7; }
+        .ds-gold { color: #ffd93d; }
+        .ds-green { color: #3fb950; }
+        .ds-white { color: #e0e0e0; }
+
+        .mana-curve {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            height: 100px;
+            padding: 10px;
+            background: #0f0a1e;
+            border-radius: 10px;
+        }
+        .mana-bar-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .mana-bar {
+            width: 100%;
+            background: linear-gradient(180deg, #4a7cff, #6b4fa3);
+            border-radius: 4px 4px 0 0;
+            min-height: 2px;
+            transition: height 0.3s;
+        }
+        .mana-bar-label {
+            font-size: 0.7em;
+            color: #888;
+            margin-top: 4px;
+        }
+        .mana-bar-count {
+            font-size: 0.75em;
+            color: #c77dff;
+            margin-bottom: 2px;
+        }
+
+        .deck-ready {
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .deck-ready.ok { background: rgba(35,134,54,0.2); border: 1px solid #238636; color: #3fb950; }
+        .deck-ready.no { background: rgba(248,81,73,0.15); border: 1px solid #f85149; color: #f88; }
+
+        .in-deck-badge {
+            position: absolute;
+            top: 12px;
+            left: 44px;
+            background: #e94560;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+            z-index: 2;
+        }
+
         .card-footer {
             display: flex;
             gap: 6px;
@@ -397,6 +513,22 @@
             cursor: pointer;
         }
         .mini-btn:hover { background: rgba(233,69,96,0.2); border-color: #e94560; color: #fff; }
+        .mini-btn.add { color: #3fb950; border-color: #238636; }
+        .mini-btn.add:hover { background: rgba(35,134,54,0.2); }
+        .mini-btn.remove { color: #f85149; border-color: #8b0000; }
+        .mini-btn.remove:hover { background: rgba(139,0,0,0.2); }
+        .mini-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        .clear-deck-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid #8b0000;
+            color: #f85149;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .clear-deck-btn:hover { background: rgba(139,0,0,0.2); }
     </style>
 </head>
 <body>
@@ -405,7 +537,8 @@
         <span class="logo">⚒️ Infinite Forge</span>
         <div class="nav">
             <button class="active" data-screen="forge" onclick="switchScreen('forge')">⚒️ Кузница</button>
-            <button data-screen="collection" onclick="switchScreen('collection')">📚 Моя коллекция <span id="coll-count" style="color:#c77dff">(0)</span></button>
+            <button data-screen="collection" onclick="switchScreen('collection')">📚 Коллекция <span id="coll-count" style="color:#c77dff">(0)</span></button>
+            <button data-screen="deck" onclick="switchScreen('deck')">🎴 Колода <span id="deck-count" style="color:#e94560">(0/10)</span></button>
         </div>
         <label>🔑 Hydra API:</label>
         <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()">
@@ -467,12 +600,46 @@
         <!-- ========== COLLECTION SCREEN ========== -->
         <div id="screen-collection" class="screen">
             <h1>📚 Моя коллекция</h1>
-            <p class="subtitle">Карты, которые ты выковал и сохранил</p>
+            <p class="subtitle">Все карты, которые ты выковал. Клик ➕ чтобы добавить в колоду, ➖ чтобы убрать</p>
+
+            <div class="coll-toolbar">
+                <input type="text" id="coll-search" class="coll-search" placeholder="🔍 Поиск по названию/описанию/тегам..." oninput="renderCollection()">
+                <div class="filter-btns" id="coll-filter">
+                    <button class="filter-btn active" data-type="all" onclick="setCollFilter('all')">Все</button>
+                    <button class="filter-btn" data-type="unit" onclick="setCollFilter('unit')">🗡️ Юниты</button>
+                    <button class="filter-btn" data-type="spell" onclick="setCollFilter('spell')">✨ Заклинания</button>
+                    <button class="filter-btn" data-type="structure" onclick="setCollFilter('structure')">🏰 Сооружения</button>
+                </div>
+            </div>
+
             <div id="collection-grid" class="cards-grid"></div>
             <div id="collection-empty" class="empty-collection">
                 <div class="icon">📭</div>
                 <div>У тебя пока нет сохранённых карт.</div>
                 <div style="margin-top:8px; font-size:0.9em">Вернись в Кузницу и создай свою первую карту!</div>
+            </div>
+        </div>
+
+        <!-- ========== DECK SCREEN ========== -->
+        <div id="screen-deck" class="screen">
+            <h1>🎴 Моя колода</h1>
+            <p class="subtitle">Собери колоду из 10 карт для боя. Максимум 10 карт в колоде.</p>
+
+            <div class="deck-stats">
+                <div class="deck-stats-row" id="deck-stats-row"></div>
+                <h3 style="color:#a08ec0; font-size:0.85em; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px">📊 Кривая маны</h3>
+                <div class="mana-curve" id="mana-curve"></div>
+                <div id="deck-ready" class="deck-ready"></div>
+                <div style="text-align:center; margin-top:10px">
+                    <button class="clear-deck-btn" onclick="clearDeck()">🗑️ Очистить колоду</button>
+                </div>
+            </div>
+
+            <div id="deck-grid" class="cards-grid"></div>
+            <div id="deck-empty" class="empty-collection">
+                <div class="icon">🎴</div>
+                <div>Колода пуста.</div>
+                <div style="margin-top:8px; font-size:0.9em">Перейди в Коллекцию и добавь карты в колоду (кнопка ➕).</div>
             </div>
         </div>
 
@@ -531,7 +698,10 @@
 
     let selectedTags = { element: [], biome: [], archetype: [] };
     let collection = JSON.parse(localStorage.getItem('iforge_collection') || '[]');
+    let deck = JSON.parse(localStorage.getItem('iforge_deck') || '[]');
     let lastForged = null;
+    let collFilter = 'all';
+    const DECK_LIMIT = 10;
 
     // ============================================
     // ИНИЦИАЛИЗАЦИЯ
@@ -541,7 +711,13 @@
         document.getElementById('api-key-input').value = key;
         document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
 
+        // Очищаем колоду от карт, которых больше нет в коллекции
+        const collIds = new Set(collection.map(c => c.id));
+        deck = deck.filter(id => collIds.has(id));
+        saveDeck();
+
         renderTags();
+        updateDeckCount();
         renderCollection();
     };
 
@@ -563,6 +739,7 @@
         document.getElementById('screen-' + screen).classList.add('active');
         document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
         if (screen === 'collection') renderCollection();
+        if (screen === 'deck') renderDeck();
     }
 
     // ============================================
@@ -735,7 +912,7 @@ ${prompt}
             lastForged = card;
 
             loadingEl.style.display = 'none';
-            resultEl.innerHTML = renderCard(card, true);
+            resultEl.innerHTML = renderCard(card, 'forge');
 
         } catch (e) {
             loadingEl.style.display = 'none';
@@ -748,9 +925,15 @@ ${prompt}
 
     // ============================================
     // РЕНДЕР КАРТОЧКИ
+    // mode: 'forge' (свежевыкованная, с кнопкой "в коллекцию"),
+    //       'collection' (в коллекции, с кнопками + в колоду / удалить),
+    //       'deck' (в колоде, с кнопкой - убрать)
     // ============================================
-    function renderCard(card, showSave = false) {
+    function renderCard(card, mode = 'collection') {
         const typeDef = CARD_TYPES[card.card_type] || CARD_TYPES.unit;
+        const inDeck = deck.includes(card.id);
+        const deckFull = deck.length >= DECK_LIMIT;
+
         const statsHtml = card.card_type === 'unit' ? `
             <span class="stat-chip hp">❤️ ${card.hp}</span>
             <span class="stat-chip atk">⚔️ ${card.atk}</span>
@@ -767,16 +950,29 @@ ${prompt}
         const abilitiesHtml = card.abilities && card.abilities.length ?
             `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${card.abilities.map(a => '• ' + a).join('<br>')}</div>` : '';
 
-        const saveHtml = showSave ? `
-            <button class="save-btn" onclick="saveCard('${card.id}')" id="save-${card.id}">💾 Добавить в коллекцию</button>
-        ` : `
-            <div class="card-footer">
-                <button class="mini-btn" onclick="deleteCard('${card.id}')">🗑️ Удалить</button>
-            </div>
-        `;
+        let footerHtml = '';
+        let inDeckBadge = '';
+
+        if (mode === 'forge') {
+            footerHtml = `<button class="save-btn" onclick="saveCard('${card.id}')" id="save-${card.id}">💾 Добавить в коллекцию</button>`;
+        } else if (mode === 'collection') {
+            inDeckBadge = inDeck ? `<div class="in-deck-badge">🎴 В КОЛОДЕ</div>` : '';
+            footerHtml = `<div class="card-footer">
+                ${inDeck
+                    ? `<button class="mini-btn remove" onclick="removeFromDeck('${card.id}')">➖ Убрать из колоды</button>`
+                    : `<button class="mini-btn add" onclick="addToDeck('${card.id}')" ${deckFull ? 'disabled' : ''}>➕ В колоду</button>`
+                }
+                <button class="mini-btn remove" onclick="deleteCard('${card.id}')">🗑️</button>
+            </div>`;
+        } else if (mode === 'deck') {
+            footerHtml = `<div class="card-footer">
+                <button class="mini-btn remove" onclick="removeFromDeck('${card.id}')">➖ Убрать из колоды</button>
+            </div>`;
+        }
 
         return `
             <div class="game-card ${typeDef.cls}" style="max-width:320px; width:100%">
+                ${inDeckBadge}
                 <div class="card-costs">
                     <div class="cost-badge drop-cost">
                         <span class="cost-num">${card.drop_cost}</span>
@@ -798,8 +994,7 @@ ${prompt}
                 <div class="card-tags">
                     ${(card.tags || []).slice(0, 5).map(t => `<span class="card-tag">${t}</span>`).join('')}
                 </div>
-                ${showSave ? saveHtml : ''}
-                ${!showSave ? saveHtml : ''}
+                ${footerHtml}
             </div>
         `;
     }
@@ -816,13 +1011,65 @@ ${prompt}
         btn.textContent = '✅ Добавлено в коллекцию';
         btn.classList.add('saved');
         btn.disabled = true;
-        document.getElementById('coll-count').textContent = '(' + collection.length + ')';
+        updateCounters();
     }
 
     function deleteCard(id) {
         collection = collection.filter(c => c.id !== id);
+        deck = deck.filter(did => did !== id);
+        saveDeck();
         localStorage.setItem('iforge_collection', JSON.stringify(collection));
+        updateCounters();
+        renderCollection();
+    }
+
+    // ============================================
+    // РАБОТА С КОЛОДОЙ
+    // ============================================
+    function saveDeck() {
+        localStorage.setItem('iforge_deck', JSON.stringify(deck));
+        updateCounters();
+    }
+
+    function addToDeck(id) {
+        if (deck.length >= DECK_LIMIT) return;
+        if (deck.includes(id)) return;
+        deck.push(id);
+        saveDeck();
+        renderCollection();
+    }
+
+    function removeFromDeck(id) {
+        deck = deck.filter(did => did !== id);
+        saveDeck();
+        renderCollection();
+        // Если мы на экране колоды — перерисовываем
+        const deckScreen = document.getElementById('screen-deck');
+        if (deckScreen.classList.contains('active')) renderDeck();
+    }
+
+    function clearDeck() {
+        if (deck.length === 0) return;
+        if (!confirm('Очистить колоду? Все карты вернутся в коллекцию.')) return;
+        deck = [];
+        saveDeck();
+        renderCollection();
+        renderDeck();
+    }
+
+    function updateCounters() {
         document.getElementById('coll-count').textContent = '(' + collection.length + ')';
+        document.getElementById('deck-count').textContent = `(${deck.length}/${DECK_LIMIT})`;
+    }
+
+    // ============================================
+    // ФИЛЬТР КОЛЛЕКЦИИ
+    // ============================================
+    function setCollFilter(type) {
+        collFilter = type;
+        document.querySelectorAll('#coll-filter .filter-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.type === type);
+        });
         renderCollection();
     }
 
@@ -832,14 +1079,111 @@ ${prompt}
     function renderCollection() {
         const grid = document.getElementById('collection-grid');
         const empty = document.getElementById('collection-empty');
-        document.getElementById('coll-count').textContent = '(' + collection.length + ')';
+        updateCounters();
+
+        const search = (document.getElementById('coll-search')?.value || '').toLowerCase().trim();
+
+        let cards = collection.slice();
+        if (collFilter !== 'all') {
+            cards = cards.filter(c => c.card_type === collFilter);
+        }
+        if (search) {
+            cards = cards.filter(c =>
+                (c.name || '').toLowerCase().includes(search) ||
+                (c.description || '').toLowerCase().includes(search) ||
+                (c.tags || []).some(t => t.toLowerCase().includes(search))
+            );
+        }
+
         if (collection.length === 0) {
             grid.innerHTML = '';
             empty.style.display = 'block';
+            empty.querySelector('div:nth-child(2)').textContent = 'У тебя пока нет сохранённых карт.';
+            return;
+        }
+        if (cards.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            empty.querySelector('div:nth-child(2)').textContent = 'Ни одна карта не соответствует фильтру.';
             return;
         }
         empty.style.display = 'none';
-        grid.innerHTML = collection.map(c => renderCard(c, false)).join('');
+        grid.innerHTML = cards.map(c => renderCard(c, 'collection')).join('');
+    }
+
+    // ============================================
+    // РЕНДЕР КОЛОДЫ
+    // ============================================
+    function renderDeck() {
+        updateCounters();
+        const grid = document.getElementById('deck-grid');
+        const empty = document.getElementById('deck-empty');
+        const statsRow = document.getElementById('deck-stats-row');
+        const curve = document.getElementById('mana-curve');
+        const ready = document.getElementById('deck-ready');
+
+        const deckCards = deck.map(id => collection.find(c => c.id === id)).filter(Boolean);
+
+        if (deckCards.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+        } else {
+            empty.style.display = 'none';
+            grid.innerHTML = deckCards.map(c => renderCard(c, 'deck')).join('');
+        }
+
+        // === Статистика ===
+        const units = deckCards.filter(c => c.card_type === 'unit').length;
+        const spells = deckCards.filter(c => c.card_type === 'spell').length;
+        const structs = deckCards.filter(c => c.card_type === 'structure').length;
+        const avgDrop = deckCards.length
+            ? (deckCards.reduce((s, c) => s + (c.drop_cost || 0), 0) / deckCards.length).toFixed(1)
+            : '0.0';
+        const avgAction = deckCards.filter(c => c.action_cost > 0).length
+            ? (deckCards.filter(c => c.action_cost > 0).reduce((s, c) => s + (c.action_cost || 0), 0) / deckCards.filter(c => c.action_cost > 0).length).toFixed(1)
+            : '0';
+        const totalAtk = deckCards.reduce((s, c) => s + (c.atk || 0), 0);
+        const totalHp = deckCards.reduce((s, c) => s + (c.hp || 0), 0);
+
+        statsRow.innerHTML = `
+            <div class="deck-stat"><div class="ds-val ds-pink">${deckCards.length}/${DECK_LIMIT}</div><div class="ds-label">Карт</div></div>
+            <div class="deck-stat"><div class="ds-val ds-purple">${units}</div><div class="ds-label">Юнитов</div></div>
+            <div class="deck-stat"><div class="ds-val ds-gold">${spells}</div><div class="ds-label">Заклинаний</div></div>
+            <div class="deck-stat"><div class="ds-val ds-blue">${structs}</div><div class="ds-label">Сооружений</div></div>
+            <div class="deck-stat"><div class="ds-val ds-white">${avgDrop}</div><div class="ds-label">Средн. выход</div></div>
+            <div class="deck-stat"><div class="ds-val ds-white">${avgAction}</div><div class="ds-label">Средн. действие</div></div>
+            <div class="deck-stat"><div class="ds-val ds-gold">${totalAtk}</div><div class="ds-label">Сумм. атака</div></div>
+            <div class="deck-stat"><div class="ds-val ds-green">${totalHp}</div><div class="ds-label">Сумм. HP</div></div>
+        `;
+
+        // === Кривая маны (drop cost 0-7+) ===
+        const buckets = [0,0,0,0,0,0,0,0]; // 0,1,2,3,4,5,6,7+
+        deckCards.forEach(c => {
+            const cost = Math.min(7, c.drop_cost || 0);
+            buckets[cost]++;
+        });
+        const maxBucket = Math.max(1, ...buckets);
+        curve.innerHTML = buckets.map((count, i) => {
+            const label = i === 7 ? '7+' : i;
+            const h = Math.round((count / maxBucket) * 70);
+            return `<div class="mana-bar-wrap">
+                <span class="mana-bar-count">${count || ''}</span>
+                <div class="mana-bar" style="height:${h}px"></div>
+                <span class="mana-bar-label">${label}</span>
+            </div>`;
+        }).join('');
+
+        // === Готовность ===
+        if (deckCards.length === DECK_LIMIT) {
+            ready.className = 'deck-ready ok';
+            ready.innerHTML = '✅ Колода готова к битве! (10/10 карт)';
+        } else if (deckCards.length > DECK_LIMIT) {
+            ready.className = 'deck-ready no';
+            ready.innerHTML = `⚠️ Слишком много карт (${deckCards.length}/${DECK_LIMIT})`;
+        } else {
+            ready.className = 'deck-ready no';
+            ready.innerHTML = `⏳ Добавь ещё ${DECK_LIMIT - deckCards.length} карт для полной колоды`;
+        }
     }
     </script>
 </body>
