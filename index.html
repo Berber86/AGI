@@ -711,9 +711,9 @@
         document.getElementById('api-key-input').value = key;
         document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
 
-        // Очищаем колоду от карт, которых больше нет в коллекции
+        // Очищаем колоду от карт, которых больше нет в коллекции, и обрезаем до лимита
         const collIds = new Set(collection.map(c => c.id));
-        deck = deck.filter(id => collIds.has(id));
+        deck = deck.filter(id => collIds.has(id)).slice(0, DECK_LIMIT);
         saveDeck();
 
         renderTags();
