@@ -1004,6 +1004,26 @@
         }
         .modal-buttons .btn-cancel { border: 1px solid #59436f; background: #211632; }
         .modal-buttons .btn-confirm { border: 1px solid #b879ec; background: linear-gradient(115deg,#7540b4,#c8477c); }
+        .card-choice-modal { width: min(100%, 720px); }
+        .card-choice-eyebrow { color: #c77dff; font-size: .72em; font-weight: 900; letter-spacing: .18em; }
+        .card-choice-title { margin: 7px 0 5px; color: #fff2dc; }
+        .card-choice-description { margin: 0 0 16px; color: #c8bad6; line-height: 1.45; }
+        .card-choice-list { display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 9px; max-height: min(48vh,390px); overflow: auto; padding: 2px 3px 8px; }
+        .card-choice-option { position: relative; display: flex; min-height: 76px; align-items: stretch; gap: 4px; padding: 5px; border: 1px solid rgba(207,177,233,.2); border-radius: 12px; background: linear-gradient(145deg,rgba(36,27,47,.96),rgba(15,12,22,.96)); color: #f3e8fb; text-align: left; cursor: pointer; transition: .15s ease; }
+        .card-choice-option:hover { border-color: rgba(199,125,255,.65); transform: translateY(-1px); }
+        .card-choice-option.selected { border-color: #c77dff; background: linear-gradient(145deg,rgba(101,61,135,.55),rgba(33,21,45,.98)); box-shadow: 0 0 16px rgba(199,125,255,.18); }
+        .card-choice-option .choice-emoji { font-size: 1.65em; }
+        .choice-pick { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; padding: 5px; border: 0; background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; }
+        .choice-move-controls { display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+        .choice-move-controls button { width: 28px; min-height: 25px; padding: 0; border: 1px solid rgba(199,125,255,.24); border-radius: 6px; background: rgba(15,10,23,.7); color: #e7d3f5; cursor: pointer; }
+        .choice-move-controls button:disabled { opacity: .3; cursor: default; }
+        .card-choice-option:not(.selected) .choice-pick:hover { color: #fff; }
+        .card-choice-option .choice-name { display: block; font-weight: 800; }
+        .card-choice-option .choice-meta { display: block; margin-top: 4px; color: #b6a4c7; font-size: .76em; }
+        .card-choice-option .choice-mark { position: absolute; top: 5px; right: 7px; color: #e4b4ff; font-size: .72em; font-weight: 900; }
+        .card-choice-status { min-height: 22px; color: #c7b5d4; text-align: right; font-size: .82em; }
+        .card-choice-buttons { padding: 10px 0 0; }
+        .card-choice-buttons button:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.4); }
         @keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
         @media (max-width: 760px) {
@@ -1337,6 +1357,20 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="card-choice-modal" role="dialog" aria-modal="true" aria-labelledby="card-choice-title">
+        <div class="modal card-choice-modal">
+            <div class="card-choice-eyebrow">⚒️ ТАКТИЧЕСКИЙ ВЫБОР</div>
+            <h2 id="card-choice-title" class="card-choice-title">Выбор карт</h2>
+            <p id="card-choice-description" class="card-choice-description"></p>
+            <div id="card-choice-list" class="card-choice-list"></div>
+            <div class="card-choice-status" id="card-choice-status"></div>
+            <div class="modal-buttons card-choice-buttons">
+                <button type="button" class="btn-cancel" id="card-choice-skip" onclick="skipCardChoice()">Пропустить</button>
+                <button type="button" class="btn-confirm" id="card-choice-confirm" onclick="confirmCardChoice()">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
     <div class="top-bar">
         <span class="logo">⚒️ Infinite Forge</span>
         <div class="nav">
@@ -1539,6 +1573,9 @@
                 <div class="mana-pip-row">
                     <span class="mana-label">📚 Колода: <span id="deck-remaining">0</span></span>
                 </div>
+                <div class="mana-pip-row">
+                    <span class="mana-label">🪦 Сброс: <span id="discard-count">0</span></span>
+                </div>
             </div>
 
             <!-- Battlefield -->
@@ -1722,7 +1759,7 @@
     // НАВИГАЦИЯ
     // ============================================
     function switchScreen(screen) {
-        if (pendingManualTarget && screen !== 'battle') return;
+        if ((pendingManualTarget || pendingCardChoice) && screen !== 'battle') return;
         if (battle?._endScheduled && !document.getElementById('battle-end-modal').classList.contains('active')) return;
         // Если уходим с экрана боя — сбрасываем битву
         const onBattle = document.getElementById('screen-battle').classList.contains('active');
@@ -1903,12 +1940,12 @@
 • События: enter_play (карта выходит на поле/разыгрывается), attack (отряд совершает атаку), turn_start (начало хода владельца источника), death (погибает сам источник), card_death (погибает любая карта на поле).
 • Для card_death ОБЯЗАТЕЛЬНО задай watch.side: all (любая сторона), friendly (свои карты относительно владельца источника) или enemy (чужие карты). Для card_death реакция срабатывает только у живых карт-наблюдателей; собственную гибель задавай событием death. Бегство гибелью не считается.
 • Порядок реакций на гибель: сначала активная сторона, затем другая; внутри стороны раньше выведенные карты срабатывают первыми. Эффекты одной карты идут в порядке effects[].
-• Для damage/heal/apply_status/destroy/modify_stat/modify_cost ОБЯЗАТЕЛЬНО укажи target. Для modify_resource target можно опустить — тогда это controller. В action включай только поля, нужные выбранному type.
+• Для damage/heal/apply_status/destroy/modify_stat/modify_cost/draw/discard/exchange/scry ОБЯЗАТЕЛЬНО укажи target. Для modify_resource target можно опустить — тогда это controller. В action включай только поля, нужные выбранному type.
 • Цель: side friendly/controller = свои/владелец, enemy/opponent = противник, either = обе стороны; entity unit (не постройка), structure, permanent (любая карта на поле), player. zone front=авангард, rear=тыл. relation adjacent = соседний слот в том же ряду относительно источника; self = сам источник; attack_target = цель текущей атаки.
-• Выбор цели: choose — игрок кликает до count разных подсвеченных целей и может пропустить эффект; first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack — детерминированный автовыбор. count 1-3; если доступных целей меньше, выбираются все доступные. ИИ при choose берёт первые подходящие цели. Случайных целей нет. Если цели не нашлось, эффект пропускается.
-• Действия: damage (урон; броня цели уменьшает его, минимум 1), heal (восстановление до максимума), apply_status только poison или burn (amount=сила, turns=1..3; длительность тикает в начале хода владельца цели), destroy (немедленно уничтожает карту на поле), modify_resource (drop/action, amount от -5 до +5, только текущий запас), modify_stat (attack/armor/max_hp, amount от -3 до +3; изменение постоянно до конца боя), modify_cost (только цена действия action у карты на поле, от -3 до +3; изменение постоянно до конца боя).
+• Выбор цели: choose — игрок кликает до count разных подсвеченных целей и может пропустить эффект; first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack — детерминированный автовыбор. count 1-3; если доступных целей меньше, выбираются все доступные. ИИ при choose берёт первые подходящие цели. Случайных целей нет. Если цели не нашлось, эффект пропускается. Для draw/discard/exchange/scry указывай конкретную сторону player (без select=choose); выбор карт выполняется отдельным интерфейсом.
+• Действия: damage (урон; броня цели уменьшает его, минимум 1), heal (восстановление до максимума), apply_status только poison или burn (amount=сила, turns=1..3; тикает в начале хода владельца цели), destroy (немедленно уничтожает карту на поле), modify_resource (drop/action, amount от -5 до +5, только текущий запас), modify_stat (attack/armor/max_hp, amount от -3 до +3; постоянно до конца боя; для attack/armor можно указать turns=1..3 — временно на указанное число собственных ходов), modify_cost (цена action от -3 до +3; можно указать turns=1..3 для временной цены), draw (добрать amount=1..5), discard (сбросить amount=1..5; choice=choose|highest_cost|lowest_cost), exchange (добрать amount и затем сбросить столько же), scry (просмотреть amount=1..5 верхних карт; игрок выбирает, какие отправить вниз, сохраняя порядок остальных). Усталость за пустую колоду растёт: первый добор наносит 1 урон, затем 2, 3 и т.д. Сброшенные и сожжённые из-за переполнения карты попадают в стопку сброса.
 • Условия необязательны: all/any содержат 1-4 условия, not инвертирует одно. Листья: {"type":"target_wounded"}, {"type":"target_status","status":"poison"}, {"type":"resource","side":"controller"|"opponent","resource":"drop"|"action","op":"eq"|"ne"|"lt"|"lte"|"gt"|"gte","value":N}, {"type":"target_stat","stat":"hp"|"attack"|"armor","op":"...","value":N}. Глубина условий максимум 3.
-• Пример: при гибели любой своей карты получить +1 ресурс: {"event":"card_death","watch":{"side":"friendly"},"action":{"type":"modify_resource","resource":"drop","amount":1}}. Пример: при выходе нанести 2 урона отряду врага в тылу с наименьшими HP: {"event":"enter_play","target":{"side":"enemy","entity":"unit","zone":"rear","select":"lowest_hp","count":1},"action":{"type":"damage","amount":2}}.
+• Пример: при гибели любой своей карты получить +1 ресурс: {"event":"card_death","watch":{"side":"friendly"},"action":{"type":"modify_resource","resource":"drop","amount":1}}. При выходе добрать две карты: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"draw","amount":2}}. При выходе дать отряду +2 атаки до следующего собственного хода: {"event":"enter_play","target":{"side":"friendly","entity":"unit","select":"first"},"action":{"type":"modify_stat","stat":"attack","amount":2,"turns":1}}.
 • Не придумывай события, сущности, статусы, цели или действия за пределами списка. Максимум 6 эффектов на карту. Все эффекты в одном JSON — независимы и исполняются по порядку.
 
 === ДОСТУПНЫЕ ТЕГИ ===
@@ -2566,7 +2603,7 @@ ${prompt}
         dmg += eraAttackBonus(attacker.era, target.era);
         dmg = Math.max(1, dmg - eraDamageReduction(attacker.era, target.era));
         // Броня и пробитие
-        const armor = Math.max(0, (target.statuses?.armor||0) - (attacker.statuses?.pierce||0));
+        const armor = Math.max(0, getUnitArmor(target) - (attacker.statuses?.pierce||0));
         dmg = Math.max(1, dmg - armor);
         // Чарж бонус (отменяется holdground у цели в первый ход)
         if (hasKw(attacker, 'charge') && attacker._justDeployed) {
@@ -2709,7 +2746,7 @@ ${prompt}
     // Движок исполняет только проверенные enum-значения; текст карт не анализируется.
     // ============================================
     const EFFECT_EVENTS = ['enter_play', 'attack', 'turn_start', 'death', 'card_death'];
-    const EFFECT_ACTIONS = ['damage', 'heal', 'apply_status', 'destroy', 'modify_resource', 'modify_stat', 'modify_cost'];
+    const EFFECT_ACTIONS = ['damage', 'heal', 'apply_status', 'destroy', 'modify_resource', 'modify_stat', 'modify_cost', 'draw', 'discard', 'exchange', 'scry'];
     const EFFECT_STATUSES = ['poison', 'burn'];
     const EFFECT_COMPARE = ['eq', 'ne', 'lt', 'lte', 'gt', 'gte'];
 
@@ -2735,7 +2772,8 @@ ${prompt}
             if (!raw.action || typeof raw.action !== 'object' || Array.isArray(raw.action) || !EFFECT_ACTIONS.includes(raw.action.type)) fail('неизвестное действие.');
             const actionKeys = {
                 damage:['type','amount'], heal:['type','amount'], apply_status:['type','amount','status','turns'], destroy:['type'],
-                modify_resource:['type','resource','amount'], modify_stat:['type','stat','amount'], modify_cost:['type','cost','amount']
+                modify_resource:['type','resource','amount'], modify_stat:['type','stat','amount','turns'], modify_cost:['type','cost','amount','turns'],
+                draw:['type','amount'], discard:['type','amount','choice'], exchange:['type','amount','choice'], scry:['type','amount']
             }[raw.action.type];
             assertEffectKeys(raw.action,actionKeys,fail,'action');
             const action = { type: raw.action.type };
@@ -2762,12 +2800,25 @@ ${prompt}
                 action.stat = raw.action.stat;
                 action.amount = intField(raw.action, 'amount', -3, 3);
                 if (!action.amount) fail('изменение характеристики не может быть равно нулю.');
+                if (raw.action.turns !== undefined) {
+                    if (action.stat === 'max_hp') fail('временными могут быть только атака и броня.');
+                    action.turns = intField(raw.action, 'turns', 1, 3);
+                }
             }
             if (action.type === 'modify_cost') {
                 if (raw.action.cost !== 'action') fail('пока можно менять только стоимость действия action.');
                 action.cost = 'action';
                 action.amount = intField(raw.action, 'amount', -3, 3);
                 if (!action.amount) fail('изменение стоимости не может быть равно нулю.');
+                if (raw.action.turns !== undefined) action.turns = intField(raw.action, 'turns', 1, 3);
+            }
+            if (['draw','discard','exchange','scry'].includes(action.type)) {
+                action.amount = intField(raw.action, 'amount', 1, 5);
+                if (['discard','exchange'].includes(action.type)) {
+                    const choice = raw.action.choice === undefined ? 'choose' : raw.action.choice;
+                    if (!['choose','highest_cost','lowest_cost'].includes(choice)) fail('choice должен быть choose, highest_cost или lowest_cost.');
+                    action.choice = choice;
+                }
             }
 
             let target = raw.target;
@@ -2798,6 +2849,10 @@ ${prompt}
             targetOut.count = target.count === undefined ? 1 : target.count;
             if (!Number.isInteger(targetOut.count) || targetOut.count < 1 || targetOut.count > 3) fail('target.count должен быть от 1 до 3.');
             if (['damage','heal','apply_status','destroy','modify_stat','modify_cost'].includes(action.type) && targetOut.entity === 'player' && !['damage','heal'].includes(action.type)) fail('это действие нельзя применять к игроку.');
+            if (['draw','discard','exchange','scry'].includes(action.type)) {
+                if (targetOut.entity !== 'player') fail('добор, сброс, обмен и разведка требуют цель player.');
+                if (targetOut.count !== 1 || targetOut.side === 'either' || targetOut.select === 'choose') fail('для карт игрока укажи конкретную сторону и одну цель; выбор карт выполняется отдельным интерфейсом.');
+            }
             if (['modify_stat','modify_cost','destroy'].includes(action.type) && targetOut.entity === 'player') fail('это действие требует цель на поле.');
             if (action.type === 'modify_resource' && targetOut.entity !== 'player') fail('modify_resource требует цель player.');
             if (action.type === 'apply_status' && targetOut.entity !== 'unit') fail('статус можно наложить только на отряд.');
@@ -2915,7 +2970,7 @@ ${prompt}
         }
         if (selection === 'lowest_hp') candidates.sort((a,b) => a.unit.currentHp - b.unit.currentHp || a.index-b.index);
         else if (selection === 'lowest_hp_ratio') candidates.sort((a,b) => a.unit.currentHp/Math.max(1,a.unit.hp) - b.unit.currentHp/Math.max(1,b.unit.hp) || a.index-b.index);
-        else if (selection === 'highest_attack') candidates.sort((a,b) => (b.unit.currentAtk ?? b.unit.atk) - (a.unit.currentAtk ?? a.unit.atk) || a.index-b.index);
+        else if (selection === 'highest_attack') candidates.sort((a,b) => getUnitAttack(b.unit) - getUnitAttack(a.unit) || a.index-b.index);
         if (includeAll || selection === 'choose') return candidates;
         return candidates.slice(0, spec.count || 1);
     }
@@ -2933,8 +2988,8 @@ ${prompt}
             let value = null;
             if (target.kind === 'player') value = condition.stat === 'hp' ? battle[target.side].hp : null;
             else if (condition.stat === 'hp') value = target.unit.currentHp;
-            else if (condition.stat === 'attack') value = target.unit.currentAtk ?? target.unit.atk;
-            else if (condition.stat === 'armor') value = target.unit.statuses?.armor || 0;
+            else if (condition.stat === 'attack') value = getUnitAttack(target.unit);
+            else if (condition.stat === 'armor') value = getUnitArmor(target.unit);
             return value !== null && compareEffectValues(value,condition.op,condition.value);
         }
         if (condition.type === 'resource') {
@@ -2946,12 +3001,118 @@ ${prompt}
         return false;
     }
 
+    function getTemporaryModifierTotal(unit, stat) {
+        const mods = unit?._temporaryModifiers || [];
+        return mods.reduce((total, mod) => {
+            const currentTurn = battle?.turnCounters?.[mod.ownerSide] || 0;
+            return mod.stat === stat && mod.expiresAtOwnerTurn > currentTurn ? total + mod.amount : total;
+        }, 0);
+    }
+
+    function getUnitAttack(unit) {
+        return Math.max(0, Math.min(12, (unit?.currentAtk ?? unit?.atk ?? 0) + getTemporaryModifierTotal(unit, 'attack')));
+    }
+
+    function getUnitArmor(unit) {
+        return Math.max(0, Math.min(8, (unit?.statuses?.armor || 0) + getTemporaryModifierTotal(unit, 'armor')));
+    }
+
+    function getUnitActionCost(unit) {
+        return Math.max(0, Math.min(6, (unit?.action_cost || 0) + getTemporaryModifierTotal(unit, 'action_cost')));
+    }
+
+    function expireTemporaryModifiers(side) {
+        if (!battle?.[side]) return;
+        const currentTurn = battle.turnCounters?.[side] || 0;
+        ['front','back'].forEach(row => battle[side][row].forEach(unit => {
+            if (!unit?._temporaryModifiers?.length) return;
+            const expired = unit._temporaryModifiers.filter(mod => mod.ownerSide === side && mod.expiresAtOwnerTurn <= currentTurn);
+            unit._temporaryModifiers = unit._temporaryModifiers.filter(mod => !(mod.ownerSide === side && mod.expiresAtOwnerTurn <= currentTurn));
+            expired.forEach(mod => logBattle(`⌛ Временный бонус ${unit.name}: ${mod.stat} ${signedNumber(mod.amount)} истёк.`, side));
+        }));
+    }
+
+    function signedNumber(n) { return n > 0 ? `+${n}` : String(n); }
+
+    function openCardChoice(config) {
+        pendingCardChoice = {
+            ...config,
+            selected: [],
+            order: config.kind === 'scry' ? config.cards.map((_,index) => index) : undefined,
+            min: config.min ?? config.max ?? 0,
+            max: config.max ?? config.cards.length,
+        };
+        renderCardChoiceModal();
+        return true;
+    }
+
+    function toggleCardChoice(index) {
+        const pending = pendingCardChoice;
+        if (!pending || !Number.isInteger(index) || index < 0 || index >= pending.cards.length) return;
+        const at = pending.selected.indexOf(index);
+        if (at >= 0) pending.selected.splice(at, 1);
+        else if (pending.selected.length < pending.max) pending.selected.push(index);
+        renderCardChoiceModal();
+    }
+
+    function moveScryCard(index, direction) {
+        const pending = pendingCardChoice;
+        if (!pending || pending.kind !== 'scry' || ![-1,1].includes(direction)) return;
+        const at = pending.order.indexOf(index);
+        const next = at + direction;
+        if (at < 0 || next < 0 || next >= pending.order.length) return;
+        [pending.order[at],pending.order[next]] = [pending.order[next],pending.order[at]];
+        renderCardChoiceModal();
+    }
+
+    function completeCardChoice(skip = false) {
+        const pending = pendingCardChoice;
+        if (!pending) return;
+        const selected = pending.selected.slice();
+        if (!skip && (selected.length < pending.min || selected.length > pending.max)) return;
+        pendingCardChoice = null;
+        renderCardChoiceModal();
+        if (skip) {
+            if (pending.onSkip) pending.onSkip();
+        } else if (pending.onConfirm) pending.onConfirm(selected,pending);
+        cleanupDead();
+        renderBattle();
+        if (pending.task) runEffectTask(pending.task, pending.nextIndex);
+        if (!effectPumpActive) pumpEffectQueue();
+    }
+
+    function confirmCardChoice() { completeCardChoice(false); }
+    function skipCardChoice() { completeCardChoice(true); }
+
+    function discardIndices(hand, amount, choice) {
+        const direction = choice === 'lowest_cost' ? 1 : -1;
+        return hand.map((card, index) => ({ card, index }))
+            .sort((a,b) => direction * ((a.card.drop_cost || 0) - (b.card.drop_cost || 0)) || a.index - b.index)
+            .slice(0, amount).map(entry => entry.index);
+    }
+
+    function moveCardsToDiscard(side, indices, sourceName) {
+        const player = battle[side];
+        const picked = new Set(indices);
+        const kept = [], moved = [];
+        player.hand.forEach((card,index) => (picked.has(index) ? moved : kept).push(card));
+        player.hand = kept;
+        player.discard = player.discard || [];
+        player.discard.push(...moved);
+        if (moved.length) logBattle(`🪦 ${sourceName}: ${side === 'me' ? 'ты сбрасываешь' : 'враг сбрасывает'} ${moved.map(card => `«${card.name}»`).join(', ')}.`, side);
+        return moved;
+    }
+
+    function isManualCardChoice(side, context, choice = 'choose') {
+        return choice === 'choose' && side === 'me' && context.ownerSide === 'me';
+    }
+
     function executeEffectAction(effect, target, context) {
         const action = effect.action;
         const side = target.side;
         const unit = target.kind === 'unit' ? target.unit : null;
         const who = context.ownerSide;
-        const signed = n => n > 0 ? `+${n}` : String(n);
+        const signed = signedNumber;
         if (action.type === 'modify_resource') {
             const p = battle[side || who];
             const field = action.resource === 'drop' ? 'dropMana' : 'actionMana';
@@ -2960,20 +3121,104 @@ ${prompt}
             p[field] = Math.max(0, Math.min(p[maxField], before + action.amount));
             const delta = p[field] - before;
             if (delta) logBattle(`⚙️ ${context.card.name}: ${delta > 0 ? '+' : ''}${delta}${action.resource === 'drop' ? '💎' : '⚡'} ${side === who ? 'владельцу' : 'противнику'}.`, who);
-            return;
+            return false;
+        }
+        if (action.type === 'draw' && target.kind === 'player') {
+            drawCards(side, action.amount, context.card.name);
+            return false;
+        }
+        if (action.type === 'discard' && target.kind === 'player') {
+            const player = battle[side];
+            const amount = Math.min(action.amount, player.hand.length);
+            if (!amount) {
+                logBattle(`🪦 ${context.card.name}: нечего сбрасывать — рука пуста.`, who);
+                return false;
+            }
+            if (isManualCardChoice(side, context, action.choice)) {
+                return openCardChoice({
+                    kind:'discard', title:`Сброс: ${context.card.name}`,
+                    description:`Выбери ${amount} ${amount === 1 ? 'карту' : 'карты'} из руки.`,
+                    cards:player.hand.slice(), min:amount, max:amount, nextIndex:context.nextIndex, task:context.task,
+                    onConfirm:indices => moveCardsToDiscard(side,indices,context.card.name),
+                    onSkip:() => logBattle(`↩️ ${context.card.name}: сброс пропущен.`, who)
+                });
+            }
+            const deterministicChoice = action.choice === 'lowest_cost' ? 'lowest_cost' : 'highest_cost';
+            moveCardsToDiscard(side,discardIndices(player.hand,amount,deterministicChoice),context.card.name);
+            return false;
+        }
+        if (action.type === 'exchange' && target.kind === 'player') {
+            const player = battle[side];
+            const snapshot = {
+                deck:JSON.parse(JSON.stringify(player.deck)), hand:JSON.parse(JSON.stringify(player.hand)),
+                discard:JSON.parse(JSON.stringify(player.discard || [])), hp:player.hp, fatigue:player.fatigue || 0
+            };
+            drawCards(side,action.amount,context.card.name);
+            if (player.hp <= 0) return false;
+            const amount = Math.min(action.amount,player.hand.length);
+            if (!amount) {
+                logBattle(`🔁 ${context.card.name}: после добора нечего сбрасывать.`,who);
+                return false;
+            }
+            const restore = () => {
+                player.deck = snapshot.deck; player.hand = snapshot.hand; player.discard = snapshot.discard;
+                player.hp = snapshot.hp; player.fatigue = snapshot.fatigue;
+                logBattle(`↩️ ${context.card.name}: обмен отменён, состояние руки и колоды восстановлено.`,who);
+            };
+            if (isManualCardChoice(side,context,action.choice)) {
+                return openCardChoice({
+                    kind:'discard', title:`Обмен: ${context.card.name}`,
+                    description:`Ты добрал карты. Теперь выбери ${amount} ${amount === 1 ? 'карту' : 'карты'} для сброса.`,
+                    cards:player.hand.slice(), min:amount, max:amount, nextIndex:context.nextIndex, task:context.task,
+                    onConfirm:indices => moveCardsToDiscard(side,indices,context.card.name), onSkip:restore
+                });
+            }
+            const deterministicChoice = action.choice === 'lowest_cost' ? 'lowest_cost' : 'highest_cost';
+            moveCardsToDiscard(side,discardIndices(player.hand,amount,deterministicChoice),context.card.name);
+            return false;
+        }
+        if (action.type === 'scry' && target.kind === 'player') {
+            const player = battle[side];
+            const top = player.deck.slice(0,action.amount);
+            if (!top.length) {
+                logBattle(`🔎 ${context.card.name}: колода пуста для разведки.`,who);
+                return false;
+            }
+            const putBottom = (indices,choiceState) => {
+                const selected = new Set(indices);
+                const order = choiceState?.order || top.map((_,index) => index);
+                const stayTop = order.filter(index => !selected.has(index)).map(index => top[index]);
+                const goBottom = order.filter(index => selected.has(index)).map(index => top[index]);
+                player.deck = [...stayTop,...player.deck.slice(top.length),...goBottom];
+                logBattle(`🔎 ${context.card.name}: просмотр верхних ${top.length} карт завершён; вниз колоды перемещено ${goBottom.length}.`,side);
+            };
+            if (isManualCardChoice(side,context,'choose')) {
+                return openCardChoice({
+                    kind:'scry', title:`Разведка колоды: ${context.card.name}`,
+                    description:'Отметь карты для низа колоды и расставь остальные стрелками. Неотмеченные останутся наверху.',
+                    cards:top, min:0, max:top.length, nextIndex:context.nextIndex, task:context.task,
+                    onConfirm:putBottom, onSkip:() => logBattle(`🔎 ${context.card.name}: порядок колоды оставлен без изменений.`,side)
+                });
+            }
+            const bottomCount = Math.floor(top.length / 2);
+            const selected = top.map((card,index) => ({card,index}))
+                .sort((a,b) => (b.card.drop_cost || 0) - (a.card.drop_cost || 0) || a.index - b.index)
+                .slice(0,bottomCount).map(entry => entry.index);
+            putBottom(selected);
+            return false;
         }
         if (action.type === 'damage') {
             if (target.kind === 'player') {
                 battle[side].hp -= action.amount;
                 logBattle(`⚔️ ${context.card.name}: вождь получает ${action.amount} урона.`, who);
             } else if (unit) {
-                const armor = Math.max(0, (unit.statuses?.armor || 0) - (context.source?.statuses?.pierce || 0));
+                const armor = Math.max(0, getUnitArmor(unit) - (context.source?.statuses?.pierce || 0));
                 const damage = Math.max(1, action.amount - armor);
                 unit.currentHp -= damage;
                 unit.justDamaged = true;
                 logBattle(`⚔️ ${context.card.name}: ${unit.name} получает ${damage} урона.`, who);
             }
-            return;
+            return false;
         }
         if (action.type === 'heal') {
             if (target.kind === 'player') {
@@ -2985,7 +3230,7 @@ ${prompt}
                 unit.currentHp = Math.min(unit.hp,before + action.amount);
                 if (unit.currentHp > before) logBattle(`🌿 ${context.card.name} лечит ${unit.name} на ${unit.currentHp-before} HP.`,who);
             }
-            return;
+            return false;
         }
         if (action.type === 'apply_status' && unit) {
             unit.statuses = unit.statuses || {};
@@ -2999,7 +3244,7 @@ ${prompt}
                 unit.statuses.burnTurns = Math.max(unit.statuses.burnTurns||0,action.turns);
                 logBattle(`🔥 ${context.card.name}: ${unit.name} горит ${action.turns} ${durationLabel}.`,who);
             }
-            return;
+            return false;
         }
         if (action.type === 'destroy' && unit) {
             if (_unitPos(unit)) {
@@ -3008,26 +3253,43 @@ ${prompt}
                 logBattle(`💥 ${context.card.name} уничтожает ${unit.name}.`,who);
                 cleanupDead();
             }
-            return;
+            return false;
         }
         if (action.type === 'modify_stat' && unit) {
             unit.statuses = unit.statuses || {};
-            if (action.stat === 'attack') {
-                unit.atk = Math.min(12,Math.max(0,unit.atk + action.amount));
-                unit.currentAtk = Math.min(12,Math.max(0,(unit.currentAtk ?? unit.atk) + action.amount));
-            } else if (action.stat === 'armor') {
-                unit.statuses.armor = Math.min(8,Math.max(0,(unit.statuses.armor||0) + action.amount));
+            if (action.turns) {
+                const ownerSide = _unitPos(unit)?.side || side || who;
+                const currentTurn = battle.turnCounters?.[ownerSide] || 0;
+                const expiresAtOwnerTurn = currentTurn + action.turns + (battle.whoseTurn === ownerSide ? 0 : 1);
+                unit._temporaryModifiers = unit._temporaryModifiers || [];
+                unit._temporaryModifiers.push({ stat:action.stat, amount:action.amount, ownerSide, expiresAtOwnerTurn });
+                logBattle(`✨ ${context.card.name}: ${unit.name} получает ${signed(action.amount)} к ${action.stat === 'attack' ? 'атаке' : 'броне'} на ${action.turns} ${action.turns === 1 ? 'ход' : 'хода'}.`,who);
             } else {
-                unit.hp = Math.min(20,Math.max(1,unit.hp + action.amount));
-                unit.currentHp = Math.min(unit.hp,Math.max(1,unit.currentHp + action.amount));
+                if (action.stat === 'attack') {
+                    unit.atk = Math.min(12,Math.max(0,unit.atk + action.amount));
+                    unit.currentAtk = Math.min(12,Math.max(0,(unit.currentAtk ?? unit.atk) + action.amount));
+                } else if (action.stat === 'armor') {
+                    unit.statuses.armor = Math.min(8,Math.max(0,(unit.statuses.armor||0) + action.amount));
+                } else {
+                    unit.hp = Math.min(20,Math.max(1,unit.hp + action.amount));
+                    unit.currentHp = Math.min(unit.hp,Math.max(1,unit.currentHp + action.amount));
+                }
+                logBattle(`📈 ${context.card.name}: ${unit.name} получает ${signed(action.amount)} к ${action.stat === 'attack' ? 'атаке' : action.stat === 'armor' ? 'броне' : 'максимальному здоровью'}.`,who);
             }
-            logBattle(`📈 ${context.card.name}: ${unit.name} получает ${signed(action.amount)} к ${action.stat === 'attack' ? 'атаке' : action.stat === 'armor' ? 'броне' : 'максимальному здоровью'}.`,who);
-            return;
+            return false;
         }
         if (action.type === 'modify_cost' && unit) {
-            unit.action_cost = Math.max(0,Math.min(6,unit.action_cost + action.amount));
-            logBattle(`⚙️ ${context.card.name}: стоимость действия ${unit.name} изменена на ${signed(action.amount)}⚡.`,who);
+            if (action.turns) {
+                const ownerSide = _unitPos(unit)?.side || side || who;
+                const currentTurn = battle.turnCounters?.[ownerSide] || 0;
+                const expiresAtOwnerTurn = currentTurn + action.turns + (battle.whoseTurn === ownerSide ? 0 : 1);
+                unit._temporaryModifiers = unit._temporaryModifiers || [];
+                unit._temporaryModifiers.push({ stat:'action_cost', amount:action.amount, ownerSide, expiresAtOwnerTurn });
+            } else unit.action_cost = Math.max(0,Math.min(6,unit.action_cost + action.amount));
+            logBattle(`⚙️ ${context.card.name}: стоимость действия ${unit.name} изменена на ${signed(action.amount)}⚡${action.turns ? ` на ${action.turns} ${action.turns === 1 ? 'ход' : 'хода'}` : ''}.`,who);
+            return false;
         }
+        return false;
     }
 
     function enqueueCardEffects(source, event, ownerSide, eventTarget = null, onComplete = null) {
@@ -3051,29 +3313,29 @@ ${prompt}
     }
 
     function pumpEffectQueue() {
-        if (effectPumpActive || activeEffectTask || pendingManualTarget || !battle) return;
+        if (effectPumpActive || activeEffectTask || pendingManualTarget || pendingCardChoice || !battle) return;
         effectPumpActive = true;
-        while (effectTaskQueue.length && !activeEffectTask && !pendingManualTarget && battle) {
+        while (effectTaskQueue.length && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && battle) {
             activeEffectTask = effectTaskQueue.shift();
             const paused = runEffectTask(activeEffectTask,0);
             if (paused) break;
         }
         effectPumpActive = false;
-        if (battle && !activeEffectTask && !pendingManualTarget && effectTaskQueue.length === 0) {
+        if (battle && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && effectTaskQueue.length === 0) {
             checkBattleEnd();
             effectQueueWaiters.splice(0).forEach(resolve => resolve());
         }
     }
 
     function waitForEffectQueue() {
-        if (!activeEffectTask && !pendingManualTarget && effectTaskQueue.length === 0 && !effectPumpActive) return Promise.resolve();
+        if (!activeEffectTask && !pendingManualTarget && !pendingCardChoice && effectTaskQueue.length === 0 && !effectPumpActive) return Promise.resolve();
         return new Promise(resolve => effectQueueWaiters.push(resolve));
     }
 
     function runEffectTask(task, startIndex) {
         const sourceAlive = task.event !== 'card_death' || (task.source.currentHp > 0 && _unitPos(task.source));
         const effects = sourceAlive ? cardEffects(task.source).filter(effect => effect.event === task.event && effectWatchesDeath(effect,task.ownerSide,task.eventTarget)) : [];
-        const context = { source:task.source, ownerSide:task.ownerSide, eventTarget:task.eventTarget, card:task.source };
+        const context = { source:task.source, ownerSide:task.ownerSide, eventTarget:task.eventTarget, card:task.source, task };
         for (let i=startIndex; i<effects.length; i++) {
             const effect = effects[i];
             const candidates = effect.target
@@ -3090,7 +3352,9 @@ ${prompt}
                 continue;
             }
             const targets = candidates.slice(0,effect.target?.count || 1);
-            targets.forEach(target => executeEffectAction(effect,target,context));
+            for (const target of targets) {
+                if (executeEffectAction(effect,target,{ ...context, nextIndex:i+1 })) return true;
+            }
         }
         cleanupDead();
         activeEffectTask = null;
@@ -3188,8 +3452,12 @@ ${prompt}
         if (a.type === 'apply_status') actionText = `накладывает ${a.status === 'poison' ? 'яд' : 'огонь'} (${a.amount}, ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'})`;
         if (a.type === 'destroy') actionText = 'уничтожает цель';
         if (a.type === 'modify_resource') actionText = `${a.amount > 0 ? '+' : ''}${a.amount}${a.resource === 'drop' ? '💎' : '⚡'} игроку`;
-        if (a.type === 'modify_stat') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к ${a.stat === 'attack' ? 'атаке' : a.stat === 'armor' ? 'броне' : 'макс. здоровью'}`;
-        if (a.type === 'modify_cost') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к цене действия`;
+        if (a.type === 'modify_stat') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к ${a.stat === 'attack' ? 'атаке' : a.stat === 'armor' ? 'броне' : 'макс. здоровью'}${a.turns ? ` на ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'}` : ''}`;
+        if (a.type === 'modify_cost') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к цене действия${a.turns ? ` на ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'}` : ''}`;
+        if (a.type === 'draw') actionText = `добирает ${a.amount} карт`;
+        if (a.type === 'discard') actionText = `сбрасывает ${a.amount} карт (${a.choice === 'choose' ? 'выбор' : a.choice === 'lowest_cost' ? 'с наименьшей ценой' : 'с наибольшей ценой'})`;
+        if (a.type === 'exchange') actionText = `добирает ${a.amount} и сбрасывает ${a.amount} карт`;
+        if (a.type === 'scry') actionText = `разведывает верхние ${a.amount} карт колоды`;
         const targetText = a.type === 'modify_resource' && !effect.target ? '' : ` → ${side} ${entity}${zone}${select}${relation}${count}`;
         const conditionText = effect.condition ? `; если ${describeEffectCondition(effect.condition)}` : '';
         return `${event}${watchedDeath}${targetText}: ${actionText}${conditionText}`;
@@ -3240,6 +3508,7 @@ ${prompt}
     let awaitingTarget = false;       // ждём выбора цели атаки
     let animating = false;
     let pendingManualTarget = null;
+    let pendingCardChoice = null;
     let effectTaskQueue = [];
     let activeEffectTask = null;
     let effectPumpActive = false;
@@ -3324,6 +3593,7 @@ ${prompt}
 
         battle = {
             turn: 1,
+            turnCounters: { me: 1, enemy: 0 }, // собственные ходы сторон для временных модификаторов
             whoseTurn: 'me', // active player
             playerOrder: ['me','enemy'], // clockwise seating order for APNAP trigger resolution
             nextCardPlayOrder: 0,
@@ -3331,6 +3601,8 @@ ${prompt}
                 hp: MAX_HP,
                 deck: myCards,
                 hand: [],
+                discard: [],
+                fatigue: 0,
                 front: new Array(FRONT_SLOTS).fill(null),
                 back: new Array(BACK_SLOTS).fill(null),
                 dropMana: 1,
@@ -3342,6 +3614,8 @@ ${prompt}
                 hp: MAX_HP,
                 deck: enemyCards,
                 hand: [],
+                discard: [],
+                fatigue: 0,
                 front: new Array(FRONT_SLOTS).fill(null),
                 back: new Array(BACK_SLOTS).fill(null),
                 dropMana: 1,
@@ -3360,6 +3634,7 @@ ${prompt}
         awaitingTarget = false;
         animating = false;
         pendingManualTarget = null;
+        pendingCardChoice = null;
         effectTaskQueue = [];
         activeEffectTask = null;
         effectPumpActive = false;
@@ -3371,7 +3646,7 @@ ${prompt}
     }
 
     function concedeBattle() {
-        if (!battle || battle._endScheduled || pendingManualTarget || activeEffectTask) return;
+        if (!battle || battle._endScheduled || pendingManualTarget || pendingCardChoice || activeEffectTask) return;
         if (!confirm('Сдаться и вернуться в меню?')) return;
         endBattle(false);
     }
@@ -3399,20 +3674,39 @@ ${prompt}
     // -------- ДРО КАРТ --------
     function drawCard(who) {
         const p = battle[who];
+        p.discard = p.discard || [];
         if (p.deck.length === 0) {
-            // Усталость: урон за пустую колоду
-            p.hp -= 2;
-            logBattle(`📭 ${who === 'me' ? 'Ты' : 'Враг'} тянешь из пустой колоды и получаешь 2 урона!`, who);
-            return;
+            p.fatigue = (p.fatigue || 0) + 1;
+            p.hp -= p.fatigue;
+            logBattle(`📭 ${who === 'me' ? 'Ты' : 'Враг'} тянешь из пустой колоды: усталость уровня ${p.fatigue} наносит ${p.fatigue} урона.`, who);
+            return false;
         }
         if (p.hand.length >= HAND_LIMIT) {
             const burned = p.deck.shift();
-            logBattle(`🔥 ${who === 'me' ? 'Ты сжигаешь' : 'Враг сжигает'} карту из-за переполнения руки: ${burned.name}`, who);
-            return;
+            p.discard.push(burned);
+            logBattle(`🔥 ${who === 'me' ? 'Ты отправляешь' : 'Враг отправляет'} в сброс карту из-за переполнения руки: ${burned.name}`, who);
+            return false;
         }
         const c = p.deck.shift();
         c.instanceId = uid();
         p.hand.push(c);
+        return true;
+    }
+
+    function drawCards(who, amount, sourceName = 'Добор') {
+        const player = battle[who];
+        let addedToHand = 0;
+        let fatigueDamage = 0;
+        for (let i = 0; i < amount; i++) {
+            if (player.hp <= 0) break;
+            const oldHandSize = player.hand.length;
+            const oldHp = player.hp;
+            drawCard(who);
+            if (player.hand.length > oldHandSize) addedToHand++;
+            if (player.hp < oldHp) fatigueDamage += oldHp - player.hp;
+        }
+        logBattle(`📚 ${sourceName}: ${who === 'me' ? 'ты добираешь' : 'враг добирает'} ${addedToHand} ${addedToHand === 1 ? 'карту' : 'карт'}${fatigueDamage ? `; усталость нанесла ${fatigueDamage} урона` : ''}.`, who);
+        return { addedToHand, fatigueDamage };
     }
 
     // -------- ЛОГ --------
@@ -3470,6 +3764,8 @@ ${prompt}
         renderManaPips('drop-mana-pips', 'drop-mana-label', '💎', me.dropMana, me.dropManaMax);
         renderManaPips('action-mana-pips', 'action-mana-label', '⚡', me.actionMana, me.actionManaMax);
         document.getElementById('deck-remaining').textContent = me.deck.length;
+        const discardCount = document.getElementById('discard-count');
+        if (discardCount) discardCount.textContent = (me.discard || []).length;
 
         // Поле
         renderRow('enemy-back-row', enemy.back, 'enemy');
@@ -3482,7 +3778,7 @@ ${prompt}
 
         // Кнопка конца хода
         const btn = document.getElementById('end-turn-btn');
-        btn.disabled = whoseTurn !== 'me' || animating || !!battle._endScheduled || !!pendingManualTarget;
+        btn.disabled = whoseTurn !== 'me' || animating || !!battle._endScheduled || !!pendingManualTarget || !!pendingCardChoice;
         btn.textContent = whoseTurn === 'me' ? '⏭️ Завершить ход' : '⏳ Враг думает...';
 
         // Лог
@@ -3490,6 +3786,49 @@ ${prompt}
         logEl.innerHTML = battle.log.slice(0, 30).map(e =>
             `<div class="log-entry ${e.cls}">${e.msg}</div>`
         ).join('');
+    }
+
+    function renderCardChoiceModal() {
+        const modal = document.getElementById('card-choice-modal');
+        if (!modal) return;
+        if (!pendingCardChoice) {
+            modal.classList.remove('active');
+            return;
+        }
+        modal.classList.add('active');
+        const pending = pendingCardChoice;
+        document.getElementById('card-choice-title').textContent = pending.title || 'Выбор карт';
+        document.getElementById('card-choice-description').textContent = pending.description || '';
+        const selected = new Set(pending.selected);
+        const optionHtml = (card,index) => {
+            const isSelected = selected.has(index);
+            const mark = pending.kind === 'scry' ? (isSelected ? '⬇️ ВНИЗ' : '⬆️ ОСТАВИТЬ') : (isSelected ? '✓ ВЫБРАНО' : '');
+            const meta = pending.kind === 'scry'
+                ? `Позиция ${pending.order.indexOf(index) + 1} · ${card.drop_cost ?? 0}💎`
+                : `${card.card_type === 'spell' ? 'Манёвр' : card.card_type === 'structure' ? 'Постройка' : 'Отряд'} · ${card.drop_cost ?? 0}💎 · ${card.action_cost ?? 0}⚡`;
+            if (pending.kind === 'scry') {
+                const position = pending.order.indexOf(index);
+                return `<div class="card-choice-option ${isSelected ? 'selected' : ''}">
+                    <button type="button" class="choice-pick" onclick="toggleCardChoice(${index})" aria-pressed="${isSelected}">
+                        <span class="choice-emoji">${card.emoji || '🎴'}</span><span><span class="choice-name">${card.name}</span><span class="choice-meta">${meta}</span></span><span class="choice-mark">${mark}</span>
+                    </button>
+                    <span class="choice-move-controls"><button type="button" onclick="moveScryCard(${index},-1)" aria-label="Поднять ${card.name}" ${position <= 0 ? 'disabled' : ''}>▲</button><button type="button" onclick="moveScryCard(${index},1)" aria-label="Опустить ${card.name}" ${position >= pending.order.length - 1 ? 'disabled' : ''}>▼</button></span>
+                </div>`;
+            }
+            return `<button type="button" class="card-choice-option ${isSelected ? 'selected' : ''}" onclick="toggleCardChoice(${index})" aria-pressed="${isSelected}">
+                <span class="choice-emoji">${card.emoji || '🎴'}</span><span><span class="choice-name">${card.name}</span><span class="choice-meta">${meta}</span></span><span class="choice-mark">${mark}</span>
+            </button>`;
+        };
+        const visibleCards = pending.kind === 'scry' ? pending.order : pending.cards.map((_,index) => index);
+        document.getElementById('card-choice-list').innerHTML = visibleCards.map(index => optionHtml(pending.cards[index],index)).join('') || '<div style="color:#aa9ab7;padding:16px">Нет карт для выбора.</div>';
+        const countText = pending.kind === 'scry'
+            ? `Отмечено для низа: ${pending.selected.length} из ${pending.cards.length} · порядок меняется стрелками`
+            : `Выбрано: ${pending.selected.length} из ${pending.min}`;
+        document.getElementById('card-choice-status').textContent = countText;
+        document.getElementById('card-choice-skip').textContent = pending.kind === 'scry' ? 'Оставить как есть' : 'Пропустить';
+        const confirm = document.getElementById('card-choice-confirm');
+        confirm.textContent = pending.kind === 'scry' ? 'Уложить колоду' : 'Подтвердить сброс';
+        confirm.disabled = pending.selected.length < pending.min || pending.selected.length > pending.max;
     }
 
     function renderManaPips(containerId, labelId, icon, cur, max) {
@@ -3525,7 +3864,7 @@ ${prompt}
                 html += `<div class="bf-slot ${droppable ? 'droppable' : ''}" onclick="playCardTo(${i}, ${isFront})"></div>`;
             } else {
                 const effectTargetable = !!pendingManualTarget?.candidates.some(t => t.kind === 'unit' && t.unit === u);
-                const selectable = !pendingManualTarget && isMyRow && whoseTurn_isMe() && !u.exhausted && u.action_cost <= battle.me.actionMana && u.card_type === 'unit';
+                const selectable = !pendingManualTarget && !pendingCardChoice && isMyRow && whoseTurn_isMe() && !u.exhausted && getUnitActionCost(u) <= battle.me.actionMana && u.card_type === 'unit';
                 const targeted = awaitingTarget && !isMyRow; // атакуем вражеский ряд
                 const targetedMe = awaitingTarget && isMyRow && selectedUnitId; // пока не разрешаем атаковать своих
                 let cls = `bf-unit ${side}`;
@@ -3545,7 +3884,7 @@ ${prompt}
                 // Иконки активных статусов и ключевых слов
                 const kws = [];
                 if (u.statuses) {
-                    if (u.statuses.armor) kws.push(`<span title="Броня: ${u.statuses.armor}">🛡️${u.statuses.armor}</span>`);
+                    if (getUnitArmor(u)) kws.push(`<span title="Броня: ${getUnitArmor(u)}">🛡️${getUnitArmor(u)}</span>`);
                     if (u.statuses.pierce) kws.push(`<span title="Пробитие: ${u.statuses.pierce}">🗡️${u.statuses.pierce}</span>`);
                     if (u.statuses.ranged) kws.push(`<span title="${KEYWORDS.ranged.desc}">🏹</span>`);
                     if (u.statuses.reach) kws.push(`<span title="${KEYWORDS.reach.desc}">📏</span>`);
@@ -3571,13 +3910,19 @@ ${prompt}
                     if (u.statuses.holdground) kws.push(`<span title="${KEYWORDS.holdground.desc}">⚓</span>`);
                     if (u.statuses.upkeep) kws.push(`<span title="${KEYWORDS.upkeep.desc}">🥩</span>`);
                 }
+                const tempAttack = getTemporaryModifierTotal(u,'attack');
+                const tempArmor = getTemporaryModifierTotal(u,'armor');
+                const tempCost = getTemporaryModifierTotal(u,'action_cost');
+                if (tempAttack) kws.push(`<span title="Временная атака">✨⚔️${tempAttack > 0 ? '+' : ''}${tempAttack}</span>`);
+                if (tempArmor) kws.push(`<span title="Временная броня">✨🛡️${tempArmor > 0 ? '+' : ''}${tempArmor}</span>`);
+                if (tempCost) kws.push(`<span title="Временная стоимость действия">✨⚡${tempCost > 0 ? '+' : ''}${tempCost}</span>`);
                 html += `<div class="${cls}" ${clickAction}>
                     ${targeted ? '<span class="bf-target">🎯</span>' : ''}
                     <div class="bf-unit-emoji">${u.emoji || '⚒️'}</div>
                     <div class="bf-unit-name">${u.name}</div>
                     <div class="bf-kw-strip" style="font-size:.7em;line-height:1">${kws.join(' ')}</div>
                     <div class="bf-unit-stats">
-                        <span class="atk">⚔️${u.currentAtk ?? u.atk}</span>
+                        <span class="atk">⚔️${getUnitAttack(u)}</span>
                         <span class="hp">❤️${Math.max(0,u.currentHp)}</span>
                     </div>
                 </div>`;
@@ -3774,8 +4119,8 @@ ${prompt}
         let unit = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === instanceId);
         if (!unit || unit.exhausted || unit.isStructure) return;
 
-        if (battle.me.actionMana < unit.action_cost) {
-            logBattle(`❌ Недостаточно маны действия для ${unit.name} (нужно ${unit.action_cost}⚡)`, 'system');
+        if (battle.me.actionMana < getUnitActionCost(unit)) {
+            logBattle(`❌ Недостаточно маны действия для ${unit.name} (нужно ${getUnitActionCost(unit)}⚡)`, 'system');
             return;
         }
 
@@ -3809,17 +4154,17 @@ ${prompt}
 
         if (targetInfo && targetInfo.row === 'hero') {
             heroHit = true;
-            dmgDealt = Math.max(1, attacker.currentAtk);
+            dmgDealt = Math.max(1, getUnitAttack(attacker));
             battle.enemy.hp -= dmgDealt;
             logBattle(`⚔️ ${attacker.name} врезается в вражеского вождя → ${dmgDealt} урона!`, 'me');
         } else if (targetInfo && targetInfo.u) {
             const target = targetInfo.u;
-            const baseDmg = attacker.currentAtk;
+            const baseDmg = getUnitAttack(attacker);
             dmgDealt = resolveHit(attacker, target, baseDmg, 'me');
             // Контратака: только если контактный бой (не ranged) и цель не постройка и тоже жива
             const attackerRanged = isRangedUnit(attacker);
             if (!attackerRanged && target.currentHp > 0 && !target.isStructure) {
-                const counterBase = target.currentAtk ?? target.atk ?? 0;
+                const counterBase = getUnitAttack(target);
                 if (counterBase > 0) {
                     counterDealt = resolveHit(target, attacker, counterBase, 'enemy');
                 }
@@ -3847,7 +4192,7 @@ ${prompt}
         }
 
         attacker.exhausted = true;
-        battle.me.actionMana -= attacker.action_cost;
+        battle.me.actionMana -= getUnitActionCost(attacker);
         const attackEffectTarget = targetInfo.row === 'hero'
             ? { kind:'player', side:'enemy' }
             : (targetInfo.u ? { kind:'unit', unit:targetInfo.u, side:'enemy' } : null);
@@ -3927,7 +4272,7 @@ ${prompt}
     }
 
     function checkBattleEnd() {
-        if (!battle || activeEffectTask || pendingManualTarget || effectTaskQueue.length) return false;
+        if (!battle || activeEffectTask || pendingManualTarget || pendingCardChoice || effectTaskQueue.length) return false;
         if (battle._endScheduled) return true;
         if (battle.enemy.hp <= 0) { battle._endScheduled = true; setTimeout(() => endBattle(true), 300); return true; }
         if (battle.me.hp <= 0) { battle._endScheduled = true; setTimeout(() => endBattle(false), 300); return true; }
@@ -3945,7 +4290,7 @@ ${prompt}
             chooseEffectPlayer(playerBanner.classList.contains('enemy') ? 'enemy' : 'me');
             return;
         }
-        if (pendingManualTarget) return;
+        if (pendingManualTarget || pendingCardChoice) return;
         const enemyBanner = e.target.closest('.player-banner.enemy');
         if (enemyBanner && awaitingTarget) {
             attackTarget(null, 'hero');
@@ -3953,7 +4298,7 @@ ${prompt}
         }
 
         // Клик по пустому полю (не по карте, не по слоту, не по руке, не по кнопкам) отменяет выбор
-        const onCard = e.target.closest('.game-card, .bf-unit, .bf-slot, .end-turn-btn, .concede-btn, .modal, .top-bar, .hand, .battle-log, .player-banner, .effect-target-prompt');
+        const onCard = e.target.closest('.game-card, .bf-unit, .bf-slot, .end-turn-btn, .concede-btn, .modal, .top-bar, .hand, .battle-log, .player-banner, .effect-target-prompt, .card-choice-option');
         if (!onCard && (selectedHandIdx !== null || awaitingTarget)) {
             cancelSelection();
         }
@@ -3963,7 +4308,7 @@ ${prompt}
     // КОНЕЦ ХОДА
     // ============================================
     async function battleEndTurn() {
-        if (!whoseTurn_isMe() || animating || battle?._endScheduled || pendingManualTarget || activeEffectTask || effectTaskQueue.length) return;
+        if (!whoseTurn_isMe() || animating || battle?._endScheduled || pendingManualTarget || pendingCardChoice || activeEffectTask || effectTaskQueue.length) return;
 
         // Пассивные эффекты структур - башни стреляют
         await fireStructures('me');
@@ -3995,6 +4340,9 @@ ${prompt}
 
     async function startOfTurn(who) {
         const p = battle[who];
+        battle.turnCounters = battle.turnCounters || { me:1, enemy:0 };
+        battle.turnCounters[who] = (battle.turnCounters[who] || 0) + 1;
+        expireTemporaryModifiers(who);
         // Обновление маны
         const blocked = p._blockDropNext || 0;
         if (blocked > 0) {
@@ -4094,8 +4442,9 @@ ${prompt}
         await waitForEffectQueue();
         if (!battle || battle._endScheduled) return;
 
-        // Дро карты
+        // Добор; каждый пропуск из-за пустой колоды увеличивает усталость.
         drawCard(who);
+        if (checkBattleEnd()) return;
         logBattle(`🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Мана: 💎${p.dropMana}/${p.dropManaMax} ⚡${p.actionMana}/${p.actionManaMax}`, 'system');
 
         await fireStructures(who);
@@ -4232,10 +4581,10 @@ ${prompt}
         while (attackAttempts < 15) {
             if (!battle || battle._endScheduled) return;
             attackAttempts++;
-            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && u.action_cost <= e.actionMana);
+            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && getUnitActionCost(u) <= e.actionMana);
             if (!attacker) break;
 
-            e.actionMana -= attacker.action_cost;
+            e.actionMana -= getUnitActionCost(attacker);
 
             let aRow=null,aSlot=-1;
             for (let i=0;i<FRONT_SLOTS;i++) if (e.front[i]===attacker){aRow='front';aSlot=i;}
@@ -4250,16 +4599,16 @@ ${prompt}
             }
 
             if (targetInfo.row === 'hero') {
-                const dmg = Math.max(1, attacker.currentAtk);
+                const dmg = Math.max(1, getUnitAttack(attacker));
                 battle.me.hp -= dmg;
                 logBattle(`⚔️ ${attacker.name} бьёт ТЕБЯ → ${dmg} урона!`, 'enemy');
                 attacker.justAttacked = true;
             } else {
                 const target = targetInfo.u;
-                const dmgDealt = resolveHit(attacker, target, attacker.currentAtk, 'enemy');
+                const dmgDealt = resolveHit(attacker, target, getUnitAttack(attacker), 'enemy');
                 let counterDealt = 0;
                 if (!isRangedUnit(attacker) && target.currentHp > 0 && !target.isStructure) {
-                    const c = target.currentAtk ?? target.atk ?? 0;
+                    const c = getUnitAttack(target);
                     if (c > 0) counterDealt = resolveHit(target, attacker, c, 'me');
                 }
                 if (hasKw(attacker,'poison')) target.statuses.poison=(target.statuses.poison||0)+1;
