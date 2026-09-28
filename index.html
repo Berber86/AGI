@@ -594,7 +594,9 @@
         }
         .player-banner.enemy.targetable:hover { background: rgba(248,81,73,0.1); }
         .bf-unit.effect-targetable, .player-banner.effect-targetable { outline:3px solid #ffd166; box-shadow:0 0 16px rgba(255,209,102,.75); cursor:crosshair; animation:effect-target-pulse 1.1s infinite alternate; }
-        .effect-target-prompt { margin:8px auto; padding:10px 14px; max-width:720px; text-align:center; color:#241900; background:#ffd166; border-radius:10px; font-weight:800; box-shadow:0 4px 18px rgba(255,209,102,.3); }
+        .effect-target-prompt { margin:8px auto; padding:10px 14px; max-width:900px; align-items:center; justify-content:center; flex-wrap:wrap; gap:10px; color:#241900; background:#ffd166; border-radius:10px; font-weight:800; box-shadow:0 4px 18px rgba(255,209,102,.3); }
+        .effect-target-skip { border:1px solid #6b4d00; border-radius:7px; padding:6px 10px; color:#241900; background:#fff2cc; font-weight:700; cursor:pointer; }
+        .effect-target-skip:hover { background:#fff; }
         @keyframes effect-target-pulse { from { transform:scale(1); } to { transform:scale(1.025); } }
         .player-avatar {
             width: 44px;
@@ -1047,7 +1049,10 @@
                     </div>
                 </div>
             </div>
-            <div id="effect-target-prompt" class="effect-target-prompt" style="display:none"></div>
+            <div id="effect-target-prompt" class="effect-target-prompt" style="display:none">
+                <span id="effect-target-prompt-text"></span>
+                <button type="button" id="effect-target-skip" class="effect-target-skip" onclick="skipManualEffect()">Пропустить эффект</button>
+            </div>
 
             <!-- Mana -->
             <div class="mana-display">
@@ -1418,13 +1423,14 @@
 
 === КОНСТРУКТОР ЭФФЕКТОВ (строгий белый список) ===
 • Используй effects: [] если срабатывающих эффектов нет. Для манёвра нужен минимум один эффект enter_play. Все разовые действия кодируй в effects; keywords оставляй для свойств отряда/постройки. Не описывай игровые правила словами вместо структуры.
-• События: enter_play (карта выходит на поле/разыгрывается), attack (отряд совершает атаку), turn_start (начало хода владельца источника), death (отряд погибает или постройка уничтожена; только карты на поле, бегство не считается гибелью).
+• События: enter_play (карта выходит на поле/разыгрывается), attack (отряд совершает атаку), turn_start (начало хода владельца источника), death (погибает сам источник), card_death (погибает любая карта на поле).
+• Для card_death ОБЯЗАТЕЛЬНО задай watch.side: all (любая сторона), friendly (свои карты относительно владельца источника) или enemy (чужие карты). Для card_death реакция срабатывает только у живых карт-наблюдателей; собственную гибель задавай событием death. Бегство гибелью не считается.
 • Для damage/heal/apply_status/destroy/modify_stat/modify_cost ОБЯЗАТЕЛЬНО укажи target. Для modify_resource target можно опустить — тогда это controller. В action включай только поля, нужные выбранному type.
 • Цель: side friendly/controller = свои/владелец, enemy/opponent = противник, either = обе стороны; entity unit (не постройка), structure, permanent (любая карта на поле), player. zone front=авангард, rear=тыл. relation adjacent = соседний слот в том же ряду относительно источника; self = сам источник; attack_target = цель текущей атаки.
-• Выбор цели: choose — игрок кликает одну подсвеченную допустимую цель; first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack — детерминированный автовыбор; count 1-3 (для choose только 1). ИИ при choose берёт первую подходящую цель. Случайных целей нет. Если цели не нашлось, эффект пропускается.
+• Выбор цели: choose — игрок кликает до count разных подсвеченных целей и может пропустить эффект; first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack — детерминированный автовыбор. count 1-3; если доступных целей меньше, выбираются все доступные. ИИ при choose берёт первые подходящие цели. Случайных целей нет. Если цели не нашлось, эффект пропускается.
 • Действия: damage (урон; броня цели уменьшает его, минимум 1), heal (восстановление до максимума), apply_status только poison или burn (amount=сила, turns=1..3; длительность тикает в начале хода владельца цели), destroy (немедленно уничтожает карту на поле), modify_resource (drop/action, amount от -5 до +5, только текущий запас), modify_stat (attack/armor/max_hp, amount от -3 до +3; изменение постоянно до конца боя), modify_cost (только цена действия action у карты на поле, от -3 до +3; изменение постоянно до конца боя).
 • Условия необязательны: all/any содержат 1-4 условия, not инвертирует одно. Листья: {"type":"target_wounded"}, {"type":"target_status","status":"poison"}, {"type":"resource","side":"controller"|"opponent","resource":"drop"|"action","op":"eq"|"ne"|"lt"|"lte"|"gt"|"gte","value":N}, {"type":"target_stat","stat":"hp"|"attack"|"armor","op":"...","value":N}. Глубина условий максимум 3.
-• Пример: при атаке получить +1 ресурс: {"event":"attack","action":{"type":"modify_resource","resource":"drop","amount":1}}. Пример: при выходе нанести 2 урона отряду врага в тылу с наименьшими HP: {"event":"enter_play","target":{"side":"enemy","entity":"unit","zone":"rear","select":"lowest_hp","count":1},"action":{"type":"damage","amount":2}}.
+• Пример: при гибели любой своей карты получить +1 ресурс: {"event":"card_death","watch":{"side":"friendly"},"action":{"type":"modify_resource","resource":"drop","amount":1}}. Пример: при выходе нанести 2 урона отряду врага в тылу с наименьшими HP: {"event":"enter_play","target":{"side":"enemy","entity":"unit","zone":"rear","select":"lowest_hp","count":1},"action":{"type":"damage","amount":2}}.
 • Не придумывай события, сущности, статусы, цели или действия за пределами списка. Максимум 6 эффектов на карту. Все эффекты в одном JSON — независимы и исполняются по порядку.
 
 === ДОСТУПНЫЕ ТЕГИ ===
@@ -1448,7 +1454,8 @@ ${allTags.length ? allTags.join(', ') : 'только базовые племе�
   "keywords": ["armor:2","ranged"],
   "effects": [
     {
-      "event": "enter_play" | "attack" | "turn_start" | "death",
+      "event": "enter_play" | "attack" | "turn_start" | "death" | "card_death",
+      "watch": {"side":"all"|"friendly"|"enemy"},
       "target": {
         "side": "friendly" | "enemy" | "controller" | "opponent" | "either",
         "entity": "unit" | "structure" | "permanent" | "player",
@@ -1516,7 +1523,7 @@ ${prompt}
             }
             if (card.card_type === 'spell' && !card.effects.length) throw new Error('Для манёвра укажи хотя бы один поддерживаемый эффект в effects[].');
             if (card.card_type === 'spell' && card.effects.some(effect => effect.event !== 'enter_play')) throw new Error('Манёвр может запускать только событие enter_play.');
-            if (!['unit','structure'].includes(card.card_type) && card.effects.some(effect => effect.event === 'death')) throw new Error('Событие death доступно только картам на поле (отрядам и постройкам).');
+            if (!['unit','structure'].includes(card.card_type) && card.effects.some(effect => ['death','card_death'].includes(effect.event))) throw new Error('События death и card_death доступны только картам на поле (отрядам и постройкам).');
             if (card.card_type === 'spell' && card.effects.some(effect => ['self','adjacent'].includes(effect.target.relation))) throw new Error('У манёвра нет позиции на поле: нельзя выбирать self или adjacent относительно источника.');
             if (card.card_type !== 'unit' && card.effects.some(effect => effect.event === 'attack')) throw new Error('Событие attack доступно только отрядам.');
             card.abilities = [];
@@ -2107,7 +2114,7 @@ ${prompt}
     // ОГРАНИЧЕННЫЙ КОНСТРУКТОР ЭФФЕКТОВ
     // Движок исполняет только проверенные enum-значения; текст карт не анализируется.
     // ============================================
-    const EFFECT_EVENTS = ['enter_play', 'attack', 'turn_start', 'death'];
+    const EFFECT_EVENTS = ['enter_play', 'attack', 'turn_start', 'death', 'card_death'];
     const EFFECT_ACTIONS = ['damage', 'heal', 'apply_status', 'destroy', 'modify_resource', 'modify_stat', 'modify_cost'];
     const EFFECT_STATUSES = ['poison', 'burn'];
     const EFFECT_COMPARE = ['eq', 'ne', 'lt', 'lte', 'gt', 'gte'];
@@ -2122,8 +2129,15 @@ ${prompt}
         return rawEffects.map((raw, idx) => {
             const fail = message => { throw new Error(`Эффект ${idx + 1}: ${message}`); };
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('ожидался объект.');
-            assertEffectKeys(raw,['event','target','condition','action'],fail,'effect');
+            assertEffectKeys(raw,['event','watch','target','condition','action'],fail,'effect');
             if (!EFFECT_EVENTS.includes(raw.event)) fail('неизвестное событие.');
+            let watch = null;
+            if (raw.event === 'card_death') {
+                if (!raw.watch || typeof raw.watch !== 'object' || Array.isArray(raw.watch)) fail('для события card_death нужно указать watch.side.');
+                assertEffectKeys(raw.watch,['side'],fail,'watch');
+                if (!['all','friendly','enemy'].includes(raw.watch.side)) fail('watch.side должен быть all, friendly или enemy.');
+                watch = { side: raw.watch.side };
+            } else if (raw.watch !== undefined) fail('watch доступен только для события card_death.');
             if (!raw.action || typeof raw.action !== 'object' || Array.isArray(raw.action) || !EFFECT_ACTIONS.includes(raw.action.type)) fail('неизвестное действие.');
             const actionKeys = {
                 damage:['type','amount'], heal:['type','amount'], apply_status:['type','amount','status','turns'], destroy:['type'],
@@ -2189,12 +2203,12 @@ ${prompt}
             if (targetOut.entity === 'player' && targetOut.select && !['first','attack_target','choose'].includes(targetOut.select)) fail('правило выбора отряда нельзя применять к игроку.');
             targetOut.count = target.count === undefined ? 1 : target.count;
             if (!Number.isInteger(targetOut.count) || targetOut.count < 1 || targetOut.count > 3) fail('target.count должен быть от 1 до 3.');
-            if (targetOut.select === 'choose' && targetOut.count > 1) fail('ручной выбор пока поддерживает одну цель за эффект.');
             if (['damage','heal','apply_status','destroy','modify_stat','modify_cost'].includes(action.type) && targetOut.entity === 'player' && !['damage','heal'].includes(action.type)) fail('это действие нельзя применять к игроку.');
             if (['modify_stat','modify_cost','destroy'].includes(action.type) && targetOut.entity === 'player') fail('это действие требует цель на поле.');
             if (action.type === 'modify_resource' && targetOut.entity !== 'player') fail('modify_resource требует цель player.');
             if (action.type === 'apply_status' && targetOut.entity !== 'unit') fail('статус можно наложить только на отряд.');
             const out = { event: raw.event, target: targetOut, action };
+            if (watch) out.watch = watch;
             if (raw.condition !== undefined) out.condition = validateEffectCondition(raw.condition);
             return out;
         });
@@ -2422,10 +2436,24 @@ ${prompt}
         }
     }
 
-    function resolveCardEffects(source, event, ownerSide, eventTarget = null, onComplete = null) {
-        if (!battle || !source) { if (onComplete) onComplete(); return; }
+    function enqueueCardEffects(source, event, ownerSide, eventTarget = null, onComplete = null) {
+        if (!battle || !source) { if (onComplete) onComplete(); return false; }
         effectTaskQueue.push({ source, event, ownerSide, eventTarget, onComplete });
+        return true;
+    }
+
+    function resolveCardEffects(source, event, ownerSide, eventTarget = null, onComplete = null) {
+        if (!enqueueCardEffects(source,event,ownerSide,eventTarget,onComplete)) return;
         pumpEffectQueue();
+    }
+
+    function effectWatchesDeath(effect, ownerSide, eventTarget) {
+        if (effect.event !== 'card_death') return true;
+        if (!eventTarget || eventTarget.kind !== 'unit') return false;
+        if (effect.watch?.side === 'all') return true;
+        if (effect.watch?.side === 'friendly') return eventTarget.side === ownerSide;
+        if (effect.watch?.side === 'enemy') return eventTarget.side !== ownerSide;
+        return false;
     }
 
     function pumpEffectQueue() {
@@ -2449,7 +2477,8 @@ ${prompt}
     }
 
     function runEffectTask(task, startIndex) {
-        const effects = cardEffects(task.source).filter(effect => effect.event === task.event);
+        const sourceAlive = task.event !== 'card_death' || (task.source.currentHp > 0 && _unitPos(task.source));
+        const effects = sourceAlive ? cardEffects(task.source).filter(effect => effect.event === task.event && effectWatchesDeath(effect,task.ownerSide,task.eventTarget)) : [];
         const context = { source:task.source, ownerSide:task.ownerSide, eventTarget:task.eventTarget, card:task.source };
         for (let i=startIndex; i<effects.length; i++) {
             const effect = effects[i];
@@ -2457,7 +2486,7 @@ ${prompt}
                 ? resolveEffectTargets(effect.target,context,true).filter(target => effectConditionPasses(effect.condition,context,target))
                 : [];
             if (effect.target?.select === 'choose' && task.ownerSide === 'me' && candidates.length) {
-                pendingManualTarget = { task, effect, context, candidates, nextIndex:i+1 };
+                pendingManualTarget = { task, effect, context, candidates, selected:[], nextIndex:i+1 };
                 logBattle(`🎯 Выбери цель для эффекта карты «${task.source.name}».`, 'system');
                 renderBattle();
                 return true;
@@ -2489,38 +2518,69 @@ ${prompt}
         if (candidate) chooseEffectTarget(candidate);
     }
 
+    function sameEffectTarget(a,b) {
+        return a.kind === b.kind && (a.kind === 'player' ? a.side === b.side : a.unit === b.unit);
+    }
+
+    function resumeAfterManualEffect(pending) {
+        runEffectTask(pending.task,pending.nextIndex);
+        if (!effectPumpActive) pumpEffectQueue();
+    }
+
+    function finishManualTargetSelection(pending, targets) {
+        pendingManualTarget = null;
+        targets.forEach(target => executeEffectAction(pending.effect,target,pending.context));
+        cleanupDead();
+        renderBattle();
+        resumeAfterManualEffect(pending);
+    }
+
     function chooseEffectTarget(target) {
         const pending = pendingManualTarget;
         if (!pending || !pending.candidates.includes(target)) return;
         const currentCandidates = resolveEffectTargets(pending.effect.target,pending.context,true)
             .filter(candidate => effectConditionPasses(pending.effect.condition,pending.context,candidate));
-        const sameTarget = candidate => candidate.kind === target.kind && (candidate.kind === 'player' ? candidate.side === target.side : candidate.unit === target.unit);
-        const legalTarget = currentCandidates.find(sameTarget);
+        pending.selected = (pending.selected || []).map(selected => currentCandidates.find(candidate => sameEffectTarget(candidate,selected))).filter(Boolean);
+        const available = currentCandidates.filter(candidate => !pending.selected.some(selected => sameEffectTarget(selected,candidate)));
+        pending.candidates = available;
+        const targetCount = Math.min(pending.effect.target.count || 1,currentCandidates.length);
+        const legalTarget = available.find(candidate => sameEffectTarget(candidate,target));
         if (!legalTarget) {
-            pending.candidates = currentCandidates;
-            if (!currentCandidates.length) {
+            if (!targetCount) {
                 pendingManualTarget = null;
-                logBattle('🎯 Выбранная цель больше недоступна; эффект пропущен.', 'system');
+                logBattle(`🎯 Для эффекта карты «${pending.task.source.name}» больше нет подходящих целей; эффект пропущен.`, 'system');
                 renderBattle();
-                runEffectTask(pending.task,pending.nextIndex);
-                if (!effectPumpActive) pumpEffectQueue();
+                resumeAfterManualEffect(pending);
+            } else if (pending.selected.length >= targetCount) {
+                finishManualTargetSelection(pending,pending.selected);
             } else {
                 logBattle('🎯 Эта цель больше недоступна. Выбери другую подсвеченную цель.', 'system');
                 renderBattle();
             }
             return;
         }
+        pending.selected.push(legalTarget);
+        pending.candidates = available.filter(candidate => !sameEffectTarget(candidate,legalTarget));
+        if (pending.selected.length < targetCount) {
+            renderBattle();
+            return;
+        }
+        finishManualTargetSelection(pending,pending.selected);
+    }
+
+    function skipManualEffect() {
+        const pending = pendingManualTarget;
+        if (!pending) return;
         pendingManualTarget = null;
-        executeEffectAction(pending.effect,legalTarget,pending.context);
-        cleanupDead();
+        logBattle(`⏭️ Эффект карты «${pending.task.source.name}» пропущен.`, 'system');
         renderBattle();
-        runEffectTask(pending.task,pending.nextIndex);
-        if (!effectPumpActive) pumpEffectQueue();
+        resumeAfterManualEffect(pending);
     }
 
 
     function describeEffect(effect) {
-        const event = { enter_play:'При выходе', attack:'При атаке', turn_start:'В начале хода', death:'При гибели' }[effect.event] || effect.event;
+        const event = { enter_play:'При выходе', attack:'При атаке', turn_start:'В начале хода', death:'При гибели источника', card_death:'При гибели карты' }[effect.event] || effect.event;
+        const watchedDeath = effect.event === 'card_death' ? ` (${({all:'любой стороны',friendly:'своей стороны',enemy:'чужой стороны'})[effect.watch?.side] || 'любой стороны'})` : '';
         const a = effect.action, t = effect.target || {};
         const side = { friendly:'свой', controller:'свой', enemy:'вражеский', opponent:'вражеский', either:'любой' }[t.side] || 'цель';
         const entity = { unit:'отряд', structure:'постройку', permanent:'карту на поле', player:'игрока' }[t.entity] || '';
@@ -2538,7 +2598,7 @@ ${prompt}
         if (a.type === 'modify_cost') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к цене действия`;
         const targetText = a.type === 'modify_resource' && !effect.target ? '' : ` → ${side} ${entity}${zone}${select}${relation}${count}`;
         const conditionText = effect.condition ? `; если ${describeEffectCondition(effect.condition)}` : '';
-        return `${event}${targetText}: ${actionText}${conditionText}`;
+        return `${event}${watchedDeath}${targetText}: ${actionText}${conditionText}`;
     }
 
     function describeEffectCondition(condition) {
@@ -2791,8 +2851,18 @@ ${prompt}
         if (meBanner) meBanner.classList.toggle('effect-targetable', !!pendingManualTarget?.candidates.some(t => t.kind === 'player' && t.side === 'me'));
         const targetPrompt = document.getElementById('effect-target-prompt');
         if (targetPrompt) {
-            targetPrompt.style.display = pendingManualTarget ? 'block' : 'none';
-            targetPrompt.textContent = pendingManualTarget ? `🎯 Выберите цель: ${describeEffect(pendingManualTarget.effect)}. Нажмите на подсвеченного игрока или отряд.` : '';
+            targetPrompt.style.display = pendingManualTarget ? 'flex' : 'none';
+            const promptText = document.getElementById('effect-target-prompt-text');
+            if (promptText) {
+                if (!pendingManualTarget) promptText.textContent = '';
+                else {
+                    const chosen = pendingManualTarget.selected.length;
+                    const total = Math.min(pendingManualTarget.effect.target.count || 1, chosen + pendingManualTarget.candidates.length);
+                    const progress = total > 1 ? `Выберите цели (${chosen}/${total}):` : 'Выберите цель:';
+                    const instruction = total > 1 ? 'Нажимайте на подсвеченные цели.' : 'Нажмите на подсвеченную цель.';
+                    promptText.textContent = `🎯 ${progress} ${describeEffect(pendingManualTarget.effect)}. ${instruction}`;
+                }
+            }
         }
 
         // Индикатор хода
@@ -3212,14 +3282,24 @@ ${prompt}
         if (!pos) return; // бегство/возврат в руку — не гибель
         unit._deathQueued = true;
         const ownerSide = pos.side;
-        resolveCardEffects(unit, 'death', ownerSide, null, () => {
+        const deathTarget = { kind:'unit', unit, side:ownerSide, row:pos.r, index:pos.i };
+        enqueueCardEffects(unit, 'death', ownerSide, null, () => {
             const finalPos = _unitPos(unit);
             if (finalPos && unit.currentHp <= 0) {
                 battle[finalPos.side][finalPos.r][finalPos.i] = null;
-                logBattle(`💀 ${finalPos.side === 'me' ? 'Твой' : 'Вражеский'} отряд ${unit.name} погибает!`, finalPos.side);
+                const ownerLabel = finalPos.side === 'me' ? (unit.isStructure ? 'Твоя' : 'Твой') : (unit.isStructure ? 'Вражеская' : 'Вражеский');
+                const cardLabel = unit.isStructure ? 'постройка' : 'отряд';
+                const deathVerb = unit.isStructure ? 'уничтожена' : 'погибает';
+                logBattle(`💀 ${ownerLabel} ${cardLabel} ${unit.name} ${deathVerb}!`, finalPos.side);
             }
             cleanupDead();
         });
+        ['me','enemy'].forEach(side => allEffectUnits(side).forEach(entry => {
+            if (cardEffects(entry.unit).some(effect => effect.event === 'card_death' && effectWatchesDeath(effect,side,deathTarget))) {
+                enqueueCardEffects(entry.unit,'card_death',side,deathTarget);
+            }
+        }));
+        pumpEffectQueue();
     }
 
     function checkBattleEnd() {
@@ -3249,7 +3329,7 @@ ${prompt}
         }
 
         // Клик по пустому полю (не по карте, не по слоту, не по руке, не по кнопкам) отменяет выбор
-        const onCard = e.target.closest('.game-card, .bf-unit, .bf-slot, .end-turn-btn, .concede-btn, .modal, .top-bar, .hand, .battle-log, .player-banner');
+        const onCard = e.target.closest('.game-card, .bf-unit, .bf-slot, .end-turn-btn, .concede-btn, .modal, .top-bar, .hand, .battle-log, .player-banner, .effect-target-prompt');
         if (!onCard && (selectedHandIdx !== null || awaitingTarget)) {
             cancelSelection();
         }
