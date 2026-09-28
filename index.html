@@ -1425,6 +1425,7 @@
 • Используй effects: [] если срабатывающих эффектов нет. Для манёвра нужен минимум один эффект enter_play. Все разовые действия кодируй в effects; keywords оставляй для свойств отряда/постройки. Не описывай игровые правила словами вместо структуры.
 • События: enter_play (карта выходит на поле/разыгрывается), attack (отряд совершает атаку), turn_start (начало хода владельца источника), death (погибает сам источник), card_death (погибает любая карта на поле).
 • Для card_death ОБЯЗАТЕЛЬНО задай watch.side: all (любая сторона), friendly (свои карты относительно владельца источника) или enemy (чужие карты). Для card_death реакция срабатывает только у живых карт-наблюдателей; собственную гибель задавай событием death. Бегство гибелью не считается.
+• Порядок реакций на гибель: сначала активная сторона, затем другая; внутри стороны раньше выведенные карты срабатывают первыми. Эффекты одной карты идут в порядке effects[].
 • Для damage/heal/apply_status/destroy/modify_stat/modify_cost ОБЯЗАТЕЛЬНО укажи target. Для modify_resource target можно опустить — тогда это controller. В action включай только поля, нужные выбранному type.
 • Цель: side friendly/controller = свои/владелец, enemy/opponent = противник, either = обе стороны; entity unit (не постройка), structure, permanent (любая карта на поле), player. zone front=авангард, rear=тыл. relation adjacent = соседний слот в том же ряду относительно источника; self = сам источник; attack_target = цель текущей атаки.
 • Выбор цели: choose — игрок кликает до count разных подсвеченных целей и может пропустить эффект; first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack — детерминированный автовыбор. count 1-3; если доступных целей меньше, выбираются все доступные. ИИ при choose берёт первые подходящие цели. Случайных целей нет. Если цели не нашлось, эффект пропускается.
@@ -2732,7 +2733,9 @@ ${prompt}
 
         battle = {
             turn: 1,
-            whoseTurn: 'me', // me | enemy
+            whoseTurn: 'me', // active player
+            playerOrder: ['me','enemy'], // clockwise seating order for APNAP trigger resolution
+            nextCardPlayOrder: 0,
             me: {
                 hp: MAX_HP,
                 deck: myCards,
@@ -3099,6 +3102,7 @@ ${prompt}
         battle.me.dropMana -= dropCost;
         const unit = {
             instanceId: uid(),
+            _enteredPlayOrder: battle.nextCardPlayOrder++,
             _sourceCardId: card.id,
             id: card.id,
             name: card.name || 'Безымянный',
@@ -3276,6 +3280,13 @@ ${prompt}
         }));
     }
 
+    function getApnapSideOrder() {
+        const seats = (Array.isArray(battle?.playerOrder) ? battle.playerOrder : ['me','enemy'])
+            .filter(side => battle?.[side]);
+        const activeIndex = seats.indexOf(battle?.whoseTurn);
+        return activeIndex < 0 ? seats : [...seats.slice(activeIndex), ...seats.slice(0,activeIndex)];
+    }
+
     function queueUnitDeath(unit) {
         if (!battle || !unit || unit._deathQueued || unit.currentHp > 0) return;
         const pos = _unitPos(unit);
@@ -3283,22 +3294,38 @@ ${prompt}
         unit._deathQueued = true;
         const ownerSide = pos.side;
         const deathTarget = { kind:'unit', unit, side:ownerSide, row:pos.r, index:pos.i };
-        enqueueCardEffects(unit, 'death', ownerSide, null, () => {
-            const finalPos = _unitPos(unit);
-            if (finalPos && unit.currentHp <= 0) {
-                battle[finalPos.side][finalPos.r][finalPos.i] = null;
-                const ownerLabel = finalPos.side === 'me' ? (unit.isStructure ? 'Твоя' : 'Твой') : (unit.isStructure ? 'Вражеская' : 'Вражеский');
-                const cardLabel = unit.isStructure ? 'постройка' : 'отряд';
-                const deathVerb = unit.isStructure ? 'уничтожена' : 'погибает';
-                logBattle(`💀 ${ownerLabel} ${cardLabel} ${unit.name} ${deathVerb}!`, finalPos.side);
+        const sideOrder = getApnapSideOrder();
+        const sideRank = new Map(sideOrder.map((side,index) => [side,index]));
+        const triggerTasks = [{
+            source:unit, event:'death', ownerSide, eventTarget:null,
+            onComplete:() => {
+                const finalPos = _unitPos(unit);
+                if (finalPos && unit.currentHp <= 0) {
+                    battle[finalPos.side][finalPos.r][finalPos.i] = null;
+                    const ownerLabel = finalPos.side === 'me' ? (unit.isStructure ? 'Твоя' : 'Твой') : (unit.isStructure ? 'Вражеская' : 'Вражеский');
+                    const cardLabel = unit.isStructure ? 'постройка' : 'отряд';
+                    const deathVerb = unit.isStructure ? 'уничтожена' : 'погибает';
+                    logBattle(`💀 ${ownerLabel} ${cardLabel} ${unit.name} ${deathVerb}!`, finalPos.side);
+                }
+                cleanupDead();
             }
-            cleanupDead();
-        });
-        ['me','enemy'].forEach(side => allEffectUnits(side).forEach(entry => {
+        }];
+        sideOrder.forEach(side => allEffectUnits(side).forEach(entry => {
             if (cardEffects(entry.unit).some(effect => effect.event === 'card_death' && effectWatchesDeath(effect,side,deathTarget))) {
-                enqueueCardEffects(entry.unit,'card_death',side,deathTarget);
+                triggerTasks.push({ source:entry.unit, event:'card_death', ownerSide:side, eventTarget:deathTarget, onComplete:null });
             }
         }));
+        // APNAP: активная сторона первой, остальные по кругу; внутри стороны — раньше выведенные карты первыми.
+        triggerTasks.sort((a,b) => {
+            const aPos = _unitPos(a.source), bPos = _unitPos(b.source);
+            const aOrder = Number.isFinite(a.source._enteredPlayOrder) ? a.source._enteredPlayOrder : Number.MAX_SAFE_INTEGER;
+            const bOrder = Number.isFinite(b.source._enteredPlayOrder) ? b.source._enteredPlayOrder : Number.MAX_SAFE_INTEGER;
+            return (sideRank.get(a.ownerSide) - sideRank.get(b.ownerSide))
+                || (aOrder - bOrder)
+                || ((aPos?.r === 'front' ? 0 : 1) - (bPos?.r === 'front' ? 0 : 1))
+                || ((aPos?.i ?? Number.MAX_SAFE_INTEGER) - (bPos?.i ?? Number.MAX_SAFE_INTEGER));
+        });
+        triggerTasks.forEach(task => enqueueCardEffects(task.source,task.event,task.ownerSide,task.eventTarget,task.onComplete));
         pumpEffectQueue();
     }
 
@@ -3561,6 +3588,7 @@ ${prompt}
                         e.hand.splice(idx, 1);
                         const unit = {
                             instanceId: uid(),
+                            _enteredPlayOrder: battle.nextCardPlayOrder++,
                             _sourceCardId: card.id,
                             id: card.id,
                             name: card.name || 'Безымянный', emoji: card.emoji || '👺', card_type: card.card_type || 'unit',

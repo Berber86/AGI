@@ -26,7 +26,7 @@ function makeBattle() {
         hp: 25, dropMana: 0, dropManaMax: 12, actionMana: 0, actionManaMax: 5,
         hand: [], deck: [], front: [null, null, null], back: [null, null, null]
     });
-    return { me: player(), enemy: player(), log: [] };
+    return { me: player(), enemy: player(), log: [], whoseTurn: 'me', playerOrder: ['me','enemy'], nextCardPlayOrder: 0 };
 }
 
 function makeHarness(battle = makeBattle()) {
@@ -139,6 +139,38 @@ test('death observers distinguish all, own-side and opposing-side deaths', () =>
     assert.equal(battle.me.back[1], null);
     assert.equal(doomed._deathQueued, true);
     assert(battle.log.some(entry => entry.msg.includes('Твоя постройка doomed уничтожена')));
+});
+
+test('death triggers use active-player-first order and then earliest deployment within each side', () => {
+    const collectOrder = activeSide => {
+        const api = makeHarness();
+        const battle = api.getBattle();
+        battle.whoseTurn = activeSide;
+        const watcher = (name, side, row, index, enteredOrder) => place(battle, unit(name, side, row, {
+            _enteredPlayOrder: enteredOrder,
+            effects: [{
+                event: 'card_death', watch: { side: 'all' },
+                action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+            }]
+        }), side, row, index);
+        watcher('me-old', 'me', 'front', 0, 1);
+        watcher('me-new', 'me', 'back', 0, 3);
+        watcher('enemy-old', 'enemy', 'front', 0, 2);
+        watcher('enemy-new', 'enemy', 'back', 0, 4);
+        place(battle, unit('doomed', 'me', 'back', {
+            currentHp: 0,
+            _enteredPlayOrder: 0,
+            effects: [{ event: 'death', action: { type: 'modify_resource', resource: 'drop', amount: 1 } }]
+        }), 'me', 'back', 2);
+
+        api.cleanupDead();
+        return [...battle.log].reverse().map(entry => entry.msg)
+            .filter(msg => msg.includes('💎'))
+            .map(msg => ['doomed','me-old','me-new','enemy-old','enemy-new'].find(name => msg.includes(name)));
+    };
+
+    assert.deepEqual(collectOrder('me'), ['doomed','me-old','me-new','enemy-old','enemy-new']);
+    assert.deepEqual(collectOrder('enemy'), ['enemy-old','enemy-new','doomed','me-old','me-new']);
 });
 
 test('manual choose can select multiple distinct targets and applies only after selection is complete', () => {
