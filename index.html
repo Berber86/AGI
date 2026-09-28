@@ -1360,10 +1360,10 @@
 
 КРИТИЧЕСКОЕ ПРАВИЛО:
 • Поле keywords — ЕДИНСТВЕННЫЙ источник механик карты. Движок НИКОГДА не догадывается о свойствах по описанию, по тегам или по выбранному игроком роду войск. Если ты не положишь свойство в keywords — его просто НЕ БУДЕТ в игре.
-• Теги (tags) — это контекст/флафф, они НЕ дают механик. Не надейся, что тег «Топорники» сам по себе даст какие-то эффекты.
-• Поле abilities — ТОЛЬКО колорит (внешний вид, история, запах, детали быта). НИКАКИХ механик в abilities!
-• Поле description — художественное описание (1-2 предложения). Механики в нём не работают.
-• Если у карты есть механический штраф за сверх-силу — ОБЯЗАТЕЛЬНО клади его как keyword (upkeep/exhaustenemy и т.п.), а текст объяснения — в monkey_paw. Одного текста в monkey_paw недостаточно.
+• Теги (tags) — это контекст/флафф, они НЕ дают механик.
+• Поле description — ЕДИНСТВЕННЫЙ блок текста на карточке (2-3 предложения, единым связным текстом, без буллетов). Сюда пиши и что делает отряд/манёвр, и как выглядит, и детали — всё в одном поле.
+• Поле abilities — ВСЕГДА пустой массив [] (не используй его).
+• Если у карты есть механический штраф за сверх-силу — ОБЯЗАТЕЛЬНО клади его как keyword (upkeep/exhaustenemy и т.п.), а короткое текстовое объяснение — в monkey_paw. Одного текста в monkey_paw недостаточно.
 
 ТИПЫ КАРТ:
 - "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
@@ -1520,7 +1520,7 @@ ${prompt}
             <div class="ban-tooltip">🐾 ${card.monkey_paw}</div>
         ` : '';
 
-        // Фильтруем способности: убираем то, что по сути является штрафом/Лапой
+        // Один текстовый блок: склеиваем description + фильтрованные abilities в единый рассказ, без буллетов
         const mpText = (card.monkey_paw || '').toLowerCase();
         const filteredAbilities = (card.abilities || []).filter(a => {
             const al = (a||'').toLowerCase();
@@ -1529,8 +1529,15 @@ ${prompt}
             if (/(не может атаковать|штраф|не получает бонус|слаб|уступает|уязвим|не способен|теряет)/.test(al)) return false;
             return true;
         });
-        const abilitiesHtml = filteredAbilities.length ?
-            `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${filteredAbilities.map(a => '• ' + a).join('<br>')}</div>` : '';
+        const descParts = [];
+        if (card.description) descParts.push(card.description.replace(/\s+$/,'').replace(/\.?$/,'.'));
+        if (filteredAbilities.length) {
+            const abText = filteredAbilities.join('. ').replace(/\s+$/,'').replace(/\.?$/,'.');
+            descParts.push(abText);
+        }
+        const descHtml = descParts.length
+            ? `<div class="card-desc">${descParts.join(' ')}</div>`
+            : '';
 
         // Иконки ключевых слов (механик) — ТОЛЬКО явные от LLM
         const kwChips = [];
@@ -1604,8 +1611,7 @@ ${prompt}
                 <div class="card-name">${card.name}</div>
                 <div class="card-type">${typeDef.icon} ${typeDef.label} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
                 <div class="card-art">${card.emoji || '⚒️'}</div>
-                <div class="card-desc">${card.description}</div>
-                ${abilitiesHtml}
+                ${descHtml}
                 ${kwHtml}
                 ${monkeyBlock}
                 <div class="card-stats">${statsHtml}</div>
