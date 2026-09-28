@@ -78,6 +78,7 @@ function makeHarness(battle = makeBattle()) {
             getUnitArmor,
             getUnitActionCost,
             getBattle: () => battle,
+            drawCard,
             getPending: () => pendingManualTarget,
             getCardChoice: () => pendingCardChoice,
             setBattle: value => { battle = value; },
@@ -88,12 +89,21 @@ function makeHarness(battle = makeBattle()) {
     return context.api;
 }
 
-function makeBattleStartHarness(cardCount) {
+function makeBattleStartHarness(cardCount, campaignMode = false) {
     const cards = Array.from({ length: cardCount }, (_, index) => ({
         id: `card-${index}`, name: `Card ${index}`, card_type: 'unit', hp: 2, atk: 1
     }));
     const ids = cards.map(card => card.id);
-    const context = vm.createContext({});
+    const campaign = campaignMode ? { CampaignMvp: {
+        hasPendingMatch: () => true,
+        getBattleConfigForCurrentPlayer: () => ({ deckLimit: 2, hp: 5, energyMax: 2, energyGrowth: 1 }),
+        getOpponentBattleConfig: () => ({ deckLimit: 2, hp: 5, energyMax: 2, energyGrowth: 1 }),
+        getPendingMatch: () => ({ opponentId: 'dummy' }),
+        getState: () => ({ opponents: [{ id: 'dummy', era: 0 }] }),
+        getBattleDeckIds: () => [],
+        consumePendingMatch: () => ({ opponentId: 'dummy', name: 'AI dummy', clan: 'Test clan' })
+    } } : null;
+    const context = vm.createContext(campaign ? { window: campaign } : {});
     vm.runInContext(`
         let deck = ${JSON.stringify(ids)};
         let collection = ${JSON.stringify(cards)};
@@ -110,7 +120,7 @@ function makeBattleStartHarness(cardCount) {
         function switchScreen(screen) { screens.push(screen); }
         function shuffle(cards) { return cards; }
         function cloneDeckCards(cards) { return cards.map(card => ({ ...card })); }
-        function buildEnemyDeck() { return []; }
+        function buildEnemyDeck() { return ${JSON.stringify(Array.from({ length: 10 }, (_, index) => ({ id: `starter-${index}`, name: `Starter ${index}` })))}; }
         function drawCard() {}
         function logBattle() {}
         function renderBattle() {}
@@ -133,6 +143,20 @@ test('an incomplete deck is sent back to deck building instead of entering battl
     assert.doesNotThrow(() => api.startBattle());
     assert.equal(api.getBattle(), null);
     assert.equal(api.getScreens().at(-1), 'deck');
+});
+
+test('campaign practice uses the building-defined two-card deck and starter fillers', () => {
+    const api = makeBattleStartHarness(0, true);
+    assert.doesNotThrow(() => api.startBattle());
+    assert.equal(api.getBattle().mode, 'campaign');
+    assert.equal(api.getBattle().me.deck.length, 2);
+    assert.equal(api.getBattle().enemy.deck.length, 2);
+    assert.equal(api.getBattle().me.hp, 5);
+    assert.equal(api.getBattle().enemy.hp, 5);
+    assert.equal(api.getBattle().me.dropMana, 1);
+    assert.equal(api.getBattle().me.actionMana, 0);
+    assert.equal(api.getBattle().campaignMatch.opponentId, 'dummy');
+    assert.equal(api.getScreens().at(-1), 'battle');
 });
 
 function unit(name, side = 'me', row = 'front', props = {}) {
@@ -175,6 +199,7 @@ test('card_death watch accepts all, friendly and enemy, and rejects missing/unkn
 test('death observers distinguish all, own-side and opposing-side deaths', () => {
     const api = makeHarness();
     const battle = api.getBattle();
+    battle.me.deck.push({ id: 'already-on-top', name: 'Карта сверху', card_type: 'unit', drop_cost: 1 });
     const resourceEffect = (scope, amount) => [{
         event: 'card_death', watch: { side: scope },
         action: { type: 'modify_resource', resource: 'drop', amount }
@@ -202,7 +227,15 @@ test('death observers distinguish all, own-side and opposing-side deaths', () =>
     assert.equal(battle.enemy.dropMana, 7, JSON.stringify(battle.log)); // all + enemy relative to the enemy watcher
     assert.equal(battle.me.back[1], null);
     assert.equal(doomed._deathQueued, true);
-    assert(battle.log.some(entry => entry.msg.includes('Твоя постройка doomed уничтожена')));
+    assert.equal(battle.me.deck.length, 2);
+    assert.equal(battle.me.deck[0].name, 'Карта сверху');
+    assert.equal(battle.me.deck[1].name, 'doomed');
+    assert.equal(battle.me.deck[1].card_type, 'structure');
+    assert(battle.log.some(entry => entry.msg.includes('doomed погибает и возвращается под колоду')));
+    api.drawCard('me');
+    assert.equal(battle.me.hand[0].name, 'Карта сверху');
+    api.drawCard('me');
+    assert.equal(battle.me.hand[1].name, 'doomed');
 });
 
 test('death triggers use active-player-first order and then earliest deployment within each side', () => {
