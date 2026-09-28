@@ -20,6 +20,8 @@ const effectsEngine = extract(
     '    // ============================================\n    // ПРИМЕНЕНИЕ ЭФФЕКТОВ КАРТ В ВЫСАДКУ'
 );
 const deathCleanup = extract('    function cleanupDead() {', '    function checkBattleEnd() {');
+const selectedDeckHelper = extract('    function getSelectedDeckCards() {', '    // -------- Старт боя --------');
+const startBattleFunction = extract('    function startBattle() {', '    function concedeBattle() {');
 
 function makeBattle() {
     const player = () => ({
@@ -70,6 +72,53 @@ function makeHarness(battle = makeBattle()) {
     vm.runInContext(`${prelude}\n${effectsEngine}\n${deathCleanup}\n${exportApi}`, context, { timeout: 1000 });
     return context.api;
 }
+
+function makeBattleStartHarness(cardCount) {
+    const cards = Array.from({ length: cardCount }, (_, index) => ({
+        id: `card-${index}`, name: `Card ${index}`, card_type: 'unit', hp: 2, atk: 1
+    }));
+    const ids = cards.map(card => card.id);
+    const context = vm.createContext({});
+    vm.runInContext(`
+        let deck = ${JSON.stringify(ids)};
+        let collection = ${JSON.stringify(cards)};
+        let battle = null;
+        let pendingManualTarget = null, effectTaskQueue = [], activeEffectTask = null;
+        let effectPumpActive = false, effectQueueWaiters = [];
+        let selectedHandIdx = null, selectedUnitId = null, awaitingTarget = false, animating = false;
+        const DECK_LIMIT = 10, MAX_HP = 20, FRONT_SLOTS = 4, BACK_SLOTS = 4;
+        const STARTING_ACTION_MANA = 2, START_HAND = 0;
+        const screens = [];
+        const localStorage = { getItem: () => 'Arena tester' };
+        const document = { getElementById: () => ({ textContent: '' }) };
+        function hideModals() {}
+        function switchScreen(screen) { screens.push(screen); }
+        function shuffle(cards) { return cards; }
+        function cloneDeckCards(cards) { return cards.map(card => ({ ...card })); }
+        function buildEnemyDeck() { return []; }
+        function drawCard() {}
+        function logBattle() {}
+        function renderBattle() {}
+        ${selectedDeckHelper}
+        ${startBattleFunction}
+        globalThis.api = { startBattle, getBattle: () => battle, getScreens: () => screens };
+    `, context, { timeout: 1000 });
+    return context.api;
+}
+
+test('a complete ten-card deck starts battle without a runtime error', () => {
+    const api = makeBattleStartHarness(10);
+    assert.doesNotThrow(() => api.startBattle());
+    assert.equal(api.getBattle().me.deck.length, 10);
+    assert.equal(api.getScreens().at(-1), 'battle');
+});
+
+test('an incomplete deck is sent back to deck building instead of entering battle', () => {
+    const api = makeBattleStartHarness(9);
+    assert.doesNotThrow(() => api.startBattle());
+    assert.equal(api.getBattle(), null);
+    assert.equal(api.getScreens().at(-1), 'deck');
+});
 
 function unit(name, side = 'me', row = 'front', props = {}) {
     return {

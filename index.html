@@ -54,29 +54,60 @@
             color: #fff;
         }
         .top-bar .nav button:hover { background: #241840; }
-        .top-bar label { color: #888; font-size: 0.85em; }
-        .top-bar input {
-            flex: 1;
-            min-width: 180px;
-            padding: 6px 12px;
-            background: #0f0a1e;
+        .top-bar .nav button:focus-visible,
+        .connection-settings summary:focus-visible,
+        .battle-launch:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
+        .connection-settings { position: relative; margin-left: auto; }
+        .connection-settings summary {
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 7px 12px;
             border: 1px solid #3d2a5c;
-            border-radius: 6px;
-            color: #e0e0e0;
+            border-radius: 10px;
+            background: rgba(15,10,30,.75);
+            color: #cbb9e8;
+            cursor: pointer;
+            list-style: none;
+            white-space: nowrap;
         }
-        .top-bar .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #f85149; }
-        .top-bar .status-dot.ok { background: #3fb950; }
-        .top-bar label { font-size: 0.85em; color:#b39ddb; }
-        .top-bar select {
-            min-width: 180px;
-            padding: 4px 8px;
+        .connection-settings summary::-webkit-details-marker { display: none; }
+        .connection-settings summary::after { content: '⌄'; color: #a08ec0; }
+        .connection-settings[open] summary::after { content: '⌃'; }
+        .connection-fields {
+            position: absolute;
+            z-index: 130;
+            top: calc(100% + 8px);
+            right: 0;
+            width: min(390px, calc(100vw - 24px));
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            padding: 16px;
+            border: 1px solid #5a3c7c;
+            border-radius: 14px;
+            background: rgba(18,11,32,.98);
+            box-shadow: 0 18px 50px rgba(0,0,0,.55);
+        }
+        .connection-fields label { color: #b39ddb; font-size: .82em; }
+        .connection-fields input,
+        .connection-fields select {
+            width: 100%;
+            min-width: 0;
+            min-height: 42px;
+            padding: 8px 11px;
             background: #0f0a1e;
-            border: 1px solid #5a2d82;
-            border-radius: 6px;
+            border: 1px solid #4b3568;
+            border-radius: 8px;
             color: #e0e0e0;
-            font-size: 0.85em;
+            font-size: .9em;
         }
-        .top-bar select option { background: #1b0f2e; color: #e0e0e0; }
+        .connection-fields input:focus,
+        .connection-fields select:focus { outline: none; border-color: #c77dff; box-shadow: 0 0 0 3px rgba(199,125,255,.14); }
+        .connection-fields select option { background: #1b0f2e; color: #e0e0e0; }
+        .top-bar .status-dot { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: #f85149; box-shadow: 0 0 10px rgba(248,81,73,.45); }
+        .top-bar .status-dot.ok { background: #3fb950; box-shadow: 0 0 10px rgba(63,185,80,.55); }
         .legacy-link {
             color: #888;
             font-size: 0.8em;
@@ -890,6 +921,109 @@
         .battle-end-title { font-size: 1.8em; font-weight: bold; margin-bottom: 10px; }
         .battle-end-title.win { color: #3fb950; }
         .battle-end-title.lose { color: #f85149; }
+
+        /* ====== DECK READY / BATTLE CTA ====== */
+        .deck-stats {
+            background: linear-gradient(145deg, rgba(38,24,65,.92), rgba(18,12,33,.96));
+            border: 1px solid rgba(160,112,210,.34);
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 22px;
+            box-shadow: 0 16px 45px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.035);
+        }
+        .deck-stat { border: 1px solid rgba(133,100,175,.12); }
+        .deck-ready { line-height: 1.45; }
+        .deck-ready.ok { background: rgba(35,134,54,.14); border-color: rgba(63,185,80,.55); }
+        .battle-launch {
+            width: 100%;
+            min-height: 56px;
+            margin: 14px auto 2px;
+            padding: 14px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: 1px solid rgba(255,255,255,.22);
+            border-radius: 14px;
+            background: linear-gradient(110deg, #8f42d8, #d43f75 58%, #f06a4f);
+            box-shadow: 0 10px 28px rgba(203,61,129,.23), inset 0 1px rgba(255,255,255,.2);
+            color: white;
+            font: inherit;
+            font-size: 1.08em;
+            font-weight: 800;
+            letter-spacing: .01em;
+            cursor: pointer;
+            transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+        }
+        .battle-launch:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(203,61,129,.34); filter: brightness(1.08); }
+        .battle-launch:not(:disabled):active { transform: translateY(0) scale(.99); }
+        .battle-launch:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .48; box-shadow: none; }
+
+        /* The battle result must never leak its controls into the page before it opens. */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            background: rgba(5,3,12,.78);
+            backdrop-filter: blur(9px);
+            -webkit-backdrop-filter: blur(9px);
+        }
+        .modal-overlay.active { display: flex; animation: modal-fade-in .18s ease-out; }
+        .modal {
+            width: min(100%, 520px);
+            max-height: min(88vh, 760px);
+            overflow: auto;
+            padding: 22px;
+            border: 1px solid rgba(199,125,255,.42);
+            border-radius: 20px;
+            background: linear-gradient(150deg, #24163d, #100b1e 72%);
+            box-shadow: 0 28px 90px rgba(0,0,0,.64), 0 0 35px rgba(151,88,218,.13);
+        }
+        .modal-buttons { display: flex; justify-content: center; gap: 10px; padding: 0 18px 18px; }
+        .modal-buttons button {
+            min-height: 44px;
+            padding: 10px 16px;
+            border-radius: 10px;
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .modal-buttons .btn-cancel { border: 1px solid #59436f; background: #211632; }
+        .modal-buttons .btn-confirm { border: 1px solid #b879ec; background: linear-gradient(115deg,#7540b4,#c8477c); }
+        @keyframes modal-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+        @media (max-width: 760px) {
+            .top-bar { gap: 9px; padding: 10px 12px 8px; }
+            .top-bar .logo { flex: 1 1 auto; font-size: 1.04em; }
+            .top-bar .nav { order: 3; flex: 1 0 100%; width: 100%; margin: 0; gap: 5px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+            .top-bar .nav::-webkit-scrollbar { display: none; }
+            .top-bar .nav button { flex: 0 0 auto; min-height: 42px; padding: 7px 11px; font-size: .82em; white-space: nowrap; }
+            .connection-settings { margin-left: auto; }
+            .connection-settings summary { min-height: 38px; padding: 6px 10px; font-size: .82em; }
+            .legacy-link { display: none; }
+            .container { padding: 22px 14px; }
+            h1 { font-size: clamp(1.65rem, 7vw, 2rem); }
+            .subtitle { margin: 0 auto 22px; line-height: 1.45; }
+            .deck-stats { padding: 14px; border-radius: 16px; }
+            .deck-stats-row { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+            .deck-stat { min-width: 0; padding: 10px 6px; }
+            .deck-stat .ds-val { font-size: 1.45em; }
+            .mana-curve { gap: 4px; padding: 8px; }
+            .battle-launch { min-height: 54px; }
+        }
+        @media (max-width: 380px) {
+            .top-bar .nav button { padding-inline: 9px; font-size: .76em; }
+            .container { padding-inline: 11px; }
+            .deck-stats-row { gap: 6px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        }
     </style>
 </head>
 <body>
@@ -913,11 +1047,15 @@
             <button data-screen="deck" onclick="switchScreen('deck')">🎴 Колода <span id="deck-count" style="color:#e94560">(0/10)</span></button>
             <button data-screen="battle" onclick="startBattle()" id="battle-nav-btn">⚔️ Бой</button>
         </div>
-        <label>🔑 Hydra API:</label>
-        <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()">
-        <label for="model-select" style="margin-left:8px;">🤖 Модель:</label>
-        <select id="model-select" onchange="saveSelectedModel()"></select>
-        <div class="status-dot" id="api-status"></div>
+        <details class="connection-settings">
+            <summary><span>⚙️ API и модель</span><span class="status-dot" id="api-status" aria-label="Статус API"></span></summary>
+            <div class="connection-fields">
+                <label for="api-key-input">🔑 Hydra API</label>
+                <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()" autocomplete="off">
+                <label for="model-select">🤖 Модель</label>
+                <select id="model-select" onchange="saveSelectedModel()"></select>
+            </div>
+        </details>
         <a href="tribes-legacy.html" class="legacy-link" target="_blank">🏛️ Tribes (legacy)</a>
     </div>
 
@@ -1006,7 +1144,10 @@
                 <div class="deck-stats-row" id="deck-stats-row"></div>
                 <h3 style="color:#a08ec0; font-size:0.85em; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px">📊 Кривая маны</h3>
                 <div class="mana-curve" id="mana-curve"></div>
-                <div id="deck-ready" class="deck-ready"></div>
+                <div id="deck-ready" class="deck-ready" role="status" aria-live="polite"></div>
+                <button class="battle-launch" id="deck-launch-btn" type="button" onclick="startBattle()" disabled>
+                    <span aria-hidden="true">⚔️</span><span>Собери 10 карт, чтобы начать бой</span>
+                </button>
                 <div style="text-align:center; margin-top:10px">
                     <button class="clear-deck-btn" onclick="clearDeck()">🗑️ Очистить колоду</button>
                 </div>
@@ -1801,6 +1942,7 @@ ${prompt}
         const statsRow = document.getElementById('deck-stats-row');
         const curve = document.getElementById('mana-curve');
         const ready = document.getElementById('deck-ready');
+        const launch = document.getElementById('deck-launch-btn');
 
         const deckCards = deck.map(id => collection.find(c => c.id === id)).filter(Boolean);
 
@@ -1854,15 +1996,24 @@ ${prompt}
         }).join('');
 
         // === Готовность ===
-        if (deckCards.length === DECK_LIMIT) {
+        const deckReady = deckCards.length === DECK_LIMIT;
+        if (deckReady) {
             ready.className = 'deck-ready ok';
-            ready.innerHTML = '✅ Колода готова к битве! (10/10 карт)';
+            ready.innerHTML = '✅ Колода готова к битве — все 10 карт на месте.';
         } else if (deckCards.length > DECK_LIMIT) {
             ready.className = 'deck-ready no';
-            ready.innerHTML = `⚠️ Слишком много карт (${deckCards.length}/${DECK_LIMIT})`;
+            ready.innerHTML = `⚠️ В колоде ${deckCards.length} карт. Убери лишние до лимита ${DECK_LIMIT}.`;
         } else {
             ready.className = 'deck-ready no';
-            ready.innerHTML = `⏳ Добавь ещё ${DECK_LIMIT - deckCards.length} карт для полной колоды`;
+            const missing = DECK_LIMIT - deckCards.length;
+            ready.innerHTML = `⏳ До битвы осталось добавить ${missing} ${missing === 1 ? 'карту' : 'карт'} (${deckCards.length}/${DECK_LIMIT}).`;
+        }
+        if (launch) {
+            launch.disabled = !deckReady;
+            launch.setAttribute('aria-label', deckReady ? 'Начать бой с текущей колодой' : `Для начала боя нужно ${DECK_LIMIT} карт`);
+            launch.querySelector('span:last-child').textContent = deckReady
+                ? 'Начать бой'
+                : `Собери ${DECK_LIMIT} карт, чтобы начать бой`;
         }
     }
 
@@ -2694,23 +2845,21 @@ ${prompt}
         return { name, card_type: type, emoji, drop_cost: drop, action_cost: action, atk, hp, description: desc, tags, abilities: [], monkey_paw: '', era, keywords, id: uid() };
     }
 
+    function getSelectedDeckCards() {
+        return deck.map(id => collection.find(card => card.id === id)).filter(Boolean).slice(0, DECK_LIMIT);
+    }
+
     // -------- Старт боя --------
     function startBattle() {
-        hideModals();
-        const deckCards = deck.map(id => {
-            const c = collection.find(x => x.id === id);
-            if (!c) return null;
-            // клонируем и пересоздаём id для инстансов
-            return JSON.parse(JSON.stringify(c));
-        }).filter(Boolean);
-
-        if (deckCards.length < DECK_LIMIT) {
-            alert(`Собери колоду из ${DECK_LIMIT} карт в разделе «Колода»! Сейчас в колоде: ${deckCards.length}.`);
+        const deckCards = getSelectedDeckCards();
+        if (deckCards.length !== DECK_LIMIT) {
+            // Показываем экран колоды с точным количеством недостающих карт вместо тихого отказа.
+            if (battle?._endScheduled) battle = null;
+            hideModals();
             switchScreen('deck');
             return;
         }
-        // Если вдруг больше 10 — берём первые 10
-        deckCards = deckCards.slice(0, DECK_LIMIT);
+        hideModals();
 
         // Сохраняем ник для баннера
         try {
