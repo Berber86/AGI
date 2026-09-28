@@ -832,6 +832,7 @@
         .hand .game-card .cost-badge { width: 26px; height: 26px; }
         .hand .game-card .cost-badge .cost-num { font-size: 1em; }
         .hand .game-card .cost-badge .cost-label { display: none; }
+        .hand .game-card .card-effects-preview { font-size:.55em; line-height:1.15; color:#ffd080; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:1px 0 3px; }
         .hand .game-card .card-stats { margin-bottom: 2px; }
         .hand .game-card .stat-chip { font-size: 0.6em; padding: 1px 5px; }
         .hand .game-card .ban-tooltip { display: none; }
@@ -1326,7 +1327,7 @@
 - "bronze" (Бронзовый век) — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские.
 БАЛАНС ЭПОХ НЕ ЧЕРЕЗ МАНУ/СТАТЫ. Бронзовый отряд МОЖЕТ стоить 2 маны (наёмники) и иметь небольшие статы, но ОБЯЗАТЕЛЬНО должен иметь ключевые слова/свойства, дающие ему преимущество в бою (например, pierce/armor/charge/phalanx). Базовый модификатор встречи эпох: древние −1 урон по бронзе (мин 1), бронза +1 урон по древним — это лишь вишенка на торте, главное — свойства.
 
-СИСТЕМА КЛЮЧЕВЫХ СЛОВ (доступны механики; используй подходящие):
+СИСТЕМА КЛЮЧЕВЫХ СЛОВ (для новых карт keywords задают свойства отряда/постройки; одноразовые свойства ниже перечислены для старых карт и должны кодироваться через effects[]):
 - armor: N — броня снижает входящий урон на N.
 - pierce: N — пробитие игнорирует N брони.
 - ranged — дальний бой (лучники/пращники), с тыла бьёт авангард, без контратаки.
@@ -1359,11 +1360,12 @@
 ВАЖНО: если ключевое слово имеет силу N (armor/pierce/poison/burn/heal), пиши его как строку вида armor:2, heal:1 и т.п. (в JSON — например \"armor:2\"). Без цифры движок возьмёт N=1.
 
 КРИТИЧЕСКОЕ ПРАВИЛО:
-• Поле keywords — ЕДИНСТВЕННЫЙ источник механик карты. Движок НИКОГДА не догадывается о свойствах по описанию, по тегам или по выбранному игроком роду войск. Если ты не положишь свойство в keywords — его просто НЕ БУДЕТ в игре.
+• Поля keywords и effects — ЕДИНСТВЕННЫЕ источники механик. Движок никогда не извлекает механику из description, abilities, tags, названия или выбора рода войск. Постоянные свойства задавай в keywords, срабатывающие эффекты — только в effects по схеме ниже.
 • Теги (tags) — это контекст/флафф, они НЕ дают механик.
+• Для новых карт не используй одноразовые keywords sabotage, spy, supply, warcry, loot, raider, harras, exhaustenemy: их события задаются в effects (если действие есть в белом списке); harras/spy/loot без поддерживаемого действия не использовать. У манёвров heal/poison/burn тоже задавай в effects, не в keywords.
 • Поле description — ЕДИНСТВЕННЫЙ блок текста на карточке (2-3 предложения, единым связным текстом, без буллетов). Сюда пиши и что делает отряд/манёвр, и как выглядит, и детали — всё в одном поле.
 • Поле abilities — ВСЕГДА пустой массив [] (не используй его).
-• Если у карты есть механический штраф за сверх-силу — ОБЯЗАТЕЛЬНО клади его как keyword (upkeep/exhaustenemy и т.п.), а короткое текстовое объяснение — в monkey_paw. Одного текста в monkey_paw недостаточно.
+• Если у карты есть механический штраф за сверх-силу — задай его поддерживаемым keyword, характеристикой/ценой или валидным эффектом; короткое пояснение помести в monkey_paw. Текст без механического поля ничего не меняет.
 
 ТИПЫ КАРТ:
 - "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
@@ -1391,7 +1393,7 @@
 За сверх-силу карта получает уравновешивающий штраф. Строгие правила:
 
 1) Штраф ОБЯЗАТЕЛЬНО должен соответствовать ОДНОЙ ИЗ работающих в движке механик. То есть:
-   • Либо это keyword из списка выше (upkeep, exhaustenemy, sturdy с минусом — НЕТ, только те что есть; обычно это upkeep = -1 HP без соседей, harras = -1💎 у игрока в следующий ход).
+   • Либо это keyword из списка выше или конкретный валидный эффект из белого списка конструктора (например, upkeep или изменение ресурса/характеристики).
    • Либо это статовый штраф: уменьши hp или atk прямо в полях hp/atk (самый простой и честный вариант).
    • Либо это стоимость: повысь drop_cost/action_cost.
    • В monkey_paw может быть ТОЛЬКО пояснение в 1 предложение — почему карта имеет этот штраф (история/флафф).
@@ -1401,12 +1403,23 @@
    • «эффект бьёт и по врагу и по вам» (движок не делает двустороннего эффекта)
    • «отряд не получает бонус в лесу» (нет биомных модификаторов в бою)
    • «не может атаковать в свой ход» (для этого подними action_cost или просто не давай)
-   • «теряет прирост действий в этот ход» (движок не умеет такого штрафа на той же стороне; используй upkeep или просто снизь статы)
-   • «враг видит вашу руку» и прочие ассиметричные эффекты сверх списка keywords.
+   • не используй случайный выбор цели; выбирай цель только детерминированными селекторами конструктора
+   • «враг видит вашу руку» и другие эффекты, не входящие в белый список конструктора.
 
 3) Штраф НЕ ДОЛЖЕН ПРОТИВОРЕЧИТЬ основным способностям (не «в лесу +1 к атаке» и при этом «в лесу не может атаковать»).
 
 4) Для обычных сбалансированных карт (без сверх-силы) monkey_paw = "" (пустая строка).
+
+=== КОНСТРУКТОР ЭФФЕКТОВ (строгий белый список) ===
+• Используй effects: [] если срабатывающих эффектов нет. Для манёвра нужен минимум один эффект enter_play. Все разовые действия кодируй в effects; keywords оставляй для свойств отряда/постройки. Не описывай игровые правила словами вместо структуры.
+• События: enter_play (карта выходит на поле/разыгрывается), attack (отряд совершает атаку), turn_start (начало хода владельца источника).
+• Для damage/heal/apply_status/destroy/modify_stat/modify_cost ОБЯЗАТЕЛЬНО укажи target. Для modify_resource target можно опустить — тогда это controller. В action включай только поля, нужные выбранному type.
+• Цель: side friendly/controller = свои/владелец, enemy/opponent = противник, either = обе стороны; entity unit (не постройка), structure, permanent (любая карта на поле), player. zone front=авангард, rear=тыл. relation adjacent = соседний слот в том же ряду относительно источника; self = сам источник; attack_target = цель текущей атаки.
+• Автовыбор детерминирован: first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack; count 1-3. Случайных целей нет. Если цели не нашлось, эффект пропускается.
+• Действия: damage (урон; броня цели уменьшает его, минимум 1), heal (восстановление до максимума), apply_status только poison или burn (amount=сила, turns=1..3; длительность тикает в начале хода владельца цели), destroy (немедленно уничтожает карту на поле), modify_resource (drop/action, amount от -5 до +5, только текущий запас), modify_stat (attack/armor/max_hp, amount от -3 до +3; изменение постоянно до конца боя), modify_cost (только цена действия action у карты на поле, от -3 до +3; изменение постоянно до конца боя).
+• Условия необязательны: all/any содержат 1-4 условия, not инвертирует одно. Листья: {"type":"target_wounded"}, {"type":"target_status","status":"poison"}, {"type":"resource","side":"controller"|"opponent","resource":"drop"|"action","op":"eq"|"ne"|"lt"|"lte"|"gt"|"gte","value":N}, {"type":"target_stat","stat":"hp"|"attack"|"armor","op":"...","value":N}. Глубина условий максимум 3.
+• Пример: при атаке получить +1 ресурс: {"event":"attack","action":{"type":"modify_resource","resource":"drop","amount":1}}. Пример: при выходе нанести 2 урона отряду врага в тылу с наименьшими HP: {"event":"enter_play","target":{"side":"enemy","entity":"unit","zone":"rear","select":"lowest_hp","count":1},"action":{"type":"damage","amount":2}}.
+• Не придумывай события, сущности, статусы, цели или действия за пределами списка. Максимум 6 эффектов на карту. Все эффекты в одном JSON — независимы и исполняются по порядку.
 
 === ДОСТУПНЫЕ ТЕГИ ===
 ${allTags.length ? allTags.join(', ') : 'только базовые племена Древнего мира (каменный век)'}
@@ -1423,14 +1436,26 @@ ${allTags.length ? allTags.join(', ') : 'только базовые племе�
   "action_cost": число,
   "hp": число (0 для манёвров),
   "atk": число (0 для манёвров/построек),
-  "description": "1-2 предложения, реалистично",
+  "description": "2-3 предложения единым связным текстом",
   "tags": ["подходящие теги"],
-  "abilities": ["тактические способности в стиле правил"],
-  "keywords": ["armor","pierce","ranged","reach","charge","shieldwall","wedge","phalanx","skirmish","taunt","poison","burn","heal","rally","fear","morale","siege","spy","sabotage","supply","warcry","loot","raider","harras","exhaustenemy","sturdy","holdground","upkeep"] — МАССИВ РАБОЧИХ КЛЮЧЕВЫХ СЛОВ (подходящие; пустой массив если нет). КРИТИЧЕСКИ ВАЖНО:
-   • ВСЕ механические эффекты карты ТОЛЬКО в виде keywords. Если у юнита «прочный строй, −1 урона от первой атаки» — ставь sturdy. Если «не отступает от натиска» — holdground. Если «нуждается в снабжении/содержании» — upkeep.
-   • Поле abilities — это ТОЛЬКО КОЛОРИТ/флафф-описание (как отряд выглядит, история). НЕ ПИШИ в abilities игровые механики — движок их НЕ ПРОЧИТАЕТ.
-   • Поле monkey_paw — штраф, может содержать текст-объяснение. Но сам по себе текстовый штраф НЕ работает движком; если штраф механический (содержание/потеря HP) — добавь соответствующий keyword (например upkeep).
-  "monkey_paw": "" либо "штраф"
+  "abilities": [],
+  "keywords": ["armor:2","ranged"],
+  "effects": [
+    {
+      "event": "enter_play" | "attack" | "turn_start",
+      "target": {
+        "side": "friendly" | "enemy" | "controller" | "opponent" | "either",
+        "entity": "unit" | "structure" | "permanent" | "player",
+        "zone": "front" | "rear" | "any",
+        "relation": "any" | "self" | "adjacent" | "attack_target",
+        "select": "first" | "lowest_hp" | "lowest_hp_ratio" | "highest_attack" | "attack_target",
+        "count": 1
+      },
+      "condition": {"all":[{"type":"target_wounded"},{"type":"resource","side":"controller","resource":"drop","op":"gte","value":2}]},
+      "action": {"type":"damage","amount":2}
+    }
+  ],
+  "monkey_paw": "" либо короткое флафф-пояснение
 }
 
 Язык: русский. Имена в духе "Копейщики долины", "Пращники холмов", "Ночной набег кочевников", "Частокол из дуба", "Бронзовые мечники", "Колесницы с серпами".`;
@@ -1456,7 +1481,7 @@ ${prompt}
                         { role: 'user', content: userPrompt }
                     ],
                     temperature: 0.75,
-                    max_tokens: 1200,
+                    max_tokens: 2000,
                     response_format: { type: "json_object" }
                 })
             });
@@ -1475,6 +1500,19 @@ ${prompt}
 
             const card = JSON.parse(jsonMatch[0]);
             if (!card.name || !card.card_type) throw new Error('Кузнец вернул неполную карту. Попробуй ещё раз.');
+            const hasStructuredEffects = Array.isArray(card.effects);
+            card.effects = validateEffects(card.effects === undefined ? legacyKeywordEffects(card) : card.effects);
+            if (hasStructuredEffects) {
+                const rawKws = (card.keywords || []).map(raw => String(raw || '').toLowerCase().split(':')[0]);
+                const eventKws = ['sabotage','spy','supply','warcry','loot','raider','harras','exhaustenemy'];
+                if (rawKws.some(kw => eventKws.includes(kw))) throw new Error('Одноразовые свойства задавай только в effects[], не дублируй их в keywords.');
+                if (card.card_type === 'spell' && rawKws.some(kw => ['heal','poison','burn'].includes(kw))) throw new Error('Для манёвра heal/poison/burn оформляй как effects[], а не keywords.');
+            }
+            if (card.card_type === 'spell' && !card.effects.length) throw new Error('Для манёвра укажи хотя бы один поддерживаемый эффект в effects[].');
+            if (card.card_type === 'spell' && card.effects.some(effect => effect.event !== 'enter_play')) throw new Error('Манёвр может запускать только событие enter_play.');
+            if (card.card_type === 'spell' && card.effects.some(effect => ['self','adjacent'].includes(effect.target.relation))) throw new Error('У манёвра нет позиции на поле: нельзя выбирать self или adjacent относительно источника.');
+            if (card.card_type !== 'unit' && card.effects.some(effect => effect.event === 'attack')) throw new Error('Событие attack доступно только отрядам.');
+            card.abilities = [];
 
             card.id = 'card_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
             card.forgedAt = Date.now();
@@ -1561,14 +1599,17 @@ ${prompt}
             }[kw] || kw;
             kwChips.push(`<span class="kw-chip" onclick="this.classList.toggle('kw-open')" ontouchstart="event.preventDefault();this.classList.toggle('kw-open')" style="display:inline-flex; align-items:center; gap:3px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:2px 7px; margin:1px; font-size:.72em; white-space:nowrap; cursor:help;">${def.label}${suffix?`<b>${suffix}</b>`:''} <span style="opacity:.85">${fullLabel}</span></span>`);
         });
-        // Легенда: расшифровка всех ключевых слов, что делает механика
-        const kwLegend = kwChips.length ? `<details style="margin-top:6px; font-size:0.7em; color:#a08ec0;">
-            <summary style="cursor:pointer; outline:none; user-select:none;">ℹ️ Что это за свойства?</summary>
+        // Эффекты показываем внутри той же легенды механик — без второго описательного блока.
+        const renderedEffects = cardEffects(card);
+        const effectRows = renderedEffects.map(describeEffect);
+        const kwLegend = (kwChips.length || effectRows.length) ? `<details style="margin-top:6px; font-size:0.7em; color:#a08ec0;">
+            <summary style="cursor:pointer; outline:none; user-select:none;">ℹ️ Свойства и эффекты</summary>
             <ul style="margin:6px 0 0 16px; padding:0; line-height:1.45;">
-                ${kwChips.map(()=>'').join('')}
-                ${(()=>{const L=[]; (card.keywords||[]).forEach(raw=>{if(!raw)return;const[k,ns]=String(raw).split(':');if(KEYWORDS[k])L.push(`<li><b style="color:#c77dff">${KEYWORDS[k].label} ${(['armor','pierce','poison','burn','heal'].includes(k)?(parseInt(ns)||1):'')}</b> — ${KEYWORDS[k].desc}</li>`);});return L.join('');})()}
+                ${(card.keywords||[]).map(raw=>{if(!raw)return '';const[k,ns]=String(raw).split(':');return KEYWORDS[k]?`<li><b style="color:#c77dff">${KEYWORDS[k].label} ${(['armor','pierce','poison','burn','heal'].includes(k)?(parseInt(ns)||1):'')}</b> — ${KEYWORDS[k].desc}</li>`:'';}).join('')}
+                ${effectRows.map(line=>`<li>⚙️ ${line}</li>`).join('')}
             </ul></details>` : '';
-        const kwHtml = kwChips.length ? `<div style="margin:4px 0; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwChips.join('')}</div>${kwLegend}` : '';
+        const effectChips = effectRows.length ? [`<span class="kw-chip effect-chip" style="display:inline-flex;align-items:center;background:rgba(255,190,80,.1);border:1px solid rgba(255,190,80,.35);border-radius:10px;padding:2px 7px;margin:1px;font-size:.72em;">⚙️ ${effectRows.length} эффект${effectRows.length === 1 ? '' : effectRows.length < 5 ? 'а' : 'ов'}</span>`] : [];
+        const kwHtml = (kwChips.length || effectChips.length) ? `<div style="margin:4px 0;display:flex;flex-wrap:wrap;gap:2px;justify-content:center;">${kwChips.join('')}${effectChips.join('')}</div>${kwLegend}` : '';
 
         // Штраф (Лапа Обезьяны) — отдельный блок, а не смешанный
         const monkeyBlock = card.monkey_paw ?
@@ -1983,27 +2024,37 @@ ${prompt}
         });
         allSlots.forEach(({u,r,i}) => {
             if (!u.statuses) u.statuses = {};
-            // Яд
+            // Яд: эффекты конструктора конечны; старый keyword-status без таймера остаётся постоянным.
             if (u.statuses.poison > 0) {
                 u.currentHp -= u.statuses.poison;
                 u.justDamaged = true;
                 logBattle(`☠️ ${u.name} получает ${u.statuses.poison} урона от яда.`, side);
+                if (u.statuses.poisonTurns > 0 && --u.statuses.poisonTurns <= 0) {
+                    delete u.statuses.poison;
+                    delete u.statuses.poisonTurns;
+                }
             }
-            // Огонь
+            // Огонь от keywords сохраняет старое распространение; сконструированный статус — фиксированной длительности.
             if (u.statuses.burn > 0) {
                 u.currentHp -= u.statuses.burn;
                 u.justDamaged = true;
                 logBattle(`🔥 ${u.name} получает ${u.statuses.burn} урона от огня.`, side);
-                // Распространение на соседей 35%
-                [i-1,i+1].forEach(ni => {
-                    const arr = p[r];
-                    if (ni>=0 && ni<arr.length && arr[ni] && !arr[ni].statuses.burn && Math.random()<0.35) {
-                        arr[ni].statuses.burn = 1;
-                        logBattle(`🔥 Огонь перекинулся на ${arr[ni].name}!`, side);
+                if (u.statuses.burnTurns > 0) {
+                    if (--u.statuses.burnTurns <= 0) {
+                        delete u.statuses.burn;
+                        delete u.statuses.burnTurns;
                     }
-                });
-                u.statuses.burn--;
-                if (u.statuses.burn <= 0) delete u.statuses.burn;
+                } else {
+                    [i-1,i+1].forEach(ni => {
+                        const arr = p[r];
+                        if (ni>=0 && ni<arr.length && arr[ni] && !arr[ni].statuses.burn && Math.random()<0.35) {
+                            arr[ni].statuses.burn = 1;
+                            logBattle(`🔥 Огонь перекинулся на ${arr[ni].name}!`, side);
+                        }
+                    });
+                    u.statuses.burn--;
+                    if (u.statuses.burn <= 0) delete u.statuses.burn;
+                }
             }
             // Страх/бегство — возврат в руку (а не гибель)
             if (u._fears || (hasKw(u, 'morale') && u.currentHp / Math.max(1,u.hp) < 0.3)) {
@@ -2017,7 +2068,7 @@ ${prompt}
                             era: u.era, drop_cost: u.drop_cost||1, action_cost: u.action_cost||0,
                             atk: u.atk, hp: u.hp,
                             description: u.description||'', tags: u.tags||[],
-                            abilities: u.abilities||[], keywords: u.keywords||[],
+                            abilities: u.abilities||[], keywords: u.keywords||[], effects: u.effects||[],
                             monkey_paw: u.monkey_paw||''
                         };
                         p.hand.push(cardBack);
@@ -2049,12 +2100,373 @@ ${prompt}
     }
 
     // ============================================
+    // ОГРАНИЧЕННЫЙ КОНСТРУКТОР ЭФФЕКТОВ
+    // Движок исполняет только проверенные enum-значения; текст карт не анализируется.
+    // ============================================
+    const EFFECT_EVENTS = ['enter_play', 'attack', 'turn_start'];
+    const EFFECT_ACTIONS = ['damage', 'heal', 'apply_status', 'destroy', 'modify_resource', 'modify_stat', 'modify_cost'];
+    const EFFECT_STATUSES = ['poison', 'burn'];
+    const EFFECT_COMPARE = ['eq', 'ne', 'lt', 'lte', 'gt', 'gte'];
+
+    function assertEffectKeys(object, allowed, fail, label) {
+        Object.keys(object).forEach(key => { if (!allowed.includes(key)) fail(`неизвестное поле ${label}.${key}.`); });
+    }
+
+    function validateEffects(rawEffects) {
+        if (!Array.isArray(rawEffects)) throw new Error('Поле effects должно быть массивом.');
+        if (rawEffects.length > 6) throw new Error('На карте допускается не более 6 эффектов.');
+        return rawEffects.map((raw, idx) => {
+            const fail = message => { throw new Error(`Эффект ${idx + 1}: ${message}`); };
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail('ожидался объект.');
+            assertEffectKeys(raw,['event','target','condition','action'],fail,'effect');
+            if (!EFFECT_EVENTS.includes(raw.event)) fail('неизвестное событие.');
+            if (!raw.action || typeof raw.action !== 'object' || Array.isArray(raw.action) || !EFFECT_ACTIONS.includes(raw.action.type)) fail('неизвестное действие.');
+            const actionKeys = {
+                damage:['type','amount'], heal:['type','amount'], apply_status:['type','amount','status','turns'], destroy:['type'],
+                modify_resource:['type','resource','amount'], modify_stat:['type','stat','amount'], modify_cost:['type','cost','amount']
+            }[raw.action.type];
+            assertEffectKeys(raw.action,actionKeys,fail,'action');
+            const action = { type: raw.action.type };
+            const intField = (object, name, min, max, required = true) => {
+                const n = object[name];
+                if (n === undefined && !required) return undefined;
+                if (!Number.isInteger(n) || n < min || n > max) fail(`параметр ${name} должен быть целым числом от ${min} до ${max}.`);
+                return n;
+            };
+            if (['damage','heal','apply_status'].includes(action.type)) action.amount = intField(raw.action, 'amount', 1, action.type === 'damage' ? 12 : action.type === 'apply_status' ? 5 : 8);
+            if (action.type === 'apply_status') {
+                if (!EFFECT_STATUSES.includes(raw.action.status)) fail('поддерживаются только статусы poison и burn.');
+                action.status = raw.action.status;
+                action.turns = intField(raw.action, 'turns', 1, 3, false) ?? 2;
+            }
+            if (action.type === 'modify_resource') {
+                if (!['drop','action'].includes(raw.action.resource)) fail('resource должен быть drop или action.');
+                action.resource = raw.action.resource;
+                action.amount = intField(raw.action, 'amount', -5, 5);
+                if (!action.amount) fail('изменение ресурса не может быть равно нулю.');
+            }
+            if (action.type === 'modify_stat') {
+                if (!['attack','armor','max_hp'].includes(raw.action.stat)) fail('stat должен быть attack, armor или max_hp.');
+                action.stat = raw.action.stat;
+                action.amount = intField(raw.action, 'amount', -3, 3);
+                if (!action.amount) fail('изменение характеристики не может быть равно нулю.');
+            }
+            if (action.type === 'modify_cost') {
+                if (raw.action.cost !== 'action') fail('пока можно менять только стоимость действия action.');
+                action.cost = 'action';
+                action.amount = intField(raw.action, 'amount', -3, 3);
+                if (!action.amount) fail('изменение стоимости не может быть равно нулю.');
+            }
+
+            let target = raw.target;
+            if (!target && action.type === 'modify_resource') target = { side: 'controller', entity: 'player' };
+            if (!target || typeof target !== 'object' || Array.isArray(target)) fail('для этого действия нужно явно задать target.');
+            assertEffectKeys(target,['side','entity','zone','relation','select','count'],fail,'target');
+            const targetOut = {};
+            if (!['friendly','enemy','controller','opponent','either'].includes(target.side)) fail('target.side должен быть friendly, enemy, controller, opponent или either.');
+            if (!['unit','structure','permanent','player'].includes(target.entity)) fail('неизвестный тип цели.');
+            targetOut.side = target.side;
+            targetOut.entity = target.entity;
+            if (target.zone !== undefined) {
+                if (!['front','rear','any'].includes(target.zone)) fail('zone должен быть front, rear или any.');
+                targetOut.zone = target.zone;
+            }
+            if (target.relation !== undefined) {
+                if (!['any','self','adjacent','attack_target'].includes(target.relation)) fail('неизвестное relation.');
+                targetOut.relation = target.relation;
+            }
+            if (target.select !== undefined) {
+                if (!['first','lowest_hp','lowest_hp_ratio','highest_attack','attack_target'].includes(target.select)) fail('неизвестное правило выбора цели.');
+                targetOut.select = target.select;
+            }
+            if ((targetOut.select === 'attack_target' || targetOut.relation === 'attack_target') && raw.event !== 'attack') fail('attack_target доступна только в событии attack.');
+            if (targetOut.relation === 'adjacent' && targetOut.entity === 'player') fail('relation adjacent применяется только к картам на поле.');
+            if (targetOut.entity === 'player' && targetOut.select && !['first','attack_target'].includes(targetOut.select)) fail('правило выбора отряда нельзя применять к игроку.');
+            targetOut.count = target.count === undefined ? 1 : target.count;
+            if (!Number.isInteger(targetOut.count) || targetOut.count < 1 || targetOut.count > 3) fail('target.count должен быть от 1 до 3.');
+            if (['damage','heal','apply_status','destroy','modify_stat','modify_cost'].includes(action.type) && targetOut.entity === 'player' && !['damage','heal'].includes(action.type)) fail('это действие нельзя применять к игроку.');
+            if (['modify_stat','modify_cost','destroy'].includes(action.type) && targetOut.entity === 'player') fail('это действие требует цель на поле.');
+            if (action.type === 'modify_resource' && targetOut.entity !== 'player') fail('modify_resource требует цель player.');
+            if (action.type === 'apply_status' && targetOut.entity !== 'unit') fail('статус можно наложить только на отряд.');
+            const out = { event: raw.event, target: targetOut, action };
+            if (raw.condition !== undefined) out.condition = validateEffectCondition(raw.condition);
+            return out;
+        });
+    }
+
+    function validateEffectCondition(node, depth = 0, state = { count: 0 }) {
+        if (depth > 3 || ++state.count > 12 || !node || typeof node !== 'object' || Array.isArray(node)) throw new Error('Условие effects слишком сложное или имеет неверный формат.');
+        if (Array.isArray(node.all) && Array.isArray(node.any)) throw new Error('В одном узле условия выбери только all или any.');
+        if (Array.isArray(node.all) || Array.isArray(node.any)) {
+            const key = Array.isArray(node.all) ? 'all' : 'any';
+            if (Object.keys(node).length !== 1) throw new Error('Логический узел условия не должен содержать другие поля.');
+            const list = node[key];
+            if (!list.length || list.length > 4) throw new Error('all/any должны содержать от 1 до 4 условий.');
+            return { [key]: list.map(c => validateEffectCondition(c, depth + 1, state)) };
+        }
+        if (node.not !== undefined) {
+            if (Object.keys(node).length !== 1) throw new Error('Условие not должно содержать только одно вложенное условие.');
+            return { not: validateEffectCondition(node.not, depth + 1, state) };
+        }
+        if (node.type === 'target_wounded' && Object.keys(node).length === 1) return { type: node.type };
+        if (node.type === 'target_status' && Object.keys(node).every(k => ['type','status'].includes(k)) && EFFECT_STATUSES.includes(node.status)) return { type: node.type, status: node.status };
+        if (node.type === 'resource') {
+            if (Object.keys(node).some(k => !['type','side','resource','op','value'].includes(k))) throw new Error('Некорректные поля условия resource.');
+            if (!['controller','opponent'].includes(node.side) || !['drop','action'].includes(node.resource) || !EFFECT_COMPARE.includes(node.op) || !Number.isInteger(node.value) || node.value < 0 || node.value > 12) throw new Error('Некорректное условие resource.');
+            return { type: node.type, side: node.side, resource: node.resource, op: node.op, value: node.value };
+        }
+        if (node.type === 'target_stat') {
+            if (Object.keys(node).some(k => !['type','stat','op','value'].includes(k))) throw new Error('Некорректные поля условия target_stat.');
+            if (!['hp','attack','armor'].includes(node.stat) || !EFFECT_COMPARE.includes(node.op) || !Number.isInteger(node.value) || node.value < 0 || node.value > 20) throw new Error('Некорректное условие target_stat.');
+            return { type: node.type, stat: node.stat, op: node.op, value: node.value };
+        }
+        throw new Error('Неизвестное условие эффекта.');
+    }
+
+    function legacyKeywordEffects(card) {
+        // Миграция старых карт: только по явно заданным keywords, никогда по тексту.
+        if (!card || card.card_type !== 'spell') return [];
+        const kw = {};
+        (card.keywords || []).forEach(raw => {
+            const [key, value] = String(raw || '').toLowerCase().split(':');
+            if (key) kw[key] = Math.max(1, parseInt(value, 10) || 1);
+        });
+        const out = [];
+        if (kw.heal) out.push({ event:'enter_play', target:{ side:'friendly', entity:'unit', select:'lowest_hp_ratio', count:1 }, action:{ type:'heal', amount:Math.min(8, kw.heal || (card.drop_cost + 1)) } });
+        if (kw.poison) out.push({ event:'enter_play', target:{ side:'enemy', entity:'unit', zone:'front', select:'first', count:1 }, action:{ type:'apply_status', status:'poison', amount:Math.min(5,kw.poison), turns:2 } });
+        if (kw.burn) out.push({ event:'enter_play', target:{ side:'enemy', entity:'unit', zone:'front', select:'first', count:1 }, action:{ type:'apply_status', status:'burn', amount:Math.min(3,kw.burn), turns:2 } });
+        if (kw.supply) out.push({ event:'enter_play', action:{ type:'modify_resource', resource:'drop', amount:1 } });
+        if (kw.warcry) out.push({ event:'enter_play', action:{ type:'modify_resource', resource:'action', amount:1 } });
+        if (kw.exhaustenemy) out.push({ event:'enter_play', target:{ side:'opponent', entity:'player' }, action:{ type:'modify_resource', resource:'action', amount:-1 } });
+        if (kw.sabotage) out.push({ event:'enter_play', target:{ side:'enemy', entity:'structure', select:'first', count:1 }, action:{ type:'destroy' } });
+        return out;
+    }
+
+    function cardEffects(card) {
+        if (!card) return [];
+        if (Array.isArray(card.effects)) {
+            try { return validateEffects(card.effects); } catch (e) { return []; }
+        }
+        return legacyKeywordEffects(card);
+    }
+
+    function compareEffectValues(left, op, right) {
+        return ({ eq:left===right, ne:left!==right, lt:left<right, lte:left<=right, gt:left>right, gte:left>=right })[op] || false;
+    }
+
+    function allEffectUnits(side) {
+        const out = [];
+        ['front','back'].forEach(row => battle[side][row].forEach((unit,index) => {
+            if (unit) out.push({ kind:'unit', unit, side, row, index });
+        }));
+        return out;
+    }
+
+    function resolveEffectTargets(spec, context) {
+        const ownerSide = context.ownerSide;
+        const opponentSide = ownerSide === 'me' ? 'enemy' : 'me';
+        const selectedSide = spec.side === 'controller' || spec.side === 'friendly' ? ownerSide
+            : spec.side === 'opponent' || spec.side === 'enemy' ? opponentSide : null;
+        const selection = spec.select || 'first';
+        if (selection === 'attack_target' || spec.relation === 'attack_target') {
+            const t = context.eventTarget;
+            if (!t) return [];
+            if (t.kind === 'player') return spec.entity === 'player' ? [t] : [];
+            if (t.kind !== 'unit' || t.unit.currentHp <= 0) return [];
+            if (selectedSide && selectedSide !== t.side) return [];
+            if (spec.entity === 'unit' && t.unit.isStructure) return [];
+            if (spec.entity === 'structure' && !t.unit.isStructure) return [];
+            return [t];
+        }
+        if (spec.entity === 'player') {
+            const sides = spec.side === 'either' ? ['me','enemy'] : [selectedSide || ownerSide];
+            return sides.map(side => ({ kind:'player', side }));
+        }
+        let candidates = (spec.side === 'either' ? ['me','enemy'] : [selectedSide || ownerSide]).flatMap(allEffectUnits);
+        candidates = candidates.filter(t => {
+            if (spec.entity === 'unit' && t.unit.isStructure) return false;
+            if (spec.entity === 'structure' && !t.unit.isStructure) return false;
+            if (spec.entity === 'permanent' && !t.unit) return false;
+            if (t.unit.currentHp <= 0) return false;
+            if (spec.zone === 'front' && t.row !== 'front') return false;
+            if (spec.zone === 'rear' && t.row !== 'back') return false;
+            if (spec.relation === 'self') return t.unit === context.source;
+            return true;
+        });
+        if (spec.relation === 'self') candidates = candidates.filter(t => t.unit === context.source);
+        if (spec.relation === 'adjacent') {
+            const pos = context.source && _unitPos(context.source);
+            candidates = pos ? candidates.filter(t => t.side === pos.side && t.row === pos.r && Math.abs(t.index - pos.i) === 1) : [];
+        }
+        if (selection === 'lowest_hp') candidates.sort((a,b) => a.unit.currentHp - b.unit.currentHp || a.index-b.index);
+        else if (selection === 'lowest_hp_ratio') candidates.sort((a,b) => a.unit.currentHp/Math.max(1,a.unit.hp) - b.unit.currentHp/Math.max(1,b.unit.hp) || a.index-b.index);
+        else if (selection === 'highest_attack') candidates.sort((a,b) => (b.unit.currentAtk ?? b.unit.atk) - (a.unit.currentAtk ?? a.unit.atk) || a.index-b.index);
+        return candidates.slice(0, spec.count || 1);
+    }
+
+    function effectConditionPasses(condition, context, target) {
+        if (!condition) return true;
+        if (condition.all) return condition.all.every(c => effectConditionPasses(c,context,target));
+        if (condition.any) return condition.any.some(c => effectConditionPasses(c,context,target));
+        if (condition.not) return !effectConditionPasses(condition.not,context,target);
+        if (condition.type === 'target_wounded') {
+            return target.kind === 'player' ? battle[target.side].hp < MAX_HP : target.unit.currentHp < target.unit.hp;
+        }
+        if (condition.type === 'target_status') return target.kind === 'unit' && !!(target.unit.statuses && target.unit.statuses[condition.status]);
+        if (condition.type === 'target_stat') {
+            let value = null;
+            if (target.kind === 'player') value = condition.stat === 'hp' ? battle[target.side].hp : null;
+            else if (condition.stat === 'hp') value = target.unit.currentHp;
+            else if (condition.stat === 'attack') value = target.unit.currentAtk ?? target.unit.atk;
+            else if (condition.stat === 'armor') value = target.unit.statuses?.armor || 0;
+            return value !== null && compareEffectValues(value,condition.op,condition.value);
+        }
+        if (condition.type === 'resource') {
+            const side = condition.side === 'controller' ? context.ownerSide : (context.ownerSide === 'me' ? 'enemy' : 'me');
+            const p = battle[side];
+            const value = condition.resource === 'drop' ? p.dropMana : p.actionMana;
+            return compareEffectValues(value,condition.op,condition.value);
+        }
+        return false;
+    }
+
+    function executeEffectAction(effect, target, context) {
+        const action = effect.action;
+        const side = target.side;
+        const unit = target.kind === 'unit' ? target.unit : null;
+        const who = context.ownerSide;
+        const signed = n => n > 0 ? `+${n}` : String(n);
+        if (action.type === 'modify_resource') {
+            const p = battle[side || who];
+            const field = action.resource === 'drop' ? 'dropMana' : 'actionMana';
+            const maxField = action.resource === 'drop' ? 'dropManaMax' : 'actionManaMax';
+            const before = p[field];
+            p[field] = Math.max(0, Math.min(p[maxField], before + action.amount));
+            const delta = p[field] - before;
+            if (delta) logBattle(`⚙️ ${context.card.name}: ${delta > 0 ? '+' : ''}${delta}${action.resource === 'drop' ? '💎' : '⚡'} ${side === who ? 'владельцу' : 'противнику'}.`, who);
+            return;
+        }
+        if (action.type === 'damage') {
+            if (target.kind === 'player') {
+                battle[side].hp -= action.amount;
+                logBattle(`⚔️ ${context.card.name}: вождь получает ${action.amount} урона.`, who);
+            } else if (unit) {
+                const armor = Math.max(0, (unit.statuses?.armor || 0) - (context.source?.statuses?.pierce || 0));
+                const damage = Math.max(1, action.amount - armor);
+                unit.currentHp -= damage;
+                unit.justDamaged = true;
+                logBattle(`⚔️ ${context.card.name}: ${unit.name} получает ${damage} урона.`, who);
+            }
+            return;
+        }
+        if (action.type === 'heal') {
+            if (target.kind === 'player') {
+                const before = battle[side].hp;
+                battle[side].hp = Math.min(MAX_HP,before + action.amount);
+                if (battle[side].hp > before) logBattle(`🌿 ${context.card.name}: вождь восстанавливает ${battle[side].hp-before} здоровья.`,who);
+            } else if (unit) {
+                const before = unit.currentHp;
+                unit.currentHp = Math.min(unit.hp,before + action.amount);
+                if (unit.currentHp > before) logBattle(`🌿 ${context.card.name} лечит ${unit.name} на ${unit.currentHp-before} HP.`,who);
+            }
+            return;
+        }
+        if (action.type === 'apply_status' && unit) {
+            unit.statuses = unit.statuses || {};
+            const durationLabel = action.turns === 1 ? 'ход' : 'хода';
+            if (action.status === 'poison') {
+                unit.statuses.poison = Math.min(5,(unit.statuses.poison||0) + action.amount);
+                unit.statuses.poisonTurns = Math.max(unit.statuses.poisonTurns||0,action.turns);
+                logBattle(`☠️ ${context.card.name}: ${unit.name} отравлен на ${action.turns} ${durationLabel}.`,who);
+            } else if (action.status === 'burn') {
+                unit.statuses.burn = Math.min(3,(unit.statuses.burn||0) + action.amount);
+                unit.statuses.burnTurns = Math.max(unit.statuses.burnTurns||0,action.turns);
+                logBattle(`🔥 ${context.card.name}: ${unit.name} горит ${action.turns} ${durationLabel}.`,who);
+            }
+            return;
+        }
+        if (action.type === 'destroy' && unit) {
+            const pos = _unitPos(unit);
+            if (pos) {
+                battle[pos.side][pos.r][pos.i] = null;
+                logBattle(`💥 ${context.card.name} уничтожает ${unit.name}.`,who);
+            }
+            return;
+        }
+        if (action.type === 'modify_stat' && unit) {
+            unit.statuses = unit.statuses || {};
+            if (action.stat === 'attack') {
+                unit.atk = Math.min(12,Math.max(0,unit.atk + action.amount));
+                unit.currentAtk = Math.min(12,Math.max(0,(unit.currentAtk ?? unit.atk) + action.amount));
+            } else if (action.stat === 'armor') {
+                unit.statuses.armor = Math.min(8,Math.max(0,(unit.statuses.armor||0) + action.amount));
+            } else {
+                unit.hp = Math.min(20,Math.max(1,unit.hp + action.amount));
+                unit.currentHp = Math.min(unit.hp,Math.max(1,unit.currentHp + action.amount));
+            }
+            logBattle(`📈 ${context.card.name}: ${unit.name} получает ${signed(action.amount)} к ${action.stat === 'attack' ? 'атаке' : action.stat === 'armor' ? 'броне' : 'максимальному здоровью'}.`,who);
+            return;
+        }
+        if (action.type === 'modify_cost' && unit) {
+            unit.action_cost = Math.max(0,Math.min(6,unit.action_cost + action.amount));
+            logBattle(`⚙️ ${context.card.name}: стоимость действия ${unit.name} изменена на ${signed(action.amount)}⚡.`,who);
+        }
+    }
+
+    function resolveCardEffects(source, event, ownerSide, eventTarget = null) {
+        if (!battle || !source) return;
+        const effects = cardEffects(source);
+        const context = { source, ownerSide, eventTarget, card:source };
+        effects.forEach(effect => {
+            if (effect.event !== event) return;
+            const targets = effect.target ? resolveEffectTargets(effect.target,context) : [];
+            targets.forEach(target => {
+                if (effectConditionPasses(effect.condition,context,target)) executeEffectAction(effect,target,context);
+            });
+        });
+    }
+
+    function describeEffect(effect) {
+        const event = { enter_play:'При выходе', attack:'При атаке', turn_start:'В начале хода' }[effect.event] || effect.event;
+        const a = effect.action, t = effect.target || {};
+        const side = { friendly:'свой', controller:'свой', enemy:'вражеский', opponent:'вражеский', either:'любой' }[t.side] || 'цель';
+        const entity = { unit:'отряд', structure:'постройку', permanent:'карту на поле', player:'игрока' }[t.entity] || '';
+        const zone = t.zone === 'front' ? ' в авангарде' : t.zone === 'rear' ? ' в тылу' : '';
+        const relation = t.relation === 'self' ? ' (сам источник)' : t.relation === 'adjacent' ? ' (соседний слот в том же ряду)' : t.relation === 'attack_target' ? ' цели атаки' : '';
+        const select = { lowest_hp:' с наименьшим здоровьем', lowest_hp_ratio:' с наименьшей долей здоровья', highest_attack:' с наибольшей атакой', attack_target:' цели атаки' }[t.select] || '';
+        const count = t.count > 1 ? ` ×${t.count}` : '';
+        let actionText = '';
+        if (a.type === 'damage') actionText = `наносит ${a.amount} урона`;
+        if (a.type === 'heal') actionText = `лечит на ${a.amount} HP`;
+        if (a.type === 'apply_status') actionText = `накладывает ${a.status === 'poison' ? 'яд' : 'огонь'} (${a.amount}, ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'})`;
+        if (a.type === 'destroy') actionText = 'уничтожает цель';
+        if (a.type === 'modify_resource') actionText = `${a.amount > 0 ? '+' : ''}${a.amount}${a.resource === 'drop' ? '💎' : '⚡'} игроку`;
+        if (a.type === 'modify_stat') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к ${a.stat === 'attack' ? 'атаке' : a.stat === 'armor' ? 'броне' : 'макс. здоровью'}`;
+        if (a.type === 'modify_cost') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к цене действия`;
+        const targetText = a.type === 'modify_resource' && !effect.target ? '' : ` → ${side} ${entity}${zone}${select}${relation}${count}`;
+        const conditionText = effect.condition ? `; если ${describeEffectCondition(effect.condition)}` : '';
+        return `${event}${targetText}: ${actionText}${conditionText}`;
+    }
+
+    function describeEffectCondition(condition) {
+        if (condition.all) return condition.all.map(describeEffectCondition).join(' И ');
+        if (condition.any) return condition.any.map(describeEffectCondition).join(' ИЛИ ');
+        if (condition.not) return `НЕ (${describeEffectCondition(condition.not)})`;
+        const op = { eq:'=', ne:'≠', lt:'<', lte:'≤', gt:'>', gte:'≥' }[condition.op] || condition.op;
+        if (condition.type === 'target_wounded') return 'цель ранена';
+        if (condition.type === 'target_status') return `у цели есть статус «${condition.status}»`;
+        if (condition.type === 'resource') return `${condition.side === 'controller' ? 'у владельца' : 'у противника'} ${condition.resource === 'drop' ? '💎' : '⚡'} ${op} ${condition.value}`;
+        if (condition.type === 'target_stat') return `у цели ${condition.stat === 'hp' ? 'здоровье' : condition.stat === 'attack' ? 'атака' : 'броня'} ${op} ${condition.value}`;
+        return 'условие выполнено';
+    }
+
+    // ============================================
     // ПРИМЕНЕНИЕ ЭФФЕКТОВ КАРТ В ВЫСАДКУ
     // ============================================
     function applyCardKeywordsToUnit(u) {
         u.statuses = u.statuses || {};
-        // Читаем ТОЛЬКО явные ключевые слова от LLM (поле keywords из JSON).
-        // Движок НИКОГДА не догадывается о свойствах по тексту.
+        // Читаем только явные keywords из JSON. Событийные правила исполняются отдельно из effects[].
+        // Ни description, ни tags, ни abilities не анализируются.
         const kwList = (u.keywords || u._sourceKeywords || []);
         // Поддерживаем строки вида "armor:2" или "pierce:1" и просто "ranged"
         kwList.forEach(raw => {
@@ -2417,6 +2829,7 @@ ${prompt}
 
             // Компактный рендер для руки
             const typeDef = CARD_TYPES[card.card_type] || CARD_TYPES.unit;
+            const effectPreview = cardEffects(card).map(describeEffect).join(' · ');
             const statsHtml = card.card_type === 'unit'
                 ? `<span class="stat-chip hp">❤️${card.hp}</span><span class="stat-chip atk">⚔️${card.atk}</span>`
                 : card.card_type === 'structure' ? `<span class="stat-chip hp">❤️${card.hp}</span>` : `<span class="stat-chip">✨Спелл</span>`;
@@ -2434,6 +2847,7 @@ ${prompt}
                 <div class="card-type">${typeDef.icon} ${typeDef.label}</div>
                 <div class="card-art">${card.emoji || '⚒️'}</div>
                 <div class="card-desc">${card.description}</div>
+                ${effectPreview ? `<div class="card-effects-preview" title="${effectPreview}">⚙️ ${effectPreview}</div>` : ''}
                 <div class="card-stats">${statsHtml}</div>
             </div>`;
         });
@@ -2519,6 +2933,7 @@ ${prompt}
             justAttacked: false,
             isStructure: card.card_type === 'structure',
             keywords: card.keywords || [],
+            effects: cardEffects(card),
             statuses: {}
         };
         applyCardKeywordsToUnit(unit);
@@ -2547,6 +2962,8 @@ ${prompt}
         // Удаляем из руки
         battle.me.hand.splice(selectedHandIdx, 1);
         selectedHandIdx = null;
+        resolveCardEffects(unit, 'enter_play', 'me');
+        cleanupDead();
         renderBattle();
         checkBattleEnd();
     }
@@ -2557,104 +2974,9 @@ ${prompt}
         battle.me.dropMana -= card.drop_cost;
         battle.me.hand.splice(idx, 1);
         selectedHandIdx = null;
-
-        const text = (card.name+' '+(card.description||'')+' '+((card.abilities||[]).join(' '))+' '+((card.keywords||[]).join(' '))).toLowerCase();
-        const frontEnemy = battle.enemy.front.find(u => u);
-
-        const kwSet = new Set((card.keywords||[]).map(k=>String(k||'').toLowerCase().trim().split(':')[0]));
-        const textHit = (pat) => pat.test(text);
-        const has = (k) => kwSet.has(k) || textHit(k==='spy'?/шпион|развед|spy|лазутч/
-            :k==='sabotage'?/диверс|sabotage|саботаж/
-            :k==='heal'?/исцел|лекар|heal|трав|перевязыв|рана/
-            :k==='rally'?/мобилизац|сбор ополчен|rally|военный сбор/
-            :k==='burn'?/поджог|огн|пожар|burn|факел/
-            :k==='poison'?/яд|отрав|poison/
-            :k==='supply'?/снабж|обоз|караван|припас/
-            :k==='warcry'?/боевой клич|сигнал рога|warcry|воодушев/
-            :k==='fear'?/устраш|паник|fear|страх/
-            :/./);  // фолбэк: для новых kw без регэкспа — через текст не определяем
-
-        if (has('spy')) {
-            const names = battle.enemy.hand.map(c=>c.name).join(', ');
-            logBattle(`🕵️ Лазутчик докладывает: в руке врага — ${names||'пусто'}!`, 'me');
-        }
-        else if (has('sabotage')) {
-            const structs = [];
-            battle.enemy.front.forEach((u,i)=>{ if (u && u.isStructure) structs.push({u,r:'front',i}); });
-            battle.enemy.back.forEach((u,i)=>{ if (u && u.isStructure) structs.push({u,r:'back',i}); });
-            if (structs.length && Math.random() < 0.7) {
-                const t = structs[Math.floor(Math.random()*structs.length)];
-                battle.enemy[t.r][t.i] = null;
-                logBattle(`💣 Диверсия! ${t.u.name} врага разрушена!`, 'me');
-            } else {
-                logBattle(`💣 Диверсанты ничего не нашли...`, 'me');
-            }
-        }
-        else if (has('heal')) {
-            const allMy = [...battle.me.front,...battle.me.back].filter(u=>u&&!u.isStructure && u.currentHp < u.hp);
-            const healAmount = card.drop_cost + 1;
-            if (allMy.length) {
-                if (card.drop_cost <= 2 || allMy.length === 1) {
-                    const tgt = allMy.reduce((a,b)=>a.currentHp/a.hp < b.currentHp/b.hp ? a : b);
-                    tgt.currentHp = Math.min(tgt.hp, tgt.currentHp + healAmount);
-                    logBattle(`🌿 ${card.name} исцеляет ${tgt.name} на ${healAmount} HP.`, 'me');
-                } else {
-                    const per = Math.max(1, Math.ceil(healAmount/2));
-                    allMy.forEach(u => { u.currentHp = Math.min(u.hp, u.currentHp + per); });
-                    logBattle(`🌿 ${card.name} перевязывает раны ${allMy.length} отрядам (+${per} HP каждому).`, 'me');
-                }
-            } else {
-                logBattle(`🌿 ${card.name}: раненых нет.`, 'me');
-            }
-        }
-        else if (has('rally')) {
-            [...battle.me.front,...battle.me.back].forEach(u=>{if(u&&!u.isStructure)u.exhausted=false;});
-            logBattle(`📣 ${card.name}! Все твои отряды готовы сражаться снова!`, 'me');
-        }
-        else if (has('warcry')) {
-            battle.me.actionMana = Math.min(MAX_ACTION_MANA, battle.me.actionMana + 2);
-            logBattle(`📯 ${card.name}: боевой клич! +2⚡ действий!`, 'me');
-        }
-        else if (has('supply')) {
-            battle.me.dropManaMax = Math.min(MAX_DROP_MANA, battle.me.dropManaMax + 2);
-            battle.me.dropMana += 2;
-            logBattle(`📦 ${card.name}: припасы доставлены! +2💎.`, 'me');
-        }
-        else if (has('burn')) {
-            if (frontEnemy) {
-                frontEnemy.statuses.burn = (frontEnemy.statuses.burn||0) + 2;
-                logBattle(`🔥 ${card.name}: ${frontEnemy.name} объят пламенем!`, 'me');
-            } else {
-                battle.enemy.hp -= card.drop_cost;
-                logBattle(`🔥 ${card.name} наносит ${card.drop_cost} урона вождю.`, 'me');
-            }
-        }
-        else if (has('poison')) {
-            if (frontEnemy) {
-                frontEnemy.statuses.poison = (frontEnemy.statuses.poison||0) + 1;
-                logBattle(`☠️ ${card.name}: ${frontEnemy.name} отравлен!`, 'me');
-            }
-        }
-        else if (has('fear')) {
-            if (frontEnemy) {
-                frontEnemy._fears = true;
-                logBattle(`😱 ${card.name}: ${frontEnemy.name} устрашён!`, 'me');
-            }
-        }
-        else {
-            let damage = card.drop_cost * 2;
-            const m = (card.description||'').match(/(\d+)\s*урон/);
-            if (m) damage = parseInt(m[1])||damage;
-            if (frontEnemy) {
-                dealDamage(frontEnemy, damage, 'enemy');
-                logBattle(`⚔️ Ты применяешь ${card.name} → ${frontEnemy.name} получает ${damage} урона!`, 'me');
-            } else {
-                battle.enemy.hp -= damage;
-                logBattle(`⚔️ Ты применяешь ${card.name} → вражеский вождь получает ${damage} урона!`, 'me');
-            }
-        }
+        logBattle(`📜 Ты разыгрываешь манёвр «${card.name}».`, 'me');
+        resolveCardEffects(card, 'enter_play', 'me');
         cleanupDead();
-        selectedHandIdx = null;
         renderBattle();
         checkBattleEnd();
     }
@@ -2737,6 +3059,10 @@ ${prompt}
 
         attacker.exhausted = true;
         battle.me.actionMana -= attacker.action_cost;
+        const attackEffectTarget = targetInfo.row === 'hero'
+            ? { kind:'player', side:'enemy' }
+            : (targetInfo.u ? { kind:'unit', unit:targetInfo.u, side:'enemy' } : null);
+        resolveCardEffects(attacker, 'attack', 'me', attackEffectTarget);
         cleanupDead();
         selectedUnitId = null;
         awaitingTarget = false;
@@ -2918,6 +3244,10 @@ ${prompt}
             });
         });
 
+        // Пользовательские триггеры начала хода (строго из effects[]).
+        allEffectUnits(who).forEach(entry => resolveCardEffects(entry.unit, 'turn_start', who));
+        cleanupDeadForSide(who);
+
         // Дро карты
         drawCard(who);
         logBattle(`🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Мана: 💎${p.dropMana}/${p.dropManaMax} ⚡${p.actionMana}/${p.actionManaMax}`, 'system');
@@ -2972,18 +3302,10 @@ ${prompt}
             const { c: card, i: idx } = playable[0];
 
             if (card.card_type === 'spell') {
-                // Играем спелл в случайную цель
                 e.dropMana -= card.drop_cost;
                 e.hand.splice(idx, 1);
-                const myFront = battle.me.front.find(u => u);
-                if (myFront) {
-                    dealDamage(myFront, card.drop_cost * 2, 'me');
-                    logBattle(`✨ Враг применяет ${card.name} в ${myFront.name} (-${card.drop_cost*2} HP)`, 'enemy');
-                    myFront.justDamaged = true;
-                } else {
-                    battle.me.hp -= card.drop_cost * 2;
-                    logBattle(`✨ Враг применяет ${card.name} в тебя (-${card.drop_cost*2} HP)`, 'enemy');
-                }
+                logBattle(`📜 Враг разыгрывает манёвр «${card.name}».`, 'enemy');
+                resolveCardEffects(card, 'enter_play', 'enemy');
                 cleanupDead();
                 renderBattle();
                 await delay(500);
@@ -3020,6 +3342,7 @@ ${prompt}
                             exhausted: true, justDamaged: false, justAttacked: false,
                             isStructure: card.card_type === 'structure',
                             keywords: card.keywords || [],
+                            effects: cardEffects(card),
                             statuses: {}
                         };
                         applyCardKeywordsToUnit(unit);
@@ -3031,6 +3354,7 @@ ${prompt}
                         if (unit.statuses.warcry) e.actionMana = Math.min(MAX_ACTION_MANA, e.actionMana + 1);
                         if (unit.statuses.harras) battle.me._blockDropNext = (battle.me._blockDropNext||0) + 1;
                         if (unit.statuses.exhaustenemy) battle.me.actionMana = Math.max(0, battle.me.actionMana - 1);
+                        resolveCardEffects(unit, 'enter_play', 'enemy');
                         logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
                         placed = true;
                         break;
@@ -3084,6 +3408,10 @@ ${prompt}
                 attacker.justAttacked = true;
             }
             attacker.exhausted = true;
+            const enemyAttackEffectTarget = targetInfo.row === 'hero'
+                ? { kind:'player', side:'me' }
+                : (targetInfo.u ? { kind:'unit', unit:targetInfo.u, side:'me' } : null);
+            resolveCardEffects(attacker, 'attack', 'enemy', enemyAttackEffectTarget);
 
             cleanupDead();
             // Прервём цикл если атакующий погиб от встречного урона
