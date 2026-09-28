@@ -1456,18 +1456,26 @@ ${prompt}
             `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${filteredAbilities.map(a => '• ' + a).join('<br>')}</div>` : '';
 
         // Иконки ключевых слов (механик)
-        const kwIcons = [];
-        (card.keywords || []).forEach(k => {
-            if (!k) return;
-            const kn = String(k).toLowerCase().trim();
-            if (KEYWORDS[kn]) kwIcons.push(`<span class="kw-chip" title="${KEYWORDS[kn].desc}" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em;">${KEYWORDS[kn].label}</span>`);
+        const kwIconsArr = [];
+        const explicitSet = new Set((card.keywords||[]).map(k=>String(k||'').toLowerCase().trim()).filter(Boolean));
+        explicitSet.forEach(kn => {
+            if (KEYWORDS[kn]) kwIconsArr.push({kn, auto:false});
         });
-        // Автодобавление иконок по эвристике из описания (если ИИ забыл прописать keywords)
-        const text = ((card.name||'')+' '+(card.description||'')+' '+((card.abilities||[]).join(' '))).toLowerCase();
-        const autoKw = [];
-        if (!kwIcons.length && /копь[её]|длинн|пик|саррис/.test(text)) autoKw.push(['reach', KEYWORDS.reach]);
-        autoKw.forEach(([k,def]) => {
-            if (!(card.keywords||[]).includes(k)) kwIcons.push(`<span class="kw-chip" title="${def.desc} (автоопределено)" style="display:inline-block; background:rgba(255,255,255,0.05); border:1px dashed rgba(255,255,255,0.2); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em; opacity:.75;">${def.label}</span>`);
+        // Автодетект общих регулярных паттернов (если ИИ забыл прописать keyword)
+        const detectText = [card.name||'', card.description||'', ...(card.abilities||[]), ...(card.tags||[])].join(' ');
+        const det = detectKeywordsFromText(detectText);
+        det.flags.forEach(kn => {
+            if (!explicitSet.has(kn) && KEYWORDS[kn]) kwIconsArr.push({kn, auto:true});
+        });
+        // Рендерим чипы
+        const kwIcons = kwIconsArr.map(({kn,auto}) => {
+            const def = KEYWORDS[kn];
+            const suffix = (def && ['armor','pierce','poison','burn','heal'].includes(kn)) ? (det.nums[kn]||1) : '';
+            const title = def.desc + (auto ? ' (автоопределено по описанию)' : '');
+            const style = auto
+                ? 'display:inline-block; background:rgba(255,255,255,0.05); border:1px dashed rgba(255,255,255,0.25); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em; opacity:.8;'
+                : 'display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em;';
+            return `<span class="kw-chip" title="${title}" style="${style}">${def.label}${suffix}</span>`;
         });
         const kwHtml = kwIcons.length ? `<div style="margin:4px 0; font-size:0.72em; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwIcons.join('')}</div>` : '';
 
@@ -1745,7 +1753,7 @@ ${prompt}
         taunt:      { label: '😤', desc: 'Провокация: враг ОБЯЗАН атаковать этот отряд первым.' },
         poison:     { label: '☠️', desc: 'Яд N: цель теряет N HP в начале каждого хода.' },
         burn:       { label: '🔥', desc: 'Поджог N: урон по цели + шанс распространения.' },
-        heal:       { label: '🌿', desc: 'Исцеление N: восстанавливает HP союзнику.' },
+        heal:       { label: '🌿', desc: 'Лекарь N: в начале каждого хода исцеляет самого раненого соседа в ряду (или себя) на N HP.' },
         rally:      { label: '📣', desc: 'Поддержка: союзники по флангу +1 атаке.' },
         fear:       { label: '😱', desc: 'Устрашение: шанс обратить цель в бегство.' },
         morale:     { label: '🎖️', desc: 'Мораль: при HP<30% шанс бегства.' },
@@ -1955,6 +1963,51 @@ ${prompt}
     // ============================================
     // ПРИМЕНЕНИЕ ЭФФЕКТОВ КАРТ В ВЫСАДКУ
     // ============================================
+    // ============================================
+    // ОБЩИЙ ДЕТЕКТОР КЛЮЧЕВЫХ СЛОВ ПО ТЕКСТУ
+    // Используется и движком при высадке, и рендером карточек коллекции/кузницы
+    // ============================================
+    function detectKeywordsFromText(text) {
+        const t = (text||'').toLowerCase();
+        const out = { flags: new Set(), nums: {} };
+        const numMatch = (kw, pattern, group=1) => {
+            const m = t.match(pattern);
+            if (m) { out.flags.add(kw); out.nums[kw] = parseInt(m[group])||1; }
+        };
+        const flag = (kw, pattern) => { if (pattern.test(t)) out.flags.add(kw); };
+        const numeric = (kw, pattern) => { if (pattern.test(t)) { out.flags.add(kw); out.nums[kw] = out.nums[kw]||1; } };
+
+        numeric('armor', /брон|щит|доспех|кожан|armor|шлем/);
+        numeric('pierce', /пробит|пронз|pierce|остр/);
+        flag('ranged', /лучник|пращ|метат|стрел|ranged|дальн/);
+        flag('reach', /длинн|копь[её]|пика|reach|саррис/);
+        flag('charge', /чарж|налёт|charge|рывок|колесниц/);
+        flag('shieldwall', /стен[ау] щит|щитонос|shieldwall/);
+        flag('wedge', /клин|wedge/);
+        flag('phalanx', /фаланг|sarissa|саррис/);
+        flag('skirmish', /засад|skirm|набег(?!.*диверс)/);
+        flag('taunt', /провокац|taunt|защитн|прикрыва/);
+        numeric('poison', /яд|отрав|poison/);
+        numeric('burn', /огн|пожар|поджог|burn|факел/);
+        numeric('heal', /исцел|лекар|травниц|перевязыв|лечит|рана|лекарств|heal|отдых у костра|промывают раны/);
+        flag('rally', /поддерж|боевой дух|rally|песн|мобилизац/);
+        flag('fear', /устраш|паник|fear|страх/);
+        flag('morale', /мораль|morale/);
+        flag('siege', /осад|таран|осажда|siege|стенобит/);
+        flag('spy', /шпион|развед|spy|лазутч/);
+        flag('sabotage', /диверс|sabotage|саботаж|поджог амбар/);
+        flag('supply', /снабж|обоз|караван|припас|supply|добытчик/);
+        flag('warcry', /боевой клич|сигнал рога|warcry|воодушев|полководец|барабан/);
+        flag('loot', /добыч|loot|грабёж|трофей|мародёр/);
+        flag('raider', /налётч|raider|марод|грабитель/);
+        flag('harras', /партизан|harras/);
+        flag('exhaustenemy', /измот|изнур|деморализ|exhaust|шумн|вымот/);
+        flag('sturdy', /стойк|крепк|опытн|закал|sturdy|первой атаки|первого удара|первого натиска|на 1 меньше урона/);
+        flag('holdground', /держат строй|удержание строя|не отступают|hold.?ground|не дрогн/);
+        flag('upkeep', /содержание истощает|содержание.*припас|upkeep|без.*поддержки.*(?:союзн|друж|сосед)|в отсутствие.*(?:союзн|друж|сосед)|истощает припас|нет другой дружественной единицы/);
+        return out;
+    }
+
     function applyCardKeywordsToUnit(u) {
         u.statuses = u.statuses || {};
         // 1) Сначала читаем явные ключевые слова от LLM (поле keywords из JSON)
@@ -1966,37 +2019,18 @@ ${prompt}
             else if (['ranged','reach','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy','sturdy','holdground','upkeep'].includes(kn)) u.statuses[kn] = true;
             else if (kn === 'poison' || kn === 'burn') u.statuses[kn] = (u.statuses[kn]||0) + 1;
         });
-        // 2) Эвристическое обнаружение по имени/описанию/способностям (для обратной совместимости)
-        const text = ((u.name||'') + ' ' + (u.description||'') + ' ' + (u.abilities||[]).join(' ') + ' ' + (u.tags||[]).join(' ')).toLowerCase();
-        if (!u.statuses.armor && /брон|щит|доспех|кожан|armor|шлем/.test(text)) u.statuses.armor = 1;
-        if (!u.statuses.pierce && /пробит|пронз|pierce|остр/.test(text)) u.statuses.pierce = 1;
-        if (!u.statuses.ranged && /лучник|пращ|метат|стрел|ranged|дальн/.test(text)) u.statuses.ranged = true;
-        if (!u.statuses.reach && /длинн|копьё|пика|reach|саррис/.test(text)) u.statuses.reach = true;
-        if (!u.statuses.charge && /чарж|налёт|charge|рывок|колесниц/.test(text)) u.statuses.charge = true;
-        if (!u.statuses.shieldwall && /стен[ау] щит|щитонос|shieldwall/.test(text)) { u.statuses.shieldwall = true; u.statuses.armor = Math.max(u.statuses.armor||0, 1); }
-        if (!u.statuses.wedge && /клин|wedge/.test(text)) u.statuses.wedge = true;
-        if (!u.statuses.phalanx && /фаланг|sarissa|саррис/.test(text)) u.statuses.phalanx = true;
-        if (!u.statuses.skirmish && /засад|skirm|набег/.test(text)) u.statuses.skirmish = true;
-        if (!u.statuses.taunt && /провокац|taunt|защитн|прикрыва/.test(text)) u.statuses.taunt = true;
-        if (!u.statuses.poison && /яд|отрав|poison/.test(text)) u.statuses.poison = 1;
-        if (!u.statuses.burn && /огн|пожар|поджог|burn|факел/.test(text)) u.statuses.burn = 1;
-        if (!u.statuses.heal && /исцел|лекар|трав|heal/.test(text)) u.statuses.heal = 1;
-        if (!u.statuses.rally && /поддерж|боевой дух|rally|песн/.test(text)) u.statuses.rally = true;
-        if (!u.statuses.fear && /устраш|паник|fear|страх/.test(text)) u.statuses.fear = true;
-        if (!u.statuses.morale && /мораль|morale/.test(text)) u.statuses.morale = true;
-        if (!u.statuses.siege && /осад|таран|осажда|siege|стенобит/.test(text)) u.statuses.siege = true;
-        if (!u.statuses.spy && /шпион|развед|spy|лазутч/.test(text)) u.statuses.spy = true;
-        if (!u.statuses.sabotage && /диверс|sabotage|саботаж|поджог амбар/.test(text)) u.statuses.sabotage = true;
-        // Мана-манипуляции
-        if (!u.statuses.supply && /снабж|обоз|караван|припас|supply|добытчик/.test(text)) u.statuses.supply = true;
-        if (!u.statuses.warcry && /боевой клич|сигнал рога|warcry|воодушев|полководец|барабан/.test(text)) u.statuses.warcry = true;
-        if (!u.statuses.loot && /добыч|loot|грабёж|трофей|мародёр/.test(text)) u.statuses.loot = true;
-        if (!u.statuses.raider && /налётч|raider|марод|грабитель|набег/.test(text)) u.statuses.raider = true;
-        if (!u.statuses.harras && /партизан|harras|набеги/.test(text)) u.statuses.harras = true;
-        if (!u.statuses.exhaustenemy && /измот|изнур|деморализ|exhaust|шумн|вымот/.test(text)) u.statuses.exhaustenemy = true;
-        if (!u.statuses.sturdy && /стойк|крепк|опытн|закал|sturdy|первая атака.*урон|первого удара|первого натиска/.test(text)) u.statuses.sturdy = true;
-        if (!u.statuses.holdground && /держат строй|удержание строя|не отступают|hold.?ground|не дрогн/.test(text)) u.statuses.holdground = true;
-        if (!u.statuses.upkeep && /содержание|снабжение.*если|без.*поддержки|upkeep|истощает припас/.test(text)) u.statuses.upkeep = true;
+        // 2) Эвристическое обнаружение по имени/описанию/способностям (общий детектор)
+        const detectText = [u.name||'', u.description||'', ...(u.abilities||[]), ...(u.tags||[])].join(' ');
+        const det = detectKeywordsFromText(detectText);
+        det.flags.forEach(kw => {
+            if (['armor','pierce','poison','burn','heal'].includes(kw)) {
+                u.statuses[kw] = Math.max(u.statuses[kw]||0, det.nums[kw]||1);
+            } else {
+                u.statuses[kw] = u.statuses[kw] || true;
+            }
+        });
+        // shieldwall автоматически даёт +1 броня
+        if (u.statuses.shieldwall) u.statuses.armor = Math.max(u.statuses.armor||0, 1);
         u._justDeployed = true;
     }
 
@@ -2503,13 +2537,22 @@ ${prompt}
                 logBattle(`💣 Диверсанты ничего не нашли...`, 'me');
             }
         }
-        else if (/исцел|лекар|heal|трав/.test(text) || (card.keywords||[]).includes('heal')) {
-            const allMy = [...battle.me.front,...battle.me.back].filter(u=>u&&!u.isStructure);
+        else if (/исцел|лекар|heal|трав|перевязыв|рана/.test(text) || (card.keywords||[]).includes('heal')) {
+            const allMy = [...battle.me.front,...battle.me.back].filter(u=>u&&!u.isStructure && u.currentHp < u.hp);
+            const healAmount = card.drop_cost + 1;
             if (allMy.length) {
-                const tgt = allMy.reduce((a,b)=>a.currentHp/a.hp < b.currentHp/b.hp ? a : b);
-                const heal = card.drop_cost+1;
-                tgt.currentHp = Math.min(tgt.hp, tgt.currentHp + heal);
-                logBattle(`🌿 ${card.name} исцеляет ${tgt.name} на ${heal} HP.`, 'me');
+                // Хил по нескольким раненым (AoE): чем меньше drop_cost, тем точечнее
+                if (card.drop_cost <= 2 || allMy.length === 1) {
+                    const tgt = allMy.reduce((a,b)=>a.currentHp/a.hp < b.currentHp/b.hp ? a : b);
+                    tgt.currentHp = Math.min(tgt.hp, tgt.currentHp + healAmount);
+                    logBattle(`🌿 ${card.name} исцеляет ${tgt.name} на ${healAmount} HP.`, 'me');
+                } else {
+                    const per = Math.max(1, Math.ceil(healAmount/2));
+                    allMy.forEach(u => { u.currentHp = Math.min(u.hp, u.currentHp + per); });
+                    logBattle(`🌿 ${card.name} перевязывает раны ${allMy.length} отрядам (+${per} HP каждому).`, 'me');
+                }
+            } else {
+                logBattle(`🌿 ${card.name}: раненых нет.`, 'me');
             }
         }
         else if (/мобилизац|сбор ополчен|rally|военный сбор/.test(text) || (card.keywords||[]).includes('rally')) {
@@ -2734,6 +2777,34 @@ ${prompt}
         // Сначала тикаем статусы (DoT/огонь/бегство)
         tickStatuses(who);
         cleanupDeadForSide(who);
+
+        // Пассивное ЛЕЧЕНИЕ от юнитов с heal в этом ходу
+        const allMyUnits = [];
+        ['front','back'].forEach(r => p[r].forEach((u,i)=>{ if (u && !u.isStructure) allMyUnits.push({u,r,i}); }));
+        allMyUnits.forEach(({u,r,i}) => {
+            if (!u.statuses.heal) return;
+            // Лечат самого раненого СОСЕДА в том же ряду (или себя, если нет раненых)
+            const sameRow = p[r];
+            const candidates = [];
+            [-1,1].forEach(off=>{
+                const ni=i+off;
+                if (ni>=0&&ni<sameRow.length&&sameRow[ni]&&!sameRow[ni].isStructure&&sameRow[ni].currentHp<sameRow[ni].hp) {
+                    candidates.push(sameRow[ni]);
+                }
+            });
+            let target = null;
+            if (candidates.length) target = candidates.sort((a,b)=>a.currentHp/a.hp - b.currentHp/b.hp)[0];
+            else if (u.currentHp < u.hp) target = u;
+            if (target) {
+                const amount = u.statuses.heal || 1;
+                const before = target.currentHp;
+                target.currentHp = Math.min(target.hp, target.currentHp + amount);
+                const healed = target.currentHp - before;
+                if (healed > 0) {
+                    logBattle(`🌿 ${u.name} перевязывает раны ${target===u?'себе':target.name} (+${healed} HP).`, who);
+                }
+            }
+        });
 
         // Разморозка юнитов + бонусы формаций
         ['front','back'].forEach(r => {
