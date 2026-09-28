@@ -998,7 +998,7 @@
                 <div class="player-banner enemy">
                     <div class="player-avatar">👹</div>
                     <div class="player-info">
-                        <div class="player-name">Тёмный Лорд</div>
+                        <div class="player-name">Вождь племени</div>
                         <div class="hp-bar-wrap">
                             <div class="hp-bar-fill hp-enemy" id="enemy-hp-bar" style="width:100%"></div>
                         </div>
@@ -1258,9 +1258,30 @@
 Сеттинг — реалистичный ДРЕВНИЙ МИР и БРОНЗОВЫЙ ВЕК. НИКАКОЙ МАГИИ, драконов, нежити, демонов, огненных шаров и прочего фэнтези. Всё рационально и исторически обосновано: оружие из камня/кости/бронзы, племена, первые города, стены, колесницы, амбары, разведка, набеги, караваны, ритуалы предков и т.д.
 
 ЭПОХИ (критически важно):
-- "ancient" (Древний мир / каменный век) — каменные топоры, копья с кремнёвыми наконечниками, пращи, дубины, кожаные щиты, племенные ополчения, частоколы. Простая экипировка, юниты слабее.
-- "bronze" (Бронзовый век) — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские. Это РАЗВИТАЯ стадия.
-БАЛАНС ЭПОХ: юниты БРОНЗОВОГО века превосходят древних. Бронза бьёт камень. Древние юниты наносят на 1 урона меньше по бронзовым (но не меньше 1). Бронзовые наносят на 1 больше по древним.
+- "ancient" (Древний мир / каменный век) — каменные топоры, копья с кремнёвыми наконечниками, пращи, дубины, кожаные щиты, племенные ополчения, частоколы.
+- "bronze" (Бронзовый век) — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские.
+БАЛАНС ЭПОХ НЕ ЧЕРЕЗ МАНУ/СТАТЫ. Бронзовый отряд МОЖЕТ стоить 2 маны (наёмники) и иметь небольшие статы, но ОБЯЗАТЕЛЬНО должен иметь ключевые слова/свойства, дающие ему преимущество в бою (например, pierce/armor/charge/phalanx). Базовый модификатор встречи эпох: древние −1 урон по бронзе (мин 1), бронза +1 урон по древним — это лишь вишенка на торте, главное — свойства.
+
+СИСТЕМА КЛЮЧЕВЫХ СЛОВ (доступны механики; используй подходящие):
+- armor: N — броня снижает входящий урон на N.
+- pierce: N — пробитие игнорирует N брони.
+- ranged — дальний бой (лучники/пращники), с тыла бьёт авангард, без контратаки.
+- reach — длинное оружие (пики/саррисы), бьёт через авангард.
+- charge — чарж (конница/колесницы): +2 к первой атаке при высадке.
+- shieldwall — стена щитов: +2 броня при соседях.
+- wedge — клин: +2 к атаке при двух соседях.
+- phalanx — фаланга: +1 броня/+1 атака против конницы.
+- skirmish — засадный/набег: после атаки отступает в тыл.
+- taunt — провокация/щитовой строй: весь авангард врага бьёт именно этот отряд.
+- poison — ядовитое оружие/стрелы: на цель вешается яд (DoT).
+- burn — поджог/факелы: на цель вешается огонь DoT с распространением.
+- heal — лекари/травники: исцеление в ход.
+- rally — поддержка/барабаны/песни: +1 к атаке соседей.
+- fear — страшный вид/боевые кличи: шанс обратить в бегство.
+- morale — высокая мораль, но шанс бегства при HP<30%.
+- siege — осадный/таран/стенобит: х2 урона постройкам.
+- spy — лазутчик/разведка: раскрывает руку врага.
+- sabotage — диверсия: при розыгрыше 50% шанс разрушить постройку врага.
 
 ТИПЫ КАРТ:
 - "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
@@ -1272,13 +1293,13 @@
 - drop_cost 0-9 — ресурсы/организация для вывода карты.
 - action_cost 0-6 — приказы/логистика КАЖДЫЙ ХОД (для манёвров и построек = 0).
 
-ОТРЯДЫ (unit):
-- 1-drop: 1-2 HP, 1 ATK (ополчение, пращники)
-- 2-drop: 2-3 HP, 1-2 ATK (копейщики, лучники)
-- 3-drop: 3-4 HP, 2-3 ATK (топорники, конные разведчики)
-- 4-drop: 4-5 HP, 3-4 ATK (бронзовые мечники, тяж. пехота)
-- 5-drop+: 5-8 HP, 3-5 ATK (колесницы, тяж. конница, полководцы)
-Бронзовые юниты — минимум 3-4 маны, era="bronze". Древние — до 3 маны, era="ancient".
+ОТРЯДЫ (unit). Цена drop_cost НЕ зависит от эпохи — эпоха отражается полем keywords.
+- 1-drop: 1-2 HP, 1 ATK (ополчение, разведчики, охотники)
+- 2-drop: 2-3 HP, 1-2 ATK (копейщики, пращники, лучники, бронзовые наёмники)
+- 3-drop: 3-4 HP, 2-3 ATK (топорники, конные, мечники)
+- 4-drop: 4-5 HP, 3-4 ATK (тяжёлая пехота, гвардия, колесницы)
+- 5-drop+: 5-8 HP, 3-5 ATK (полководцы, элитные колесницы, тяж. конница)
+Бронзовые юниты МОГУТ стоить 1-2 маны (например наёмники с бронзовыми кинжалами), но при этом получают pierce/armor/charge и т.п.
 
 МАНЁВРЫ (spell): drop_cost 1-6, action_cost=0, hp=0, atk=0. Точечные — 1-3, массовые/герой — 4-6.
 
@@ -1304,7 +1325,8 @@ ${allTags.length ? allTags.join(', ') : 'только базовые племе�
   "atk": число (0 для манёвров/построек),
   "description": "1-2 предложения, реалистично",
   "tags": ["подходящие теги"],
-  "abilities": ["тактические способности"],
+  "abilities": ["тактические способности в стиле правил"],
+  "keywords": ["armor","pierce","ranged","charge","shieldwall","wedge","phalanx","skirmish","taunt","poison","burn","heal","rally","fear","morale","siege","spy","sabotage"] — МАССИВ РАБОЧИХ КЛЮЧЕВЫХ СЛОВ (подходящие; пустой массив если нет),
   "monkey_paw": "" либо "штраф"
 }
 
@@ -1651,6 +1673,217 @@ ${prompt}
     const HAND_LIMIT = 7;
     const DRAW_PER_TURN = 1;
 
+    // ============================================
+    // СИСТЕМА КЛЮЧЕВЫХ СЛОВ (KEYWORDS)
+    // ============================================
+    const KEYWORDS = {
+        armor:      { label: '🛡️', desc: 'Броня N: снижает входящий урон на N (но не меньше 1).' },
+        pierce:     { label: '🗡️', desc: 'Пробитие N: игнорирует N брони цели.' },
+        ranged:     { label: '🏹', desc: 'Дальний бой: с тыла бьёт авангард, не получает встречный урон.' },
+        reach:      { label: '📏', desc: 'Длинное оружие: бьёт через пустой слот в авангарде.' },
+        charge:     { label: '🐎', desc: 'Чарж: +2 к атаке в первый ход после высадки.' },
+        shieldwall: { label: '🔰', desc: 'Стена щитов: +2 броня при соседях.' },
+        wedge:      { label: '🔺', desc: 'Клин: +2 к атаке при двух соседях.' },
+        phalanx:    { label: '⬛', desc: 'Фаланга: +1 броня и +1 к атаке против конницы.' },
+        skirmish:   { label: '🎯', desc: 'Засадный: после атаки отступает в тыл.' },
+        taunt:      { label: '😤', desc: 'Провокация: враг ОБЯЗАН атаковать этот отряд первым.' },
+        poison:     { label: '☠️', desc: 'Яд N: цель теряет N HP в начале каждого хода.' },
+        burn:       { label: '🔥', desc: 'Поджог N: урон по цели + шанс распространения.' },
+        heal:       { label: '🌿', desc: 'Исцеление N: восстанавливает HP союзнику.' },
+        rally:      { label: '📣', desc: 'Поддержка: союзники по флангу +1 атаке.' },
+        fear:       { label: '😱', desc: 'Устрашение: шанс обратить цель в бегство.' },
+        morale:     { label: '🎖️', desc: 'Мораль: при HP<30% шанс бегства.' },
+        siege:      { label: '🏰', desc: 'Осада: двойной урон постройкам.' },
+        spy:        { label: '🕵️', desc: 'Разведка: раскрывает карту врага.' },
+        sabotage:   { label: '💣', desc: 'Диверсия: 50% шанс разрушить постройку.' }
+    };
+
+    function hasKw(unit, kw) { return unit && unit.statuses && unit.statuses[kw]; }
+    function isRangedUnit(u) {
+        if (!u) return false;
+        if (hasKw(u, 'ranged')) return true;
+        const text = (u.name||'') + ' ' + (u.description||'') + ' ' + (u.tags||[]).join(',');
+        return /лучник|пращ|метател|дальний|ranged|praщ/i.test(text);
+    }
+
+    // ============================================
+    // ВЫБОР ЦЕЛИ (Total War-style, ряд на ряд)
+    // ============================================
+    function findTargetForAttacker(attacker, side, rowName, slotIdx) {
+        const enemySide = side === 'me' ? 'enemy' : 'me';
+        const E = battle[enemySide];
+
+        // 1) Провокация в авангарде — бьётся первой
+        for (let i = 0; i < FRONT_SLOTS; i++) {
+            const u = E.front[i];
+            if (u && hasKw(u, 'taunt') && rowName === 'front') return { u, row: 'front', i };
+        }
+
+        // 2) Атакующий в авангарде
+        if (rowName === 'front') {
+            if (E.front[slotIdx]) return { u: E.front[slotIdx], row: 'front', i: slotIdx };
+            // Соседи ±1, ±2
+            for (let off = 1; off < FRONT_SLOTS; off++) {
+                for (const dir of [-1, 1]) {
+                    const idx = slotIdx + dir*off;
+                    if (idx >= 0 && idx < FRONT_SLOTS && E.front[idx]) return { u: E.front[idx], row: 'front', i: idx };
+                }
+            }
+            // Чистый авангард
+            return { u: null, row: 'hero', i: -1 };
+        }
+
+        // 3) Атакующий в тылу
+        if (isRangedUnit(attacker)) {
+            for (let i = 0; i < FRONT_SLOTS; i++) if (E.front[i]) return { u: E.front[i], row: 'front', i };
+            return { u: null, row: 'hero', i: -1 };
+        }
+        // Контактный тыл (копейщики 2 ряда / пики) бьёт визави
+        if (E.front[slotIdx]) return { u: E.front[slotIdx], row: 'front', i: slotIdx };
+        return null;
+    }
+
+    // ============================================
+    // РАСЧЁТ УДАРА
+    // ============================================
+    function resolveHit(attacker, target, baseDmg) {
+        if (!target || target.currentHp <= 0) return 0;
+        let dmg = baseDmg;
+        // Эпоха
+        dmg += eraAttackBonus(attacker.era, target.era);
+        dmg = Math.max(1, dmg - eraDamageReduction(attacker.era, target.era));
+        // Броня и пробитие
+        const armor = Math.max(0, (target.statuses?.armor||0) - (attacker.statuses?.pierce||0));
+        dmg = Math.max(1, dmg - armor);
+        // Чарж бонус
+        if (hasKw(attacker, 'charge') && attacker._justDeployed) dmg += 2;
+        // Стена щитов у цели
+        if (hasKw(target, 'shieldwall') && _hasFlankNeighbors(target)) dmg = Math.max(1, dmg - 1);
+        // Осадный бонус по постройкам
+        if (target.isStructure && hasKw(attacker, 'siege')) dmg *= 2;
+        // Устрашение
+        if (hasKw(attacker, 'fear') && Math.random() < 0.25) {
+            target._fears = true;
+        }
+        dmg = Math.max(1, Math.floor(dmg));
+        target.currentHp -= dmg;
+        target.justDamaged = true;
+        return dmg;
+    }
+
+    function _unitPos(u) {
+        for (const side of ['me','enemy']) {
+            for (const r of ['front','back']) {
+                const arr = battle[side][r];
+                for (let i=0;i<arr.length;i++) if (arr[i]===u) return {side, r, i};
+            }
+        }
+        return null;
+    }
+    function _hasFlankNeighbors(u) {
+        const p = _unitPos(u); if (!p) return false;
+        const arr = battle[p.side][p.r];
+        let count = 0;
+        if (p.i-1 >= 0 && arr[p.i-1]) count++;
+        if (p.i+1 < arr.length && arr[p.i+1]) count++;
+        return count >= 1;
+    }
+
+    // ============================================
+    // СТАТУСЫ В НАЧАЛЕ ХОДА (DoT, мораль, распространение огня)
+    // ============================================
+    function tickStatuses(side) {
+        const p = battle[side];
+        const allSlots = [];
+        ['front','back'].forEach(r => {
+            p[r].forEach((u,i) => { if (u) allSlots.push({u,r,i}); });
+        });
+        allSlots.forEach(({u,r,i}) => {
+            if (!u.statuses) u.statuses = {};
+            // Яд
+            if (u.statuses.poison > 0) {
+                u.currentHp -= u.statuses.poison;
+                u.justDamaged = true;
+                logBattle(`☠️ ${u.name} получает ${u.statuses.poison} урона от яда.`, side);
+            }
+            // Огонь
+            if (u.statuses.burn > 0) {
+                u.currentHp -= u.statuses.burn;
+                u.justDamaged = true;
+                logBattle(`🔥 ${u.name} получает ${u.statuses.burn} урона от огня.`, side);
+                // Распространение на соседей 35%
+                [i-1,i+1].forEach(ni => {
+                    const arr = p[r];
+                    if (ni>=0 && ni<arr.length && arr[ni] && !arr[ni].statuses.burn && Math.random()<0.35) {
+                        arr[ni].statuses.burn = 1;
+                        logBattle(`🔥 Огонь перекинулся на ${arr[ni].name}!`, side);
+                    }
+                });
+                u.statuses.burn--;
+                if (u.statuses.burn <= 0) delete u.statuses.burn;
+            }
+            // Страх/бегство
+            if (u._fears || (hasKw(u, 'morale') && u.currentHp / Math.max(1,u.hp) < 0.3)) {
+                if (Math.random() < 0.25 || u._fears) {
+                    logBattle(`😱 ${u.name} обращается в бегство!`, side);
+                    p[r][i] = null;
+                    return;
+                }
+            }
+        });
+        cleanupDeadForSide(side);
+    }
+
+    function cleanupDeadForSide(side) {
+        const p = battle[side];
+        ['front','back'].forEach(r => {
+            for (let i = 0; i < p[r].length; i++) {
+                const u = p[r][i];
+                if (u && u.currentHp <= 0) {
+                    logBattle(`💀 ${side === 'me' ? 'Твой' : 'Вражеский'} отряд ${u.name} погибает!`, side);
+                    p[r][i] = null;
+                }
+            }
+        });
+    }
+
+    // ============================================
+    // ПРИМЕНЕНИЕ ЭФФЕКТОВ КАРТ В ВЫСАДКУ
+    // ============================================
+    function applyCardKeywordsToUnit(u) {
+        u.statuses = u.statuses || {};
+        // 1) Сначала читаем явные ключевые слова от LLM (поле keywords из JSON)
+        const explicitKW = (u.keywords || u._sourceKeywords || []);
+        explicitKW.forEach(k => {
+            if (!k) return;
+            const kn = String(k).toLowerCase().trim();
+            if (['armor','pierce'].includes(kn)) u.statuses[kn] = Math.max(u.statuses[kn]||0, 1);
+            else if (['ranged','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage'].includes(kn)) u.statuses[kn] = true;
+            else if (kn === 'poison' || kn === 'burn') u.statuses[kn] = (u.statuses[kn]||0) + 1;
+        });
+        // 2) Эвристическое обнаружение по имени/описанию/способностям (для обратной совместимости)
+        const text = ((u.name||'') + ' ' + (u.description||'') + ' ' + (u.abilities||[]).join(' ') + ' ' + (u.tags||[]).join(' ')).toLowerCase();
+        if (!u.statuses.armor && /брон|щит|доспех|кожан|armor|шлем/.test(text)) u.statuses.armor = 1;
+        if (!u.statuses.pierce && /пробит|пронз|pierce|остр/.test(text)) u.statuses.pierce = 1;
+        if (!u.statuses.ranged && /лучник|пращ|метат|стрел|ranged|дальн/.test(text)) u.statuses.ranged = true;
+        if (!u.statuses.charge && /чарж|налёт|charge|рывок|колесниц/.test(text)) u.statuses.charge = true;
+        if (!u.statuses.shieldwall && /стен[ау] щит|щитонос|shieldwall/.test(text)) { u.statuses.shieldwall = true; u.statuses.armor = Math.max(u.statuses.armor||0, 1); }
+        if (!u.statuses.wedge && /клин|wedge/.test(text)) u.statuses.wedge = true;
+        if (!u.statuses.phalanx && /фаланг|sarissa|саррис/.test(text)) u.statuses.phalanx = true;
+        if (!u.statuses.skirmish && /засад|skirm|набег/.test(text)) u.statuses.skirmish = true;
+        if (!u.statuses.taunt && /провокац|taunt|защитн|прикрыва/.test(text)) u.statuses.taunt = true;
+        if (!u.statuses.poison && /яд|отрав|poison/.test(text)) u.statuses.poison = 1;
+        if (!u.statuses.burn && /огн|пожар|поджог|burn|факел/.test(text)) u.statuses.burn = 1;
+        if (!u.statuses.heal && /исцел|лекар|трав|heal/.test(text)) u.statuses.heal = 1;
+        if (!u.statuses.rally && /поддерж|боевой дух|rally|песн/.test(text)) u.statuses.rally = true;
+        if (!u.statuses.fear && /устраш|паник|fear|страх/.test(text)) u.statuses.fear = true;
+        if (!u.statuses.morale && /мораль|morale/.test(text)) u.statuses.morale = true;
+        if (!u.statuses.siege && /осад|таран|осажда|siege|стенобит/.test(text)) u.statuses.siege = true;
+        if (!u.statuses.spy && /шпион|развед|spy|лазутч/.test(text)) u.statuses.spy = true;
+        if (!u.statuses.sabotage && /диверс|sabotage|саботаж|поджог амбар/.test(text)) u.statuses.sabotage = true;
+        u._justDeployed = true;
+    }
+
     // -------- Состояние боя --------
     let battle = null;
     let selectedHandIdx = null;       // индекс карты в руке (выбрана для высадки)
@@ -1684,20 +1917,20 @@ ${prompt}
     function buildEnemyDeck() {
         // Соседнее племя Древнего мира с 1-2 бронзовыми отрядами в качестве бонуса
         return [
-            mkEnemyCard('Племенные копейщики', 'unit', '🔺', 1, 0, 1, 2, 'Ополчение из пастухов, вооружённых заострёнными кольями.', ['копьё', 'пехота']),
-            mkEnemyCard('Пращники из холмов', 'unit', '🪨', 1, 0, 1, 1, 'Бросают камни из-за спин пехоты.', ['пращники', 'дальний бой']),
-            mkEnemyCard('Охотники с луками', 'unit', '🏹', 2, 1, 2, 2, 'Лучники, привыкшие бить зверя с расстояния.', ['лучники']),
-            mkEnemyCard('Топорники племени', 'unit', '🪓', 2, 1, 2, 3, 'Каменные топоры и кожаные щиты.', ['топорники', 'пехота']),
-            mkEnemyCard('Разведчики на лошадях', 'unit', '🐎', 3, 1, 2, 3, 'Лёгкая конница, стремительный набег.', ['конница']),
-            mkEnemyCard('Дружина вождя', 'unit', '🛡️', 3, 2, 3, 4, 'Элитные воины с тяжёлыми дубинами.', ['элита']),
-            mkEnemyCard('Частокол', 'structure', '🧱', 2, 0, 0, 4, 'Деревянное заграждение, преграждающее проход.', ['укрепление'], ERA_ANCIENT),
-            mkEnemyCard('Ночной набег', 'spell', '🌙', 2, 0, 0, 0, 'Диверсия: наносит 3 урона одному отряду в авангарде.', ['набег']),
-            mkEnemyCard('Бронзовые наёмники', 'unit', '⚔️', 4, 2, 4, 5, 'Отряд наёмников, вооружённых бронзовыми мечами. Вымышленные у соседнего города.', ['наёмники', 'бронза'], ERA_BRONZE),
-            mkEnemyCard('Военный лагерь', 'structure', '⛺', 3, 0, 0, 4, 'Лагерь у границы. Каждый ход подтягиваются резервы (+1 к атаке ближайшего отряда).', ['лагерь'], ERA_ANCIENT)
+            mkEnemyCard('Племенные копейщики', 'unit', '🔺', 2, 1, 2, 2, 'Ополчение с копьями, держит строй.', ['копьё', 'пехота'], ERA_ANCIENT, ['phalanx']),
+            mkEnemyCard('Пращники из холмов', 'unit', '🪨', 1, 1, 1, 1, 'Бросают камни из-за спин пехоты.', ['пращники', 'дальний бой'], ERA_ANCIENT, ['ranged','skirmish']),
+            mkEnemyCard('Охотники с луками', 'unit', '🏹', 2, 1, 2, 1, 'Лучники, бьют с расстояния, избегая боя.', ['лучники'], ERA_ANCIENT, ['ranged']),
+            mkEnemyCard('Топорники племени', 'unit', '🪓', 2, 1, 3, 3, 'Каменные топоры и кожаные щиты, идут клином.', ['топорники', 'пехота'], ERA_ANCIENT, ['wedge','armor']),
+            mkEnemyCard('Разведчики на лошадях', 'unit', '🐎', 3, 1, 3, 2, 'Лёгкая конница, стремительный чарж.', ['конница'], ERA_ANCIENT, ['charge','skirmish']),
+            mkEnemyCard('Дружина вождя', 'unit', '🛡️', 3, 2, 3, 5, 'Элитные воины в коже, стеной щитов прикрывают вождя.', ['элита'], ERA_ANCIENT, ['shieldwall','taunt','morale']),
+            mkEnemyCard('Частокол', 'structure', '🧱', 2, 0, 0, 5, 'Деревянное заграждение, преграждающее проход.', ['укрепление'], ERA_ANCIENT),
+            mkEnemyCard('Ночной набег', 'spell', '🌙', 2, 0, 0, 0, 'Диверсия: поджигает вражеский авангард.', ['набег'], ERA_ANCIENT, ['burn','sabotage']),
+            mkEnemyCard('Бронзовые наёмники', 'unit', '⚔️', 3, 2, 3, 4, 'Наёмники с бронзовыми мечами и кинжалами — пробивают щиты.', ['наёмники', 'бронза'], ERA_BRONZE, ['pierce','armor']),
+            mkEnemyCard('Военный лагерь', 'structure', '⛺', 3, 0, 0, 4, 'Лагерь даёт припас и поддержку соседям.', ['лагерь'], ERA_ANCIENT, ['rally'])
         ];
     }
-    function mkEnemyCard(name, type, emoji, drop, action, atk, hp, desc, tags, era = ERA_ANCIENT) {
-        return { name, card_type: type, emoji, drop_cost: drop, action_cost: action, atk, hp, description: desc, tags, abilities: [], monkey_paw: '', era, id: uid() };
+    function mkEnemyCard(name, type, emoji, drop, action, atk, hp, desc, tags, era = ERA_ANCIENT, keywords = []) {
+        return { name, card_type: type, emoji, drop_cost: drop, action_cost: action, atk, hp, description: desc, tags, abilities: [], monkey_paw: '', era, keywords, id: uid() };
     }
 
     // -------- Старт боя --------
@@ -1789,7 +2022,7 @@ ${prompt}
         content.innerHTML = `
             <div class="battle-end-icon">${win ? '🏆' : '💀'}</div>
             <div class="battle-end-title ${win ? 'win' : 'lose'}">${win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}</div>
-            <p style="color:#888">${win ? 'Ты сокрушил Тёмного Лорда!' : 'Тёмный Лорд одержал верх...'}</p>
+            <p style="color:#888">${win ? 'Ты сокрушил вражеского вождя!' : 'Вождь племени одержал верх...'}</p>
         `;
         document.getElementById('battle-end-modal').classList.add('active');
         selectedHandIdx = null;
@@ -1925,10 +2158,21 @@ ${prompt}
                     ? (selectable ? `onclick="selectMyUnit('${u.instanceId}')"` : (selectedUnitId === u.instanceId ? `onclick="cancelSelection()"` : ''))
                     : (awaitingTarget ? `onclick="attackTarget('${u.instanceId}', 'unit')"` : '');
 
+                // Иконки активных статусов и ключевых слов
+                const kws = [];
+                if (u.statuses) {
+                    ['armor','ranged','taunt','poison','burn','siege','phalanx','wedge','shieldwall','charge','fear','skirmish','rally','heal','spy','sabotage'].forEach(k=>{
+                        if (u.statuses[k]) kws.push(`<span title="${KEYWORDS[k]?.desc||k}">${KEYWORDS[k]?.label||k}</span>`);
+                    });
+                    if (u.statuses.poison > 0) kws.push(`<span title="Яд: ${u.statuses.poison}/ход">☠️${u.statuses.poison}</span>`);
+                    if (u.statuses.burn > 0) kws.push(`<span title="Огонь: ${u.statuses.burn}/ход">🔥${u.statuses.burn}</span>`);
+                    if (u.statuses.armor) kws.push(`<span title="Броня: ${u.statuses.armor}">🛡️${u.statuses.armor}</span>`);
+                }
                 html += `<div class="${cls}" ${clickAction}>
                     ${targeted ? '<span class="bf-target">🎯</span>' : ''}
                     <div class="bf-unit-emoji">${u.emoji || '⚒️'}</div>
                     <div class="bf-unit-name">${u.name}</div>
+                    <div class="bf-kw-strip" style="font-size:.7em;line-height:1">${kws.join(' ')}</div>
                     <div class="bf-unit-stats">
                         <span class="atk">⚔️${u.currentAtk ?? u.atk}</span>
                         <span class="hp">❤️${u.currentHp}</span>
@@ -2055,11 +2299,14 @@ ${prompt}
             currentHp: hp,
             action_cost: actionCost,
             abilities: card.abilities || [],
-            exhausted: true, // только что высажен - не может атаковать в этот ход
+            exhausted: true,
             justDamaged: false,
             justAttacked: false,
-            isStructure: card.card_type === 'structure'
+            isStructure: card.card_type === 'structure',
+            keywords: card.keywords || [],
+            statuses: {}
         };
+        applyCardKeywordsToUnit(unit);
         rowArr[slotIdx] = unit;
         logBattle(`🧙 Ты выводишь ${card.name} (${dropCost}💎)`, 'me');
 
@@ -2077,23 +2324,64 @@ ${prompt}
         battle.me.hand.splice(idx, 1);
         selectedHandIdx = null;
 
-        // Простая логика спеллов: урон по вражескому герою = drop_cost*2, или по случайному юниту
-        // Определим урон по названию/описанию (простой эвристикой)
-        let damage = card.drop_cost * 2;
-        // Ищем урон в описании/тегах
-        if ((card.description || '').match(/(\d+)\s*урон/)) {
-            const m = (card.description || '').match(/(\d+)\s*урон/);
-            damage = parseInt(m[1]) || damage;
-        }
-
-        // Цель: первый вражеский юнит в авангарде, если есть — иначе герой
+        const text = (card.name+' '+(card.description||'')+' '+((card.abilities||[]).join(' '))+' '+((card.keywords||[]).join(' '))).toLowerCase();
         const frontEnemy = battle.enemy.front.find(u => u);
-        if (frontEnemy) {
-            dealDamage(frontEnemy, damage, 'enemy');
-            logBattle(`✨ Ты применяешь ${card.name} → ${frontEnemy.name} получает ${damage} урона!`, 'me');
-        } else {
-            battle.enemy.hp -= damage;
-            logBattle(`✨ Ты применяешь ${card.name} → Тёмный Лорд получает ${damage} урона!`, 'me');
+
+        if (/шпион|развед|spy|лазутч/.test(text) || (card.keywords||[]).includes('spy')) {
+            const names = battle.enemy.hand.map(c=>c.name).join(', ');
+            logBattle(`🕵️ Лазутчик докладывает: в руке врага — ${names||'пусто'}!`, 'me');
+        }
+        else if (/диверс|sabotage|саботаж/.test(text) || (card.keywords||[]).includes('sabotage')) {
+            const structs = [];
+            battle.enemy.front.forEach((u,i)=>{ if (u && u.isStructure) structs.push({u,r:'front',i}); });
+            battle.enemy.back.forEach((u,i)=>{ if (u && u.isStructure) structs.push({u,r:'back',i}); });
+            if (structs.length && Math.random() < 0.7) {
+                const t = structs[Math.floor(Math.random()*structs.length)];
+                battle.enemy[t.r][t.i] = null;
+                logBattle(`💣 Диверсия! ${t.u.name} врага разрушена!`, 'me');
+            } else {
+                logBattle(`💣 Диверсанты ничего не нашли...`, 'me');
+            }
+        }
+        else if (/исцел|лекар|heal|трав/.test(text) || (card.keywords||[]).includes('heal')) {
+            const allMy = [...battle.me.front,...battle.me.back].filter(u=>u&&!u.isStructure);
+            if (allMy.length) {
+                const tgt = allMy.reduce((a,b)=>a.currentHp/a.hp < b.currentHp/b.hp ? a : b);
+                const heal = card.drop_cost+1;
+                tgt.currentHp = Math.min(tgt.hp, tgt.currentHp + heal);
+                logBattle(`🌿 ${card.name} исцеляет ${tgt.name} на ${heal} HP.`, 'me');
+            }
+        }
+        else if (/мобилизац|сбор ополчен|rally|военный сбор/.test(text) || (card.keywords||[]).includes('rally')) {
+            [...battle.me.front,...battle.me.back].forEach(u=>{if(u&&!u.isStructure)u.exhausted=false;});
+            logBattle(`📣 ${card.name}! Все твои отряды готовы сражаться снова!`, 'me');
+        }
+        else if (/поджог|огн|пожар|burn|факел/.test(text) || (card.keywords||[]).includes('burn')) {
+            if (frontEnemy) {
+                frontEnemy.statuses.burn = (frontEnemy.statuses.burn||0) + 2;
+                logBattle(`🔥 ${card.name}: ${frontEnemy.name} объят пламенем!`, 'me');
+            } else {
+                battle.enemy.hp -= card.drop_cost;
+                logBattle(`🔥 ${card.name} наносит ${card.drop_cost} урона вождю.`, 'me');
+            }
+        }
+        else if (/яд|отрав|poison/.test(text) || (card.keywords||[]).includes('poison')) {
+            if (frontEnemy) {
+                frontEnemy.statuses.poison = (frontEnemy.statuses.poison||0) + 1;
+                logBattle(`☠️ ${card.name}: ${frontEnemy.name} отравлен!`, 'me');
+            }
+        }
+        else {
+            let damage = card.drop_cost * 2;
+            const m = (card.description||'').match(/(\d+)\s*урон/);
+            if (m) damage = parseInt(m[1])||damage;
+            if (frontEnemy) {
+                dealDamage(frontEnemy, damage, 'enemy');
+                logBattle(`⚔️ Ты применяешь ${card.name} → ${frontEnemy.name} получает ${damage} урона!`, 'me');
+            } else {
+                battle.enemy.hp -= damage;
+                logBattle(`⚔️ Ты применяешь ${card.name} → вражеский вождь получает ${damage} урона!`, 'me');
+            }
         }
 
         cleanupDead();
@@ -2101,7 +2389,6 @@ ${prompt}
         renderBattle();
         checkBattleEnd();
     }
-
     function selectMyUnit(instanceId) {
         if (!whoseTurn_isMe() || animating) return;
         // Найдём юнита
@@ -2116,72 +2403,77 @@ ${prompt}
         selectedUnitId = instanceId;
         selectedHandIdx = null;
         awaitingTarget = true;
-        logBattle(`🎯 ${unit.name} готов атаковать. Клик по врагу.`, 'me');
-        renderBattle();
+        logBattle(`🎯 ${unit.name} атакует! (цель выбирается по правилам ряд-на-ряд)`, 'me');
+        performMyAttack(unit);
     }
 
     function attackTarget(targetId, targetType) {
-        if (!awaitingTarget || !selectedUnitId) return;
-        const attacker = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === selectedUnitId);
+        // Клик по врагу теперь не выбирает цель — атака идёт автоматически.
+        // Оставляем поддержку клика по герою для ручного удара (если авангард чист).
+        performMyAttack(null, targetType);
+    }
+
+    function performMyAttack(attacker, heroClick) {
+        if (!attacker) attacker = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === selectedUnitId);
         if (!attacker) return;
 
-        let target = null;
-        let targetSide = null;
-        target = battle.enemy.front.concat(battle.enemy.back).find(u => u && u.instanceId === targetId);
-        targetSide = 'enemy';
+        // Определяем позицию атакующего
+        let aRow = null, aSlot = -1;
+        for (let i=0;i<FRONT_SLOTS;i++) if (battle.me.front[i]===attacker){aRow='front';aSlot=i;}
+        if (!aRow) for (let i=0;i<BACK_SLOTS;i++) if (battle.me.back[i]===attacker){aRow='back';aSlot=i;}
 
-        // Если клик по вражескому баннеру/герою (передаётся targetType='hero')
-        if (targetType === 'hero') {
-            const enemyFrontBlock = battle.enemy.front.some(u => u);
-            const attackerIsFront = battle.me.front.includes(attacker);
-            if (enemyFrontBlock && !attackerIsFront) {
-                // Юниты в тылу не могут бить героя, пока враг держит авангард
-                logBattle(`❌ Авангард врага блокирует путь! ${attacker.name} стоит в тылу и не может атаковать героя напрямую.`, 'system');
-                return;
+        const targetInfo = findTargetForAttacker(attacker,'me',aRow,aSlot);
+        let heroHit = false;
+        let dmgDealt = 0;
+        let counterDealt = 0;
+
+        if (targetInfo && targetInfo.row === 'hero') {
+            heroHit = true;
+            dmgDealt = Math.max(1, attacker.currentAtk);
+            battle.enemy.hp -= dmgDealt;
+            logBattle(`⚔️ ${attacker.name} врезается в вражеского вождя → ${dmgDealt} урона!`, 'me');
+        } else if (targetInfo && targetInfo.u) {
+            const target = targetInfo.u;
+            const baseDmg = attacker.currentAtk;
+            dmgDealt = resolveHit(attacker, target, baseDmg);
+            // Контратака: только если контактный бой (не ranged) и цель не постройка и тоже жива
+            const attackerRanged = isRangedUnit(attacker);
+            if (!attackerRanged && target.currentHp > 0 && !target.isStructure) {
+                const counterBase = target.currentAtk ?? target.atk ?? 0;
+                if (counterBase > 0) {
+                    counterDealt = resolveHit(target, attacker, counterBase);
+                }
             }
-            if (enemyFrontBlock) {
-                logBattle(`💨 ${attacker.name} прорывается сквозь авангард и бьёт героя!`, 'me');
+            logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}`, 'me');
+            // Чарж срабатывает один раз
+            if (attacker._justDeployed) attacker._justDeployed = false;
+            // Отравленное оружие
+            if (hasKw(attacker,'poison')) target.statuses.poison = (target.statuses.poison||0) + 1;
+            if (hasKw(attacker,'burn')) target.statuses.burn = (target.statuses.burn||0) + 1;
+            // Skirmish — отскок
+            if (hasKw(attacker,'skirmish') && aRow === 'front') {
+                for (let i=0;i<BACK_SLOTS;i++){
+                    if (!battle.me.back[i]){
+                        battle.me.front[aSlot]=null; battle.me.back[i]=attacker;
+                        logBattle(`🎯 ${attacker.name} отступает в тыл после атаки.`,'me');
+                        break;
+                    }
+                }
             }
-            // Урон герою — без модификаторов эпохи (герой абстрактный)
-            battle.enemy.hp -= attacker.currentAtk;
-            logBattle(`⚔️ ${attacker.name} атакует Тёмного Лорда → ${attacker.currentAtk} урона!`, 'me');
-        } else if (target) {
-            // Атака юнита: юниты из авангарда могут бить кого угодно; юниты из тыла могут бить только вражеский авангард
-            const targetIsEnemyFront = battle.enemy.front.includes(target);
-            const attackerIsFront = battle.me.front.includes(attacker);
-            if (!attackerIsFront && !targetIsEnemyFront && !target.isStructure) {
-                logBattle(`❌ ${attacker.name} стоит в тылу и может атаковать только авангард врага или сооружения.`, 'system');
-                return;
-            }
-            // Урон с учётом эпох: +1 бронза по древним, -1 древние по бронзе (мин 1)
-            let atkDmg = attacker.currentAtk + eraAttackBonus(attacker.era, target.era);
-            atkDmg = Math.max(1, atkDmg - eraDamageReduction(attacker.era, target.era));
-            const counter = target.isStructure ? 0 : (target.currentAtk ?? target.atk ?? 0);
-            let counterDmg = counter + eraAttackBonus(target.era, attacker.era);
-            counterDmg = Math.max(0, counterDmg - eraDamageReduction(target.era, attacker.era));
-            const eraNote = (eraAttackBonus(attacker.era, target.era) || eraDamageReduction(attacker.era, target.era))
-                ? ` (эпоха: ${atkDmg} урона)` : '';
-            dealDamage(target, atkDmg, 'enemy');
-            if (counter > 0 || counterDmg > 0) {
-                const finalCounter = Math.max(1, counterDmg) || 0;
-                dealDamage(attacker, finalCounter, 'me');
-            }
-            logBattle(`⚔️ ${attacker.name} бьётся с ${target.name} (${atkDmg}⚔️${finalCounter ? ' / '+finalCounter+'⚔️ встречный' : ''})${eraNote}`, 'me');
-            target.justDamaged = true;
-            attacker.justDamaged = true;
             attacker.justAttacked = true;
+        } else {
+            logBattle(`❌ ${attacker.name} не может достать до врага.`, 'system');
+            return;
         }
 
         attacker.exhausted = true;
         battle.me.actionMana -= attacker.action_cost;
-
         cleanupDead();
         selectedUnitId = null;
         awaitingTarget = false;
         setTimeout(() => {
-            // Снимаем анимации после показа
-            [...(battle.me.front||[]), ...(battle.me.back||[]), ...(battle.enemy.front||[]), ...(battle.enemy.back||[])].forEach(u => {
-                if (u) { u.justAttacked = false; u.justDamaged = false; }
+            [...battle.me.front,...battle.me.back,...battle.enemy.front,...battle.enemy.back].forEach(u => {
+                if (u) { u.justAttacked=false; u.justDamaged=false; }
             });
             renderBattle();
         }, 500);
@@ -2274,13 +2566,44 @@ ${prompt}
         p.actionManaMax = Math.min(MAX_ACTION_MANA, p.actionManaMax + ACTION_MANA_PER_TURN);
         p.actionMana = p.actionManaMax;
 
-        // Разморозка юнитов
-        [...p.front, ...p.back].forEach(u => {
-            if (u) {
-                u.exhausted = u.isStructure ? true : false; // сооружения не ходят
-                u.justAttacked = false;
-                u.justDamaged = false;
-            }
+        // Сначала тикаем статусы (DoT/огонь/бегство)
+        tickStatuses(who);
+        cleanupDeadForSide(who);
+
+        // Разморозка юнитов + бонусы формаций
+        ['front','back'].forEach(r => {
+            p[r].forEach(u => {
+                if (u) {
+                    u.exhausted = u.isStructure ? true : false;
+                    u.justAttacked = false;
+                    u.justDamaged = false;
+                    u._justDeployed = false;
+                    u.currentAtk = u.atk;
+                    if (u.statuses.phalanx) { u.currentAtk += 1; u.statuses.armor = Math.max(u.statuses.armor||0, 1); }
+                }
+            });
+        });
+        // Бонус клина (нужны два соседа) после базовых значений
+        ['front','back'].forEach(r => {
+            p[r].forEach((u,i) => {
+                if (u && u.statuses.wedge) {
+                    const nL = i-1>=0 && p[r][i-1];
+                    const nR = i+1<p[r].length && p[r][i+1];
+                    if (nL && nR) u.currentAtk += 2;
+                    else if (nL || nR) u.currentAtk += 1;
+                }
+            });
+        });
+        // Rally: отряд с rally даёт +1 атаке соседям
+        ['front','back'].forEach(r => {
+            p[r].forEach((u,i) => {
+                if (u && u.statuses.rally) {
+                    [-1,1].forEach(off=>{
+                        const ni=i+off;
+                        if (ni>=0&&ni<p[r].length&&p[r][ni]) p[r][ni].currentAtk += 1;
+                    });
+                }
+            });
         });
 
         // Дро карты
@@ -2305,7 +2628,7 @@ ${prompt}
                     targetFront.justDamaged = true;
                 } else {
                     enemy.hp -= 1;
-                    logBattle(`🏰 ${u.name} стреляет в ${opp === 'me' ? 'тебя' : 'Тёмного Лорда'} (-1 HP)`, who);
+                    logBattle(`🏰 ${u.name} стреляет в ${opp === 'me' ? 'тебя' : 'вражеского вождя'} (-1 HP)`, who);
                 }
             }
         });
@@ -2380,8 +2703,11 @@ ${prompt}
                             action_cost: eAct,
                             abilities: card.abilities || [],
                             exhausted: true, justDamaged: false, justAttacked: false,
-                            isStructure: card.card_type === 'structure'
+                            isStructure: card.card_type === 'structure',
+                            keywords: card.keywords || [],
+                            statuses: {}
                         };
+                        applyCardKeywordsToUnit(unit);
                         logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
                         placed = true;
                         break;
@@ -2403,37 +2729,35 @@ ${prompt}
 
             e.actionMana -= attacker.action_cost;
 
-            // Приоритет: бьём юниты игрока в авангарде, если есть; иначе героя
-            // Враг также соблюдает правило тыла: юниты в тылу бьют только авангард
-            const attackerIsFront = battle.enemy.front.includes(attacker);
-            let myFront = battle.me.front.find(u => u);
-            if (!attackerIsFront && !myFront) {
-                // Не может дотянуться
-                logBattle(`🚫 ${attacker.name} в тылу врага не может дотянуться до героя (авангард чист, но юнит в тылу).`, 'enemy');
+            let aRow=null,aSlot=-1;
+            for (let i=0;i<FRONT_SLOTS;i++) if (e.front[i]===attacker){aRow='front';aSlot=i;}
+            if (!aRow) for (let i=0;i<BACK_SLOTS;i++) if (e.back[i]===attacker){aRow='back';aSlot=i;}
+
+            const targetInfo = findTargetForAttacker(attacker,'enemy',aRow,aSlot);
+
+            if (!targetInfo) {
+                logBattle(`🚫 ${attacker.name} не может дотянуться до твоих рядов.`, 'enemy');
                 attacker.exhausted = true;
-                renderBattle();
-                await delay(400);
-                continue;
+                renderBattle(); await delay(400); continue;
             }
-            if (myFront) {
-                // Урон с учётом эпох
-                let atkDmg = attacker.currentAtk + eraAttackBonus(attacker.era, myFront.era);
-                atkDmg = Math.max(1, atkDmg - eraDamageReduction(attacker.era, myFront.era));
-                const counterRaw = myFront.isStructure ? 0 : (myFront.currentAtk ?? myFront.atk ?? 0);
-                let counterDmg = counterRaw + eraAttackBonus(myFront.era, attacker.era);
-                counterDmg = Math.max(0, counterDmg - eraDamageReduction(myFront.era, attacker.era));
-                const counterFinal = myFront.isStructure ? 0 : Math.max(1, counterDmg);
-                const eraNote = (eraAttackBonus(attacker.era, myFront.era) || eraDamageReduction(attacker.era, myFront.era))
-                    ? ` (эпоха: ${atkDmg})` : '';
-                dealDamage(myFront, atkDmg, 'me');
-                if (counterRaw > 0 && counterFinal > 0) dealDamage(attacker, counterFinal, 'enemy');
-                logBattle(`⚔️ ${attacker.name} бьётся с ${myFront.name} (${atkDmg}⚔️${counterFinal ? ', встречный '+counterFinal : ''})${eraNote}`, 'enemy');
-                myFront.justDamaged = true;
-                attacker.justDamaged = true;
+
+            if (targetInfo.row === 'hero') {
+                const dmg = Math.max(1, attacker.currentAtk);
+                battle.me.hp -= dmg;
+                logBattle(`⚔️ ${attacker.name} бьёт ТЕБЯ → ${dmg} урона!`, 'enemy');
                 attacker.justAttacked = true;
             } else {
-                battle.me.hp -= attacker.currentAtk;
-                logBattle(`⚔️ ${attacker.name} атакует ТЕБЯ → ${attacker.currentAtk} урона!`, 'enemy');
+                const target = targetInfo.u;
+                const dmgDealt = resolveHit(attacker, target, attacker.currentAtk);
+                let counterDealt = 0;
+                if (!isRangedUnit(attacker) && target.currentHp > 0 && !target.isStructure) {
+                    const c = target.currentAtk ?? target.atk ?? 0;
+                    if (c > 0) counterDealt = resolveHit(target, attacker, c);
+                }
+                if (hasKw(attacker,'poison')) target.statuses.poison=(target.statuses.poison||0)+1;
+                if (hasKw(attacker,'burn')) target.statuses.burn=(target.statuses.burn||0)+1;
+                if (attacker._justDeployed) attacker._justDeployed=false;
+                logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}`, 'enemy');
                 attacker.justAttacked = true;
             }
             attacker.exhausted = true;
