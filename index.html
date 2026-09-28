@@ -66,6 +66,17 @@
         }
         .top-bar .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #f85149; }
         .top-bar .status-dot.ok { background: #3fb950; }
+        .top-bar label { font-size: 0.85em; color:#b39ddb; }
+        .top-bar select {
+            min-width: 180px;
+            padding: 4px 8px;
+            background: #0f0a1e;
+            border: 1px solid #5a2d82;
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 0.85em;
+        }
+        .top-bar select option { background: #1b0f2e; color: #e0e0e0; }
         .legacy-link {
             color: #888;
             font-size: 0.8em;
@@ -889,6 +900,8 @@
         </div>
         <label>🔑 Hydra API:</label>
         <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()">
+        <label for="model-select" style="margin-left:8px;">🤖 Модель:</label>
+        <select id="model-select" onchange="saveSelectedModel()"></select>
         <div class="status-dot" id="api-status"></div>
         <a href="tribes-legacy.html" class="legacy-link" target="_blank">🏛️ Tribes (legacy)</a>
     </div>
@@ -1152,6 +1165,19 @@
     let collFilter = 'all';
     const DECK_LIMIT = 10;
 
+    const AVAILABLE_MODELS = [
+        { id: 'gpt-6-luna',      label: 'GPT-6 Luna (по умолч.)' },
+        { id: 'gpt-6-sol',       label: 'GPT-6 Sol (сильн.)' },
+        { id: 'gpt-6-astra',     label: 'GPT-6 Astra' },
+        { id: 'glm-5.2',         label: 'GLM-5.2 (ZhipuAI)' },
+        { id: 'glm-5.1',         label: 'GLM-5.1 (ZhipuAI)' },
+        { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+        { id: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash (быстро)' },
+        { id: 'deepseek-v3.2',   label: 'DeepSeek V3.2' },
+        { id: 'claude-sonnet-5', label: 'Claude Sonnet 5' },
+        { id: 'hydra-gpt-mini',  label: 'Hydra GPT Mini (беспл.)' }
+    ];
+
     // ============================================
     // ИНИЦИАЛИЗАЦИЯ
     // ============================================
@@ -1159,6 +1185,17 @@
         const key = localStorage.getItem('iforge_hydra_key') || '';
         document.getElementById('api-key-input').value = key;
         document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
+
+        // Заполняем селектор моделей
+        const sel = document.getElementById('model-select');
+        const savedModel = localStorage.getItem('iforge_model') || 'gpt-6-luna';
+        AVAILABLE_MODELS.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.label;
+            if (m.id === savedModel) opt.selected = true;
+            sel.appendChild(opt);
+        });
 
         // Очищаем колоду от карт, которых больше нет в коллекции, и обрезаем до лимита
         const collIds = new Set(collection.map(c => c.id));
@@ -1171,7 +1208,7 @@
     };
 
     // ============================================
-    // API KEY
+    // API KEY + MODEL
     // ============================================
     function saveApiKey() {
         const key = document.getElementById('api-key-input').value.trim();
@@ -1179,6 +1216,11 @@
         document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
     }
     function getApiKey() { return localStorage.getItem('iforge_hydra_key') || ''; }
+    function saveSelectedModel() {
+        const sel = document.getElementById('model-select');
+        localStorage.setItem('iforge_model', sel.value);
+    }
+    function getSelectedModel() { return localStorage.getItem('iforge_model') || 'gpt-6-luna'; }
 
     // ============================================
     // НАВИГАЦИЯ
@@ -1383,7 +1425,7 @@ ${prompt}
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: 'gpt-6-luna',
+                    model: getSelectedModel(),
                     messages: [
                         { role: 'system', content: systemPrompt },
                         { role: 'user', content: userPrompt }
