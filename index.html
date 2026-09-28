@@ -920,6 +920,10 @@
                         <div class="tags-group-label">Постройки</div>
                         <div class="tags-grid" id="tags-structure"></div>
                     </div>
+                    <div class="tags-group">
+                        <div class="tags-group-label">Манёвры/события</div>
+                        <div class="tags-grid" id="tags-maneuver"></div>
+                    </div>
                     <div style="font-size:0.8em; color:#7868a0; margin-top:8px;">
                         📜 На старте доступны все контексты Древнего мира. Бронзовый век открывается через постройку мастерских и захват регионов с меднорудными/оловянными землями.
                     </div>
@@ -1092,7 +1096,15 @@
             { id: 'cavalry', label: '🐎 Конница' },
             { id: 'elite', label: '👑 Элитные воины' },
             { id: 'worker', label: '👷 Рабочие/строители' },
-            { id: 'shaman', label: '🌿 Жрец/знахарь' }
+            { id: 'healer', label: '🌿 Лекари/травники' },
+            { id: 'scout', label: '👣 Разведчики/лазутчики' }
+        ],
+        // Тип манёвров
+        maneuver: [
+            { id: 'tactic', label: '⚔️ Тактический приём' },
+            { id: 'raid', label: '🔥 Набег/диверсия' },
+            { id: 'supply', label: '📦 Снабжение' },
+            { id: 'rally', label: '📣 Мобилизация' }
         ],
         // Тип построек
         structure: [
@@ -1133,7 +1145,7 @@
         return 0;
     }
 
-    let selectedTags = { biome: [], archetype: [], structure: [] };
+    let selectedTags = { biome: [], archetype: [], structure: [], maneuver: [] };
     let collection = JSON.parse(localStorage.getItem('iforge_collection') || '[]');
     let deck = JSON.parse(localStorage.getItem('iforge_deck') || '[]');
     let lastForged = null;
@@ -1251,7 +1263,8 @@
         const allTags = [
             ...selectedTags.biome.map(id => AVAILABLE_TAGS.biome.find(t => t.id === id).label),
             ...selectedTags.archetype.map(id => AVAILABLE_TAGS.archetype.find(t => t.id === id).label),
-            ...selectedTags.structure.map(id => AVAILABLE_TAGS.structure.find(t => t.id === id).label)
+            ...selectedTags.structure.map(id => AVAILABLE_TAGS.structure.find(t => t.id === id).label),
+            ...selectedTags.maneuver.map(id => (AVAILABLE_TAGS.maneuver||[]).find(t => t.id === id)?.label).filter(Boolean)
         ];
 
         const systemPrompt = `Ты — ИИ-Кузнец и Балансировщик для ИСТОРИЧЕСКОЙ стратегической ККИ "Infinite Forge" про становление цивилизаций.
@@ -1314,7 +1327,9 @@
 ПОСТРОЙКИ (structure): drop_cost 2-8, action_cost=0, atk=0, HP=3-8. Деревянные/глинобитные — HP 3-5, 2-4 маны (ancient). Каменные/бронзовые — HP 5-8, 5-8 маны (bronze).
 
 === ЛАПА ОБЕЗЬЯНЫ ===
-За сверх-силу жёсткий штраф в monkey_paw (содержание съедает припасы, строительство затягивается, мятеж элиты, сброс руки, измотанность).
+За сверх-силу — ЧЕСТНЫЙ, ЛОГИЧНЫЙ штраф в monkey_paw. Штраф НЕ ДОЛЖЕН ПРОТИВОРЕЧИТЬ основной способности (не «в лесу +1 к атаке» и одновременно «в лесу не может атаковать» — такого бреда не генерируй!).
+Штраф должен быть тематически оправдан и уравновешивать силу (стоимость припасов/содержания, -1 HP, медлительность, измотанность в первый ход, требования биома, разовое усилие при розыгрыше). Штраф попадает в monkey_paw и ПОКАЗЫВАЕТСЯ ОТДЕЛЬНО от abilities — в abilities его НЕ ДУБЛИРУЙ.
+Для обычных сбалансированных карт (без сверх-силы) monkey_paw = "" (пустая строка).
 
 === ДОСТУПНЫЕ ТЕГИ ===
 ${allTags.length ? allTags.join(', ') : 'только базовые племена Древнего мира (каменный век)'}
@@ -1425,8 +1440,30 @@ ${prompt}
             <div class="ban-tooltip">🐾 ${card.monkey_paw}</div>
         ` : '';
 
-        const abilitiesHtml = card.abilities && card.abilities.length ?
-            `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${card.abilities.map(a => '• ' + a).join('<br>')}</div>` : '';
+        // Фильтруем способности: убираем то, что по сути является штрафом/Лапой
+        const mpText = (card.monkey_paw || '').toLowerCase();
+        const filteredAbilities = (card.abilities || []).filter(a => {
+            const al = (a||'').toLowerCase();
+            if (!al) return false;
+            if (mpText && (al.includes(mpText.slice(0,20)) || mpText.includes(al.slice(0,20)))) return false;
+            if (/(не может атаковать|штраф|не получает бонус|слаб|уступает|уязвим|не способен|теряет)/.test(al)) return false;
+            return true;
+        });
+        const abilitiesHtml = filteredAbilities.length ?
+            `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${filteredAbilities.map(a => '• ' + a).join('<br>')}</div>` : '';
+
+        // Иконки ключевых слов (механик)
+        const kwIcons = [];
+        (card.keywords || []).forEach(k => {
+            if (!k) return;
+            const kn = String(k).toLowerCase().trim();
+            if (KEYWORDS[kn]) kwIcons.push(`<span class="kw-chip" title="${KEYWORDS[kn].desc}" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em;">${KEYWORDS[kn].label}</span>`);
+        });
+        const kwHtml = kwIcons.length ? `<div style="margin:4px 0; font-size:0.72em; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwIcons.join('')}</div>` : '';
+
+        // Штраф (Лапа Обезьяны) — отдельный блок, а не смешанный
+        const monkeyBlock = card.monkey_paw ?
+            `<div style="font-size:0.75em; color:#ff8a65; background:rgba(255,138,101,0.1); border-left:3px solid #ff8a65; padding:4px 8px; margin:6px 0; border-radius:4px;">🐾 <b>Лапа Обезьяны:</b> ${card.monkey_paw}</div>` : '';
 
         let footerHtml = '';
         let inDeckBadge = '';
@@ -1462,12 +1499,13 @@ ${prompt}
                         <span class="cost-label">дейст</span>
                     </div>` : ''}
                 </div>
-                ${monkeyHtml}
                 <div class="card-name">${card.name}</div>
                 <div class="card-type">${typeDef.icon} ${typeDef.label} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
                 <div class="card-art">${card.emoji || '⚒️'}</div>
                 <div class="card-desc">${card.description}</div>
                 ${abilitiesHtml}
+                ${kwHtml}
+                ${monkeyBlock}
                 <div class="card-stats">${statsHtml}</div>
                 <div class="card-tags">
                     ${(card.tags || []).slice(0, 5).map(t => `<span class="card-tag">${t}</span>`).join('')}
@@ -2214,12 +2252,27 @@ ${prompt}
                 // Иконки активных статусов и ключевых слов
                 const kws = [];
                 if (u.statuses) {
-                    ['armor','ranged','taunt','poison','burn','siege','phalanx','wedge','shieldwall','charge','fear','skirmish','rally','heal','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy'].forEach(k=>{
-                        if (u.statuses[k]) kws.push(`<span title="${KEYWORDS[k]?.desc||k}">${KEYWORDS[k]?.label||k}</span>`);
-                    });
+                    if (u.statuses.armor) kws.push(`<span title="Броня: ${u.statuses.armor}">🛡️${u.statuses.armor}</span>`);
+                    if (u.statuses.pierce) kws.push(`<span title="Пробитие: ${u.statuses.pierce}">🗡️${u.statuses.pierce}</span>`);
+                    if (u.statuses.ranged) kws.push(`<span title="${KEYWORDS.ranged.desc}">🏹</span>`);
+                    if (u.statuses.charge) kws.push(`<span title="${KEYWORDS.charge.desc}">🐎</span>`);
+                    if (u.statuses.shieldwall) kws.push(`<span title="${KEYWORDS.shieldwall.desc}">🔰</span>`);
+                    if (u.statuses.wedge) kws.push(`<span title="${KEYWORDS.wedge.desc}">🔺</span>`);
+                    if (u.statuses.phalanx) kws.push(`<span title="${KEYWORDS.phalanx.desc}">⬛</span>`);
+                    if (u.statuses.skirmish) kws.push(`<span title="${KEYWORDS.skirmish.desc}">🎯</span>`);
+                    if (u.statuses.taunt) kws.push(`<span title="${KEYWORDS.taunt.desc}">😤</span>`);
                     if (u.statuses.poison > 0) kws.push(`<span title="Яд: ${u.statuses.poison}/ход">☠️${u.statuses.poison}</span>`);
                     if (u.statuses.burn > 0) kws.push(`<span title="Огонь: ${u.statuses.burn}/ход">🔥${u.statuses.burn}</span>`);
-                    if (u.statuses.armor) kws.push(`<span title="Броня: ${u.statuses.armor}">🛡️${u.statuses.armor}</span>`);
+                    if (u.statuses.heal) kws.push(`<span title="${KEYWORDS.heal.desc}">🌿</span>`);
+                    if (u.statuses.rally) kws.push(`<span title="${KEYWORDS.rally.desc}">📣</span>`);
+                    if (u.statuses.fear) kws.push(`<span title="${KEYWORDS.fear.desc}">😱</span>`);
+                    if (u.statuses.siege) kws.push(`<span title="${KEYWORDS.siege.desc}">🏰</span>`);
+                    if (u.statuses.spy) kws.push(`<span title="${KEYWORDS.spy.desc}">🕵️</span>`);
+                    if (u.statuses.sabotage) kws.push(`<span title="${KEYWORDS.sabotage.desc}">💣</span>`);
+                    if (u.statuses.supply) kws.push(`<span title="${KEYWORDS.supply.desc}">📦</span>`);
+                    if (u.statuses.warcry) kws.push(`<span title="${KEYWORDS.warcry.desc}">📯</span>`);
+                    if (u.statuses.loot) kws.push(`<span title="${KEYWORDS.loot.desc}">🪙</span>`);
+                    if (u.statuses.raider) kws.push(`<span title="${KEYWORDS.raider.desc}">🗡️</span>`);
                 }
                 html += `<div class="${cls}" ${clickAction}>
                     ${targeted ? '<span class="bf-target">🎯</span>' : ''}
