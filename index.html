@@ -1281,7 +1281,15 @@
 - morale — высокая мораль, но шанс бегства при HP<30%.
 - siege — осадный/таран/стенобит: х2 урона постройкам.
 - spy — лазутчик/разведка: раскрывает руку врага.
-- sabotage — диверсия: при розыгрыше 50% шанс разрушить постройку врага.
+- sabotage — диверсия: при розыгрыше шанс разрушить постройку врага.
+- supply — снабженец/обоз/караван: при высадке даёт +1💎 ресурсов.
+- warcry — боевой клич/полководец: при высадке +1⚡ действий в этот ход.
+- loot — мародёр/добыча: при гибели врага от его руки +1💎 (трофеи).
+- raider — налётчик/грабитель: при атаке крадёт 1💎 у врага.
+- harras — партизан/набеги: блокирует прирост +1💎 у врага в следующий ход.
+- exhaustenemy — измот/деморализация: при высадке отнимает 1⚡ у врага.
+
+ВАЖНО: отряд, обратившийся в бегство (fear/morale), НЕ ПОГИБАЕТ — он ВОЗВРАЩАЕТСЯ В РУКУ владельца (можно снова высадить за полную стоимость).
 
 ТИПЫ КАРТ:
 - "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
@@ -1326,7 +1334,7 @@ ${allTags.length ? allTags.join(', ') : 'только базовые племе�
   "description": "1-2 предложения, реалистично",
   "tags": ["подходящие теги"],
   "abilities": ["тактические способности в стиле правил"],
-  "keywords": ["armor","pierce","ranged","charge","shieldwall","wedge","phalanx","skirmish","taunt","poison","burn","heal","rally","fear","morale","siege","spy","sabotage"] — МАССИВ РАБОЧИХ КЛЮЧЕВЫХ СЛОВ (подходящие; пустой массив если нет),
+  "keywords": ["armor","pierce","ranged","charge","shieldwall","wedge","phalanx","skirmish","taunt","poison","burn","heal","rally","fear","morale","siege","spy","sabotage","supply","warcry","loot","raider","harras","exhaustenemy"] — МАССИВ РАБОЧИХ КЛЮЧЕВЫХ СЛОВ (подходящие; пустой массив если нет),
   "monkey_paw": "" либо "штраф"
 }
 
@@ -1695,7 +1703,14 @@ ${prompt}
         morale:     { label: '🎖️', desc: 'Мораль: при HP<30% шанс бегства.' },
         siege:      { label: '🏰', desc: 'Осада: двойной урон постройкам.' },
         spy:        { label: '🕵️', desc: 'Разведка: раскрывает карту врага.' },
-        sabotage:   { label: '💣', desc: 'Диверсия: 50% шанс разрушить постройку.' }
+        sabotage:   { label: '💣', desc: 'Диверсия: шанс разрушить постройку.' },
+        // === Мана-манипуляции ===
+        supply:     { label: '📦', desc: 'Снабженец: при высадке даёт +1💎 к макс. ресурсам.' },
+        warcry:     { label: '📯', desc: 'Боевой клич: при высадке даёт +1⚡ действий в этот ход.' },
+        loot:       { label: '🪙', desc: 'Добыча: при гибели врага даёт +1💎.' },
+        raider:     { label: '🗡️', desc: 'Налётчик: при атаке крадёт 1💎 у врага.' },
+        harras:     { label: '🏴', desc: 'Партизан: блокирует +1💎 маны врага в следующий ход.' },
+        exhaustenemy:{label: '💤', desc: 'Измот: отнимает 1⚡ действия у врага.' }
     };
 
     function hasKw(unit, kw) { return unit && unit.statuses && unit.statuses[kw]; }
@@ -1746,8 +1761,9 @@ ${prompt}
     // ============================================
     // РАСЧЁТ УДАРА
     // ============================================
-    function resolveHit(attacker, target, baseDmg) {
+    function resolveHit(attacker, target, baseDmg, atkSide) {
         if (!target || target.currentHp <= 0) return 0;
+        const defSide = atkSide === 'me' ? 'enemy' : 'me';
         let dmg = baseDmg;
         // Эпоха
         dmg += eraAttackBonus(attacker.era, target.era);
@@ -1766,8 +1782,20 @@ ${prompt}
             target._fears = true;
         }
         dmg = Math.max(1, Math.floor(dmg));
+        const wasAlive = target.currentHp > 0;
         target.currentHp -= dmg;
         target.justDamaged = true;
+
+        // Raider: крадём 1💎 у врага при удачной атаке (по юниту, не по герою)
+        if (hasKw(attacker,'raider') && wasAlive && !target.isStructure) {
+            const def = battle[defSide], att = battle[atkSide];
+            if (def.dropMana > 0) { def.dropMana = Math.max(0, def.dropMana - 1); att.dropMana = Math.min(MAX_DROP_MANA, att.dropMana + 1); }
+        }
+        // Loot: при гибели врага +1💎 атакующему
+        if (hasKw(attacker,'loot') && target.currentHp <= 0 && !target.isStructure) {
+            battle[atkSide].dropMana = Math.min(MAX_DROP_MANA, battle[atkSide].dropMana + 1);
+            logBattle(`🪙 ${attacker.name} берёт трофеи: +1💎.`, atkSide);
+        }
         return dmg;
     }
 
@@ -1822,13 +1850,31 @@ ${prompt}
                 u.statuses.burn--;
                 if (u.statuses.burn <= 0) delete u.statuses.burn;
             }
-            // Страх/бегство
+            // Страх/бегство — возврат в руку (а не гибель)
             if (u._fears || (hasKw(u, 'morale') && u.currentHp / Math.max(1,u.hp) < 0.3)) {
-                if (Math.random() < 0.25 || u._fears) {
-                    logBattle(`😱 ${u.name} обращается в бегство!`, side);
+                const pFear = u._fears ? 0.5 : 0.2;
+                if (Math.random() < pFear) {
+                    if (p.hand.length < HAND_LIMIT) {
+                        // Сбрасываем ранения/статусы и возвращаем в руку как карту (с тем же id)
+                        const cardBack = {
+                            id: u.id || u._sourceCardId || uid(),
+                            name: u.name, emoji: u.emoji, card_type: u.card_type,
+                            era: u.era, drop_cost: u.drop_cost||1, action_cost: u.action_cost||0,
+                            atk: u.atk, hp: u.hp,
+                            description: u.description||'', tags: u.tags||[],
+                            abilities: u.abilities||[], keywords: u.keywords||[],
+                            monkey_paw: u.monkey_paw||''
+                        };
+                        p.hand.push(cardBack);
+                        logBattle(`😱 ${u.name} обращается в бегство и отходит в тыл (возврат в руку)!`, side);
+                    } else {
+                        logBattle(`😱 ${u.name} обращается в бегство, но в руке нет места — отряд разбегается!`, side);
+                    }
                     p[r][i] = null;
+                    u._fears = false;
                     return;
                 }
+                u._fears = false;
             }
         });
         cleanupDeadForSide(side);
@@ -1858,7 +1904,7 @@ ${prompt}
             if (!k) return;
             const kn = String(k).toLowerCase().trim();
             if (['armor','pierce'].includes(kn)) u.statuses[kn] = Math.max(u.statuses[kn]||0, 1);
-            else if (['ranged','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage'].includes(kn)) u.statuses[kn] = true;
+            else if (['ranged','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy'].includes(kn)) u.statuses[kn] = true;
             else if (kn === 'poison' || kn === 'burn') u.statuses[kn] = (u.statuses[kn]||0) + 1;
         });
         // 2) Эвристическое обнаружение по имени/описанию/способностям (для обратной совместимости)
@@ -1881,6 +1927,13 @@ ${prompt}
         if (!u.statuses.siege && /осад|таран|осажда|siege|стенобит/.test(text)) u.statuses.siege = true;
         if (!u.statuses.spy && /шпион|развед|spy|лазутч/.test(text)) u.statuses.spy = true;
         if (!u.statuses.sabotage && /диверс|sabotage|саботаж|поджог амбар/.test(text)) u.statuses.sabotage = true;
+        // Мана-манипуляции
+        if (!u.statuses.supply && /снабж|обоз|караван|припас|supply|добытчик/.test(text)) u.statuses.supply = true;
+        if (!u.statuses.warcry && /боевой клич|сигнал рога|warcry|воодушев|полководец|барабан/.test(text)) u.statuses.warcry = true;
+        if (!u.statuses.loot && /добыч|loot|грабёж|трофей|мародёр/.test(text)) u.statuses.loot = true;
+        if (!u.statuses.raider && /налётч|raider|марод|грабитель|набег/.test(text)) u.statuses.raider = true;
+        if (!u.statuses.harras && /партизан|harras|набеги/.test(text)) u.statuses.harras = true;
+        if (!u.statuses.exhaustenemy && /измот|изнур|деморализ|exhaust|шумн|вымот/.test(text)) u.statuses.exhaustenemy = true;
         u._justDeployed = true;
     }
 
@@ -2161,7 +2214,7 @@ ${prompt}
                 // Иконки активных статусов и ключевых слов
                 const kws = [];
                 if (u.statuses) {
-                    ['armor','ranged','taunt','poison','burn','siege','phalanx','wedge','shieldwall','charge','fear','skirmish','rally','heal','spy','sabotage'].forEach(k=>{
+                    ['armor','ranged','taunt','poison','burn','siege','phalanx','wedge','shieldwall','charge','fear','skirmish','rally','heal','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy'].forEach(k=>{
                         if (u.statuses[k]) kws.push(`<span title="${KEYWORDS[k]?.desc||k}">${KEYWORDS[k]?.label||k}</span>`);
                     });
                     if (u.statuses.poison > 0) kws.push(`<span title="Яд: ${u.statuses.poison}/ход">☠️${u.statuses.poison}</span>`);
@@ -2289,15 +2342,21 @@ ${prompt}
         battle.me.dropMana -= dropCost;
         const unit = {
             instanceId: uid(),
+            _sourceCardId: card.id,
+            id: card.id,
             name: card.name || 'Безымянный',
             emoji: card.emoji || '⚒️',
             card_type: card.card_type || 'unit',
             era: card.era || ERA_ANCIENT,
+            drop_cost: dropCost,
+            action_cost: actionCost,
+            tags: card.tags || [],
+            description: card.description || '',
+            monkey_paw: card.monkey_paw || '',
             atk: atk,
             hp: hp,
             currentAtk: atk,
             currentHp: hp,
-            action_cost: actionCost,
             abilities: card.abilities || [],
             exhausted: true,
             justDamaged: false,
@@ -2309,6 +2368,25 @@ ${prompt}
         applyCardKeywordsToUnit(unit);
         rowArr[slotIdx] = unit;
         logBattle(`🧙 Ты выводишь ${card.name} (${dropCost}💎)`, 'me');
+
+        // Мана-эффекты при высадке (supply +warcry)
+        if (unit.statuses.supply) {
+            battle.me.dropManaMax = Math.min(MAX_DROP_MANA, battle.me.dropManaMax + 1);
+            battle.me.dropMana += 1;
+            logBattle(`📦 ${card.name} подвозит припасы: +1💎!`, 'me');
+        }
+        if (unit.statuses.warcry) {
+            battle.me.actionMana = Math.min(MAX_ACTION_MANA, battle.me.actionMana + 1);
+            logBattle(`📯 ${card.name} поднимает боевой дух: +1⚡!`, 'me');
+        }
+        if (unit.statuses.harras) {
+            battle.enemy._blockDropNext = (battle.enemy._blockDropNext||0) + 1;
+            logBattle(`🏴 ${card.name} тревожит вражеские обозы!`, 'me');
+        }
+        if (unit.statuses.exhaustenemy) {
+            battle.enemy.actionMana = Math.max(0, battle.enemy.actionMana - 1);
+            logBattle(`💤 ${card.name} изматывает врага: -1⚡ у врага!`, 'me');
+        }
 
         // Удаляем из руки
         battle.me.hand.splice(selectedHandIdx, 1);
@@ -2435,13 +2513,13 @@ ${prompt}
         } else if (targetInfo && targetInfo.u) {
             const target = targetInfo.u;
             const baseDmg = attacker.currentAtk;
-            dmgDealt = resolveHit(attacker, target, baseDmg);
+            dmgDealt = resolveHit(attacker, target, baseDmg, 'me');
             // Контратака: только если контактный бой (не ranged) и цель не постройка и тоже жива
             const attackerRanged = isRangedUnit(attacker);
             if (!attackerRanged && target.currentHp > 0 && !target.isStructure) {
                 const counterBase = target.currentAtk ?? target.atk ?? 0;
                 if (counterBase > 0) {
-                    counterDealt = resolveHit(target, attacker, counterBase);
+                    counterDealt = resolveHit(target, attacker, counterBase, 'enemy');
                 }
             }
             logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}`, 'me');
@@ -2561,10 +2639,15 @@ ${prompt}
     function startOfTurn(who) {
         const p = battle[who];
         // Обновление маны
-        p.dropManaMax = Math.min(MAX_DROP_MANA, p.dropManaMax + DROP_MANA_PER_TURN);
+        const blocked = p._blockDropNext || 0;
+        if (blocked > 0) {
+            logBattle(`🏴 Обозы ${who==='me'?'тебя':'врага'} перехвачены — прирост маны ресурсов задержан!`, 'system');
+        }
+        p.dropManaMax = Math.min(MAX_DROP_MANA, p.dropManaMax + Math.max(0, DROP_MANA_PER_TURN - blocked));
         p.dropMana = p.dropManaMax;
         p.actionManaMax = Math.min(MAX_ACTION_MANA, p.actionManaMax + ACTION_MANA_PER_TURN);
         p.actionMana = p.actionManaMax;
+        p._blockDropNext = 0;
 
         // Сначала тикаем статусы (DoT/огонь/бегство)
         tickStatuses(who);
@@ -2694,13 +2777,16 @@ ${prompt}
                         const eHp = Math.max(1, parseInt(card.hp) || 1);
                         e.dropMana -= eDrop;
                         e.hand.splice(idx, 1);
-                        row[si] = {
+                        const unit = {
                             instanceId: uid(),
+                            _sourceCardId: card.id,
+                            id: card.id,
                             name: card.name || 'Безымянный', emoji: card.emoji || '👺', card_type: card.card_type || 'unit',
                             era: card.era || ERA_ANCIENT,
+                            drop_cost: eDrop, action_cost: eAct,
+                            tags: card.tags || [], description: card.description || '', monkey_paw: card.monkey_paw || '',
                             atk: eAtk, hp: eHp,
                             currentAtk: eAtk, currentHp: eHp,
-                            action_cost: eAct,
                             abilities: card.abilities || [],
                             exhausted: true, justDamaged: false, justAttacked: false,
                             isStructure: card.card_type === 'structure',
@@ -2708,6 +2794,14 @@ ${prompt}
                             statuses: {}
                         };
                         applyCardKeywordsToUnit(unit);
+                        row[si] = unit;
+                        if (unit.statuses.supply) {
+                            e.dropManaMax = Math.min(MAX_DROP_MANA, e.dropManaMax + 1);
+                            e.dropMana += 1;
+                        }
+                        if (unit.statuses.warcry) e.actionMana = Math.min(MAX_ACTION_MANA, e.actionMana + 1);
+                        if (unit.statuses.harras) battle.me._blockDropNext = (battle.me._blockDropNext||0) + 1;
+                        if (unit.statuses.exhaustenemy) battle.me.actionMana = Math.max(0, battle.me.actionMana - 1);
                         logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
                         placed = true;
                         break;
@@ -2748,11 +2842,11 @@ ${prompt}
                 attacker.justAttacked = true;
             } else {
                 const target = targetInfo.u;
-                const dmgDealt = resolveHit(attacker, target, attacker.currentAtk);
+                const dmgDealt = resolveHit(attacker, target, attacker.currentAtk, 'enemy');
                 let counterDealt = 0;
                 if (!isRangedUnit(attacker) && target.currentHp > 0 && !target.isStructure) {
                     const c = target.currentAtk ?? target.atk ?? 0;
-                    if (c > 0) counterDealt = resolveHit(target, attacker, c);
+                    if (c > 0) counterDealt = resolveHit(target, attacker, c, 'me');
                 }
                 if (hasKw(attacker,'poison')) target.statuses.poison=(target.statuses.poison||0)+1;
                 if (hasKw(attacker,'burn')) target.statuses.burn=(target.statuses.burn||0)+1;
