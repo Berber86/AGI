@@ -1,0 +1,561 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+
+const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+if (!script) throw new Error('Could not find the app inline script');
+
+function extract(startMarker, endMarker) {
+    const start = script.indexOf(startMarker);
+    const end = script.indexOf(endMarker, start + startMarker.length);
+    if (start < 0 || end < 0) throw new Error(`Could not extract section: ${startMarker}`);
+    return script.slice(start, end);
+}
+
+const effectsEngine = extract(
+    '    // ============================================\n    // ОГРАНИЧЕННЫЙ КОНСТРУКТОР ЭФФЕКТОВ',
+    '    // ============================================\n    // ПРИМЕНЕНИЕ ЭФФЕКТОВ КАРТ В ВЫСАДКУ'
+);
+const deathCleanup = extract('    function cleanupDead() {', '    function checkBattleEnd() {');
+const drawEngine = extract('    // -------- ДРО КАРТ --------', '    // -------- ЛОГ --------');
+const selectedDeckHelper = extract('    function getSelectedDeckCards() {', '    // -------- Старт боя --------');
+const startBattleFunction = extract('    function startBattle() {', '    function concedeBattle() {');
+
+function makeBattle() {
+    const player = () => ({
+        hp: 25, dropMana: 0, dropManaMax: 12, actionMana: 0, actionManaMax: 5,
+        hand: [], deck: [], discard: [], fatigue: 0, front: [null, null, null], back: [null, null, null]
+    });
+    return { me: player(), enemy: player(), log: [], whoseTurn: 'me', turn: 1, turnCounters: { me:1, enemy:0 }, playerOrder: ['me','enemy'], nextCardPlayOrder: 0 };
+}
+
+function makeHarness(battle = makeBattle()) {
+    const prelude = `
+        const MAX_HP = 30;
+        const HAND_LIMIT = 7;
+        let idCounter = 0;
+        function uid() { return 'test-' + (++idCounter); }
+        let battle = ${JSON.stringify(battle)};
+        let pendingManualTarget = null;
+        let pendingCardChoice = null;
+        let effectTaskQueue = [];
+        let activeEffectTask = null;
+        let effectPumpActive = false;
+        let effectQueueWaiters = [];
+        function logBattle(msg, cls = '') { battle.log.unshift({ msg, cls }); }
+        function renderBattle() {}
+        function renderCardChoiceModal() {}
+        function checkBattleEnd() { return false; }
+        function _unitPos(unit) {
+            for (const side of ['me','enemy']) for (const row of ['front','back']) {
+                const index = battle[side][row].indexOf(unit);
+                if (index >= 0) return { side, r:row, i:index };
+            }
+            return null;
+        }
+    `;
+    const exportApi = `
+        globalThis.api = {
+            validateEffects,
+            cardEffects,
+            resolveCardEffects,
+            chooseEffectUnit,
+            chooseEffectPlayer,
+            chooseEffectTarget,
+            skipManualEffect,
+            cleanupDead,
+            queueUnitDeath,
+            waitForEffectQueue,
+            confirmCardChoice,
+            skipCardChoice,
+            toggleCardChoice,
+            moveScryCard,
+            expireTemporaryModifiers,
+            getUnitAttack,
+            getUnitArmor,
+            getUnitActionCost,
+            getBattle: () => battle,
+            getPending: () => pendingManualTarget,
+            getCardChoice: () => pendingCardChoice,
+            setBattle: value => { battle = value; },
+        };
+    `;
+    const context = vm.createContext({ console, setTimeout, clearTimeout });
+    vm.runInContext(`${prelude}\n${effectsEngine}\n${drawEngine}\n${deathCleanup}\n${exportApi}`, context, { timeout: 1000 });
+    return context.api;
+}
+
+function makeBattleStartHarness(cardCount) {
+    const cards = Array.from({ length: cardCount }, (_, index) => ({
+        id: `card-${index}`, name: `Card ${index}`, card_type: 'unit', hp: 2, atk: 1
+    }));
+    const ids = cards.map(card => card.id);
+    const context = vm.createContext({});
+    vm.runInContext(`
+        let deck = ${JSON.stringify(ids)};
+        let collection = ${JSON.stringify(cards)};
+        let battle = null;
+        let pendingManualTarget = null, pendingCardChoice = null, effectTaskQueue = [], activeEffectTask = null;
+        let effectPumpActive = false, effectQueueWaiters = [];
+        let selectedHandIdx = null, selectedUnitId = null, awaitingTarget = false, animating = false;
+        const DECK_LIMIT = 10, MAX_HP = 20, FRONT_SLOTS = 4, BACK_SLOTS = 4;
+        const STARTING_ACTION_MANA = 2, START_HAND = 0;
+        const screens = [];
+        const localStorage = { getItem: () => 'Arena tester' };
+        const document = { getElementById: () => ({ textContent: '' }) };
+        function hideModals() {}
+        function switchScreen(screen) { screens.push(screen); }
+        function shuffle(cards) { return cards; }
+        function cloneDeckCards(cards) { return cards.map(card => ({ ...card })); }
+        function buildEnemyDeck() { return []; }
+        function drawCard() {}
+        function logBattle() {}
+        function renderBattle() {}
+        ${selectedDeckHelper}
+        ${startBattleFunction}
+        globalThis.api = { startBattle, getBattle: () => battle, getScreens: () => screens };
+    `, context, { timeout: 1000 });
+    return context.api;
+}
+
+test('a complete ten-card deck starts battle without a runtime error', () => {
+    const api = makeBattleStartHarness(10);
+    assert.doesNotThrow(() => api.startBattle());
+    assert.equal(api.getBattle().me.deck.length, 10);
+    assert.equal(api.getScreens().at(-1), 'battle');
+});
+
+test('an incomplete deck is sent back to deck building instead of entering battle', () => {
+    const api = makeBattleStartHarness(9);
+    assert.doesNotThrow(() => api.startBattle());
+    assert.equal(api.getBattle(), null);
+    assert.equal(api.getScreens().at(-1), 'deck');
+});
+
+function unit(name, side = 'me', row = 'front', props = {}) {
+    return {
+        name, card_type: props.isStructure ? 'structure' : 'unit',
+        hp: props.hp ?? 5, currentHp: props.currentHp ?? props.hp ?? 5,
+        atk: 1, currentAtk: 1, isStructure: !!props.isStructure,
+        statuses: {}, effects: props.effects ?? [],
+        ...props
+    };
+}
+
+function place(battle, card, side, row, index) {
+    battle[side][row][index] = card;
+    return card;
+}
+
+test('card_death watch accepts all, friendly and enemy, and rejects missing/unknown scopes', () => {
+    const api = makeHarness();
+    for (const side of ['all', 'friendly', 'enemy']) {
+        const [effect] = api.validateEffects([{
+            event: 'card_death', watch: { side },
+            action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+        }]);
+        assert.equal(effect.watch.side, side);
+    }
+    assert.throws(() => api.validateEffects([{
+        event: 'card_death', action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+    }]));
+    assert.throws(() => api.validateEffects([{
+        event: 'card_death', watch: { side: 'all', extra: true },
+        action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+    }]));
+    assert.throws(() => api.validateEffects([{
+        event: 'enter_play', watch: { side: 'all' },
+        action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+    }]));
+});
+
+test('death observers distinguish all, own-side and opposing-side deaths', () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    const resourceEffect = (scope, amount) => [{
+        event: 'card_death', watch: { side: scope },
+        action: { type: 'modify_resource', resource: 'drop', amount }
+    }];
+    place(battle, unit('me all', 'me', 'front', { effects: resourceEffect('all', 1) }), 'me', 'front', 0);
+    place(battle, unit('me friendly', 'me', 'front', { effects: resourceEffect('friendly', 2) }), 'me', 'front', 1);
+    place(battle, unit('me enemy', 'me', 'back', { effects: resourceEffect('enemy', 4) }), 'me', 'back', 0);
+    place(battle, unit('enemy all', 'enemy', 'front', { effects: resourceEffect('all', 2) }), 'enemy', 'front', 0);
+    place(battle, unit('enemy friendly', 'enemy', 'front', { effects: resourceEffect('friendly', 3) }), 'enemy', 'front', 1);
+    place(battle, unit('enemy enemy', 'enemy', 'back', { effects: resourceEffect('enemy', 5) }), 'enemy', 'back', 0);
+    const doomed = place(battle, unit('doomed', 'me', 'back', {
+        currentHp: 0,
+        isStructure: true,
+        effects: [
+            { event: 'death', action: { type: 'modify_resource', resource: 'drop', amount: 1 } },
+            ...resourceEffect('all', 5)
+        ]
+    }), 'me', 'back', 1);
+
+    assert.doesNotThrow(() => api.validateEffects(doomed.effects));
+    assert.equal(api.cardEffects(doomed).length, 2);
+    api.cleanupDead();
+
+    assert.equal(battle.me.dropMana, 4, JSON.stringify(battle.log)); // own death effect + all + friendly
+    assert.equal(battle.enemy.dropMana, 7, JSON.stringify(battle.log)); // all + enemy relative to the enemy watcher
+    assert.equal(battle.me.back[1], null);
+    assert.equal(doomed._deathQueued, true);
+    assert(battle.log.some(entry => entry.msg.includes('Твоя постройка doomed уничтожена')));
+});
+
+test('death triggers use active-player-first order and then earliest deployment within each side', () => {
+    const collectOrder = activeSide => {
+        const api = makeHarness();
+        const battle = api.getBattle();
+        battle.whoseTurn = activeSide;
+        const watcher = (name, side, row, index, enteredOrder) => place(battle, unit(name, side, row, {
+            _enteredPlayOrder: enteredOrder,
+            effects: [{
+                event: 'card_death', watch: { side: 'all' },
+                action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+            }]
+        }), side, row, index);
+        watcher('me-old', 'me', 'front', 0, 1);
+        watcher('me-new', 'me', 'back', 0, 3);
+        watcher('enemy-old', 'enemy', 'front', 0, 2);
+        watcher('enemy-new', 'enemy', 'back', 0, 4);
+        place(battle, unit('doomed', 'me', 'back', {
+            currentHp: 0,
+            _enteredPlayOrder: 0,
+            effects: [{ event: 'death', action: { type: 'modify_resource', resource: 'drop', amount: 1 } }]
+        }), 'me', 'back', 2);
+
+        api.cleanupDead();
+        return [...battle.log].reverse().map(entry => entry.msg)
+            .filter(msg => msg.includes('💎'))
+            .map(msg => ['doomed','me-old','me-new','enemy-old','enemy-new'].find(name => msg.includes(name)));
+    };
+
+    assert.deepEqual(collectOrder('me'), ['doomed','me-old','me-new','enemy-old','enemy-new']);
+    assert.deepEqual(collectOrder('enemy'), ['enemy-old','enemy-new','doomed','me-old','me-new']);
+});
+
+test('manual choose can select multiple distinct targets and applies only after selection is complete', () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    const a = place(battle, unit('A'), 'enemy', 'front', 0);
+    const b = place(battle, unit('B'), 'enemy', 'front', 1);
+    const c = place(battle, unit('C'), 'enemy', 'back', 0);
+    api.resolveCardEffects({ name: 'Volley', effects: [{
+        event: 'enter_play',
+        target: { side: 'enemy', entity: 'unit', select: 'choose', count: 2 },
+        action: { type: 'damage', amount: 1 }
+    }] }, 'enter_play', 'me');
+
+    assert.equal(api.getPending().candidates.length, 3);
+    api.chooseEffectUnit('enemy', 'front', 0);
+    assert.equal(api.getPending().selected.length, 1);
+    assert.equal(api.getPending().candidates.length, 2);
+    assert.equal(a.currentHp, 5); // no action until the requested choices are made
+    api.chooseEffectUnit('enemy', 'front', 0); // the already-selected target is no longer selectable
+    assert.equal(api.getPending().selected.length, 1);
+    api.chooseEffectUnit('enemy', 'front', 1);
+
+    assert.equal(api.getPending(), null);
+    assert.equal(a.currentHp, 4);
+    assert.equal(b.currentHp, 4);
+    assert.equal(c.currentHp, 5);
+});
+
+test('manual choose can target both player banners for a multi-player effect', () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    api.resolveCardEffects({ name: 'Both chiefs', effects: [{
+        event: 'enter_play',
+        target: { side: 'either', entity: 'player', select: 'choose', count: 2 },
+        action: { type: 'damage', amount: 1 }
+    }] }, 'enter_play', 'me');
+
+    api.chooseEffectPlayer('me');
+    assert.equal(battle.me.hp, 25);
+    assert.equal(api.getPending().candidates.length, 1);
+    api.chooseEffectPlayer('enemy');
+
+    assert.equal(api.getPending(), null);
+    assert.equal(battle.me.hp, 24);
+    assert.equal(battle.enemy.hp, 24);
+});
+
+test('skipping a multi-target choice cancels that effect and resumes later effects', () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    const a = place(battle, unit('A'), 'enemy', 'front', 0);
+    const b = place(battle, unit('B'), 'enemy', 'front', 1);
+    api.resolveCardEffects({ name: 'Choice', effects: [
+        {
+            event: 'enter_play',
+            target: { side: 'enemy', entity: 'unit', select: 'choose', count: 2 },
+            action: { type: 'damage', amount: 2 }
+        },
+        { event: 'enter_play', action: { type: 'modify_resource', resource: 'drop', amount: 1 } }
+    ] }, 'enter_play', 'me');
+    api.chooseEffectUnit('enemy', 'front', 0);
+    api.skipManualEffect();
+
+    assert.equal(api.getPending(), null);
+    assert.equal(a.currentHp, 5);
+    assert.equal(b.currentHp, 5);
+    assert.equal(battle.me.dropMana, 1);
+});
+
+test('a lethal manually-selected action resolves the target death trigger before removal', async () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    const doomed = place(battle, unit('Doomed', 'enemy', 'front', {
+        hp: 1, currentHp: 1,
+        effects: [{ event: 'death', action: { type: 'modify_resource', resource: 'drop', amount: 2 } }]
+    }), 'enemy', 'front', 0);
+    api.resolveCardEffects({ name: 'Finisher', effects: [{
+        event: 'enter_play',
+        target: { side: 'enemy', entity: 'unit', select: 'choose' },
+        action: { type: 'damage', amount: 1 }
+    }] }, 'enter_play', 'me');
+    api.chooseEffectUnit('enemy', 'front', 0);
+    await api.waitForEffectQueue();
+
+    assert.equal(battle.enemy.front[0], null);
+    assert.equal(battle.enemy.dropMana, 2);
+    assert.equal(doomed.currentHp, 0);
+});
+
+test('AI choose remains deterministic and multi-target effects take the first eligible cards', () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    const a = place(battle, unit('First'), 'enemy', 'front', 0);
+    const b = place(battle, unit('Second'), 'enemy', 'front', 1);
+    const c = place(battle, unit('Third'), 'enemy', 'back', 0);
+    api.resolveCardEffects({ name: 'AI', effects: [{
+        event: 'enter_play',
+        target: { side: 'friendly', entity: 'unit', select: 'choose', count: 2 },
+        action: { type: 'modify_stat', stat: 'attack', amount: 1 }
+    }] }, 'enter_play', 'enemy');
+
+    assert.equal(a.atk, 2);
+    assert.equal(b.atk, 2);
+    assert.equal(c.atk, 1);
+});
+
+test('the effect DSL validates draw, discard, exchange, scry and temporary duration bounds', () => {
+    const api = makeHarness();
+    const target = { side: 'controller', entity: 'player' };
+    const types = [
+        { action:{ type:'draw', amount:2 }, target },
+        { action:{ type:'discard', amount:1, choice:'choose' }, target },
+        { action:{ type:'exchange', amount:2, choice:'highest_cost' }, target },
+        { action:{ type:'scry', amount:3 }, target },
+        { action:{ type:'modify_stat', stat:'attack', amount:2, turns:1 }, target:{side:'controller',entity:'unit'} },
+        { action:{ type:'modify_stat', stat:'armor', amount:-1, turns:3 }, target:{side:'controller',entity:'unit'} },
+        { action:{ type:'modify_cost', cost:'action', amount:-1, turns:2 }, target:{side:'controller',entity:'unit'} },
+    ];
+    for (const entry of types) {
+        const [validated] = api.validateEffects([{ event:'enter_play', target:entry.target, action:entry.action }]);
+        assert.equal(validated.action.type, entry.action.type);
+    }
+    assert.throws(() => api.validateEffects([{ event:'enter_play', target, action:{ type:'draw', amount:6 } }]));
+    assert.throws(() => api.validateEffects([{ event:'enter_play', target, action:{ type:'discard', amount:1, choice:'random' } }]));
+    assert.throws(() => api.validateEffects([{ event:'enter_play', target, action:{ type:'modify_stat', stat:'max_hp', amount:1, turns:1 } }]));
+    assert.throws(() => api.validateEffects([{ event:'enter_play', target:{ side:'either', entity:'player' }, action:{ type:'draw', amount:1 } }]));
+    assert.throws(() => api.validateEffects([{ event:'enter_play', target:{ side:'controller', entity:'unit' }, action:{ type:'scry', amount:1 } }]));
+});
+
+test('draw effects take available cards and empty-deck fatigue escalates 1, 2, 3', () => {
+    const battle = makeBattle();
+    battle.me.deck = [
+        { name:'Дозор', card_type:'unit', drop_cost:1, atk:1, hp:2 },
+        { name:'Обоз', card_type:'unit', drop_cost:2, atk:1, hp:2 },
+    ];
+    const api = makeHarness(battle);
+    const card = { name:'Припасы', effects:[{
+        event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'draw', amount:2 }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(Array.from(api.getBattle().me.hand, c => c.name).join('|'), 'Дозор|Обоз');
+    assert.equal(api.getBattle().me.deck.length, 0);
+    assert.equal(api.getBattle().me.fatigue, 0);
+
+    const emptyBattle = makeBattle();
+    const emptyApi = makeHarness(emptyBattle);
+    emptyApi.resolveCardEffects(card,'enter_play','me');
+    assert.equal(emptyApi.getBattle().me.fatigue, 2);
+    assert.equal(emptyApi.getBattle().me.hp, 22);
+    emptyApi.resolveCardEffects(card,'enter_play','me');
+    assert.equal(emptyApi.getBattle().me.fatigue, 4);
+    assert.equal(emptyApi.getBattle().me.hp, 15);
+});
+
+test('overfilling the hand consumes cards into discard instead of causing fatigue', () => {
+    const battle = makeBattle();
+    battle.me.hand = Array.from({ length:7 }, (_,index) => ({ name:`В руке ${index}`, drop_cost:1 }));
+    battle.me.deck = [{ name:'Сверх лимита I' },{ name:'Сверх лимита II' }];
+    const api = makeHarness(battle);
+    const card = { name:'Изобилие', effects:[{
+        event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'draw', amount:2 }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getBattle().me.hand.length, 7);
+    assert.equal(api.getBattle().me.deck.length, 0);
+    assert.equal(Array.from(api.getBattle().me.discard, c => c.name).join('|'), 'Сверх лимита I|Сверх лимита II');
+    assert.equal(api.getBattle().me.fatigue, 0);
+});
+
+test('manual discard pauses the queue, then commits the selected hand card', () => {
+    const battle = makeBattle();
+    battle.me.hand = [
+        { name:'Дешёвый манёвр', drop_cost:1 },
+        { name:'Редкая колесница', drop_cost:5 },
+        { name:'Копейщик', drop_cost:2 },
+    ];
+    const api = makeHarness(battle);
+    const card = { name:'Обменный торг', effects:[
+        { event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'discard', amount:1, choice:'choose' } },
+        { event:'enter_play', action:{ type:'modify_resource', resource:'drop', amount:1 } },
+    ] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getCardChoice().kind, 'discard');
+    assert.equal(api.getBattle().me.dropMana, 0, 'later effects wait for the card choice');
+    api.toggleCardChoice(1);
+    api.confirmCardChoice();
+    assert.equal(Array.from(api.getBattle().me.hand, c => c.name).join('|'), 'Дешёвый манёвр|Копейщик');
+    assert.equal(Array.from(api.getBattle().me.discard, c => c.name).join('|'), 'Редкая колесница');
+    assert.equal(api.getBattle().me.dropMana, 1);
+    assert.equal(api.getCardChoice(), null);
+});
+
+test('exchange draws before choosing a discard and skip restores deck, hand and fatigue', () => {
+    const battle = makeBattle();
+    battle.me.hand = [{ name:'Старый щит', drop_cost:1 }];
+    battle.me.deck = [{ name:'Новый разведчик', drop_cost:2 }];
+    const api = makeHarness(battle);
+    const card = { name:'Перетряска', effects:[{
+        event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'exchange', amount:1, choice:'choose' }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(Array.from(api.getBattle().me.hand, c => c.name).join('|'), 'Старый щит|Новый разведчик');
+    assert.equal(api.getCardChoice().min, 1);
+    api.toggleCardChoice(0);
+    api.confirmCardChoice();
+    assert.equal(Array.from(api.getBattle().me.hand, c => c.name).join('|'), 'Новый разведчик');
+    assert.equal(Array.from(api.getBattle().me.discard, c => c.name).join('|'), 'Старый щит');
+
+    const skipBattle = makeBattle();
+    skipBattle.me.hand = [{ name:'Старый щит', drop_cost:1 }];
+    skipBattle.me.deck = [{ name:'Новый разведчик', drop_cost:2 }];
+    const skipApi = makeHarness(skipBattle);
+    skipApi.resolveCardEffects(card,'enter_play','me');
+    skipApi.skipCardChoice();
+    assert.equal(Array.from(skipApi.getBattle().me.hand, c => c.name).join('|'), 'Старый щит');
+    assert.equal(Array.from(skipApi.getBattle().me.deck, c => c.name).join('|'), 'Новый разведчик');
+    assert.equal(skipApi.getBattle().me.fatigue, 0);
+});
+
+test('scry lets the player reorder revealed cards and put selected ones on the bottom', () => {
+    const battle = makeBattle();
+    battle.me.deck = [
+        { name:'Верхняя карта', drop_cost:1 },
+        { name:'Ненужная дорогая', drop_cost:6 },
+        { name:'Следующая', drop_cost:2 },
+    ];
+    const api = makeHarness(battle);
+    const card = { name:'Разведка тропы', effects:[{
+        event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'scry', amount:3 }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getCardChoice().kind, 'scry');
+    api.toggleCardChoice(2);
+    api.moveScryCard(1,-1);
+    api.confirmCardChoice();
+    assert.equal(Array.from(api.getBattle().me.deck, c => c.name).join('|'), 'Ненужная дорогая|Верхняя карта|Следующая');
+});
+
+test('AI hand choices are deterministic and discard the highest-cost card', () => {
+    const battle = makeBattle();
+    battle.enemy.hand = [{ name:'Дешёвый', drop_cost:1 },{ name:'Тяжёлый', drop_cost:5 }];
+    const api = makeHarness(battle);
+    const card = { name:'Набег', effects:[{
+        event:'enter_play', target:{ side:'opponent', entity:'player' }, action:{ type:'discard', amount:1, choice:'choose' }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getCardChoice(), null);
+    assert.equal(Array.from(api.getBattle().enemy.hand, c => c.name).join('|'), 'Дешёвый');
+    assert.equal(Array.from(api.getBattle().enemy.discard, c => c.name).join('|'), 'Тяжёлый');
+});
+
+test('temporary attack, armor and action-cost modifiers expire at the correct owner turn', () => {
+    const battle = makeBattle();
+    battle.turnCounters = { me:1, enemy:0 };
+    const warrior = place(battle, unit('Воин', 'me', 'front', { atk:2, currentAtk:2, action_cost:2 }), 'me','front',0);
+    const api = makeHarness(battle);
+    const innerWarrior = api.getBattle().me.front[0];
+    const card = { name:'Команда полководца', effects:[
+        { event:'enter_play', target:{ side:'friendly', entity:'unit', select:'first' }, action:{ type:'modify_stat', stat:'attack', amount:2, turns:1 } },
+        { event:'enter_play', target:{ side:'friendly', entity:'unit', select:'first' }, action:{ type:'modify_stat', stat:'armor', amount:1, turns:1 } },
+        { event:'enter_play', target:{ side:'friendly', entity:'unit', select:'first' }, action:{ type:'modify_cost', cost:'action', amount:-1, turns:1 } },
+    ] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getUnitAttack(innerWarrior), 4);
+    assert.equal(innerWarrior.atk, 2, 'temporary attack does not overwrite base attack');
+    assert.equal(api.getUnitArmor(innerWarrior), 1);
+    assert.equal(api.getUnitActionCost(innerWarrior), 1);
+    api.getBattle().turnCounters.me = 2;
+    api.expireTemporaryModifiers('me');
+    assert.equal(api.getUnitAttack(innerWarrior), 2);
+    assert.equal(api.getUnitArmor(innerWarrior), 0);
+    assert.equal(api.getUnitActionCost(innerWarrior), 2);
+});
+
+test('lethal fatigue stops the remaining exchange draw and does not open a discard prompt', () => {
+    const battle = makeBattle();
+    battle.me.hp = 1;
+    const api = makeHarness(battle);
+    const card = { name:'Рискованный обмен', effects:[{
+        event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'exchange', amount:3, choice:'choose' }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getBattle().me.hp, 0);
+    assert.equal(api.getBattle().me.fatigue, 1);
+    assert.equal(api.getCardChoice(), null);
+});
+
+test('exchange handles fewer deck cards than requested and discards only the cards available', () => {
+    const battle = makeBattle();
+    battle.me.hand = [{ name:'Старый отряд', drop_cost:1 }];
+    battle.me.deck = [{ name:'Последняя карта', drop_cost:2 }];
+    const api = makeHarness(battle);
+    const card = { name:'Смена караула', effects:[{
+        event:'enter_play', target:{ side:'controller', entity:'player' }, action:{ type:'exchange', amount:3, choice:'choose' }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getBattle().me.fatigue, 2);
+    assert.equal(api.getBattle().me.hp, 22);
+    assert.equal(api.getCardChoice().min, 2, 'discard count is capped by the actual hand size');
+    api.toggleCardChoice(0);
+    api.toggleCardChoice(1);
+    api.confirmCardChoice();
+    assert.equal(api.getBattle().me.hand.length, 0);
+    assert.equal(api.getBattle().me.discard.length, 2);
+});
+
+test('temporary modifiers granted before an opponent turn last for that full turn', () => {
+    const battle = makeBattle();
+    place(battle, unit('Стража', 'enemy', 'front', { atk:1, currentAtk:1 }), 'enemy','front',0);
+    const api = makeHarness(battle);
+    const innerGuard = api.getBattle().enemy.front[0];
+    const card = { name:'Подмога', effects:[{
+        event:'enter_play', target:{ side:'opponent', entity:'unit', select:'first' }, action:{ type:'modify_stat', stat:'attack', amount:1, turns:1 }
+    }] };
+    api.resolveCardEffects(card,'enter_play','me');
+    assert.equal(api.getUnitAttack(innerGuard), 2);
+    api.getBattle().turnCounters.enemy = 1;
+    api.expireTemporaryModifiers('enemy');
+    assert.equal(api.getUnitAttack(innerGuard), 2, 'modifier remains through the next enemy turn');
+    api.getBattle().turnCounters.enemy = 2;
+    api.expireTemporaryModifiers('enemy');
+    assert.equal(api.getUnitAttack(innerGuard), 1);
+});

@@ -1,0 +1,18 @@
+{
+  "name": "Infinite Forge — Рождение цивилизаций",
+  "short_name": "Infinite Forge",
+  "description": "Создавай карты, собирай армию и меняй ход истории.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0811",
+  "theme_color": "#0b0811",
+  "icons": [
+    {
+      "src": "/assets/forge-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
