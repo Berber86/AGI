@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Infinite Forge">
     <link rel="icon" type="image/svg+xml" href="assets/forge-mark.svg">
     <link rel="manifest" href="manifest.webmanifest">
+    <link rel="stylesheet" href="campaign.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1351,8 +1352,8 @@
         <div class="modal" style="max-width:500px;">
             <div class="battle-end-content" id="battle-end-content"></div>
             <div class="modal-buttons">
-                <button class="btn-cancel" onclick="switchScreen('deck')">К колоде</button>
-                <button class="btn-confirm" onclick="startBattle()">⚔️ Ещё раз</button>
+                <button class="btn-cancel" id="battle-end-back" onclick="switchScreen('deck')">К колоде</button>
+                <button class="btn-confirm" id="battle-end-again" onclick="startBattle()">⚔️ Ещё раз</button>
             </div>
         </div>
     </div>
@@ -1378,6 +1379,7 @@
             <button data-screen="collection" onclick="switchScreen('collection')">📚 Коллекция <span id="coll-count" style="color:#c77dff">(0)</span></button>
             <button data-screen="deck" onclick="switchScreen('deck')">🎴 Колода <span id="deck-count" style="color:#e94560">(0/10)</span></button>
             <button data-screen="battle" onclick="startBattle()" id="battle-nav-btn">⚔️ Бой</button>
+            <button data-screen="campaign" onclick="switchScreen('campaign')">🏛️ Кампания</button>
         </div>
         <details class="connection-settings">
             <summary><span>⚙️ API и модель</span><span class="status-dot" id="api-status" aria-label="Статус API"></span></summary>
@@ -1524,6 +1526,17 @@
             </div>
         </div>
 
+        <!-- ========== LOCAL CAMPAIGN MVP ========== -->
+        <div id="screen-campaign" class="screen">
+            <header class="screen-hero battle-hero">
+                <span class="hero-kicker">СЕЗОННАЯ СТРАТЕГИЯ <i></i> ЛОКАЛЬНЫЙ MVP</span>
+                <h1>🏛️ Кампания цивилизации</h1>
+                <p class="subtitle">Развивайся в своём темпе, создавай проекты и проверяй колоду на ИИ-соперниках.</p>
+                <span class="hero-note">ПРОТОТИП · БЕЗ СЕТЕВОГО РЕЙТИНГА</span>
+            </header>
+            <div id="campaign-root" class="campaign-root"></div>
+        </div>
+
         <!-- ========== BATTLE SCREEN ========== -->
         <div id="screen-battle" class="screen">
             <header class="screen-hero battle-hero">
@@ -1538,11 +1551,11 @@
                 <div class="player-banner enemy">
                     <div class="player-avatar">👹</div>
                     <div class="player-info">
-                        <div class="player-name">Вождь племени</div>
+                        <div class="player-name" id="enemy-name">Вождь племени</div>
                         <div class="hp-bar-wrap">
                             <div class="hp-bar-fill hp-enemy" id="enemy-hp-bar" style="width:100%"></div>
                         </div>
-                        <div class="hp-text">HP: <span id="enemy-hp">20</span>/20</div>
+                        <div class="hp-text">HP: <span id="enemy-hp">20</span>/<span id="enemy-max-hp">20</span></div>
                     </div>
                 </div>
                 <div class="turn-indicator me" id="turn-indicator">ХОД 1 — ТЫ</div>
@@ -1553,7 +1566,7 @@
                         <div class="hp-bar-wrap">
                             <div class="hp-bar-fill hp-me" id="me-hp-bar" style="width:100%"></div>
                         </div>
-                        <div class="hp-text">HP: <span id="me-hp">20</span>/20</div>
+                        <div class="hp-text">HP: <span id="me-hp">20</span>/<span id="me-max-hp">20</span></div>
                     </div>
                 </div>
             </div>
@@ -1610,6 +1623,7 @@
 
     </div>
 
+    <script src="campaign.js"></script>
     <script>
     // ============================================
     // КОНСТАНТЫ И СОСТОЯНИЕ
@@ -1738,6 +1752,10 @@
         renderDeck();
         initDeckBuilderDragDrop();
         loadDeckBuilderLibrary();
+        if (window.CampaignMvp) {
+            window.CampaignMvp.render();
+            if (!window.CampaignMvp.getState().player.onboardingComplete) switchScreen('campaign');
+        }
     };
 
     // ============================================
@@ -1763,7 +1781,7 @@
         if (battle?._endScheduled && !document.getElementById('battle-end-modal').classList.contains('active')) return;
         // Если уходим с экрана боя — сбрасываем битву
         const onBattle = document.getElementById('screen-battle').classList.contains('active');
-        if (onBattle && screen !== 'battle' && battle) {
+        if (onBattle && screen !== 'battle' && battle && !battle._endScheduled) {
             if (!confirm('Покинуть битву? Прогресс будет потерян.')) return;
         }
         hideModals();
@@ -1775,6 +1793,7 @@
         document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === screen));
         if (screen === 'collection') renderCollection();
         if (screen === 'deck') renderDeck();
+        if (screen === 'campaign' && window.CampaignMvp) window.CampaignMvp.render();
     }
 
     // ============================================
@@ -2981,7 +3000,7 @@ ${prompt}
         if (condition.any) return condition.any.some(c => effectConditionPasses(c,context,target));
         if (condition.not) return !effectConditionPasses(condition.not,context,target);
         if (condition.type === 'target_wounded') {
-            return target.kind === 'player' ? battle[target.side].hp < MAX_HP : target.unit.currentHp < target.unit.hp;
+            return target.kind === 'player' ? battle[target.side].hp < (battle[target.side].maxHp || MAX_HP) : target.unit.currentHp < target.unit.hp;
         }
         if (condition.type === 'target_status') return target.kind === 'unit' && !!(target.unit.statuses && target.unit.statuses[condition.status]);
         if (condition.type === 'target_stat') {
@@ -2995,7 +3014,7 @@ ${prompt}
         if (condition.type === 'resource') {
             const side = condition.side === 'controller' ? context.ownerSide : (context.ownerSide === 'me' ? 'enemy' : 'me');
             const p = battle[side];
-            const value = condition.resource === 'drop' ? p.dropMana : p.actionMana;
+            const value = condition.resource === 'drop' || battle.mode === 'campaign' ? p.dropMana : p.actionMana;
             return compareEffectValues(value,condition.op,condition.value);
         }
         return false;
@@ -3019,6 +3038,15 @@ ${prompt}
 
     function getUnitActionCost(unit) {
         return Math.max(0, Math.min(6, (unit?.action_cost || 0) + getTemporaryModifierTotal(unit, 'action_cost')));
+    }
+    function currentActionEnergy(side) {
+        return battle?.mode === 'campaign' ? battle[side].dropMana : battle[side].actionMana;
+    }
+    function adjustActionEnergy(side, amount) {
+        const p = battle[side];
+        const field = battle.mode === 'campaign' ? 'dropMana' : 'actionMana';
+        const maxField = battle.mode === 'campaign' ? 'dropManaMax' : 'actionManaMax';
+        p[field] = Math.max(0, Math.min(p[maxField], p[field] + amount));
     }
 
     function expireTemporaryModifiers(side) {
@@ -3115,12 +3143,13 @@ ${prompt}
         const signed = signedNumber;
         if (action.type === 'modify_resource') {
             const p = battle[side || who];
-            const field = action.resource === 'drop' ? 'dropMana' : 'actionMana';
-            const maxField = action.resource === 'drop' ? 'dropManaMax' : 'actionManaMax';
+            const usesEnergy = action.resource === 'drop' || battle.mode === 'campaign';
+            const field = usesEnergy ? 'dropMana' : 'actionMana';
+            const maxField = usesEnergy ? 'dropManaMax' : 'actionManaMax';
             const before = p[field];
             p[field] = Math.max(0, Math.min(p[maxField], before + action.amount));
             const delta = p[field] - before;
-            if (delta) logBattle(`⚙️ ${context.card.name}: ${delta > 0 ? '+' : ''}${delta}${action.resource === 'drop' ? '💎' : '⚡'} ${side === who ? 'владельцу' : 'противнику'}.`, who);
+            if (delta) logBattle(`⚙️ ${context.card.name}: ${delta > 0 ? '+' : ''}${delta}${usesEnergy ? (battle.mode === 'campaign' ? '⚡' : '💎') : '⚡'} ${side === who ? 'владельцу' : 'противнику'}.`, who);
             return false;
         }
         if (action.type === 'draw' && target.kind === 'player') {
@@ -3223,7 +3252,7 @@ ${prompt}
         if (action.type === 'heal') {
             if (target.kind === 'player') {
                 const before = battle[side].hp;
-                battle[side].hp = Math.min(MAX_HP,before + action.amount);
+                battle[side].hp = Math.min(battle[side].maxHp || MAX_HP,before + action.amount);
                 if (battle[side].hp > before) logBattle(`🌿 ${context.card.name}: вождь восстанавливает ${battle[side].hp-before} здоровья.`,who);
             } else if (unit) {
                 const before = unit.currentHp;
@@ -3559,23 +3588,66 @@ ${prompt}
     function getSelectedDeckCards() {
         return deck.map(id => collection.find(card => card.id === id)).filter(Boolean).slice(0, DECK_LIMIT);
     }
+    function getCampaignCardChoices() {
+        const starterCards = typeof window !== 'undefined' && window.CampaignMvp?.getStarterCards
+            ? window.CampaignMvp.getStarterCards()
+            : [];
+        return [...starterCards, ...collection.map(card => JSON.parse(JSON.stringify(card)))];
+    }
+    if (typeof window !== 'undefined') window.getCampaignCardChoices = getCampaignCardChoices;
 
     // -------- Старт боя --------
     function startBattle() {
-        const deckCards = getSelectedDeckCards();
-        if (deckCards.length !== DECK_LIMIT) {
-            // Показываем экран колоды с точным количеством недостающих карт вместо тихого отказа.
+        const campaignApi = typeof window !== 'undefined' ? window.CampaignMvp : null;
+        const isCampaignChallenge = Boolean(campaignApi && campaignApi.hasPendingMatch());
+        const pendingCampaignMatch = isCampaignChallenge ? campaignApi.getPendingMatch() : null;
+        const campaignConfig = isCampaignChallenge ? campaignApi.getBattleConfigForCurrentPlayer() : null;
+        const enemyCampaignConfig = isCampaignChallenge
+            ? campaignApi.getOpponentBattleConfig(campaignApi.getState(), pendingCampaignMatch.opponentId)
+            : null;
+        let deckCards = isCampaignChallenge
+            ? campaignApi.getBattleDeckIds().map(id => getCampaignCardChoices().find(card => card.id === id)).filter(Boolean).slice(0, campaignConfig.deckLimit)
+            : getSelectedDeckCards();
+        let usingPracticeStarterDeck = false;
+        if (isCampaignChallenge && deckCards.length < campaignConfig.deckLimit) {
+            const starterCards = buildEnemyDeck();
+            for (const starter of starterCards) {
+                if (deckCards.length >= campaignConfig.deckLimit) break;
+                if (!deckCards.some(card => card.id === starter.id)) deckCards.push(starter);
+            }
+            usingPracticeStarterDeck = true;
+        }
+        if (deckCards.length !== (isCampaignChallenge ? campaignConfig.deckLimit : DECK_LIMIT)) {
+            // Обычный бой требует полную колоду; кампания использует свою постройками заданную вместимость.
             if (battle?._endScheduled) battle = null;
             hideModals();
             switchScreen('deck');
             return;
         }
         hideModals();
+        const campaignMatch = typeof window !== 'undefined' && window.CampaignMvp ? window.CampaignMvp.consumePendingMatch() : null;
+        if (campaignMatch) campaignMatch.usingStarterDeck = usingPracticeStarterDeck;
+        const backButton = document.getElementById('battle-end-back');
+        const againButton = document.getElementById('battle-end-again');
+        if (backButton) { backButton.textContent = 'К колоде'; backButton.onclick = () => switchScreen('deck'); }
+        if (againButton) { againButton.textContent = '⚔️ Ещё раз'; againButton.onclick = () => startBattle(); }
 
         // Сохраняем ник для баннера
         try {
             const meName = localStorage.getItem('tribes_username') || 'Герой';
             document.getElementById('me-name').textContent = meName;
+            document.getElementById('enemy-name').textContent = campaignMatch
+                ? `${campaignMatch.name} · ИИ-заглушка`
+                : 'Вождь племени';
+            document.getElementById('battle-subtitle').textContent = campaignMatch
+                ? `Тренировка: ${campaignMatch.clan}. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки. Рейтинг не меняется.`
+                : 'Враг у порога!';
+            if (campaignMatch && backButton && againButton) {
+                backButton.textContent = 'К кампании';
+                backButton.onclick = () => switchScreen('campaign');
+                againButton.textContent = '⚔️ Реванш';
+                againButton.onclick = () => window.CampaignMvp.rematch();
+            }
         } catch(e){}
 
         function cloneCard(c) {
@@ -3584,7 +3656,12 @@ ${prompt}
             return copy;
         }
 
-        const enemyCards = shuffle(buildEnemyDeck().map(c => {
+        let enemyDeckSource = buildEnemyDeck();
+        if (isCampaignChallenge) {
+            if (enemyCampaignConfig.era >= 3) enemyDeckSource = [...enemyDeckSource.filter(card => card.era === ERA_BRONZE), ...enemyDeckSource.filter(card => card.era !== ERA_BRONZE)];
+            enemyDeckSource = enemyDeckSource.slice(0, enemyCampaignConfig.deckLimit);
+        } else enemyDeckSource = enemyDeckSource.slice(0, DECK_LIMIT);
+        const enemyCards = shuffle(enemyDeckSource.map(c => {
             const copy = JSON.parse(JSON.stringify(c));
             delete copy.id;
             return copy;
@@ -3592,13 +3669,18 @@ ${prompt}
         const myCards = shuffle(cloneDeckCards(deckCards));
 
         battle = {
+            campaignMatch,
+            mode: campaignMatch ? 'campaign' : 'standard',
+            campaignConfig,
+            enemyCampaignConfig,
             turn: 1,
             turnCounters: { me: 1, enemy: 0 }, // собственные ходы сторон для временных модификаторов
             whoseTurn: 'me', // active player
             playerOrder: ['me','enemy'], // clockwise seating order for APNAP trigger resolution
             nextCardPlayOrder: 0,
             me: {
-                hp: MAX_HP,
+                hp: campaignMatch ? campaignConfig.hp : MAX_HP,
+                maxHp: campaignMatch ? campaignConfig.hp : MAX_HP,
                 deck: myCards,
                 hand: [],
                 discard: [],
@@ -3607,11 +3689,12 @@ ${prompt}
                 back: new Array(BACK_SLOTS).fill(null),
                 dropMana: 1,
                 dropManaMax: 1,
-                actionMana: STARTING_ACTION_MANA,
-                actionManaMax: STARTING_ACTION_MANA
+                actionMana: campaignMatch ? 0 : STARTING_ACTION_MANA,
+                actionManaMax: campaignMatch ? 0 : STARTING_ACTION_MANA
             },
             enemy: {
-                hp: MAX_HP,
+                hp: campaignMatch ? enemyCampaignConfig.hp : MAX_HP,
+                maxHp: campaignMatch ? enemyCampaignConfig.hp : MAX_HP,
                 deck: enemyCards,
                 hand: [],
                 discard: [],
@@ -3620,14 +3703,15 @@ ${prompt}
                 back: new Array(BACK_SLOTS).fill(null),
                 dropMana: 1,
                 dropManaMax: 1,
-                actionMana: STARTING_ACTION_MANA,
-                actionManaMax: STARTING_ACTION_MANA
+                actionMana: campaignMatch ? 0 : STARTING_ACTION_MANA,
+                actionManaMax: campaignMatch ? 0 : STARTING_ACTION_MANA
             },
             log: []
         };
 
-        // Раздаём стартовую руку
-        for (let i = 0; i < START_HAND; i++) { drawCard('me'); drawCard('enemy'); }
+        // В коротком кампанийном формате стартовая рука не превышает размер боевой колоды.
+        const openingHand = campaignMatch ? Math.min(START_HAND, myCards.length) : START_HAND;
+        for (let i = 0; i < openingHand; i++) { drawCard('me'); drawCard('enemy'); }
 
         selectedHandIdx = null;
         selectedUnitId = null;
@@ -3653,11 +3737,14 @@ ${prompt}
 
     function endBattle(win) {
         if (battle) battle._endScheduled = true;
+        const campaignMatch = battle?.campaignMatch;
+        if (campaignMatch && typeof window !== 'undefined' && window.CampaignMvp) window.CampaignMvp.recordBattleResult(campaignMatch, win);
         const content = document.getElementById('battle-end-content');
         content.innerHTML = `
             <div class="battle-end-icon">${win ? '🏆' : '💀'}</div>
             <div class="battle-end-title ${win ? 'win' : 'lose'}">${win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}</div>
             <p style="color:#888">${win ? 'Ты сокрушил вражеского вождя!' : 'Вождь племени одержал верх...'}</p>
+            ${campaignMatch ? '<p style="color:#d5af78">Тренировочный результат против ИИ-заглушки. Рейтинг клана не изменён.</p>' : ''}
         `;
         document.getElementById('battle-end-modal').classList.add('active');
         selectedHandIdx = null;
@@ -3728,8 +3815,10 @@ ${prompt}
         // HP
         document.getElementById('me-hp').textContent = Math.max(0, me.hp);
         document.getElementById('enemy-hp').textContent = Math.max(0, enemy.hp);
-        document.getElementById('me-hp-bar').style.width = Math.max(0, (me.hp / MAX_HP) * 100) + '%';
-        document.getElementById('enemy-hp-bar').style.width = Math.max(0, (enemy.hp / MAX_HP) * 100) + '%';
+        document.getElementById('me-max-hp').textContent = me.maxHp || MAX_HP;
+        document.getElementById('enemy-max-hp').textContent = enemy.maxHp || MAX_HP;
+        document.getElementById('me-hp-bar').style.width = Math.max(0, (me.hp / (me.maxHp || MAX_HP)) * 100) + '%';
+        document.getElementById('enemy-hp-bar').style.width = Math.max(0, (enemy.hp / (enemy.maxHp || MAX_HP)) * 100) + '%';
 
         // Подсветка вражеского баннера как цели при выбранной атаке
         const enemyBanner = document.querySelector('.player-banner.enemy');
@@ -3761,7 +3850,9 @@ ${prompt}
         ti.textContent = `ХОД ${turn} — ${whoseTurn === 'me' ? 'ТЫ' : 'ВРАГ'}`;
 
         // Мана
-        renderManaPips('drop-mana-pips', 'drop-mana-label', '💎', me.dropMana, me.dropManaMax);
+        renderManaPips('drop-mana-pips', 'drop-mana-label', battle.mode === 'campaign' ? '⚡' : '💎', me.dropMana, me.dropManaMax);
+        const actionManaRow = document.getElementById('action-mana-pips');
+        if (actionManaRow) actionManaRow.style.display = battle.mode === 'campaign' ? 'none' : '';
         renderManaPips('action-mana-pips', 'action-mana-label', '⚡', me.actionMana, me.actionManaMax);
         document.getElementById('deck-remaining').textContent = me.deck.length;
         const discardCount = document.getElementById('discard-count');
@@ -3864,7 +3955,7 @@ ${prompt}
                 html += `<div class="bf-slot ${droppable ? 'droppable' : ''}" onclick="playCardTo(${i}, ${isFront})"></div>`;
             } else {
                 const effectTargetable = !!pendingManualTarget?.candidates.some(t => t.kind === 'unit' && t.unit === u);
-                const selectable = !pendingManualTarget && !pendingCardChoice && isMyRow && whoseTurn_isMe() && !u.exhausted && getUnitActionCost(u) <= battle.me.actionMana && u.card_type === 'unit';
+                const selectable = !pendingManualTarget && !pendingCardChoice && isMyRow && whoseTurn_isMe() && !u.exhausted && getUnitActionCost(u) <= currentActionEnergy('me') && u.card_type === 'unit';
                 const targeted = awaitingTarget && !isMyRow; // атакуем вражеский ряд
                 const targetedMe = awaitingTarget && isMyRow && selectedUnitId; // пока не разрешаем атаковать своих
                 let cls = `bf-unit ${side}`;
@@ -3964,10 +4055,10 @@ ${prompt}
             html += `<div class="game-card ${typeDef.cls} ${unplayableCls} ${selectedCls}" onclick="selectHandCard(${idx})">
                 <div class="card-costs">
                     <div class="cost-badge drop-cost">
-                        <span class="cost-num">${card.drop_cost}</span>
+                        <span class="cost-num">${card.drop_cost}</span>${battle.mode === 'campaign' ? '<span class="cost-label">вывод</span>' : ''}
                     </div>
-                    ${card.action_cost > 0 ? `<div class="cost-badge action-cost">
-                        <span class="cost-num">${card.action_cost}</span>
+                    ${card.action_cost > 0 ? `<div class="cost-badge ${battle.mode === 'campaign' ? 'drop-cost' : 'action-cost'}">
+                        <span class="cost-num">${card.action_cost}</span>${battle.mode === 'campaign' ? '<span class="cost-label">атака</span>' : ''}
                     </div>` : ''}
                 </div>
                 <div class="card-name">${card.name}</div>
@@ -4080,7 +4171,8 @@ ${prompt}
             logBattle(`📦 ${card.name} подвозит припасы: +1💎!`, 'me');
         }
         if (unit.statuses.warcry) {
-            battle.me.actionMana = Math.min(MAX_ACTION_MANA, battle.me.actionMana + 1);
+            if (battle.mode === 'campaign') adjustActionEnergy('me', 1);
+            else battle.me.actionMana = Math.min(MAX_ACTION_MANA, battle.me.actionMana + 1);
             logBattle(`📯 ${card.name} поднимает боевой дух: +1⚡!`, 'me');
         }
         if (unit.statuses.harras) {
@@ -4088,7 +4180,8 @@ ${prompt}
             logBattle(`🏴 ${card.name} тревожит вражеские обозы!`, 'me');
         }
         if (unit.statuses.exhaustenemy) {
-            battle.enemy.actionMana = Math.max(0, battle.enemy.actionMana - 1);
+            if (battle.mode === 'campaign') adjustActionEnergy('enemy', -1);
+            else battle.enemy.actionMana = Math.max(0, battle.enemy.actionMana - 1);
             logBattle(`💤 ${card.name} изматывает врага: -1⚡ у врага!`, 'me');
         }
 
@@ -4119,8 +4212,8 @@ ${prompt}
         let unit = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === instanceId);
         if (!unit || unit.exhausted || unit.isStructure) return;
 
-        if (battle.me.actionMana < getUnitActionCost(unit)) {
-            logBattle(`❌ Недостаточно маны действия для ${unit.name} (нужно ${getUnitActionCost(unit)}⚡)`, 'system');
+        if (currentActionEnergy('me') < getUnitActionCost(unit)) {
+            logBattle(`❌ Недостаточно энергии для атаки ${unit.name} (нужно ${getUnitActionCost(unit)}⚡)`, 'system');
             return;
         }
 
@@ -4192,7 +4285,8 @@ ${prompt}
         }
 
         attacker.exhausted = true;
-        battle.me.actionMana -= getUnitActionCost(attacker);
+        if (battle.mode === 'campaign') battle.me.dropMana -= getUnitActionCost(attacker);
+        else battle.me.actionMana -= getUnitActionCost(attacker);
         const attackEffectTarget = targetInfo.row === 'hero'
             ? { kind:'player', side:'enemy' }
             : (targetInfo.u ? { kind:'unit', unit:targetInfo.u, side:'enemy' } : null);
@@ -4244,10 +4338,28 @@ ${prompt}
                 const finalPos = _unitPos(unit);
                 if (finalPos && unit.currentHp <= 0) {
                     battle[finalPos.side][finalPos.r][finalPos.i] = null;
+                    // Погибший экземпляр возвращается в низ колоды: shift() берёт верх, push() кладёт вниз.
+                    const returnedCard = {
+                        id: unit.id || unit._sourceCardId || uid(),
+                        name: unit.name || 'Безымянная карта',
+                        emoji: unit.emoji || '⚒️',
+                        card_type: unit.card_type || (unit.isStructure ? 'structure' : 'unit'),
+                        era: unit.era || 'ancient',
+                        drop_cost: unit.drop_cost || 0,
+                        action_cost: unit.action_cost || 0,
+                        atk: unit.atk || 0,
+                        hp: unit.hp || 1,
+                        description: unit.description || '',
+                        tags: unit.tags || [],
+                        abilities: unit.abilities || [],
+                        keywords: unit.keywords || [],
+                        effects: unit.effects || [],
+                        monkey_paw: unit.monkey_paw || ''
+                    };
+                    battle[finalPos.side].deck.push(JSON.parse(JSON.stringify(returnedCard)));
                     const ownerLabel = finalPos.side === 'me' ? (unit.isStructure ? 'Твоя' : 'Твой') : (unit.isStructure ? 'Вражеская' : 'Вражеский');
                     const cardLabel = unit.isStructure ? 'постройка' : 'отряд';
-                    const deathVerb = unit.isStructure ? 'уничтожена' : 'погибает';
-                    logBattle(`💀 ${ownerLabel} ${cardLabel} ${unit.name} ${deathVerb}!`, finalPos.side);
+                    logBattle(`💀 ${ownerLabel} ${cardLabel} ${unit.name} погибает и возвращается под колоду.`, finalPos.side);
                 }
                 cleanupDead();
             }
@@ -4348,10 +4460,20 @@ ${prompt}
         if (blocked > 0) {
             logBattle(`🏴 Обозы ${who==='me'?'тебя':'врага'} перехвачены — прирост маны ресурсов задержан!`, 'system');
         }
-        p.dropManaMax = Math.min(MAX_DROP_MANA, p.dropManaMax + Math.max(0, DROP_MANA_PER_TURN - blocked));
+        const campaignEnergy = battle.mode === 'campaign'
+            ? (who === 'me' ? battle.campaignConfig : battle.enemyCampaignConfig)
+            : null;
+        const energyGrowth = campaignEnergy ? campaignEnergy.energyGrowth : DROP_MANA_PER_TURN;
+        const energyCap = campaignEnergy ? campaignEnergy.energyMax : MAX_DROP_MANA;
+        p.dropManaMax = Math.min(energyCap, p.dropManaMax + Math.max(0, energyGrowth - blocked));
         p.dropMana = p.dropManaMax;
-        p.actionManaMax = Math.min(MAX_ACTION_MANA, p.actionManaMax + ACTION_MANA_PER_TURN);
-        p.actionMana = p.actionManaMax;
+        if (battle.mode === 'campaign') {
+            p.actionManaMax = 0;
+            p.actionMana = 0;
+        } else {
+            p.actionManaMax = Math.min(MAX_ACTION_MANA, p.actionManaMax + ACTION_MANA_PER_TURN);
+            p.actionMana = p.actionManaMax;
+        }
         p._blockDropNext = 0;
 
         // Сначала тикаем статусы (DoT/огонь/бегство)
@@ -4445,7 +4567,9 @@ ${prompt}
         // Добор; каждый пропуск из-за пустой колоды увеличивает усталость.
         drawCard(who);
         if (checkBattleEnd()) return;
-        logBattle(`🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Мана: 💎${p.dropMana}/${p.dropManaMax} ⚡${p.actionMana}/${p.actionManaMax}`, 'system');
+        logBattle(battle.mode === 'campaign'
+            ? `🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Энергия: ${p.dropMana}/${p.dropManaMax}`
+            : `🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Мана: 💎${p.dropMana}/${p.dropManaMax} ⚡${p.actionMana}/${p.actionManaMax}`, 'system');
 
         await fireStructures(who);
         cleanupDead();
@@ -4556,9 +4680,15 @@ ${prompt}
                             e.dropManaMax = Math.min(MAX_DROP_MANA, e.dropManaMax + 1);
                             e.dropMana += 1;
                         }
-                        if (unit.statuses.warcry) e.actionMana = Math.min(MAX_ACTION_MANA, e.actionMana + 1);
+                        if (unit.statuses.warcry) {
+                            if (battle.mode === 'campaign') adjustActionEnergy('enemy', 1);
+                            else e.actionMana = Math.min(MAX_ACTION_MANA, e.actionMana + 1);
+                        }
                         if (unit.statuses.harras) battle.me._blockDropNext = (battle.me._blockDropNext||0) + 1;
-                        if (unit.statuses.exhaustenemy) battle.me.actionMana = Math.max(0, battle.me.actionMana - 1);
+                        if (unit.statuses.exhaustenemy) {
+                            if (battle.mode === 'campaign') adjustActionEnergy('me', -1);
+                            else battle.me.actionMana = Math.max(0, battle.me.actionMana - 1);
+                        }
                         resolveCardEffects(unit, 'enter_play', 'enemy');
                         cleanupDead();
                         logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
@@ -4581,10 +4711,11 @@ ${prompt}
         while (attackAttempts < 15) {
             if (!battle || battle._endScheduled) return;
             attackAttempts++;
-            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && getUnitActionCost(u) <= e.actionMana);
+            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && getUnitActionCost(u) <= currentActionEnergy('enemy'));
             if (!attacker) break;
 
-            e.actionMana -= getUnitActionCost(attacker);
+            if (battle.mode === 'campaign') e.dropMana -= getUnitActionCost(attacker);
+            else e.actionMana -= getUnitActionCost(attacker);
 
             let aRow=null,aSlot=-1;
             for (let i=0;i<FRONT_SLOTS;i++) if (e.front[i]===attacker){aRow='front';aSlot=i;}
