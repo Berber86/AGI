@@ -1349,7 +1349,10 @@ ${allTags.length ? allTags.join(', ') : 'только базовые племе�
   "description": "1-2 предложения, реалистично",
   "tags": ["подходящие теги"],
   "abilities": ["тактические способности в стиле правил"],
-  "keywords": ["armor","pierce","ranged","charge","shieldwall","wedge","phalanx","skirmish","taunt","poison","burn","heal","rally","fear","morale","siege","spy","sabotage","supply","warcry","loot","raider","harras","exhaustenemy"] — МАССИВ РАБОЧИХ КЛЮЧЕВЫХ СЛОВ (подходящие; пустой массив если нет),
+  "keywords": ["armor","pierce","ranged","reach","charge","shieldwall","wedge","phalanx","skirmish","taunt","poison","burn","heal","rally","fear","morale","siege","spy","sabotage","supply","warcry","loot","raider","harras","exhaustenemy","sturdy","holdground","upkeep"] — МАССИВ РАБОЧИХ КЛЮЧЕВЫХ СЛОВ (подходящие; пустой массив если нет). КРИТИЧЕСКИ ВАЖНО:
+   • ВСЕ механические эффекты карты ТОЛЬКО в виде keywords. Если у юнита «прочный строй, −1 урона от первой атаки» — ставь sturdy. Если «не отступает от натиска» — holdground. Если «нуждается в снабжении/содержании» — upkeep.
+   • Поле abilities — это ТОЛЬКО КОЛОРИТ/флафф-описание (как отряд выглядит, история). НЕ ПИШИ в abilities игровые механики — движок их НЕ ПРОЧИТАЕТ.
+   • Поле monkey_paw — штраф, может содержать текст-объяснение. Но сам по себе текстовый штраф НЕ работает движком; если штраф механический (содержание/потеря HP) — добавь соответствующий keyword (например upkeep).
   "monkey_paw": "" либо "штраф"
 }
 
@@ -1458,6 +1461,13 @@ ${prompt}
             if (!k) return;
             const kn = String(k).toLowerCase().trim();
             if (KEYWORDS[kn]) kwIcons.push(`<span class="kw-chip" title="${KEYWORDS[kn].desc}" style="display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em;">${KEYWORDS[kn].label}</span>`);
+        });
+        // Автодобавление иконок по эвристике из описания (если ИИ забыл прописать keywords)
+        const text = ((card.name||'')+' '+(card.description||'')+' '+((card.abilities||[]).join(' '))).toLowerCase();
+        const autoKw = [];
+        if (!kwIcons.length && /копь[её]|длинн|пик|саррис/.test(text)) autoKw.push(['reach', KEYWORDS.reach]);
+        autoKw.forEach(([k,def]) => {
+            if (!(card.keywords||[]).includes(k)) kwIcons.push(`<span class="kw-chip" title="${def.desc} (автоопределено)" style="display:inline-block; background:rgba(255,255,255,0.05); border:1px dashed rgba(255,255,255,0.2); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em; opacity:.75;">${def.label}</span>`);
         });
         const kwHtml = kwIcons.length ? `<div style="margin:4px 0; font-size:0.72em; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwIcons.join('')}</div>` : '';
 
@@ -1748,7 +1758,11 @@ ${prompt}
         loot:       { label: '🪙', desc: 'Добыча: при гибели врага даёт +1💎.' },
         raider:     { label: '🗡️', desc: 'Налётчик: при атаке крадёт 1💎 у врага.' },
         harras:     { label: '🏴', desc: 'Партизан: блокирует +1💎 маны врага в следующий ход.' },
-        exhaustenemy:{label: '💤', desc: 'Измот: отнимает 1⚡ действия у врага.' }
+        exhaustenemy:{label: '💤', desc: 'Измот: отнимает 1⚡ действия у врага.' },
+        // Защитные / формационные (покрывают часто встречаемые описания юнитов)
+        sturdy:     { label: '🧱', desc: 'Стойкий: −1 урона от первой атаки в каждый ход.' },
+        holdground: { label: '⚓', desc: 'Удержание строя: иммунитет к страху и чаржу в первый ход после высадки.' },
+        upkeep:     { label: '🥩', desc: 'Содержание: если в ряду нет дружественного отряда справа/слева, теряет 1 HP в ход.' }
     };
 
     function hasKw(unit, kw) { return unit && unit.statuses && unit.statuses[kw]; }
@@ -1791,8 +1805,8 @@ ${prompt}
             for (let i = 0; i < FRONT_SLOTS; i++) if (E.front[i]) return { u: E.front[i], row: 'front', i };
             return { u: null, row: 'hero', i: -1 };
         }
-        // Контактный тыл (копейщики 2 ряда / пики) бьёт визави
-        if (E.front[slotIdx]) return { u: E.front[slotIdx], row: 'front', i: slotIdx };
+        // Длинное оружие (пики/саррисы/reach) или копейщики — бьют визави из тыла
+        if (hasKw(attacker,'reach') && E.front[slotIdx]) return { u: E.front[slotIdx], row: 'front', i: slotIdx };
         return null;
     }
 
@@ -1809,15 +1823,22 @@ ${prompt}
         // Броня и пробитие
         const armor = Math.max(0, (target.statuses?.armor||0) - (attacker.statuses?.pierce||0));
         dmg = Math.max(1, dmg - armor);
-        // Чарж бонус
-        if (hasKw(attacker, 'charge') && attacker._justDeployed) dmg += 2;
+        // Чарж бонус (отменяется holdground у цели в первый ход)
+        if (hasKw(attacker, 'charge') && attacker._justDeployed) {
+            if (!(hasKw(target,'holdground') && target._justDeployed)) dmg += 2;
+        }
         // Стена щитов у цели
         if (hasKw(target, 'shieldwall') && _hasFlankNeighbors(target)) dmg = Math.max(1, dmg - 1);
+        // Sturdy: первая атака по отряду в этот ход — −1 урон
+        if (hasKw(target,'sturdy') && !target._hitThisTurn) {
+            dmg = Math.max(1, dmg - 1);
+            target._hitThisTurn = true;
+        }
         // Осадный бонус по постройкам
         if (target.isStructure && hasKw(attacker, 'siege')) dmg *= 2;
-        // Устрашение
+        // Устрашение (отменяется holdground у цели в первый ход)
         if (hasKw(attacker, 'fear') && Math.random() < 0.25) {
-            target._fears = true;
+            if (!(hasKw(target,'holdground') && target._justDeployed)) target._fears = true;
         }
         dmg = Math.max(1, Math.floor(dmg));
         const wasAlive = target.currentHp > 0;
@@ -1942,7 +1963,7 @@ ${prompt}
             if (!k) return;
             const kn = String(k).toLowerCase().trim();
             if (['armor','pierce'].includes(kn)) u.statuses[kn] = Math.max(u.statuses[kn]||0, 1);
-            else if (['ranged','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy'].includes(kn)) u.statuses[kn] = true;
+            else if (['ranged','reach','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy','sturdy','holdground','upkeep'].includes(kn)) u.statuses[kn] = true;
             else if (kn === 'poison' || kn === 'burn') u.statuses[kn] = (u.statuses[kn]||0) + 1;
         });
         // 2) Эвристическое обнаружение по имени/описанию/способностям (для обратной совместимости)
@@ -1950,6 +1971,7 @@ ${prompt}
         if (!u.statuses.armor && /брон|щит|доспех|кожан|armor|шлем/.test(text)) u.statuses.armor = 1;
         if (!u.statuses.pierce && /пробит|пронз|pierce|остр/.test(text)) u.statuses.pierce = 1;
         if (!u.statuses.ranged && /лучник|пращ|метат|стрел|ranged|дальн/.test(text)) u.statuses.ranged = true;
+        if (!u.statuses.reach && /длинн|копьё|пика|reach|саррис/.test(text)) u.statuses.reach = true;
         if (!u.statuses.charge && /чарж|налёт|charge|рывок|колесниц/.test(text)) u.statuses.charge = true;
         if (!u.statuses.shieldwall && /стен[ау] щит|щитонос|shieldwall/.test(text)) { u.statuses.shieldwall = true; u.statuses.armor = Math.max(u.statuses.armor||0, 1); }
         if (!u.statuses.wedge && /клин|wedge/.test(text)) u.statuses.wedge = true;
@@ -1972,6 +1994,9 @@ ${prompt}
         if (!u.statuses.raider && /налётч|raider|марод|грабитель|набег/.test(text)) u.statuses.raider = true;
         if (!u.statuses.harras && /партизан|harras|набеги/.test(text)) u.statuses.harras = true;
         if (!u.statuses.exhaustenemy && /измот|изнур|деморализ|exhaust|шумн|вымот/.test(text)) u.statuses.exhaustenemy = true;
+        if (!u.statuses.sturdy && /стойк|крепк|опытн|закал|sturdy|первая атака.*урон|первого удара|первого натиска/.test(text)) u.statuses.sturdy = true;
+        if (!u.statuses.holdground && /держат строй|удержание строя|не отступают|hold.?ground|не дрогн/.test(text)) u.statuses.holdground = true;
+        if (!u.statuses.upkeep && /содержание|снабжение.*если|без.*поддержки|upkeep|истощает припас/.test(text)) u.statuses.upkeep = true;
         u._justDeployed = true;
     }
 
@@ -2255,6 +2280,7 @@ ${prompt}
                     if (u.statuses.armor) kws.push(`<span title="Броня: ${u.statuses.armor}">🛡️${u.statuses.armor}</span>`);
                     if (u.statuses.pierce) kws.push(`<span title="Пробитие: ${u.statuses.pierce}">🗡️${u.statuses.pierce}</span>`);
                     if (u.statuses.ranged) kws.push(`<span title="${KEYWORDS.ranged.desc}">🏹</span>`);
+                    if (u.statuses.reach) kws.push(`<span title="${KEYWORDS.reach.desc}">📏</span>`);
                     if (u.statuses.charge) kws.push(`<span title="${KEYWORDS.charge.desc}">🐎</span>`);
                     if (u.statuses.shieldwall) kws.push(`<span title="${KEYWORDS.shieldwall.desc}">🔰</span>`);
                     if (u.statuses.wedge) kws.push(`<span title="${KEYWORDS.wedge.desc}">🔺</span>`);
@@ -2273,6 +2299,9 @@ ${prompt}
                     if (u.statuses.warcry) kws.push(`<span title="${KEYWORDS.warcry.desc}">📯</span>`);
                     if (u.statuses.loot) kws.push(`<span title="${KEYWORDS.loot.desc}">🪙</span>`);
                     if (u.statuses.raider) kws.push(`<span title="${KEYWORDS.raider.desc}">🗡️</span>`);
+                    if (u.statuses.sturdy) kws.push(`<span title="${KEYWORDS.sturdy.desc}">🧱</span>`);
+                    if (u.statuses.holdground) kws.push(`<span title="${KEYWORDS.holdground.desc}">⚓</span>`);
+                    if (u.statuses.upkeep) kws.push(`<span title="${KEYWORDS.upkeep.desc}">🥩</span>`);
                 }
                 html += `<div class="${cls}" ${clickAction}>
                     ${targeted ? '<span class="bf-target">🎯</span>' : ''}
@@ -2714,6 +2743,16 @@ ${prompt}
                     u.justAttacked = false;
                     u.justDamaged = false;
                     u._justDeployed = false;
+                    u._hitThisTurn = false;
+                    // Upkeep (содержание): без соседей -1 HP
+                    if (u.statuses.upkeep && !u.isStructure) {
+                        const pos = _unitPos(u);
+                        if (pos && !_hasFlankNeighbors(u)) {
+                            u.currentHp = Math.max(0, u.currentHp - 1);
+                            u.justDamaged = true;
+                            logBattle(`🥩 ${u.name} остаётся без поддержки соседей и теряет 1 HP от нехватки снабжения.`, pos.side);
+                        }
+                    }
                     u.currentAtk = u.atk;
                     if (u.statuses.phalanx) { u.currentAtk += 1; u.statuses.armor = Math.max(u.statuses.armor||0, 1); }
                 }
