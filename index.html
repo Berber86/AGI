@@ -3,6 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b0811">
+    <meta name="description" content="Infinite Forge — собери легендарную армию и измени ход истории в стратегической карточной игре.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Infinite Forge">
+    <link rel="icon" type="image/svg+xml" href="assets/forge-mark.svg">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <title>Infinite Forge — Рождение цивилизаций</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1036,6 +1045,7 @@
             --forge-line: rgba(194,156,231,.18);
         }
         body {
+            font-family: 'Manrope', 'Segoe UI', system-ui, sans-serif;
             background-color: var(--forge-ink);
             background-image: radial-gradient(ellipse at 8% 10%, rgba(119,61,157,.2), transparent 36%), radial-gradient(ellipse at 92% 88%, rgba(158,69,77,.12), transparent 33%), linear-gradient(180deg,#0c0812,#09070d 75%);
             background-attachment: fixed;
@@ -1054,6 +1064,7 @@
         }
         .top-bar .nav button:hover { transform: translateY(-1px); }
         .container { max-width: 1180px; padding-top: 30px; }
+        h1, .battle-end-title, .deck-pile-header h2 { font-family: 'Cinzel', Georgia, serif; }
         .screen { animation: screen-arrive .32s cubic-bezier(.2,.75,.25,1) both; }
         @keyframes screen-arrive { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
         .screen-hero {
@@ -1242,8 +1253,33 @@
         .modal { border-color: rgba(240,184,107,.3); }
         .empty-collection { padding: 70px 22px; border: 1px dashed rgba(189,131,255,.22); border-radius: 20px; background: rgba(18,13,26,.45); }
         .empty-collection .icon { filter: drop-shadow(0 8px 14px rgba(189,131,255,.25)); }
+        .deck-builder { display: grid; grid-template-columns: minmax(0,1.08fr) minmax(0,.92fr); gap: 18px; align-items: start; }
+        .deck-pile { min-width: 0; padding: 18px; border: 1px solid rgba(194,156,231,.17); border-radius: 20px; background: linear-gradient(155deg,rgba(24,18,33,.9),rgba(13,11,18,.87)); box-shadow: 0 16px 42px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.04); transition: border-color .2s ease, box-shadow .2s ease, background .2s ease; }
+        .deck-pile-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:5px; }
+        .deck-pile-kicker { display:block; margin-bottom:4px; color:#d5af78; font-size:.58em; font-weight:800; letter-spacing:.17em; }
+        .deck-pile-header h2 { margin:0; color:#f2e5d2; font-size:1.22em; }
+        .deck-pile-count { min-width:58px; padding:7px 10px; border:1px solid rgba(240,184,107,.28); border-radius:11px; background:rgba(240,184,107,.08); color:#f1c77f; text-align:center; font-size:.8em; font-weight:800; font-variant-numeric:tabular-nums; }
+        .deck-pile-count-muted { border-color:rgba(189,131,255,.2); background:rgba(189,131,255,.07); color:#d9b8f5; }
+        .deck-pile-hint { min-height:38px; margin:0 0 13px; color:#a99bb2; font-size:.76em; line-height:1.5; }
+        .deck-pile .cards-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,205px),1fr)); gap:12px; }
+        .deck-available-grid { min-height:120px; }
+        .deck-pile .game-card { max-width:none !important; padding:13px; border-radius:16px; }
+        .deck-pile .game-card .card-art { height:105px; }
+        .deck-pile .game-card .card-name { font-size:1.05em; margin-top:25px; }
+        .deck-pile .game-card .card-desc { font-size:.76em; }
+        .deck-pile .card-footer { flex-wrap:wrap; }
+        .deck-pile .mini-btn { min-width:0; }
+        .deck-builder-ready #deck-grid .game-card, .deck-builder-ready #deck-available-grid .game-card { cursor: grab; }
+        .deck-builder-ready.deck-dragging #deck-grid .game-card, .deck-builder-ready.deck-dragging #deck-available-grid .game-card { cursor: grabbing; }
+        .deck-dragging .deck-pile { border-color:rgba(238,190,125,.5); box-shadow:0 0 0 2px rgba(238,190,125,.08),0 16px 45px rgba(0,0,0,.25); }
+        .sortable-ghost { opacity:.26 !important; filter:saturate(.4); }
+        .sortable-chosen { transform:scale(1.025); box-shadow:0 18px 38px rgba(0,0,0,.42),0 0 0 1px rgba(241,199,127,.6) !important; }
+        .sortable-drag { opacity:.96 !important; transform:rotate(1deg) scale(1.04); }
 
         @media (max-width: 760px) {
+            .deck-builder { grid-template-columns: minmax(0,1fr); gap: 14px; }
+            .deck-pile { padding: 14px; border-radius: 16px; }
+            .deck-pile .cards-grid { grid-template-columns: repeat(auto-fill,minmax(min(100%,190px),1fr)); }
             .container { padding-top: 18px; }
             .screen-hero { min-height: 170px; padding: 22px 20px; border-radius: 18px; margin-bottom: 19px; background-position: 57% center; }
             .forge-hero { min-height: 225px; }
@@ -1426,11 +1462,31 @@
                 </div>
             </div>
 
-            <div id="deck-grid" class="cards-grid"></div>
-            <div id="deck-empty" class="empty-collection">
-                <div class="icon">🎴</div>
-                <div>Колода пуста.</div>
-                <div style="margin-top:8px; font-size:0.9em">Перейди в Коллекцию и добавь карты в колоду (кнопка ➕).</div>
+            <div class="deck-builder">
+                <section class="deck-pile deck-pile-current" aria-labelledby="deck-pile-title">
+                    <header class="deck-pile-header">
+                        <div><span class="deck-pile-kicker">ТВОЯ АРМИЯ</span><h2 id="deck-pile-title">В колоде</h2></div>
+                        <span class="deck-pile-count" id="deck-pile-count">0 / 10</span>
+                    </header>
+                    <p class="deck-pile-hint">Перетаскивай карты, чтобы менять порядок. Убрать можно кнопкой на карте.</p>
+                    <div id="deck-grid" class="cards-grid deck-grid"></div>
+                    <div id="deck-empty" class="empty-collection">
+                        <div class="icon">🎴</div>
+                        <div>Пока ни одной карты.</div>
+                        <div style="margin-top:8px; font-size:0.9em">Выбери карты справа или добавь их в разделе «Коллекция».</div>
+                    </div>
+                </section>
+                <section class="deck-pile deck-pile-available" aria-labelledby="available-pile-title">
+                    <header class="deck-pile-header">
+                        <div><span class="deck-pile-kicker">РЕЗЕРВ</span><h2 id="available-pile-title">Карты коллекции</h2></div>
+                        <span class="deck-pile-count deck-pile-count-muted" id="available-pile-count">0</span>
+                    </header>
+                    <p class="deck-pile-hint">Перетащи карту в состав или нажми «В колоду».</p>
+                    <div id="deck-available-grid" class="cards-grid deck-available-grid"></div>
+                    <div id="deck-available-empty" class="empty-collection" style="display:none">
+                        <div class="icon">✨</div><div>Все карты уже в колоде.</div>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -1642,6 +1698,9 @@
         renderTags();
         updateDeckCount();
         renderCollection();
+        renderDeck();
+        initDeckBuilderDragDrop();
+        loadDeckBuilderLibrary();
     };
 
     // ============================================
@@ -2069,7 +2128,7 @@ ${prompt}
         }
 
         return `
-            <div class="game-card ${typeDef.cls}" style="max-width:320px; width:100%">
+            <div class="game-card ${typeDef.cls}" data-card-id="${card.id}" style="max-width:320px; width:100%">
                 ${inDeckBadge}
                 <div class="card-costs">
                     <div class="cost-badge drop-cost">
@@ -2133,12 +2192,14 @@ ${prompt}
         updateCounters();
     }
 
-    function addToDeck(id) {
+    function addToDeck(id, insertAt = null) {
         if (deck.length >= DECK_LIMIT) return;
         if (deck.includes(id)) return;
-        deck.push(id);
+        const index = Number.isInteger(insertAt) ? Math.max(0,Math.min(insertAt,deck.length)) : deck.length;
+        deck.splice(index,0,id);
         saveDeck();
         renderCollection();
+        if (document.getElementById('screen-deck').classList.contains('active')) renderDeck();
     }
 
     function removeFromDeck(id) {
@@ -2225,8 +2286,24 @@ ${prompt}
         const ready = document.getElementById('deck-ready');
         const launch = document.getElementById('deck-launch-btn');
         const deckHeroNote = document.getElementById('deck-hero-note');
+        const availableGrid = document.getElementById('deck-available-grid');
+        const availableEmpty = document.getElementById('deck-available-empty');
+        const pileCount = document.getElementById('deck-pile-count');
+        const availableCount = document.getElementById('available-pile-count');
 
         const deckCards = deck.map(id => collection.find(c => c.id === id)).filter(Boolean);
+        const availableCards = collection.filter(card => !deck.includes(card.id));
+        if (pileCount) pileCount.textContent = `${deckCards.length} / ${DECK_LIMIT}`;
+        if (availableCount) availableCount.textContent = String(availableCards.length);
+        if (availableGrid) availableGrid.innerHTML = availableCards.map(card => renderCard(card, 'collection')).join('');
+        if (availableEmpty) {
+            availableEmpty.style.display = availableCards.length ? 'none' : 'block';
+            if (!availableCards.length) {
+                availableEmpty.querySelector('div:last-child').textContent = collection.length
+                    ? 'Все карты уже в колоде.'
+                    : 'Сначала выкуй и сохрани карты в Кузнице.';
+            }
+        }
 
         if (deckCards.length === 0) {
             grid.innerHTML = '';
@@ -2298,6 +2375,88 @@ ${prompt}
                 ? 'Начать бой'
                 : `Собери ${DECK_LIMIT} карт, чтобы начать бой`;
         }
+    }
+
+    let deckBuilderSortables = null;
+    let deckBuilderLibraryRequested = false;
+    function setDeckBuilderDragHints(enabled) {
+        const hints = document.querySelectorAll('.deck-pile-hint');
+        if (hints[0]) hints[0].textContent = enabled
+            ? 'Перетаскивай карты, чтобы менять порядок. Убрать можно кнопкой на карте.'
+            : 'Добавляй и убирай карты кнопками на карточках.';
+        if (hints[1]) hints[1].textContent = enabled
+            ? 'Перетащи карту в состав или нажми «В колоду».'
+            : 'Нажми «В колоду» на карте — кнопка всегда доступна.';
+    }
+    function initDeckBuilderDragDrop() {
+        if (deckBuilderSortables) return;
+        if (!window.Sortable) { setDeckBuilderDragHints(false); return; }
+        const deckGrid = document.getElementById('deck-grid');
+        const availableGrid = document.getElementById('deck-available-grid');
+        if (!deckGrid || !availableGrid) return;
+        setDeckBuilderDragHints(true);
+        document.body.classList.add('deck-builder-ready');
+
+        const dragOptions = {
+            group: { name:'forge-deck', pull:true, put:true },
+            draggable:'.game-card',
+            filter:'button, summary, details, .kw-chip',
+            preventOnFilter:false,
+            animation:210,
+            easing:'cubic-bezier(.2,.75,.25,1)',
+            ghostClass:'sortable-ghost',
+            chosenClass:'sortable-chosen',
+            dragClass:'sortable-drag',
+            fallbackOnBody:true,
+            swapThreshold:.62,
+            onStart:() => document.body.classList.add('deck-dragging'),
+            onEnd:() => document.body.classList.remove('deck-dragging')
+        };
+
+        deckBuilderSortables = {
+            deck: new window.Sortable(deckGrid, {
+                ...dragOptions,
+                group:{ name:'forge-deck', pull:true, put:true },
+                onAdd:event => {
+                    const id = event.item?.dataset.cardId;
+                    const countBefore = deck.length;
+                    if (id) addToDeck(id,event.newIndex);
+                    if (deck.length === countBefore) renderDeck();
+                },
+                onUpdate:() => {
+                    const nextOrder = [...deckGrid.querySelectorAll(':scope > .game-card')]
+                        .map(card => card.dataset.cardId).filter(Boolean);
+                    if (nextOrder.length === deck.length) {
+                        deck = nextOrder;
+                        saveDeck();
+                        renderDeck();
+                    }
+                }
+            }),
+            available: new window.Sortable(availableGrid, {
+                ...dragOptions,
+                group:{ name:'forge-deck', pull:'clone', put:true },
+                sort:false,
+                onAdd:event => {
+                    const id = event.item?.dataset.cardId;
+                    if (id) removeFromDeck(id);
+                    else renderDeck();
+                }
+            })
+        };
+    }
+    window.initDeckBuilderDragDrop = initDeckBuilderDragDrop;
+    function loadDeckBuilderLibrary() {
+        if (window.Sortable) { initDeckBuilderDragDrop(); return; }
+        if (deckBuilderLibraryRequested) return;
+        deckBuilderLibraryRequested = true;
+        // Progressive enhancement only: card buttons keep working if the CDN is unavailable.
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js';
+        script.async = true;
+        script.onload = initDeckBuilderDragDrop;
+        script.onerror = () => setDeckBuilderDragHints(false);
+        document.head.appendChild(script);
     }
 
     // ============================================
