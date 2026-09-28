@@ -215,7 +215,6 @@
 
         /* ====== GAME CARD ====== */
         .game-card {
-            aspect-ratio: 5/7;
             border-radius: 16px;
             padding: 18px;
             position: relative;
@@ -223,8 +222,15 @@
             flex-direction: column;
             box-shadow: 0 8px 30px rgba(0,0,0,0.5);
             transition: 0.3s;
-            overflow: hidden;
+            overflow: visible;
         }
+        /* Аспект 5/7 только для карт в колоде/руке (где их много и нужно одинаковая высота).
+           В кузнице/результате — высота по контенту, чтобы кнопку не обрезало. */
+        .card-grid .game-card { aspect-ratio: 5/7; overflow: hidden; }
+        .hand .game-card { aspect-ratio: 5/7; overflow: hidden; }
+        .deck-grid .game-card { aspect-ratio: 5/7; overflow: hidden; }
+        .forge-result .game-card { aspect-ratio: auto; max-width: 360px; width:100%; margin:0 auto; overflow: visible; }
+        .forge-result .game-card .card-desc { flex: 0 0 auto; }
         .game-card:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 15px 40px rgba(199, 125, 255, 0.3); }
         .game-card.type-unit { background: linear-gradient(160deg, #2d1f4a, #1a1030); border: 2px solid #6b4fa3; }
         .game-card.type-spell { background: linear-gradient(160deg, #4a1f3d, #301028); border: 2px solid #e94560; }
@@ -387,6 +393,9 @@
             border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 2;
         }
         .save-btn:hover { background: #2ea043; }
         .save-btn.saved { background: #1a5a28; cursor: default; }
@@ -951,7 +960,7 @@
 
             <div class="cards-section">
                 <h2>🔥 Результат ковки</h2>
-                <div id="forge-result" style="display:flex; justify-content:center;">
+                <div id="forge-result" class="forge-result" style="display:flex; justify-content:center;">
                     <div style="color:#7868a0; padding:40px; text-align:center">
                         Твоя новая карта появится здесь
                     </div>
@@ -1379,9 +1388,25 @@
 ПОСТРОЙКИ (structure): drop_cost 2-8, action_cost=0, atk=0, HP=3-8. Деревянные/глинобитные — HP 3-5, 2-4 маны (ancient). Каменные/бронзовые — HP 5-8, 5-8 маны (bronze).
 
 === ЛАПА ОБЕЗЬЯНЫ ===
-За сверх-силу — ЧЕСТНЫЙ, ЛОГИЧНЫЙ штраф в monkey_paw. Штраф НЕ ДОЛЖЕН ПРОТИВОРЕЧИТЬ основной способности (не «в лесу +1 к атаке» и одновременно «в лесу не может атаковать» — такого бреда не генерируй!).
-Штраф должен быть тематически оправдан и уравновешивать силу (стоимость припасов/содержания, -1 HP, медлительность, измотанность в первый ход, требования биома, разовое усилие при розыгрыше). Штраф попадает в monkey_paw и ПОКАЗЫВАЕТСЯ ОТДЕЛЬНО от abilities — в abilities его НЕ ДУБЛИРУЙ.
-Для обычных сбалансированных карт (без сверх-силы) monkey_paw = "" (пустая строка).
+За сверх-силу карта получает уравновешивающий штраф. Строгие правила:
+
+1) Штраф ОБЯЗАТЕЛЬНО должен соответствовать ОДНОЙ ИЗ работающих в движке механик. То есть:
+   • Либо это keyword из списка выше (upkeep, exhaustenemy, sturdy с минусом — НЕТ, только те что есть; обычно это upkeep = -1 HP без соседей, harras = -1💎 у игрока в следующий ход).
+   • Либо это статовый штраф: уменьши hp или atk прямо в полях hp/atk (самый простой и честный вариант).
+   • Либо это стоимость: повысь drop_cost/action_cost.
+   • В monkey_paw может быть ТОЛЬКО пояснение в 1 предложение — почему карта имеет этот штраф (история/флафф).
+
+2) ЗАПРЕЩЕНО придумывать новые механики/дебафы, которые движок НЕ ПОДДЕРЖИВАЕТ. В том числе нельзя писать:
+   • «если у врага нет построек, бьёт случайную цель» (движок не умеет)
+   • «эффект бьёт и по врагу и по вам» (движок не делает двустороннего эффекта)
+   • «отряд не получает бонус в лесу» (нет биомных модификаторов в бою)
+   • «не может атаковать в свой ход» (для этого подними action_cost или просто не давай)
+   • «теряет прирост действий в этот ход» (движок не умеет такого штрафа на той же стороне; используй upkeep или просто снизь статы)
+   • «враг видит вашу руку» и прочие ассиметричные эффекты сверх списка keywords.
+
+3) Штраф НЕ ДОЛЖЕН ПРОТИВОРЕЧИТЬ основным способностям (не «в лесу +1 к атаке» и при этом «в лесу не может атаковать»).
+
+4) Для обычных сбалансированных карт (без сверх-силы) monkey_paw = "" (пустая строка).
 
 === ДОСТУПНЫЕ ТЕГИ ===
 ${allTags.length ? allTags.join(', ') : 'только базовые племена Древнего мира (каменный век)'}
@@ -1518,17 +1543,25 @@ ${prompt}
             const num = parseInt(numStr);
             const n = isNaN(num) ? 0 : num;
             const suffix = (['armor','pierce','poison','burn','heal'].includes(kw)) ? (n||1) : '';
-            const shortName = {
-                armor:'броня', pierce:'проб.', ranged:'дальн.', reach:'длинн.', charge:'чарж',
-                shieldwall:'щиты', wedge:'клин', phalanx:'фаланг.', skirmish:'засад.',
-                taunt:'провок.', poison:'яд', burn:'огонь', heal:'лекарь', rally:'подд.',
-                fear:'страх', morale:'мораль', siege:'осада', spy:'развед.', sabotage:'диверс.',
-                supply:'снабж.', warcry:'клич', loot:'добыча', raider:'налёт', harras:'партиз.',
-                exhaustenemy:'измот', sturdy:'стойк.', holdground:'строй', upkeep:'содерж.'
+            const fullLabel = {
+                armor:'броня', pierce:'пробитие', ranged:'дальний бой', reach:'длинное оружие',
+                charge:'чарж', shieldwall:'стена щитов', wedge:'клин', phalanx:'фаланга',
+                skirmish:'засадный', taunt:'провокация', poison:'яд', burn:'огонь', heal:'лекарь',
+                rally:'поддержка', fear:'устрашение', morale:'мораль', siege:'осада', spy:'разведка',
+                sabotage:'диверсия', supply:'снабжение', warcry:'боевой клич', loot:'добыча',
+                raider:'налётчик', harras:'партизан', exhaustenemy:'измот', sturdy:'стойкий',
+                holdground:'держит строй', upkeep:'содержание'
             }[kw] || kw;
-            kwChips.push(`<span class="kw-chip" title="${def.desc}" style="display:inline-flex; align-items:center; gap:2px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 5px; margin:1px; font-size:.7em; white-space:nowrap;">${def.label}${suffix?`<b>${suffix}</b>`:''} <span style="opacity:.7;font-size:.9em">${shortName}</span></span>`);
+            kwChips.push(`<span class="kw-chip" onclick="this.classList.toggle('kw-open')" ontouchstart="event.preventDefault();this.classList.toggle('kw-open')" style="display:inline-flex; align-items:center; gap:3px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:2px 7px; margin:1px; font-size:.72em; white-space:nowrap; cursor:help;">${def.label}${suffix?`<b>${suffix}</b>`:''} <span style="opacity:.85">${fullLabel}</span></span>`);
         });
-        const kwHtml = kwChips.length ? `<div style="margin:4px 0; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwChips.join('')}</div>` : '';
+        // Легенда: расшифровка всех ключевых слов, что делает механика
+        const kwLegend = kwChips.length ? `<details style="margin-top:6px; font-size:0.7em; color:#a08ec0;">
+            <summary style="cursor:pointer; outline:none; user-select:none;">ℹ️ Что это за свойства?</summary>
+            <ul style="margin:6px 0 0 16px; padding:0; line-height:1.45;">
+                ${kwChips.map(()=>'').join('')}
+                ${(()=>{const L=[]; (card.keywords||[]).forEach(raw=>{if(!raw)return;const[k,ns]=String(raw).split(':');if(KEYWORDS[k])L.push(`<li><b style="color:#c77dff">${KEYWORDS[k].label} ${(['armor','pierce','poison','burn','heal'].includes(k)?(parseInt(ns)||1):'')}</b> — ${KEYWORDS[k].desc}</li>`);});return L.join('');})()}
+            </ul></details>` : '';
+        const kwHtml = kwChips.length ? `<div style="margin:4px 0; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwChips.join('')}</div>${kwLegend}` : '';
 
         // Штраф (Лапа Обезьяны) — отдельный блок, а не смешанный
         const monkeyBlock = card.monkey_paw ?
