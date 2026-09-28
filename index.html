@@ -1241,6 +1241,7 @@
     // ============================================
     function switchScreen(screen) {
         if (pendingManualTarget && screen !== 'battle') return;
+        if (battle?._endScheduled && !document.getElementById('battle-end-modal').classList.contains('active')) return;
         // Если уходим с экрана боя — сбрасываем битву
         const onBattle = document.getElementById('screen-battle').classList.contains('active');
         if (onBattle && screen !== 'battle' && battle) {
@@ -2040,6 +2041,7 @@ ${prompt}
                     delete u.statuses.poisonTurns;
                 }
             }
+            if (u.currentHp <= 0) return;
             // Огонь от keywords сохраняет старое распространение; сконструированный статус — фиксированной длительности.
             if (u.statuses.burn > 0) {
                 u.currentHp -= u.statuses.burn;
@@ -2051,13 +2053,15 @@ ${prompt}
                         delete u.statuses.burnTurns;
                     }
                 } else {
-                    [i-1,i+1].forEach(ni => {
-                        const arr = p[r];
-                        if (ni>=0 && ni<arr.length && arr[ni] && !arr[ni].statuses.burn && Math.random()<0.35) {
-                            arr[ni].statuses.burn = 1;
-                            logBattle(`🔥 Огонь перекинулся на ${arr[ni].name}!`, side);
-                        }
-                    });
+                    if (u.currentHp > 0) {
+                        [i-1,i+1].forEach(ni => {
+                            const arr = p[r];
+                            if (ni>=0 && ni<arr.length && arr[ni] && !arr[ni].statuses.burn && Math.random()<0.35) {
+                                arr[ni].statuses.burn = 1;
+                                logBattle(`🔥 Огонь перекинулся на ${arr[ni].name}!`, side);
+                            }
+                        });
+                    }
                     u.statuses.burn--;
                     if (u.statuses.burn <= 0) delete u.statuses.burn;
                 }
@@ -2465,6 +2469,7 @@ ${prompt}
             const targets = candidates.slice(0,effect.target?.count || 1);
             targets.forEach(target => executeEffectAction(effect,target,context));
         }
+        cleanupDead();
         activeEffectTask = null;
         if (task.onComplete) task.onComplete();
         if (!effectPumpActive) pumpEffectQueue();
@@ -2507,6 +2512,7 @@ ${prompt}
         }
         pendingManualTarget = null;
         executeEffectAction(pending.effect,legalTarget,pending.context);
+        cleanupDead();
         renderBattle();
         runEffectTask(pending.task,pending.nextIndex);
         if (!effectPumpActive) pumpEffectQueue();
@@ -2711,7 +2717,7 @@ ${prompt}
     }
 
     function concedeBattle() {
-        if (!battle || pendingManualTarget || activeEffectTask) return;
+        if (!battle || battle._endScheduled || pendingManualTarget || activeEffectTask) return;
         if (!confirm('Сдаться и вернуться в меню?')) return;
         endBattle(false);
     }
@@ -2810,7 +2816,7 @@ ${prompt}
 
         // Кнопка конца хода
         const btn = document.getElementById('end-turn-btn');
-        btn.disabled = whoseTurn !== 'me' || animating || !!pendingManualTarget;
+        btn.disabled = whoseTurn !== 'me' || animating || !!battle._endScheduled || !!pendingManualTarget;
         btn.textContent = whoseTurn === 'me' ? '⏭️ Завершить ход' : '⏳ Враг думает...';
 
         // Лог
@@ -2914,7 +2920,7 @@ ${prompt}
         el.innerHTML = html;
     }
 
-    function whoseTurn_isMe() { return battle && battle.whoseTurn === 'me'; }
+    function whoseTurn_isMe() { return battle && battle.whoseTurn === 'me' && !battle._endScheduled; }
 
     function renderHand() {
         const el = document.getElementById('hand');
@@ -3110,7 +3116,7 @@ ${prompt}
     }
 
     function attackTarget(targetId, targetType) {
-        if (pendingManualTarget) return;
+        if (!battle || battle._endScheduled || pendingManualTarget) return;
         // Клик по врагу теперь не выбирает цель — атака идёт автоматически.
         // Оставляем поддержку клика по герою для ручного удара (если авангард чист).
         performMyAttack(null, targetType);
@@ -3300,6 +3306,7 @@ ${prompt}
         tickStatuses(who);
         cleanupDeadForSide(who);
         await waitForEffectQueue();
+        if (!battle || battle._endScheduled) return;
 
         // Пассивное ЛЕЧЕНИЕ от юнитов с heal в этом ходу
         const allMyUnits = [];
@@ -3376,9 +3383,12 @@ ${prompt}
         });
 
         // Пользовательские триггеры начала хода (строго из effects[]).
-        allEffectUnits(who).forEach(entry => resolveCardEffects(entry.unit, 'turn_start', who));
+        allEffectUnits(who).forEach(entry => {
+            if (entry.unit.currentHp > 0 && _unitPos(entry.unit)) resolveCardEffects(entry.unit, 'turn_start', who);
+        });
         cleanupDead();
         await waitForEffectQueue();
+        if (!battle || battle._endScheduled) return;
 
         // Дро карты
         drawCard(who);
@@ -3414,6 +3424,7 @@ ${prompt}
     // ИИ ОППОНЕНТА
     // ============================================
     async function runEnemyTurn() {
+        if (!battle || battle._endScheduled) return;
         const delay = ms => new Promise(r => setTimeout(r, ms));
         const e = battle.enemy;
 
@@ -3422,10 +3433,12 @@ ${prompt}
         if (checkBattleEnd()) return;
         renderBattle();
         await delay(600);
+        if (checkBattleEnd()) return;
 
         // 1) Высадка карт: жадно пробуем сыграть самые дорогие, на которые хватает drop-маны
         let attempts = 0;
         while (attempts < 10) {
+            if (!battle || battle._endScheduled) return;
             attempts++;
             // Ищем карту которую можем сыграть
             const playable = e.hand
@@ -3444,6 +3457,7 @@ ${prompt}
                 resolveCardEffects(card, 'enter_play', 'enemy');
                 cleanupDead();
                 await waitForEffectQueue();
+                if (checkBattleEnd()) return;
                 renderBattle();
                 await delay(500);
                 if (checkBattleEnd()) return;
@@ -3502,13 +3516,16 @@ ${prompt}
             }
             if (!placed) break;
             await waitForEffectQueue();
+            if (checkBattleEnd()) return;
             renderBattle();
             await delay(500);
+            if (checkBattleEnd()) return;
         }
 
         // 2) Атаки всеми не-использованными юнитами, на которые хватает action-маны
         let attackAttempts = 0;
         while (attackAttempts < 15) {
+            if (!battle || battle._endScheduled) return;
             attackAttempts++;
             const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && u.action_cost <= e.actionMana);
             if (!attacker) break;
@@ -3554,6 +3571,7 @@ ${prompt}
 
             cleanupDead();
             await waitForEffectQueue();
+            if (checkBattleEnd()) return;
             // Прервём цикл если атакующий погиб от встречного урона
             if (attacker.currentHp <= 0) {
                 renderBattle();
