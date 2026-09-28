@@ -1301,8 +1301,18 @@
 - raider — налётчик/грабитель: при атаке крадёт 1💎 у врага.
 - harras — партизан/набеги: блокирует прирост +1💎 у врага в следующий ход.
 - exhaustenemy — измот/деморализация: при высадке отнимает 1⚡ у врага.
+- sturdy — стойкий/опытный: −1 урона от первой атаки в ход.
+- holdground — держит строй/не отступает: иммунитет к чаржу и страху в первый ход.
+- upkeep — нуждается в содержании/снабжении: без соседей теряет 1 HP в ход.
 
-ВАЖНО: отряд, обратившийся в бегство (fear/morale), НЕ ПОГИБАЕТ — он ВОЗВРАЩАЕТСЯ В РУКУ владельца (можно снова высадить за полную стоимость).
+ВАЖНО: если ключевое слово имеет силу N (armor/pierce/poison/burn/heal), пиши его как строку вида armor:2, heal:1 и т.п. (в JSON — например \"armor:2\"). Без цифры движок возьмёт N=1.
+
+КРИТИЧЕСКОЕ ПРАВИЛО:
+• Поле keywords — ЕДИНСТВЕННЫЙ источник механик карты. Движок НИКОГДА не догадывается о свойствах по описанию, по тегам или по выбранному игроком роду войск. Если ты не положишь свойство в keywords — его просто НЕ БУДЕТ в игре.
+• Теги (tags) — это контекст/флафф, они НЕ дают механик. Не надейся, что тег «Топорники» сам по себе даст какие-то эффекты.
+• Поле abilities — ТОЛЬКО колорит (внешний вид, история, запах, детали быта). НИКАКИХ механик в abilities!
+• Поле description — художественное описание (1-2 предложения). Механики в нём не работают.
+• Если у карты есть механический штраф за сверх-силу — ОБЯЗАТЕЛЬНО клади его как keyword (upkeep/exhaustenemy и т.п.), а текст объяснения — в monkey_paw. Одного текста в monkey_paw недостаточно.
 
 ТИПЫ КАРТ:
 - "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
@@ -1455,29 +1465,28 @@ ${prompt}
         const abilitiesHtml = filteredAbilities.length ?
             `<div style="font-size:0.75em; color:#a08ec0; margin-bottom:6px;">${filteredAbilities.map(a => '• ' + a).join('<br>')}</div>` : '';
 
-        // Иконки ключевых слов (механик)
-        const kwIconsArr = [];
-        const explicitSet = new Set((card.keywords||[]).map(k=>String(k||'').toLowerCase().trim()).filter(Boolean));
-        explicitSet.forEach(kn => {
-            if (KEYWORDS[kn]) kwIconsArr.push({kn, auto:false});
+        // Иконки ключевых слов (механик) — ТОЛЬКО явные от LLM
+        const kwChips = [];
+        (card.keywords||[]).forEach(raw => {
+            if (!raw) return;
+            const s = String(raw).toLowerCase().trim();
+            const [kw, numStr] = s.split(':');
+            const def = KEYWORDS[kw];
+            if (!def) return;
+            const num = parseInt(numStr);
+            const n = isNaN(num) ? 0 : num;
+            const suffix = (['armor','pierce','poison','burn','heal'].includes(kw)) ? (n||1) : '';
+            const shortName = {
+                armor:'броня', pierce:'проб.', ranged:'дальн.', reach:'длинн.', charge:'чарж',
+                shieldwall:'щиты', wedge:'клин', phalanx:'фаланг.', skirmish:'засад.',
+                taunt:'провок.', poison:'яд', burn:'огонь', heal:'лекарь', rally:'подд.',
+                fear:'страх', morale:'мораль', siege:'осада', spy:'развед.', sabotage:'диверс.',
+                supply:'снабж.', warcry:'клич', loot:'добыча', raider:'налёт', harras:'партиз.',
+                exhaustenemy:'измот', sturdy:'стойк.', holdground:'строй', upkeep:'содерж.'
+            }[kw] || kw;
+            kwChips.push(`<span class="kw-chip" title="${def.desc}" style="display:inline-flex; align-items:center; gap:2px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 5px; margin:1px; font-size:.7em; white-space:nowrap;">${def.label}${suffix?`<b>${suffix}</b>`:''} <span style="opacity:.7;font-size:.9em">${shortName}</span></span>`);
         });
-        // Автодетект общих регулярных паттернов (если ИИ забыл прописать keyword)
-        const detectText = [card.name||'', card.description||'', ...(card.abilities||[]), ...(card.tags||[])].join(' ');
-        const det = detectKeywordsFromText(detectText);
-        det.flags.forEach(kn => {
-            if (!explicitSet.has(kn) && KEYWORDS[kn]) kwIconsArr.push({kn, auto:true});
-        });
-        // Рендерим чипы
-        const kwIcons = kwIconsArr.map(({kn,auto}) => {
-            const def = KEYWORDS[kn];
-            const suffix = (def && ['armor','pierce','poison','burn','heal'].includes(kn)) ? (det.nums[kn]||1) : '';
-            const title = def.desc + (auto ? ' (автоопределено по описанию)' : '');
-            const style = auto
-                ? 'display:inline-block; background:rgba(255,255,255,0.05); border:1px dashed rgba(255,255,255,0.25); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em; opacity:.8;'
-                : 'display:inline-block; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:1px 6px; margin:1px; font-size:1.1em;';
-            return `<span class="kw-chip" title="${title}" style="${style}">${def.label}${suffix}</span>`;
-        });
-        const kwHtml = kwIcons.length ? `<div style="margin:4px 0; font-size:0.72em; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwIcons.join('')}</div>` : '';
+        const kwHtml = kwChips.length ? `<div style="margin:4px 0; display:flex; flex-wrap:wrap; gap:2px; justify-content:center;">${kwChips.join('')}</div>` : '';
 
         // Штраф (Лапа Обезьяны) — отдельный блок, а не смешанный
         const monkeyBlock = card.monkey_paw ?
@@ -1776,9 +1785,7 @@ ${prompt}
     function hasKw(unit, kw) { return unit && unit.statuses && unit.statuses[kw]; }
     function isRangedUnit(u) {
         if (!u) return false;
-        if (hasKw(u, 'ranged')) return true;
-        const text = (u.name||'') + ' ' + (u.description||'') + ' ' + (u.tags||[]).join(',');
-        return /лучник|пращ|метател|дальний|ranged|praщ/i.test(text);
+        return hasKw(u, 'ranged');
     }
 
     // ============================================
@@ -1963,78 +1970,30 @@ ${prompt}
     // ============================================
     // ПРИМЕНЕНИЕ ЭФФЕКТОВ КАРТ В ВЫСАДКУ
     // ============================================
-    // ============================================
-    // ОБЩИЙ ДЕТЕКТОР КЛЮЧЕВЫХ СЛОВ ПО ТЕКСТУ
-    // Используется и движком при высадке, и рендером карточек коллекции/кузницы
-    // ============================================
-    function detectKeywordsFromText(text) {
-        const t = (text||'').toLowerCase();
-        const out = { flags: new Set(), nums: {} };
-        const numMatch = (kw, pattern, group=1) => {
-            const m = t.match(pattern);
-            if (m) { out.flags.add(kw); out.nums[kw] = parseInt(m[group])||1; }
-        };
-        const flag = (kw, pattern) => { if (pattern.test(t)) out.flags.add(kw); };
-        const numeric = (kw, pattern) => { if (pattern.test(t)) { out.flags.add(kw); out.nums[kw] = out.nums[kw]||1; } };
-
-        numeric('armor', /брон|щит|доспех|кожан|armor|шлем/);
-        numeric('pierce', /пробит|пронз|pierce|остр/);
-        flag('ranged', /лучник|пращ|метат|стрел|ranged|дальн/);
-        flag('reach', /длинн|копь[её]|пика|reach|саррис/);
-        flag('charge', /чарж|налёт|charge|рывок|колесниц/);
-        flag('shieldwall', /стен[ау] щит|щитонос|shieldwall/);
-        flag('wedge', /клин|wedge/);
-        flag('phalanx', /фаланг|sarissa|саррис/);
-        flag('skirmish', /засад|skirm|набег(?!.*диверс)/);
-        flag('taunt', /провокац|taunt|защитн|прикрыва/);
-        numeric('poison', /яд|отрав|poison/);
-        numeric('burn', /огн|пожар|поджог|burn|факел/);
-        numeric('heal', /исцел|лекар|травниц|перевязыв|лечит|рана|лекарств|heal|отдых у костра|промывают раны/);
-        flag('rally', /поддерж|боевой дух|rally|песн|мобилизац/);
-        flag('fear', /устраш|паник|fear|страх/);
-        flag('morale', /мораль|morale/);
-        flag('siege', /осад|таран|осажда|siege|стенобит/);
-        flag('spy', /шпион|развед|spy|лазутч/);
-        flag('sabotage', /диверс|sabotage|саботаж|поджог амбар/);
-        flag('supply', /снабж|обоз|караван|припас|supply|добытчик/);
-        flag('warcry', /боевой клич|сигнал рога|warcry|воодушев|полководец|барабан/);
-        flag('loot', /добыч|loot|грабёж|трофей|мародёр/);
-        flag('raider', /налётч|raider|марод|грабитель/);
-        flag('harras', /партизан|harras/);
-        flag('exhaustenemy', /измот|изнур|деморализ|exhaust|шумн|вымот/);
-        flag('sturdy', /стойк|крепк|опытн|закал|sturdy|первой атаки|первого удара|первого натиска|на 1 меньше урона/);
-        flag('holdground', /держат строй|удержание строя|не отступают|hold.?ground|не дрогн/);
-        flag('upkeep', /содержание истощает|содержание.*припас|upkeep|без.*поддержки.*(?:союзн|друж|сосед)|в отсутствие.*(?:союзн|друж|сосед)|истощает припас|нет другой дружественной единицы/);
-        return out;
-    }
-
     function applyCardKeywordsToUnit(u) {
         u.statuses = u.statuses || {};
-        // 1) Сначала читаем явные ключевые слова от LLM (поле keywords из JSON)
-        const explicitKW = (u.keywords || u._sourceKeywords || []);
-        explicitKW.forEach(k => {
-            if (!k) return;
-            const kn = String(k).toLowerCase().trim();
-            if (['armor','pierce'].includes(kn)) u.statuses[kn] = Math.max(u.statuses[kn]||0, 1);
-            else if (['ranged','reach','charge','shieldwall','wedge','phalanx','skirmish','taunt','heal','rally','fear','morale','siege','spy','sabotage','supply','warcry','loot','raider','harras','exhaustenemy','sturdy','holdground','upkeep'].includes(kn)) u.statuses[kn] = true;
-            else if (kn === 'poison' || kn === 'burn') u.statuses[kn] = (u.statuses[kn]||0) + 1;
-        });
-        // 2) Эвристическое обнаружение по имени/описанию/способностям (общий детектор)
-        const detectText = [u.name||'', u.description||'', ...(u.abilities||[]), ...(u.tags||[])].join(' ');
-        const det = detectKeywordsFromText(detectText);
-        det.flags.forEach(kw => {
+        // Читаем ТОЛЬКО явные ключевые слова от LLM (поле keywords из JSON).
+        // Движок НИКОГДА не догадывается о свойствах по тексту.
+        const kwList = (u.keywords || u._sourceKeywords || []);
+        // Поддерживаем строки вида "armor:2" или "pierce:1" и просто "ranged"
+        kwList.forEach(raw => {
+            if (!raw) return;
+            const s = String(raw).toLowerCase().trim();
+            const [kw, numStr] = s.split(':');
+            const num = parseInt(numStr);
+            const n = isNaN(num) ? 1 : Math.max(1,num);
             if (['armor','pierce','poison','burn','heal'].includes(kw)) {
-                u.statuses[kw] = Math.max(u.statuses[kw]||0, det.nums[kw]||1);
-            } else {
-                u.statuses[kw] = u.statuses[kw] || true;
+                u.statuses[kw] = Math.max(u.statuses[kw]||0, n);
+            } else if (Object.keys(KEYWORDS).includes(kw)) {
+                u.statuses[kw] = true;
             }
         });
-        // shieldwall автоматически даёт +1 броня
+        // shieldwall автоматически даёт +1 броня (правило формации)
         if (u.statuses.shieldwall) u.statuses.armor = Math.max(u.statuses.armor||0, 1);
         u._justDeployed = true;
     }
 
-    // -------- Состояние боя --------
+    // -------- Состояние боя --------    // -------- Состояние боя --------
     let battle = null;
     let selectedHandIdx = null;       // индекс карты в руке (выбрана для высадки)
     let selectedUnitId = null;        // id юнита на поле (выбран для атаки)
@@ -2521,11 +2480,24 @@ ${prompt}
         const text = (card.name+' '+(card.description||'')+' '+((card.abilities||[]).join(' '))+' '+((card.keywords||[]).join(' '))).toLowerCase();
         const frontEnemy = battle.enemy.front.find(u => u);
 
-        if (/шпион|развед|spy|лазутч/.test(text) || (card.keywords||[]).includes('spy')) {
+        const kwSet = new Set((card.keywords||[]).map(k=>String(k||'').toLowerCase().trim().split(':')[0]));
+        const textHit = (pat) => pat.test(text);
+        const has = (k) => kwSet.has(k) || textHit(k==='spy'?/шпион|развед|spy|лазутч/
+            :k==='sabotage'?/диверс|sabotage|саботаж/
+            :k==='heal'?/исцел|лекар|heal|трав|перевязыв|рана/
+            :k==='rally'?/мобилизац|сбор ополчен|rally|военный сбор/
+            :k==='burn'?/поджог|огн|пожар|burn|факел/
+            :k==='poison'?/яд|отрав|poison/
+            :k==='supply'?/снабж|обоз|караван|припас/
+            :k==='warcry'?/боевой клич|сигнал рога|warcry|воодушев/
+            :k==='fear'?/устраш|паник|fear|страх/
+            :/./);  // фолбэк: для новых kw без регэкспа — через текст не определяем
+
+        if (has('spy')) {
             const names = battle.enemy.hand.map(c=>c.name).join(', ');
             logBattle(`🕵️ Лазутчик докладывает: в руке врага — ${names||'пусто'}!`, 'me');
         }
-        else if (/диверс|sabotage|саботаж/.test(text) || (card.keywords||[]).includes('sabotage')) {
+        else if (has('sabotage')) {
             const structs = [];
             battle.enemy.front.forEach((u,i)=>{ if (u && u.isStructure) structs.push({u,r:'front',i}); });
             battle.enemy.back.forEach((u,i)=>{ if (u && u.isStructure) structs.push({u,r:'back',i}); });
@@ -2537,11 +2509,10 @@ ${prompt}
                 logBattle(`💣 Диверсанты ничего не нашли...`, 'me');
             }
         }
-        else if (/исцел|лекар|heal|трав|перевязыв|рана/.test(text) || (card.keywords||[]).includes('heal')) {
+        else if (has('heal')) {
             const allMy = [...battle.me.front,...battle.me.back].filter(u=>u&&!u.isStructure && u.currentHp < u.hp);
             const healAmount = card.drop_cost + 1;
             if (allMy.length) {
-                // Хил по нескольким раненым (AoE): чем меньше drop_cost, тем точечнее
                 if (card.drop_cost <= 2 || allMy.length === 1) {
                     const tgt = allMy.reduce((a,b)=>a.currentHp/a.hp < b.currentHp/b.hp ? a : b);
                     tgt.currentHp = Math.min(tgt.hp, tgt.currentHp + healAmount);
@@ -2555,11 +2526,20 @@ ${prompt}
                 logBattle(`🌿 ${card.name}: раненых нет.`, 'me');
             }
         }
-        else if (/мобилизац|сбор ополчен|rally|военный сбор/.test(text) || (card.keywords||[]).includes('rally')) {
+        else if (has('rally')) {
             [...battle.me.front,...battle.me.back].forEach(u=>{if(u&&!u.isStructure)u.exhausted=false;});
             logBattle(`📣 ${card.name}! Все твои отряды готовы сражаться снова!`, 'me');
         }
-        else if (/поджог|огн|пожар|burn|факел/.test(text) || (card.keywords||[]).includes('burn')) {
+        else if (has('warcry')) {
+            battle.me.actionMana = Math.min(MAX_ACTION_MANA, battle.me.actionMana + 2);
+            logBattle(`📯 ${card.name}: боевой клич! +2⚡ действий!`, 'me');
+        }
+        else if (has('supply')) {
+            battle.me.dropManaMax = Math.min(MAX_DROP_MANA, battle.me.dropManaMax + 2);
+            battle.me.dropMana += 2;
+            logBattle(`📦 ${card.name}: припасы доставлены! +2💎.`, 'me');
+        }
+        else if (has('burn')) {
             if (frontEnemy) {
                 frontEnemy.statuses.burn = (frontEnemy.statuses.burn||0) + 2;
                 logBattle(`🔥 ${card.name}: ${frontEnemy.name} объят пламенем!`, 'me');
@@ -2568,10 +2548,16 @@ ${prompt}
                 logBattle(`🔥 ${card.name} наносит ${card.drop_cost} урона вождю.`, 'me');
             }
         }
-        else if (/яд|отрав|poison/.test(text) || (card.keywords||[]).includes('poison')) {
+        else if (has('poison')) {
             if (frontEnemy) {
                 frontEnemy.statuses.poison = (frontEnemy.statuses.poison||0) + 1;
                 logBattle(`☠️ ${card.name}: ${frontEnemy.name} отравлен!`, 'me');
+            }
+        }
+        else if (has('fear')) {
+            if (frontEnemy) {
+                frontEnemy._fears = true;
+                logBattle(`😱 ${card.name}: ${frontEnemy.name} устрашён!`, 'me');
             }
         }
         else {
@@ -2586,7 +2572,6 @@ ${prompt}
                 logBattle(`⚔️ Ты применяешь ${card.name} → вражеский вождь получает ${damage} урона!`, 'me');
             }
         }
-
         cleanupDead();
         selectedHandIdx = null;
         renderBattle();
