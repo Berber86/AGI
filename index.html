@@ -2428,8 +2428,8 @@
         if (card.card_type === 'spell' && (card.hp !== 0 || card.atk !== 0 || card.action_cost !== 0)) throw new Error('У манёвра должны быть hp=0, atk=0 и action_cost=0.');
         if (card.card_type === 'structure' && (card.hp < 1 || card.atk !== 0 || card.action_cost !== 0)) throw new Error('У постройки нужны hp от 1, atk=0 и action_cost=0.');
         if (card.card_type === 'unit' && card.hp < 1) throw new Error('У отряда должно быть не меньше 1 HP.');
-        if (typeof card.description !== 'string' || !card.description.trim() || card.description.length > 1600) throw new Error('Добавь короткое описание карты.');
-        if (card.tags !== undefined && (!Array.isArray(card.tags) || card.tags.length > 16)) throw new Error('Поле tags должно содержать не более 16 строк.');
+        if (typeof card.description !== 'string' || !card.description.trim() || card.description.length > 400) throw new Error('Описание должно быть 1-2 коротких предложения до 400 символов, без борща.');
+        if (card.tags !== undefined && (!Array.isArray(card.tags) || card.tags.length > 4)) throw new Error('Поле tags должно содержать не более 4 коротких тегов (не показываются игроку).');
         card.tags = (card.tags || []).map(tag => String(tag).slice(0, 60));
         if (!Array.isArray(card.keywords) || card.keywords.length > 24) throw new Error('Поле keywords должно быть массивом до 24 свойств.');
         const unsupportedEventKeywords = new Set(['sabotage','spy','supply','warcry','loot','raider','harras','exhaustenemy']);
@@ -2487,8 +2487,84 @@
             summary: `${FORGE_ADVISOR_TYPE_NAMES[selectedAdvice.cardType]}: ${selectedAdvice.title} — ${selectedAdvice.pitch}`
         };
         const key = getApiKey();
+        // Offline fallback for card forging if no key — uses local pools, concise description without borscht
+        function generateLocalCardFromAdvice(advice, rarity, eraAllowed) {
+            const era = campaignStartState.player.era || 0;
+            const isBronze = eraAllowed.includes('bronze');
+            const baseHp = advice.cardType === 'spell' ? 0 : (rarity === 'rare' ? 5 + Math.floor(Math.random()*3) : rarity === 'uncommon' ? 4 : 3);
+            const baseAtk = advice.cardType !== 'unit' ? 0 : (rarity === 'rare' ? 4 + Math.floor(Math.random()*2) : rarity === 'uncommon' ? 3 : 2);
+            const drop = rarity === 'rare' ? 3 : rarity === 'uncommon' ? 2 : 1 + Math.floor(Math.random()*2);
+            const action = advice.cardType === 'unit' ? (rarity === 'rare' ? 2 : 1) : 0;
+            const conciseDescs = {
+                unit: [
+                    "Держит брод у сухой насыпи.",
+                    "Ночной дозор сверяет путь по звёздам.",
+                    "Курганный воин в дозоре на холме.",
+                    "Всадник обходит протоку по твёрдому грунту.",
+                    "Стоит на валу, смотрит в степь.",
+                    "Кони у коновязи, воин у костра."
+                ],
+                spell: [
+                    "Сигнал костром с кургана.",
+                    "Разведка брода перед переправой.",
+                    "Сбор ополчения у частокола."
+                ],
+                structure: [
+                    "Частокол на сухой насыпи.",
+                    "Курган усилен валом.",
+                    "Сторожевой пост у брода."
+                ]
+            };
+            const pool = conciseDescs[advice.cardType] || conciseDescs.unit;
+            const desc = pool[Math.floor(Math.random()*pool.length)];
+            const emojiMap = { unit: '🐎', spell: '📯', structure: '🛡️' };
+            return {
+                id: 'local-card-' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+                name: advice.title,
+                card_type: advice.cardType,
+                era: isBronze && Math.random() < 0.3 ? 'bronze' : 'ancient',
+                emoji: emojiMap[advice.cardType] || '⚒️',
+                drop_cost: drop,
+                action_cost: action,
+                hp: baseHp,
+                atk: baseAtk,
+                description: desc,
+                tags: [], // no tags shown
+                abilities: [],
+                keywords: advice.cardType === 'unit' ? (Math.random()<0.5 ? ['charge'] : ['shieldwall']) : [],
+                effects: advice.cardType === 'spell' ? [{ event: 'enter_play', target: { side: 'friendly', entity: 'unit', select: 'lowest_hp_ratio', count: 1 }, action: { type: 'heal', amount: 2 } }] : [],
+                monkey_paw: '',
+                rarity: rarity
+            };
+        }
+
         if (!key) {
-            errorEl.textContent = 'Нужен API-ключ HydraAI (поле вверху, dashboard.hydraai.ru). Оплата до ковки не списывается.';
+            try {
+                const camp = window.CampaignMvp.getState();
+                const allowedEras = camp.player.era >= 3 ? ['ancient','bronze'] : ['ancient'];
+                const orderTmp = window.CampaignMvp.beginCardCraft(investment, Math.random(), advisorOrder.summary);
+                if (orderTmp && orderTmp.order) {
+                    const localCard = generateLocalCardFromAdvice(selectedAdvice, orderTmp.order.rarity, allowedEras);
+                    localCard.craftOrderId = orderTmp.order.id;
+                    // Validate
+                    validateGeneratedCard(localCard, selectedAdvice.cardType, allowedEras);
+                    lastForged = localCard;
+                    resultEl.innerHTML = renderCard(localCard, 'forge');
+                    if (resultSection) resultSection.style.display = 'block';
+                    resultSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    errorEl.style.display = 'none';
+                    // Do not claim yet, wait for save
+                    forgeGenerationLoading = false;
+                    btn.disabled = false;
+                    renderForgeAdvice();
+                    renderCraftQuote();
+                    loadingEl.style.display = 'none';
+                    return;
+                }
+            } catch(e) {
+                console.error('local forge failed', e);
+            }
+            errorEl.textContent = 'Нужен API-ключ HydraAI (поле вверху). Офлайн-ковка не удалась.';
             errorEl.style.display = 'block'; return;
         }
 
@@ -2552,11 +2628,13 @@
 - heal — лечение; для новых карт используй effects[].
 - rally, fear, morale, siege, sturdy, holdground, upkeep — поддерживаемые постоянные свойства.
 
-ВАЖНО:
+ВАЖНО — ОПИСАНИЕ БЕЗ БОРЩА:
 • Только keywords и effects[] создают механику. Движок не выводит правила из description, abilities, tags или названия.
 • Не используй в новых картах event-слова sabotage, spy, supply, warcry, loot, raider, harras, exhaustenemy: если их эффект можно представить в разрешённой схеме, опиши его через effects[].
-• description — 2–3 предложения связного русского текста; abilities всегда [].
+• description — РОВНО 1-2 КОРОТКИХ предложения, 1 конкретный образ. ЗАПРЕЩЁН БОРЩ: не пиши в одном описании сразу про болота+звёзды+туман+травы+свайные поселения+дельту+дозор. Выбери ОДНУ сцену: либо брод через протоку, либо ночной дозор, либо сухой курган. Пиши сухо, как хроника, без лирического нагромождения. Пример ХОРОШО: "Всадник держит брод у сухой насыпи. Ночью сверяет путь по Полярной." Пример ПЛОХО (борщ): "Ямные всадники обходят затопленные протоки и находят брод по звёздам, прежде чем туман скроет берега. Их кони несут дозорных между свайными поселениями, а наблюдатели запоминают безопасные переправы и знают ядовитые травы."
+• abilities всегда [].
 • monkey_paw необязателен и может быть только короткой флафф-ремаркой. Никогда не добавляй обязательный штраф за сильную карту.
+• tags — до 3 коротких слов, НЕ показываются игроку, используются только для выбора картинки. Не пиши туда борщ типа "ямная культура степные всадники дозор дельта". Достаточно 1-2: ["курган","разведка"]
 
 === ПОЛНОЕ АВТОРСТВО МЕХАНИК ===
 Ты полностью придумываешь параметры карты: обе цены, характеристики, keywords и effects. Намеренно сильные, странные, рискованные и несбалансированные результаты допустимы и являются частью игры. Не используй бюджет мощности, таблицы «цена ↔ статы», автоматическое ослабление, компенсационные штрафы или обязательную Лапу Обезьяны. Не делай карту слабее только ради баланса и сохраняй выбранные тобой значения без нормализации.
@@ -2585,8 +2663,8 @@
   "action_cost": 0,
   "hp": 0,
   "atk": 0,
-  "description": "2–3 предложения",
-  "tags": ["контекстные теги"],
+  "description": "1-2 коротких предложения, 1 образ, без борща",
+  "tags": ["до 3 тега, не показывается"],
   "abilities": [],
   "keywords": ["armor:2", "ranged"],
   "effects": [],
@@ -2800,9 +2878,7 @@
                 ${kwHtml}
                 ${monkeyBlock}
                 <div class="card-stats">${statsHtml}</div>
-                <div class="card-tags">
-                    ${(card.tags || []).slice(0, 5).map(t => `<span class="card-tag">${escapeCardHtml(t)}</span>`).join('')}
-                </div>
+                <!-- tags hidden per user request: data kept for image mapping but not shown -->
                 ${footerHtml}
             </div>
         `;
