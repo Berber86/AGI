@@ -158,26 +158,28 @@
             align-items: center;
             gap: 10px;
         }
-        .prompt-input {
-            width: 100%;
-            min-height: 120px;
-            padding: 15px;
-            background: #0f0a1e;
-            border: 2px solid #3d2a5c;
-            border-radius: 12px;
-            color: #e0e0e0;
-            font-size: 1em;
-            font-family: inherit;
-            resize: vertical;
-            line-height: 1.5;
-        }
-        .prompt-input:focus { outline: none; border-color: #c77dff; }
-        .prompt-hint {
-            font-size: 0.85em;
-            color: #7868a0;
-            margin-top: 8px;
-            font-style: italic;
-        }
+        .craft-quote { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 12px 0 17px; padding: 12px 14px; border: 1px solid rgba(189,131,255,.23); border-radius: 12px; background: rgba(12,8,18,.76); color: #eee2f7; }
+        .craft-quote > div { display: grid; gap: 5px; }
+        .craft-quote b { color: #f0c278; font-size: .78em; text-transform: uppercase; letter-spacing: .06em; }
+        .craft-quote span { color: #d0bfdf; font-size: .86em; }
+        .craft-quote small { grid-column: 1/-1; color: #9e8eac; line-height: 1.4; }
+        .craft-quote small:not(:empty) { color: #c7aedb; }
+        .forge-advice-btn { width:100%; min-height:46px; padding:11px 15px; border:1px solid rgba(199,125,255,.45); border-radius:11px; color:#f3e7ff; background:linear-gradient(110deg,rgba(98,66,146,.74),rgba(120,55,95,.7)); font:inherit; font-size:.82em; font-weight:800; cursor:pointer; transition:filter .16s,transform .16s; }
+        .forge-advice-btn:hover:not(:disabled) { filter:brightness(1.13); transform:translateY(-1px); }
+        .forge-advice-btn:disabled { opacity:.55; cursor:not-allowed; }
+        .forge-advice-status { min-height:1.4em; margin:8px 1px 5px; color:#aa99b3; font-size:.72em; line-height:1.45; }
+        .forge-advice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:7px 0 20px; }
+        .forge-advice-option { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; min-height:138px; padding:13px; border:1px solid rgba(189,131,255,.22); border-radius:12px; color:#e7d9ee; text-align:left; background:rgba(13,9,20,.78); cursor:pointer; transition:border-color .16s,background .16s,transform .16s; }
+        .forge-advice-option:hover { border-color:rgba(240,184,107,.5); transform:translateY(-1px); }
+        .forge-advice-option.is-selected { border-color:#d8ad67; background:linear-gradient(145deg,rgba(99,68,41,.29),rgba(37,24,43,.84)); box-shadow:inset 0 0 0 1px rgba(240,184,107,.14); }
+        .forge-advice-option>span { color:#e4bd79; font-size:.63em; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+        .forge-advice-option>b { color:#f5e8d8; font-size:.88em; line-height:1.3; }
+        .forge-advice-option>small { color:#ad9fb3; font-size:.72em; line-height:1.45; }
+        .forge-investment-label { display:grid; gap:7px; color:#bdabc9; font-size:.76em; font-weight:800; }
+        .forge-investment-label select { width:100%; min-height:44px; padding:9px 12px; border:1px solid rgba(189,131,255,.3); border-radius:10px; color:#f3e9fb; background:#100b17; font:inherit; font-weight:500; }
+        .forge-investment-label select:focus-visible,.forge-advice-option:focus-visible,.forge-advice-btn:focus-visible { outline:2px solid #f0c278; outline-offset:2px; }
+        .forge-btn { margin-top:10px; font-size:1em; }
+        @media(max-width:760px) { .forge-advice-grid { grid-template-columns:1fr; } .forge-advice-option { min-height:0; } .forge-panel { padding:17px; } .craft-quote { grid-template-columns:1fr; } }
 
         /* ====== TAGS ====== */
         .tags-section { margin-top: 20px; }
@@ -1045,6 +1047,8 @@
             .deck-stat .ds-val { font-size: 1.45em; }
             .mana-curve { gap: 4px; padding: 8px; }
             .battle-launch { min-height: 54px; }
+            .forge-order-grid, .craft-quote { grid-template-columns: 1fr; }
+            .craft-quote small { grid-column: 1; }
         }
         @media (max-width: 380px) {
             .top-bar .nav button { padding-inline: 9px; font-size: .76em; }
@@ -1162,8 +1166,10 @@
             box-shadow: 0 18px 55px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.035);
         }
         .forge-panel h2 { color: #e1c4ff; font-size: 1.24em; }
-        .prompt-input { border-color: rgba(189,131,255,.24); background: rgba(9,7,15,.72); }
-        .prompt-input:focus { box-shadow: 0 0 0 4px rgba(189,131,255,.12); }
+        .rarity-tag { margin-left: 5px; font-size: .58em; vertical-align: middle; letter-spacing: .06em; }
+        .rarity-ordinary { border-color: rgba(190,184,205,.28); color: #d8d1df; }
+        .rarity-uncommon { border-color: rgba(93,211,151,.46); color: #8ae0ad; }
+        .rarity-rare { border-color: rgba(240,184,107,.58); color: #ffd27f; box-shadow: 0 0 9px rgba(240,184,107,.14); }
         .tags-section h3 { margin: 22px 0 13px; color: #dcc7ef; }
         .tags-group { padding: 10px 0; border-top: 1px solid rgba(189,131,255,.09); }
         .tags-group-label { letter-spacing: .14em; }
@@ -1343,6 +1349,49 @@
             .deck-stat { min-height: 80px; }
             .player-banner .hp-text { font-size: .65em; }
         }
+        /* Compact forge flow: idea, investment and one clear action. */
+        .forge-hero.forge-hero-compact { min-height:0; padding:16px 22px; margin-bottom:10px; border-radius:15px; }
+        .forge-hero-compact::after { display:none; }
+        .forge-hero-compact h1 { margin:0; font-size:clamp(1.25rem,3vw,1.7rem); filter:none; }
+        .forge-hero-compact .subtitle { margin-top:3px; font-size:.76rem; }
+        .forge-panel-compact { display:grid; gap:0; padding:14px 16px; margin-bottom:10px; border-radius:14px; }
+        .forge-advice-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .forge-advice-head>b { color:#e9dce9; font-size:.78rem; }
+        .forge-advice-btn { width:auto; min-height:33px; padding:6px 10px; font-size:.68rem; white-space:nowrap; }
+        .forge-advice-status { min-height:0; margin:4px 0; font-size:.66rem; }
+        .forge-advice-grid { gap:7px; margin:5px 0 10px; }
+        .forge-advice-option { min-height:98px; gap:5px; padding:9px 10px; border-radius:10px; }
+        .forge-advice-option>span { font-size:.56rem; }
+        .forge-advice-option>b { font-size:.76rem; }
+        .forge-advice-option>small { display:-webkit-box; overflow:hidden; font-size:.65rem; line-height:1.35; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+        .forge-investment-row { display:grid; grid-template-columns:minmax(210px,.65fr) minmax(0,1.35fr); align-items:center; gap:8px 12px; }
+        .forge-investment-label { gap:4px; color:#c9b9d2; font-size:.65rem; }
+        .forge-investment-label select { min-height:37px; padding:6px 9px; font-size:.73rem; }
+        .craft-quote { grid-template-columns:1fr; gap:5px; margin:0; padding:7px 9px; border:0; background:rgba(12,8,18,.35); }
+        .craft-quote-main { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:9px; }
+        .craft-quote-main>span { display:grid; gap:2px; min-width:0; }
+        .craft-quote-main b { overflow:hidden; color:#dfc48f; font-size:.57rem; letter-spacing:0; text-overflow:ellipsis; text-transform:none; white-space:nowrap; }
+        .craft-quote-main small { color:#d0bfdf; font-size:.65rem; line-height:1.25; }
+        .craft-quote>small { grid-column:auto; font-size:.59rem; line-height:1.3; }
+        .forge-panel-compact .forge-btn { width:auto; min-width:175px; min-height:40px; justify-self:end; margin:8px 0 0; padding:9px 14px; border-radius:10px; font-size:.78rem; }
+        .forge-rules { margin-top:7px; color:#a99bb2; font-size:.61rem; }
+        .forge-rules>summary { width:max-content; max-width:100%; cursor:pointer; }
+        .forge-rules>p { margin:6px 0 0; line-height:1.4; }
+        .forge-panel-compact .forge-loading { margin-top:8px; padding:10px; }
+        .forge-panel-compact+.cards-section { margin-top:12px; }
+        .forge-panel-compact+.cards-section h2 { margin-bottom:8px; font-size:1rem; }
+        @media(max-width:760px) {
+            .forge-hero.forge-hero-compact { min-height:0; padding:13px 16px; margin-bottom:8px; }
+            .forge-panel-compact { padding:11px; }
+            .forge-advice-grid { grid-template-columns:1fr; gap:5px; margin-bottom:8px; }
+            .forge-advice-option { display:grid; grid-template-columns:86px minmax(0,1fr); align-items:center; min-height:0; gap:3px 8px; padding:8px 9px; }
+            .forge-advice-option>span { grid-column:1; grid-row:1/3; }
+            .forge-advice-option>b { grid-column:2; }
+            .forge-advice-option>small { grid-column:2; -webkit-line-clamp:1; }
+            .forge-investment-row { grid-template-columns:1fr; gap:5px; }
+            .forge-investment-label { grid-template-columns:80px minmax(0,1fr); align-items:center; gap:8px; }
+            .forge-panel-compact .forge-btn { width:100%; min-width:0; }
+        }
     </style>
 </head>
 <body>
@@ -1386,8 +1435,9 @@
             <div class="connection-fields">
                 <label for="api-key-input">🔑 Hydra API</label>
                 <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()" autocomplete="off">
-                <label for="model-select">🤖 Модель</label>
+                <label for="model-select">🤖 Модель советника</label>
                 <select id="model-select" onchange="saveSelectedModel()"></select>
+                <small>Модель ковки карты выбирается автоматически по редкости.</small>
             </div>
         </details>
         <a href="tribes-legacy.html" class="legacy-link" target="_blank">🏛️ Tribes (legacy)</a>
@@ -1397,56 +1447,33 @@
 
         <!-- ========== FORGE SCREEN ========== -->
         <div id="screen-forge" class="screen active">
-            <header class="screen-hero forge-hero">
-                <span class="hero-kicker">МАСТЕРСКАЯ ЦИВИЛИЗАЦИИ <i></i> ЭПОХА I</span>
-                <h1>⚒️ Кузница цивилизации</h1>
-                <p class="subtitle">Задай замысел — выкуй карту, которая изменит ход истории.</p>
-                <span class="hero-note">ДРЕВНИЙ МИР · БРОНЗОВЫЙ ВЕК</span>
+            <header class="screen-hero forge-hero forge-hero-compact">
+                <h1>⚒️ Кузница</h1>
+                <p class="subtitle">Три идеи → одна карта.</p>
             </header>
 
-            <div class="forge-panel">
-                <h2>📝 Твой замысел</h2>
-                <textarea id="prompt-input" class="prompt-input"
-                    placeholder="Например: Отряд чумных крыс, которые после смерти заражают соседних врагов ядом"></textarea>
-                <div class="prompt-hint">💡 Примеры: «Отряд копейщиков из плодородной долины», «Ночной набег кочевников на амбары», «Глинобитная стена с башнями». Конкретнее промпт — честнее баланс.</div>
+            <div class="forge-panel forge-panel-compact">
+                <div class="forge-advice-head"><b>1 · Замысел</b><button class="forge-advice-btn" id="forge-advice-btn" type="button" onclick="requestForgeAdvice()">✨ Совет · 1 LLM-вызов</button></div>
+                <div id="forge-advice-status" class="forge-advice-status" role="status" aria-live="polite"></div>
+                <div id="forge-advice-choices" class="forge-advice-grid" aria-label="Варианты военного советника"></div>
 
-                <h3>🏷️ Контекст цивилизации</h3>
+                <div class="forge-investment-row"><label class="forge-investment-label" for="craft-investment"><span>2 · Вложения</span>
+                    <select id="craft-investment" onchange="renderCraftQuote()">
+                        <option value="standard">Обычная · 2🌾 2🪵 · сразу</option>
+                        <option value="refined">Отборная · 3🌾 5🪵 1📚 · 1 день</option>
+                        <option value="masterwork">Мастерская · 4🌾 8🪵 3📚 · 2 дня</option>
+                    </select>
+                </label><div id="craft-quote" class="craft-quote" role="status" aria-live="polite"></div></div>
 
-                    <div class="tags-group">
-                        <div class="tags-group-label">Регион / ландшафт</div>
-                        <div class="tags-grid" id="tags-biome"></div>
-                    </div>
-                    <div class="tags-group">
-                        <div class="tags-group-label">Род войск</div>
-                        <div class="tags-grid" id="tags-archetype"></div>
-                    </div>
-                    <div class="tags-group">
-                        <div class="tags-group-label">Постройки</div>
-                        <div class="tags-grid" id="tags-structure"></div>
-                    </div>
-                    <div class="tags-group">
-                        <div class="tags-group-label">Манёвры/события</div>
-                        <div class="tags-grid" id="tags-maneuver"></div>
-                    </div>
-                    <div style="font-size:0.8em; color:#7868a0; margin-top:8px;">
-                        📜 На старте доступны все контексты Древнего мира. Бронзовый век открывается через постройку мастерских и захват регионов с меднорудными/оловянными землями.
-                    </div>
-
-                <button class="forge-btn" id="forge-btn" onclick="forgeCard()">⚒️ ВЫКОВАТЬ КАРТУ</button>
+                <button class="forge-btn" id="forge-btn" onclick="forgeCard()" disabled>⚒️ Ковать карту</button>
+                <details class="forge-rules"><summary>Как работает ковка</summary><p>Редкость бросается до генерации, оплата списывается заранее, невалидный ответ компенсируется. Модель выбирается по редкости; силу карты не нормализуем.</p></details>
                 <div id="forge-error" class="error-bar" style="display:none"></div>
-                <div id="forge-loading" class="forge-loading" style="display:none">
-                    <span class="spinner"></span> ИИ-Балансировщик куёт твою карту...
-                    <div class="flavor" id="forge-flavor">Кузнечный молот бьёт по наковальне смыслов...</div>
-                </div>
+                <div id="forge-loading" class="forge-loading" style="display:none"><span class="spinner"></span><span id="forge-loading-copy">Кузнец создаёт карту по выпавшей редкости...</span></div>
             </div>
 
-            <div class="cards-section">
-                <h2>🔥 Результат ковки</h2>
-                <div id="forge-result" class="forge-result" style="display:flex; justify-content:center;">
-                    <div style="color:#7868a0; padding:40px; text-align:center">
-                        Твоя новая карта появится здесь
-                    </div>
-                </div>
+            <div class="cards-section" id="forge-result-section" style="display:none">
+                <h2>Результат</h2>
+                <div id="forge-result" class="forge-result" style="display:flex; justify-content:center;"></div>
             </div>
         </div>
 
@@ -1628,52 +1655,6 @@
     // ============================================
     // КОНСТАНТЫ И СОСТОЯНИЕ
     // ============================================
-    const AVAILABLE_TAGS = {
-        // Регионы / ландшафт
-        biome: [
-            { id: 'river', label: '🌊 Великая река' },
-            { id: 'steppe', label: '🌾 Степь' },
-            { id: 'forest', label: '🌲 Лес' },
-            { id: 'desert', label: '🏜️ Пустыня' },
-            { id: 'swamp', label: '🐊 Болота' },
-            { id: 'hills', label: '⛰️ Холмы' },
-            { id: 'mountain', label: '🏔️ Горы' },
-            { id: 'coast', label: '🏖️ Побережье' },
-            { id: 'tundra', label: '❄️ Тундра' },
-            { id: 'valley', label: '🏞️ Плодородная долина' }
-        ],
-        // Род войск / тактическая роль
-        archetype: [
-            { id: 'militia', label: '🪨 Ополчение' },
-            { id: 'spearman', label: '🔺 Копейщики' },
-            { id: 'slinger', label: '🪨 Пращники' },
-            { id: 'archer', label: '🏹 Лучники' },
-            { id: 'axeman', label: '🪓 Топорники' },
-            { id: 'chariot', label: '🛞 Колесницы' },
-            { id: 'cavalry', label: '🐎 Конница' },
-            { id: 'elite', label: '👑 Элитные воины' },
-            { id: 'worker', label: '👷 Рабочие/строители' },
-            { id: 'healer', label: '🌿 Лекари/травники' },
-            { id: 'scout', label: '👣 Разведчики/лазутчики' }
-        ],
-        // Тип манёвров
-        maneuver: [
-            { id: 'tactic', label: '⚔️ Тактический приём' },
-            { id: 'raid', label: '🔥 Набег/диверсия' },
-            { id: 'supply', label: '📦 Снабжение' },
-            { id: 'rally', label: '📣 Мобилизация' }
-        ],
-        // Тип построек
-        structure: [
-            { id: 'wall', label: '🧱 Стены/укрепления' },
-            { id: 'granary', label: '🌾 Амбар' },
-            { id: 'temple', label: '🏛️ Святилище' },
-            { id: 'workshop', label: '🔨 Мастерская' },
-            { id: 'watchtower', label: '🗼 Дозорная башня' },
-            { id: 'camp', label: '⛺ Военный лагерь' }
-        ]
-    };
-
     const CARD_TYPES = {
         unit: { label: 'ОТРЯД', icon: '⚔️', cls: 'type-unit' },
         spell: { label: 'МАНЁВР', icon: '📜', cls: 'type-spell' },
@@ -1702,7 +1683,6 @@
         return 0;
     }
 
-    let selectedTags = { biome: [], archetype: [], structure: [], maneuver: [] };
     let collection = JSON.parse(localStorage.getItem('iforge_collection') || '[]');
     let deck = JSON.parse(localStorage.getItem('iforge_deck') || '[]');
     let lastForged = null;
@@ -1746,7 +1726,8 @@
         deck = deck.filter(id => collIds.has(id)).slice(0, DECK_LIMIT);
         saveDeck();
 
-        renderTags();
+        renderForgeAdvice();
+        renderCraftQuote();
         updateDeckCount();
         renderCollection();
         renderDeck();
@@ -1765,6 +1746,7 @@
         const key = document.getElementById('api-key-input').value.trim();
         localStorage.setItem('iforge_hydra_key', key);
         document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
+        refreshForgeUi();
     }
     function getApiKey() { return localStorage.getItem('iforge_hydra_key') || ''; }
     function saveSelectedModel() {
@@ -1794,288 +1776,462 @@
         if (screen === 'collection') renderCollection();
         if (screen === 'deck') renderDeck();
         if (screen === 'campaign' && window.CampaignMvp) window.CampaignMvp.render();
+        if (screen === 'forge') renderCraftQuote();
     }
 
     // ============================================
-    // ТЕГИ
+    // КОВОЧНЫЙ СОВЕТНИК
     // ============================================
-    function renderTags() {
-        Object.entries(AVAILABLE_TAGS).forEach(([group, tags]) => {
-            const container = document.getElementById('tags-' + group);
-            if (!container) return;
-            container.innerHTML = tags.map(t =>
-                `<span class="tag-chip" data-group="${group}" data-id="${t.id}" onclick="toggleTag('${group}','${t.id}')">${t.label}</span>`
-            ).join('');
+    const FORGE_ADVICE_STORAGE_KEY = 'iforge_forge_advice';
+    const FORGE_ADVISOR_TYPE_NAMES = { unit: 'Отряд', spell: 'Манёвр', structure: 'Постройка' };
+    const FORGE_INVESTMENTS = {
+        standard: { materialQuality: 'standard', effort: 'quick' },
+        refined: { materialQuality: 'refined', effort: 'focused' },
+        masterwork: { materialQuality: 'masterwork', effort: 'painstaking' }
+    };
+    let forgeAdviceMemory = null;
+    let forgeAdviceLoading = false;
+    let forgeAdviceMessage = '';
+    let forgeAdviceMessageDay = '';
+    let forgeGenerationLoading = false;
+
+    function cleanForgeAdviceText(value, maxLength) {
+        return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+    }
+
+    function normalizeForgeAdviceChoices(rawChoices) {
+        if (!Array.isArray(rawChoices) || rawChoices.length !== 3) throw new Error('Советник должен вернуть ровно три варианта.');
+        const titles = new Set();
+        const choices = rawChoices.map((raw, index) => {
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('В одном из советов отсутствует карточка варианта.');
+            const cardType = ['unit', 'spell', 'structure'].includes(raw.card_type || raw.cardType) ? (raw.card_type || raw.cardType) : '';
+            const title = cleanForgeAdviceText(raw.title || raw.name, 72);
+            const pitch = cleanForgeAdviceText(raw.pitch || raw.idea, 190);
+            const normalizedTitle = title.toLocaleLowerCase('ru');
+            if (!cardType || !title || !pitch) throw new Error('У каждого совета должны быть тип, название и краткий замысел.');
+            if (titles.has(normalizedTitle)) throw new Error('Советник повторил один и тот же вариант. Запроси совет ещё раз.');
+            titles.add(normalizedTitle);
+            return { id: `forge-advice-${index + 1}`, cardType, title, pitch };
         });
+        return choices;
     }
 
-    function toggleTag(group, id) {
-        const idx = selectedTags[group].indexOf(id);
-        if (idx === -1) selectedTags[group].push(id);
-        else selectedTags[group].splice(idx, 1);
-        document.querySelector(`.tag-chip[data-group="${group}"][data-id="${id}"]`)
-            .classList.toggle('active', idx === -1);
+    function parseForgeAdviceResponse(content) {
+        const text = String(content || '');
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) throw new Error('Советник не вернул JSON с тремя вариантами.');
+        return normalizeForgeAdviceChoices(JSON.parse(text.slice(start, end + 1)).choices);
     }
 
-    // ============================================
-    // ВЫБОР ТИПА КАРТЫ АВТОМАТОМ (можно добавить UI позже)
-    // ============================================
-    // Пока — просим LLM определить тип по описанию
-
-    // ============================================
-    // КОВКА КАРТЫ (ЗАПРОС К LLM)
-    // ============================================
-    async function forgeCard() {
-        const prompt = document.getElementById('prompt-input').value.trim();
-        const errorEl = document.getElementById('forge-error');
-        const loadingEl = document.getElementById('forge-loading');
-        const resultEl = document.getElementById('forge-result');
-        const btn = document.getElementById('forge-btn');
-        const flavors = [
-            'Кузнечный молот бьёт по наковальне смыслов...',
-            'ИИ взвешивает баланс на весах судьбы...',
-            'Математика игры сопротивляется твоей воле...',
-            'Лапа Обезьяны присматривает за ковкой...',
-            'Из искры воображения рождается карта...',
-            'Теги сплетаются в единый узор силы...'
-        ];
-
-        errorEl.style.display = 'none';
-        if (!prompt || prompt.length < 5) {
-            errorEl.textContent = 'Опиши свою идею подробнее (минимум 5 символов)';
-            errorEl.style.display = 'block'; return;
-        }
-        const key = getApiKey();
-        if (!key) {
-            errorEl.textContent = 'Нужен API-ключ HydraAI (поле вверху, dashboard.hydraai.ru)';
-            errorEl.style.display = 'block'; return;
-        }
-
-        btn.disabled = true;
-        resultEl.innerHTML = '';
-        loadingEl.style.display = 'block';
-        document.getElementById('forge-flavor').textContent = flavors[Math.floor(Math.random() * flavors.length)];
-
-        const allTags = [
-            ...selectedTags.biome.map(id => AVAILABLE_TAGS.biome.find(t => t.id === id).label),
-            ...selectedTags.archetype.map(id => AVAILABLE_TAGS.archetype.find(t => t.id === id).label),
-            ...selectedTags.structure.map(id => AVAILABLE_TAGS.structure.find(t => t.id === id).label),
-            ...selectedTags.maneuver.map(id => (AVAILABLE_TAGS.maneuver||[]).find(t => t.id === id)?.label).filter(Boolean)
-        ];
-
-        const systemPrompt = `Ты — ИИ-Кузнец и Балансировщик для ИСТОРИЧЕСКОЙ стратегической ККИ "Infinite Forge" про становление цивилизаций.
-Сеттинг — реалистичный ДРЕВНИЙ МИР и БРОНЗОВЫЙ ВЕК. НИКАКОЙ МАГИИ, драконов, нежити, демонов, огненных шаров и прочего фэнтези. Всё рационально и исторически обосновано: оружие из камня/кости/бронзы, племена, первые города, стены, колесницы, амбары, разведка, набеги, караваны, ритуалы предков и т.д.
-
-ЭПОХИ (критически важно):
-- "ancient" (Древний мир / каменный век) — каменные топоры, копья с кремнёвыми наконечниками, пращи, дубины, кожаные щиты, племенные ополчения, частоколы.
-- "bronze" (Бронзовый век) — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские.
-БАЛАНС ЭПОХ НЕ ЧЕРЕЗ МАНУ/СТАТЫ. Бронзовый отряд МОЖЕТ стоить 2 маны (наёмники) и иметь небольшие статы, но ОБЯЗАТЕЛЬНО должен иметь ключевые слова/свойства, дающие ему преимущество в бою (например, pierce/armor/charge/phalanx). Базовый модификатор встречи эпох: древние −1 урон по бронзе (мин 1), бронза +1 урон по древним — это лишь вишенка на торте, главное — свойства.
-
-СИСТЕМА КЛЮЧЕВЫХ СЛОВ (для новых карт keywords задают свойства отряда/постройки; одноразовые свойства ниже перечислены для старых карт и должны кодироваться через effects[]):
-- armor: N — броня снижает входящий урон на N.
-- pierce: N — пробитие игнорирует N брони.
-- ranged — дальний бой (лучники/пращники), с тыла бьёт авангард, без контратаки.
-- reach — длинное оружие (пики/саррисы), бьёт через авангард.
-- charge — чарж (конница/колесницы): +2 к первой атаке при высадке.
-- shieldwall — стена щитов: +2 броня при соседях.
-- wedge — клин: +2 к атаке при двух соседях.
-- phalanx — фаланга: +1 броня/+1 атака против конницы.
-- skirmish — засадный/набег: после атаки отступает в тыл.
-- taunt — провокация/щитовой строй: весь авангард врага бьёт именно этот отряд.
-- poison — ядовитое оружие/стрелы: на цель вешается яд (DoT).
-- burn — поджог/факелы: на цель вешается огонь DoT с распространением.
-- heal — лекари/травники: исцеление в ход.
-- rally — поддержка/барабаны/песни: +1 к атаке соседей.
-- fear — страшный вид/боевые кличи: шанс обратить в бегство.
-- morale — высокая мораль, но шанс бегства при HP<30%.
-- siege — осадный/таран/стенобит: х2 урона постройкам.
-- spy — лазутчик/разведка: раскрывает руку врага.
-- sabotage — диверсия: при розыгрыше шанс разрушить постройку врага.
-- supply — снабженец/обоз/караван: при высадке даёт +1💎 ресурсов.
-- warcry — боевой клич/полководец: при высадке +1⚡ действий в этот ход.
-- loot — мародёр/добыча: при гибели врага от его руки +1💎 (трофеи).
-- raider — налётчик/грабитель: при атаке крадёт 1💎 у врага.
-- harras — партизан/набеги: блокирует прирост +1💎 у врага в следующий ход.
-- exhaustenemy — измот/деморализация: при высадке отнимает 1⚡ у врага.
-- sturdy — стойкий/опытный: −1 урона от первой атаки в ход.
-- holdground — держит строй/не отступает: иммунитет к чаржу и страху в первый ход.
-- upkeep — нуждается в содержании/снабжении: без соседей теряет 1 HP в ход.
-
-ВАЖНО: если ключевое слово имеет силу N (armor/pierce/poison/burn/heal), пиши его как строку вида armor:2, heal:1 и т.п. (в JSON — например \"armor:2\"). Без цифры движок возьмёт N=1.
-
-КРИТИЧЕСКОЕ ПРАВИЛО:
-• Поля keywords и effects — ЕДИНСТВЕННЫЕ источники механик. Движок никогда не извлекает механику из description, abilities, tags, названия или выбора рода войск. Постоянные свойства задавай в keywords, срабатывающие эффекты — только в effects по схеме ниже.
-• Теги (tags) — это контекст/флафф, они НЕ дают механик.
-• Для новых карт не используй одноразовые keywords sabotage, spy, supply, warcry, loot, raider, harras, exhaustenemy: их события задаются в effects (если действие есть в белом списке); harras/spy/loot без поддерживаемого действия не использовать. У манёвров heal/poison/burn тоже задавай в effects, не в keywords.
-• Поле description — ЕДИНСТВЕННЫЙ блок текста на карточке (2-3 предложения, единым связным текстом, без буллетов). Сюда пиши и что делает отряд/манёвр, и как выглядит, и детали — всё в одном поле.
-• Поле abilities — ВСЕГДА пустой массив [] (не используй его).
-• Если у карты есть механический штраф за сверх-силу — задай его поддерживаемым keyword, характеристикой/ценой или валидным эффектом; короткое пояснение помести в monkey_paw. Текст без механического поля ничего не меняет.
-
-ТИПЫ КАРТ:
-- "unit" — отряд воинов/рабочих (копейщики, пращники, топорники, лучники, колесницы, конные разведчики, ополчение, старейшины, охотники).
-- "spell" — это НЕ МАГИЯ, а ВОЕННЫЙ МАНЁВР / событие (Ночной набег, Ложное отступление, Мобилизация, Разведка боем, Поджог амбаров, Караван с бронзой, Племенной сход, Сбор дани).
-- "structure" — постройка (частокол, глинобитная стена, амбар, святилище предков, мастерская, дозорная башня, военный лагерь, загон для скота, террасы).
-
-=== МАТЕМАТИКА БАЛАНСА ===
-ДВЕ цены:
-- drop_cost 0-9 — ресурсы/организация для вывода карты.
-- action_cost 0-6 — приказы/логистика КАЖДЫЙ ХОД (для манёвров и построек = 0).
-
-ОТРЯДЫ (unit). Цена drop_cost НЕ зависит от эпохи — эпоха отражается полем keywords.
-- 1-drop: 1-2 HP, 1 ATK (ополчение, разведчики, охотники)
-- 2-drop: 2-3 HP, 1-2 ATK (копейщики, пращники, лучники, бронзовые наёмники)
-- 3-drop: 3-4 HP, 2-3 ATK (топорники, конные, мечники)
-- 4-drop: 4-5 HP, 3-4 ATK (тяжёлая пехота, гвардия, колесницы)
-- 5-drop+: 5-8 HP, 3-5 ATK (полководцы, элитные колесницы, тяж. конница)
-Бронзовые юниты МОГУТ стоить 1-2 маны (например наёмники с бронзовыми кинжалами), но при этом получают pierce/armor/charge и т.п.
-
-МАНЁВРЫ (spell): drop_cost 1-6, action_cost=0, hp=0, atk=0. Точечные — 1-3, массовые/герой — 4-6.
-
-ПОСТРОЙКИ (structure): drop_cost 2-8, action_cost=0, atk=0, HP=3-8. Деревянные/глинобитные — HP 3-5, 2-4 маны (ancient). Каменные/бронзовые — HP 5-8, 5-8 маны (bronze).
-
-=== ЛАПА ОБЕЗЬЯНЫ ===
-За сверх-силу карта получает уравновешивающий штраф. Строгие правила:
-
-1) Штраф ОБЯЗАТЕЛЬНО должен соответствовать ОДНОЙ ИЗ работающих в движке механик. То есть:
-   • Либо это keyword из списка выше или конкретный валидный эффект из белого списка конструктора (например, upkeep или изменение ресурса/характеристики).
-   • Либо это статовый штраф: уменьши hp или atk прямо в полях hp/atk (самый простой и честный вариант).
-   • Либо это стоимость: повысь drop_cost/action_cost.
-   • В monkey_paw может быть ТОЛЬКО пояснение в 1 предложение — почему карта имеет этот штраф (история/флафф).
-
-2) ЗАПРЕЩЕНО придумывать новые механики/дебафы, которые движок НЕ ПОДДЕРЖИВАЕТ. В том числе нельзя писать:
-   • «если у врага нет построек, бьёт случайную цель» (движок не умеет)
-   • «эффект бьёт и по врагу и по вам» (движок не делает двустороннего эффекта)
-   • «отряд не получает бонус в лесу» (нет биомных модификаторов в бою)
-   • «не может атаковать в свой ход» (для этого подними action_cost или просто не давай)
-   • не используй случайный выбор цели; выбирай цель только детерминированными селекторами конструктора
-   • «враг видит вашу руку» и другие эффекты, не входящие в белый список конструктора.
-
-3) Штраф НЕ ДОЛЖЕН ПРОТИВОРЕЧИТЬ основным способностям (не «в лесу +1 к атаке» и при этом «в лесу не может атаковать»).
-
-4) Для обычных сбалансированных карт (без сверх-силы) monkey_paw = "" (пустая строка).
-
-=== КОНСТРУКТОР ЭФФЕКТОВ (строгий белый список) ===
-• Используй effects: [] если срабатывающих эффектов нет. Для манёвра нужен минимум один эффект enter_play. Все разовые действия кодируй в effects; keywords оставляй для свойств отряда/постройки. Не описывай игровые правила словами вместо структуры.
-• События: enter_play (карта выходит на поле/разыгрывается), attack (отряд совершает атаку), turn_start (начало хода владельца источника), death (погибает сам источник), card_death (погибает любая карта на поле).
-• Для card_death ОБЯЗАТЕЛЬНО задай watch.side: all (любая сторона), friendly (свои карты относительно владельца источника) или enemy (чужие карты). Для card_death реакция срабатывает только у живых карт-наблюдателей; собственную гибель задавай событием death. Бегство гибелью не считается.
-• Порядок реакций на гибель: сначала активная сторона, затем другая; внутри стороны раньше выведенные карты срабатывают первыми. Эффекты одной карты идут в порядке effects[].
-• Для damage/heal/apply_status/destroy/modify_stat/modify_cost/draw/discard/exchange/scry ОБЯЗАТЕЛЬНО укажи target. Для modify_resource target можно опустить — тогда это controller. В action включай только поля, нужные выбранному type.
-• Цель: side friendly/controller = свои/владелец, enemy/opponent = противник, either = обе стороны; entity unit (не постройка), structure, permanent (любая карта на поле), player. zone front=авангард, rear=тыл. relation adjacent = соседний слот в том же ряду относительно источника; self = сам источник; attack_target = цель текущей атаки.
-• Выбор цели: choose — игрок кликает до count разных подсвеченных целей и может пропустить эффект; first (авангард слева направо, затем тыл), lowest_hp (меньше абсолютных HP), lowest_hp_ratio (меньше доля здоровья), highest_attack — детерминированный автовыбор. count 1-3; если доступных целей меньше, выбираются все доступные. ИИ при choose берёт первые подходящие цели. Случайных целей нет. Если цели не нашлось, эффект пропускается. Для draw/discard/exchange/scry указывай конкретную сторону player (без select=choose); выбор карт выполняется отдельным интерфейсом.
-• Действия: damage (урон; броня цели уменьшает его, минимум 1), heal (восстановление до максимума), apply_status только poison или burn (amount=сила, turns=1..3; тикает в начале хода владельца цели), destroy (немедленно уничтожает карту на поле), modify_resource (drop/action, amount от -5 до +5, только текущий запас), modify_stat (attack/armor/max_hp, amount от -3 до +3; постоянно до конца боя; для attack/armor можно указать turns=1..3 — временно на указанное число собственных ходов), modify_cost (цена action от -3 до +3; можно указать turns=1..3 для временной цены), draw (добрать amount=1..5), discard (сбросить amount=1..5; choice=choose|highest_cost|lowest_cost), exchange (добрать amount и затем сбросить столько же), scry (просмотреть amount=1..5 верхних карт; игрок выбирает, какие отправить вниз, сохраняя порядок остальных). Усталость за пустую колоду растёт: первый добор наносит 1 урон, затем 2, 3 и т.д. Сброшенные и сожжённые из-за переполнения карты попадают в стопку сброса.
-• Условия необязательны: all/any содержат 1-4 условия, not инвертирует одно. Листья: {"type":"target_wounded"}, {"type":"target_status","status":"poison"}, {"type":"resource","side":"controller"|"opponent","resource":"drop"|"action","op":"eq"|"ne"|"lt"|"lte"|"gt"|"gte","value":N}, {"type":"target_stat","stat":"hp"|"attack"|"armor","op":"...","value":N}. Глубина условий максимум 3.
-• Пример: при гибели любой своей карты получить +1 ресурс: {"event":"card_death","watch":{"side":"friendly"},"action":{"type":"modify_resource","resource":"drop","amount":1}}. При выходе добрать две карты: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"draw","amount":2}}. При выходе дать отряду +2 атаки до следующего собственного хода: {"event":"enter_play","target":{"side":"friendly","entity":"unit","select":"first"},"action":{"type":"modify_stat","stat":"attack","amount":2,"turns":1}}.
-• Не придумывай события, сущности, статусы, цели или действия за пределами списка. Максимум 6 эффектов на карту. Все эффекты в одном JSON — независимы и исполняются по порядку.
-
-=== ДОСТУПНЫЕ ТЕГИ ===
-${allTags.length ? allTags.join(', ') : 'только базовые племена Древнего мира (каменный век)'}
-
-Если запрос выходит за контекст (бронза без мастерской) — адаптируй под Древний мир либо давай с тяжёлым monkey_paw.
-
-=== ФОРМАТ ОТВЕТА (строго JSON, без markdown) ===
-{
-  "name": "Название 2-4 слова, русское, историческое",
-  "card_type": "unit" | "spell" | "structure",
-  "era": "ancient" | "bronze",
-  "emoji": "один исторический эмодзи (⚔️ 🏹 🪓 🛞 🐎 🪨 🧱 🏛️ 🔨 🗼 ⛺ 🌾 🔥 🚣)",
-  "drop_cost": число,
-  "action_cost": число,
-  "hp": число (0 для манёвров),
-  "atk": число (0 для манёвров/построек),
-  "description": "2-3 предложения единым связным текстом",
-  "tags": ["подходящие теги"],
-  "abilities": [],
-  "keywords": ["armor:2","ranged"],
-  "effects": [
-    {
-      "event": "enter_play" | "attack" | "turn_start" | "death" | "card_death",
-      "watch": {"side":"all"|"friendly"|"enemy"},
-      "target": {
-        "side": "friendly" | "enemy" | "controller" | "opponent" | "either",
-        "entity": "unit" | "structure" | "permanent" | "player",
-        "zone": "front" | "rear" | "any",
-        "relation": "any" | "self" | "adjacent" | "attack_target",
-        "select": "choose" | "first" | "lowest_hp" | "lowest_hp_ratio" | "highest_attack" | "attack_target",
-        "count": 1
-      },
-      "condition": {"all":[{"type":"target_wounded"},{"type":"resource","side":"controller","resource":"drop","op":"gte","value":2}]},
-      "action": {"type":"damage","amount":2}
-    }
-  ],
-  "monkey_paw": "" либо короткое флафф-пояснение
-}
-
-Язык: русский. Имена в духе "Копейщики долины", "Пращники холмов", "Ночной набег кочевников", "Частокол из дуба", "Бронзовые мечники", "Колесницы с серпами".`;
-
-        const userPrompt = `Вот моя идея:
-${prompt}
-
-Доступные теги: ${allTags.join(', ') || 'только базовые племена Древнего мира (каменный век)'}.
-
-Преврати идею в сбалансированную ИСТОРИЧЕСКУЮ карту Древнего мира или Бронзового века. Без магии. Если идея слишком сильная — применяй Лапу Обезьяны. Отвечай строго JSON.`;
-
+    function readForgeAdviceForToday() {
+        if (!window.CampaignMvp) return null;
+        const campaign = window.CampaignMvp.getState();
+        let saved = forgeAdviceMemory;
+        try { saved = JSON.parse(localStorage.getItem(FORGE_ADVICE_STORAGE_KEY) || 'null') || saved; } catch (_) {}
+        if (!saved || Number(saved.season) !== campaign.season || Number(saved.day) !== campaign.day) return null;
         try {
-            const resp = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+            const choices = normalizeForgeAdviceChoices(saved.choices);
+            const selectedId = choices.some(choice => choice.id === saved.selectedId) ? saved.selectedId : null;
+            return { season: campaign.season, day: campaign.day, choices, selectedId };
+        } catch (_) { return null; }
+    }
+
+    function saveForgeAdviceForToday(advice) {
+        forgeAdviceMemory = advice;
+        try { localStorage.setItem(FORGE_ADVICE_STORAGE_KEY, JSON.stringify(advice)); } catch (_) {}
+    }
+
+    function clearForgeAdvice() {
+        forgeAdviceMemory = null;
+        forgeAdviceMessage = '';
+        forgeAdviceMessageDay = '';
+        try { localStorage.removeItem(FORGE_ADVICE_STORAGE_KEY); } catch (_) {}
+    }
+
+    function getSelectedForgeAdvice() {
+        const advice = readForgeAdviceForToday();
+        return advice?.choices.find(choice => choice.id === advice.selectedId) || null;
+    }
+
+    function forgeSlotBlock(campaign) {
+        const player = campaign.player;
+        if (!player.onboardingComplete) return 'Сначала создай народ в кампании.';
+        if (campaign.day >= window.CampaignMvp.SEASON_LENGTH) return 'Сезон завершён.';
+        if (player.dailyOrders.legacyBlocked) return 'Лимиты восстановятся после смены дня.';
+        if (player.dailyOrders.craftUsed) return 'Сегодняшняя ковка уже заказана.';
+        if (player.craftOrders.some(order => ['generating', 'working'].includes(order.status))) return 'Кузница занята текущим заказом.';
+        return '';
+    }
+
+    function renderForgeAdvice() {
+        const button = document.getElementById('forge-advice-btn');
+        const status = document.getElementById('forge-advice-status');
+        const target = document.getElementById('forge-advice-choices');
+        if (!button || !status || !target || !window.CampaignMvp) return;
+        const campaign = window.CampaignMvp.getState();
+        const messageDay = `${campaign.season}:${campaign.day}`;
+        if (forgeAdviceMessageDay !== messageDay) { forgeAdviceMessageDay = messageDay; forgeAdviceMessage = ''; }
+        const advice = readForgeAdviceForToday();
+        const keyAvailable = Boolean(getApiKey());
+        const slotBlock = forgeSlotBlock(campaign);
+        const labels = { unit: '⚔️ Отряд', spell: '📜 Манёвр', structure: '🏗️ Постройка' };
+
+        if (advice) {
+            button.disabled = true;
+            button.textContent = 'Совет получен · 1 LLM-вызов';
+            const selected = advice.choices.find(choice => choice.id === advice.selectedId);
+            status.textContent = campaign.player.dailyOrders.craftUsed
+                ? 'Совет сохранён до конца дня.'
+                : selected ? `Выбрано: ${selected.title} · генерация карты будет отдельным вызовом.` : 'Выбери один из трёх замыслов.';
+            target.innerHTML = advice.choices.map(choice => `<button type="button" class="forge-advice-option ${advice.selectedId === choice.id ? 'is-selected' : ''}" aria-pressed="${advice.selectedId === choice.id}" onclick="selectForgeAdvice('${choice.id}')"><span>${labels[choice.cardType]}</span><b>${escapeCardHtml(choice.title)}</b><small>${escapeCardHtml(choice.pitch)}</small></button>`).join('');
+            return;
+        }
+
+        button.disabled = forgeAdviceLoading || Boolean(slotBlock) || !keyAvailable;
+        button.textContent = forgeAdviceLoading ? 'Советник подбирает варианты…' : '✨ Попросить 3 варианта · 1 LLM-вызов';
+        status.textContent = forgeAdviceMessage || slotBlock || (!keyAvailable ? 'Добавь ключ HydraAI в «API и модель», чтобы вызвать советника.' : 'Один вызов модели создаст три варианта; повторный набор появится завтра.');
+        target.innerHTML = '';
+    }
+
+    function selectForgeAdvice(id) {
+        const advice = readForgeAdviceForToday();
+        if (!advice || !advice.choices.some(choice => choice.id === id)) return;
+        advice.selectedId = id;
+        saveForgeAdviceForToday(advice);
+        renderForgeAdvice();
+        renderCraftQuote();
+    }
+
+    async function requestForgeAdvice() {
+        const status = document.getElementById('forge-advice-status');
+        const button = document.getElementById('forge-advice-btn');
+        if (!status || !button || !window.CampaignMvp || forgeAdviceLoading) return;
+        if (readForgeAdviceForToday()) { renderForgeAdvice(); return; }
+        const campaign = window.CampaignMvp.getState();
+        const blocked = forgeSlotBlock(campaign);
+        if (blocked) { status.textContent = blocked; renderForgeAdvice(); return; }
+        const key = getApiKey();
+        if (!key) { status.textContent = 'Нужен API-ключ HydraAI в настройках сверху.'; renderForgeAdvice(); return; }
+
+        const definitions = new Map(window.CampaignMvp.REGION_DEFINITIONS.map(region => [region.id, region.name]));
+        const ownedRegions = campaign.regions.filter(region => region.ownerId === 'player').map(region => definitions.get(region.id)).filter(Boolean);
+        const resources = campaign.player.resources;
+        const context = [
+            `Эпоха: ${window.CampaignMvp.ERAS[campaign.player.era]}.`,
+            `Земли: ${ownedRegions.join(' · ') || 'только поселение'}.`,
+            `Запасы: провизия ${resources.food}, материалы ${resources.materials}, знания ${resources.knowledge}.`,
+            `Уровень кузнеца: ${campaign.player.craftLevel + 1}.`
+        ].join('\n');
+        const systemPrompt = `Ты — военный советник игры Infinite Forge. По контексту цивилизации предложи РОВНО ТРИ разных замысла для будущих карт. Не создавай саму карту: никаких характеристик, цен, редкости, keywords или effects. Для card_type используй ровно одно значение: unit (отряд), spell (тактический манёвр) или structure (военная постройка); по возможности разнообразь типы. Названия и замыслы должны быть короткими, историчными для открытой эпохи и опираться на земли/ресурсы народа. Все три идеи должны отличаться по роли и образу. Верни строго JSON вида {"choices":[{"card_type":"unit","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"spell","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"structure","title":"короткое название","pitch":"одно предложение о роли/образе"}]}. Массив choices содержит ровно три объекта.`;
+        forgeAdviceLoading = true;
+        forgeAdviceMessage = 'Советник выбирает три замысла по эпохе, землям и запасам…';
+        renderForgeAdvice();
+        try {
+            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${key}`,
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: getSelectedModel(),
                     messages: [
                         { role: 'system', content: systemPrompt },
-                        { role: 'user', content: userPrompt }
+                        { role: 'user', content: context }
                     ],
-                    temperature: 0.75,
-                    max_tokens: 2000,
-                    response_format: { type: "json_object" }
+                    temperature: 0.9,
+                    max_tokens: 700,
+                    response_format: { type: 'json_object' }
                 })
             });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.error?.message || `HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+            const choices = parseForgeAdviceResponse(data.choices?.[0]?.message?.content || '');
+            const latest = window.CampaignMvp.getState();
+            const latestBlock = forgeSlotBlock(latest);
+            if (latest.season !== campaign.season || latest.day !== campaign.day || latestBlock) throw new Error(latestBlock || 'День изменился во время запроса; попроси совет заново.');
+            saveForgeAdviceForToday({ season: latest.season, day: latest.day, choices, selectedId: null });
+            status.textContent = 'Три замысла готовы. Выбери один; совет уже использовал один LLM-вызов.';
+        } catch (error) {
+            forgeAdviceMessage = `Совет не получен: ${error.message} Можно попробовать ещё раз; игровой лимит и ресурсы не потрачены.`;
+        } finally {
+            forgeAdviceLoading = false;
+            renderForgeAdvice();
+            renderCraftQuote();
+        }
+    }
 
+    function renderCraftQuote() {
+        const target = document.getElementById('craft-quote');
+        const button = document.getElementById('forge-btn');
+        if (!target || !window.CampaignMvp) return;
+        const investmentSelect = document.getElementById('craft-investment');
+        const preset = FORGE_INVESTMENTS[investmentSelect?.value] || FORGE_INVESTMENTS.standard;
+        const investment = { materialQuality: preset.materialQuality, effort: preset.effort };
+        let quote = window.CampaignMvp.quoteCardCraft(investment);
+        const campaign = window.CampaignMvp.getState();
+        if (!quote.materialQualityUnlocked && investmentSelect) {
+            investmentSelect.value = 'standard';
+            quote = window.CampaignMvp.quoteCardCraft(FORGE_INVESTMENTS.standard);
+        }
+        if (investmentSelect) {
+            const accessText = { refined: 'нужен Медный рудник', masterwork: 'нужны медный рудник и Оловянный путь' };
+            [...investmentSelect.options].forEach(option => {
+                option.disabled = !quote.availableMaterialQualities.includes(option.value);
+                option.dataset.baseLabel ||= option.textContent.replace(/ · требуется .+$/i, '');
+                option.textContent = option.disabled ? `${option.dataset.baseLabel} · требуется ${accessText[option.value] || 'месторождение'}` : option.dataset.baseLabel;
+            });
+        }
+        const selected = getSelectedForgeAdvice();
+        const cost = quote.cost;
+        const costText = `${cost.food}🌾 · ${cost.materials}🪵 · ${cost.knowledge}📚`;
+        const stockText = `${campaign.player.resources.food}🌾 · ${campaign.player.resources.materials}🪵 · ${campaign.player.resources.knowledge}📚`;
+        const oddsText = `Обычная ${quote.odds.ordinary}% · необычная ${quote.odds.uncommon}% · редкая ${quote.odds.rare}%`;
+        const blocker = selected ? forgeSlotBlock(campaign)
+            || (!quote.affordable ? 'Не хватает ресурсов или не открыто нужное сырьё.' : '')
+            || (campaign.day + quote.effortDays > window.CampaignMvp.SEASON_LENGTH ? 'До конца сезона не хватит времени на эту ковку.' : '') : '';
+        const slotText = campaign.player.dailyOrders.legacyBlocked ? 'Завтра' : `${campaign.player.dailyOrders.craftUsed ? '1/1 использована' : '0/1 сегодня'}`;
+        const effortText = quote.effortDays ? `${quote.effortDays} дн.` : 'сразу';
+        target.innerHTML = `<div class="craft-quote-main"><span><b title="Мастерство влияет на шанс">Шанс · кузнец ${quote.craftLevel + 1}</b><small>${oddsText}</small></span><span><b>Цена · ${effortText}</b><small>${costText}</small></span></div><small>Запасы ${stockText} · ковка ${slotText}${blocker ? ` · ${blocker}` : ''}</small>`;
+        if (button) button.disabled = !selected || Boolean(blocker) || forgeGenerationLoading;
+    }
+
+    function refreshForgeUi() {
+        renderForgeAdvice();
+        renderCraftQuote();
+    }
+
+    // ============================================
+    // КОВКА КАРТЫ (ЗАПРОС К LLM)
+    // ============================================
+    function validateGeneratedCard(card, expectedType, allowedEras) {
+        if (!card || typeof card !== 'object' || Array.isArray(card)) throw new Error('Кузнец не вернул объект карты.');
+        const allowedFields = ['name','card_type','era','emoji','drop_cost','action_cost','hp','atk','description','tags','abilities','keywords','effects','monkey_paw'];
+        const extraField = Object.keys(card).find(key => !allowedFields.includes(key));
+        if (extraField) throw new Error(`Неподдерживаемое поле карты: ${extraField}.`);
+        if (typeof card.name !== 'string' || !card.name.trim() || card.name.length > 80) throw new Error('У карты должно быть короткое название.');
+        if (card.card_type !== expectedType) throw new Error('Советник вернул не тот тип карты, который был заказан. Оплата возвращена.');
+        if (!allowedEras.includes(card.era)) throw new Error('Карта использует ещё не открытую эпоху. Оплата возвращена.');
+        const numericFields = ['drop_cost','action_cost','hp','atk'];
+        for (const field of numericFields) {
+            if (!Number.isInteger(card[field]) || card[field] < 0 || card[field] > 99) throw new Error(`Поле ${field} должно быть целым числом от 0 до 99.`);
+        }
+        if (card.card_type === 'spell' && (card.hp !== 0 || card.atk !== 0 || card.action_cost !== 0)) throw new Error('У манёвра должны быть hp=0, atk=0 и action_cost=0.');
+        if (card.card_type === 'structure' && (card.hp < 1 || card.atk !== 0 || card.action_cost !== 0)) throw new Error('У постройки нужны hp от 1, atk=0 и action_cost=0.');
+        if (card.card_type === 'unit' && card.hp < 1) throw new Error('У отряда должно быть не меньше 1 HP.');
+        if (typeof card.description !== 'string' || !card.description.trim() || card.description.length > 1600) throw new Error('Добавь короткое описание карты.');
+        if (card.tags !== undefined && (!Array.isArray(card.tags) || card.tags.length > 16)) throw new Error('Поле tags должно содержать не более 16 строк.');
+        card.tags = (card.tags || []).map(tag => String(tag).slice(0, 60));
+        if (!Array.isArray(card.keywords) || card.keywords.length > 24) throw new Error('Поле keywords должно быть массивом до 24 свойств.');
+        const unsupportedEventKeywords = new Set(['sabotage','spy','supply','warcry','loot','raider','harras','exhaustenemy']);
+        card.keywords = card.keywords.map(raw => {
+            if (typeof raw !== 'string') throw new Error('Каждое ключевое слово должно быть строкой.');
+            const parts = raw.toLowerCase().trim().split(':');
+            const keyword = parts[0];
+            if (!KEYWORDS[keyword] || unsupportedEventKeywords.has(keyword)) throw new Error(`Ключевое слово «${keyword}» не поддерживается для новых карт; используй effects[] при наличии схемы.`);
+            if (['armor','pierce','poison','burn','heal'].includes(keyword)) {
+                if (parts.length > 2 || (parts.length === 2 && (!/^\d+$/.test(parts[1]) || Number(parts[1]) < 1 || Number(parts[1]) > 99))) throw new Error(`У свойства ${keyword} должен быть целый уровень от 1 до 99.`);
+            } else if (parts.length !== 1) throw new Error(`Свойство ${keyword} не принимает числовой уровень.`);
+            return raw.toLowerCase().trim();
+        });
+        if (!Array.isArray(card.effects)) throw new Error('Поле effects должно быть массивом структурированных эффектов.');
+        card.effects = validateEffects(card.effects);
+        const rawKws = card.keywords.map(raw => raw.split(':')[0]);
+        if (card.card_type === 'spell' && rawKws.some(kw => ['heal','poison','burn'].includes(kw))) throw new Error('Для манёвра heal/poison/burn оформляй как effects[], а не keywords.');
+        if (card.card_type === 'spell' && !card.effects.length) throw new Error('Для манёвра укажи хотя бы один поддерживаемый эффект в effects[].');
+        if (card.card_type === 'spell' && card.effects.some(effect => effect.event !== 'enter_play')) throw new Error('Манёвр может запускать только событие enter_play.');
+        if (card.card_type === 'spell' && card.effects.some(effect => ['self','adjacent'].includes(effect.target.relation))) throw new Error('У манёвра нет позиции на поле: нельзя выбирать self или adjacent относительно источника.');
+        if (card.card_type !== 'unit' && card.effects.some(effect => effect.event === 'attack')) throw new Error('Событие attack доступно только отрядам.');
+        if (!['unit','structure'].includes(card.card_type) && card.effects.some(effect => ['death','card_death'].includes(effect.event))) throw new Error('События death и card_death доступны только картам на поле.');
+        card.emoji = typeof card.emoji === 'string' ? card.emoji.slice(0, 12) : '⚒️';
+        card.monkey_paw = typeof card.monkey_paw === 'string' ? card.monkey_paw.slice(0, 200) : '';
+        card.abilities = [];
+        return card;
+    }
+
+    async function forgeCard() {
+        const errorEl = document.getElementById('forge-error');
+        const loadingEl = document.getElementById('forge-loading');
+        const resultEl = document.getElementById('forge-result');
+        const resultSection = document.getElementById('forge-result-section');
+        const btn = document.getElementById('forge-btn');
+        errorEl.style.display = 'none';
+        if (!window.CampaignMvp) {
+            errorEl.textContent = 'Кампания не загрузилась: кузница не может проверить оплату.';
+            errorEl.style.display = 'block'; return;
+        }
+        const campaignStartState = window.CampaignMvp.getState();
+        const selectedAdvice = getSelectedForgeAdvice();
+        if (!selectedAdvice) {
+            errorEl.textContent = 'Попроси советника и выбери один из трёх замыслов.';
+            errorEl.style.display = 'block'; return;
+        }
+        const slotBlock = forgeSlotBlock(campaignStartState);
+        if (slotBlock) {
+            errorEl.textContent = slotBlock;
+            errorEl.style.display = 'block'; return;
+        }
+        const advisorOrder = {
+            cardType: selectedAdvice.cardType,
+            title: selectedAdvice.title,
+            pitch: selectedAdvice.pitch,
+            summary: `${FORGE_ADVISOR_TYPE_NAMES[selectedAdvice.cardType]}: ${selectedAdvice.title} — ${selectedAdvice.pitch}`
+        };
+        const key = getApiKey();
+        if (!key) {
+            errorEl.textContent = 'Нужен API-ключ HydraAI (поле вверху, dashboard.hydraai.ru). Оплата до ковки не списывается.';
+            errorEl.style.display = 'block'; return;
+        }
+
+        const investment = FORGE_INVESTMENTS[document.getElementById('craft-investment').value] || FORGE_INVESTMENTS.standard;
+        forgeGenerationLoading = true;
+        btn.disabled = true;
+        if (resultSection) resultSection.style.display = 'none';
+        resultEl.innerHTML = '';
+        loadingEl.style.display = 'block';
+
+        let orderId = null;
+        let completed = false;
+        try {
+            const started = window.CampaignMvp.beginCardCraft(investment, Math.random(), advisorOrder.summary);
+            if (!started || started.error) throw new Error(started?.error || 'Не удалось открыть заказ кузницы.');
+            const order = started.order;
+            orderId = order.id;
+            const rarityLabels = { ordinary: 'ОБЫЧНАЯ', uncommon: 'НЕОБЫЧНАЯ', rare: 'РЕДКАЯ' };
+            const rarityDirective = {
+                ordinary: 'Обычная редкость: создай цельную карту с 1–2 заметными особенностями.',
+                uncommon: 'Необычная редкость: постарайся дать карте 2–3 различимые, интересно сочетающиеся особенности.',
+                rare: 'Редкая карта должна ощущаться особенно насыщенной: постарайся дать 3–5 значимых особенностей через характеристики, keywords и/или несколько эффектов; придумай смелое сочетание. Это не требование баланса и не ограничение силы.'
+            }[order.rarity];
+            document.getElementById('forge-loading-copy').textContent = `Выпала ${rarityLabels[order.rarity]} редкость · модель ${order.modelId}...`;
+            const campaign = window.CampaignMvp.getState();
+            const campaignEra = campaign.player.era;
+            const allowedEras = campaignEra >= 3 ? [ERA_ANCIENT, ERA_BRONZE] : [ERA_ANCIENT];
+            const allowedEraText = allowedEras.map(era => era === ERA_BRONZE ? 'Бронзовый век (bronze)' : 'Древний мир (ancient)').join(' и ');
+
+            const systemPrompt = `Ты — ИИ-Кузнец исторической стратегической ККИ "Infinite Forge" про становление цивилизаций.
+Сеттинг — реалистичный ДРЕВНИЙ МИР и БРОНЗОВЫЙ ВЕК. НИКАКОЙ МАГИИ, драконов, нежити, демонов, огненных шаров и прочего фэнтези. Всё рационально и исторически обосновано: оружие из камня/кости/бронзы, племена, первые города, стены, колесницы, амбары, разведка, набеги, караваны, ритуалы предков и т.д.
+
+ЭПОХИ:
+- "ancient" — каменные топоры, кремнёвые копья, пращи, дубины, кожаные щиты, племенные ополчения, частоколы.
+- "bronze" — бронзовые мечи/копья, бронзовые доспехи, колесницы, городские стены, профессиональная армия, литейные мастерские.
+Используй только эпохи, открытые текущей кампанией.
+
+СИСТЕМА КЛЮЧЕВЫХ СЛОВ (для новых карт keywords задают постоянные свойства; разовые действия оформляются через effects[]):
+- armor: N — броня снижает входящий урон на N.
+- pierce: N — пробитие игнорирует N брони.
+- ranged — дальний бой (с тыла бьёт авангард, без контратаки).
+- reach — длинное оружие бьёт через авангард.
+- charge — конница/колесницы получают +2 к первой атаке после высадки.
+- shieldwall — стена щитов усиливает защиту при соседях.
+- wedge — клин усиливает атаку при соседях.
+- phalanx — фаланга сильнее против конницы.
+- skirmish — после атаки отступает в тыл.
+- taunt — направляет атаки авангарда врага на этот отряд.
+- poison и burn — периодические статусы; для новых карт используй соответствующие effects[].
+- heal — лечение; для новых карт используй effects[].
+- rally, fear, morale, siege, sturdy, holdground, upkeep — поддерживаемые постоянные свойства.
+
+ВАЖНО:
+• Только keywords и effects[] создают механику. Движок не выводит правила из description, abilities, tags или названия.
+• Не используй в новых картах event-слова sabotage, spy, supply, warcry, loot, raider, harras, exhaustenemy: если их эффект можно представить в разрешённой схеме, опиши его через effects[].
+• description — 2–3 предложения связного русского текста; abilities всегда [].
+• monkey_paw необязателен и может быть только короткой флафф-ремаркой. Никогда не добавляй обязательный штраф за сильную карту.
+
+=== ПОЛНОЕ АВТОРСТВО МЕХАНИК ===
+Ты полностью придумываешь параметры карты: обе цены, характеристики, keywords и effects. Намеренно сильные, странные, рискованные и несбалансированные результаты допустимы и являются частью игры. Не используй бюджет мощности, таблицы «цена ↔ статы», автоматическое ослабление, компенсационные штрафы или обязательную Лапу Обезьяны. Не делай карту слабее только ради баланса и сохраняй выбранные тобой значения без нормализации.
+
+Единственные ограничения — технический формат: корректный JSON, разрешённые типы карт и ключевые слова, существующие события/цели/действия effects[] и целочисленные параметры. Не выдумывай код или правила, которых нет в схеме движка. Это не баланс-бюджет: валидные мощные параметры нужно сохранять как есть.
+
+=== КОНСТРУКТОР ЭФФЕКТОВ (строгий технический белый список) ===
+• Используй effects: [] если срабатывающих эффектов нет. Для манёвра нужен минимум один эффект enter_play. Все разовые действия кодируй в effects; keywords оставляй для постоянных свойств. Не описывай игровые правила словами вместо структуры.
+• События: enter_play, attack, turn_start, death, card_death. Для card_death обязательно watch.side: all|friendly|enemy.
+• Для действий damage/heal/apply_status/destroy/modify_stat/modify_cost/draw/discard/exchange/scry укажи target. Для modify_resource target можно опустить; тогда это controller.
+• Сторона: friendly/controller — свои, enemy/opponent — противник, either — обе; entity: unit, structure, permanent, player. zone: front, rear, any. relation: any, self, adjacent, attack_target. select: choose, first, lowest_hp, lowest_hp_ratio, highest_attack, attack_target. count — целое 1–3.
+• Действия: damage (урон), heal (исцеление), apply_status только poison/burn (amount, turns 1–3), destroy, modify_resource (drop/action, amount -5..5), modify_stat (attack/armor/max_hp, amount -3..3; attack/armor могут иметь turns 1–3), modify_cost (action, amount -3..3, turns 1–3), draw/discard/exchange/scry (amount 1–5). В action включай только нужные поля.
+• Условия: all/any содержат 1–4 условия, not инвертирует одно. Листья: target_wounded, target_status, resource (side controller/opponent, resource drop/action, op eq/ne/lt/lte/gt/gte, value), target_stat (stat hp/attack/armor, op, value). Глубина максимум 3.
+• Не придумывай события, сущности, статусы, цели или действия вне списка. Максимум 6 структурированных effects — это технический лимит движка.
+
+Используй выбранный советником замысел из следующего сообщения только как художественное направление; технические ограничения этой инструкции важнее.
+Разрешённые эпохи сейчас: ${allowedEraText}.
+
+=== ФОРМАТ ОТВЕТА (строго JSON, без markdown) ===
+{
+  "name": "Название карты на русском",
+  "card_type": "unit" | "spell" | "structure",
+  "era": "ancient" | "bronze",
+  "emoji": "один тематический эмодзи",
+  "drop_cost": 0,
+  "action_cost": 0,
+  "hp": 0,
+  "atk": 0,
+  "description": "2–3 предложения",
+  "tags": ["контекстные теги"],
+  "abilities": [],
+  "keywords": ["armor:2", "ranged"],
+  "effects": [],
+  "monkey_paw": ""
+}
+
+Язык — русский. Целочисленные характеристики и цену выбирай сам. У манёвра hp=0, atk=0, action_cost=0; у постройки atk=0, action_cost=0. Следуй типу и замыслу выбранного варианта, выпавшей редкости и эпохе кампании.`;
+
+            const rarityLabel = rarityLabels[order.rarity];
+            const userPrompt = `Выбранный замысел советника: «${advisorOrder.title}». ${advisorOrder.pitch} Создай именно card_type="${advisorOrder.cardType}" (${FORGE_ADVISOR_TYPE_NAMES[advisorOrder.cardType]}). Текущая эпоха кампании: ${window.CampaignMvp.ERAS[campaignEra]}. Разрешённые эпохи карты: ${allowedEraText}. Выпала редкость «${rarityLabel}». ${rarityDirective} Полные статы, цены, keywords и effects придумай самостоятельно; сильный результат не ослабляй ради баланса. Верни полный JSON-объект строго по схеме.`;
+
+            const resp = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: order.modelId,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt }
+                    ],
+                    temperature: order.rarity === 'rare' ? 1.0 : order.rarity === 'uncommon' ? 0.9 : 0.75,
+                    max_tokens: 2600,
+                    response_format: { type: 'json_object' }
+                })
+            });
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));
                 throw new Error(err.error?.message || `HTTP ${resp.status}`);
             }
-
             const data = await resp.json();
             if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-
-            let content = data.choices[0].message.content;
+            const content = data.choices?.[0]?.message?.content || '';
             const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (!jsonMatch) throw new Error('LLM не вернул JSON. Попробуй перековать.');
+            if (!jsonMatch) throw new Error('LLM не вернул JSON. Оплата возвращена; попробуй ещё раз.');
 
-            const card = JSON.parse(jsonMatch[0]);
-            if (!card.name || !card.card_type) throw new Error('Кузнец вернул неполную карту. Попробуй ещё раз.');
-            const hasStructuredEffects = Array.isArray(card.effects);
-            card.effects = validateEffects(card.effects === undefined ? legacyKeywordEffects(card) : card.effects);
-            if (hasStructuredEffects) {
-                const rawKws = (card.keywords || []).map(raw => String(raw || '').toLowerCase().split(':')[0]);
-                const eventKws = ['sabotage','spy','supply','warcry','loot','raider','harras','exhaustenemy'];
-                if (rawKws.some(kw => eventKws.includes(kw))) throw new Error('Одноразовые свойства задавай только в effects[], не дублируй их в keywords.');
-                if (card.card_type === 'spell' && rawKws.some(kw => ['heal','poison','burn'].includes(kw))) throw new Error('Для манёвра heal/poison/burn оформляй как effects[], а не keywords.');
-            }
-            if (card.card_type === 'spell' && !card.effects.length) throw new Error('Для манёвра укажи хотя бы один поддерживаемый эффект в effects[].');
-            if (card.card_type === 'spell' && card.effects.some(effect => effect.event !== 'enter_play')) throw new Error('Манёвр может запускать только событие enter_play.');
-            if (!['unit','structure'].includes(card.card_type) && card.effects.some(effect => ['death','card_death'].includes(effect.event))) throw new Error('События death и card_death доступны только картам на поле (отрядам и постройкам).');
-            if (card.card_type === 'spell' && card.effects.some(effect => ['self','adjacent'].includes(effect.target.relation))) throw new Error('У манёвра нет позиции на поле: нельзя выбирать self или adjacent относительно источника.');
-            if (card.card_type !== 'unit' && card.effects.some(effect => effect.event === 'attack')) throw new Error('Событие attack доступно только отрядам.');
-            card.abilities = [];
-
+            let card = JSON.parse(jsonMatch[0]);
+            card = validateGeneratedCard(card, advisorOrder.cardType, allowedEras);
             card.id = 'card_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
             card.forgedAt = Date.now();
-            card.originalPrompt = prompt;
+            card.advisorOrder = advisorOrder.summary;
+            const saved = window.CampaignMvp.completeCardCraft(order.id, card);
+            if (!saved || saved.error) throw new Error(saved?.error || 'Не удалось сохранить результат ковки.');
+            completed = true;
+            card = saved.card;
             lastForged = card;
 
             loadingEl.style.display = 'none';
-            resultEl.innerHTML = renderCard(card, 'forge');
-
-        } catch (e) {
+            if (resultSection) resultSection.style.display = 'block';
+            resultEl.innerHTML = renderCard(card, order.effortDays > 0 ? 'forge-pending' : 'forge');
+        } catch (error) {
+            let refunded = false;
+            if (orderId && !completed) {
+                const refund = window.CampaignMvp.failCardCraft(orderId, error.message);
+                refunded = Boolean(refund && !refund.error);
+                if (refund?.error) console.warn('Card craft refund failed:', refund.error);
+            }
             loadingEl.style.display = 'none';
-            errorEl.textContent = '⚠️ ' + e.message;
+            errorEl.textContent = `⚠️ ${error.message}${refunded ? ' Ресурсы возвращены.' : ''}`;
             errorEl.style.display = 'block';
         } finally {
-            btn.disabled = false;
+            forgeGenerationLoading = false;
+            renderForgeAdvice();
+            renderCraftQuote();
         }
     }
 
@@ -2085,8 +2241,15 @@ ${prompt}
     //       'collection' (в коллекции, с кнопками + в колоду / удалить),
     //       'deck' (в колоде, с кнопкой - убрать)
     // ============================================
+    function escapeCardHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    }
+
     function renderCard(card, mode = 'collection') {
         const typeDef = CARD_TYPES[card.card_type] || CARD_TYPES.unit;
+        const rarityLabels = { ordinary: 'ОБЫЧНАЯ', uncommon: 'НЕОБЫЧНАЯ', rare: 'РЕДКАЯ' };
+        const rarityClass = ['ordinary','uncommon','rare'].includes(card.rarity) ? `rarity-${card.rarity}` : '';
+        const rarityHtml = rarityClass ? `<span class="card-tag rarity-tag ${rarityClass}">${rarityLabels[card.rarity]}</span>` : '';
         const inDeck = deck.includes(card.id);
         const deckFull = deck.length >= DECK_LIMIT;
 
@@ -2101,11 +2264,6 @@ ${prompt}
             <span class="stat-chip">🏗️ Постройка</span>
         ` : `<span class="stat-chip">📜 Манёвр</span>`;
 
-        const monkeyHtml = card.monkey_paw ? `
-            <div class="card-monkey" title="Лапа Обезьяны">🐾</div>
-            <div class="ban-tooltip">🐾 ${card.monkey_paw}</div>
-        ` : '';
-
         // Один текстовый блок: склеиваем description + фильтрованные abilities в единый рассказ, без буллетов
         const mpText = (card.monkey_paw || '').toLowerCase();
         const filteredAbilities = (card.abilities || []).filter(a => {
@@ -2116,9 +2274,9 @@ ${prompt}
             return true;
         });
         const descParts = [];
-        if (card.description) descParts.push(card.description.replace(/\s+$/,'').replace(/\.?$/,'.'));
+        if (card.description) descParts.push(escapeCardHtml(card.description).replace(/\s+$/,'').replace(/\.?$/,'.'));
         if (filteredAbilities.length) {
-            const abText = filteredAbilities.join('. ').replace(/\s+$/,'').replace(/\.?$/,'.');
+            const abText = escapeCardHtml(filteredAbilities.join('. ')).replace(/\s+$/,'').replace(/\.?$/,'.');
             descParts.push(abText);
         }
         const descHtml = descParts.length
@@ -2159,15 +2317,17 @@ ${prompt}
         const effectChips = effectRows.length ? [`<span class="kw-chip effect-chip" style="display:inline-flex;align-items:center;background:rgba(255,190,80,.1);border:1px solid rgba(255,190,80,.35);border-radius:10px;padding:2px 7px;margin:1px;font-size:.72em;">⚙️ ${effectRows.length} эффект${effectRows.length === 1 ? '' : effectRows.length < 5 ? 'а' : 'ов'}</span>`] : [];
         const kwHtml = (kwChips.length || effectChips.length) ? `<div style="margin:4px 0;display:flex;flex-wrap:wrap;gap:2px;justify-content:center;">${kwChips.join('')}${effectChips.join('')}</div>${kwLegend}` : '';
 
-        // Штраф (Лапа Обезьяны) — отдельный блок, а не смешанный
+        // Необязательная авторская ремарка показывается отдельно от механик
         const monkeyBlock = card.monkey_paw ?
-            `<div style="font-size:0.75em; color:#ff8a65; background:rgba(255,138,101,0.1); border-left:3px solid #ff8a65; padding:4px 8px; margin:6px 0; border-radius:4px;">🐾 <b>Лапа Обезьяны:</b> ${card.monkey_paw}</div>` : '';
+            `<div style="font-size:0.75em; color:#ffcf8a; background:rgba(255,207,138,0.08); border-left:3px solid #ffcf8a; padding:4px 8px; margin:6px 0; border-radius:4px;">🐾 <b>Авторская ремарка:</b> ${escapeCardHtml(card.monkey_paw)}</div>` : '';
 
         let footerHtml = '';
         let inDeckBadge = '';
 
         if (mode === 'forge') {
-            footerHtml = `<button class="save-btn" onclick="saveCard('${card.id}')" id="save-${card.id}">💾 Добавить в коллекцию</button>`;
+            footerHtml = `<button class="save-btn" onclick="saveCard('${escapeCardHtml(card.id)}')" id="save-${escapeCardHtml(card.id)}">💾 Добавить в коллекцию</button>`;
+        } else if (mode === 'forge-pending') {
+            footerHtml = `<button class="save-btn" disabled>🕰️ Идёт работа в кампанийной очереди</button>`;
         } else if (mode === 'collection') {
             inDeckBadge = inDeck ? `<div class="in-deck-badge">🎴 В КОЛОДЕ</div>` : '';
             footerHtml = `<div class="card-footer">
@@ -2197,10 +2357,10 @@ ${prompt}
                         <span class="cost-label">дейст</span>
                     </div>` : ''}
                 </div>
-                <div class="card-name">${card.name}</div>
-                <div class="card-type">${typeDef.icon} ${typeDef.label} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
+                <div class="card-name">${escapeCardHtml(card.name)}</div>
+                <div class="card-type">${typeDef.icon} ${typeDef.label} ${rarityHtml} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
                 <div class="card-art ${typeDef.cls}" aria-hidden="true">
-                    <span class="card-art-symbol">${card.emoji || '⚒️'}</span>
+                    <span class="card-art-symbol">${escapeCardHtml(card.emoji || '⚒️')}</span>
                     <span class="card-art-caption">${card.card_type === 'unit' ? 'ВОИНСКОЕ ИСКУССТВО' : card.card_type === 'spell' ? 'ТАКТИКА И ЗНАНИЕ' : 'ОПЛОТ ЦИВИЛИЗАЦИИ'}</span>
                     <span class="card-art-rune">✦</span>
                 </div>
@@ -2209,7 +2369,7 @@ ${prompt}
                 ${monkeyBlock}
                 <div class="card-stats">${statsHtml}</div>
                 <div class="card-tags">
-                    ${(card.tags || []).slice(0, 5).map(t => `<span class="card-tag">${t}</span>`).join('')}
+                    ${(card.tags || []).slice(0, 5).map(t => `<span class="card-tag">${escapeCardHtml(t)}</span>`).join('')}
                 </div>
                 ${footerHtml}
             </div>
@@ -2220,15 +2380,32 @@ ${prompt}
     // СОХРАНЕНИЕ В КОЛЛЕКЦИЮ
     // ============================================
     function saveCard(id) {
-        if (!lastForged || lastForged.id !== id) return;
-        if (collection.some(c => c.id === id)) return;
+        if (!lastForged || lastForged.id !== id || collection.some(c => c.id === id)) return;
+        if (lastForged.craftOrderId && !window.CampaignMvp?.getReadyCraftCard(lastForged.craftOrderId)) {
+            alert('Заказ ещё в очереди. Карта появится в коллекции после завершения срока ковки.');
+            return;
+        }
         collection.unshift(lastForged);
-        localStorage.setItem('iforge_collection', JSON.stringify(collection));
+        try { localStorage.setItem('iforge_collection', JSON.stringify(collection)); }
+        catch (_) { collection.shift(); alert('Не удалось сохранить коллекцию в этом браузере.'); return; }
+        if (lastForged.craftOrderId) window.CampaignMvp.claimCardCraft(lastForged.craftOrderId);
         const btn = document.getElementById('save-' + id);
-        btn.textContent = '✅ Добавлено в коллекцию';
-        btn.classList.add('saved');
-        btn.disabled = true;
+        if (btn) { btn.textContent = '✅ Добавлено в коллекцию'; btn.classList.add('saved'); btn.disabled = true; }
         updateCounters();
+    }
+
+    function claimCraftedCard(orderId) {
+        const readyCard = window.CampaignMvp?.getReadyCraftCard(orderId);
+        if (!readyCard) { alert('Карта ещё не готова к получению.'); return; }
+        if (!collection.some(card => card.id === readyCard.id)) {
+            collection.unshift(readyCard);
+            try { localStorage.setItem('iforge_collection', JSON.stringify(collection)); }
+            catch (_) { collection.shift(); alert('Не удалось сохранить коллекцию в этом браузере.'); return; }
+        }
+        const claimed = window.CampaignMvp.claimCardCraft(orderId);
+        if (!claimed) return;
+        updateCounters();
+        renderCollection();
     }
 
     function deleteCard(id) {
@@ -2619,7 +2796,7 @@ ${prompt}
         const defSide = atkSide === 'me' ? 'enemy' : 'me';
         let dmg = baseDmg;
         // Эпоха
-        dmg += eraAttackBonus(attacker.era, target.era);
+        dmg += eraAttackMultiplier(attacker.era, target.era);
         dmg = Math.max(1, dmg - eraDamageReduction(attacker.era, target.era));
         // Броня и пробитие
         const armor = Math.max(0, getUnitArmor(target) - (attacker.statuses?.pierce||0));
@@ -3029,15 +3206,15 @@ ${prompt}
     }
 
     function getUnitAttack(unit) {
-        return Math.max(0, Math.min(12, (unit?.currentAtk ?? unit?.atk ?? 0) + getTemporaryModifierTotal(unit, 'attack')));
+        return Math.max(0, Math.min(99, (unit?.currentAtk ?? unit?.atk ?? 0) + getTemporaryModifierTotal(unit, 'attack')));
     }
 
     function getUnitArmor(unit) {
-        return Math.max(0, Math.min(8, (unit?.statuses?.armor || 0) + getTemporaryModifierTotal(unit, 'armor')));
+        return Math.max(0, Math.min(99, (unit?.statuses?.armor || 0) + getTemporaryModifierTotal(unit, 'armor')));
     }
 
     function getUnitActionCost(unit) {
-        return Math.max(0, Math.min(6, (unit?.action_cost || 0) + getTemporaryModifierTotal(unit, 'action_cost')));
+        return Math.max(0, Math.min(99, (unit?.action_cost || 0) + getTemporaryModifierTotal(unit, 'action_cost')));
     }
     function currentActionEnergy(side) {
         return battle?.mode === 'campaign' ? battle[side].dropMana : battle[side].actionMana;
@@ -3295,8 +3472,8 @@ ${prompt}
                 logBattle(`✨ ${context.card.name}: ${unit.name} получает ${signed(action.amount)} к ${action.stat === 'attack' ? 'атаке' : 'броне'} на ${action.turns} ${action.turns === 1 ? 'ход' : 'хода'}.`,who);
             } else {
                 if (action.stat === 'attack') {
-                    unit.atk = Math.min(12,Math.max(0,unit.atk + action.amount));
-                    unit.currentAtk = Math.min(12,Math.max(0,(unit.currentAtk ?? unit.atk) + action.amount));
+                    unit.atk = Math.min(99,Math.max(0,unit.atk + action.amount));
+                    unit.currentAtk = Math.min(99,Math.max(0,(unit.currentAtk ?? unit.atk) + action.amount));
                 } else if (action.stat === 'armor') {
                     unit.statuses.armor = Math.min(8,Math.max(0,(unit.statuses.armor||0) + action.amount));
                 } else {
@@ -3341,15 +3518,40 @@ ${prompt}
         return false;
     }
 
+    function failEffectTask(task, error) {
+        console.error(`[battle] card effect failed: ${task?.source?.name || 'unknown card'}`, error);
+        logBattle(`⚠️ Эффект карты «${task?.source?.name || 'без названия'}» пропущен из-за технической ошибки.`, 'system');
+        if (activeEffectTask !== task) return;
+
+        activeEffectTask = null;
+        const hadPendingChoice = pendingManualTarget?.task === task || pendingCardChoice?.task === task;
+        if (pendingManualTarget?.task === task) pendingManualTarget = null;
+        if (pendingCardChoice?.task === task) pendingCardChoice = null;
+        if (task.onComplete) {
+            try { task.onComplete(); }
+            catch (completionError) { console.error('[battle] failed to finish a card effect task', completionError); }
+        }
+        if (hadPendingChoice && battle) {
+            try { renderBattle(); }
+            catch (renderError) { console.error('[battle] failed to refresh after a card effect error', renderError); }
+        }
+    }
+
     function pumpEffectQueue() {
         if (effectPumpActive || activeEffectTask || pendingManualTarget || pendingCardChoice || !battle) return;
         effectPumpActive = true;
-        while (effectTaskQueue.length && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && battle) {
-            activeEffectTask = effectTaskQueue.shift();
-            const paused = runEffectTask(activeEffectTask,0);
-            if (paused) break;
+        try {
+            while (effectTaskQueue.length && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && battle) {
+                const task = effectTaskQueue.shift();
+                activeEffectTask = task;
+                let paused = false;
+                try { paused = runEffectTask(task,0); }
+                catch (error) { failEffectTask(task,error); }
+                if (paused) break;
+            }
+        } finally {
+            effectPumpActive = false;
         }
-        effectPumpActive = false;
         if (battle && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && effectTaskQueue.length === 0) {
             checkBattleEnd();
             effectQueueWaiters.splice(0).forEach(resolve => resolve());
@@ -3639,9 +3841,11 @@ ${prompt}
             document.getElementById('enemy-name').textContent = campaignMatch
                 ? `${campaignMatch.name} · ИИ-заглушка`
                 : 'Вождь племени';
-            document.getElementById('battle-subtitle').textContent = campaignMatch
-                ? `Тренировка: ${campaignMatch.clan}. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки. Рейтинг не меняется.`
-                : 'Враг у порога!';
+            document.getElementById('battle-subtitle').textContent = campaignMatch?.kind === 'expedition'
+                ? `Экспедиция за регион «${campaignMatch.regionName}» против ${campaignMatch.clan}. Победа меняет владельца; поражение расходует приказ и припасы. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки.`
+                : campaignMatch
+                    ? `Тренировка: ${campaignMatch.clan}. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки. Рейтинг не меняется.`
+                    : 'Враг у порога!';
             if (campaignMatch && backButton && againButton) {
                 backButton.textContent = 'К кампании';
                 backButton.onclick = () => switchScreen('campaign');
@@ -3738,13 +3942,21 @@ ${prompt}
     function endBattle(win) {
         if (battle) battle._endScheduled = true;
         const campaignMatch = battle?.campaignMatch;
-        if (campaignMatch && typeof window !== 'undefined' && window.CampaignMvp) window.CampaignMvp.recordBattleResult(campaignMatch, win);
+        const campaignOutcome = campaignMatch && typeof window !== 'undefined' && window.CampaignMvp
+            ? window.CampaignMvp.recordBattleResult(campaignMatch, win)
+            : null;
         const content = document.getElementById('battle-end-content');
+        const campaignFlavor = campaignMatch?.kind === 'expedition'
+            ? (win ? 'Ты выиграл сражение за регион.' : 'Экспедиция отступила без захвата территории.')
+            : (win ? 'Ты сокрушил вражеского вождя!' : 'Вождь племени одержал верх...');
+        const campaignMessage = campaignMatch?.kind === 'expedition'
+            ? (campaignOutcome?.message || 'Стратегический результат экспедиции не удалось записать.')
+            : (campaignOutcome?.message || 'Тренировочный бой завершён.');
         content.innerHTML = `
             <div class="battle-end-icon">${win ? '🏆' : '💀'}</div>
             <div class="battle-end-title ${win ? 'win' : 'lose'}">${win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}</div>
-            <p style="color:#888">${win ? 'Ты сокрушил вражеского вождя!' : 'Вождь племени одержал верх...'}</p>
-            ${campaignMatch ? '<p style="color:#d5af78">Тренировочный результат против ИИ-заглушки. Рейтинг клана не изменён.</p>' : ''}
+            <p style="color:#888">${campaignFlavor}</p>
+            ${campaignMatch ? `<p style="color:#d5af78">${escapeCardHtml(campaignMessage)}</p>` : ''}
         `;
         document.getElementById('battle-end-modal').classList.add('active');
         selectedHandIdx = null;
@@ -4435,19 +4647,38 @@ ${prompt}
         awaitingTarget = false;
         renderBattle();
 
-        // Даём небольшую паузу и выполняем ИИ ход
+        // Даём небольшую паузу и выполняем ИИ ход.
+        // Ошибка в ходе/эффекте врага не должна оставлять бой навсегда на «Враг думает…».
         animating = true;
-        setTimeout(async () => {
-            await runEnemyTurn();
-            animating = false;
+        setTimeout(finishEnemyTurn, 900);
+    }
+
+    async function finishEnemyTurn() {
+        try {
+            try { await runEnemyTurn(); }
+            catch (error) {
+                console.error('[battle] enemy turn failed', error);
+                if (battle && !battle._endScheduled) {
+                    logBattle('⚠️ Ход врага прерван из-за технической ошибки; бой продолжается.', 'system');
+                }
+            }
             if (!battle || battle._endScheduled) return;
-            // Новый ход игрока
+
+            // Новый ход игрока. Даже если стартовый эффект сломался, передача управления
+            // всё равно завершается, а причина остаётся видна в журнале и консоли.
             battle.turn++;
             battle.whoseTurn = 'me';
-            await startOfTurn('me');
-            if (!battle || battle._endScheduled) return;
-            renderBattle();
-        }, 900);
+            try { await startOfTurn('me'); }
+            catch (error) {
+                console.error('[battle] player start-of-turn failed', error);
+                if (battle && !battle._endScheduled) {
+                    logBattle('⚠️ Часть эффектов начала хода не сработала; ход всё равно продолжается.', 'system');
+                }
+            }
+        } finally {
+            animating = false;
+            if (battle && !battle._endScheduled) renderBattle();
+        }
     }
 
     async function startOfTurn(who) {
