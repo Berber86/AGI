@@ -48,9 +48,8 @@
         { era: 2, cultures: ['Минойцы — Кносс и быки', 'Хетты — железо и колесницы', 'Вавилон Хаммурапи — законы', 'Фивы Египта — Новое Царство'], desc: 'Бронза поздняя — Минойцы, Хетты, Вавилон. Колесницы и морская торговля' },
         { era: 3, cultures: ['Ассирия — военная машина', 'Персия — сатрапии', 'Греция — полисы', 'Рим — легионы'], desc: 'Античность — Ассирия, Персия, Греция, Рим' },
         { era: 4, cultures: ['Крестоносцы', 'Монголы', 'Османы', 'Тимуриды'], desc: 'Средневековье — степи и империи' },
-        { era: 5, cultures: ['Индустриальная революция', 'Колониализм', 'Мировые войны'], desc: '1800-1910 — пар, сталь, национализм' },
-        { era: 6, cultures: ['Холодная война', 'Цифровая революция'], desc: 'Новейшее время — идеологии и технологии' },
-        { era: 7, cultures: ['Климат, космос, ИИ'], desc: 'Будущее 2050-2150 — то, что ещё не случилось' }
+        { era: 5, cultures: ['Индустриальная революция', 'Колониализм', 'Мировые войны', 'Холодная война'], desc: '1800-1910 и Новейшее — пар, сталь, идеологии' },
+        { era: 6, cultures: ['Климат, космос, ИИ', 'Шумерские танки с клинописью', 'Танки Ра и Саргона'], desc: 'Будущее 2050-2150 — танки с клинописью, дроны Гильгамеша, зиккурат-ПВО' }
     ];
     const DECREES = {
         military: {
@@ -188,7 +187,7 @@
     }
 
     function generateLocalRegionFlavor(regionId, playerSeed) {
-        const rng = seededRandom(playerSeed + hashString(regionId) + Date.now() % 1000);
+        const rng = seededRandom(playerSeed + hashString(regionId) + 42);
         const prefixes = DIVERSITY_POOLS.buildingPrefixes[regionId] || ['Постройка', 'Лагерь', 'Стан'];
         const name = pickRandom(rng, DIVERSITY_POOLS.adjectives) + ' ' + pickRandom(rng, prefixes) + ' ' + pickRandom(rng, DIVERSITY_POOLS.buildingSuffixes);
         const descPool = DIVERSITY_POOLS.events[regionId] || DIVERSITY_POOLS.events.seasonal;
@@ -426,7 +425,7 @@
                     if (rb) building = rb.id;
                 }
             }
-            if (saved && saved.buildingFlavor && typeof saved.buildingFlavor === 'object') {
+            if (building && saved && saved.buildingFlavor && typeof saved.buildingFlavor === 'object') {
                 buildingFlavor = {
                     name: String(saved.buildingFlavor.name || '').slice(0, 80),
                     description: String(saved.buildingFlavor.description || '').slice(0, 400)
