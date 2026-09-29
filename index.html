@@ -1536,14 +1536,18 @@
             <button data-screen="battle" onclick="startBattle()" id="battle-nav-btn">⚔️ Бой</button>
             <button data-screen="campaign" onclick="switchScreen('campaign')">🏛️ Кампания</button>
         </div>
-        <details class="connection-settings">
+        <details class="connection-settings" id="api-details">
             <summary><span>⚙️ API и модель</span><span class="status-dot" id="api-status" aria-label="Статус API"></span></summary>
             <div class="connection-fields">
-                <label for="api-key-input">🔑 Hydra API</label>
-                <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()" autocomplete="off">
+                <label for="api-key-input">🔑 Hydra API (работает и без ключа — офлайн с биомами)</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="text" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru (не обязательно)" oninput="saveApiKey()" autocomplete="off" style="flex:1;">
+                    <button type="button" onclick="saveApiKey()" style="padding:8px 12px; border-radius:8px; border:1px solid #5a3c7c; background:#2d1f4a; color:#fff; cursor:pointer;">OK</button>
+                </div>
                 <label for="model-select">🤖 Модель советника</label>
                 <select id="model-select" onchange="saveSelectedModel()"></select>
-                <small>Модель ковки карты выбирается автоматически по редкости.</small>
+                <small>Без ключа — советник работает офлайн из пулов (Ямная, Аккад, Египет) с учётом биома и наследия. С ключом — LLM придумывает уникальнее. Модель ковки выбирается по редкости.</small>
+                <button type="button" onclick="document.getElementById('api-details').open=false" style="margin-top:8px; padding:6px 10px; border-radius:8px; border:1px solid #3d2a5c; background:transparent; color:#a08ec0; cursor:pointer; width:100%;">Закрыть</button>
             </div>
         </details>
         <a href="tribes-legacy.html" class="legacy-link" target="_blank">🏛️ Tribes (legacy)</a>
@@ -1813,8 +1817,16 @@
     // ============================================
     window.onload = function() {
         const key = localStorage.getItem('iforge_hydra_key') || '';
-        document.getElementById('api-key-input').value = key;
-        document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
+        const input = document.getElementById('api-key-input');
+        if (input) input.value = key;
+        const dot = document.getElementById('api-status');
+        if (dot) dot.className = 'status-dot' + (key ? ' ok' : '');
+        // Auto-open API settings if no key — fix for mobile where user can't find input
+        const details = document.getElementById('api-details');
+        if (details && !key) {
+            details.open = true;
+            setTimeout(() => { if (input) input.focus(); }, 300);
+        }
 
         // Заполняем селектор моделей
         const sel = document.getElementById('model-select');
@@ -2196,7 +2208,7 @@
         const eraHist = window.CampaignMvp.ERA_HISTORICAL?.[p.era]?.desc || '';
         const eraCultures = window.CampaignMvp.ERA_HISTORICAL?.[p.era]?.cultures?.join(' · ') || '';
         const lineage = (p.culturalLineage||[]).map(id => window.CampaignMvp.HISTORICAL_CULTURES?.find(c=>c.id===id)?.name || id).join(' → ') || (p.historicalCulture?.name || '');
-        const lineageDescs = (p.culturalLineage||[]).map(id => { const c=window.CampaignMvp.HISTORICAL_CULTURES?.find(x=>x.id===id); return c ? `${c.name}: ${c.desc}` : ''; }).filter(Boolean).join('\n');
+        const lineageDescs = (p.culturalLineage||[]).map(id => { const c=window.CampaignMvp.HISTORICAL_CULTURES?.find(c=>c.id===id); return c ? `${c.name}: ${c.desc}` : ''; }).filter(Boolean).join('\n');
         const context = [
             `Эпоха: ${window.CampaignMvp.ERAS[campaign.player.era]}. ${eraHist}`,
             `Культуры эпохи: ${eraCultures}`,
@@ -2217,7 +2229,6 @@
         forgeAdviceLoading = true;
         forgeAdviceMessage = 'Советник выбирает три замысла по эпохе, землям, биому и наследию…';
         renderForgeAdvice();
-        // Offline fallback using pools + historical culture when no key
         const key = getApiKey();
         if (!key) {
             try {
@@ -2267,30 +2278,9 @@
             renderForgeAdvice();
             renderCraftQuote();
         }
-    })
-            });
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error.error?.message || `HTTP ${response.status}`);
-            }
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-            const choices = parseForgeAdviceResponse(data.choices?.[0]?.message?.content || '');
-            const latest = window.CampaignMvp.getState();
-            const latestBlock = forgeSlotBlock(latest);
-            if (latest.season !== campaign.season || latest.day !== campaign.day || latestBlock) throw new Error(latestBlock || 'День изменился во время запроса; попроси совет заново.');
-            saveForgeAdviceForToday({ season: latest.season, day: latest.day, choices, selectedId: null });
-            status.textContent = 'Три замысла готовы. Выбери один; совет уже использовал один LLM-вызов.';
-        } catch (error) {
-            forgeAdviceMessage = `Совет не получен: ${error.message} Можно попробовать ещё раз; игровой лимит и ресурсы не потрачены.`;
-        } finally {
-            forgeAdviceLoading = false;
-            renderForgeAdvice();
-            renderCraftQuote();
-        }
     }
 
-    function renderCraftQuote() {
+        function renderCraftQuote() {
         const target = document.getElementById('craft-quote');
         const button = document.getElementById('forge-btn');
         if (!target || !window.CampaignMvp) return;
