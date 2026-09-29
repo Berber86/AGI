@@ -266,6 +266,16 @@
 .campaign-decree-options .campaign-btn b { font-size:.82rem; }
 .campaign-decree-options .campaign-btn small { font-size:.62rem; line-height:1.3; white-space:normal; }
 .campaign-day-blocker { color:#ffb86b; font-size:.68rem; }
+.campaign-era-historical { display:grid; gap:4px; margin:10px 0; padding:8px 10px; border:1px solid rgba(240,184,107,.18); border-radius:10px; background:rgba(60,40,20,.25); }
+.campaign-era-historical small { color:#d5af78; font-size:.62rem; line-height:1.4; }
+.campaign-era-historical small:last-child { color:#a99bb2; }
+.campaign-tribe-traits { display:grid; gap:12px; }
+.campaign-traits-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; }
+.campaign-trait-card { display:grid; gap:4px; padding:10px; border:1px solid rgba(194,156,231,.14); border-radius:12px; background:rgba(12,9,17,.4); text-align:center; }
+.campaign-trait-card .trait-icon { font-size:1.4rem; }
+.campaign-trait-card .trait-label { color:#d5af78; font-size:.58rem; font-weight:800; letter-spacing:.12em; }
+.campaign-trait-card b { color:#f2e5d2; font-size:.74rem; line-height:1.2; }
+.campaign-trait-card small { color:#a99bb2; font-size:.6rem; line-height:1.3; }
 
 @media(max-width:760px) {
     .campaign-seasonbar.campaign-seasonbar-compact { align-items:center; flex-direction:row; }

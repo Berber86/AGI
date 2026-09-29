@@ -30,15 +30,28 @@
         { maxScore: 6, odds: { ordinary: 15, uncommon: 45, rare: 40 } }
     ];
     const SCIENCE_BRANCHES = [
-        { id: 'agriculture', label: 'Земледелие и продовольствие', prompt: 'улучшение выращивания, хранения и распределения пищи', minEra: 0, category: 'economy', effect: 'income_food', building: 'амбар или ирригационная система' },
-        { id: 'stonecraft', label: 'Камень и ремесло', prompt: 'обработка камня и организация ремесленного производства', minEra: 0, category: 'economy', effect: 'income_materials', building: 'каменная мастерская' },
-        { id: 'seasonal', label: 'Наблюдения за сезонами', prompt: 'календарные наблюдения, обучение и передача знаний', minEra: 0, category: 'science', effect: 'income_knowledge', building: 'место наблюдений или календарный круг' },
-        { id: 'warfare', label: 'Военная организация', prompt: 'подготовка ополчения и согласованные действия отрядов', minEra: 0, category: 'military', effect: 'deck_slots', building: 'площадка для сбора и обучения' },
-        { id: 'fortification', label: 'Укрепления поселения', prompt: 'защита поселения, стен и проходов', minEra: 1, category: 'military', effect: 'max_hp', building: 'частокол или укреплённые ворота' },
-        { id: 'metallurgy', label: 'Медь и металлургия', prompt: 'добыча и обработка меди, доступные для текущей эпохи', minEra: 2, category: 'economy', effect: 'income_materials', building: 'рудник или литейная мастерская' },
-        { id: 'bronze', label: 'Бронзовые сплавы', prompt: 'бронзовое литьё и снабжение инструментами', minEra: 3, category: 'economy', effect: 'income_materials', building: 'бронзовая литейная' }
+        { id: 'agriculture', label: 'Земледелие и продовольствие', prompt: 'улучшение выращивания, хранения и распределения пищи. Как в Египте — шадуф, басма, закрома', minEra: 0, category: 'economy', effect: 'income_food', building: 'амбар или ирригационная система' },
+        { id: 'stonecraft', label: 'Камень и ремесло', prompt: 'обработка камня и организация ремесленного производства. Чатал-Хююк, обсидиан, кремнёвые шахты', minEra: 0, category: 'economy', effect: 'income_materials', building: 'каменная мастерская' },
+        { id: 'seasonal', label: 'Наблюдения за сезонами', prompt: 'календарные наблюдения, обучение и передача знаний. Стоунхендж, Нил, звёзды', minEra: 0, category: 'science', effect: 'income_knowledge', building: 'место наблюдений или календарный круг' },
+        { id: 'warfare', label: 'Военная организация', prompt: 'подготовка ополчения и согласованные действия отрядов. Ямная культура — повозки, дружина', minEra: 0, category: 'military', effect: 'deck_slots', building: 'площадка для сбора и обучения' },
+        { id: 'fortification', label: 'Укрепления поселения', prompt: 'защита поселения, стен и проходов. Иерихонские стены, частокол Триполья', minEra: 1, category: 'military', effect: 'max_hp', building: 'частокол или укреплённые ворота' },
+        { id: 'horse', label: 'Кони и повозки Ямной', prompt: 'приручение коня, повозки, курганы. Ямная культура 3300 до н.э. — первые всадники', minEra: 1, category: 'military', effect: 'trade_bonus', building: 'конный загон или мастерская повозок' },
+        { id: 'writing', label: 'Письмо и учёт', prompt: 'клинопись Шумера, иероглифы Египта, счёт и бюрократия. Урук 3400 до н.э.', minEra: 1, category: 'science', effect: 'income_knowledge', building: 'дом табличек или школа писцов' },
+        { id: 'metallurgy', label: 'Медь и металлургия', prompt: 'добыча и обработка меди, доступные для текущей эпохи. Балканы 5000 до н.э., первые медники', minEra: 2, category: 'economy', effect: 'income_materials', building: 'рудник или литейная мастерская' },
+        { id: 'bronze', label: 'Бронзовые сплавы', prompt: 'бронзовое литьё и снабжение инструментами. Аккад — бронзовое оружие Саргона', minEra: 3, category: 'economy', effect: 'income_materials', building: 'бронзовая литейная' },
+        { id: 'irrigation-empire', label: 'Империя ирригации', prompt: 'государство каналов, как Аккад и Египет — централизация, налоги зерном, бюрократия', minEra: 2, category: 'civic', effect: 'storage_bonus', building: 'государственные закрома или домена фараона' }
     ];
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
+    const ERA_HISTORICAL = [
+        { era: 0, cultures: ['Ямная культура — курганы и кони', 'Триполье — большие поселения', 'Чатал-Хююк — обсидиан', 'Натуф — первые земледельцы'], desc: 'Неолит — от Ямной степи до Чатал-Хююка. Ямы, курганы, первые города' },
+        { era: 1, cultures: ['Шумер — Урук и Ур, клинопись', 'Аккад Саргона — первая империя', 'Древнее Царство Египта — пирамиды', 'Хараппа — канализация и кирпичи'], desc: 'Бронзовый век ранний — Аккад, Египет, Шумер, Хараппа. Первые империи и письмо' },
+        { era: 2, cultures: ['Минойцы — Кносс и быки', 'Хетты — железо и колесницы', 'Вавилон Хаммурапи — законы', 'Фивы Египта — Новое Царство'], desc: 'Бронза поздняя — Минойцы, Хетты, Вавилон. Колесницы и морская торговля' },
+        { era: 3, cultures: ['Ассирия — военная машина', 'Персия — сатрапии', 'Греция — полисы', 'Рим — легионы'], desc: 'Античность — Ассирия, Персия, Греция, Рим' },
+        { era: 4, cultures: ['Крестоносцы', 'Монголы', 'Османы', 'Тимуриды'], desc: 'Средневековье — степи и империи' },
+        { era: 5, cultures: ['Индустриальная революция', 'Колониализм', 'Мировые войны'], desc: '1800-1910 — пар, сталь, национализм' },
+        { era: 6, cultures: ['Холодная война', 'Цифровая революция'], desc: 'Новейшее время — идеологии и технологии' },
+        { era: 7, cultures: ['Климат, космос, ИИ'], desc: 'Будущее 2050-2150 — то, что ещё не случилось' }
+    ];
     const DECREES = {
         military: {
             id: 'military',
@@ -88,16 +101,21 @@
             warfare: ['Копейный строй', 'Пращники', 'Засада', 'Сторожа', 'Сигнальные костры', 'Клич и щит', 'Дружина'],
             fortification: ['Частокол', 'Земляной вал', 'Каменные ворота', 'Башни', 'Ров и насыпь', 'Укрытия', 'Дозор'],
             metallurgy: ['Медные жилы', 'Плавка', 'Тигля', 'Ковка', 'Литьё', 'Рудный поиск', 'Горновой мех'],
-            bronze: ['Бронзовый сплав', 'Олово и медь', 'Литейные формы', 'Закалка', 'Инструменты', 'Бронзовый век']
+            bronze: ['Бронзовый сплав', 'Олово и медь', 'Литейные формы', 'Закалка', 'Инструменты', 'Бронзовый век'],
+            horse: ['Приручение коня', 'Повозки', 'Курганы', 'Кони Ямной', 'Колесницы', 'Всадники степи', 'Табун'],
+            writing: ['Клинопись', 'Иероглифы', 'Счётные таблички', 'Дом табличек', 'Школа писцов', 'Учёт зерна', 'Печать'],
+            'irrigation-empire': ['Каналы фараона', 'Закрома Аккада', 'Налоги зерном', 'Ирригационная империя', 'Домен', 'Государство']
         },
         scienceSuffixes: ['практики', 'наблюдений', 'опыт общины', 'старших', 'ремесла', 'уклада', 'заповедь', 'знание', 'приём'],
         buildingPrefixes: {
-            floodplain: ['Запруда', 'Канава', 'Плотина', 'Арык', 'Пойменный амбар', 'Речные ворота', 'Иловые поля'],
-            hills: ['Каменоломня', 'Щебёночная яма', 'Тёска', 'Каменный навес', 'Кремнёвый склад', 'Горная тропа'],
-            calendar: ['Круг камней', 'Обсерватория', 'Солнечные часы', 'Звёздная площадка', 'Календарный столб', 'Тени'],
-            copper: ['Медная яма', 'Плавильня', 'Горн', 'Тигельная', 'Медный двор', 'Дымная печь'],
-            'tin-route': ['Караван-сарай', 'Оловянный склад', 'Торговый стан', 'Меняльный двор', 'Путь олова', 'Перевал'],
-            'rival-settlement': ['Форпост', 'Сторожка', 'Острог', 'Застава', 'Пограничный двор', 'Крепостица']
+            floodplain: ['Запруда', 'Канава', 'Плотина', 'Арык', 'Пойменный амбар', 'Речные ворота', 'Иловые поля', 'Шадуф', 'Бассейн Нила'],
+            hills: ['Каменоломня', 'Щебёночная яма', 'Тёска', 'Каменный навес', 'Кремнёвый склад', 'Горная тропа', 'Обсидиановая мастерская', 'Кремнёвый прииск'],
+            calendar: ['Круг камней', 'Обсерватория', 'Солнечные часы', 'Звёздная площадка', 'Календарный столб', 'Тени', 'Стоунхендж', 'Карнак'],
+            copper: ['Медная яма', 'Плавильня', 'Горн', 'Тигельная', 'Медный двор', 'Дымная печь', 'Малахитовая шахта', 'Медный горн Балкан'],
+            'tin-route': ['Караван-сарай', 'Оловянный склад', 'Торговый стан', 'Меняльный двор', 'Путь олова', 'Перевал', 'Караван Аккада', 'Путь Саргона'],
+            'rival-settlement': ['Форпост', 'Сторожка', 'Острог', 'Застава', 'Пограничный двор', 'Крепостица', 'Курган Ямников', 'Стан Степного Круга'],
+            oasis: ['Финиковая роща', 'Оазис', 'Колодец', 'Пальмовый сад', 'Сад Набатеи', 'Финиковый рай'],
+            'salt-flats': ['Солеварня', 'Соляная яма', 'Соляной склад', 'Соляные копи Галича', 'Солёное озеро']
         },
         buildingSuffixes: ['общины', 'рода', 'клана', 'поселения', 'у реки', 'на холме', 'старших', 'кузнецов', 'пахарей'],
         adjectives: ['Большой', 'Малый', 'Старый', 'Новый', 'Верхний', 'Нижний', 'Солнечный', 'Медный', 'Каменный', 'Речной', 'Лесной', 'Степной', 'Северный', 'Южный'],
@@ -114,8 +132,11 @@
             seasonal: ['звёзды совпали с разливом', 'луна подсказала время сева', 'птицы вернулись раньше обычного'],
             warfare: ['дружина вернулась с добычей', 'сигнальные костры зажглись вовремя', 'враг не решился подойти'],
             fortification: ['частокол выдержал набег', 'ворота закрылись за миг до врага', 'ров наполнился водой'],
+            horse: ['первый конь дал себя оседлать', 'повозка скрипит по степи', 'курган насыпан над вождём'],
+            writing: ['первая табличка исписана', 'писец подсчитал зерно', 'печать оттиснута на глине'],
             metallurgy: ['медь потекла как воск', 'первый слиток блестит на солнце', 'горн загудел сильнее'],
-            bronze: ['бронза звенит как колокол', 'новый сплав не гнётся', 'инструменты режут камень']
+            bronze: ['бронза звенит как колокол', 'новый сплав не гнётся', 'инструменты режут камень'],
+            'irrigation-empire': ['каналы наполнились водой', 'закрома полны', 'налог собран']
         }
     };
 
@@ -191,9 +212,72 @@
     const CATEGORIES = ['military', 'economy', 'science', 'civic'];
     const CATEGORY_NAMES = { military: 'военное', economy: 'экономическое', science: 'научное', civic: 'общественное' };
     const ORIGINS = [
-        { id: 'river', name: 'Народ Великой Реки', place: 'Плодородные речные берега', icon: '🌊', description: 'Разливы кормят поселение и облегчают первые запасы.', resource: 'food', bonus: 2 },
-        { id: 'highlands', name: 'Народ Каменных Холмов', place: 'Предгорья с кремнёвыми выходами', icon: '⛰️', description: 'Камень и кремень рядом — легче начать ремесло и строительство.', resource: 'materials', bonus: 2 },
-        { id: 'woodland', name: 'Народ Лесных Троп', place: 'Лесная опушка и сезонные пастбища', icon: '🌲', description: 'Знания о растениях, животных и временах года помогают учиться.', resource: 'knowledge', bonus: 2 }
+        { id: 'river', name: 'Народ Великой Реки', place: 'Плодородные речные берега', icon: '🌊', description: 'Разливы кормят поселение и облегчают первые запасы. Как Нил в Египте.', resource: 'food', bonus: 2, biome: 'river', historical: 'Египет Древнего царства — ирригация и закрома' },
+        { id: 'highlands', name: 'Народ Каменных Холмов', place: 'Предгорья с кремнёвыми выходами', icon: '⛰️', description: 'Камень и кремень рядом — легче начать ремесло и строительство. Как Анатолия.', resource: 'materials', bonus: 2, biome: 'highlands', historical: 'Чатал-Хююк, обсидиановые пути' },
+        { id: 'woodland', name: 'Народ Лесных Троп', place: 'Лесная опушка и сезонные пастбища', icon: '🌲', description: 'Знания о растениях, животных и временах года помогают учиться.', resource: 'knowledge', bonus: 2, biome: 'forest', historical: 'Триполье-Кукутень, лесные земледельцы' },
+        { id: 'steppe', name: 'Дети Ямной Степи', place: 'Понтийско-Каспийская степь, курганы', icon: '🐎', description: 'Ямная культура — ямы-катакомбы, кони, повозки. Подвижность и скотоводство.', resource: 'food', bonus: 1, biome: 'steppe', historical: 'Ямная культура 3300-2600 до н.э., предки индоевропейцев' },
+        { id: 'desert', name: 'Люди Чёрной Земли', place: 'Кемет — чёрная земля Нила и пустыня', icon: '🏜️', description: 'Аккад и Шумер — первые города, клинопись, ирригация в пустыне.', resource: 'knowledge', bonus: 1, biome: 'desert', historical: 'Аккад Саргона, Шумер, первые империи' },
+        { id: 'coast', name: 'Береговые Рыбаки', place: 'Морское побережье и лиманы', icon: '⚓', description: 'Рыба, соль, ракушки — торговля по воде. Как Эгейские культуры.', resource: 'food', bonus: 2, biome: 'coast', historical: 'Эгейский мир, Минойцы, торговля обсидианом' },
+        { id: 'oasis', name: 'Оазисные Садовники', place: 'Оазис в сухой степи', icon: '🌴', description: 'Финиковые пальмы, колодцы, караванные пути. Как Набатея в зачатке.', resource: 'materials', bonus: 1, biome: 'oasis', historical: 'Оазисы Аравии, пути ладана' },
+        { id: 'marsh', name: 'Болотные Строители', place: 'Болотистые топи и плавни', icon: '🐊', description: 'Свайные поселения, как в Альпах. Защита водой и изобилие рыбы.', resource: 'food', bonus: 2, biome: 'marsh', historical: 'Свайные поселения Альп, Варна — золото' }
+    ];
+
+    // Исторические биомы и черты — ближе к легаси POOLS, но с историчностью
+    const BIOMES = [
+        { id: 'river', name: 'Великая Река', icon: '🌊', desc: 'Нил, Евфрат, Инд — разливы дают ил и жизнь. Египет, Шумер, Хараппа', yields: { food: 1, materials: 0, knowledge: 0 } },
+        { id: 'steppe', name: 'Бескрайняя Степь', icon: '🌾', desc: 'Понтийско-Каспийская степь, Ямная культура — курганы, кони, повозки', yields: { food: 0.5, materials: 0.5, knowledge: 0 } },
+        { id: 'desert', name: 'Каменистая Пустыня', icon: '🏜️', desc: 'Аккад, Аравия — оазисы, караваны, первые империи Саргона', yields: { food: 0, materials: 0.5, knowledge: 0.5 } },
+        { id: 'highlands', name: 'Высокие Предгорья', icon: '🏔️', desc: 'Кавказ, Загрос — обсидиан, медь, крепости. Чатал-Хююк', yields: { food: 0, materials: 1, knowledge: 0 } },
+        { id: 'forest', name: 'Лиственный Лес', icon: '🍂', desc: 'Триполье, Европейский неолит — земледелие, керамика, большие поселения', yields: { food: 0.5, materials: 0, knowledge: 0.5 } },
+        { id: 'coast', name: 'Морское Побережье', icon: '🏖️', desc: 'Эгейское море, Левант — рыба, пурпур, торговля. Минойцы', yields: { food: 0.5, materials: 0, knowledge: 0.5 } },
+        { id: 'oasis', name: 'Оазис', icon: '🌴', desc: 'Финиковые рощи, колодцы — остров жизни. Набатея, Гарма', yields: { food: 1, materials: 0, knowledge: 0 } },
+        { id: 'marsh', name: 'Болотистые Топи', icon: '🐊', desc: 'Свайные поселения, плавни — защита и рыба. Варненский некрополь', yields: { food: 1, materials: 0, knowledge: 0 } },
+        { id: 'tundra', name: 'Северная Тундра', icon: '❄️', desc: 'Мхи, олени, короткий сезон. Северные охотники', yields: { food: 0, materials: 0.5, knowledge: 0 } },
+        { id: 'savanna', name: 'Саванна', icon: '🦁', desc: 'Жаркие луга, стада. Африканский рог — первые скотоводы', yields: { food: 0.5, materials: 0, knowledge: 0.5 } }
+    ];
+    const GEOGRAPHY = [
+        { id: 'great-river', name: 'Великая Река', icon: '🌊', desc: 'Нил, Тигр и Евфрат — плодородные берега, как в Египте и Шумере' },
+        { id: 'mountains', name: 'Высокие Горы', icon: '🏔️', desc: 'Кавказ, Загрос — обсидиан и медь, пещеры и крепости' },
+        { id: 'volcano', name: 'Огненная Гора', icon: '🌋', desc: 'Вулкан даёт плодородный пепел и обсидиан, как в Анатолии' },
+        { id: 'lake', name: 'Глубокое Озеро', icon: '💧', desc: 'Ван, Урмия — рыба, соль, торговые пути' },
+        { id: 'canyon', name: 'Каньон', icon: '🪨', desc: 'Ущелья с наскальными рисунками, как в Тассилин-Аджер' },
+        { id: 'caves', name: 'Скальные Пещеры', icon: '🕳️', desc: 'Пещеры с росписями, укрытие как в Ласко и Альтамире' },
+        { id: 'springs', name: 'Термальные Источники', icon: '♨️', desc: 'Горячие ключи — лечение и ритуалы' },
+        { id: 'delta', name: 'Дельта Реки', icon: '🌿', desc: 'Болотистая дельта Нила — папирус, рыба, защита' }
+    ];
+    const TRAITS = [
+        { id: 'hunters', name: 'Бесстрашные охотники', icon: '🏹', desc: 'Степные охотники Ямной культуры — лук и конь', bonus: { food: 0.2 } },
+        { id: 'gatherers', name: 'Искусные собиратели', icon: '🧺', desc: 'Трипольские земледельцы — знают каждый корень', bonus: { food: 0.3 } },
+        { id: 'night-watch', name: 'Ночные наблюдатели', icon: '🌙', desc: 'Жрецы Египта — звёзды и календарь', bonus: { knowledge: 0.3 } },
+        { id: 'strong', name: 'Крепкие телом', icon: '💪', desc: 'Строители мегалитов — Стоунхендж, Карнак', bonus: { materials: 0.3 } },
+        { id: 'spirits', name: 'Говорящие с духами', icon: '👻', desc: 'Шаманы степи, курганные ритуалы', bonus: { knowledge: 0.2 } },
+        { id: 'stone-masters', name: 'Мастера камня', icon: '🪨', desc: 'Аккадские камнерезы, обсидиан Анатолии', bonus: { materials: 0.4 } },
+        { id: 'runners', name: 'Бегуны', icon: '🦶', desc: 'Гонцы империи Аккада — быстрые как ветер', bonus: { food: 0.1, materials: 0.1 } },
+        { id: 'singers', name: 'Певцы у костра', icon: '🎵', desc: 'Сказители Гильгамеша, песни у костра', bonus: { knowledge: 0.2 } },
+        { id: 'horse-lords', name: 'Владыки Коней', icon: '🐎', desc: 'Ямники — первые всадники, повозки и курганы', bonus: { food: 0.2, materials: 0.1 } },
+        { id: 'irrigators', name: 'Строители Каналов', icon: '🚿', desc: 'Шумеры — первые ирригационные системы', bonus: { food: 0.4 } }
+    ];
+    const NEARBY = [
+        { id: 'aurochs', name: 'Стада диких быков', icon: '🐂', desc: 'Туры степи — мясо и шкуры, как у ямников' },
+        { id: 'wolves', name: 'Стая хищников', icon: '🐺', desc: 'Волки и львы — опасность и испытание' },
+        { id: 'aurora', name: 'Северное сияние', icon: '🌌', desc: 'Небесные огни — знак богов' },
+        { id: 'poison', name: 'Ядовитые травы', icon: '☠️', desc: 'Красивые но смертельные — знание лекарей' },
+        { id: 'flint', name: 'Залежи кремня', icon: '🔥', desc: 'Кремень — огонь и оружие, как в Гран-Прессиньи' },
+        { id: 'bees', name: 'Дикие пчёлы', icon: '🐝', desc: 'Мёд — золото неолита' },
+        { id: 'clay', name: 'Глиняные берега', icon: '🏺', desc: 'Глина — керамика Триполья и шумерские таблички' },
+        { id: 'obsidian', name: 'Обсидиановые россыпи', icon: '🖤', desc: 'Вулканическое стекло — торговля Анатолии' },
+        { id: 'copper-vein', name: 'Медная жила', icon: '🟠', desc: 'Малахит и медь — начало металлургии' },
+        { id: 'salt', name: 'Соляные копи', icon: '🧂', desc: 'Соль — богатство и сохранение пищи' }
+    ];
+    const HISTORICAL_CULTURES = [
+        { id: 'yamnaya', name: 'Ямная культура', icon: '🐎', era: 0, desc: '3300-2600 до н.э., Понтийско-Каспийская степь — ямные погребения, курганы, первые кони, повозки. Предки индоевропейцев', bonus: { food: 0.2, materials: 0.2 } },
+        { id: 'sumer', name: 'Шумер', icon: '🏛️', era: 0, desc: 'Урук, Ур — первые города, клинопись, зиккураты. 4000-2000 до н.э.', bonus: { knowledge: 0.3 } },
+        { id: 'akkad', name: 'Аккад Саргона', icon: '⚔️', era: 1, desc: 'Первая империя в истории, Саргон Великий 2334-2279 до н.э. — от Персидского залива до Средиземного моря', bonus: { materials: 0.2, deck_slots: 1 } },
+        { id: 'egypt-old', name: 'Древнее Царство Египта', icon: '🔺', era: 1, desc: 'Пирамиды Гизы, фараоны Джосер, Хеопс — 2686-2181 до н.э., Нил и маат', bonus: { food: 0.3, storage: 5 } },
+        { id: 'harappa', name: 'Хараппа', icon: '🐘', era: 1, desc: 'Индская цивилизация — Мохенджо-Даро, канализация, стандартные кирпичи. 2600-1900 до н.э.', bonus: { food: 0.2, knowledge: 0.2 } },
+        { id: 'minoan', name: 'Минойцы', icon: '🐂', era: 2, desc: 'Крит, Кносс — дворец-лабиринт, быки, морская торговля. 2700-1450 до н.э.', bonus: { materials: 0.2, knowledge: 0.2 } },
+        { id: 'hittite', name: 'Хетты', icon: '⚒️', era: 2, desc: 'Хаттуса, железо, колесницы — первая империя железного века', bonus: { materials: 0.3 } },
+        { id: 'assyria', name: 'Ассирия', icon: '🦁', era: 3, desc: 'Ашшур, Ниневия — военная машина, библиотеки, рельефы', bonus: { deck_slots: 1 } }
     ];
     const OPENING_FOCUSES = [
         { id: 'food', title: 'Надёжные запасы', icon: '🌾', scienceName: 'Рыбные запруды', scienceDescription: 'Наблюдения за течением помогают удерживать рыбу у берега.', buildingName: 'Речная запруда', buildingDescription: 'Плетёные заграждения дают поселению устойчивый источник пищи.', category: 'economy', effect: 'income_food' },
@@ -203,22 +287,26 @@
     const REGION_CAPTURE_COST = { food: 2, materials: 2, knowledge: 0 };
     const REGION_EXPEDITION_COST = { food: 4, materials: 2, knowledge: 0 };
     const REGION_DEFINITIONS = [
-        { id: 'home', name: 'Речное поселение', icon: '🏛️', kind: 'home', initialOwner: 'player', col: 1, row: 2, minEra: 0, neighbors: ['floodplain', 'hills', 'calendar'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Дом народа и начало всех путей.' },
-        { id: 'floodplain', name: 'Заливная пойма', icon: '🌾', kind: 'resource', initialOwner: null, col: 2, row: 1, minEra: 0, neighbors: ['home', 'calendar', 'copper'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Плодородные берега — место для ирригации и амбара. Без постройки дохода нет.' },
-        { id: 'hills', name: 'Кремнёвые холмы', icon: '⛰️', kind: 'resource', initialOwner: null, col: 2, row: 3, minEra: 0, neighbors: ['home', 'calendar', 'tin-route'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Каменоломня даёт материалы, но требует людей.' },
-        { id: 'calendar', name: 'Круг времён года', icon: '☀️', kind: 'resource', initialOwner: null, col: 3, row: 2, minEra: 0, neighbors: ['home', 'floodplain', 'hills'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Обсерватория открывает знания.' },
-        { id: 'copper', name: 'Медный рудник', icon: '🟠', kind: 'resource', initialOwner: null, col: 4, row: 1, minEra: 2, neighbors: ['floodplain', 'rival-settlement'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Плавильня даёт материалы и открывает отборное сырьё.' },
-        { id: 'tin-route', name: 'Оловянный путь', icon: '🛤️', kind: 'resource', initialOwner: null, col: 4, row: 3, minEra: 2, neighbors: ['hills', 'rival-settlement'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Караван-сарай вместе с медью открывает мастерское сырьё.' },
-        { id: 'rival-settlement', name: 'Поселение Степного Круга', icon: '⚑', kind: 'settlement', initialOwner: 'steppe', col: 5, row: 2, minEra: 2, neighbors: ['copper', 'tin-route'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Укреплённое поселение. Форпост даёт по 1 каждого ресурса.' }
+        { id: 'home', name: 'Речное поселение', icon: '🏛️', kind: 'home', biome: 'river', initialOwner: 'player', col: 1, row: 2, minEra: 0, neighbors: ['floodplain', 'hills', 'calendar'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Дом народа и начало всех путей. Как Урук или Иерихон — первое поселение.' },
+        { id: 'floodplain', name: 'Заливная пойма', icon: '🌾', kind: 'resource', biome: 'river', initialOwner: null, col: 2, row: 1, minEra: 0, neighbors: ['home', 'calendar', 'copper'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Плодородные берега — место для ирригации и амбара. Нильская пойма, шумерские каналы.' },
+        { id: 'hills', name: 'Кремнёвые холмы', icon: '⛰️', kind: 'resource', biome: 'highlands', initialOwner: null, col: 2, row: 3, minEra: 0, neighbors: ['home', 'calendar', 'tin-route'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Каменоломня даёт материалы. Гран-Прессиньи, обсидиан Анатолии.' },
+        { id: 'calendar', name: 'Круг времён года', icon: '☀️', kind: 'resource', biome: 'forest', initialOwner: null, col: 3, row: 2, minEra: 0, neighbors: ['home', 'floodplain', 'hills'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Обсерватория открывает знания. Стоунхендж, Карнак — мегалиты и календарь.' },
+        { id: 'copper', name: 'Медный рудник', icon: '🟠', kind: 'resource', biome: 'highlands', initialOwner: null, col: 4, row: 1, minEra: 2, neighbors: ['floodplain', 'rival-settlement'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Плавильня даёт материалы и открывает отборное сырьё. Балканы, первые медники.' },
+        { id: 'tin-route', name: 'Оловянный путь', icon: '🛤️', kind: 'resource', biome: 'steppe', initialOwner: null, col: 4, row: 3, minEra: 2, neighbors: ['hills', 'rival-settlement'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Караван-сарай вместе с медью открывает мастерское. Путь олова — как у аккадцев.' },
+        { id: 'rival-settlement', name: 'Поселение Степного Круга', icon: '⚑', kind: 'settlement', biome: 'steppe', initialOwner: 'steppe', col: 5, row: 2, minEra: 2, neighbors: ['copper', 'tin-route'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Укреплённое поселение ямников — курганы, кони. Форпост даёт по 1 каждого ресурса.' },
+        { id: 'oasis', name: 'Оазис Фиников', icon: '🌴', kind: 'resource', biome: 'oasis', initialOwner: null, col: 2, row: 2, minEra: 1, neighbors: ['home', 'hills'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Финиковый оазис — как в Аравии. Даёт еду и укрытие караванам.' },
+        { id: 'salt-flats', name: 'Соляные копи', icon: '🧂', kind: 'resource', biome: 'desert', initialOwner: null, col: 3, row: 1, minEra: 1, neighbors: ['floodplain', 'copper'], yields: { food: 0, materials: 0, knowledge: 0 }, description: 'Соль — богатство древности. Галит, сохранение пищи.' }
     ];
 
     const REGION_BUILDINGS = {
-        floodplain: { id: 'irrigation', name: 'Ирригация', cost: { materials: 4 }, yields: { food: 2, materials: 0, knowledge: 0 }, workerBonus: { food: 0.3 }, description: 'Пассив +2🌾 и +0.3 к каждому 🌾-рабочему в синергии с амбаром.' },
-        hills: { id: 'quarry', name: 'Каменоломня', cost: { materials: 4 }, yields: { food: 0, materials: 2, knowledge: 0 }, workerBonus: {}, description: '+2🪵 в день, требует upkeep.' },
-        calendar: { id: 'observatory', name: 'Обсерватория', cost: { materials: 3, knowledge: 1 }, yields: { food: 0, materials: 0, knowledge: 2 }, workerBonus: {}, description: '+2📚 в день.' },
-        copper: { id: 'smelter', name: 'Плавильня', cost: { materials: 5, knowledge: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['refined'], description: '+1🪵 и открывает отборное сырьё.' },
-        'tin-route': { id: 'caravan', name: 'Караван-сарай', cost: { materials: 4, food: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['masterwork'], description: '+1🪵, вместе с плавильней открывает мастерское.' },
-        'rival-settlement': { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: '+1 каждого ресурса.' },
+        floodplain: { id: 'irrigation', name: 'Ирригация', cost: { materials: 4 }, yields: { food: 2, materials: 0, knowledge: 0 }, workerBonus: { food: 0.3 }, description: 'Пассив +2🌾 и +0.3 к каждому 🌾-рабочему в синергии с амбаром. Как шадуф Египта.' },
+        hills: { id: 'quarry', name: 'Каменоломня', cost: { materials: 4 }, yields: { food: 0, materials: 2, knowledge: 0 }, workerBonus: {}, description: '+2🪵 в день. Обсидиан Анатолии, кремень Гран-Прессиньи.' },
+        calendar: { id: 'observatory', name: 'Обсерватория', cost: { materials: 3, knowledge: 1 }, yields: { food: 0, materials: 0, knowledge: 2 }, workerBonus: {}, description: '+2📚 в день. Мегалиты Стоунхенджа, календарь майя.' },
+        copper: { id: 'smelter', name: 'Плавильня', cost: { materials: 5, knowledge: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['refined'], description: '+1🪵 и открывает отборное сырьё. Балканские медники 5000 до н.э.' },
+        'tin-route': { id: 'caravan', name: 'Караван-сарай', cost: { materials: 4, food: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['masterwork'], description: '+1🪵, вместе с плавильней открывает мастерское. Путь олова Аккада.' },
+        'rival-settlement': { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: '+1 каждого ресурса. Курган ямников.' },
+        oasis: { id: 'palm-grove', name: 'Финиковая роща', cost: { materials: 3, food: 1 }, yields: { food: 2, materials: 0, knowledge: 0 }, workerBonus: {}, description: '+2🌾 в день. Оазис как в Аравии и Сахаре.' },
+        'salt-flats': { id: 'salt-works', name: 'Солеварня', cost: { materials: 4 }, yields: { food: 0, materials: 1, knowledge: 1 }, workerBonus: {}, description: '+1🪵+1📚. Соль — деньги древности.' },
         home: null
     };
 
@@ -252,6 +340,7 @@
             player: {
                 name: 'Твоё поселение', clan: 'Медный Ворон', era: 0, research: 0,
                 onboardingComplete: false, originId: null, openingFocusId: null,
+                biome: null, geography: null, trait: null, nearby: null, historicalCulture: null,
                 resources: { food: 10, materials: 10, knowledge: 6 },
                 population: POP_START,
                 workers: { food: 2, materials: 1, knowledge: 1, idle: 1 },
@@ -542,10 +631,23 @@
                 } else state.player.scienceChoices = null;
             } else state.player.scienceChoices = null;
         } else state.player.scienceChoices = null;
+        // биомы и черты как в легаси — для разнообразия и историчности
+        const findById = (pool, id) => pool.find(x => x.id === id) || null;
+        const findByIdOrName = (pool, raw) => {
+            if (!raw) return null;
+            if (typeof raw === 'object' && raw.id) return findById(pool, raw.id) || raw;
+            if (typeof raw === 'string') return findById(pool, raw) || pool.find(x => x.name === raw) || null;
+            return null;
+        };
+        state.player.biome = findByIdOrName(BIOMES, value.player?.biome) || (value.player?.biome && typeof value.player.biome === 'object' ? value.player.biome : null);
+        state.player.geography = findByIdOrName(GEOGRAPHY, value.player?.geography) || (value.player?.geography && typeof value.player.geography === 'object' ? value.player.geography : null);
+        state.player.trait = findByIdOrName(TRAITS, value.player?.trait) || (value.player?.trait && typeof value.player.trait === 'object' ? value.player.trait : null);
+        state.player.nearby = findByIdOrName(NEARBY, value.player?.nearby) || (value.player?.nearby && typeof value.player.nearby === 'object' ? value.player.nearby : null);
+        state.player.historicalCulture = findByIdOrName(HISTORICAL_CULTURES, value.player?.historicalCulture) || (value.player?.historicalCulture && typeof value.player.historicalCulture === 'object' ? value.player.historicalCulture : null);
         state.player.chronicle = Array.isArray(value.player?.chronicle) ? value.player.chronicle.slice(-20).map(entry => ({
             day: clampInt(entry.day, 1, SEASON_LENGTH, 1),
             era: clampInt(entry.era, 0, ERAS.length - 1, 0),
-            text: String(entry.text || '').slice(0, 300)
+            text: String(entry.text || '').slice(0, 500)
         })).filter(e => e.text) : [];
         state.player.deckCardIds = Array.isArray(state.player.deckCardIds) ? [...new Set(state.player.deckCardIds.filter(id => typeof id === 'string'))].slice(0, 8) : [];
         state.opponents = Array.isArray(value.opponents) && value.opponents.length
@@ -579,6 +681,26 @@
         state.player.originId = origin.id;
         state.player.openingFocusId = focus.id;
         state.player.resources[origin.resource] = Math.min(999, state.player.resources[origin.resource] + origin.bonus);
+        // --- историчность и биомы как в легаси ---
+        const seed = hashString(state.player.name + state.player.clan + originId);
+        const rng = seededRandom(seed);
+        // биом от происхождения или случайный
+        const biomePool = BIOMES.filter(b => !origin.biome || b.id === origin.biome);
+        state.player.biome = pickRandom(rng, biomePool.length ? biomePool : BIOMES);
+        state.player.geography = pickRandom(rng, GEOGRAPHY);
+        state.player.trait = pickRandom(rng, TRAITS);
+        state.player.nearby = pickRandom(rng, NEARBY);
+        // историческая культура по эпохе 0
+        const histPool = HISTORICAL_CULTURES.filter(h => h.era <= 1);
+        state.player.historicalCulture = pickRandom(rng, histPool);
+        // бонус от черты
+        if (state.player.trait && state.player.trait.bonus) {
+            for (const k of Object.keys(state.player.trait.bonus)) {
+                if (k === 'food' || k === 'materials' || k === 'knowledge') {
+                    state.player.resources[k] = Math.min(999, state.player.resources[k] + Math.round(state.player.trait.bonus[k] * 5));
+                }
+            }
+        }
         state.player.deckCardIds = STARTER_CARDS.map(card => card.id);
         state.player.blueprints.unshift({
             id: 'opening-' + focus.id,
@@ -594,6 +716,13 @@
             createdDay: state.day,
             openingProject: true
         });
+        // первая запись летописи с историчностью
+        const originHist = origin.historical || '';
+        state.player.chronicle = [{
+            day: 1,
+            era: 0,
+            text: 'Народ ' + state.player.clan + ' из ' + state.player.biome.name + ' (' + state.player.biome.desc + '). Рядом ' + state.player.geography.name + ' — ' + state.player.geography.desc + '. Черта: ' + state.player.trait.name + '. Наследие: ' + originHist + '. Как ' + state.player.historicalCulture.name + ' — ' + state.player.historicalCulture.desc
+        }];
         state.player.onboardingComplete = true;
         return { state, error: null };
     }
@@ -940,10 +1069,18 @@
         const localContexts = regions.map(region => ({
             id: region.id,
             name: region.name,
-            description: region.description
+            description: region.description,
+            biome: region.biome || 'unknown'
         }));
-        const summary = 'Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (работников: ' + (player.population - player.workers.idle) + '). Запасы: провизия ' + reserves.food + ', материалы ' + reserves.materials + ', знания ' + reserves.knowledge + '. Короткий запас — ' + resourceLabels[reserveDays.key] + '. Доход рабочих: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾.';
-        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary, breakdown };
+        const biomeInfo = player.biome ? player.biome.name + ' (' + player.biome.desc + ')' : 'неизвестный биом';
+        const geoInfo = player.geography ? player.geography.name + ' — ' + player.geography.desc : '';
+        const traitInfo = player.trait ? player.trait.name + ' (' + player.trait.desc + ')' : '';
+        const nearbyInfo = player.nearby ? player.nearby.name + ' — ' + player.nearby.desc : '';
+        const histInfo = player.historicalCulture ? player.historicalCulture.name + ' — ' + player.historicalCulture.desc : '';
+        const origin = ORIGINS.find(o => o.id === player.originId);
+        const originHist = origin ? origin.historical : '';
+        const summary = 'Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
+        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary, breakdown, biome: player.biome, geography: player.geography, trait: player.trait, nearby: player.nearby, historicalCulture: player.historicalCulture, origin };
     }
 
     function getFirstSessionGuide(input) {
@@ -1544,6 +1681,18 @@
         }).join('') + '</section>';
     }
 
+    function renderTribeTraits(p) {
+        if (!p.biome) return '';
+        const traits = [
+            { icon: p.biome?.icon || '🌍', label: 'БИОМ', value: p.biome?.name || '', desc: p.biome?.desc || '' },
+            { icon: p.geography?.icon || '🗺️', label: 'ГЕОГРАФИЯ', value: p.geography?.name || '', desc: p.geography?.desc || '' },
+            { icon: p.trait?.icon || '⭐', label: 'ЧЕРТА', value: p.trait?.name || '', desc: p.trait?.desc || '' },
+            { icon: p.nearby?.icon || '🔍', label: 'РЯДОМ', value: p.nearby?.name || '', desc: p.nearby?.desc || '' },
+            { icon: p.historicalCulture?.icon || '🏛️', label: 'НАСЛЕДИЕ', value: p.historicalCulture?.name || '', desc: p.historicalCulture?.desc || '' }
+        ];
+        return '<section class="campaign-panel campaign-tribe-traits"><div class="campaign-panel-heading"><h2>🧬 Племя ' + escapeHtml(p.clan) + '</h2><span class="campaign-muted">Как в легаси — биом, география, черта, рядом, наследие</span></div><div class="campaign-traits-grid">' + traits.map(t => '<div class="campaign-trait-card" title="' + htmlAttr(t.desc) + '"><span class="trait-icon">' + t.icon + '</span><span class="trait-label">' + t.label + '</span><b>' + escapeHtml(t.value) + '</b><small>' + escapeHtml(t.desc) + '</small></div>').join('') + '</div></section>';
+    }
+
     function render() {
         const host = root.document && root.document.getElementById('campaign-root');
         if (!host) return;
@@ -1819,7 +1968,7 @@
     }
 
     const api = {
-        ERAS, DECREES, EFFECTS, DIVERSITY_POOLS, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_DEFINITIONS, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
+        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_DEFINITIONS, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         createState, normalizeState, completeOnboarding, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig,
         getRegionalIncome, getAvailableMaterialQualities, getRegionActionState, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
