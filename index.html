@@ -3414,15 +3414,40 @@
         return false;
     }
 
+    function failEffectTask(task, error) {
+        console.error(`[battle] card effect failed: ${task?.source?.name || 'unknown card'}`, error);
+        logBattle(`⚠️ Эффект карты «${task?.source?.name || 'без названия'}» пропущен из-за технической ошибки.`, 'system');
+        if (activeEffectTask !== task) return;
+
+        activeEffectTask = null;
+        const hadPendingChoice = pendingManualTarget?.task === task || pendingCardChoice?.task === task;
+        if (pendingManualTarget?.task === task) pendingManualTarget = null;
+        if (pendingCardChoice?.task === task) pendingCardChoice = null;
+        if (task.onComplete) {
+            try { task.onComplete(); }
+            catch (completionError) { console.error('[battle] failed to finish a card effect task', completionError); }
+        }
+        if (hadPendingChoice && battle) {
+            try { renderBattle(); }
+            catch (renderError) { console.error('[battle] failed to refresh after a card effect error', renderError); }
+        }
+    }
+
     function pumpEffectQueue() {
         if (effectPumpActive || activeEffectTask || pendingManualTarget || pendingCardChoice || !battle) return;
         effectPumpActive = true;
-        while (effectTaskQueue.length && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && battle) {
-            activeEffectTask = effectTaskQueue.shift();
-            const paused = runEffectTask(activeEffectTask,0);
-            if (paused) break;
+        try {
+            while (effectTaskQueue.length && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && battle) {
+                const task = effectTaskQueue.shift();
+                activeEffectTask = task;
+                let paused = false;
+                try { paused = runEffectTask(task,0); }
+                catch (error) { failEffectTask(task,error); }
+                if (paused) break;
+            }
+        } finally {
+            effectPumpActive = false;
         }
-        effectPumpActive = false;
         if (battle && !activeEffectTask && !pendingManualTarget && !pendingCardChoice && effectTaskQueue.length === 0) {
             checkBattleEnd();
             effectQueueWaiters.splice(0).forEach(resolve => resolve());
@@ -4518,19 +4543,38 @@
         awaitingTarget = false;
         renderBattle();
 
-        // Даём небольшую паузу и выполняем ИИ ход
+        // Даём небольшую паузу и выполняем ИИ ход.
+        // Ошибка в ходе/эффекте врага не должна оставлять бой навсегда на «Враг думает…».
         animating = true;
-        setTimeout(async () => {
-            await runEnemyTurn();
-            animating = false;
+        setTimeout(finishEnemyTurn, 900);
+    }
+
+    async function finishEnemyTurn() {
+        try {
+            try { await runEnemyTurn(); }
+            catch (error) {
+                console.error('[battle] enemy turn failed', error);
+                if (battle && !battle._endScheduled) {
+                    logBattle('⚠️ Ход врага прерван из-за технической ошибки; бой продолжается.', 'system');
+                }
+            }
             if (!battle || battle._endScheduled) return;
-            // Новый ход игрока
+
+            // Новый ход игрока. Даже если стартовый эффект сломался, передача управления
+            // всё равно завершается, а причина остаётся видна в журнале и консоли.
             battle.turn++;
             battle.whoseTurn = 'me';
-            await startOfTurn('me');
-            if (!battle || battle._endScheduled) return;
-            renderBattle();
-        }, 900);
+            try { await startOfTurn('me'); }
+            catch (error) {
+                console.error('[battle] player start-of-turn failed', error);
+                if (battle && !battle._endScheduled) {
+                    logBattle('⚠️ Часть эффектов начала хода не сработала; ход всё равно продолжается.', 'system');
+                }
+            }
+        } finally {
+            animating = false;
+            if (battle && !battle._endScheduled) renderBattle();
+        }
     }
 
     async function startOfTurn(who) {

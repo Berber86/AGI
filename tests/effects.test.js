@@ -101,7 +101,7 @@ function makeHarness(battle = makeBattle()) {
             setBattle: value => { battle = value; },
         };
     `;
-    const context = vm.createContext({ console, setTimeout, clearTimeout });
+    const context = vm.createContext({ console: { error() {} }, setTimeout, clearTimeout });
     vm.runInContext(`${prelude}\n${effectsEngine}\n${drawEngine}\n${deathCleanup}\n${exportApi}`, context, { timeout: 1000 });
     return context.api;
 }
@@ -218,6 +218,28 @@ function place(battle, card, side, row, index) {
     battle[side][row][index] = card;
     return card;
 }
+
+test('a runtime card-effect error cannot wedge the queue or block later effects', async () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    const broken = unit('Broken effect');
+    Object.defineProperty(broken, 'effects', { get() { throw new Error('simulated malformed runtime data'); } });
+
+    assert.doesNotThrow(() => api.resolveCardEffects(broken, 'enter_play', 'enemy'));
+    const followUp = unit('Follow-up effect', 'me', 'front', {
+        effects: [{
+            event: 'enter_play',
+            target: { side: 'controller', entity: 'player' },
+            action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+        }]
+    });
+    assert.doesNotThrow(() => api.resolveCardEffects(followUp, 'enter_play', 'me'));
+    await api.waitForEffectQueue();
+
+    assert.equal(battle.me.dropMana, 1);
+    assert.equal(api.getPending(), null);
+    assert.ok(battle.log.some(entry => entry.msg.includes('Broken effect')));
+});
 
 test('card_death watch accepts all, friendly and enemy, and rejects missing/unknown scopes', () => {
     const api = makeHarness();

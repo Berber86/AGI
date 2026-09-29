@@ -529,6 +529,51 @@ test('science advisor only offers fixed branches unlocked by the current era', (
   assert.ok(Campaign.scienceBranchesForEra(3).some(branch => branch.id === 'bronze'));
 });
 
+test('science advice uses current territory and reserves while exposing only one broad choice', async () => {
+  const state = controlRegions(playableCampaign(), ['home', 'floodplain', 'hills']);
+  const situation = Campaign.scienceAdvisorSituation(state);
+  assert.deepEqual(situation.regionNames, ['Речное поселение', 'Заливная пойма', 'Кремнёвые холмы']);
+  assert.deepEqual(situation.localContexts.map(region => region.id), ['home', 'floodplain', 'hills']);
+  assert.equal(situation.reserves.food, state.player.resources.food);
+  assert.equal(situation.dailyIncome.food, 4);
+
+  const host = { innerHTML: '' };
+  const status = { textContent: '' };
+  const button = { disabled: false };
+  const controls = {
+    'campaign-root': host,
+    'campaign-project-branch': { value: 'agriculture' },
+    'campaign-project-status': status,
+    'campaign-project-submit': button
+  };
+  let stored = JSON.stringify(state);
+  const fakeWindow = {
+    localStorage: {
+      getItem: key => key === Campaign.STORAGE_KEY ? stored : null,
+      setItem: (key, value) => { if (key === Campaign.STORAGE_KEY) stored = value; }
+    },
+    document: { getElementById: id => controls[id] || null },
+    getApiKey: () => ''
+  };
+  const testMath = Object.create(Math);
+  testMath.random = () => 0.99;
+  const source = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
+  vm.runInNewContext(source, { window: fakeWindow, Math: testMath, console: { error() {} }, Date, JSON, Number, String, Object, Array, Set });
+  const app = fakeWindow.CampaignMvp;
+  app.render();
+  assert.equal((host.innerHTML.match(/<select\b/g) || []).length, 1);
+  assert.match(host.innerHTML, /id="campaign-project-branch"/);
+  assert.match(host.innerHTML, /campaign-advisor-situation/);
+  assert.doesNotMatch(host.innerHTML, /campaign-project-material|campaign-project-visibility/);
+
+  await app.generateProject({ preventDefault() {} });
+  const created = app.getState().player.blueprints[0];
+  assert.equal(created.visibility, 'both');
+  assert.match(created.buildingName, /^Кремнёвые холмы:/);
+  assert.match(status.textContent, /API-ключ не задан/);
+  assert.equal(button.disabled, false);
+});
+
 test('season cannot discard an active or ready craft and preserves crafting mastery', () => {
   let state = playableCampaign();
   const started = Campaign.beginCardCraftState(state, { materialQuality: 'standard', effort: 'quick' }, 0.1);
@@ -579,6 +624,7 @@ test('forge and science advisors expose fixed choices without free-text prompt f
   assert.match(appHtml, /id="craft-effort"/);
   assert.doesNotMatch(appHtml, /id="prompt-input"/);
   assert.match(campaignSource, /id="campaign-project-branch"/);
+  assert.doesNotMatch(campaignSource, /id="campaign-project-material"|id="campaign-project-visibility"/);
   assert.doesNotMatch(campaignSource, /campaign-project-word|campaign-project-prompt/);
   assert.doesNotMatch(appHtml, /<textarea\b/i);
 });

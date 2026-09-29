@@ -444,6 +444,37 @@
         return SCIENCE_BRANCHES.filter(branch => branch.minEra <= currentEra).map(branch => ({ ...branch }));
     }
 
+    function scienceAdvisorSituation(input) {
+        const current = normalizeState(input);
+        const player = current.player;
+        const regions = REGION_DEFINITIONS.filter(region => getRegionRecord(current, region.id)?.ownerId === 'player');
+        const regionalIncome = getRegionalIncome(current);
+        const effects = getBattleConfig(current).effects;
+        const dailyIncome = {
+            food: 2 + effects.income_food + regionalIncome.food,
+            materials: 2 + effects.income_materials + regionalIncome.materials,
+            knowledge: 1 + effects.income_knowledge + regionalIncome.knowledge
+        };
+        const resourceLabels = { food: 'провизия', materials: 'материалы', knowledge: 'знания' };
+        const reserveDays = Object.keys(dailyIncome).map(key => ({
+            key,
+            days: (player.resources[key] || 0) / Math.max(1, dailyIncome[key])
+        })).sort((a, b) => a.days - b.days)[0];
+        const reserves = {
+            food: player.resources.food || 0,
+            materials: player.resources.materials || 0,
+            knowledge: player.resources.knowledge || 0
+        };
+        const regionNames = regions.map(region => region.name);
+        const localContexts = regions.map(region => ({
+            id: region.id,
+            name: region.name,
+            description: region.description
+        }));
+        const summary = `Земли: ${regionNames.join(' · ') || 'поселение'}. Запасы: провизия ${reserves.food}, материалы ${reserves.materials}, знания ${reserves.knowledge}. Короткий запас — ${resourceLabels[reserveDays.key]}.`;
+        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary };
+    }
+
     function getFirstSessionGuide(input) {
         const current = normalizeState(input);
         const player = current.player;
@@ -836,6 +867,7 @@
         const p = state.player;
         const config = getBattleConfig(state);
         const regionalIncome = getRegionalIncome(state);
+        const scienceSituation = scienceAdvisorSituation(state);
         const activeBuildings = p.buildings.filter(building => building.active);
         const choices = getCardChoices();
         const selectedCards = p.deckCardIds.map(id => choices.find(card => card.id === id)).filter(Boolean);
@@ -864,7 +896,7 @@
 
             <section class="campaign-panel campaign-forge-queue"><div class="campaign-panel-heading"><div><span class="campaign-kicker">КОВКА · ПОСТОЯННАЯ КОЛЛЕКЦИЯ</span><h2>⚒️ Очередь кузницы</h2></div><span class="campaign-muted">Уровень ${p.craftLevel + 1}</span></div><p class="campaign-small">Опыт кузнеца: ${p.craftLevel >= 2 ? 'максимальный уровень' : `${p.craftXp}/3 до следующего уровня`}. Полученные карты остаются в коллекции навсегда; боевые копии могут погибнуть, но карта не теряется.</p><div class="campaign-orders">${activeCraftOrders.length ? activeCraftOrders.map(order => `<article class="campaign-order campaign-craft-order"><div class="campaign-order-icon">${order.rarity === 'rare' ? '💎' : order.rarity === 'uncommon' ? '✨' : '⚒️'}</div><div><b>${escapeHtml(order.name || order.advisorOrder)}</b><p>${order.rarity === 'rare' ? 'Редкая' : order.rarity === 'uncommon' ? 'Необычная' : 'Обычная'} · ${escapeHtml(order.modelId)} · ${order.status === 'generating' ? 'модель создаёт карту' : order.status === 'working' ? `осталось ${order.remainingDays} дн.` : 'готова к получению'}<br><i>Шансы при заказе: обычная ${order.odds.ordinary}% · необычная ${order.odds.uncommon}% · редкая ${order.odds.rare}%</i></p></div>${order.status === 'ready' ? `<button class="campaign-btn campaign-btn-gold" onclick="claimCraftedCard('${htmlAttr(order.id)}')">Забрать в коллекцию</button>` : `<span class="campaign-day-badge">${order.status === 'working' ? `${order.remainingDays} дн.` : 'в работе'}</span>`}</article>`).join('') : '<div class="campaign-project-empty">Очередь пуста. Выбери заказ военной кузницы на экране ковки; ресурсы и срок будут показаны до подтверждения.</div>'}</div></section>
 
-          <section class="campaign-panel campaign-codex"><div class="campaign-panel-heading"><div><span class="campaign-kicker">НАУЧНЫЙ СОВЕТНИК · ВЕТВИ ТЕХНОЛОГИЙ</span><h2>🧠 Выбрать направление</h2></div><span class="campaign-muted">Доступно: ${scienceBranchesForEra(p.era).length}</span></div><p class="campaign-small">Научный советник предлагает только открытые ветви эпохи. Выбери направление и контекст сырья; свободный текст не передаётся модели. Без API-ключа появится честно помеченный локальный черновик.</p><form class="campaign-project-form" onsubmit="CampaignMvp.generateProject(event)"><label>Ветвь технологии<select id="campaign-project-branch">${scienceBranchesForEra(p.era).map(branch => `<option value="${branch.id}">${escapeHtml(branch.label)}</option>`).join('')}</select></label><label>Сырьё / область<select id="campaign-project-material"><option>глина</option><option>камень</option><option>медь</option><option ${p.era < 3 ? 'disabled' : ''}>бронза</option><option>вода</option><option>земледелие</option><option>наблюдение за звёздами</option></select></label><label>Доступ<select id="campaign-project-visibility"><option value="both">Союзники и соседи</option><option value="allies">Только союзники</option><option value="neighbors">Только соседи</option></select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">✨ Попросить советника</button></form><div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div></section>
+          <section class="campaign-panel campaign-codex"><div class="campaign-panel-heading"><div><span class="campaign-kicker">НАУЧНЫЙ СОВЕТНИК · ВЕТВИ ТЕХНОЛОГИЙ</span><h2>🧠 Выбрать направление</h2></div><span class="campaign-muted">Доступно: ${scienceBranchesForEra(p.era).length}</span></div><p class="campaign-small">Выбери одно широкое направление. Советник сам подберёт местную тему по эпохе, землям и запасам; небольшая ситуативная вариативность — часть совета, а не ещё один набор настроек. Свободный текст не нужен. Без API-ключа появится честно помеченный локальный черновик.</p><form class="campaign-project-form" onsubmit="CampaignMvp.generateProject(event)"><label>Что сейчас важнее общине?<select id="campaign-project-branch">${scienceBranchesForEra(p.era).map(branch => `<option value="${branch.id}">${escapeHtml(branch.label)}</option>`).join('')}</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">✨ Выслушать советника</button></form><div class="campaign-advisor-situation"><b>Сейчас советник видит</b><span>${escapeHtml(scienceSituation.summary)}</span></div><div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div></section>
 
           <section class="campaign-panel campaign-codex"><div class="campaign-panel-heading"><div><span class="campaign-kicker">ЛИЧНЫЙ DECKBUILDING</span><h2>🎴 Колода кампании</h2></div><span class="campaign-muted">${p.deckCardIds.length}/${config.deckLimit}</span></div><p class="campaign-small">Активные военные здания могут увеличить лимит. Неактивные здания не дают боевого эффекта.</p><div class="campaign-project-list">${choices.length ? choices.map(card => { const selected = p.deckCardIds.includes(card.id); return `<button type="button" class="campaign-project-card campaign-card-choice ${selected ? 'is-selected' : ''}" onclick="CampaignMvp.toggleDeckCard('${htmlAttr(card.id)}')"><span>${selected ? '✓ В колоде' : 'Добавить в колоду'} · ${escapeHtml(card.card_type || 'карта')}</span><b>${escapeHtml(card.name || 'Без названия')}</b><small>Выход: ${Number(card.drop_cost) || 0} энергии · атака: ${Number(card.action_cost) || 0}</small></button>`; }).join('') : '<div class="campaign-project-empty">Коллекция пока пуста. Для тренировочного боя доступна тестовая стартовая колода из двух карт.</div>'}</div><div class="campaign-day-footer"><span>Текущий выбор: ${selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'тестовая колода'}</span></div></section>
         `;
@@ -973,11 +1005,13 @@
         const button = root.document.getElementById('campaign-project-submit');
         const branchId = root.document.getElementById('campaign-project-branch').value;
         const branch = scienceBranchesForEra(state.player.era).find(item => item.id === branchId);
-        const material = root.document.getElementById('campaign-project-material').value;
-        const visibility = root.document.getElementById('campaign-project-visibility').value;
         if (!branch) { status.textContent = 'Эта научная ветвь ещё не открыта.'; return; }
+
+        const situation = scienceAdvisorSituation(state);
+        const context = situation.localContexts[Math.floor(Math.random() * situation.localContexts.length)]
+            || { name: 'поселение', description: 'местная община и её повседневные нужды' };
         button.disabled = true;
-        status.textContent = `Научный советник изучает ветвь «${branch.label}»…`;
+        status.textContent = `Советник сопоставляет «${branch.label}» с землями и запасами общины…`;
         let raw;
         let usedLlm = false;
         try {
@@ -988,10 +1022,10 @@
                 body: JSON.stringify({
                     model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
                     messages: [
-                        { role: 'system', content: `Ты научный советник исторической стратегии. Создай правдоподобный проект по указанной ветви эпохи и связанную постройку. Верни только JSON: {"scienceName":"...","scienceDescription":"...","buildingName":"...","buildingDescription":"...","category":"military|economy|science|civic","effects":[{"type":"...","amount":1}]}. Допустимые эффекты: ${JSON.stringify(EFFECTS)}. Выбери 1 или 2 разных эффекта, соответствующих ветви; значения amount не выше указанного max. Не выдумывай другие ключи, бонусы или правила. Названия и описания без магии.` },
-                        { role: 'user', content: `Эпоха: ${eraName(state.player.era)}. Открытая ветвь научного советника: «${branch.label}» — ${branch.prompt}. Материал/контекст: «${material}». Возможный тип постройки: ${branch.building}. Создай оригинальную науку и её чертёж.` }
+                        { role: 'system', content: `Ты научный советник исторической стратегии. Игрок выбрал только широкую ветвь; сам выбери понятную местную тему по землям и запасам общины. Если есть несколько правдоподобных вариантов, допускай небольшую ситуативную вариативность: это совет, не инструмент идеальной настройки. Создай оригинальную науку и связанную постройку. Верни только JSON: {"scienceName":"...","scienceDescription":"...","buildingName":"...","buildingDescription":"...","category":"military|economy|science|civic","effects":[{"type":"...","amount":1}]}. Допустимые эффекты: ${JSON.stringify(EFFECTS)}. Выбери 1 или 2 разных эффекта по ветви; значения amount не выше указанного max. Не выдумывай другие ключи, бонусы или правила. Названия и описания без магии.` },
+                        { role: 'user', content: `Эпоха: ${eraName(state.player.era)}. Направление общины: «${branch.label}» — ${branch.prompt}. Ситуация: ${situation.summary}. Выбранный советником местный ориентир: «${context.name}» — ${context.description}. Возможный тип постройки: ${branch.building}. Создай узнаваемый, ситуативный проект без дополнительных вопросов игроку.` }
                     ],
-                    temperature: 0.8, max_tokens: 650, response_format: { type: 'json_object' }
+                    temperature: 0.9, max_tokens: 650, response_format: { type: 'json_object' }
                 })
             });
             if (!response.ok) throw new Error(`Hydra API: HTTP ${response.status}`);
@@ -1000,24 +1034,26 @@
             raw = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
             usedLlm = true;
         } catch (error) {
+            const buildingFocus = branch.building.split(' или ')[0];
             raw = {
                 scienceName: `Практика: ${branch.label}`,
-                scienceDescription: `Наблюдения и навыки по направлению «${branch.label}» в эпоху ${eraName(state.player.era)}.`,
-                buildingName: `${material.charAt(0).toUpperCase() + material.slice(1)}: ${branch.building}`,
-                buildingDescription: `Локальный черновик по выбранной научной ветви «${branch.label}» и области «${material}».`,
+                scienceDescription: `Наблюдения по направлению «${branch.label}» в эпоху ${eraName(state.player.era)}, связанные с местными условиями региона «${context.name}».`,
+                buildingName: `${context.name}: ${buildingFocus}`,
+                buildingDescription: `Локальный черновик советника: ${buildingFocus.toLowerCase()} подходит текущим землям и запасам общины.`,
                 category: branch.category,
                 effects: [{ type: branch.effect, amount: 1 }]
             };
             status.textContent = error.message === 'no-key'
-                ? 'API-ключ не задан: создан локальный черновик по выбранной научной ветви, это не результат LLM.'
-                : `LLM недоступна (${error.message}); создан локальный черновик, а не результат LLM.`;
+                ? 'API-ключ не задан: создан местный черновик советника, это не результат LLM.'
+                : `LLM недоступна (${error.message}); создан местный черновик, а не результат LLM.`;
         } finally { button.disabled = false; }
-        const result = addBlueprint(state, raw, visibility);
+        // Доступ не является настройкой научного проекта в локальном MVP; новый проект получает базовую видимость.
+        const result = addBlueprint(state, raw, 'both');
         if (result.error) { status.textContent = `Проект отклонён валидатором: ${result.error}`; return; }
         state = result.state;
         save(state);
         const message = usedLlm
-            ? 'Наука и чертёж сгенерированы в выбранной ветви. Эффект прошёл проверку схемы; видимость соседям/союзникам пока локальная.'
+            ? 'Советник создал проект по выбранному направлению и текущим обстоятельствам. Эффект прошёл проверку схемы.'
             : status.textContent;
         render();
         const refreshedStatus = root.document.getElementById('campaign-project-status');
@@ -1034,7 +1070,7 @@
         getRegionalIncome, getAvailableMaterialQualities, getRegionActionState, settleRegionState: settleRegion, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition,
         addBlueprint, researchBlueprint, constructBlueprint, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
-        cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, recoverInterruptedCardCrafts,
+        cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
         quoteCardCraft: investment => cardCraftQuote(state, investment),
         getRegionalMap: () => clone(REGION_DEFINITIONS.map(definition => ({ ...definition, ...getRegionRecord(state, definition.id) }))),
         beginCardCraft: (investment, roll, advisorOrder) => { const result = beginCardCraft(state, investment, roll, advisorOrder); if (!result.error) commit(result.state); return result; },
