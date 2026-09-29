@@ -5,8 +5,8 @@
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b0811",
-  "theme_color": "#0b0811",
+  "background_color": "#100e0b",
+  "theme_color": "#100e0b",
   "icons": [
     {
       "src": "/assets/forge-mark.svg",
