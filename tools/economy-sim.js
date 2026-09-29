@@ -347,23 +347,57 @@ function simulateFrontierToForge() {
     });
 }
 
+function simulateDecrees() {
+    let state = newCampaign();
+    // advance to era 1 and choose decree
+    let attempts = 0;
+    while (state.player.era < 1 && attempts < 30) {
+        attempts++;
+        if (state.player.ap <= 0) { state = advanceDay(state); continue; }
+        if (state.player.dailyOrders.researchUsed) { state = advanceDay(state); continue; }
+        let proj = state.player.blueprints.find(p => !p.researched);
+        if (!proj) {
+            const added = Campaign.addBlueprint(state, { scienceName: `Наука ${attempts}`, scienceDescription: 'd', buildingName: `Здание ${attempts}`, buildingDescription: 'd', category: 'economy', effects: [{type:'income_food', amount:1}]}, 'both');
+            if (!added.error) { state = added.state; proj = added.blueprint; }
+        }
+        if (proj) {
+            const res = Campaign.researchBlueprint(state, proj.id);
+            if (!res.error) state = res.state;
+            else state = advanceDay(state);
+        } else state = advanceDay(state);
+    }
+    // choose decree
+    if (state.player.pendingDecreeChoice) {
+        const dec = Campaign.chooseDecreeState(state, 'military');
+        if (!dec.error) state = dec.state;
+    }
+    while (state.day < Campaign.SEASON_LENGTH) {
+        const n = advanceDay(state);
+        if (n === state) break;
+        state = n;
+    }
+    return summarize(state, { strategy: 'военный уклад в Античности: +1 слот колоды, x1.3 еда, +0.2🪵', decrees: state.player.decrees });
+}
+
 function runReport() {
     return {
         assumptions: {
             seasonLengthDays: Campaign.SEASON_LENGTH,
             origin: ORIGIN,
             openingFocus: OPENING_FOCUS,
-            baseDailyIncome: 'НЕТ - доход только от рабочих и зданий в регионах (v3)',
+            eras: Campaign.ERAS,
+            decrees: Object.values(Campaign.DECREES).map(d => `${d.icon} ${d.label}: ${d.description}`),
+            baseDailyIncome: 'НЕТ - доход только от кланов и зданий в регионах (v3)',
             ap: Campaign.AP_MAX + ' AP в день',
-            population: Campaign.POP_START + ' старт, max ' + Campaign.POP_MAX,
+            population: `${Campaign.POP_START} кланов старт, max ${Campaign.POP_MAX} (абстракция сотен людей)`,
             workerYield: Campaign.WORKER_BASE_YIELD,
             storageBase: Campaign.STORAGE_BASE,
             notes: [
-                'v3: базового дохода нет, только рабочие. Голод убивает.',
-                'Регион без здания = 0 дохода. Нужно строить ирригацию/каменоломню и т.д.',
-                'Потеря региона = потеря здания.',
-                'AP 2 в день — нельзя делать всё сразу.',
-                'Склад лимит ' + Campaign.STORAGE_BASE + ' + бонусы, излишки гниют 50%.'
+                'v3.1: эпохи до 2150, кланы вместо людей, уклады при смене эпохи.',
+                'Регион без здания =0, потеря региона=потеря здания.',
+                'AP 2/день — выбор Выживание vs Развитие vs Мощь.',
+                'Уклад: военный/земледельческий/жреческий — взаимоисключающий, формирует идентичность на тысячи лет.',
+                'Склад лимит ' + Campaign.STORAGE_BASE + ' + бонусы, излишки гниют 50% (микро для прототипа, потом заменим на бюрократию).'
             ]
         },
         scenarios: [
@@ -372,7 +406,8 @@ function runReport() {
             simulateCrafting('refined', 'focused'),
             simulateCrafting('masterwork', 'painstaking'),
             simulateResearchAndConstruction(),
-            simulateFrontierToForge()
+            simulateFrontierToForge(),
+            simulateDecrees()
         ]
     };
 }

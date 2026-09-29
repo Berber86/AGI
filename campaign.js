@@ -38,7 +38,30 @@
         { id: 'metallurgy', label: 'Медь и металлургия', prompt: 'добыча и обработка меди, доступные для текущей эпохи', minEra: 2, category: 'economy', effect: 'income_materials', building: 'рудник или литейная мастерская' },
         { id: 'bronze', label: 'Бронзовые сплавы', prompt: 'бронзовое литьё и снабжение инструментами', minEra: 3, category: 'economy', effect: 'income_materials', building: 'бронзовая литейная' }
     ];
-    const ERAS = ['Каменный век', 'Неолит', 'Медный век', 'Бронзовый век', 'Железный век', 'Античность', 'Средневековье'];
+    const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
+    const DECREES = {
+        military: {
+            id: 'military',
+            label: 'Военный уклад',
+            icon: '⚔️',
+            description: 'Централизация вокруг дружины. +1 слот колоды, +0.2🪵 с рабочего, но потребление еды x1.3 и знания -0.3 с рабочего.',
+            bonuses: { deck_slots: 1, workerBonus: { materials: 0.2, knowledge: -0.3 }, consumptionMult: 1.3, storage: 0 }
+        },
+        agricultural: {
+            id: 'agricultural',
+            label: 'Земледельческий уклад',
+            icon: '🌾',
+            description: 'Общинная земля и амбары. +10 к складу, +0.4🌾 с рабочего, но -1 слот колоды и +0.1 потребления на клан из-за праздников.',
+            bonuses: { deck_slots: -1, workerBonus: { food: 0.4 }, consumptionMult: 1.1, storage: 10 }
+        },
+        priestly: {
+            id: 'priestly',
+            label: 'Жреческий / Научный уклад',
+            icon: '📚',
+            description: 'Храм, академия, обсерватория. +0.4📚 с рабочего, здания дают +1 к складу, но стоят +1🪵 и -0.1🌾 с рабочего (жрецы не пашут).',
+            bonuses: { deck_slots: 0, workerBonus: { knowledge: 0.4, food: -0.1 }, consumptionMult: 1.0, storage: 3, buildingCostExtra: 1 }
+        }
+    };
     const EFFECTS = {
         deck_slots: { label: '+1 место в боевой колоде', category: 'military', max: 1 },
         max_hp: { label: '+1 стартовое здоровье', category: 'military', max: 1 },
@@ -120,6 +143,8 @@
                 ap: AP_MAX,
                 apMax: AP_MAX,
                 decree: null,
+                decrees: [],
+                pendingDecreeChoice: false,
                 growthProgress: 0,
                 growthDebt: 0,
                 starvationDays: 0,
@@ -304,6 +329,13 @@
         state.player.ap = clampInt(state.player.ap, 0, 10, AP_MAX);
         state.player.apMax = clampInt(state.player.apMax, 1, 10, AP_MAX);
         state.player.decree = state.player.decree && ['military', 'agricultural', 'priestly'].includes(state.player.decree) ? state.player.decree : null;
+        state.player.decrees = Array.isArray(state.player.decrees) ? state.player.decrees.filter(d => d && typeof d.id === 'string' && DECREES[d.id]).map(d => ({
+            id: d.id,
+            era: clampInt(d.era, 0, ERAS.length - 1, 0),
+            chosenDay: clampInt(d.chosenDay, 1, SEASON_LENGTH, 1)
+        })).slice(-10) : (state.player.decree ? [{ id: state.player.decree, era: state.player.era, chosenDay: 1 }] : []);
+        if (state.player.decrees.length > 0) state.player.decree = state.player.decrees[state.player.decrees.length - 1].id;
+        state.player.pendingDecreeChoice = Boolean(state.player.pendingDecreeChoice);
         state.player.growthProgress = clampInt(state.player.growthProgress, 0, 999, 0);
         state.player.growthDebt = clampInt(state.player.growthDebt, 0, 999, 0);
         state.player.starvationDays = clampInt(state.player.starvationDays, 0, 999, 0);
@@ -428,11 +460,17 @@
         return totals;
     }
 
+    function getActiveDecrees(state) {
+        const list = Array.isArray(state.player.decrees) ? state.player.decrees : [];
+        return list.map(d => DECREES[d.id]).filter(Boolean);
+    }
+
     function getFoodConsumption(input) {
         const state = normalizeState(input);
         let mult = 1.0;
-        if (state.player.decree === 'military') mult = 1.3;
-        if (state.player.decree === 'agricultural') mult = 0.9;
+        for (const dec of getActiveDecrees(state)) {
+            if (dec.bonuses.consumptionMult) mult *= dec.bonuses.consumptionMult;
+        }
         return state.player.population * FOOD_CONSUMPTION_PER_POP * mult;
     }
 
@@ -441,7 +479,9 @@
         let cap = STORAGE_BASE;
         const active = state.player.buildings.filter(b => b.active).length;
         cap += active * 2;
-        if (state.player.decree === 'agricultural') cap += 10;
+        for (const dec of getActiveDecrees(state)) {
+            if (dec.bonuses.storage) cap += dec.bonuses.storage;
+        }
         const hasGranary = state.player.buildings.some(b => b.active && b.effects.some(e => e.type === 'income_food'));
         if (hasGranary) cap += 3;
         return cap;
@@ -457,6 +497,13 @@
                 if (eff.type === 'income_food') bonusFood += BUILDING_WORKER_BONUS.income_food * eff.amount;
                 if (eff.type === 'income_materials') bonusMat += BUILDING_WORKER_BONUS.income_materials * eff.amount;
                 if (eff.type === 'income_knowledge') bonusKnow += BUILDING_WORKER_BONUS.income_knowledge * eff.amount;
+            }
+        }
+        for (const dec of getActiveDecrees(state)) {
+            if (dec.bonuses.workerBonus) {
+                bonusFood += dec.bonuses.workerBonus.food || 0;
+                bonusMat += dec.bonuses.workerBonus.materials || 0;
+                bonusKnow += dec.bonuses.workerBonus.knowledge || 0;
             }
         }
         const floodplainHasIrrigation = state.regions.find(r => r.id === 'floodplain')?.building === 'irrigation';
@@ -480,7 +527,10 @@
         }
 
         const consumption = getFoodConsumption(state);
-        const upkeep = state.player.buildings.filter(b => b.active).length * UPKEEP_PER_BUILDING + state.regions.filter(r => r.ownerId === 'player' && r.building).length * UPKEEP_PER_BUILDING;
+        let upkeep = state.player.buildings.filter(b => b.active).length * UPKEEP_PER_BUILDING + state.regions.filter(r => r.ownerId === 'player' && r.building).length * UPKEEP_PER_BUILDING;
+        for (const dec of getActiveDecrees(state)) {
+            if (dec.bonuses.buildingCostExtra) upkeep += 0.05; // symbolic
+        }
 
         return {
             workers,
@@ -490,19 +540,25 @@
             regional,
             consumption,
             upkeep,
-            totals
+            totals,
+            decrees: getActiveDecrees(state)
         };
     }
 
     function getBattleConfig(input) {
         const state = normalizeState(input);
         const effects = effectTotals(state);
+        let deckBonus = 0;
+        for (const dec of getActiveDecrees(state)) {
+            if (dec.bonuses.deck_slots) deckBonus += dec.bonuses.deck_slots;
+        }
         return {
-            deckLimit: Math.min(6, 2 + effects.deck_slots),
+            deckLimit: Math.min(6, Math.max(1, 2 + effects.deck_slots + deckBonus)),
             hp: Math.min(12, 5 + effects.max_hp),
             energyMax: Math.min(8, 2 + effects.energy_cap),
             energyGrowth: Math.min(3, 1 + effects.energy_growth),
-            effects
+            effects,
+            decrees: getActiveDecrees(state)
         };
     }
     function getOpponentBattleConfig(input, opponentId) {
@@ -929,6 +985,8 @@
         if (state.player.research >= 2 && state.player.era < ERAS.length - 1) {
             state.player.research = 0;
             state.player.era += 1;
+            state.player.pendingDecreeChoice = true;
+            state.player.campaignNotice = 'Открыта эпоха: ' + eraName(state.player.era) + '. Выбери уклад — военный, земледельческий или жреческий — он определит путь цивилизации на эту эпоху.';
         }
         return { state, blueprint, error: null };
     }
@@ -950,6 +1008,24 @@
         blueprint.built = true;
         blueprint.builtDay = state.day;
         markDailyOrderUsed(state, 'construction');
+        return { state, error: null };
+    }
+
+    function chooseDecree(input, decreeId) {
+        const state = normalizeState(input);
+        if (!DECREES[decreeId]) return { state, error: 'Уклад не найден.' };
+        if (!state.player.pendingDecreeChoice && state.player.decrees.length >= state.player.era + 1) {
+            return { state, error: 'Уклад этой эпохи уже выбран. Следующий выбор — при переходе в новую эпоху.' };
+        }
+        // allow choosing even without pending flag for testing, but consume AP if available
+        if (state.player.ap <= 0 && state.player.pendingDecreeChoice) {
+            // choosing decree is free, does not cost AP, but we check
+        }
+        state.player.decrees.push({ id: decreeId, era: state.player.era, chosenDay: state.day });
+        state.player.decree = decreeId;
+        state.player.pendingDecreeChoice = false;
+        state.player.campaignNotice = 'Выбран уклад: ' + DECREES[decreeId].label + '. ' + DECREES[decreeId].description;
+        state.player.storageCap = getStorageCap(state);
         return { state, error: null };
     }
 
@@ -1276,16 +1352,26 @@
         return '<article class="campaign-order campaign-blueprint-order"><div class="campaign-order-icon">' + (blueprint.researched ? '📐' : '🔬') + '</div><div class="campaign-order-main"><b title="' + htmlAttr(detail) + '">' + escapeHtml(blueprint.scienceName) + ' → ' + escapeHtml(blueprint.buildingName) + '</b><small>' + escapeHtml(effects) + '</small></div><button class="campaign-btn ' + (blueprint.researched ? 'campaign-btn-secondary' : '') + '" ' + (disabled ? 'disabled' : '') + ' onclick="CampaignMvp.' + (blueprint.researched ? 'construct' : 'research') + '(\'' + htmlAttr(blueprint.id) + '\')">' + buttonText + '</button></article>';
     }
 
+    function renderDecreeChoice(current) {
+        if (!current.player.pendingDecreeChoice) return '';
+        const era = current.player.era;
+        const choices = Object.values(DECREES).map(dec => {
+            return '<button class="campaign-btn campaign-btn-gold" onclick="CampaignMvp.chooseDecree(\'' + dec.id + '\')" title="' + htmlAttr(dec.description) + '"><span>' + dec.icon + '</span><b>' + escapeHtml(dec.label) + '</b><small>' + escapeHtml(dec.description) + '</small></button>';
+        }).join('');
+        return '<section class="campaign-panel campaign-decree-choice"><div class="campaign-panel-heading"><h2>🏛️ Эпоха ' + escapeHtml(eraName(era)) + ': выбери уклад</h2><span class="campaign-muted">Определит путь цивилизации на ' + (era+1) + '/7</span></div><div class="campaign-decree-options">' + choices + '</div><small class="campaign-fold-note">Выбор уклада — взаимоисключающий. Каждый уклад меняет потребление, склад, бонусы рабочих и слоты колоды. Формирует идентичность цивилизации на тысячи лет.</small></section>';
+    }
+
     function renderWorkersPanel(current) {
         const w = current.player.workers;
         const pop = current.player.population;
         const breakdown = getProductionBreakdown(current);
-        return '<section class="campaign-panel campaign-workers"><div class="campaign-panel-heading"><h2>👥 Люди: ' + pop + '/' + POP_MAX + '</h2><span class="campaign-muted">Едят ' + breakdown.consumption.toFixed(1) + '🌾/д</span></div><div class="campaign-workers-grid">'
-            + '<div class="campaign-worker-row"><span>🌾 Еда: ' + w.food + ' → +' + breakdown.workerProduction.food.toFixed(1) + '</span><span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'food\',\'idle\')">-</button><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'idle\',\'food\')">+</button></span></div>'
+        const decreesText = breakdown.decrees.length ? breakdown.decrees.map(d => d.icon + ' ' + d.label).join(' · ') : 'нет уклада';
+        return '<section class="campaign-panel campaign-workers"><div class="campaign-panel-heading"><h2>👥 Кланы: ' + pop + '/' + POP_MAX + '</h2><span class="campaign-muted">Едят ' + breakdown.consumption.toFixed(1) + '🌾/д · ' + escapeHtml(decreesText) + '</span></div><div class="campaign-workers-grid">'
+            + '<div class="campaign-worker-row"><span>🌾 Еда: ' + w.food + ' кланов → +' + breakdown.workerProduction.food.toFixed(1) + '</span><span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'food\',\'idle\')">-</button><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'idle\',\'food\')">+</button></span></div>'
             + '<div class="campaign-worker-row"><span>🪵 Материалы: ' + w.materials + ' → +' + breakdown.workerProduction.materials.toFixed(1) + '</span><span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'materials\',\'idle\')">-</button><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'idle\',\'materials\')">+</button></span></div>'
             + '<div class="campaign-worker-row"><span>📚 Знания: ' + w.knowledge + ' → +' + breakdown.workerProduction.knowledge.toFixed(1) + '</span><span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'knowledge\',\'idle\')">-</button><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'idle\',\'knowledge\')">+</button></span></div>'
             + '<div class="campaign-worker-row"><span>💤 Свободны: ' + w.idle + '</span><span>бонусы: 🌾+' + breakdown.workerBonus.food.toFixed(1) + ' 🪵+' + breakdown.workerBonus.materials.toFixed(1) + ' 📚+' + breakdown.workerBonus.knowledge.toFixed(1) + '</span></div>'
-            + '</div><small class="campaign-fold-note">Здания дают бонус к каждому рабочему. Без рабочих — нет базового дохода. Голод: -1 чел за каждые 3🌾 дефицита.</small></section>';
+            + '</div><small class="campaign-fold-note">Каждый клан — община на сотни людей. Здания дают бонус к каждому клану. Без кланов — нет базового дохода. Голод: -1 клан за каждые 3🌾 дефицита. Тысячи лет истории — 30 дней прототипа, тестеры вращают дни.</small></section>';
     }
 
     function renderCraftQueue(orders) {
@@ -1336,7 +1422,7 @@
             return '<button type="button" class="campaign-project-card campaign-card-choice ' + (selected ? 'is-selected' : '') + '" onclick="CampaignMvp.toggleDeckCard(\'' + htmlAttr(card.id) + '\')"><span>' + (selected ? '✓ В колоде' : 'Добавить') + ' · ' + escapeHtml(card.card_type || 'карта') + '</span><b>' + escapeHtml(card.name || 'Без названия') + '</b><small>' + (Number(card.drop_cost) || 0) + ' энергии · атака ' + (Number(card.action_cost) || 0) + '</small></button>';
         }).join('') : '<div class="campaign-project-empty">Коллекция пока пуста. Для тренировки доступна стартовая колода.</div>';
 
-        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="Научный прогресс эпохи" aria-label="Научный прогресс эпохи"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + p.resources.food + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + p.resources.materials + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + p.resources.knowledge + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            <form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)"><label><span>Новый проект</span><select id="campaign-project-branch" aria-label="Направление науки">' + scienceBranchesForEra(p.era).map(branch => '<option value="' + branch.id + '">' + escapeHtml(branch.label) + '</option>').join('') + '</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">+ Советник</button></form>\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Выбирается только широкая ветвь; тему и местный контекст советник подбирает автоматически по эпохе, землям и запасам.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (p.era === ERAS.length - 1 ? 'Последняя эпоха открыта' : 'Открытия эпохи: ' + p.research + '/2') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
+        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          ' + renderDecreeChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="Научный прогресс эпохи" aria-label="Научный прогресс эпохи"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + p.resources.food + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + p.resources.materials + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + p.resources.knowledge + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            <form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)"><label><span>Новый проект</span><select id="campaign-project-branch" aria-label="Направление науки">' + scienceBranchesForEra(p.era).map(branch => '<option value="' + branch.id + '">' + escapeHtml(branch.label) + '</option>').join('') + '</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">+ Советник</button></form>\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Выбирается только широкая ветвь; тему и местный контекст советник подбирает автоматически по эпохе, землям и запасам.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (p.era === ERAS.length - 1 ? 'Последняя эпоха открыта' : 'Открытия эпохи: ' + p.research + '/2') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
         for (const detail of host.querySelectorAll?.('details[data-campaign-key]') || []) detail.open = openDetails.has(detail.dataset.campaignKey);
     }
 
@@ -1379,6 +1465,7 @@
     }
     function claimRegionAction(regionId) { alertResult(settleRegion(state, regionId)); }
     function buildRegionBuildingAction(regionId) { alertResult(buildRegionBuilding(state, regionId)); }
+    function chooseDecreeAction(decreeId) { alertResult(chooseDecree(state, decreeId)); }
     function attackRegionAction(regionId) {
         if (typeof root.startBattle !== 'function') { root.alert('Боевой экран пока недоступен.'); return; }
         const result = beginRegionExpedition(state, regionId);
@@ -1497,14 +1584,14 @@
     }
 
     const api = {
-        ERAS, EFFECTS, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_DEFINITIONS, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
+        ERAS, DECREES, EFFECTS, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_DEFINITIONS, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         createState, normalizeState, completeOnboarding, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig,
         getRegionalIncome, getAvailableMaterialQualities, getRegionActionState, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition,
-        addBlueprint, researchBlueprint, constructBlueprint, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
+        addBlueprint, researchBlueprint, constructBlueprint, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
-        getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker,
+        getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker, getActiveDecreesState: state => getActiveDecrees(normalizeState(state)),
         quoteCardCraft: investment => cardCraftQuote(state, investment),
         getRegionalMap: () => clone(REGION_DEFINITIONS.map(definition => ({ ...definition, ...getRegionRecord(state, definition.id) }))),
         beginCardCraft: (investment, roll, advisorOrder) => { const result = beginCardCraft(state, investment, roll, advisorOrder); if (!result.error) commit(result.state); return result; },
@@ -1516,7 +1603,7 @@
         getScienceBranchesForEra: () => scienceBranchesForEra(state.player.era),
         recordPractice, completeSeasonState: completeSeason, load, save, render,
         research, construct, toggleBuilding: toggleBuildingAction, toggleDeckCard: toggleDeckCardAction,
-        finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, claimRegion: claimRegionAction, buildRegionBuilding: buildRegionBuildingAction, attackRegion: attackRegionAction, resumeRegionExpedition: resumeRegionExpeditionAction, hasPendingMatch: () => Boolean(pendingMatch),
+        finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, claimRegion: claimRegionAction, buildRegionBuilding: buildRegionBuildingAction, chooseDecree: chooseDecreeAction, attackRegion: attackRegionAction, resumeRegionExpedition: resumeRegionExpeditionAction, hasPendingMatch: () => Boolean(pendingMatch),
         getPendingMatch: () => pendingMatch ? { ...pendingMatch } : null,
         consumePendingMatch, recordBattleResult, rematch, generateProject, resetLocal,
         beginOnboarding, getStarterCards: () => clone(STARTER_CARDS), getBattleDeckIds: () => state.player.deckCardIds.slice(), getBattleConfigForCurrentPlayer: () => getBattleConfig(state),

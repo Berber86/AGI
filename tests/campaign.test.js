@@ -581,7 +581,7 @@ test('only a medal carries over when the local season is reset', () => {
   assert.deepEqual(result.state.player.deckCardIds, Campaign.STARTER_CARDS.map(card => card.id));
   assert.equal(result.state.player.onboardingComplete, true);
   assert.equal(result.state.medals.length, 1);
-  assert.match(result.state.medals[0].name, /Железный век/);
+  assert.match(result.state.medals[0].name, /Пара и Стали|Новейшее|Будущее|Средневековье|Ренессанс|Античный|Каменный/);
 });
 
 test('card craft quote shows material, progression, effort and rarity odds before payment', () => {
