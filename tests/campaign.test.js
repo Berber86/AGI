@@ -101,7 +101,16 @@ test('first-session guide is rendered on the live campaign screen', () => {
   const state = Campaign.completeOnboarding(Campaign.createState(), {
     name: 'Тестовый народ', originId: 'river', openingFocusId: 'food'
   }).state;
-  const host = { innerHTML: '' };
+  const host = {
+    _html: '',
+    details: ['first-steps', 'season-menu', 'advisor-context', 'buildings', 'civilization', 'opponents', 'deck'].map(campaignKey => ({ dataset: { campaignKey }, open: false })),
+    get innerHTML() { return this._html; },
+    set innerHTML(value) { this._html = value; this.details.forEach(detail => { detail.open = false; }); },
+    querySelectorAll(selector) {
+      const rendered = this.details.filter(detail => this._html.includes(`data-campaign-key="${detail.dataset.campaignKey}"`));
+      return selector.includes('[open]') ? rendered.filter(detail => detail.open) : rendered;
+    }
+  };
   const storage = {
     getItem: key => key === Campaign.STORAGE_KEY ? JSON.stringify(state) : null,
     setItem() {}
@@ -118,12 +127,19 @@ test('first-session guide is rendered on the live campaign screen', () => {
   assert.match(host.innerHTML, /class="campaign-first-session"/);
   assert.doesNotMatch(host.innerHTML, /campaign-first-session" open/);
   assert.match(host.innerHTML, /Исследовать «Рыбные запруды»/);
-  assert.match(host.innerHTML, /СЛЕДУЮЩИЙ ШАГ/);
-  assert.match(host.innerHTML, /Сегодняшние возможности/);
-  assert.match(host.innerHTML, /Три независимых лимита/);
-  assert.match(host.innerHTML, /campaign-daily-slot/);
+  assert.match(host.innerHTML, /ДАЛЬШЕ/);
+  assert.match(host.innerHTML, /aria-label="Дневные возможности"/);
+  assert.match(host.innerHTML, /campaign-day-action/);
+  assert.match(host.innerHTML, /Завершить день/);
   assert.match(host.innerHTML, /campaign-world-board/);
   assert.match(host.innerHTML, /CampaignMvp.claimRegion/);
+  assert.match(host.innerHTML, /<details class="campaign-panel campaign-fold campaign-opponents"/);
+  assert.match(host.innerHTML, /<details class="campaign-panel campaign-fold campaign-codex"/);
+  assert.doesNotMatch(host.innerHTML, /Очередь пуста/);
+  const deckDisclosure = host.details.find(detail => detail.dataset.campaignKey === 'deck');
+  deckDisclosure.open = true;
+  fakeWindow.CampaignMvp.render();
+  assert.equal(deckDisclosure.open, true, 'an open disclosure should survive a full campaign redraw');
 });
 
 test('the approved 30-day sandbox can reach the final era through full development investment', () => {
@@ -759,6 +775,13 @@ test('forge advisor offers exactly three LLM ideas and the player selects one wi
   const campaignSource = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
   assert.match(appHtml, /id="forge-advice-btn"/);
   assert.match(appHtml, /id="forge-advice-choices"/);
+  const forgeStart = appHtml.indexOf('<!-- ========== FORGE SCREEN ========== -->');
+  const forgeEnd = appHtml.indexOf('<!-- ========== COLLECTION SCREEN ========== -->', forgeStart);
+  const forgeMarkup = appHtml.slice(forgeStart, forgeEnd);
+  assert.match(forgeMarkup, /forge-panel-compact/);
+  assert.match(forgeMarkup, /forge-result-section" style="display:none/);
+  assert.match(forgeMarkup, /<details class="forge-rules">/);
+  assert.doesNotMatch(forgeMarkup, /forge-step-heading|prompt-hint|hero-note/);
   assert.match(appHtml, /1 LLM-вызов/);
   assert.match(appHtml, /rawChoices\.length !== 3/);
   assert.match(appHtml, /async function requestForgeAdvice\(\)/);

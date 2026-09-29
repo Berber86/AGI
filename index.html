@@ -158,22 +158,12 @@
             align-items: center;
             gap: 10px;
         }
-        .prompt-hint {
-            font-size: 0.85em;
-            color: #7868a0;
-            margin-top: 8px;
-            font-style: italic;
-        }
         .craft-quote { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 12px 0 17px; padding: 12px 14px; border: 1px solid rgba(189,131,255,.23); border-radius: 12px; background: rgba(12,8,18,.76); color: #eee2f7; }
         .craft-quote > div { display: grid; gap: 5px; }
         .craft-quote b { color: #f0c278; font-size: .78em; text-transform: uppercase; letter-spacing: .06em; }
         .craft-quote span { color: #d0bfdf; font-size: .86em; }
         .craft-quote small { grid-column: 1/-1; color: #9e8eac; line-height: 1.4; }
         .craft-quote small:not(:empty) { color: #c7aedb; }
-        .forge-step-heading { display:flex; align-items:center; gap:12px; margin:2px 0 12px; }
-        .forge-step-heading>span { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; border:1px solid rgba(240,184,107,.42); border-radius:50%; color:#f0c278; background:rgba(240,184,107,.08); font-size:.82em; font-weight:900; }
-        .forge-step-heading h2 { margin:0 0 3px; color:#f1e4d2; font-size:1.05em; }
-        .forge-step-heading p { margin:0; color:#a99bb2; font-size:.78em; line-height:1.45; }
         .forge-advice-btn { width:100%; min-height:46px; padding:11px 15px; border:1px solid rgba(199,125,255,.45); border-radius:11px; color:#f3e7ff; background:linear-gradient(110deg,rgba(98,66,146,.74),rgba(120,55,95,.7)); font:inherit; font-size:.82em; font-weight:800; cursor:pointer; transition:filter .16s,transform .16s; }
         .forge-advice-btn:hover:not(:disabled) { filter:brightness(1.13); transform:translateY(-1px); }
         .forge-advice-btn:disabled { opacity:.55; cursor:not-allowed; }
@@ -185,7 +175,6 @@
         .forge-advice-option>span { color:#e4bd79; font-size:.63em; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
         .forge-advice-option>b { color:#f5e8d8; font-size:.88em; line-height:1.3; }
         .forge-advice-option>small { color:#ad9fb3; font-size:.72em; line-height:1.45; }
-        .forge-step-heading-investment { margin-top:3px; }
         .forge-investment-label { display:grid; gap:7px; color:#bdabc9; font-size:.76em; font-weight:800; }
         .forge-investment-label select { width:100%; min-height:44px; padding:9px 12px; border:1px solid rgba(189,131,255,.3); border-radius:10px; color:#f3e9fb; background:#100b17; font:inherit; font-weight:500; }
         .forge-investment-label select:focus-visible,.forge-advice-option:focus-visible,.forge-advice-btn:focus-visible { outline:2px solid #f0c278; outline-offset:2px; }
@@ -1360,6 +1349,49 @@
             .deck-stat { min-height: 80px; }
             .player-banner .hp-text { font-size: .65em; }
         }
+        /* Compact forge flow: idea, investment and one clear action. */
+        .forge-hero.forge-hero-compact { min-height:0; padding:16px 22px; margin-bottom:10px; border-radius:15px; }
+        .forge-hero-compact::after { display:none; }
+        .forge-hero-compact h1 { margin:0; font-size:clamp(1.25rem,3vw,1.7rem); filter:none; }
+        .forge-hero-compact .subtitle { margin-top:3px; font-size:.76rem; }
+        .forge-panel-compact { display:grid; gap:0; padding:14px 16px; margin-bottom:10px; border-radius:14px; }
+        .forge-advice-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .forge-advice-head>b { color:#e9dce9; font-size:.78rem; }
+        .forge-advice-btn { width:auto; min-height:33px; padding:6px 10px; font-size:.68rem; white-space:nowrap; }
+        .forge-advice-status { min-height:0; margin:4px 0; font-size:.66rem; }
+        .forge-advice-grid { gap:7px; margin:5px 0 10px; }
+        .forge-advice-option { min-height:98px; gap:5px; padding:9px 10px; border-radius:10px; }
+        .forge-advice-option>span { font-size:.56rem; }
+        .forge-advice-option>b { font-size:.76rem; }
+        .forge-advice-option>small { display:-webkit-box; overflow:hidden; font-size:.65rem; line-height:1.35; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+        .forge-investment-row { display:grid; grid-template-columns:minmax(210px,.65fr) minmax(0,1.35fr); align-items:center; gap:8px 12px; }
+        .forge-investment-label { gap:4px; color:#c9b9d2; font-size:.65rem; }
+        .forge-investment-label select { min-height:37px; padding:6px 9px; font-size:.73rem; }
+        .craft-quote { grid-template-columns:1fr; gap:5px; margin:0; padding:7px 9px; border:0; background:rgba(12,8,18,.35); }
+        .craft-quote-main { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:9px; }
+        .craft-quote-main>span { display:grid; gap:2px; min-width:0; }
+        .craft-quote-main b { overflow:hidden; color:#dfc48f; font-size:.57rem; letter-spacing:0; text-overflow:ellipsis; text-transform:none; white-space:nowrap; }
+        .craft-quote-main small { color:#d0bfdf; font-size:.65rem; line-height:1.25; }
+        .craft-quote>small { grid-column:auto; font-size:.59rem; line-height:1.3; }
+        .forge-panel-compact .forge-btn { width:auto; min-width:175px; min-height:40px; justify-self:end; margin:8px 0 0; padding:9px 14px; border-radius:10px; font-size:.78rem; }
+        .forge-rules { margin-top:7px; color:#a99bb2; font-size:.61rem; }
+        .forge-rules>summary { width:max-content; max-width:100%; cursor:pointer; }
+        .forge-rules>p { margin:6px 0 0; line-height:1.4; }
+        .forge-panel-compact .forge-loading { margin-top:8px; padding:10px; }
+        .forge-panel-compact+.cards-section { margin-top:12px; }
+        .forge-panel-compact+.cards-section h2 { margin-bottom:8px; font-size:1rem; }
+        @media(max-width:760px) {
+            .forge-hero.forge-hero-compact { min-height:0; padding:13px 16px; margin-bottom:8px; }
+            .forge-panel-compact { padding:11px; }
+            .forge-advice-grid { grid-template-columns:1fr; gap:5px; margin-bottom:8px; }
+            .forge-advice-option { display:grid; grid-template-columns:86px minmax(0,1fr); align-items:center; min-height:0; gap:3px 8px; padding:8px 9px; }
+            .forge-advice-option>span { grid-column:1; grid-row:1/3; }
+            .forge-advice-option>b { grid-column:2; }
+            .forge-advice-option>small { grid-column:2; -webkit-line-clamp:1; }
+            .forge-investment-row { grid-template-columns:1fr; gap:5px; }
+            .forge-investment-label { grid-template-columns:80px minmax(0,1fr); align-items:center; gap:8px; }
+            .forge-panel-compact .forge-btn { width:100%; min-width:0; }
+        }
     </style>
 </head>
 <body>
@@ -1415,45 +1447,33 @@
 
         <!-- ========== FORGE SCREEN ========== -->
         <div id="screen-forge" class="screen active">
-            <header class="screen-hero forge-hero">
-                <span class="hero-kicker">МАСТЕРСКАЯ ЦИВИЛИЗАЦИИ <i></i> ЭПОХА I</span>
-                <h1>⚒️ Кузница цивилизации</h1>
-                <p class="subtitle">Советник предложит три замысла. Выбери один, вложи ресурсы и получи уникальную карту.</p>
-                <span class="hero-note">ДРЕВНИЙ МИР · БРОНЗОВЫЙ ВЕК</span>
+            <header class="screen-hero forge-hero forge-hero-compact">
+                <h1>⚒️ Кузница</h1>
+                <p class="subtitle">Три идеи → одна карта.</p>
             </header>
 
-            <div class="forge-panel">
-                <div class="forge-step-heading"><span>1</span><div><h2>Получить совет</h2><p>Один запрос к модели — три разных идеи. На день выдаётся один набор.</p></div></div>
-                <button class="forge-advice-btn" id="forge-advice-btn" type="button" onclick="requestForgeAdvice()">✨ Попросить 3 варианта · 1 LLM-вызов</button>
+            <div class="forge-panel forge-panel-compact">
+                <div class="forge-advice-head"><b>1 · Замысел</b><button class="forge-advice-btn" id="forge-advice-btn" type="button" onclick="requestForgeAdvice()">✨ Совет · 1 LLM-вызов</button></div>
                 <div id="forge-advice-status" class="forge-advice-status" role="status" aria-live="polite"></div>
                 <div id="forge-advice-choices" class="forge-advice-grid" aria-label="Варианты военного советника"></div>
 
-                <div class="forge-step-heading forge-step-heading-investment"><span>2</span><div><h2>Вложения в ковку</h2><p>Выбери один уровень сырья и усилий.</p></div></div>
-                <label class="forge-investment-label" for="craft-investment">Степень вложений
+                <div class="forge-investment-row"><label class="forge-investment-label" for="craft-investment"><span>2 · Вложения</span>
                     <select id="craft-investment" onchange="renderCraftQuote()">
                         <option value="standard">Обычная · 2🌾 2🪵 · сразу</option>
                         <option value="refined">Отборная · 3🌾 5🪵 1📚 · 1 день</option>
                         <option value="masterwork">Мастерская · 4🌾 8🪵 3📚 · 2 дня</option>
                     </select>
-                </label>
-                <div id="craft-quote" class="craft-quote" role="status" aria-live="polite"></div>
+                </label><div id="craft-quote" class="craft-quote" role="status" aria-live="polite"></div></div>
 
-                <button class="forge-btn" id="forge-btn" onclick="forgeCard()" disabled>⚒️ ВЫКОВАТЬ ВЫБРАННЫЙ ЗАМЫСЕЛ</button>
-                <div class="prompt-hint">Редкость бросается заранее; ресурсы списываются до генерации, невалидный результат компенсируется. Механики карты придумывает кузнец без силового бюджета.</div>
+                <button class="forge-btn" id="forge-btn" onclick="forgeCard()" disabled>⚒️ Ковать карту</button>
+                <details class="forge-rules"><summary>Как работает ковка</summary><p>Редкость бросается до генерации, оплата списывается заранее, невалидный ответ компенсируется. Модель выбирается по редкости; силу карты не нормализуем.</p></details>
                 <div id="forge-error" class="error-bar" style="display:none"></div>
-                <div id="forge-loading" class="forge-loading" style="display:none">
-                    <span class="spinner"></span><span id="forge-loading-copy">ИИ-Кузнец создаёт карту по выпавшей редкости...</span>
-                    <div class="flavor" id="forge-flavor">Кузнечный молот бьёт по наковальне смыслов...</div>
-                </div>
+                <div id="forge-loading" class="forge-loading" style="display:none"><span class="spinner"></span><span id="forge-loading-copy">Кузнец создаёт карту по выпавшей редкости...</span></div>
             </div>
 
-            <div class="cards-section">
-                <h2>🔥 Результат ковки</h2>
-                <div id="forge-result" class="forge-result" style="display:flex; justify-content:center;">
-                    <div style="color:#7868a0; padding:40px; text-align:center">
-                        Твоя новая карта появится здесь
-                    </div>
-                </div>
+            <div class="cards-section" id="forge-result-section" style="display:none">
+                <h2>Результат</h2>
+                <div id="forge-result" class="forge-result" style="display:flex; justify-content:center;"></div>
             </div>
         </div>
 
@@ -1860,9 +1880,10 @@
         if (advice) {
             button.disabled = true;
             button.textContent = 'Совет получен · 1 LLM-вызов';
+            const selected = advice.choices.find(choice => choice.id === advice.selectedId);
             status.textContent = campaign.player.dailyOrders.craftUsed
-                ? 'Ковка на сегодня уже заказана. Варианты сохранены до конца дня.'
-                : 'Выбери один из трёх замыслов. Генерация выбранной карты будет отдельным вызовом.';
+                ? 'Совет сохранён до конца дня.'
+                : selected ? `Выбрано: ${selected.title} · генерация карты будет отдельным вызовом.` : 'Выбери один из трёх замыслов.';
             target.innerHTML = advice.choices.map(choice => `<button type="button" class="forge-advice-option ${advice.selectedId === choice.id ? 'is-selected' : ''}" aria-pressed="${advice.selectedId === choice.id}" onclick="selectForgeAdvice('${choice.id}')"><span>${labels[choice.cardType]}</span><b>${escapeCardHtml(choice.title)}</b><small>${escapeCardHtml(choice.pitch)}</small></button>`).join('');
             return;
         }
@@ -1963,20 +1984,18 @@
                 option.textContent = option.disabled ? `${option.dataset.baseLabel} · требуется ${accessText[option.value] || 'месторождение'}` : option.dataset.baseLabel;
             });
         }
-        const advice = readForgeAdviceForToday();
         const selected = getSelectedForgeAdvice();
         const cost = quote.cost;
         const costText = `${cost.food}🌾 · ${cost.materials}🪵 · ${cost.knowledge}📚`;
         const stockText = `${campaign.player.resources.food}🌾 · ${campaign.player.resources.materials}🪵 · ${campaign.player.resources.knowledge}📚`;
         const oddsText = `Обычная ${quote.odds.ordinary}% · необычная ${quote.odds.uncommon}% · редкая ${quote.odds.rare}%`;
-        const blocker = !selected ? 'Сначала выбери один замысел советника.'
-            : forgeSlotBlock(campaign)
-                || (!quote.affordable ? 'Не хватает ресурсов или не открыто нужное сырьё.' : '')
-                || (campaign.day + quote.effortDays > window.CampaignMvp.SEASON_LENGTH ? 'До конца сезона не хватит времени на эту ковку.' : '');
-        const selectedText = selected ? `Выбрано: ${selected.title} · ${FORGE_ADVISOR_TYPE_NAMES[selected.cardType]}.` : (advice ? 'Выбери один из вариантов выше.' : 'Сначала попроси советника о трёх вариантах.');
-        const slotText = campaign.player.dailyOrders.legacyBlocked ? 'Старое сохранение: дневные лимиты обновятся завтра.' : `Ковка сегодня: ${campaign.player.dailyOrders.craftUsed ? '1/1 использована' : '0/1 доступна'}.`;
-        target.innerHTML = `<div><b>Шансы редкости · кузнец ${quote.craftLevel + 1}-го уровня</b><span>${oddsText}</span></div><div><b>Цена и срок</b><span>${costText} · ${quote.effortDays ? `${quote.effortDays} дн. работы` : 'без ожидания'}</span></div><small>Запасы: ${stockText} · ${slotText}</small><small>${selectedText}</small><small>${blocker || 'Оплата спишется сразу; редкость выбрана до генерации. Неудачный ответ вернёт вложения.'}</small>`;
-        if (button) button.disabled = Boolean(blocker) || forgeGenerationLoading;
+        const blocker = selected ? forgeSlotBlock(campaign)
+            || (!quote.affordable ? 'Не хватает ресурсов или не открыто нужное сырьё.' : '')
+            || (campaign.day + quote.effortDays > window.CampaignMvp.SEASON_LENGTH ? 'До конца сезона не хватит времени на эту ковку.' : '') : '';
+        const slotText = campaign.player.dailyOrders.legacyBlocked ? 'Завтра' : `${campaign.player.dailyOrders.craftUsed ? '1/1 использована' : '0/1 сегодня'}`;
+        const effortText = quote.effortDays ? `${quote.effortDays} дн.` : 'сразу';
+        target.innerHTML = `<div class="craft-quote-main"><span><b title="Мастерство влияет на шанс">Шанс · кузнец ${quote.craftLevel + 1}</b><small>${oddsText}</small></span><span><b>Цена · ${effortText}</b><small>${costText}</small></span></div><small>Запасы ${stockText} · ковка ${slotText}${blocker ? ` · ${blocker}` : ''}</small>`;
+        if (button) button.disabled = !selected || Boolean(blocker) || forgeGenerationLoading;
     }
 
     function refreshForgeUi() {
@@ -2036,13 +2055,8 @@
         const errorEl = document.getElementById('forge-error');
         const loadingEl = document.getElementById('forge-loading');
         const resultEl = document.getElementById('forge-result');
+        const resultSection = document.getElementById('forge-result-section');
         const btn = document.getElementById('forge-btn');
-        const flavors = [
-            'Редкость выбрана заранее — кузнец придумывает полную механику...',
-            'Сырьё, мастерство и время влияют на шанс редкости...',
-            'Даже обычный замысел может получить неожиданное воплощение...',
-            'Кузнец сохраняет собственные цены, характеристики и эффекты...'
-        ];
         errorEl.style.display = 'none';
         if (!window.CampaignMvp) {
             errorEl.textContent = 'Кампания не загрузилась: кузница не может проверить оплату.';
@@ -2074,9 +2088,9 @@
         const investment = FORGE_INVESTMENTS[document.getElementById('craft-investment').value] || FORGE_INVESTMENTS.standard;
         forgeGenerationLoading = true;
         btn.disabled = true;
+        if (resultSection) resultSection.style.display = 'none';
         resultEl.innerHTML = '';
         loadingEl.style.display = 'block';
-        document.getElementById('forge-flavor').textContent = flavors[Math.floor(Math.random() * flavors.length)];
 
         let orderId = null;
         let completed = false;
@@ -2202,6 +2216,7 @@
             lastForged = card;
 
             loadingEl.style.display = 'none';
+            if (resultSection) resultSection.style.display = 'block';
             resultEl.innerHTML = renderCard(card, order.effortDays > 0 ? 'forge-pending' : 'forge');
         } catch (error) {
             let refunded = false;
