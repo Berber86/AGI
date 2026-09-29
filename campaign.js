@@ -763,6 +763,10 @@
         cap += (totals.storage_bonus || 0) * 5;
         const hasGranary = activeBuildings.some(b => b.effects.some(e => e.type === 'income_food'));
         if (hasGranary) cap += 3;
+        // Историческая культура Египта даёт +склад (закрома фараона)
+        if (state.player.historicalCulture && state.player.historicalCulture.bonus && state.player.historicalCulture.bonus.storage) {
+            cap += state.player.historicalCulture.bonus.storage;
+        }
         return cap;
     }
 
@@ -810,6 +814,18 @@
         let upkeep = state.player.buildings.filter(b => b.active).length * UPKEEP_PER_BUILDING + state.regions.filter(r => r.ownerId === 'player' && r.building).length * UPKEEP_PER_BUILDING;
         // upkeep_reduction и defense/trade пока символически снижают upkeep
         upkeep = Math.max(0, upkeep - (totals.upkeep_reduction || 0) * 0.1);
+        // Историческая культура и черта влияют на производство (ямники — еда/кони, аккадцы — материалы, египтяне — склад)
+        if (state.player.trait && state.player.trait.bonus) {
+            if (state.player.trait.bonus.food) workerProd.food += state.player.trait.bonus.food * 2;
+            if (state.player.trait.bonus.materials) workerProd.materials += state.player.trait.bonus.materials * 2;
+            if (state.player.trait.bonus.knowledge) workerProd.knowledge += state.player.trait.bonus.knowledge * 2;
+        }
+        if (state.player.historicalCulture && state.player.historicalCulture.bonus) {
+            const hb = state.player.historicalCulture.bonus;
+            if (hb.food) workerProd.food += hb.food;
+            if (hb.materials) workerProd.materials += hb.materials;
+            if (hb.knowledge) workerProd.knowledge += hb.knowledge;
+        }
         for (const dec of getActiveDecrees(state)) {
             if (dec.bonuses.buildingCostExtra) upkeep += 0.05; // symbolic
         }
@@ -831,16 +847,29 @@
         const state = normalizeState(input);
         const effects = effectTotals(state);
         let deckBonus = 0;
+        let hpBonus = 0;
+        let energyBonus = 0;
         for (const dec of getActiveDecrees(state)) {
             if (dec.bonuses.deck_slots) deckBonus += dec.bonuses.deck_slots;
         }
+        // Историческая культура влияет на бой: Аккад — слоты, Ямная — энергия (кони), Египет — HP (стены)
+        if (state.player.historicalCulture && state.player.historicalCulture.bonus) {
+            const hb = state.player.historicalCulture.bonus;
+            if (hb.deck_slots) deckBonus += hb.deck_slots;
+            if (hb.max_hp) hpBonus += hb.max_hp;
+            if (hb.storage) hpBonus += 0; // storage already in cap
+        }
+        if (state.player.trait && state.player.trait.id === 'horse-lords') energyBonus += 1;
+        if (state.player.trait && state.player.trait.id === 'strong') hpBonus += 1;
         return {
             deckLimit: Math.min(6, Math.max(1, 2 + effects.deck_slots + deckBonus)),
-            hp: Math.min(12, 5 + effects.max_hp),
-            energyMax: Math.min(8, 2 + effects.energy_cap),
+            hp: Math.min(12, 5 + effects.max_hp + hpBonus),
+            energyMax: Math.min(8, 2 + effects.energy_cap + energyBonus),
             energyGrowth: Math.min(3, 1 + effects.energy_growth),
             effects,
-            decrees: getActiveDecrees(state)
+            decrees: getActiveDecrees(state),
+            historicalCulture: state.player.historicalCulture,
+            trait: state.player.trait
         };
     }
     function getOpponentBattleConfig(input, opponentId) {

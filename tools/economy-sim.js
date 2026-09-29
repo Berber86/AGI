@@ -347,6 +347,28 @@ function simulateFrontierToForge() {
     });
 }
 
+function simulateHistoricalForging() {
+    const cultures = ['yamnaya','akkad','egypt-old','sumer'];
+    const results = [];
+    for (const cid of cultures) {
+        const state = Campaign.createState();
+        state.player.name = 'Test ' + cid;
+        state.player.clan = 'Clan ' + cid;
+        state.player.historicalCulture = Campaign.HISTORICAL_CULTURES.find(c=>c.id===cid);
+        state.player.biome = Campaign.BIOMES.find(b=>b.id==='steppe');
+        state.player.trait = Campaign.TRAITS.find(t=>t.id==='horse-lords');
+        const cfg = Campaign.getBattleConfig(state);
+        const prod = Campaign.getProductionBreakdown(state);
+        results.push({
+            culture: cid + ' (' + state.player.historicalCulture.name + ')',
+            battle: 'deck ' + cfg.deckLimit + ' hp ' + cfg.hp + ' energy ' + cfg.energyMax,
+            production: 'food ' + prod.workerProduction.food.toFixed(1) + ' mat ' + prod.workerProduction.materials.toFixed(1),
+            forgingFlavor: cid==='yamnaya' ? 'конница, повозки, charge/skirmish' : cid==='akkad' ? 'дисциплина, осада, shieldwall/wedge' : cid==='egypt-old' ? 'колесницы, оборона, holdground' : 'ополчение, зиккурат, rally'
+        });
+    }
+    return { strategy: 'Историческая культурность влияет на ковку: биом+черта+наследие дают бонусы к бою/производству и влияют на промпт LLM для генерации юнитов', cultures: results };
+}
+
 function simulateDiversity() {
     // 100500 diversity: every player gets unique building names from pools + seeded random
     const s1 = Campaign.createState();
@@ -436,7 +458,8 @@ function runReport() {
             simulateResearchAndConstruction(),
             simulateFrontierToForge(),
             simulateDecrees(),
-            simulateDiversity()
+            simulateDiversity(),
+            simulateHistoricalForging()
         ]
     };
 }
