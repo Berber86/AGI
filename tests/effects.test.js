@@ -23,6 +23,23 @@ const deathCleanup = extract('    function cleanupDead() {', '    function check
 const drawEngine = extract('    // -------- ДРО КАРТ --------', '    // -------- ЛОГ --------');
 const selectedDeckHelper = extract('    function getSelectedDeckCards() {', '    // -------- Старт боя --------');
 const startBattleFunction = extract('    function startBattle() {', '    function concedeBattle() {');
+const eraRules = extract("    const ERA_ANCIENT = 'ancient';", '    let collection =');
+const resolveHitFunction = extract('    function resolveHit(attacker, target, baseDmg, atkSide) {', '    function _unitPos(u) {');
+
+function makeHitHarness() {
+    const prelude = `
+        const MAX_DROP_MANA = 10;
+        let battle = { me: { dropMana: 0 }, enemy: { dropMana: 0 } };
+        function hasKw(unit, keyword) { return !!unit?.statuses?.[keyword]; }
+        function getUnitArmor(unit) { return unit?.statuses?.armor || 0; }
+        function _hasFlankNeighbors() { return false; }
+        function logBattle() {}
+    `;
+    const context = vm.createContext({ console, Math });
+    vm.runInContext(`${prelude}\n${eraRules}\n${resolveHitFunction}\n` +
+        `globalThis.api = { resolveHit, getBattle: () => battle };`, context, { timeout: 1000 });
+    return context.api;
+}
 
 function makeBattle() {
     const player = () => ({
@@ -130,6 +147,34 @@ function makeBattleStartHarness(cardCount, campaignMode = false) {
     `, context, { timeout: 1000 });
     return context.api;
 }
+
+test('unit-versus-unit hits use the declared era multiplier and reduce health', () => {
+    const api = makeHitHarness();
+    const attacker = { name: 'Племенные копейщики', era: 'ancient', statuses: {} };
+    const target = { name: 'Дружина', era: 'ancient', currentHp: 5, hp: 5, statuses: {}, isStructure: false };
+
+    assert.equal(api.resolveHit(attacker, target, 2, 'me'), 2);
+    assert.equal(target.currentHp, 3);
+    assert.equal(target.justDamaged, true);
+});
+
+test('bronze-era hits gain damage while ancient hits are reduced against bronze', () => {
+    const api = makeHitHarness();
+    const bronzeTarget = { era: 'bronze', currentHp: 5, hp: 5, statuses: {}, isStructure: false };
+    const ancientTarget = { era: 'ancient', currentHp: 5, hp: 5, statuses: {}, isStructure: false };
+
+    assert.equal(api.resolveHit({ era: 'bronze', statuses: {} }, ancientTarget, 2, 'me'), 3);
+    assert.equal(api.resolveHit({ era: 'ancient', statuses: {} }, bronzeTarget, 2, 'enemy'), 1);
+});
+
+test('unit-vs-unit hit still applies armor and pierce after era modifiers', () => {
+    const api = makeHitHarness();
+    const target = { era: 'ancient', currentHp: 5, hp: 5, statuses: { armor: 2 }, isStructure: false };
+    const attacker = { era: 'bronze', statuses: { pierce: 1 } };
+
+    assert.equal(api.resolveHit(attacker, target, 2, 'me'), 2);
+    assert.equal(target.currentHp, 3);
+});
 
 test('a complete ten-card deck starts battle without a runtime error', () => {
     const api = makeBattleStartHarness(10);
@@ -591,4 +636,12 @@ test('temporary modifiers granted before an opponent turn last for that full tur
     api.getBattle().turnCounters.enemy = 2;
     api.expireTemporaryModifiers('enemy');
     assert.equal(api.getUnitAttack(innerGuard), 1);
+});
+
+test('strong generated base stats remain intact instead of being capped to a power budget', () => {
+    const api = makeHarness();
+    const unit = { atk: 42, currentAtk: 42, action_cost: 17, statuses: { armor: 31 } };
+    assert.equal(api.getUnitAttack(unit), 42);
+    assert.equal(api.getUnitArmor(unit), 31);
+    assert.equal(api.getUnitActionCost(unit), 17);
 });
