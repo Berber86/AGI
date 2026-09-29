@@ -164,16 +164,33 @@
             margin-top: 8px;
             font-style: italic;
         }
-        .forge-order-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 12px 0; }
-        .forge-order-grid label { display: grid; gap: 6px; color: #bdabc9; font-size: .82em; font-weight: 800; }
-        .forge-order-grid select { width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid rgba(189,131,255,.3); border-radius: 10px; background: #100b17; color: #f3e9fb; font: inherit; }
-        .forge-order-grid select:focus { outline: 2px solid rgba(189,131,255,.5); outline-offset: 1px; }
         .craft-quote { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 12px 0 17px; padding: 12px 14px; border: 1px solid rgba(189,131,255,.23); border-radius: 12px; background: rgba(12,8,18,.76); color: #eee2f7; }
         .craft-quote > div { display: grid; gap: 5px; }
         .craft-quote b { color: #f0c278; font-size: .78em; text-transform: uppercase; letter-spacing: .06em; }
         .craft-quote span { color: #d0bfdf; font-size: .86em; }
         .craft-quote small { grid-column: 1/-1; color: #9e8eac; line-height: 1.4; }
         .craft-quote small:not(:empty) { color: #c7aedb; }
+        .forge-step-heading { display:flex; align-items:center; gap:12px; margin:2px 0 12px; }
+        .forge-step-heading>span { display:grid; place-items:center; flex:0 0 30px; width:30px; height:30px; border:1px solid rgba(240,184,107,.42); border-radius:50%; color:#f0c278; background:rgba(240,184,107,.08); font-size:.82em; font-weight:900; }
+        .forge-step-heading h2 { margin:0 0 3px; color:#f1e4d2; font-size:1.05em; }
+        .forge-step-heading p { margin:0; color:#a99bb2; font-size:.78em; line-height:1.45; }
+        .forge-advice-btn { width:100%; min-height:46px; padding:11px 15px; border:1px solid rgba(199,125,255,.45); border-radius:11px; color:#f3e7ff; background:linear-gradient(110deg,rgba(98,66,146,.74),rgba(120,55,95,.7)); font:inherit; font-size:.82em; font-weight:800; cursor:pointer; transition:filter .16s,transform .16s; }
+        .forge-advice-btn:hover:not(:disabled) { filter:brightness(1.13); transform:translateY(-1px); }
+        .forge-advice-btn:disabled { opacity:.55; cursor:not-allowed; }
+        .forge-advice-status { min-height:1.4em; margin:8px 1px 5px; color:#aa99b3; font-size:.72em; line-height:1.45; }
+        .forge-advice-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:7px 0 20px; }
+        .forge-advice-option { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:0; min-height:138px; padding:13px; border:1px solid rgba(189,131,255,.22); border-radius:12px; color:#e7d9ee; text-align:left; background:rgba(13,9,20,.78); cursor:pointer; transition:border-color .16s,background .16s,transform .16s; }
+        .forge-advice-option:hover { border-color:rgba(240,184,107,.5); transform:translateY(-1px); }
+        .forge-advice-option.is-selected { border-color:#d8ad67; background:linear-gradient(145deg,rgba(99,68,41,.29),rgba(37,24,43,.84)); box-shadow:inset 0 0 0 1px rgba(240,184,107,.14); }
+        .forge-advice-option>span { color:#e4bd79; font-size:.63em; font-weight:900; letter-spacing:.06em; text-transform:uppercase; }
+        .forge-advice-option>b { color:#f5e8d8; font-size:.88em; line-height:1.3; }
+        .forge-advice-option>small { color:#ad9fb3; font-size:.72em; line-height:1.45; }
+        .forge-step-heading-investment { margin-top:3px; }
+        .forge-investment-label { display:grid; gap:7px; color:#bdabc9; font-size:.76em; font-weight:800; }
+        .forge-investment-label select { width:100%; min-height:44px; padding:9px 12px; border:1px solid rgba(189,131,255,.3); border-radius:10px; color:#f3e9fb; background:#100b17; font:inherit; font-weight:500; }
+        .forge-investment-label select:focus-visible,.forge-advice-option:focus-visible,.forge-advice-btn:focus-visible { outline:2px solid #f0c278; outline-offset:2px; }
+        .forge-btn { margin-top:10px; font-size:1em; }
+        @media(max-width:760px) { .forge-advice-grid { grid-template-columns:1fr; } .forge-advice-option { min-height:0; } .forge-panel { padding:17px; } .craft-quote { grid-template-columns:1fr; } }
 
         /* ====== TAGS ====== */
         .tags-section { margin-top: 20px; }
@@ -1386,7 +1403,7 @@
             <div class="connection-fields">
                 <label for="api-key-input">🔑 Hydra API</label>
                 <input type="password" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru" oninput="saveApiKey()" autocomplete="off">
-                <label for="model-select">🤖 Модель научного советника</label>
+                <label for="model-select">🤖 Модель советника</label>
                 <select id="model-select" onchange="saveSelectedModel()"></select>
                 <small>Модель ковки карты выбирается автоматически по редкости.</small>
             </div>
@@ -1401,57 +1418,28 @@
             <header class="screen-hero forge-hero">
                 <span class="hero-kicker">МАСТЕРСКАЯ ЦИВИЛИЗАЦИИ <i></i> ЭПОХА I</span>
                 <h1>⚒️ Кузница цивилизации</h1>
-                <p class="subtitle">Выбери заказ у военного или научного советника, вложи ресурсы и усилия — кузница создаст уникальную карту.</p>
+                <p class="subtitle">Советник предложит три замысла. Выбери один, вложи ресурсы и получи уникальную карту.</p>
                 <span class="hero-note">ДРЕВНИЙ МИР · БРОНЗОВЫЙ ВЕК</span>
             </header>
 
             <div class="forge-panel">
-                <h2>🛡️ Заказ советнику</h2>
-                <div class="forge-order-grid">
-                    <label>Советник и тип карты
-                        <select id="forge-advisor-type" onchange="updateAdvisorType()">
-                            <option value="unit">Военный советник · отряд</option>
-                            <option value="spell">Военный советник · манёвр</option>
-                            <option value="structure">Научный советник · постройка</option>
-                        </select>
-                    </label>
-                    <label>Направление заказа
-                        <select id="forge-advisor-direction"></select>
-                    </label>
-                    <label>Регион / ландшафт
-                        <select id="forge-advisor-biome"></select>
-                    </label>
-                    <label>Акцент совета
-                        <select id="forge-advisor-focus">
-                            <option value="signature">Выразительная особенность</option>
-                            <option value="synergy">Необычная синергия</option>
-                            <option value="practical">Практическая специализация</option>
-                            <option value="surprise">Смелое неожиданное решение</option>
-                        </select>
-                    </label>
-                </div>
-                <div class="prompt-hint">Игрок выбирает только готовые варианты. Советник формирует запрос; модель сама придумывает полные характеристики и механики. Сильные и странные результаты допустимы — баланс-бюджета и обязательных штрафов нет.</div>
+                <div class="forge-step-heading"><span>1</span><div><h2>Получить совет</h2><p>Один запрос к модели — три разных идеи. На день выдаётся один набор.</p></div></div>
+                <button class="forge-advice-btn" id="forge-advice-btn" type="button" onclick="requestForgeAdvice()">✨ Попросить 3 варианта · 1 LLM-вызов</button>
+                <div id="forge-advice-status" class="forge-advice-status" role="status" aria-live="polite"></div>
+                <div id="forge-advice-choices" class="forge-advice-grid" aria-label="Варианты военного советника"></div>
 
-                <h3>⚒️ Вложения в ковку</h3>
-                <div class="forge-order-grid">
-                    <label>Качество сырья
-                        <select id="craft-material-quality" onchange="renderCraftQuote()">
-                            <option value="standard">Обычное · 2🌾 + 2🪵</option>
-                            <option value="refined">Отборное · 3🌾 + 4🪵 + 1📚</option>
-                            <option value="masterwork">Редкое · 4🌾 + 6🪵 + 2📚</option>
-                        </select>
-                    </label>
-                    <label>Время и усилия
-                        <select id="craft-effort" onchange="renderCraftQuote()">
-                            <option value="quick">Быстро · без очереди</option>
-                            <option value="focused">Тщательно · +1🪵, 1 день</option>
-                            <option value="painstaking">Мастерски · +2🪵 +1📚, 2 дня</option>
-                        </select>
-                    </label>
-                </div>
+                <div class="forge-step-heading forge-step-heading-investment"><span>2</span><div><h2>Вложения в ковку</h2><p>Выбери один уровень сырья и усилий.</p></div></div>
+                <label class="forge-investment-label" for="craft-investment">Степень вложений
+                    <select id="craft-investment" onchange="renderCraftQuote()">
+                        <option value="standard">Обычная · 2🌾 2🪵 · сразу</option>
+                        <option value="refined">Отборная · 3🌾 5🪵 1📚 · 1 день</option>
+                        <option value="masterwork">Мастерская · 4🌾 8🪵 3📚 · 2 дня</option>
+                    </select>
+                </label>
                 <div id="craft-quote" class="craft-quote" role="status" aria-live="polite"></div>
 
-                <button class="forge-btn" id="forge-btn" onclick="forgeCard()">⚒️ ВЫКОВАТЬ КАРТУ</button>
+                <button class="forge-btn" id="forge-btn" onclick="forgeCard()" disabled>⚒️ ВЫКОВАТЬ ВЫБРАННЫЙ ЗАМЫСЕЛ</button>
+                <div class="prompt-hint">Редкость бросается заранее; ресурсы списываются до генерации, невалидный результат компенсируется. Механики карты придумывает кузнец без силового бюджета.</div>
                 <div id="forge-error" class="error-bar" style="display:none"></div>
                 <div id="forge-loading" class="forge-loading" style="display:none">
                     <span class="spinner"></span><span id="forge-loading-copy">ИИ-Кузнец создаёт карту по выпавшей редкости...</span>
@@ -1647,52 +1635,6 @@
     // ============================================
     // КОНСТАНТЫ И СОСТОЯНИЕ
     // ============================================
-    const AVAILABLE_TAGS = {
-        // Регионы / ландшафт
-        biome: [
-            { id: 'river', label: '🌊 Великая река' },
-            { id: 'steppe', label: '🌾 Степь' },
-            { id: 'forest', label: '🌲 Лес' },
-            { id: 'desert', label: '🏜️ Пустыня' },
-            { id: 'swamp', label: '🐊 Болота' },
-            { id: 'hills', label: '⛰️ Холмы' },
-            { id: 'mountain', label: '🏔️ Горы' },
-            { id: 'coast', label: '🏖️ Побережье' },
-            { id: 'tundra', label: '❄️ Тундра' },
-            { id: 'valley', label: '🏞️ Плодородная долина' }
-        ],
-        // Род войск / тактическая роль
-        archetype: [
-            { id: 'militia', label: '🪨 Ополчение' },
-            { id: 'spearman', label: '🔺 Копейщики' },
-            { id: 'slinger', label: '🪨 Пращники' },
-            { id: 'archer', label: '🏹 Лучники' },
-            { id: 'axeman', label: '🪓 Топорники' },
-            { id: 'chariot', label: '🛞 Колесницы' },
-            { id: 'cavalry', label: '🐎 Конница' },
-            { id: 'elite', label: '👑 Элитные воины' },
-            { id: 'worker', label: '👷 Рабочие/строители' },
-            { id: 'healer', label: '🌿 Лекари/травники' },
-            { id: 'scout', label: '👣 Разведчики/лазутчики' }
-        ],
-        // Тип манёвров
-        maneuver: [
-            { id: 'tactic', label: '⚔️ Тактический приём' },
-            { id: 'raid', label: '🔥 Набег/диверсия' },
-            { id: 'supply', label: '📦 Снабжение' },
-            { id: 'rally', label: '📣 Мобилизация' }
-        ],
-        // Тип построек
-        structure: [
-            { id: 'wall', label: '🧱 Стены/укрепления' },
-            { id: 'granary', label: '🌾 Амбар' },
-            { id: 'temple', label: '🏛️ Святилище' },
-            { id: 'workshop', label: '🔨 Мастерская' },
-            { id: 'watchtower', label: '🗼 Дозорная башня' },
-            { id: 'camp', label: '⛺ Военный лагерь' }
-        ]
-    };
-
     const CARD_TYPES = {
         unit: { label: 'ОТРЯД', icon: '⚔️', cls: 'type-unit' },
         spell: { label: 'МАНЁВР', icon: '📜', cls: 'type-spell' },
@@ -1764,7 +1706,7 @@
         deck = deck.filter(id => collIds.has(id)).slice(0, DECK_LIMIT);
         saveDeck();
 
-        updateAdvisorType();
+        renderForgeAdvice();
         renderCraftQuote();
         updateDeckCount();
         renderCollection();
@@ -1784,6 +1726,7 @@
         const key = document.getElementById('api-key-input').value.trim();
         localStorage.setItem('iforge_hydra_key', key);
         document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
+        refreshForgeUi();
     }
     function getApiKey() { return localStorage.getItem('iforge_hydra_key') || ''; }
     function saveSelectedModel() {
@@ -1817,87 +1760,228 @@
     }
 
     // ============================================
-    // ТЕГИ
+    // КОВОЧНЫЙ СОВЕТНИК
     // ============================================
-    const ADVISOR_FOCI = {
-        signature: 'выразительная историческая особенность',
-        synergy: 'необычная синергия нескольких механик',
-        practical: 'практическая специализация для роли',
-        surprise: 'смелое, неожиданное решение'
+    const FORGE_ADVICE_STORAGE_KEY = 'iforge_forge_advice';
+    const FORGE_ADVISOR_TYPE_NAMES = { unit: 'Отряд', spell: 'Манёвр', structure: 'Постройка' };
+    const FORGE_INVESTMENTS = {
+        standard: { materialQuality: 'standard', effort: 'quick' },
+        refined: { materialQuality: 'refined', effort: 'focused' },
+        masterwork: { materialQuality: 'masterwork', effort: 'painstaking' }
     };
+    let forgeAdviceMemory = null;
+    let forgeAdviceLoading = false;
+    let forgeAdviceMessage = '';
+    let forgeAdviceMessageDay = '';
+    let forgeGenerationLoading = false;
 
-    function updateAdvisorType() {
-        const typeSelect = document.getElementById('forge-advisor-type');
-        const directionSelect = document.getElementById('forge-advisor-direction');
-        const biomeSelect = document.getElementById('forge-advisor-biome');
-        if (!typeSelect || !directionSelect || !biomeSelect) return;
-        const type = typeSelect.value;
-        const group = type === 'unit' ? 'archetype' : type === 'spell' ? 'maneuver' : 'structure';
-        const options = AVAILABLE_TAGS[group] || [];
-        directionSelect.innerHTML = options.map(item => `<option value="${item.id}">${item.label}</option>`).join('');
-        biomeSelect.innerHTML = AVAILABLE_TAGS.biome.map(item => `<option value="${item.id}">${item.label}</option>`).join('');
+    function cleanForgeAdviceText(value, maxLength) {
+        return String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+    }
+
+    function normalizeForgeAdviceChoices(rawChoices) {
+        if (!Array.isArray(rawChoices) || rawChoices.length !== 3) throw new Error('Советник должен вернуть ровно три варианта.');
+        const titles = new Set();
+        const choices = rawChoices.map((raw, index) => {
+            if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('В одном из советов отсутствует карточка варианта.');
+            const cardType = ['unit', 'spell', 'structure'].includes(raw.card_type || raw.cardType) ? (raw.card_type || raw.cardType) : '';
+            const title = cleanForgeAdviceText(raw.title || raw.name, 72);
+            const pitch = cleanForgeAdviceText(raw.pitch || raw.idea, 190);
+            const normalizedTitle = title.toLocaleLowerCase('ru');
+            if (!cardType || !title || !pitch) throw new Error('У каждого совета должны быть тип, название и краткий замысел.');
+            if (titles.has(normalizedTitle)) throw new Error('Советник повторил один и тот же вариант. Запроси совет ещё раз.');
+            titles.add(normalizedTitle);
+            return { id: `forge-advice-${index + 1}`, cardType, title, pitch };
+        });
+        return choices;
+    }
+
+    function parseForgeAdviceResponse(content) {
+        const text = String(content || '');
+        const start = text.indexOf('{');
+        const end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) throw new Error('Советник не вернул JSON с тремя вариантами.');
+        return normalizeForgeAdviceChoices(JSON.parse(text.slice(start, end + 1)).choices);
+    }
+
+    function readForgeAdviceForToday() {
+        if (!window.CampaignMvp) return null;
+        const campaign = window.CampaignMvp.getState();
+        let saved = forgeAdviceMemory;
+        try { saved = JSON.parse(localStorage.getItem(FORGE_ADVICE_STORAGE_KEY) || 'null') || saved; } catch (_) {}
+        if (!saved || Number(saved.season) !== campaign.season || Number(saved.day) !== campaign.day) return null;
+        try {
+            const choices = normalizeForgeAdviceChoices(saved.choices);
+            const selectedId = choices.some(choice => choice.id === saved.selectedId) ? saved.selectedId : null;
+            return { season: campaign.season, day: campaign.day, choices, selectedId };
+        } catch (_) { return null; }
+    }
+
+    function saveForgeAdviceForToday(advice) {
+        forgeAdviceMemory = advice;
+        try { localStorage.setItem(FORGE_ADVICE_STORAGE_KEY, JSON.stringify(advice)); } catch (_) {}
+    }
+
+    function clearForgeAdvice() {
+        forgeAdviceMemory = null;
+        forgeAdviceMessage = '';
+        forgeAdviceMessageDay = '';
+        try { localStorage.removeItem(FORGE_ADVICE_STORAGE_KEY); } catch (_) {}
+    }
+
+    function getSelectedForgeAdvice() {
+        const advice = readForgeAdviceForToday();
+        return advice?.choices.find(choice => choice.id === advice.selectedId) || null;
+    }
+
+    function forgeSlotBlock(campaign) {
+        const player = campaign.player;
+        if (!player.onboardingComplete) return 'Сначала создай народ в кампании.';
+        if (campaign.day >= window.CampaignMvp.SEASON_LENGTH) return 'Сезон завершён.';
+        if (player.dailyOrders.legacyBlocked) return 'Лимиты восстановятся после смены дня.';
+        if (player.dailyOrders.craftUsed) return 'Сегодняшняя ковка уже заказана.';
+        if (player.craftOrders.some(order => ['generating', 'working'].includes(order.status))) return 'Кузница занята текущим заказом.';
+        return '';
+    }
+
+    function renderForgeAdvice() {
+        const button = document.getElementById('forge-advice-btn');
+        const status = document.getElementById('forge-advice-status');
+        const target = document.getElementById('forge-advice-choices');
+        if (!button || !status || !target || !window.CampaignMvp) return;
+        const campaign = window.CampaignMvp.getState();
+        const messageDay = `${campaign.season}:${campaign.day}`;
+        if (forgeAdviceMessageDay !== messageDay) { forgeAdviceMessageDay = messageDay; forgeAdviceMessage = ''; }
+        const advice = readForgeAdviceForToday();
+        const keyAvailable = Boolean(getApiKey());
+        const slotBlock = forgeSlotBlock(campaign);
+        const labels = { unit: '⚔️ Отряд', spell: '📜 Манёвр', structure: '🏗️ Постройка' };
+
+        if (advice) {
+            button.disabled = true;
+            button.textContent = 'Совет получен · 1 LLM-вызов';
+            status.textContent = campaign.player.dailyOrders.craftUsed
+                ? 'Ковка на сегодня уже заказана. Варианты сохранены до конца дня.'
+                : 'Выбери один из трёх замыслов. Генерация выбранной карты будет отдельным вызовом.';
+            target.innerHTML = advice.choices.map(choice => `<button type="button" class="forge-advice-option ${advice.selectedId === choice.id ? 'is-selected' : ''}" aria-pressed="${advice.selectedId === choice.id}" onclick="selectForgeAdvice('${choice.id}')"><span>${labels[choice.cardType]}</span><b>${escapeCardHtml(choice.title)}</b><small>${escapeCardHtml(choice.pitch)}</small></button>`).join('');
+            return;
+        }
+
+        button.disabled = forgeAdviceLoading || Boolean(slotBlock) || !keyAvailable;
+        button.textContent = forgeAdviceLoading ? 'Советник подбирает варианты…' : '✨ Попросить 3 варианта · 1 LLM-вызов';
+        status.textContent = forgeAdviceMessage || slotBlock || (!keyAvailable ? 'Добавь ключ HydraAI в «API и модель», чтобы вызвать советника.' : 'Один вызов модели создаст три варианта; повторный набор появится завтра.');
+        target.innerHTML = '';
+    }
+
+    function selectForgeAdvice(id) {
+        const advice = readForgeAdviceForToday();
+        if (!advice || !advice.choices.some(choice => choice.id === id)) return;
+        advice.selectedId = id;
+        saveForgeAdviceForToday(advice);
+        renderForgeAdvice();
         renderCraftQuote();
     }
 
-    function getForgeAdvisorOrder() {
-        const type = document.getElementById('forge-advisor-type')?.value || 'unit';
-        const group = type === 'unit' ? 'archetype' : type === 'spell' ? 'maneuver' : 'structure';
-        const directionId = document.getElementById('forge-advisor-direction')?.value;
-        const regionId = document.getElementById('forge-advisor-biome')?.value;
-        const direction = (AVAILABLE_TAGS[group] || []).find(item => item.id === directionId);
-        const region = AVAILABLE_TAGS.biome.find(item => item.id === regionId);
-        const focusId = document.getElementById('forge-advisor-focus')?.value || 'signature';
-        const advisor = type === 'structure' ? 'Научный советник' : 'Военный советник';
-        const typeName = type === 'unit' ? 'отряд' : type === 'spell' ? 'военный манёвр' : 'постройка';
-        return {
-            cardType: type, advisor, typeName,
-            direction: direction?.label || '', region: region?.label || '',
-            focus: ADVISOR_FOCI[focusId] || ADVISOR_FOCI.signature,
-            summary: `${advisor}: ${typeName} · ${direction?.label || 'направление не выбрано'} · ${region?.label || 'регион не выбран'}`
-        };
+    async function requestForgeAdvice() {
+        const status = document.getElementById('forge-advice-status');
+        const button = document.getElementById('forge-advice-btn');
+        if (!status || !button || !window.CampaignMvp || forgeAdviceLoading) return;
+        if (readForgeAdviceForToday()) { renderForgeAdvice(); return; }
+        const campaign = window.CampaignMvp.getState();
+        const blocked = forgeSlotBlock(campaign);
+        if (blocked) { status.textContent = blocked; renderForgeAdvice(); return; }
+        const key = getApiKey();
+        if (!key) { status.textContent = 'Нужен API-ключ HydraAI в настройках сверху.'; renderForgeAdvice(); return; }
+
+        const definitions = new Map(window.CampaignMvp.REGION_DEFINITIONS.map(region => [region.id, region.name]));
+        const ownedRegions = campaign.regions.filter(region => region.ownerId === 'player').map(region => definitions.get(region.id)).filter(Boolean);
+        const resources = campaign.player.resources;
+        const context = [
+            `Эпоха: ${window.CampaignMvp.ERAS[campaign.player.era]}.`,
+            `Земли: ${ownedRegions.join(' · ') || 'только поселение'}.`,
+            `Запасы: провизия ${resources.food}, материалы ${resources.materials}, знания ${resources.knowledge}.`,
+            `Уровень кузнеца: ${campaign.player.craftLevel + 1}.`
+        ].join('\n');
+        const systemPrompt = `Ты — военный советник игры Infinite Forge. По контексту цивилизации предложи РОВНО ТРИ разных замысла для будущих карт. Не создавай саму карту: никаких характеристик, цен, редкости, keywords или effects. Для card_type используй ровно одно значение: unit (отряд), spell (тактический манёвр) или structure (военная постройка); по возможности разнообразь типы. Названия и замыслы должны быть короткими, историчными для открытой эпохи и опираться на земли/ресурсы народа. Все три идеи должны отличаться по роли и образу. Верни строго JSON вида {"choices":[{"card_type":"unit","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"spell","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"structure","title":"короткое название","pitch":"одно предложение о роли/образе"}]}. Массив choices содержит ровно три объекта.`;
+        forgeAdviceLoading = true;
+        forgeAdviceMessage = 'Советник выбирает три замысла по эпохе, землям и запасам…';
+        renderForgeAdvice();
+        try {
+            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: getSelectedModel(),
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: context }
+                    ],
+                    temperature: 0.9,
+                    max_tokens: 700,
+                    response_format: { type: 'json_object' }
+                })
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.error?.message || `HTTP ${response.status}`);
+            }
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+            const choices = parseForgeAdviceResponse(data.choices?.[0]?.message?.content || '');
+            const latest = window.CampaignMvp.getState();
+            const latestBlock = forgeSlotBlock(latest);
+            if (latest.season !== campaign.season || latest.day !== campaign.day || latestBlock) throw new Error(latestBlock || 'День изменился во время запроса; попроси совет заново.');
+            saveForgeAdviceForToday({ season: latest.season, day: latest.day, choices, selectedId: null });
+            status.textContent = 'Три замысла готовы. Выбери один; совет уже использовал один LLM-вызов.';
+        } catch (error) {
+            forgeAdviceMessage = `Совет не получен: ${error.message} Можно попробовать ещё раз; игровой лимит и ресурсы не потрачены.`;
+        } finally {
+            forgeAdviceLoading = false;
+            renderForgeAdvice();
+            renderCraftQuote();
+        }
     }
 
     function renderCraftQuote() {
         const target = document.getElementById('craft-quote');
         const button = document.getElementById('forge-btn');
         if (!target || !window.CampaignMvp) return;
-        const qualitySelect = document.getElementById('craft-material-quality');
-        const investment = {
-            materialQuality: qualitySelect?.value || 'standard',
-            effort: document.getElementById('craft-effort')?.value || 'quick'
-        };
+        const investmentSelect = document.getElementById('craft-investment');
+        const preset = FORGE_INVESTMENTS[investmentSelect?.value] || FORGE_INVESTMENTS.standard;
+        const investment = { materialQuality: preset.materialQuality, effort: preset.effort };
         let quote = window.CampaignMvp.quoteCardCraft(investment);
         const campaign = window.CampaignMvp.getState();
-        if (!quote.materialQualityUnlocked && qualitySelect) {
-            qualitySelect.value = 'standard';
-            investment.materialQuality = 'standard';
-            quote = window.CampaignMvp.quoteCardCraft(investment);
+        if (!quote.materialQualityUnlocked && investmentSelect) {
+            investmentSelect.value = 'standard';
+            quote = window.CampaignMvp.quoteCardCraft(FORGE_INVESTMENTS.standard);
         }
-        if (qualitySelect) {
-            const accessText = {
-                refined: 'медный рудник',
-                masterwork: 'медный рудник и оловянный путь'
-            };
-            [...qualitySelect.options].forEach(option => {
-                option.dataset.baseLabel ||= option.textContent.replace(/ · захвати .+$/i, '');
-                const unlocked = quote.availableMaterialQualities.includes(option.value);
-                option.disabled = !unlocked;
-                option.textContent = unlocked ? option.dataset.baseLabel : `${option.dataset.baseLabel} · захвати ${accessText[option.value] || 'регион'}`;
+        if (investmentSelect) {
+            const accessText = { refined: 'нужен Медный рудник', masterwork: 'нужны медный рудник и Оловянный путь' };
+            [...investmentSelect.options].forEach(option => {
+                option.disabled = !quote.availableMaterialQualities.includes(option.value);
+                option.dataset.baseLabel ||= option.textContent.replace(/ · требуется .+$/i, '');
+                option.textContent = option.disabled ? `${option.dataset.baseLabel} · требуется ${accessText[option.value] || 'месторождение'}` : option.dataset.baseLabel;
             });
         }
+        const advice = readForgeAdviceForToday();
+        const selected = getSelectedForgeAdvice();
         const cost = quote.cost;
         const costText = `${cost.food}🌾 · ${cost.materials}🪵 · ${cost.knowledge}📚`;
         const stockText = `${campaign.player.resources.food}🌾 · ${campaign.player.resources.materials}🪵 · ${campaign.player.resources.knowledge}📚`;
         const oddsText = `Обычная ${quote.odds.ordinary}% · необычная ${quote.odds.uncommon}% · редкая ${quote.odds.rare}%`;
-        const onboardingBlock = campaign.player.onboardingComplete ? '' : 'Сначала создай народ на экране кампании.';
-        const actionBlock = campaign.player.pendingExpedition ? 'Сначала заверши бой экспедиции.' : campaign.player.actionUsed ? 'Сегодняшний приказ уже отдан.' : '';
-        const queueBlock = campaign.player.craftOrders.some(order => ['generating', 'working'].includes(order.status)) ? 'Кузница занята текущим заказом.' : '';
-        const dayBlock = campaign.day >= window.CampaignMvp.SEASON_LENGTH ? 'Сезон завершён.' : '';
-        const timeBlock = campaign.day + quote.effortDays > window.CampaignMvp.SEASON_LENGTH ? 'До конца сезона не хватит времени на эту ковку.' : '';
-        const affordability = quote.affordable ? '' : 'Не хватает ресурсов для выбранных вложений.';
-        const blocker = onboardingBlock || affordability || actionBlock || queueBlock || timeBlock || dayBlock;
-        target.innerHTML = `<div><b>Шанс качества · уровень кузнеца ${quote.craftLevel + 1}</b><span>${oddsText}</span></div><div><b>Цена сейчас</b><span>${costText} · ${quote.effortDays ? `${quote.effortDays} дн. в очереди` : 'без ожидания'}</span></div><small>На складе: ${stockText}</small><small>${blocker ? blocker : 'Оплата спишется сразу; результат любой редкости сохраняет выбранную цену.'}</small>`;
-        if (button) button.disabled = Boolean(blocker);
+        const blocker = !selected ? 'Сначала выбери один замысел советника.'
+            : forgeSlotBlock(campaign)
+                || (!quote.affordable ? 'Не хватает ресурсов или не открыто нужное сырьё.' : '')
+                || (campaign.day + quote.effortDays > window.CampaignMvp.SEASON_LENGTH ? 'До конца сезона не хватит времени на эту ковку.' : '');
+        const selectedText = selected ? `Выбрано: ${selected.title} · ${FORGE_ADVISOR_TYPE_NAMES[selected.cardType]}.` : (advice ? 'Выбери один из вариантов выше.' : 'Сначала попроси советника о трёх вариантах.');
+        const slotText = campaign.player.dailyOrders.legacyBlocked ? 'Старое сохранение: дневные лимиты обновятся завтра.' : `Ковка сегодня: ${campaign.player.dailyOrders.craftUsed ? '1/1 использована' : '0/1 доступна'}.`;
+        target.innerHTML = `<div><b>Шансы редкости · кузнец ${quote.craftLevel + 1}-го уровня</b><span>${oddsText}</span></div><div><b>Цена и срок</b><span>${costText} · ${quote.effortDays ? `${quote.effortDays} дн. работы` : 'без ожидания'}</span></div><small>Запасы: ${stockText} · ${slotText}</small><small>${selectedText}</small><small>${blocker || 'Оплата спишется сразу; редкость выбрана до генерации. Неудачный ответ вернёт вложения.'}</small>`;
+        if (button) button.disabled = Boolean(blocker) || forgeGenerationLoading;
+    }
+
+    function refreshForgeUi() {
+        renderForgeAdvice();
+        renderCraftQuote();
     }
 
     // ============================================
@@ -1954,10 +2038,10 @@
         const resultEl = document.getElementById('forge-result');
         const btn = document.getElementById('forge-btn');
         const flavors = [
-            'Военный советник перебирает подходящие замыслы...',
-            'Качество сырья и мастерство кузнеца меняют шансы...',
-            'Редкость выбрана — теперь модель придумывает механику...',
-            'Необычные сочетания могут изменить историю...'
+            'Редкость выбрана заранее — кузнец придумывает полную механику...',
+            'Сырьё, мастерство и время влияют на шанс редкости...',
+            'Даже обычный замысел может получить неожиданное воплощение...',
+            'Кузнец сохраняет собственные цены, характеристики и эффекты...'
         ];
         errorEl.style.display = 'none';
         if (!window.CampaignMvp) {
@@ -1965,25 +2049,30 @@
             errorEl.style.display = 'block'; return;
         }
         const campaignStartState = window.CampaignMvp.getState();
-        if (!campaignStartState.player.onboardingComplete) {
-            errorEl.textContent = 'Сначала создай народ на экране кампании. До этого ресурсы не доступны для ковки.';
+        const selectedAdvice = getSelectedForgeAdvice();
+        if (!selectedAdvice) {
+            errorEl.textContent = 'Попроси советника и выбери один из трёх замыслов.';
             errorEl.style.display = 'block'; return;
         }
-        const advisorOrder = getForgeAdvisorOrder();
-        if (!advisorOrder.direction || !advisorOrder.region) {
-            errorEl.textContent = 'Выбери направление и регион из меню советника.';
+        const slotBlock = forgeSlotBlock(campaignStartState);
+        if (slotBlock) {
+            errorEl.textContent = slotBlock;
             errorEl.style.display = 'block'; return;
         }
+        const advisorOrder = {
+            cardType: selectedAdvice.cardType,
+            title: selectedAdvice.title,
+            pitch: selectedAdvice.pitch,
+            summary: `${FORGE_ADVISOR_TYPE_NAMES[selectedAdvice.cardType]}: ${selectedAdvice.title} — ${selectedAdvice.pitch}`
+        };
         const key = getApiKey();
         if (!key) {
             errorEl.textContent = 'Нужен API-ключ HydraAI (поле вверху, dashboard.hydraai.ru). Оплата до ковки не списывается.';
             errorEl.style.display = 'block'; return;
         }
 
-        const investment = {
-            materialQuality: document.getElementById('craft-material-quality').value,
-            effort: document.getElementById('craft-effort').value
-        };
+        const investment = FORGE_INVESTMENTS[document.getElementById('craft-investment').value] || FORGE_INVESTMENTS.standard;
+        forgeGenerationLoading = true;
         btn.disabled = true;
         resultEl.innerHTML = '';
         loadingEl.style.display = 'block';
@@ -2007,7 +2096,6 @@
             const campaignEra = campaign.player.era;
             const allowedEras = campaignEra >= 3 ? [ERA_ANCIENT, ERA_BRONZE] : [ERA_ANCIENT];
             const allowedEraText = allowedEras.map(era => era === ERA_BRONZE ? 'Бронзовый век (bronze)' : 'Древний мир (ancient)').join(' и ');
-            const allTags = [advisorOrder.direction, advisorOrder.region];
 
             const systemPrompt = `Ты — ИИ-Кузнец исторической стратегической ККИ "Infinite Forge" про становление цивилизаций.
 Сеттинг — реалистичный ДРЕВНИЙ МИР и БРОНЗОВЫЙ ВЕК. НИКАКОЙ МАГИИ, драконов, нежити, демонов, огненных шаров и прочего фэнтези. Всё рационально и исторически обосновано: оружие из камня/кости/бронзы, племена, первые города, стены, колесницы, амбары, разведка, набеги, караваны, ритуалы предков и т.д.
@@ -2052,7 +2140,7 @@
 • Условия: all/any содержат 1–4 условия, not инвертирует одно. Листья: target_wounded, target_status, resource (side controller/opponent, resource drop/action, op eq/ne/lt/lte/gt/gte, value), target_stat (stat hp/attack/armor, op, value). Глубина максимум 3.
 • Не придумывай события, сущности, статусы, цели или действия вне списка. Максимум 6 структурированных effects — это технический лимит движка.
 
-Доступный контекст выбора игрока: ${allTags.join(', ')}.
+Используй выбранный советником замысел из следующего сообщения только как художественное направление; технические ограничения этой инструкции важнее.
 Разрешённые эпохи сейчас: ${allowedEraText}.
 
 === ФОРМАТ ОТВЕТА (строго JSON, без markdown) ===
@@ -2073,10 +2161,10 @@
   "monkey_paw": ""
 }
 
-Язык — русский. Целочисленные характеристики и цену выбирай сам. У манёвра hp=0, atk=0, action_cost=0; у постройки atk=0, action_cost=0. Следуй type, редкости и направлению, указанным игроком.`;
+Язык — русский. Целочисленные характеристики и цену выбирай сам. У манёвра hp=0, atk=0, action_cost=0; у постройки atk=0, action_cost=0. Следуй типу и замыслу выбранного варианта, выпавшей редкости и эпохе кампании.`;
 
             const rarityLabel = rarityLabels[order.rarity];
-            const userPrompt = `Заказ: ${advisorOrder.summary}. Создай именно card_type="${advisorOrder.cardType}" (${advisorOrder.typeName}). Направление: ${advisorOrder.direction}. Регион: ${advisorOrder.region}. Акцент: ${advisorOrder.focus}. Текущая эпоха кампании: ${window.CampaignMvp.ERAS[campaignEra]}. Разрешённые эпохи карты: ${allowedEraText}. Выпала редкость «${rarityLabel}». ${rarityDirective} Полные статы, цены, keywords и effects придумай самостоятельно; сильный результат не ослабляй ради баланса. Верни полный JSON-объект строго по схеме.`;
+            const userPrompt = `Выбранный замысел советника: «${advisorOrder.title}». ${advisorOrder.pitch} Создай именно card_type="${advisorOrder.cardType}" (${FORGE_ADVISOR_TYPE_NAMES[advisorOrder.cardType]}). Текущая эпоха кампании: ${window.CampaignMvp.ERAS[campaignEra]}. Разрешённые эпохи карты: ${allowedEraText}. Выпала редкость «${rarityLabel}». ${rarityDirective} Полные статы, цены, keywords и effects придумай самостоятельно; сильный результат не ослабляй ради баланса. Верни полный JSON-объект строго по схеме.`;
 
             const resp = await fetch('https://api.hydraai.ru/v1/chat/completions', {
                 method: 'POST',
@@ -2126,7 +2214,8 @@
             errorEl.textContent = `⚠️ ${error.message}${refunded ? ' Ресурсы возвращены.' : ''}`;
             errorEl.style.display = 'block';
         } finally {
-            btn.disabled = false;
+            forgeGenerationLoading = false;
+            renderForgeAdvice();
             renderCraftQuote();
         }
     }

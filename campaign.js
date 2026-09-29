@@ -67,6 +67,10 @@
         return REGION_DEFINITIONS.map(region => ({ id: region.id, ownerId: region.initialOwner, capturedDay: region.initialOwner ? 1 : null }));
     }
 
+    function createDailyOrders() {
+        return { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false };
+    }
+
     const STARTER_CARDS = [
         { id: 'campaign-starter-spears', name: 'Племенные копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Ополчение с копьями держит строй и прикрывает поселение.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], campaignStarter: true },
         { id: 'campaign-starter-slingers', name: 'Пращники из холмов', card_type: 'unit', emoji: '🪨', drop_cost: 1, action_cost: 1, atk: 1, hp: 1, description: 'Лёгкие бойцы бросают камни из-за спин авангарда.', tags: ['пращники', 'дальний бой'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['ranged', 'skirmish'], campaignStarter: true }
@@ -90,7 +94,7 @@
                 name: 'Твоё поселение', clan: 'Медный Ворон', era: 0, research: 0,
                 onboardingComplete: false, originId: null, openingFocusId: null,
                 resources: { food: 8, materials: 8, knowledge: 5 },
-                actionUsed: false, pendingExpedition: null, campaignNotice: '',
+                dailyOrders: createDailyOrders(), actionUsed: false, pendingExpedition: null, campaignNotice: '',
                 craftLevel: 0, craftXp: 0, nextCraftOrderId: 1, craftOrders: [],
                 buildings: [makeStarterBuilding()],
                 activeBuildingSlots: 4,
@@ -138,6 +142,46 @@
         };
     }
 
+    function normalizeDailyOrders(raw, state, legacyActionUsed) {
+        const orders = createDailyOrders();
+        if (raw && typeof raw === 'object') {
+            for (const key of Object.keys(orders)) orders[key] = Boolean(raw[key]);
+        } else if (legacyActionUsed) {
+            const day = state.day;
+            const currentCraft = state.player.craftOrders.some(order => order.createdDay === day && order.status !== 'failed');
+            const currentExpedition = Boolean(state.player.pendingExpedition?.launchDay === day);
+            const currentSettlement = state.regions.some(region => region.id !== 'home' && region.ownerId === 'player' && region.capturedDay === day);
+            const currentConstruction = state.player.buildings.some(building => building.blueprintId && building.builtDay === day);
+            const currentResearch = state.player.blueprints.some(blueprint => blueprint.researchedDay === day);
+            if (currentCraft) orders.craftUsed = true;
+            else if (currentExpedition || currentSettlement) orders.frontierUsed = true;
+            else if (currentConstruction) orders.constructionUsed = true;
+            else if (currentResearch) orders.researchUsed = true;
+            else orders.legacyBlocked = true;
+        }
+        if (state.player.pendingExpedition) orders.frontierUsed = true;
+        return orders;
+    }
+
+    function syncLegacyActionUsed(state) {
+        const orders = state.player.dailyOrders;
+        state.player.actionUsed = Boolean(orders.craftUsed || orders.researchUsed || orders.constructionUsed || orders.frontierUsed || orders.legacyBlocked || state.player.pendingExpedition);
+    }
+
+    function markDailyOrderUsed(state, type) {
+        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
+        if (!key) throw new Error(`Неизвестный дневной лимит: ${type}`);
+        state.player.dailyOrders[key] = true;
+        syncLegacyActionUsed(state);
+    }
+
+    function clearDailyOrder(state, type) {
+        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
+        if (!key) return;
+        state.player.dailyOrders[key] = false;
+        syncLegacyActionUsed(state);
+    }
+
     function cleanEffects(raw) {
         if (!Array.isArray(raw) || raw.length < 1 || raw.length > 2) return null;
         const effects = [];
@@ -159,13 +203,13 @@
         state.day = clampInt(value.day, 1, SEASON_LENGTH, 1);
         state.medals = Array.isArray(value.medals) ? value.medals.filter(m => m && typeof m.id === 'string') : [];
         state.player = { ...base.player, ...(value.player || {}) };
+        const legacyActionUsed = Boolean(state.player.actionUsed);
         state.player.era = clampInt(state.player.era, 0, ERAS.length - 1, 0);
         // Existing v2 saves belong to returning players; only fresh state enters onboarding.
         state.player.onboardingComplete = typeof value.player?.onboardingComplete === 'boolean' ? value.player.onboardingComplete : true;
         state.player.originId = ORIGINS.some(item => item.id === state.player.originId) ? state.player.originId : null;
         state.player.openingFocusId = OPENING_FOCUSES.some(item => item.id === state.player.openingFocusId) ? state.player.openingFocusId : null;
         state.player.research = clampInt(state.player.research, 0, 1, 0);
-        state.player.actionUsed = Boolean(state.player.actionUsed);
         state.player.campaignNotice = String(state.player.campaignNotice || '').slice(0, 240);
         state.player.resources = { ...base.player.resources, ...(state.player.resources || {}) };
         for (const key of Object.keys(base.player.resources)) state.player.resources[key] = clampInt(state.player.resources[key], 0, 999, base.player.resources[key]);
@@ -222,7 +266,9 @@
             category: CATEGORIES.includes(blueprint.category) ? blueprint.category : 'civic',
             effects: cleanEffects(blueprint.effects) || [],
             researched: Boolean(blueprint.researched),
+            researchedDay: blueprint.researchedDay ? clampInt(blueprint.researchedDay, 1, SEASON_LENGTH, 1) : null,
             built: Boolean(blueprint.built),
+            builtDay: blueprint.builtDay ? clampInt(blueprint.builtDay, 1, SEASON_LENGTH, 1) : null,
             visibility: ['allies', 'neighbors', 'both'].includes(blueprint.visibility) ? blueprint.visibility : 'both',
             createdDay: clampInt(blueprint.createdDay, 1, SEASON_LENGTH, 1),
             openingProject: Boolean(blueprint.openingProject)
@@ -235,7 +281,8 @@
             })) : base.opponents;
         state.regions = normalizeRegions(value.regions, state.opponents);
         state.player.pendingExpedition = normalizedPendingExpedition(value.player?.pendingExpedition, state);
-        if (state.player.pendingExpedition) state.player.actionUsed = true;
+        state.player.dailyOrders = normalizeDailyOrders(value.player?.dailyOrders, state, legacyActionUsed);
+        syncLegacyActionUsed(state);
         return state;
     }
 
@@ -307,11 +354,19 @@
         for (const key of Object.keys(cost)) state.player.resources[key] -= cost[key];
         return true;
     }
-    function canOrder(state) {
-        if (state.player.pendingExpedition) return 'Сначала заверши незавершённую экспедицию.';
+    function canOrder(state, type) {
         if (state.day >= SEASON_LENGTH) return 'Сезон завершён. Подведи итоги.';
-        if (state.player.actionUsed) return 'На сегодня уже есть крупный приказ. Продвинь день.';
-        return null;
+        if (type === 'frontier' && state.player.pendingExpedition) return 'Сначала заверши незавершённую экспедицию.';
+        if (state.player.dailyOrders.legacyBlocked) return 'Старый приказ из сохранения нельзя определить; продвинь день, чтобы восстановить лимиты.';
+        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
+        if (!key) return 'Тип дневного действия не распознан.';
+        if (!state.player.dailyOrders[key]) return null;
+        return {
+            craft: 'Сегодняшняя ковка уже заказана. Продвинь день.',
+            research: 'Сегодняшнее исследование уже проведено. Продвинь день.',
+            construction: 'Сегодняшнее строительство уже выполнено. Продвинь день.',
+            frontier: 'Сегодняшний поход за землёй уже использован. Продвинь день.'
+        }[type];
     }
 
     function getRegionRecord(state, regionId) {
@@ -351,7 +406,7 @@
         const isNeutral = record?.ownerId === null;
         const action = isNeutral ? 'settle' : 'attack';
         const cost = isNeutral ? REGION_CAPTURE_COST : REGION_EXPEDITION_COST;
-        const orderError = canOrder(state);
+        const orderError = canOrder(state, 'frontier');
         if (orderError) return { action, enabled: false, reason: orderError, cost: { ...cost } };
         if (!isRegionConnected(state, definition)) return { action, enabled: false, reason: 'Сначала займи соседний регион.', cost: { ...cost } };
         if (state.player.era < definition.minEra) return { action, enabled: false, reason: `Нужна эпоха «${eraName(definition.minEra)}».`, cost: { ...cost } };
@@ -369,7 +424,7 @@
         const record = getRegionRecord(state, regionId);
         record.ownerId = 'player';
         record.capturedDay = state.day;
-        state.player.actionUsed = true;
+        markDailyOrderUsed(state, 'frontier');
         return { state, region: { ...definition, ownerId: 'player', capturedDay: state.day }, error: null };
     }
     function makeExpeditionMatch(state, pending = state.player.pendingExpedition) {
@@ -392,7 +447,7 @@
         const opponent = state.opponents.find(item => item.id === record.ownerId);
         if (!opponent) return { state, error: 'Защитник региона не найден.' };
         spend(state, REGION_EXPEDITION_COST);
-        state.player.actionUsed = true;
+        markDailyOrderUsed(state, 'frontier');
         state.player.pendingExpedition = { regionId, opponentId: opponent.id, launchDay: state.day, cost: { ...REGION_EXPEDITION_COST }, battleStarted: false };
         return { state, match: makeExpeditionMatch(state), error: null };
     }
@@ -496,16 +551,16 @@
         } else if (current.day >= SEASON_LENGTH) {
             next = 'Сезон дошёл до последнего дня до завершения вступительного маршрута. Подведи итоги сезона, чтобы продолжить кампанию.';
         } else if (!openingProject.researched) {
-            next = player.actionUsed
-                ? `На сегодня приказ уже отдан. Заверши день, затем исследуй «${openingProject.scienceName}» за 1 провизию, 1 материал и 2 знания.`
+            next = player.dailyOrders.researchUsed
+                ? `Исследовательский лимит на сегодня исчерпан. Заверши день, затем исследуй «${openingProject.scienceName}» за 1 провизию, 1 материал и 2 знания.`
                 : `Исследуй «${openingProject.scienceName}» в панели развития: это стоит 1 провизию, 1 материал и 2 знания.`;
         } else if (!openingProject.built) {
-            next = player.actionUsed
-                ? `Исследование заняло сегодняшний приказ. Заверши день, затем построй «${openingProject.buildingName}» за 4 материала.`
+            next = player.dailyOrders.constructionUsed
+                ? `Строительный лимит на сегодня исчерпан. Заверши день, затем построй «${openingProject.buildingName}» за 4 материала.`
                 : `Построй «${openingProject.buildingName}» за 4 материала — чертёж уже исследован.`;
         } else if (current.regions.filter(region => region.ownerId === 'player').length <= 1) {
-            next = player.actionUsed
-                ? 'На сегодня приказ уже отдан. Заверши день, затем займи соседний нейтральный регион на карте за 2 провизии и 2 материала.'
+            next = player.dailyOrders.frontierUsed
+                ? 'Лимит расширения фронтира на сегодня исчерпан. Заверши день, затем займи соседний нейтральный регион за 2 провизии и 2 материала.'
                 : 'На карте выбери соседний нейтральный регион и займи его за 2 провизии и 2 материала. Его доход будет поступать каждый день.';
         } else {
             next = 'Выбери любого ИИ-соседа и сыграй тренировочный бой. Победа не обязательна; тренировочный бой не расходует кампанийные ресурсы.';
@@ -544,7 +599,7 @@
 
     function beginCardCraft(input, investment = {}, roll = Math.random(), advisorOrder = 'Военный советник') {
         const state = normalizeState(input);
-        const orderError = canOrder(state);
+        const orderError = canOrder(state, 'craft');
         if (orderError) return { state, error: orderError };
         if (!state.player.onboardingComplete) return { state, error: 'Сначала создай народ в кампании.' };
         if (state.player.craftOrders.some(order => ['generating', 'working'].includes(order.status))) {
@@ -560,7 +615,7 @@
             : safeRoll < (quote.odds.ordinary + quote.odds.uncommon) / 100 ? 'uncommon' : 'rare';
         const orderId = `craft-${state.season}-${state.player.nextCraftOrderId++}`;
         spend(state, quote.cost);
-        state.player.actionUsed = true;
+        markDailyOrderUsed(state, 'craft');
         const order = {
             id: orderId, status: 'generating', rarity,
             modelId: quote.modelByRarity[rarity], materialQuality: quote.materialQuality,
@@ -600,7 +655,7 @@
         const order = state.player.craftOrders.find(item => item.id === orderId);
         if (!order || order.status !== 'generating') return { state, error: 'Нельзя вернуть оплату: заказ не ожидает ответа модели.' };
         for (const key of Object.keys(order.cost)) state.player.resources[key] = Math.min(999, state.player.resources[key] + order.cost[key]);
-        if (state.day === order.createdDay) state.player.actionUsed = false;
+        if (state.day === order.createdDay) clearDailyOrder(state, 'craft');
         order.status = 'failed';
         order.failure = String(reason || 'Не удалось получить корректную карту.').slice(0, 240);
         order.card = null;
@@ -638,7 +693,9 @@
             category: CATEGORIES.includes(raw.category) ? raw.category : 'civic',
             effects,
             researched: false,
+            researchedDay: null,
             built: false,
+            builtDay: null,
             visibility: ['allies', 'neighbors', 'both'].includes(visibility) ? visibility : 'both',
             createdDay: state.day
         };
@@ -655,14 +712,15 @@
 
     function researchBlueprint(input, id) {
         const state = normalizeState(input);
-        const orderError = canOrder(state);
+        const orderError = canOrder(state, 'research');
         if (orderError) return { state, error: orderError };
         const blueprint = state.player.blueprints.find(item => item.id === id);
         if (!blueprint) return { state, error: 'Научный проект не найден.' };
         if (blueprint.researched) return { state, error: 'Наука уже исследована.' };
         if (!spend(state, { food: 1, materials: 1, knowledge: 2 })) return { state, error: 'Для исследования нужны 1 провизия, 1 материал и 2 знания.' };
         blueprint.researched = true;
-        state.player.actionUsed = true;
+        blueprint.researchedDay = state.day;
+        markDailyOrderUsed(state, 'research');
         state.player.research += 1;
         if (state.player.research >= 2 && state.player.era < ERAS.length - 1) {
             state.player.research = 0;
@@ -673,7 +731,7 @@
 
     function constructBlueprint(input, id) {
         const state = normalizeState(input);
-        const orderError = canOrder(state);
+        const orderError = canOrder(state, 'construction');
         if (orderError) return { state, error: orderError };
         const blueprint = state.player.blueprints.find(item => item.id === id);
         if (!blueprint || !blueprint.researched) return { state, error: 'Сначала исследуй эту науку.' };
@@ -686,7 +744,8 @@
             category: blueprint.category, effects: clone(blueprint.effects), active: hasSlot, builtDay: state.day, blueprintId: blueprint.id
         });
         blueprint.built = true;
-        state.player.actionUsed = true;
+        blueprint.builtDay = state.day;
+        markDailyOrderUsed(state, 'construction');
         return { state, error: null };
     }
 
@@ -742,7 +801,8 @@
             }
         }
         state.day += 1;
-        state.player.actionUsed = false;
+        state.player.dailyOrders = createDailyOrders();
+        syncLegacyActionUsed(state);
         return { state, error: null };
     }
 
@@ -779,7 +839,7 @@
         for (const order of state.player.craftOrders) {
             if (order.status !== 'generating') continue;
             for (const key of Object.keys(order.cost)) state.player.resources[key] = Math.min(999, state.player.resources[key] + order.cost[key]);
-            if (state.day === order.createdDay) state.player.actionUsed = false;
+            if (state.day === order.createdDay) clearDailyOrder(state, 'craft');
             order.status = 'failed';
             order.failure = 'Запрос прерван перезагрузкой страницы; оплата возвращена.';
             order.card = null;
@@ -803,7 +863,7 @@
     let state = root.localStorage ? load() : createState();
     let pendingMatch = null;
     let lastMatch = null;
-    function commit(next) { state = normalizeState(next); state.player.campaignNotice = ''; save(state); render(); }
+    function commit(next) { state = normalizeState(next); state.player.campaignNotice = ''; save(state); render(); if (typeof root.refreshForgeUi === 'function') root.refreshForgeUi(); }
     function eraName(index) { return ERAS[Math.max(0, Math.min(ERAS.length - 1, index))]; }
     function getCardChoices() { return typeof root.getCampaignCardChoices === 'function' ? root.getCampaignCardChoices() : []; }
     function alertResult(result) { if (result.error) { root.alert(result.error); return false; } commit(result.state); return true; }
@@ -854,7 +914,20 @@
         const materialAccess = qualities.includes('masterwork') ? 'Мастерское сырьё открыто'
             : qualities.includes('refined') ? 'Отборное сырьё открыто · олово откроет мастерское'
                 : 'Кузница: базовое сырьё · захвати медь для отборного';
-        return `<section class="campaign-panel campaign-world"><div class="campaign-panel-heading"><div><span class="campaign-kicker">СТРАТЕГИЧЕСКИЙ ФРОНТИР · РЕСУРСЫ И СЫРЬЁ ДЛЯ КУЗНИЦЫ</span><h2>🗺️ Земли вокруг поселения</h2></div><span class="campaign-day-badge">${ownedCount}/${REGION_DEFINITIONS.length} регионов</span></div><p class="campaign-small">Один крупный приказ в день: развивай науку, строй, ковку или расширяй границы. Нейтральные земли занимают за ресурсы; спорное поселение берут боем. Каждая земля даёт постоянный доход, а медь и олово открывают более качественное сырьё для карт.</p><div class="campaign-world-summary"><span>Доход земель: 🌾 +${income.food} · 🪵 +${income.materials} · 📚 +${income.knowledge} в день</span><b>${materialAccess}</b></div>${state.player.campaignNotice ? `<div class="campaign-region-notice" role="status">${escapeHtml(state.player.campaignNotice)}</div>` : ''}<div class="campaign-world-scroll"><div class="campaign-world-board"><svg class="campaign-world-links" viewBox="0 0 1000 480" preserveAspectRatio="none" aria-hidden="true">${connectors.join('')}</svg>${nodes}</div></div><div class="campaign-world-legend"><span><i class="is-owned"></i> твоё владение</span><span><i class="is-neutral"></i> свободная земля</span><span><i class="is-rival"></i> соперник</span><span>Доход территории начисляется при завершении дня.</span></div></section>`;
+        return `<section class="campaign-panel campaign-world"><div class="campaign-panel-heading"><div><span class="campaign-kicker">СТРАТЕГИЧЕСКИЙ ФРОНТИР · РЕСУРСЫ И СЫРЬЁ ДЛЯ КУЗНИЦЫ</span><h2>🗺️ Земли вокруг поселения</h2></div><span class="campaign-day-badge">${ownedCount}/${REGION_DEFINITIONS.length} регионов</span></div><p class="campaign-small">Заселение или экспедиция используют отдельный лимит фронтира и не занимают ковку, исследование или строительство. Земли дают ежедневный доход; медь и олово открывают отборное и мастерское сырьё для карт.</p><div class="campaign-world-summary"><span>Доход земель: 🌾 +${income.food} · 🪵 +${income.materials} · 📚 +${income.knowledge} в день</span><b>${materialAccess}</b></div>${state.player.campaignNotice ? `<div class="campaign-region-notice" role="status">${escapeHtml(state.player.campaignNotice)}</div>` : ''}<div class="campaign-world-scroll"><div class="campaign-world-board"><svg class="campaign-world-links" viewBox="0 0 1000 480" preserveAspectRatio="none" aria-hidden="true">${connectors.join('')}</svg>${nodes}</div></div><div class="campaign-world-legend"><span><i class="is-owned"></i> твоё владение</span><span><i class="is-neutral"></i> свободная земля</span><span><i class="is-rival"></i> соперник</span><span>Доход территории начисляется при завершении дня.</span></div></section>`;
+    }
+
+    function renderDailyOrdersPanel(current) {
+        const player = current.player;
+        const hasResearch = player.blueprints.some(blueprint => !blueprint.researched);
+        const hasConstruction = player.blueprints.some(blueprint => blueprint.researched && !blueprint.built);
+        const craftQueueBusy = player.craftOrders.some(order => ['generating', 'working'].includes(order.status));
+        const blocked = player.dailyOrders.legacyBlocked;
+        const slot = (icon, label, used, detail, action) => {
+            const consumed = used || blocked;
+            return `<article class="campaign-daily-slot ${consumed ? 'is-used' : ''}"><div class="campaign-daily-slot-top"><b>${icon} ${label}</b><span>${consumed ? '1' : '0'}/1</span></div><small>${blocked ? 'Старый приказ: лимиты обновятся завтра' : detail}</small>${action}</article>`;
+        };
+        return `<section class="campaign-daily-plan"><div class="campaign-daily-plan-heading"><div><span class="campaign-kicker">ДЕНЬ ${current.day} · СЕЗОН ${current.season}</span><h2>Сегодняшние возможности</h2></div><span class="campaign-daily-plan-note">Три независимых лимита</span></div><div class="campaign-daily-slots">${slot('⚒️', 'Ковка', player.dailyOrders.craftUsed, craftQueueBusy && !player.dailyOrders.craftUsed ? 'Очередь кузницы ещё занята' : 'До конца дня можно заказать 1 карту', `<button class="campaign-btn campaign-btn-secondary" onclick="switchScreen('forge')">${player.dailyOrders.craftUsed ? 'Открыть кузницу' : 'Выбрать карту'}</button>`)}${slot('🔬', 'Исследование', player.dailyOrders.researchUsed, hasResearch ? 'Открывает чертёж здания' : 'Нет неисследованного проекта', `<a class="campaign-btn campaign-btn-secondary" href="#campaign-development">К проектам</a>`)}${slot('🏗️', 'Строительство', player.dailyOrders.constructionUsed, hasConstruction ? 'Можно построить изученный чертёж' : 'Сначала нужен изученный чертёж', `<a class="campaign-btn campaign-btn-secondary" href="#campaign-development">К чертежам</a>`)}</div><small class="campaign-daily-plan-footnote">Науку и постройку можно выполнить в один день. Фронтир: ${player.dailyOrders.frontierUsed || blocked ? '1/1' : '0/1'} — отдельное заселение или экспедиция.</small></section>`;
     }
 
     function render() {
@@ -877,16 +950,16 @@
         const readyToClose = state.day >= SEASON_LENGTH;
         const firstSessionGuide = getFirstSessionGuide(state);
         host.innerHTML = `
-          ${firstSessionGuide ? `<details class="campaign-first-session" ${firstSessionGuide.complete ? '' : 'open'}><summary><span>ПЕРВЫЕ ШАГИ · ${firstSessionGuide.complete ? 'МАРШРУТ ПРОЙДЕН' : `${firstSessionGuide.completedCount}/${firstSessionGuide.steps.length}`}</span><b>${firstSessionGuide.complete ? 'Поселение готово к самостоятельному развитию' : 'От поселения к первому бою'}</b></summary><div class="campaign-first-session-body"><p>Необязательное знакомство с наукой, строительством и боем. Эти шаги не добавляют наград и не ограничивают остальные действия.</p><ol>${firstSessionGuide.steps.map((step, index) => `<li class="${step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : ''}"><span>${step.done ? '✓' : index + 1}</span><b>${escapeHtml(step.label)}</b></li>`).join('')}</ol>${firstSessionGuide.complete ? '' : `<div class="campaign-first-session-next"><small>СЛЕДУЮЩИЙ ШАГ</small><b>${escapeHtml(firstSessionGuide.next)}</b></div>`}${firstSessionGuide.complete ? `<p class="campaign-first-session-finish">${escapeHtml(firstSessionGuide.next)}</p>` : ''}</div></details>` : ''}
+          ${firstSessionGuide ? `<details class="campaign-first-session"><summary><span>ПЕРВЫЕ ШАГИ · ${firstSessionGuide.complete ? 'МАРШРУТ ПРОЙДЕН' : `${firstSessionGuide.completedCount}/${firstSessionGuide.steps.length}`}</span><b>${firstSessionGuide.complete ? 'Поселение готово к самостоятельному развитию' : 'От поселения к первому бою'}</b></summary><div class="campaign-first-session-body"><p>Необязательное знакомство с наукой, строительством и боем. Эти шаги не добавляют наград и не ограничивают остальные действия.</p><ol>${firstSessionGuide.steps.map((step, index) => `<li class="${step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : ''}"><span>${step.done ? '✓' : index + 1}</span><b>${escapeHtml(step.label)}</b></li>`).join('')}</ol>${firstSessionGuide.complete ? '' : `<div class="campaign-first-session-next"><small>СЛЕДУЮЩИЙ ШАГ</small><b>${escapeHtml(firstSessionGuide.next)}</b></div>`}${firstSessionGuide.complete ? `<p class="campaign-first-session-finish">${escapeHtml(firstSessionGuide.next)}</p>` : ''}</div></details>` : ''}
           <section class="campaign-seasonbar"><div><span class="campaign-kicker">ЛОКАЛЬНЫЙ ПРОТОТИП · ИИ-СОПЕРНИКИ</span><h2>Сезон ${state.season} <span class="campaign-muted">· день ${state.day}/${SEASON_LENGTH}</span></h2></div><div class="campaign-season-actions"><span class="campaign-medal">🏅 Медалей: ${state.medals.length}</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></section>
-          <div class="campaign-warning">Стратегический фронтир уже связан с экономикой, боем и кузницей: захват даёт доход и открывает качество сырья. Тренировки остаются бесплатными; экспедиции за земли имеют ставку и последствия. Это локальный прототип, не MMO-сервер.</div>
+          ${renderDailyOrdersPanel(state)}
           ${renderRegionMap()}
           <div class="campaign-layout">
             <section class="campaign-panel campaign-civilization"><div class="campaign-panel-heading"><div><span class="campaign-kicker">ТВОЯ ЦИВИЛИЗАЦИЯ</span><h2>🏛️ ${escapeHtml(p.name)}</h2></div><span class="campaign-era-pill">Эпоха ${p.era + 1}</span></div><div class="campaign-era-name">${escapeHtml(eraName(p.era))}</div><div class="campaign-progress-track"><span style="width:${p.era === ERAS.length - 1 ? 100 : p.research * 50}%"></span></div><p class="campaign-small">${p.era === ERAS.length - 1 ? 'Последняя эпоха открыта.' : `Научные открытия эпохи: ${p.research}/2`}</p><div class="campaign-era-rail">${ERAS.map((era, i) => `<div class="campaign-era-step ${i < p.era ? 'is-done' : ''} ${i === p.era ? 'is-current' : ''}"><span>${i < p.era ? '✓' : i + 1}</span><small>${escapeHtml(era)}</small></div>`).join('')}</div><div class="campaign-clan-chip">🛡️ Клан: <b>${escapeHtml(p.clan)}</b> <span>· локальная заглушка</span></div><div class="campaign-practice-summary"><b>Боевая конфигурация</b><span>Колода: ${p.deckCardIds.length}/${config.deckLimit} карт</span><span>Здоровье: ${config.hp} HP</span><span>Энергия: старт 1 · максимум ${config.energyMax} · +${config.energyGrowth} за ход</span><span>Активных зданий: ${activeBuildings.length}/${p.activeBuildingSlots}</span></div><div class="campaign-small">Эффекты включённых зданий суммируются. Военные, экономические, научные и общественные постройки конкурируют за слоты.</div></section>
 
-            <section class="campaign-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">ЭКОНОМИКА · НАУКА · СТРОИТЕЛЬСТВО</span><h2>Развитие поселения</h2></div><span class="campaign-day-badge">День ${state.day}</span></div><div class="campaign-resources"><div><span>🌾 Провизия</span><b>${p.resources.food}</b><small>+${2 + config.effects.income_food + regionalIncome.food}/день</small></div><div><span>🪵 Материалы</span><b>${p.resources.materials}</b><small>+${2 + config.effects.income_materials + regionalIncome.materials}/день</small></div><div><span>📚 Знания</span><b>${p.resources.knowledge}</b><small>+${1 + config.effects.income_knowledge + regionalIncome.knowledge}/день</small></div></div><div class="campaign-small">Наука открывает чертёж. Постройка занимает отдельный приказ; затем её можно включить в ограниченные активные слоты.</div>
-              <div class="campaign-orders">${p.blueprints.length ? p.blueprints.map(bp => `<article class="campaign-order"><div class="campaign-order-icon">${bp.researched ? (bp.built ? '🏛️' : '📐') : '🔬'}</div><div>${bp.openingProject ? '<span class="campaign-opening-tag">ПЕРВЫЙ ПРОЕКТ</span>' : ''}<b>${escapeHtml(bp.scienceName)} → ${escapeHtml(bp.buildingName)}</b><p>${escapeHtml(bp.scienceDescription)} · ${escapeHtml(bp.buildingDescription)}<br><i>${bp.effects.map(effect => escapeHtml(EFFECTS[effect.type].label)).join(' · ')}</i></p></div><button class="campaign-btn ${bp.researched ? 'campaign-btn-secondary' : ''}" ${p.actionUsed || readyToClose || (bp.researched && bp.built) ? 'disabled' : ''} onclick="CampaignMvp.${bp.researched ? 'construct' : 'research'}('${htmlAttr(bp.id)}')">${bp.researched ? (bp.built ? 'Построено' : 'Построить · 4🪵') : 'Исследовать'}</button></article>`).join('') : '<div class="campaign-project-empty">Пока нет наук. Создай проект ниже: он даст научное открытие и связанный с ним чертёж здания.</div>'}${p.buildings.map(building => `<article class="campaign-order campaign-building-row"><div class="campaign-order-icon">${building.category === 'military' ? '⚔️' : building.category === 'economy' ? '🌾' : building.category === 'science' ? '📚' : '🏛️'}</div><div><b>${escapeHtml(building.name)} · ${escapeHtml(CATEGORY_NAMES[building.category])}</b><p>${(building.effects || []).map(effect => escapeHtml(EFFECTS[effect.type]?.label || effect.type)).join(' · ')}</p></div><button class="campaign-btn ${building.active ? 'campaign-btn-secondary' : ''}" onclick="CampaignMvp.toggleBuilding('${htmlAttr(building.id)}')">${building.active ? 'Включено' : 'Включить'}</button></article>`).join('')}</div>
-              <div class="campaign-day-footer"><span>${p.pendingExpedition ? 'Сначала заверши бой экспедиции; день пока нельзя переключить.' : generatingCraft ? 'Дождись ответа кузницы перед сменой дня.' : p.actionUsed ? 'Приказ на сегодня отдан. Можно продвинуть день.' : 'Наука, стройка, ковка, заселение и экспедиция конкурируют за один приказ; настройка зданий — нет.'}</span>${readyToClose ? `<button class="campaign-btn campaign-btn-gold" ${craftBlocksSeason ? 'disabled' : ''} onclick="CampaignMvp.completeSeason()">Завершить сезон · получить медаль</button>` : `<button class="campaign-btn campaign-btn-gold" ${generatingCraft || p.pendingExpedition ? 'disabled' : ''} onclick="CampaignMvp.finishDay()">⏭ Завершить день</button>`}</div>
+            <section id="campaign-development" class="campaign-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">ЭКОНОМИКА · НАУКА · СТРОИТЕЛЬСТВО</span><h2>Развитие поселения</h2></div><span class="campaign-day-badge">День ${state.day}</span></div><div class="campaign-resources"><div><span>🌾 Провизия</span><b>${p.resources.food}</b><small>+${2 + config.effects.income_food + regionalIncome.food}/день</small></div><div><span>🪵 Материалы</span><b>${p.resources.materials}</b><small>+${2 + config.effects.income_materials + regionalIncome.materials}/день</small></div><div><span>📚 Знания</span><b>${p.resources.knowledge}</b><small>+${1 + config.effects.income_knowledge + regionalIncome.knowledge}/день</small></div></div><div class="campaign-small">Наука и строительство — независимые лимиты: можно исследовать чертёж и построить его в один день. Включение здания дневной лимит не расходует.</div>
+              <div class="campaign-orders">${p.blueprints.length ? p.blueprints.map(bp => `<article class="campaign-order"><div class="campaign-order-icon">${bp.researched ? (bp.built ? '🏛️' : '📐') : '🔬'}</div><div>${bp.openingProject ? '<span class="campaign-opening-tag">ПЕРВЫЙ ПРОЕКТ</span>' : ''}<b>${escapeHtml(bp.scienceName)} → ${escapeHtml(bp.buildingName)}</b><p>${escapeHtml(bp.scienceDescription)} · ${escapeHtml(bp.buildingDescription)}<br><i>${bp.effects.map(effect => escapeHtml(EFFECTS[effect.type].label)).join(' · ')}</i></p></div><button class="campaign-btn ${bp.researched ? 'campaign-btn-secondary' : ''}" ${p.dailyOrders.legacyBlocked || (bp.researched ? p.dailyOrders.constructionUsed : p.dailyOrders.researchUsed) || readyToClose || (bp.researched && bp.built) ? 'disabled' : ''} onclick="CampaignMvp.${bp.researched ? 'construct' : 'research'}('${htmlAttr(bp.id)}')">${bp.researched ? (bp.built ? 'Построено' : p.dailyOrders.constructionUsed ? 'Строительство использовано' : 'Построить · 4🪵') : p.dailyOrders.researchUsed ? 'Исследование использовано' : 'Исследовать'}</button></article>`).join('') : '<div class="campaign-project-empty">Пока нет наук. Создай проект ниже: он даст научное открытие и связанный с ним чертёж здания.</div>'}${p.buildings.map(building => `<article class="campaign-order campaign-building-row"><div class="campaign-order-icon">${building.category === 'military' ? '⚔️' : building.category === 'economy' ? '🌾' : building.category === 'science' ? '📚' : '🏛️'}</div><div><b>${escapeHtml(building.name)} · ${escapeHtml(CATEGORY_NAMES[building.category])}</b><p>${(building.effects || []).map(effect => escapeHtml(EFFECTS[effect.type]?.label || effect.type)).join(' · ')}</p></div><button class="campaign-btn ${building.active ? 'campaign-btn-secondary' : ''}" onclick="CampaignMvp.toggleBuilding('${htmlAttr(building.id)}')">${building.active ? 'Включено' : 'Включить'}</button></article>`).join('')}</div>
+              <div class="campaign-day-footer"><span>${p.pendingExpedition ? 'Заверши текущую экспедицию, чтобы продвинуть день.' : generatingCraft ? 'Дождись ответа кузницы перед сменой дня.' : 'Новый день восстановит лимиты ковки, исследования и строительства.'}</span>${readyToClose ? `<button class="campaign-btn campaign-btn-gold" ${craftBlocksSeason ? 'disabled' : ''} onclick="CampaignMvp.completeSeason()">Завершить сезон · получить медаль</button>` : `<button class="campaign-btn campaign-btn-gold" ${generatingCraft || p.pendingExpedition ? 'disabled' : ''} onclick="CampaignMvp.finishDay()">⏭ Завершить день</button>`}</div>
             </section>
 
 
@@ -1062,7 +1135,9 @@
 
     function resetLocal() {
         if (!root.confirm('Сбросить локальную кампанию, включая медали, здания и науку?')) return;
-        state = createState(); pendingMatch = null; lastMatch = null; save(state); render();
+        state = createState(); pendingMatch = null; lastMatch = null;
+        if (typeof root.clearForgeAdvice === 'function') root.clearForgeAdvice();
+        save(state); render(); if (typeof root.refreshForgeUi === 'function') root.refreshForgeUi();
     }
 
     const api = {

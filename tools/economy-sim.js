@@ -58,7 +58,7 @@ function unlockMaterialSites(input, materialQuality) {
 
     let researchDraft = 0;
     while (state.player.era < 2) {
-        if (state.player.actionUsed) state = advanceDay(state);
+        if (state.player.dailyOrders.researchUsed) state = advanceDay(state);
         let project = state.player.blueprints.find(item => !item.researched);
         if (!project) {
             const index = ++researchDraft;
@@ -84,7 +84,7 @@ function unlockMaterialSites(input, materialQuality) {
         ? ['floodplain', 'copper', 'hills', 'tin-route']
         : ['floodplain', 'copper'];
     for (const regionId of sites) {
-        if (state.player.actionUsed) state = advanceDay(state);
+        if (state.player.dailyOrders.frontierUsed) state = advanceDay(state);
         const claim = Campaign.settleRegionState(state, regionId);
         if (claim.error) throw new Error(`Не удалось занять ${regionId}: ${claim.error}`);
         state = claim.state;
@@ -113,7 +113,7 @@ function simulateCrafting(materialQuality, effort) {
         }
 
         const hasWorkingOrder = state.player.craftOrders.some(order => order.status === 'working');
-        if (!hasWorkingOrder && !state.player.actionUsed) {
+        if (!hasWorkingOrder && !state.player.dailyOrders.craftUsed) {
             const started = Campaign.beginCardCraftState(
                 state,
                 { materialQuality, effort },
@@ -172,40 +172,39 @@ function simulateResearchAndConstruction() {
     const incomeEffects = ['income_materials', 'income_knowledge', 'income_food'];
 
     while (state.day < Campaign.SEASON_LENGTH) {
-        if (!state.player.actionUsed) {
-            const readyToBuild = state.player.blueprints.find(project => project.researched && !project.built);
-            if (readyToBuild) {
-                const result = Campaign.constructBlueprint(state, readyToBuild.id);
-                if (!result.error) {
-                    state = result.state;
-                    constructionOrders += 1;
-                }
-            } else {
-                let readyToResearch = state.player.blueprints.find(project => !project.researched);
-                if (!readyToResearch) {
-                    const index = generatedBlueprints;
-                    const effect = incomeEffects[index % incomeEffects.length];
-                    const added = Campaign.addBlueprint(state, {
-                        scienceName: `Симуляция науки ${index + 1}`,
-                        scienceDescription: 'Проект для проверки темпа кампанийной экономики.',
-                        buildingName: `Симуляция здания ${index + 1}`,
-                        buildingDescription: 'Здание с простым доходным эффектом.',
-                        category: 'economy',
-                        effects: [{ type: effect, amount: 1 }]
-                    }, 'both');
-                    if (!added.error) {
-                        state = added.state;
-                        generatedBlueprints += 1;
-                        readyToResearch = state.player.blueprints[0];
-                    }
-                }
-                if (readyToResearch) {
-                    const result = Campaign.researchBlueprint(state, readyToResearch.id);
-                    if (!result.error) {
-                        state = result.state;
-                        researchOrders += 1;
-                    }
-                }
+        let readyToResearch = state.player.blueprints.find(project => !project.researched);
+        if (!readyToResearch && state.player.blueprints.every(project => project.built)) {
+            const index = generatedBlueprints;
+            const effect = incomeEffects[index % incomeEffects.length];
+            const added = Campaign.addBlueprint(state, {
+                scienceName: `Симуляция науки ${index + 1}`,
+                scienceDescription: 'Проект для проверки темпа кампанийной экономики.',
+                buildingName: `Симуляция здания ${index + 1}`,
+                buildingDescription: 'Здание с простым доходным эффектом.',
+                category: 'economy',
+                effects: [{ type: effect, amount: 1 }]
+            }, 'both');
+            if (!added.error) {
+                state = added.state;
+                generatedBlueprints += 1;
+                readyToResearch = added.blueprint;
+            }
+        }
+
+        if (!state.player.dailyOrders.researchUsed && readyToResearch) {
+            const result = Campaign.researchBlueprint(state, readyToResearch.id);
+            if (!result.error) {
+                state = result.state;
+                researchOrders += 1;
+            }
+        }
+
+        const readyToBuild = state.player.blueprints.find(project => project.researched && !project.built);
+        if (!state.player.dailyOrders.constructionUsed && readyToBuild) {
+            const result = Campaign.constructBlueprint(state, readyToBuild.id);
+            if (!result.error) {
+                state = result.state;
+                constructionOrders += 1;
             }
         }
         state = advanceDay(state);
@@ -263,7 +262,7 @@ function runReport() {
             baseDailyIncome: { food: 2, materials: 2, knowledge: 1 },
             notes: [
                 'Учитываются текущие правила campaign.js, включая активный стартовый амбар и здания.',
-                'Считается один игровой приказ за день; бесплатная тренировка не даёт ресурсов.',
+                'В день доступны одна ковка, одно исследование и одно строительство; фронтир использует отдельный лимит. Бесплатная тренировка не даёт ресурсов.',
                 'Премиальные сценарии сначала честно оплачивают исследования и захват нужных месторождений.',
                 'В сценарии фронтира победа в бою задана вручную; итог не является симуляцией боевого ИИ.',
                 'Результаты — сценарии-пределы, а не прогноз поведения каждого игрока.'

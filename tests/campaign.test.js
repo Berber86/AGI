@@ -78,18 +78,14 @@ test('optional first-session guide advances through research, construction, expa
   state = Campaign.researchBlueprint(state, 'opening-food').state;
   guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.steps[0].done, true);
-  assert.match(guide.next, /заверши день/i);
-
-  state = Campaign.finishDayState(state).state;
-  guide = Campaign.getFirstSessionGuide(state);
   assert.match(guide.next, /Построй «Речная запруда»/);
+
   state = Campaign.constructBlueprint(state, 'opening-food').state;
   guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.steps[1].done, true);
   assert.equal(guide.steps[2].done, false);
-  assert.match(guide.next, /займи соседний нейтральный регион/);
+  assert.match(guide.next, /выбери соседний нейтральный регион и займи его/);
 
-  state = Campaign.finishDayState(state).state;
   state = Campaign.settleRegionState(state, 'floodplain').state;
   guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.steps[2].done, true);
@@ -120,8 +116,12 @@ test('first-session guide is rendered on the live campaign screen', () => {
   vm.runInNewContext(campaignSource, sandbox);
   fakeWindow.CampaignMvp.render();
   assert.match(host.innerHTML, /class="campaign-first-session"/);
+  assert.doesNotMatch(host.innerHTML, /campaign-first-session" open/);
   assert.match(host.innerHTML, /Исследовать «Рыбные запруды»/);
   assert.match(host.innerHTML, /СЛЕДУЮЩИЙ ШАГ/);
+  assert.match(host.innerHTML, /Сегодняшние возможности/);
+  assert.match(host.innerHTML, /Три независимых лимита/);
+  assert.match(host.innerHTML, /campaign-daily-slot/);
   assert.match(host.innerHTML, /campaign-world-board/);
   assert.match(host.innerHTML, /CampaignMvp.claimRegion/);
 });
@@ -155,6 +155,33 @@ test('existing version-two campaign saves do not get redirected into onboarding'
   assert.equal(restored.player.onboardingComplete, true);
 });
 
+test('version-two saves migrate old shared orders into separate daily limits without granting a reroll', () => {
+  const crafted = Campaign.beginCardCraftState(playableCampaign(), { materialQuality: 'standard', effort: 'quick' }, 0.1);
+  assert.equal(crafted.error, null);
+  const legacyCraft = structuredClone(crafted.state);
+  delete legacyCraft.player.dailyOrders;
+  const migratedCraft = Campaign.normalizeState(legacyCraft);
+  assert.equal(migratedCraft.player.dailyOrders.craftUsed, true);
+  assert.equal(migratedCraft.player.dailyOrders.researchUsed, false);
+  assert.equal(migratedCraft.player.actionUsed, true);
+
+  const project = Campaign.addBlueprint(playableCampaign(), draft(), 'both');
+  project.state.player.blueprints[0].researched = true;
+  project.state.player.blueprints[0].researchedDay = project.state.day;
+  project.state.player.actionUsed = true;
+  delete project.state.player.dailyOrders;
+  const migratedResearch = Campaign.normalizeState(project.state);
+  assert.equal(migratedResearch.player.dailyOrders.researchUsed, true);
+
+  const ambiguous = playableCampaign();
+  delete ambiguous.player.dailyOrders;
+  ambiguous.player.actionUsed = true;
+  const migratedAmbiguous = Campaign.normalizeState(ambiguous);
+  assert.equal(migratedAmbiguous.player.dailyOrders.legacyBlocked, true);
+  assert.match(Campaign.beginCardCraftState(migratedAmbiguous, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, /старый приказ/i);
+  assert.equal(Campaign.finishDayState(migratedAmbiguous).state.player.dailyOrders.legacyBlocked, false);
+});
+
 test('legacy saves gain the starting frontier while preserving campaign progress', () => {
   const old = Campaign.createState();
   delete old.regions;
@@ -167,7 +194,7 @@ test('legacy saves gain the starting frontier while preserving campaign progress
   assert.equal(restored.regions.find(region => region.id === 'floodplain').ownerId, null);
 });
 
-test('claiming an adjacent neutral region spends one order and adds its daily income', () => {
+test('claiming an adjacent region spends the separate frontier slot and adds its daily income', () => {
   let state = Campaign.completeOnboarding(Campaign.createState(), {
     name: 'Дети Реки', originId: 'river', openingFocusId: 'food'
   }).state;
@@ -179,13 +206,18 @@ test('claiming an adjacent neutral region spends one order and adds its daily in
   const claim = Campaign.settleRegionState(state, 'floodplain');
   assert.equal(claim.error, null);
   assert.equal(claim.state.player.actionUsed, true);
+  assert.equal(claim.state.player.dailyOrders.frontierUsed, true);
+  assert.equal(claim.state.player.dailyOrders.craftUsed, false);
+  assert.equal(claim.state.player.dailyOrders.researchUsed, false);
+  assert.equal(claim.state.player.dailyOrders.constructionUsed, false);
   assert.equal(claim.state.regions.find(region => region.id === 'floodplain').ownerId, 'player');
   assert.equal(claim.state.player.resources.food, state.player.resources.food - 2);
   assert.equal(claim.state.player.resources.materials, state.player.resources.materials - 2);
-  assert.match(Campaign.settleRegionState(claim.state, 'hills').error, /крупный приказ/);
+  assert.match(Campaign.settleRegionState(claim.state, 'hills').error, /поход за землёй/);
 
   const nextDay = Campaign.finishDayState(claim.state);
   assert.equal(nextDay.error, null);
+  assert.deepEqual(nextDay.state.player.dailyOrders, { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false });
   assert.equal(nextDay.state.player.resources.food, claim.state.player.resources.food + 4); // base + granary + floodplain
   assert.equal(nextDay.state.player.resources.materials, claim.state.player.resources.materials + 2);
   assert.equal(nextDay.state.player.resources.knowledge, claim.state.player.resources.knowledge + 1);
@@ -305,25 +337,59 @@ test('LLM campaign effects are declarative, allowlisted and bounded', () => {
   assert.equal(Campaign.cleanEffects([{ type: 'deck_slots', amount: 1 }, { type: 'deck_slots', amount: 1 }]), null);
 });
 
-test('research unlocks a blueprint before construction and consumes separate daily orders', () => {
+test('research and construction have independent one-per-day limits and can chain on one project', () => {
   let state = Campaign.createState();
+  const first = Campaign.addBlueprint(state, draft(), 'both');
+  const second = Campaign.addBlueprint(first.state, draft({ scienceName: 'Вторая наука', buildingName: 'Второе здание' }), 'both');
+  assert.equal(first.error, null);
+  assert.equal(second.error, null);
+
+  const researched = Campaign.researchBlueprint(second.state, first.blueprint.id);
+  assert.equal(researched.error, null);
+  assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researched, true);
+  assert.equal(researched.state.player.dailyOrders.researchUsed, true);
+  assert.equal(researched.state.player.dailyOrders.constructionUsed, false);
+  assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researchedDay, state.day);
+  assert.match(Campaign.researchBlueprint(researched.state, second.blueprint.id).error, /исследование уже проведено/);
+
+  const built = Campaign.constructBlueprint(researched.state, first.blueprint.id);
+  assert.equal(built.error, null);
+  assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).built, true);
+  assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).builtDay, state.day);
+  assert.equal(built.state.player.dailyOrders.constructionUsed, true);
+  assert.equal(built.state.player.buildings.length, 2);
+
+  const readySecond = structuredClone(built.state);
+  readySecond.player.blueprints.find(item => item.id === second.blueprint.id).researched = true;
+  assert.match(Campaign.constructBlueprint(readySecond, second.blueprint.id).error, /строительство уже выполнено/);
+});
+
+test('craft, research and construction fit the same day and do not block the separate frontier slot', () => {
+  let state = controlRegions(playableCampaign(), ['home', 'copper']);
+  state.player.era = 2;
+  state.player.resources = { food: 30, materials: 30, knowledge: 30 };
   const added = Campaign.addBlueprint(state, draft(), 'both');
   assert.equal(added.error, null);
   state = added.state;
 
+  const expedition = Campaign.beginRegionExpeditionState(state, 'rival-settlement');
+  assert.equal(expedition.error, null);
+  state = expedition.state;
+  assert.equal(state.player.dailyOrders.frontierUsed, true);
+
   const researched = Campaign.researchBlueprint(state, added.blueprint.id);
   assert.equal(researched.error, null);
-  assert.equal(researched.state.player.blueprints[0].researched, true);
-  assert.equal(researched.state.player.blueprints[0].built, false);
-  assert.equal(researched.state.player.actionUsed, true);
-
-  const blocked = Campaign.constructBlueprint(researched.state, added.blueprint.id);
-  assert.match(blocked.error, /крупный приказ/);
-  state = Campaign.finishDayState(researched.state).state;
+  state = researched.state;
   const built = Campaign.constructBlueprint(state, added.blueprint.id);
   assert.equal(built.error, null);
-  assert.equal(built.state.player.blueprints[0].built, true);
-  assert.equal(built.state.player.buildings.length, 2);
+  state = built.state;
+  const crafted = Campaign.beginCardCraftState(state, { materialQuality: 'standard', effort: 'quick' }, 0.1);
+  assert.equal(crafted.error, null);
+  assert.equal(crafted.state.player.dailyOrders.craftUsed, true);
+  assert.equal(crafted.state.player.dailyOrders.researchUsed, true);
+  assert.equal(crafted.state.player.dailyOrders.constructionUsed, true);
+  assert.equal(crafted.state.player.dailyOrders.frontierUsed, true);
+  assert.match(Campaign.finishDayState(crafted.state).error, /экспедиции/);
 });
 
 test('only active buildings change combat limits and economic buildings are useful too', () => {
@@ -470,6 +536,8 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
   assert.deepEqual(rare.order.cost, { food: 4, materials: 8, knowledge: 3 });
   assert.deepEqual(rare.state.player.resources, { food: 4, materials: 0, knowledge: 2 });
   assert.equal(rare.state.player.actionUsed, true);
+  assert.equal(rare.state.player.dailyOrders.craftUsed, true);
+  assert.match(Campaign.beginCardCraftState(rare.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, /ковка уже заказана/);
 
   const ordinary = Campaign.beginCardCraftState(initial, { materialQuality: 'standard', effort: 'quick' }, 0, 'Копейная линия');
   assert.equal(ordinary.order.rarity, 'ordinary');
@@ -518,8 +586,10 @@ test('invalid generation refunds the upfront investment and frees a same-day ord
   assert.equal(failed.error, null);
   assert.deepEqual(failed.state.player.resources, initial.player.resources);
   assert.equal(failed.state.player.actionUsed, false);
+  assert.equal(failed.state.player.dailyOrders.craftUsed, false);
   assert.equal(failed.state.player.craftOrders[0].status, 'failed');
   assert.match(failed.state.player.craftOrders[0].failure, /schema mismatch/);
+  assert.equal(Campaign.beginCardCraftState(failed.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, null);
 });
 
 test('science advisor only offers fixed branches unlocked by the current era', () => {
@@ -615,14 +685,87 @@ test('reloading during model generation compensates the interrupted order', () =
 });
 
 
-test('forge and science advisors expose fixed choices without free-text prompt fields', () => {
+test('forge-advice response accepts exactly three distinct supported card ideas', () => {
+  const appHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const start = appHtml.indexOf('    function cleanForgeAdviceText(value, maxLength) {');
+  const end = appHtml.indexOf('    function readForgeAdviceForToday() {', start);
+  assert.ok(start >= 0 && end > start, 'forge-advice normalization should remain independently testable');
+  const parser = appHtml.slice(start, end);
+  const context = vm.createContext({});
+  vm.runInContext(`${parser}\nglobalThis.parseAdvice = parseForgeAdviceResponse;`, context);
+  const content = JSON.stringify({ choices: [
+    { card_type: 'unit', title: 'Пращники поймы', pitch: 'Лёгкие стрелки прикрывают речную переправу.' },
+    { card_type: 'spell', title: 'Ложный отход', pitch: 'Тактический манёвр заманивает защитников на открытый берег.' },
+    { card_type: 'structure', title: 'Дозорный частокол', pitch: 'Укрепление заранее предупреждает о набеге.' }
+  ] });
+  const parsed = context.parseAdvice(`Ответ советника:\n${content}`);
+  assert.equal(parsed.length, 3);
+  assert.deepEqual(Array.from(parsed, choice => choice.cardType), ['unit', 'spell', 'structure']);
+  assert.throws(() => context.parseAdvice(JSON.stringify({ choices: JSON.parse(content).choices.slice(0, 2) })), /ровно три/);
+  assert.throws(() => context.parseAdvice(JSON.stringify({ choices: [
+    { card_type: 'unit', title: 'Одинаково', pitch: 'Первый замысел.' },
+    { card_type: 'unit', title: 'Одинаково', pitch: 'Второй замысел.' },
+    { card_type: 'structure', title: 'Третий', pitch: 'Третий замысел.' }
+  ] })), /повторил/);
+});
+
+test('forge advice spends one model call for a cached three-option set and does not reroll it that day', async () => {
+  const appHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const start = appHtml.indexOf('    const FORGE_ADVICE_STORAGE_KEY =');
+  const end = appHtml.indexOf('    function renderCraftQuote() {', start);
+  assert.ok(start >= 0 && end > start, 'forge advice flow should remain isolated from the full card renderer');
+  const advisorCode = appHtml.slice(start, end);
+  const stored = new Map();
+  const controls = {
+    'forge-advice-btn': { disabled: false, textContent: '' },
+    'forge-advice-status': { textContent: '' },
+    'forge-advice-choices': { innerHTML: '' }
+  };
+  const state = {
+    season: 1, day: 1,
+    player: { onboardingComplete: true, era: 0, craftLevel: 0, resources: { food: 8, materials: 8, knowledge: 5 }, dailyOrders: { craftUsed: false, legacyBlocked: false }, craftOrders: [] },
+    regions: [{ id: 'home', ownerId: 'player' }]
+  };
+  const calls = [];
+  const reply = { choices: [
+    { card_type: 'unit', title: 'Речной дозор', pitch: 'Разведчики замечают отряд у переправы.' },
+    { card_type: 'spell', title: 'Обманный манёвр', pitch: 'Ложный сигнал разрывает строй противника.' },
+    { card_type: 'structure', title: 'Сторожевая вышка', pitch: 'Дозорная постройка помогает удерживать берег.' }
+  ] };
+  const context = vm.createContext({
+    window: { CampaignMvp: { getState: () => state, REGION_DEFINITIONS: [{ id: 'home', name: 'Речное поселение' }], ERAS: ['Каменный век'], SEASON_LENGTH: 30 } },
+    document: { getElementById: id => controls[id] || null },
+    localStorage: { getItem: key => stored.get(key) || null, setItem: (key, value) => stored.set(key, value) },
+    fetch: async (url, options) => { calls.push({ url, body: JSON.parse(options.body) }); return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(reply) } }] }) }; },
+    getApiKey: () => 'test-key',
+    getSelectedModel: () => 'test-advisor-model',
+    renderCraftQuote() {},
+    escapeCardHtml: value => String(value)
+  });
+  vm.runInContext(`${advisorCode}\nglobalThis.runAdvice = requestForgeAdvice; globalThis.chooseAdvice = selectForgeAdvice; globalThis.currentAdvice = readForgeAdviceForToday;`, context);
+  await context.runAdvice();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.model, 'test-advisor-model');
+  assert.equal(context.currentAdvice().choices.length, 3);
+  assert.equal(controls['forge-advice-choices'].innerHTML.match(/class="forge-advice-option/g).length, 3);
+  await context.runAdvice();
+  assert.equal(calls.length, 1);
+  context.chooseAdvice('forge-advice-2');
+  assert.equal(context.currentAdvice().selectedId, 'forge-advice-2');
+});
+
+test('forge advisor offers exactly three LLM ideas and the player selects one without free text', () => {
   const appHtml = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const campaignSource = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
-  assert.match(appHtml, /id="forge-advisor-type"/);
-  assert.match(appHtml, /id="forge-advisor-direction"/);
-  assert.match(appHtml, /id="craft-material-quality"/);
-  assert.match(appHtml, /id="craft-effort"/);
-  assert.doesNotMatch(appHtml, /id="prompt-input"/);
+  assert.match(appHtml, /id="forge-advice-btn"/);
+  assert.match(appHtml, /id="forge-advice-choices"/);
+  assert.match(appHtml, /1 LLM-вызов/);
+  assert.match(appHtml, /rawChoices\.length !== 3/);
+  assert.match(appHtml, /async function requestForgeAdvice\(\)/);
+  assert.match(appHtml, /function selectForgeAdvice\(id\)/);
+  assert.match(appHtml, /id="craft-investment"/);
+  assert.doesNotMatch(appHtml, /id="forge-advisor-type"|id="forge-advisor-direction"|id="forge-advisor-biome"|id="forge-advisor-focus"/);
+  assert.doesNotMatch(appHtml, /id="craft-material-quality"|id="craft-effort"|id="prompt-input"/);
   assert.match(campaignSource, /id="campaign-project-branch"/);
   assert.doesNotMatch(campaignSource, /id="campaign-project-material"|id="campaign-project-visibility"/);
   assert.doesNotMatch(campaignSource, /campaign-project-word|campaign-project-prompt/);
