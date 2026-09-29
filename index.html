@@ -1489,6 +1489,89 @@
         border: 1.5px solid rgba(240,184,107,0.28) !important;
         box-shadow: 0 12px 32px rgba(0,0,0,0.5) !important;
     }
+    /* === MOBILE FIXES v4.1 — cost badges, nav overflow, card art === */
+    .game-card .card-costs {
+        display: flex;
+        gap: 8px;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 3;
+    }
+    .cost-badge {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+        border: 1.5px solid rgba(255,255,255,0.18);
+    }
+    .cost-badge .cost-num { font-size: 1.25em; line-height: 1; }
+    .cost-badge .cost-label { font-size: 0.75em; line-height: 1; margin-top: 1px; }
+    .game-card .card-art {
+        position: relative;
+        isolation: isolate;
+    }
+    .game-card .card-art::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%);
+        pointer-events: none;
+        z-index: 0;
+        border-radius: inherit;
+    }
+    .top-bar .nav {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(199,125,255,0.3) transparent;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
+    }
+    .top-bar .nav button {
+        scroll-snap-align: start;
+    }
+    .forge-result .game-card {
+        margin-bottom: 24px;
+    }
+    @media (max-width: 760px) {
+        .top-bar .nav {
+            padding-bottom: 4px;
+            gap: 6px;
+        }
+        .top-bar .nav button {
+            min-height: 36px;
+            padding: 6px 10px;
+            font-size: 0.78em;
+        }
+        .game-card .card-name {
+            font-size: 1.15em;
+            padding-right: 90px;
+            line-height: 1.25;
+        }
+        .cost-badge {
+            width: 38px;
+            height: 38px;
+        }
+        .cost-badge .cost-num { font-size: 1.1em; }
+        .cost-badge .cost-label { font-size: 0.65em; }
+        .forge-result .game-card {
+            max-width: 100%;
+        }
+        .game-card .card-art {
+            height: 140px;
+        }
+    }
+    @media (max-width: 400px) {
+        .top-bar .nav button {
+            padding: 5px 8px;
+            font-size: 0.72em;
+        }
+    }
+
     /* Animations */
     @keyframes megaFloat {
         0%, 100% { transform: translateY(0); }
@@ -2038,16 +2121,20 @@
         }
 
         const eraPool = getPoolForEra(era);
-        // Build combined pool from lineage (all cultures in lineage, not just current)
+        // Build combined pool from lineage + diversity injection
         let pool = [];
         for (const cid of lineage) {
             const culturePool = eraPool[cid] || [];
             pool = pool.concat(culturePool);
         }
-        // Also add current culture if not in lineage
         if (!lineage.includes(histId) && eraPool[histId]) pool = pool.concat(eraPool[histId]);
-
-        // If still empty, fallback to era 0 yamnaya
+        // Diversity: always add 1-2 units from other cultures of same era for variety
+        const allCultureIds = Object.keys(eraPool);
+        for (const otherId of allCultureIds) {
+            if (otherId !== histId && !lineage.includes(otherId) && eraPool[otherId] && Math.random() < 0.6) {
+                pool = pool.concat(eraPool[otherId].slice(0,1));
+            }
+        }
         if (!pool.length) pool = CULTURE_UNITS_BY_ERA[0].yamnaya;
 
         const biomeExtras = {
@@ -2311,8 +2398,11 @@
             || (campaign.day + quote.effortDays > window.CampaignMvp.SEASON_LENGTH ? 'До конца сезона не хватит времени на эту ковку.' : '') : '';
         const slotText = campaign.player.dailyOrders.legacyBlocked ? 'Завтра' : `${campaign.player.dailyOrders.craftUsed ? '1/1 использована' : '0/1 сегодня'}`;
         const effortText = quote.effortDays ? `${quote.effortDays} дн.` : 'сразу';
-        target.innerHTML = `<div class="craft-quote-main"><span><b title="Мастерство влияет на шанс">Шанс · кузнец ${quote.craftLevel + 1}</b><small>${oddsText}</small></span><span><b>Цена · ${effortText}</b><small>${costText}</small></span></div><small>Запасы ${stockText} · ковка ${slotText}${blocker ? ` · ${blocker}` : ''}</small>`;
-        if (button) button.disabled = !selected || Boolean(blocker) || forgeGenerationLoading;
+        target.innerHTML = `<div class="craft-quote-main"><span><b title="Мастерство влияет на шанс">Шанс · кузнец ${quote.craftLevel + 1}</b><small>${oddsText}</small></span><span><b>Цена · ${effortText}</b><small>${costText}</small></span></div><small style="${blocker ? 'color:#ff9a8a; font-weight:700;' : ''}">Запасы ${stockText} · ковка ${slotText}${blocker ? ` · ⚠️ ${blocker}` : ''}</small>`;
+        if (button) {
+            button.disabled = !selected || Boolean(blocker) || forgeGenerationLoading;
+            button.title = !selected ? 'Сначала выбери замысел советника' : blocker || '';
+        }
     }
 
     function refreshForgeUi() {
@@ -2573,6 +2663,20 @@
         return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     }
 
+    function getCardImageForCard(card) {
+        const tags = (card.tags||[]).join(' ').toLowerCase() + ' ' + (card.name||'').toLowerCase() + ' ' + (card.description||'').toLowerCase();
+        if (tags.includes('шумер') || tags.includes('sumer') || tags.includes('клинопись') || tags.includes('зиккурат') || tags.includes('урук') || tags.includes('энлиль') || tags.includes('гильгамеш')) return 'images/sumerian-tank.jpg';
+        if (tags.includes('аккад') || tags.includes('саргон') || tags.includes('ассир')) return 'images/akkadian-tank.jpg';
+        if (tags.includes('египет') || tags.includes('егип') || tags.includes('фараон') || tags.includes('ра') && tags.includes('танк') || tags.includes('нил') && tags.includes('колесница') || tags.includes('меджаи') || tags.includes('мамлюк')) return 'images/egyptian-tank.jpg';
+        if (tags.includes('ямная') || tags.includes('ямн') || tags.includes('курган') || tags.includes('степь') || tags.includes('всадник') || tags.includes('кочев') || tags.includes('скиф') || tags.includes('казак')) {
+            // Use knights for units, evolution for others
+            return card.card_type === 'unit' ? 'images/yamnaya-knights.jpg' : 'images/yamnaya-evolution.jpg';
+        }
+        if (tags.includes('гор') || tags.includes('высокогор')) return 'images/ancient-map.jpg';
+        if (tags.includes('реч') || tags.includes('дельта') || tags.includes('проток')) return 'images/ancient-map.jpg';
+        return 'images/ancient-map.jpg';
+    }
+
     function renderCard(card, mode = 'collection') {
         const typeDef = CARD_TYPES[card.card_type] || CARD_TYPES.unit;
         const rarityLabels = { ordinary: 'ОБЫЧНАЯ', uncommon: 'НЕОБЫЧНАЯ', rare: 'РЕДКАЯ' };
@@ -2624,11 +2728,11 @@
             const suffix = (['armor','pierce','poison','burn','heal'].includes(kw)) ? (n||1) : '';
             const fullLabel = {
                 armor:'броня', pierce:'пробитие', ranged:'дальний бой', reach:'длинное оружие',
-                charge:'чарж', shieldwall:'стена щитов', wedge:'клин', phalanx:'фаланга',
-                skirmish:'засадный', taunt:'провокация', poison:'яд', burn:'огонь', heal:'лекарь',
+                charge:'натиск', shieldwall:'стена щитов', wedge:'клин', phalanx:'фаланга',
+                skirmish:'засада', taunt:'провокация', poison:'яд', burn:'огонь', heal:'лекарь',
                 rally:'поддержка', fear:'устрашение', morale:'мораль', siege:'осада', spy:'разведка',
-                sabotage:'диверсия', supply:'снабжение', warcry:'боевой клич', loot:'добыча',
-                raider:'налётчик', harras:'партизан', exhaustenemy:'измот', sturdy:'стойкий',
+                sabotage:'диверсия', supply:'снабжение', warcry:'боевой клич', loot:'трофей',
+                raider:'налёт', harras:'набег', exhaustenemy:'изнурение', sturdy:'стойкий',
                 holdground:'держит строй', upkeep:'содержание'
             }[kw] || kw;
             kwChips.push(`<span class="kw-chip" onclick="this.classList.toggle('kw-open')" ontouchstart="event.preventDefault();this.classList.toggle('kw-open')" style="display:inline-flex; align-items:center; gap:3px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:2px 7px; margin:1px; font-size:.72em; white-space:nowrap; cursor:help;">${def.label}${suffix?`<b>${suffix}</b>`:''} <span style="opacity:.85">${fullLabel}</span></span>`);
@@ -2675,22 +2779,22 @@
             <div class="game-card ${typeDef.cls}" data-card-id="${card.id}" style="max-width:320px; width:100%">
                 ${inDeckBadge}
                 <div class="card-costs">
-                    <div class="cost-badge drop-cost">
+                    <div class="cost-badge drop-cost" title="Стоимость выхода">
                         <span class="cost-num">${card.drop_cost}</span>
-                        <span class="cost-label">выход</span>
+                        <span class="cost-label">💎</span>
                     </div>
                     ${card.action_cost > 0 ? `
-                    <div class="cost-badge action-cost">
+                    <div class="cost-badge action-cost" title="Стоимость действия">
                         <span class="cost-num">${card.action_cost}</span>
-                        <span class="cost-label">дейст</span>
+                        <span class="cost-label">⚡</span>
                     </div>` : ''}
                 </div>
                 <div class="card-name">${escapeCardHtml(card.name)}</div>
                 <div class="card-type">${typeDef.icon} ${typeDef.label} ${rarityHtml} ${eraLabel ? `<span class="card-tag ${eraTagClass}" style="margin-left:6px; font-size:0.6em; vertical-align:middle;">${eraLabel}</span>` : ''}</div>
-                <div class="card-art ${typeDef.cls}" aria-hidden="true">
-                    <span class="card-art-symbol">${escapeCardHtml(card.emoji || '⚒️')}</span>
-                    <span class="card-art-caption">${card.card_type === 'unit' ? 'ВОИНСКОЕ ИСКУССТВО' : card.card_type === 'spell' ? 'ТАКТИКА И ЗНАНИЕ' : 'ОПЛОТ ЦИВИЛИЗАЦИИ'}</span>
-                    <span class="card-art-rune">✦</span>
+                <div class="card-art ${typeDef.cls}" aria-hidden="true" style="background-image: linear-gradient(180deg, rgba(0,0,0,0.15), rgba(0,0,0,0.65)), url('${getCardImageForCard(card)}'); background-size: cover; background-position: center 35%;">
+                    <span class="card-art-symbol" style="position:relative; z-index:1; text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.6);">${escapeCardHtml(card.emoji || '⚒️')}</span>
+                    <span class="card-art-caption" style="z-index:1; background: rgba(0,0,0,0.45); padding: 2px 6px; border-radius: 4px; backdrop-filter: blur(2px);">${card.card_type === 'unit' ? 'ОТРЯД' : card.card_type === 'spell' ? 'МАНЁВР' : 'СООРУЖЕНИЕ'}</span>
+                    <span class="card-art-rune" style="z-index:1;">✦</span>
                 </div>
                 ${descHtml}
                 ${kwHtml}
@@ -3045,7 +3149,7 @@
         pierce:     { label: '🗡️', desc: 'Пробитие N: игнорирует N брони цели.' },
         ranged:     { label: '🏹', desc: 'Дальний бой: с тыла бьёт авангард, не получает встречный урон.' },
         reach:      { label: '📏', desc: 'Длинное оружие: бьёт через пустой слот в авангарде.' },
-        charge:     { label: '🐎', desc: 'Чарж: +2 к атаке в первый ход после высадки.' },
+        charge:     { label: '🐎', desc: 'Натиск: +2 к атаке в первый ход после высадки.' },
         shieldwall: { label: '🔰', desc: 'Стена щитов: +2 броня при соседях.' },
         wedge:      { label: '🔺', desc: 'Клин: +2 к атаке при двух соседях.' },
         phalanx:    { label: '⬛', desc: 'Фаланга: +1 броня и +1 к атаке против конницы.' },
