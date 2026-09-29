@@ -347,6 +347,31 @@ function simulateFrontierToForge() {
     });
 }
 
+function simulateDiversity() {
+    // 100500 diversity: every player gets unique building names from pools + seeded random
+    const s1 = Campaign.createState();
+    s1.player.name = 'Дети Реки';
+    s1.player.clan = 'Медный Ворон';
+    const s2 = Campaign.createState();
+    s2.player.name = 'Горные Волки';
+    s2.player.clan = 'Каменный Коготь';
+    const seed1 = 12345;
+    const seed2 = 67890;
+    const variants1 = Campaign.DIVERSITY_POOLS ? Campaign.generateLocalScienceVariants('agriculture', seed1, 3) : [];
+    const variants2 = Campaign.DIVERSITY_POOLS ? Campaign.generateLocalScienceVariants('agriculture', seed2, 3) : [];
+    const region1 = Campaign.generateLocalRegionFlavor ? Campaign.generateLocalRegionFlavor('floodplain', seed1) : { name: 'test' };
+    const region2 = Campaign.generateLocalRegionFlavor ? Campaign.generateLocalRegionFlavor('floodplain', seed2) : { name: 'test2' };
+    return {
+        strategy: '100500 разнообразия: уникальные названия зданий/наук у каждого игрока (пулы + seed + LLM)',
+        scienceVariantsPlayer1: variants1.map(v => `${v.scienceName} → ${v.buildingName} [${v.effects.map(e=>e.type).join(',')}]`),
+        scienceVariantsPlayer2: variants2.map(v => `${v.scienceName} → ${v.buildingName} [${v.effects.map(e=>e.type).join(',')}]`),
+        regionBuildingPlayer1: region1.name,
+        regionBuildingPlayer2: region2.name,
+        unique: variants1[0]?.buildingName !== variants2[0]?.buildingName || region1.name !== region2.name,
+        note: 'Без API ключа — из локальных пулов DIVERSITY_POOLS (как в tribes-legacy). С ключом — LLM придумывает ещё более уникальные названия, но механика из EFFECTS allowlist.'
+    };
+}
+
 function simulateDecrees() {
     let state = newCampaign();
     // advance to era 1 and choose decree
@@ -393,10 +418,13 @@ function runReport() {
             workerYield: Campaign.WORKER_BASE_YIELD,
             storageBase: Campaign.STORAGE_BASE,
             notes: [
-                'v3.1: эпохи до 2150, кланы вместо людей, уклады при смене эпохи.',
-                'Регион без здания =0, потеря региона=потеря здания.',
+                'v3.4: здания и науки придумывает ИИ — 3 варианта на выбор (как в кузнице), региональные здания с уникальными именами от ИИ.',
+                '100500 разнообразия: DIVERSITY_POOLS как в tribes-legacy, seeded random по имени клана → у каждого игрока все здания/науки/юниты разные. С LLM ещё уникальнее.',
+                'v3.3: эпохи до 2150 (7 эпох), кланы вместо людей, уклады при смене эпохи.',
+                'Регион без здания =0, потеря региона=потеря здания. Региональное здание теперь имеет уникальное имя (flavor) от пулов или LLM.',
                 'AP 2/день — выбор Выживание vs Развитие vs Мощь.',
-                'Уклад: военный/земледельческий/жреческий — взаимоисключающий, формирует идентичность на тысячи лет.',
+                'Уклад: военный/земледельческий/жреческий — взаимоисключающий, формирует идентичность на тысячи лет. Летопись уникальной истории.',
+                'Эффекты расширены до 12 (storage_bonus, defense_bonus, trade_bonus, pop_growth и т.д.) для разнообразия зданий.',
                 'Склад лимит ' + Campaign.STORAGE_BASE + ' + бонусы, излишки гниют 50% (микро для прототипа, потом заменим на бюрократию).'
             ]
         },
@@ -407,7 +435,8 @@ function runReport() {
             simulateCrafting('masterwork', 'painstaking'),
             simulateResearchAndConstruction(),
             simulateFrontierToForge(),
-            simulateDecrees()
+            simulateDecrees(),
+            simulateDiversity()
         ]
     };
 }

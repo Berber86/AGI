@@ -248,6 +248,25 @@
 .campaign-queue-item>b { flex:1 1 150px; min-width:0; overflow:hidden; color:#eee2d5; font-size:.68rem; text-overflow:ellipsis; white-space:nowrap; }
 .campaign-queue-item>small { color:#b8aaba; font-size:.61rem; }
 .campaign-queue-item .campaign-btn { min-height:28px; padding:4px 8px; font-size:.61rem; }
+.campaign-science-choices { display:grid; gap:10px; margin:14px 0; padding:12px; border:1px solid rgba(125,211,255,.22); border-radius:14px; background:linear-gradient(135deg,rgba(25,45,65,.35),rgba(15,25,40,.35)); }
+.campaign-science-choices>b { color:#a8d8ff; font-size:.78rem; }
+.campaign-science-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+.campaign-science-card { display:grid; gap:8px; padding:12px; border:1px solid rgba(125,211,255,.18); border-radius:12px; background:rgba(10,18,30,.55); }
+.campaign-science-card b { color:#d6ecff; font-size:.8rem; line-height:1.3; }
+.campaign-science-card small { color:#8aa0b8; font-size:.68rem; line-height:1.4; }
+.campaign-science-card .campaign-science-building { color:#ffe0a1; }
+.campaign-science-card .campaign-science-effects { color:#83d2a0; font-weight:700; }
+.campaign-chronicle-list { display:grid; gap:8px; }
+.campaign-chronicle-entry { display:grid; gap:3px; padding:8px 10px; border:1px solid rgba(189,131,255,.12); border-radius:10px; background:rgba(12,9,17,.35); }
+.campaign-chronicle-entry small { color:#a99bb2; font-size:.6rem; }
+.campaign-chronicle-entry span { color:#e7d8ef; font-size:.72rem; line-height:1.4; }
+.campaign-decree-choice { display:grid; gap:12px; padding:14px; border:1px solid rgba(240,184,107,.22); border-radius:16px; background:linear-gradient(135deg,rgba(60,40,20,.35),rgba(30,20,10,.35)); }
+.campaign-decree-options { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; }
+.campaign-decree-options .campaign-btn { display:grid; gap:4px; min-height:90px; text-align:left; }
+.campaign-decree-options .campaign-btn b { font-size:.82rem; }
+.campaign-decree-options .campaign-btn small { font-size:.62rem; line-height:1.3; white-space:normal; }
+.campaign-day-blocker { color:#ffb86b; font-size:.68rem; }
+
 @media(max-width:760px) {
     .campaign-seasonbar.campaign-seasonbar-compact { align-items:center; flex-direction:row; }
     .campaign-daily-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }

@@ -67,10 +67,126 @@
         max_hp: { label: '+1 стартовое здоровье', category: 'military', max: 1 },
         energy_cap: { label: '+1 к максимуму энергии', category: 'military', max: 1 },
         energy_growth: { label: '+1 к приросту энергии за ход', category: 'military', max: 1 },
-        income_food: { label: '+0.5 к еде с рабочего', category: 'economy', max: 2 },
-        income_materials: { label: '+0.4 к материалам с рабочего', category: 'economy', max: 2 },
-        income_knowledge: { label: '+0.5 к знаниям с рабочего', category: 'science', max: 2 }
+        income_food: { label: '+0.5 к еде с клана', category: 'economy', max: 2 },
+        income_materials: { label: '+0.4 к материалам с клана', category: 'economy', max: 2 },
+        income_knowledge: { label: '+0.5 к знаниям с клана', category: 'science', max: 2 },
+        pop_growth: { label: '+15% шанс роста кланов', category: 'civic', max: 2 },
+        storage_bonus: { label: '+5 к складу', category: 'economy', max: 2 },
+        defense_bonus: { label: '+10% защита от набегов', category: 'military', max: 2 },
+        trade_bonus: { label: '+0.3 к торговле (материалы+знания)', category: 'economy', max: 2 },
+        upkeep_reduction: { label: '-0.1 к upkeep зданий', category: 'civic', max: 2 }
     };
+
+    // 100500 diversity pools — локальный фолбэк когда нет LLM, как в tribes-legacy.html
+    // Каждый игрок получает уникальные названия из этих пулов + seeded random
+    const DIVERSITY_POOLS = {
+        // Наука: по ветвям — префиксы и суффиксы для уникальных имён
+        sciencePrefixes: {
+            agriculture: ['Запруды', 'Ирригация', 'Севооборот', 'Закрома', 'Пахота', 'Хлебные ямы', 'Глиняные амбары', 'Речные огороды'],
+            stonecraft: ['Кремень', 'Обсидиан', 'Тёсаный камень', 'Керамика', 'Плетение', 'Кожевня', 'Резьба', 'Кузнечный горн'],
+            seasonal: ['Звёздный круг', 'Лунный календарь', 'Солнечные метки', 'Птичий календарь', 'Счёт паводков', 'Тени камней', 'Ветры и росы'],
+            warfare: ['Копейный строй', 'Пращники', 'Засада', 'Сторожа', 'Сигнальные костры', 'Клич и щит', 'Дружина'],
+            fortification: ['Частокол', 'Земляной вал', 'Каменные ворота', 'Башни', 'Ров и насыпь', 'Укрытия', 'Дозор'],
+            metallurgy: ['Медные жилы', 'Плавка', 'Тигля', 'Ковка', 'Литьё', 'Рудный поиск', 'Горновой мех'],
+            bronze: ['Бронзовый сплав', 'Олово и медь', 'Литейные формы', 'Закалка', 'Инструменты', 'Бронзовый век']
+        },
+        scienceSuffixes: ['практики', 'наблюдений', 'опыт общины', 'старших', 'ремесла', 'уклада', 'заповедь', 'знание', 'приём'],
+        buildingPrefixes: {
+            floodplain: ['Запруда', 'Канава', 'Плотина', 'Арык', 'Пойменный амбар', 'Речные ворота', 'Иловые поля'],
+            hills: ['Каменоломня', 'Щебёночная яма', 'Тёска', 'Каменный навес', 'Кремнёвый склад', 'Горная тропа'],
+            calendar: ['Круг камней', 'Обсерватория', 'Солнечные часы', 'Звёздная площадка', 'Календарный столб', 'Тени'],
+            copper: ['Медная яма', 'Плавильня', 'Горн', 'Тигельная', 'Медный двор', 'Дымная печь'],
+            'tin-route': ['Караван-сарай', 'Оловянный склад', 'Торговый стан', 'Меняльный двор', 'Путь олова', 'Перевал'],
+            'rival-settlement': ['Форпост', 'Сторожка', 'Острог', 'Застава', 'Пограничный двор', 'Крепостица']
+        },
+        buildingSuffixes: ['общины', 'рода', 'клана', 'поселения', 'у реки', 'на холме', 'старших', 'кузнецов', 'пахарей'],
+        adjectives: ['Большой', 'Малый', 'Старый', 'Новый', 'Верхний', 'Нижний', 'Солнечный', 'Медный', 'Каменный', 'Речной', 'Лесной', 'Степной', 'Северный', 'Южный'],
+        // Уникальные черты для истории цивилизации
+        chronicleTemplates: [
+            'В день {day} старейшины {clan} заметили: {event}. Это стало частью уклада.',
+            'Эпоха {era}: {clan} помнит {event} как поворот.',
+            'Летопись {clan}: день {day} — {event}.',
+            'Дети {clan} будут рассказывать про {event} у костра.'
+        ],
+        events: {
+            agriculture: ['первый урожай с новых полей', 'заполненные до краёв закрома', 'река принесла ил', 'запруда удержала рыбу'],
+            stonecraft: ['камень поддался руке мастера', 'новый инструмент режет как клык', 'печь обожгла горшки без трещин'],
+            seasonal: ['звёзды совпали с разливом', 'луна подсказала время сева', 'птицы вернулись раньше обычного'],
+            warfare: ['дружина вернулась с добычей', 'сигнальные костры зажглись вовремя', 'враг не решился подойти'],
+            fortification: ['частокол выдержал набег', 'ворота закрылись за миг до врага', 'ров наполнился водой'],
+            metallurgy: ['медь потекла как воск', 'первый слиток блестит на солнце', 'горн загудел сильнее'],
+            bronze: ['бронза звенит как колокол', 'новый сплав не гнётся', 'инструменты режут камень']
+        }
+    };
+
+    function seededRandom(seed) {
+        // simple mulberry32
+        let t = seed >>> 0;
+        return function () {
+            t += 0x6D2B79F5;
+            let r = Math.imul(t ^ (t >>> 15), 1 | t);
+            r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+            return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+    function hashString(str) {
+        let h = 2166136261;
+        for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+        return h >>> 0;
+    }
+    function pickRandom(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
+
+    function generateLocalScienceVariants(branchId, playerSeed, count) {
+        const rng = seededRandom(playerSeed + hashString(branchId));
+        const prefixes = DIVERSITY_POOLS.sciencePrefixes[branchId] || DIVERSITY_POOLS.sciencePrefixes.seasonal;
+        const suffixes = DIVERSITY_POOLS.scienceSuffixes;
+        const branch = SCIENCE_BRANCHES.find(b => b.id === branchId);
+        const events = DIVERSITY_POOLS.events[branchId] || DIVERSITY_POOLS.events.seasonal;
+        const variants = [];
+        for (let i = 0; i < count; i++) {
+            const pre = pickRandom(rng, prefixes);
+            const suf = pickRandom(rng, suffixes);
+            const adj = rng() > 0.6 ? pickRandom(rng, DIVERSITY_POOLS.adjectives) + ' ' : '';
+            // 3 разных эффекта с trade-off: один основной + один побочный
+            const mainEffect = branch.effect;
+            const secondaryPool = EFFECT_KEYS.filter(k => k !== mainEffect);
+            const secondary = pickRandom(rng, secondaryPool);
+            const effects = [{ type: mainEffect, amount: 1 }];
+            if (rng() > 0.35) effects.push({ type: secondary, amount: 1 });
+            // иногда trade-off: больше еды но меньше знаний и т.д.
+            variants.push({
+                scienceName: adj + pre + ' — ' + suf,
+                scienceDescription: pickRandom(rng, events) + '. ' + branch.prompt + ' — местные условия диктуют свой путь.',
+                buildingName: adj + (DIVERSITY_POOLS.buildingPrefixes[branchId]?.[i % 6] || pre) + ' ' + pickRandom(rng, DIVERSITY_POOLS.buildingSuffixes),
+                buildingDescription: 'Уникальная постройка общины: ' + pickRandom(rng, events) + '. Даёт ' + effects.map(e => EFFECTS[e.type]?.label || e.type).join(' и ') + '.',
+                category: branch.category,
+                effects
+            });
+        }
+        return variants;
+    }
+
+    function generateLocalRegionFlavor(regionId, playerSeed) {
+        const rng = seededRandom(playerSeed + hashString(regionId) + Date.now() % 1000);
+        const prefixes = DIVERSITY_POOLS.buildingPrefixes[regionId] || ['Постройка', 'Лагерь', 'Стан'];
+        const name = pickRandom(rng, DIVERSITY_POOLS.adjectives) + ' ' + pickRandom(rng, prefixes) + ' ' + pickRandom(rng, DIVERSITY_POOLS.buildingSuffixes);
+        const descPool = DIVERSITY_POOLS.events[regionId] || DIVERSITY_POOLS.events.seasonal;
+        // fallback to any
+        const anyEvents = Object.values(DIVERSITY_POOLS.events).flat();
+        const event = pickRandom(rng, descPool || anyEvents);
+        return { name: name.slice(0, 80), description: (event + '. Уникальная постройка, какой нет у других общин.').slice(0, 200) };
+    }
+
+    function generateChronicleEntry(state, branchId, projectName) {
+        const rng = seededRandom(hashString(state.player.name + state.player.clan + String(state.day) + branchId));
+        const template = pickRandom(rng, DIVERSITY_POOLS.chronicleTemplates);
+        const event = projectName || pickRandom(rng, DIVERSITY_POOLS.events[branchId] || Object.values(DIVERSITY_POOLS.events).flat());
+        return template
+            .replace('{day}', String(state.day))
+            .replace('{era}', eraName(state.player.era))
+            .replace('{clan}', state.player.clan)
+            .replace('{event}', event);
+    }
     const EFFECT_KEYS = Object.keys(EFFECTS);
     const CATEGORIES = ['military', 'economy', 'science', 'civic'];
     const CATEGORY_NAMES = { military: 'военное', economy: 'экономическое', science: 'научное', civic: 'общественное' };
@@ -107,7 +223,7 @@
     };
 
     function createStartingRegions() {
-        return REGION_DEFINITIONS.map(region => ({ id: region.id, ownerId: region.initialOwner, capturedDay: region.initialOwner ? 1 : null, building: null }));
+        return REGION_DEFINITIONS.map(region => ({ id: region.id, ownerId: region.initialOwner, capturedDay: region.initialOwner ? 1 : null, building: null, buildingFlavor: null }));
     }
 
     function createDailyOrders() {
@@ -153,6 +269,8 @@
                 buildings: [makeStarterBuilding()],
                 activeBuildingSlots: 4,
                 blueprints: [],
+                scienceChoices: null,
+                chronicle: [],
                 deckCardIds: [],
                 practice: { wins: 0, losses: 0, leaderWins: 0, leaderLosses: 0 }
             },
@@ -209,25 +327,28 @@
             if (ownerId !== null && !validOwners.has(ownerId)) ownerId = definition.initialOwner;
             if (definition.id === 'home') ownerId = 'player';
             let building = null;
+            let buildingFlavor = null;
             if (saved && saved.building) {
                 const rb = REGION_BUILDINGS[definition.id];
                 if (rb && saved.building === rb.id) building = rb.id;
             } else if (saved && ownerId === 'player' && definition.id !== 'home') {
-                // migration v2 -> v3: if region was owned in v2, give it its building for free to not punish old saves too harshly?
-                // For new balance we want 0 without building, so for v2 saves we keep building as null but mark as owned.
-                // Actually to preserve progress, give building if owned in old save.
-                // Check if saved had yields? Old saves had yields, so we grant building.
                 if (definition.yields && (definition.yields.food || definition.yields.materials || definition.yields.knowledge)) {
-                    // old v2 region gave income, so grant building for migration
                     const rb = REGION_BUILDINGS[definition.id];
                     if (rb) building = rb.id;
                 }
+            }
+            if (saved && saved.buildingFlavor && typeof saved.buildingFlavor === 'object') {
+                buildingFlavor = {
+                    name: String(saved.buildingFlavor.name || '').slice(0, 80),
+                    description: String(saved.buildingFlavor.description || '').slice(0, 400)
+                };
             }
             return {
                 id: definition.id,
                 ownerId,
                 capturedDay: ownerId === null ? null : clampInt(saved?.capturedDay, 1, SEASON_LENGTH, 1),
-                building
+                building,
+                buildingFlavor
             };
         });
     }
@@ -400,6 +521,32 @@
             createdDay: clampInt(blueprint.createdDay, 1, SEASON_LENGTH, 1),
             openingProject: Boolean(blueprint.openingProject)
         })).filter(blueprint => blueprint.id && blueprint.scienceName && blueprint.buildingName) : [];
+        // scienceChoices: 3 варианта на выбор от ИИ (как в кузнице)
+        if (value.player?.scienceChoices && typeof value.player.scienceChoices === 'object') {
+            const sc = value.player.scienceChoices;
+            if (Array.isArray(sc.projects) && sc.projects.length >= 1 && sc.projects.length <= 3) {
+                const cleanProjects = sc.projects.map(p => ({
+                    scienceName: String(p.scienceName || '').slice(0, 80),
+                    scienceDescription: String(p.scienceDescription || '').slice(0, 400),
+                    buildingName: String(p.buildingName || '').slice(0, 80),
+                    buildingDescription: String(p.buildingDescription || '').slice(0, 400),
+                    category: CATEGORIES.includes(p.category) ? p.category : 'civic',
+                    effects: cleanEffects(p.effects) || [{ type: 'income_food', amount: 1 }]
+                })).filter(p => p.scienceName && p.buildingName);
+                if (cleanProjects.length) {
+                    state.player.scienceChoices = {
+                        branchId: String(sc.branchId || '').slice(0, 30),
+                        day: clampInt(sc.day, 1, SEASON_LENGTH, 1),
+                        projects: cleanProjects
+                    };
+                } else state.player.scienceChoices = null;
+            } else state.player.scienceChoices = null;
+        } else state.player.scienceChoices = null;
+        state.player.chronicle = Array.isArray(value.player?.chronicle) ? value.player.chronicle.slice(-20).map(entry => ({
+            day: clampInt(entry.day, 1, SEASON_LENGTH, 1),
+            era: clampInt(entry.era, 0, ERAS.length - 1, 0),
+            text: String(entry.text || '').slice(0, 300)
+        })).filter(e => e.text) : [];
         state.player.deckCardIds = Array.isArray(state.player.deckCardIds) ? [...new Set(state.player.deckCardIds.filter(id => typeof id === 'string'))].slice(0, 8) : [];
         state.opponents = Array.isArray(value.opponents) && value.opponents.length
             ? value.opponents.map((opponent, i) => ({ ...base.opponents[i % base.opponents.length], ...opponent,
@@ -452,7 +599,8 @@
     }
 
     function effectTotals(state) {
-        const totals = { deck_slots: 0, max_hp: 0, energy_cap: 0, energy_growth: 0, income_food: 0, income_materials: 0, income_knowledge: 0 };
+        const totals = {};
+        for (const k of Object.keys(EFFECTS)) totals[k] = 0;
         const active = state.player.buildings.filter(building => building.active).slice(0, state.player.activeBuildingSlots);
         for (const building of active) for (const effect of building.effects || []) {
             if (Object.hasOwn(totals, effect.type)) totals[effect.type] += effect.amount;
@@ -477,12 +625,14 @@
     function getStorageCap(input) {
         const state = normalizeState(input);
         let cap = STORAGE_BASE;
-        const active = state.player.buildings.filter(b => b.active).length;
-        cap += active * 2;
+        const activeBuildings = state.player.buildings.filter(b => b.active);
+        cap += activeBuildings.length * 2;
         for (const dec of getActiveDecrees(state)) {
             if (dec.bonuses.storage) cap += dec.bonuses.storage;
         }
-        const hasGranary = state.player.buildings.some(b => b.active && b.effects.some(e => e.type === 'income_food'));
+        const totals = effectTotals(state);
+        cap += (totals.storage_bonus || 0) * 5;
+        const hasGranary = activeBuildings.some(b => b.effects.some(e => e.type === 'income_food'));
         if (hasGranary) cap += 3;
         return cap;
     }
@@ -497,6 +647,7 @@
                 if (eff.type === 'income_food') bonusFood += BUILDING_WORKER_BONUS.income_food * eff.amount;
                 if (eff.type === 'income_materials') bonusMat += BUILDING_WORKER_BONUS.income_materials * eff.amount;
                 if (eff.type === 'income_knowledge') bonusKnow += BUILDING_WORKER_BONUS.income_knowledge * eff.amount;
+                if (eff.type === 'trade_bonus') { bonusMat += 0.3 * eff.amount; bonusKnow += 0.2 * eff.amount; }
             }
         }
         for (const dec of getActiveDecrees(state)) {
@@ -528,6 +679,8 @@
 
         const consumption = getFoodConsumption(state);
         let upkeep = state.player.buildings.filter(b => b.active).length * UPKEEP_PER_BUILDING + state.regions.filter(r => r.ownerId === 'player' && r.building).length * UPKEEP_PER_BUILDING;
+        // upkeep_reduction и defense/trade пока символически снижают upkeep
+        upkeep = Math.max(0, upkeep - (totals.upkeep_reduction || 0) * 0.1);
         for (const dec of getActiveDecrees(state)) {
             if (dec.bonuses.buildingCostExtra) upkeep += 0.05; // symbolic
         }
@@ -682,8 +835,11 @@
         if (!spend(state, rb.cost)) return { state, error: 'Не хватает ресурсов.' };
         const record = getRegionRecord(state, regionId);
         record.building = rb.id;
+        // 100500 diversity: уникальное имя для каждого игрока даже без LLM
+        const seed = hashString(state.player.name + state.player.clan + regionId + String(state.day));
+        record.buildingFlavor = generateLocalRegionFlavor(regionId, seed);
         markDailyOrderUsed(state, 'construction');
-        state.player.campaignNotice = 'Построено: ' + rb.name + ' в ' + REGION_DEFINITIONS.find(r=>r.id===regionId).name + '. Доход начнёт поступать завтра.';
+        state.player.campaignNotice = 'Построено: ' + record.buildingFlavor.name + ' (' + rb.name + ') в ' + REGION_DEFINITIONS.find(r=>r.id===regionId).name + '. Уникальная постройка — такой нет у других. Доход завтра.';
         return { state, error: null };
     }
     function makeExpeditionMatch(state, pending = state.player.pendingExpedition) {
@@ -1284,10 +1440,15 @@
                 : record.ownerId === null ? 'Свободно'
                     : state.opponents.find(opponent => opponent.id === record.ownerId)?.clan || 'Соперник';
             let yieldText = '—';
+            let displayName = definition.name;
+            if (record.ownerId === 'player' && record.buildingFlavor && record.buildingFlavor.name) displayName = record.buildingFlavor.name;
             if (record.ownerId === 'player') {
                 if (record.building) {
                     const rb = REGION_BUILDINGS[definition.id];
-                    if (rb) yieldText = Object.entries(rb.yields).filter(function(e){return e[1]>0;}).map(function(e){return (e[0]==='food'?'🌾':e[0]==='materials'?'🪵':'📚')+' +'+e[1];}).join(' · ') || 'построено';
+                    if (rb) {
+                        const flavor = record.buildingFlavor ? ' · ' + record.buildingFlavor.name : '';
+                        yieldText = Object.entries(rb.yields).filter(function(e){return e[1]>0;}).map(function(e){return (e[0]==='food'?'🌾':e[0]==='materials'?'🪵':'📚')+' +'+e[1];}).join(' · ') + flavor || 'построено';
+                    }
                 } else {
                     yieldText = REGION_BUILDINGS[definition.id] ? 'Пусто · построй ' + REGION_BUILDINGS[definition.id].name : '—';
                 }
@@ -1464,7 +1625,23 @@
         root.startBattle();
     }
     function claimRegionAction(regionId) { alertResult(settleRegion(state, regionId)); }
-    function buildRegionBuildingAction(regionId) { alertResult(buildRegionBuilding(state, regionId)); }
+    async function buildRegionBuildingAction(regionId) {
+        const result = buildRegionBuilding(state, regionId);
+        if (result.error) { root.alert(result.error); return; }
+        commit(result.state);
+        // Если есть API ключ — попробовать улучшить название через ИИ (уникализация)
+        try {
+            const flavor = await requestRegionFlavor(regionId);
+            if (flavor && flavor.name) {
+                const rec = getRegionRecord(state, regionId);
+                if (rec && rec.building) {
+                    rec.buildingFlavor = flavor;
+                    save(state);
+                    render();
+                }
+            }
+        } catch (_) {}
+    }
     function chooseDecreeAction(decreeId) { alertResult(chooseDecree(state, decreeId)); }
     function attackRegionAction(regionId) {
         if (typeof root.startBattle !== 'function') { root.alert('Боевой экран пока недоступен.'); return; }
@@ -1516,6 +1693,7 @@
         if (typeof root.startBattle === 'function') root.startBattle();
     }
 
+
     async function generateProject(event) {
         event.preventDefault();
         const status = root.document.getElementById('campaign-project-status');
@@ -1528,8 +1706,8 @@
         const context = situation.localContexts[Math.floor(Math.random() * situation.localContexts.length)]
             || { name: 'поселение', description: 'местная община и её повседневные нужды' };
         button.disabled = true;
-        status.textContent = 'Советник сопоставляет «' + branch.label + '» с землями и запасами общины…';
-        let raw;
+        status.textContent = 'Советник готовит 3 замысла по «' + branch.label + '» с учётом земель и запасов…';
+        let projects = [];
         let usedLlm = false;
         try {
             const key = typeof root.getApiKey === 'function' ? root.getApiKey() : '';
@@ -1539,44 +1717,101 @@
                 body: JSON.stringify({
                     model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
                     messages: [
-                        { role: 'system', content: 'Ты научный советник исторической стратегии. Игрок выбрал только широкую ветвь; сам выбери понятную местную тему по землям и запасам общины. Если есть несколько правдоподобных вариантов, допускай небольшую ситуативную вариативность: это совет, не инструмент идеальной настройки. Создай оригинальную науку и связанную постройку. Верни только JSON: {\"scienceName\":\"...\",\"scienceDescription\":\"...\",\"buildingName\":\"...\",\"buildingDescription\":\"...\",\"category\":\"military|economy|science|civic\",\"effects\":[{\"type\":\"...\",\"amount\":1}]}. Допустимые эффекты: ' + JSON.stringify(EFFECTS) + '. Выбери 1 или 2 разных эффекта по ветви; значения amount не выше указанного max. Не выдумывай другие ключи, бонусы или правила. Названия и описания без магии.' },
-                        { role: 'user', content: 'Эпоха: ' + eraName(state.player.era) + '. Направление общины: «' + branch.label + '» — ' + branch.prompt + '. Ситуация: ' + situation.summary + '. Выбранный советником местный ориентир: «' + context.name + '» — ' + context.description + '. Возможный тип постройки: ' + branch.building + '. Создай узнаваемый, ситуативный проект без дополнительных вопросов игроку.' }
+                        { role: 'system', content: 'Ты научный советник исторической стратегии. Игрок выбрал только широкую ветвь; ты должен придумать 3 РАЗНЫХ замысла науки+постройки в рамках этой ветви, с trade-off. Каждое — уникальное название и описание, без магии. Эффекты из списка: ' + JSON.stringify(EFFECTS) + '. Каждый проект: 1-2 эффекта, amount <= max. Обязательно разнообразие: один фокус на еду, другой на материалы/знания, третий на военные/гражданские бонусы. Верни JSON: {\"projects\":[{\"scienceName\":\"...\",\"scienceDescription\":\"...\",\"buildingName\":\"...\",\"buildingDescription\":\"...\",\"category\":\"military|economy|science|civic\",\"effects\":[{\"type\":\"...\",\"amount\":1}]} x3]}. Названия без повторов.' },
+                        { role: 'user', content: 'Эпоха: ' + eraName(state.player.era) + '. Направление: «' + branch.label + '» — ' + branch.prompt + '. Ситуация: ' + situation.summary + '. Ориентир: «' + context.name + '» — ' + context.description + '. Тип постройки: ' + branch.building + '. Клан: ' + state.player.clan + '. Придумай 3 разных замысла — у каждого свой путь развития, как в племени с разными укладами. Игрок выберет один.' }
                     ],
-                    temperature: 0.9, max_tokens: 650, response_format: { type: 'json_object' }
+                    temperature: 1.0, max_tokens: 1400, response_format: { type: 'json_object' }
                 })
             });
             if (!response.ok) throw new Error('Hydra API: HTTP ' + response.status);
             const data = await response.json();
             const content = data.choices?.[0]?.message?.content || '';
-            raw = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+            const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+            if (Array.isArray(parsed.projects) && parsed.projects.length) projects = parsed.projects.slice(0, 3);
+            else if (parsed.scienceName) projects = [parsed];
             usedLlm = true;
         } catch (error) {
-            const buildingFocus = branch.building.split(' или ')[0];
-            raw = {
-                scienceName: 'Практика: ' + branch.label,
-                scienceDescription: 'Наблюдения по направлению «' + branch.label + '» в эпоху ' + eraName(state.player.era) + ', связанные с местными условиями региона «' + context.name + '».',
-                buildingName: context.name + ': ' + buildingFocus,
-                buildingDescription: 'Локальный черновик советника: ' + buildingFocus.toLowerCase() + ' подходит текущим землям и запасам общины.',
-                category: branch.category,
-                effects: [{ type: branch.effect, amount: 1 }]
-            };
+            const seed = hashString(state.player.name + state.player.clan + branchId + String(state.day));
+            projects = generateLocalScienceVariants(branchId, seed, 3);
             status.textContent = error.message === 'no-key'
-                ? 'API-ключ не задан: создан местный черновик советника, это не результат LLM.'
-                : 'LLM недоступна (' + error.message + '); создан местный черновик, а не результат LLM.';
+                ? 'API-ключ не задан: созданы 3 местных черновика с уникальными названиями из пулов — у каждого игрока они разные.'
+                : 'LLM недоступна (' + error.message + '); созданы 3 местных черновика из пулов разнообразия.';
         } finally { button.disabled = false; }
-        const result = addBlueprint(state, raw, 'both');
-        if (result.error) { status.textContent = 'Проект отклонён валидатором: ' + result.error; return; }
-        state = result.state;
+
+        const validProjects = [];
+        for (const raw of projects) {
+            const cleaned = {
+                scienceName: String(raw.scienceName || '').slice(0, 80),
+                scienceDescription: String(raw.scienceDescription || '').slice(0, 400),
+                buildingName: String(raw.buildingName || '').slice(0, 80),
+                buildingDescription: String(raw.buildingDescription || '').slice(0, 400),
+                category: CATEGORIES.includes(raw.category) ? raw.category : branch.category,
+                effects: cleanEffects(raw.effects) || [{ type: branch.effect, amount: 1 }]
+            };
+            if (cleaned.scienceName && cleaned.buildingName) validProjects.push(cleaned);
+        }
+        if (!validProjects.length) { status.textContent = 'Советник не смог придумать проекты — попробуй ещё раз.'; return; }
+
+        state.player.scienceChoices = { branchId, day: state.day, projects: validProjects.slice(0, 3) };
         save(state);
-        const message = usedLlm
-            ? 'Советник создал проект по выбранному направлению и текущим обстоятельствам. Эффект прошёл проверку схемы.'
-            : status.textContent;
         render();
         const refreshedStatus = root.document.getElementById('campaign-project-status');
-        if (refreshedStatus) refreshedStatus.textContent = message;
+        if (refreshedStatus) refreshedStatus.textContent = usedLlm
+            ? 'Советник предложил 3 уникальных замысла — у каждого игрока они разные. Выбери один путь.'
+            : refreshedStatus.textContent || 'Выбери один из 3 черновиков — у каждого игрока названия разные.';
+    }
+
+    function chooseScience(index) {
+        const choices = state.player.scienceChoices;
+        if (!choices || !Array.isArray(choices.projects) || !choices.projects[index]) return;
+        const raw = choices.projects[index];
+        const result = addBlueprint(state, raw, 'both');
+        if (result.error) {
+            const status = root.document.getElementById('campaign-project-status');
+            if (status) status.textContent = 'Проект отклонён: ' + result.error;
+            return;
+        }
+        const entryText = generateChronicleEntry(result.state, choices.branchId, raw.scienceName);
+        result.state.player.chronicle = [...(result.state.player.chronicle || []), { day: result.state.day, era: result.state.player.era, text: entryText }].slice(-20);
+        result.state.player.scienceChoices = null;
+        state = result.state;
+        save(state);
+        render();
+        const status = root.document.getElementById('campaign-project-status');
+        if (status) status.textContent = 'Выбран путь: «' + raw.scienceName + '». ' + entryText;
+    }
+
+    async function requestRegionFlavor(regionId) {
+        const def = REGION_DEFINITIONS.find(r => r.id === regionId);
+        const rb = REGION_BUILDINGS[regionId];
+        if (!def || !rb) return null;
+        try {
+            const key = typeof root.getApiKey === 'function' ? root.getApiKey() : '';
+            if (!key) throw new Error('no-key');
+            const situation = scienceAdvisorSituation(state);
+            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+                method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
+                    messages: [
+                        { role: 'system', content: 'Ты придумываешь уникальные названия для региональных построек в исторической стратегии. Верни JSON: {\"name\":\"уникальное название до 40 символов\",\"description\":\"короткое описание до 120 символов без магии\"}. Название должно быть уникальным, с характером, не шаблонным.' },
+                        { role: 'user', content: 'Регион: ' + def.name + ' — ' + def.description + '. Тип постройки: ' + rb.name + ' — ' + rb.description + '. Эпоха: ' + eraName(state.player.era) + '. Клан: ' + state.player.clan + '. Механика: ' + JSON.stringify(rb.yields) + '. Придумай уникальное имя для этой постройки именно этой общины.' }
+                    ],
+                    temperature: 0.95, max_tokens: 200, response_format: { type: 'json_object' }
+                })
+            });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content || '';
+            const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+            if (parsed.name) return { name: String(parsed.name).slice(0, 80), description: String(parsed.description || rb.description).slice(0, 400) };
+        } catch (_) {}
+        const seed = hashString(state.player.name + state.player.clan + regionId + String(state.day));
+        return generateLocalRegionFlavor(regionId, seed);
     }
 
     function resetLocal() {
+
         if (!root.confirm('Сбросить локальную кампанию, включая медали, здания и науку?')) return;
         state = createState(); pendingMatch = null; lastMatch = null;
         if (typeof root.clearForgeAdvice === 'function') root.clearForgeAdvice();
@@ -1584,7 +1819,7 @@
     }
 
     const api = {
-        ERAS, DECREES, EFFECTS, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_DEFINITIONS, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
+        ERAS, DECREES, EFFECTS, DIVERSITY_POOLS, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_DEFINITIONS, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         createState, normalizeState, completeOnboarding, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig,
         getRegionalIncome, getAvailableMaterialQualities, getRegionActionState, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
@@ -1605,7 +1840,7 @@
         research, construct, toggleBuilding: toggleBuildingAction, toggleDeckCard: toggleDeckCardAction,
         finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, claimRegion: claimRegionAction, buildRegionBuilding: buildRegionBuildingAction, chooseDecree: chooseDecreeAction, attackRegion: attackRegionAction, resumeRegionExpedition: resumeRegionExpeditionAction, hasPendingMatch: () => Boolean(pendingMatch),
         getPendingMatch: () => pendingMatch ? { ...pendingMatch } : null,
-        consumePendingMatch, recordBattleResult, rematch, generateProject, resetLocal,
+        consumePendingMatch, recordBattleResult, rematch, generateProject, chooseScience, requestRegionFlavor, DIVERSITY_POOLS, generateLocalScienceVariants, generateLocalRegionFlavor, resetLocal,
         beginOnboarding, getStarterCards: () => clone(STARTER_CARDS), getBattleDeckIds: () => state.player.deckCardIds.slice(), getBattleConfigForCurrentPlayer: () => getBattleConfig(state),
         assignWorker: (from, to) => { const result = assignWorker(state, from, to); if (!result.error) commit(result.state); return result; },
         getState: () => clone(state)

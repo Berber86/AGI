@@ -715,11 +715,20 @@ test('science advice uses current territory and reserves while exposing only one
   assert.doesNotMatch(host.innerHTML, /campaign-project-material|campaign-project-visibility/);
 
   await app.generateProject({ preventDefault() {} });
-  const created = app.getState().player.blueprints[0];
-  assert.equal(created.visibility, 'both');
-  assert.match(created.buildingName, /^Кремнёвые холмы:/);
-  assert.match(status.textContent, /API-ключ не задан/);
+  const stateAfter = app.getState();
+  // new v3.4: 3-choice science, not immediate blueprint
+  assert.ok(stateAfter.player.scienceChoices, 'scienceChoices should be set');
+  assert.equal(stateAfter.player.scienceChoices.projects.length, 3);
+  assert.ok(stateAfter.player.scienceChoices.projects[0].scienceName);
+  assert.match(status.textContent, /API-ключ не задан|черновика|разные/);
   assert.equal(button.disabled, false);
+  // choose one
+  app.chooseScience(0);
+  const afterChoose = app.getState();
+  assert.equal(afterChoose.player.scienceChoices, null);
+  assert.ok(afterChoose.player.blueprints.length > 0);
+  assert.equal(afterChoose.player.blueprints[0].visibility, 'both');
+  assert.ok(afterChoose.player.chronicle.length > 0, 'chronicle should have entry');
 });
 
 test('season cannot discard an active or ready craft and preserves crafting mastery', () => {
