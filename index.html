@@ -1818,68 +1818,141 @@
 
 
     function generateLocalForgeAdvice(campaign) {
-        // Offline fallback: generates 3 ideas from pools + historical culture, like legacy
+        // Offline fallback: generates 3 ideas from pools + historical culture + ERA EVOLUTION
+        // Ответ на вопрос: что будет в средневековье? Не понтийские колесницы, а эволюция!
+        // Шумерские танки: танк с клинописью, зиккурат-броня, экипаж-писцы
         const p = campaign.player;
         const histId = p.historicalCulture?.id || 'yamnaya';
         const biomeId = p.biome?.id || 'steppe';
         const traitId = p.trait?.id || 'hunters';
         const era = p.era || 0;
+        const lineage = p.culturalLineage || [histId];
 
-        // Historical unit pools per culture
-        const CULTURE_UNITS = {
-            yamnaya: [
-                { type: 'unit', title: 'Всадники Ямной', pitch: 'Лёгкая конница с луками, курганные воины степи' },
-                { type: 'unit', title: 'Повозка-курган', pitch: 'Боевая повозка с воинами, подвижная крепость ямников' },
-                { type: 'unit', title: 'Табунщики', pitch: 'Скотоводы-воины, охраняют стада и идут в набег' },
-                { type: 'spell', title: 'Набег степи', pitch: 'Быстрый налёт конницы ямников на поселение' },
-                { type: 'structure', title: 'Курган вождя', pitch: 'Погребальный холм с охраной предков' }
-            ],
-            akkad: [
-                { type: 'unit', title: 'Гвардия Саргона', pitch: 'Дисциплинированная проф пехота Аккада, первая регулярная армия' },
-                { type: 'unit', title: 'Копейщики Аккада', pitch: 'Фаланга с бронзовыми копьями, держат строй' },
-                { type: 'structure', title: 'Стены Аккада', pitch: 'Глинобитные стены столицы империи' },
-                { type: 'spell', title: 'Приказ Саргона', pitch: 'Мобилизация и дисциплина империи' }
-            ],
-            'egypt-old': [
-                { type: 'unit', title: 'Колесница фараона', pitch: 'Лёгкая колесница с лучником, ударная сила Египта' },
-                { type: 'unit', title: 'Меджаи', pitch: 'Нубийские лучники на службе фараона' },
-                { type: 'structure', title: 'Пирамида-стройплощадка', pitch: 'Стройка пирамиды даёт рабочих и защиту' },
-                { type: 'spell', title: 'Разлив Нила', pitch: 'Нил приносит ил и изобилие' }
-            ],
-            sumer: [
-                { type: 'unit', title: 'Ополчение Урука', pitch: 'Городское ополчение Шумера с копьями' },
-                { type: 'structure', title: 'Зиккурат', pitch: 'Храм-гора, центр учёта и религии' },
-                { type: 'spell', title: 'Клинописный учёт', pitch: 'Таблички Шумера — учёт зерна и людей' }
-            ],
-            harappa: [
-                { type: 'unit', title: 'Стража Мохенджо-Даро', pitch: 'Городская стража с стандартизированным оружием' },
-                { type: 'structure', title: 'Канализация Хараппы', pitch: 'Продвинутая канализация даёт здоровье' }
-            ],
-            minoan: [
-                { type: 'unit', title: 'Бык Кносса', pitch: 'Ритуальные прыгуны через быка, ловкие воины' },
-                { type: 'structure', title: 'Дворец-лабиринт', pitch: 'Кносский дворец с кладовыми' }
-            ]
+        // Historical unit pools per culture PER ERA — эволюция культур!
+        const CULTURE_UNITS_BY_ERA = {
+            0: { // Каменный век
+                yamnaya: [
+                    { type: 'unit', title: 'Всадники Ямной', pitch: 'Лёгкая конница с луками, курганные воины степи' },
+                    { type: 'unit', title: 'Повозка-курган', pitch: 'Боевая повозка с воинами, подвижная крепость ямников' },
+                ],
+                sumer: [
+                    { type: 'unit', title: 'Ополчение Урука', pitch: 'Городское ополчение Шумера с копьями' },
+                    { type: 'structure', title: 'Зиккурат', pitch: 'Храм-гора, центр учёта и религии' },
+                ],
+                'egypt-old': [
+                    { type: 'unit', title: 'Охотники Нила', pitch: 'Лёгкие копейщики с берега Нила' },
+                ],
+                akkad: [
+                    { type: 'unit', title: 'Ополчение Аккада', pitch: 'Ранние воины Саргона до империи' },
+                ]
+            },
+            1: { // Античный мир — Аккад, Египет
+                yamnaya: [
+                    { type: 'unit', title: 'Скифские конные лучники', pitch: 'Потомки ямников — уже классические степные лучники' },
+                    { type: 'unit', title: 'Колесница степи', pitch: 'Двухколёсная колесница ямно-акадского типа' },
+                ],
+                akkad: [
+                    { type: 'unit', title: 'Гвардия Саргона', pitch: 'Дисциплинированная проф пехота Аккада, первая регулярная армия' },
+                    { type: 'unit', title: 'Копейщики Аккада', pitch: 'Фаланга с бронзовыми копьями' },
+                    { type: 'structure', title: 'Стены Аккада', pitch: 'Глинобитные стены столицы империи' },
+                ],
+                'egypt-old': [
+                    { type: 'unit', title: 'Колесница фараона', pitch: 'Лёгкая колесница с лучником, ударная сила Египта' },
+                    { type: 'unit', title: 'Меджаи', pitch: 'Нубийские лучники на службе фараона' },
+                ],
+                sumer: [
+                    { type: 'unit', title: 'Шумерские копейщики', pitch: 'Тяжёлая пехота с большими щитами, как на Штандарте Ура' },
+                ]
+            },
+            2: { // Средневековье — ответ на вопрос: не понтийские колесницы!
+                yamnaya: [
+                    { type: 'unit', title: 'Степные рыцари — наследники Ямной', pitch: 'Потомки ямников теперь в кольчуге, с пиками — уже не колесницы, а рыцари степи' },
+                    { type: 'unit', title: 'Курган-замок', pitch: 'Курган ямников эволюционировал в замок на холме' },
+                    { type: 'spell', title: 'Традиция курганов', pitch: 'Ритуал предков даёт мораль — уже не яма, а часовня' }
+                ],
+                akkad: [
+                    { type: 'unit', title: 'Ассирийская тяжёлая пехота', pitch: 'Наследники Аккада — ассирийцы с железом и осадой' },
+                    { type: 'structure', title: 'Дворец Саргона II', pitch: 'Ассирийский дворец с рельефами — уже не глинобитные стены' }
+                ],
+                'egypt-old': [
+                    { type: 'unit', title: 'Мамлюки Нила', pitch: 'Потомки египтян — конные воины-невольники, уже не колесницы фараона' },
+                ],
+                sumer: [
+                    { type: 'unit', title: 'Багдадские ополченцы — наследники Шумера', pitch: 'Потомки шумеров теперь в исламском городе, с копьями и луками' },
+                    { type: 'spell', title: 'Клинопись в медресе', pitch: 'Древняя клинопись стала основой для учёности' }
+                ]
+            },
+            3: { // Ренессанс
+                yamnaya: [
+                    { type: 'unit', title: 'Казаки — потомки степи', pitch: 'Вольные всадники, наследники ямной традиции' },
+                ],
+                sumer: [
+                    { type: 'unit', title: 'Янычары с клинописью', pitch: 'Элита с мушкетами, на знамёнах клинопись предков' },
+                ]
+            },
+            6: { // Будущее 2050-2150 — ШУМЕРСКИЕ ТАНКИ!
+                sumer: [
+                    { type: 'unit', title: 'Танк Энлиля — шумерский танк', pitch: 'Танк с клинописью на броне, зиккурат-реактивная броня, экипаж-писцы. Шумерские танки — это танки с культурным кодом Шумера!' },
+                    { type: 'unit', title: 'Дрон Гильгамеша', pitch: 'БПЛА названный в честь героя эпоса, с клинописным IFF' },
+                    { type: 'structure', title: 'Зиккурат-командный центр', pitch: 'Командный центр в форме зиккурата, с табличками-серверами' }
+                ],
+                yamnaya: [
+                    { type: 'unit', title: 'Танковая дивизия Ямной — Курган', pitch: 'Танки с курганной символикой, кони теперь моторы, традиция степи в броне' },
+                    { type: 'unit', title: 'Дрон-табун', pitch: 'Рой дронов как табун коней степи' }
+                ],
+                akkad: [
+                    { type: 'unit', title: 'Танк Саргона — Аккадский танк', pitch: 'Тяжёлый танк империи, дисциплина Аккада, клинопись на борту — наследник гвардии Саргона' },
+                    { type: 'structure', title: 'Бункер Аккада', pitch: 'Подземный командный бункер как дворец Саргона' }
+                ],
+                'egypt-old': [
+                    { type: 'unit', title: 'Танк Ра — колесница будущего', pitch: 'Танк с солнечным диском, наследник колесниц фараона, с иероглифами' },
+                    { type: 'structure', title: 'Пирамида-ПВО', pitch: 'ПВО в форме пирамиды, с иероглифами и лазерами' }
+                ]
+            }
         };
 
-        const basePool = CULTURE_UNITS[histId] || CULTURE_UNITS.yamnaya;
+        // Get era-appropriate pool, fallback to closest era
+        function getPoolForEra(e) {
+            if (CULTURE_UNITS_BY_ERA[e]) return CULTURE_UNITS_BY_ERA[e];
+            // Find closest lower era
+            for (let i = e; i >= 0; i--) if (CULTURE_UNITS_BY_ERA[i]) return CULTURE_UNITS_BY_ERA[i];
+            return CULTURE_UNITS_BY_ERA[0];
+        }
+
+        const eraPool = getPoolForEra(era);
+        // Build combined pool from lineage (all cultures in lineage, not just current)
+        let pool = [];
+        for (const cid of lineage) {
+            const culturePool = eraPool[cid] || [];
+            pool = pool.concat(culturePool);
+        }
+        // Also add current culture if not in lineage
+        if (!lineage.includes(histId) && eraPool[histId]) pool = pool.concat(eraPool[histId]);
+
+        // If still empty, fallback to era 0 yamnaya
+        if (!pool.length) pool = CULTURE_UNITS_BY_ERA[0].yamnaya;
+
         const biomeExtras = {
-            steppe: [{ type: 'unit', title: 'Степные разведчики', pitch: 'Лёгкие всадники, видят далеко' }],
-            river: [{ type: 'unit', title: 'Речные копейщики', pitch: 'Ополчение с берега, держат брод' }],
-            desert: [{ type: 'unit', title: 'Пустынные лучники', pitch: 'Выносливые стрелки пустыни' }],
-            highlands: [{ type: 'unit', title: 'Горные пращники', pitch: 'Меткие пращники с холмов' }],
-            forest: [{ type: 'unit', title: 'Лесные охотники', pitch: 'Засада из леса' }],
+            steppe: [{ type: 'unit', title: 'Степные разведчики ' + (era >= 2 ? '(рыцари)' : ''), pitch: era >= 2 ? 'Рыцари степи, наследники ямников' : 'Лёгкие всадники' }],
+            river: [{ type: 'unit', title: 'Речные ' + (era >= 6 ? 'дроны' : 'копейщики'), pitch: era >= 6 ? 'Речные дроны Нила' : 'Ополчение с берега' }],
+            desert: [{ type: 'unit', title: 'Пустынные ' + (era >= 6 ? 'танки' : 'лучники'), pitch: era >= 6 ? 'Танки пустыни с клинописью' : 'Выносливые стрелки' }],
+            highlands: [{ type: 'unit', title: 'Горные ' + (era >= 6 ? 'ПВО' : 'пращники'), pitch: 'Горные войска' }],
+            forest: [{ type: 'unit', title: 'Лесные ' + (era >= 2 ? 'егеря' : 'охотники'), pitch: 'Засада из леса' }],
             oasis: [{ type: 'unit', title: 'Стражи оазиса', pitch: 'Защитники пальмовой рощи' }]
         };
 
-        let pool = [...basePool, ...(biomeExtras[biomeId] || [])];
+        pool = pool.concat(biomeExtras[biomeId] || []);
 
         // Add trait influence
-        if (traitId === 'horse-lords') pool.unshift({ type: 'unit', title: 'Первые всадники', pitch: 'Ямники — первые кто оседлал коня' });
-        if (traitId === 'stone-masters') pool.unshift({ type: 'unit', title: 'Камнерезы Аккада', pitch: 'Мастера обсидиана и кремня' });
-        if (traitId === 'irrigators') pool.unshift({ type: 'structure', title: 'Канал Шумера', pitch: 'Ирригационный канал даёт еду' });
+        if (traitId === 'horse-lords') {
+            if (era >= 6) pool.unshift({ type: 'unit', title: 'Танк-табун Владык Коней', pitch: 'Танки как табун, традиция Ямной в будущем' });
+            else if (era >= 2) pool.unshift({ type: 'unit', title: 'Рыцари — Владыки Коней', pitch: 'Ямники стали рыцарями' });
+            else pool.unshift({ type: 'unit', title: 'Первые всадники', pitch: 'Ямники — первые кто оседлал коня' });
+        }
+        if (traitId === 'stone-masters' && era >= 6) pool.unshift({ type: 'unit', title: 'Танк-камнерез', pitch: 'Танк с обсидиановой броней' });
 
         // Shuffle with seeded random based on clan + day
-        const seed = (p.clan + p.name + campaign.day).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+        const seed = (p.clan + p.name + campaign.day + lineage.join('')).split('').reduce((a,c)=>a+c.charCodeAt(0),0);
         let rng = seed;
         function rand() { rng = (rng * 9301 + 49297) % 233280; return rng / 233280; }
         pool = pool.sort(() => rand() - 0.5);
@@ -1901,11 +1974,12 @@
             id: 'local-' + i + '-' + Date.now(),
             cardType: c.type,
             title: c.title,
-            pitch: c.pitch + ` (Наследие: ${p.historicalCulture?.name || ''}, биом: ${p.biome?.name || ''}, черта: ${p.trait?.name || ''})`
+            pitch: c.pitch + ` (Эпоха: ${window.CampaignMvp.ERAS[era]}, линия: ${lineage.join('→')}, биом: ${p.biome?.name || ''})`
         }));
     }
 
     function parseForgeAdviceResponse(content) {
+
 
         const text = String(content || '');
         const start = text.indexOf('{');
@@ -2015,6 +2089,8 @@
         const originHist = origin ? origin.historical : '';
         const eraHist = window.CampaignMvp.ERA_HISTORICAL?.[p.era]?.desc || '';
         const eraCultures = window.CampaignMvp.ERA_HISTORICAL?.[p.era]?.cultures?.join(' · ') || '';
+        const lineage = (p.culturalLineage||[]).map(id => window.CampaignMvp.HISTORICAL_CULTURES?.find(c=>c.id===id)?.name || id).join(' → ') || (p.historicalCulture?.name || '');
+        const lineageDescs = (p.culturalLineage||[]).map(id => { const c=window.CampaignMvp.HISTORICAL_CULTURES?.find(x=>x.id===id); return c ? `${c.name}: ${c.desc}` : ''; }).filter(Boolean).join('\n');
         const context = [
             `Эпоха: ${window.CampaignMvp.ERAS[campaign.player.era]}. ${eraHist}`,
             `Культуры эпохи: ${eraCultures}`,
@@ -2023,7 +2099,9 @@
             `География: ${geoText}.`,
             `Черта племени: ${traitText}.`,
             `Рядом: ${nearbyText}.`,
-            `Историческое наследие: ${histText}.`,
+            `Историческое наследие (текущее): ${histText}.`,
+            `Культурная линия (эволюция от древности): ${lineage}.`,
+            `Детали линии:\n${lineageDescs}`,
             `Земли: ${ownedRegions.join(' · ') || 'только поселение'}.`,
             `Запасы: провизия ${resources.food}, материалы ${resources.materials}, знания ${resources.knowledge}.`,
             `Уровень кузнеца: ${campaign.player.craftLevel + 1}.`,

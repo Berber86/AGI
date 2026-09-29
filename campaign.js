@@ -340,7 +340,7 @@
             player: {
                 name: 'Твоё поселение', clan: 'Медный Ворон', era: 0, research: 0,
                 onboardingComplete: false, originId: null, openingFocusId: null,
-                biome: null, geography: null, trait: null, nearby: null, historicalCulture: null,
+                biome: null, geography: null, trait: null, nearby: null, historicalCulture: null, culturalLineage: [],
                 resources: { food: 10, materials: 10, knowledge: 6 },
                 population: POP_START,
                 workers: { food: 2, materials: 1, knowledge: 1, idle: 1 },
@@ -644,6 +644,7 @@
         state.player.trait = findByIdOrName(TRAITS, value.player?.trait) || (value.player?.trait && typeof value.player.trait === 'object' ? value.player.trait : null);
         state.player.nearby = findByIdOrName(NEARBY, value.player?.nearby) || (value.player?.nearby && typeof value.player.nearby === 'object' ? value.player.nearby : null);
         state.player.historicalCulture = findByIdOrName(HISTORICAL_CULTURES, value.player?.historicalCulture) || (value.player?.historicalCulture && typeof value.player.historicalCulture === 'object' ? value.player.historicalCulture : null);
+        state.player.culturalLineage = Array.isArray(value.player?.culturalLineage) ? value.player.culturalLineage.filter(id => typeof id === 'string' && HISTORICAL_CULTURES.some(c=>c.id===id)).slice(0,10) : (state.player.historicalCulture ? [state.player.historicalCulture.id] : []);
         state.player.chronicle = Array.isArray(value.player?.chronicle) ? value.player.chronicle.slice(-20).map(entry => ({
             day: clampInt(entry.day, 1, SEASON_LENGTH, 1),
             era: clampInt(entry.era, 0, ERAS.length - 1, 0),
@@ -690,9 +691,10 @@
         state.player.geography = pickRandom(rng, GEOGRAPHY);
         state.player.trait = pickRandom(rng, TRAITS);
         state.player.nearby = pickRandom(rng, NEARBY);
-        // историческая культура по эпохе 0
+        // историческая культура по эпохе 0 + линия культур (эволюция)
         const histPool = HISTORICAL_CULTURES.filter(h => h.era <= 1);
         state.player.historicalCulture = pickRandom(rng, histPool);
+        state.player.culturalLineage = [state.player.historicalCulture.id];
         // бонус от черты
         if (state.player.trait && state.player.trait.bonus) {
             for (const k of Object.keys(state.player.trait.bonus)) {
@@ -1306,9 +1308,34 @@
         state.player.research += 1;
         if (state.player.research >= 2 && state.player.era < ERAS.length - 1) {
             state.player.research = 0;
+            const oldEra = state.player.era;
             state.player.era += 1;
             state.player.pendingDecreeChoice = true;
-            state.player.campaignNotice = 'Открыта эпоха: ' + eraName(state.player.era) + '. Выбери уклад — военный, земледельческий или жреческий — он определит путь цивилизации на эту эпоху.';
+            // --- ЭВОЛЮЦИЯ КУЛЬТУРЫ: при переходе эпохи добавляется новое наследие ---
+            // Это ответ на вопрос про средневековье и шумерские танки: культура не статична, а наслаивается
+            const newEra = state.player.era;
+            const eraCultures = HISTORICAL_CULTURES.filter(c => c.era === newEra || c.era === newEra - 1);
+            if (eraCultures.length) {
+                const seed = hashString(state.player.name + state.player.clan + String(newEra) + String(state.day));
+                const rng = seededRandom(seed);
+                const newCulture = pickRandom(rng, eraCultures);
+                if (!state.player.culturalLineage.includes(newCulture.id)) {
+                    state.player.culturalLineage.push(newCulture.id);
+                    if (state.player.culturalLineage.length > 10) state.player.culturalLineage.shift();
+                }
+                // С шансом 30% основная культура тоже эволюционирует (ассимиляция)
+                if (rng() < 0.3) {
+                    state.player.historicalCulture = newCulture;
+                }
+                // Летопись эволюции
+                const lineageNames = state.player.culturalLineage.map(id => HISTORICAL_CULTURES.find(c=>c.id===id)?.name || id).join(' → ');
+                const evolutionText = 'Эпоха ' + eraName(newEra) + ': культура эволюционировала. Линия: ' + lineageNames + '. Новое влияние: ' + newCulture.name + ' — ' + newCulture.desc + '. Теперь шумерские корни могут дать танки с клинописью, а ямные — рыцарей степи.';
+                state.player.chronicle.push({ day: state.day, era: newEra, text: evolutionText.slice(0, 500) });
+                if (state.player.chronicle.length > 20) state.player.chronicle.shift();
+                state.player.campaignNotice = 'Открыта эпоха: ' + eraName(newEra) + ' (' + (ERA_HISTORICAL[newEra]?.desc || '') + '). Культурная линия: ' + lineageNames + '. Выбери уклад — он определит путь на эту эпоху. Теперь твои ' + (state.player.historicalCulture.name) + ' в ' + eraName(newEra) + ' будут выглядеть иначе!';
+            } else {
+                state.player.campaignNotice = 'Открыта эпоха: ' + eraName(state.player.era) + '. Выбери уклад — военный, земледельческий или жреческий — он определит путь цивилизации на эту эпоху.';
+            }
         }
         return { state, blueprint, error: null };
     }
