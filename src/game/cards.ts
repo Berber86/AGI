@@ -345,7 +345,7 @@ const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предл�
 export async function llmOpeningProject(key: string, model: string, state: any): Promise<any> {
   const sit = M.scienceAdvisorSituation(state);
   const p = state.player;
-  const effects = Object.keys(M.EFFECTS).join(", ");
+  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
     key, model, temperature: 1, maxTokens: 1200,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
@@ -362,7 +362,7 @@ export async function llmOpeningProject(key: string, model: string, state: any):
 /** Три новых проекта по текущей ситуации и затравке; направление выбирает сам советник. */
 export async function llmScienceOffers(key: string, model: string, state: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
-  const effects = Object.keys(M.EFFECTS).join(", ");
+  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
     key, model, temperature: 1, maxTokens: 1600,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
@@ -472,7 +472,7 @@ export async function llmCard(key: string, model: string, advice: Advice, rarity
 
 export async function llmScience(key: string, model: string, state: any, branch: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
-  const effects = Object.keys(M.EFFECTS).join(", ");
+  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
     key, model, temperature: 1, maxTokens: 1400,
     system: `Ты научный советник исторической стратегии. Игрок выбрал широкую ветвь; придумай 3 РАЗНЫХ замысла (наука + здание). Ответ — JSON: {"projects":[{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}]}]}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1. Язык — русский, без магии.`,

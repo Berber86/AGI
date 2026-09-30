@@ -88,12 +88,19 @@
         income_food: { label: '+0.5 к еде с клана', category: 'economy', max: 2 },
         income_materials: { label: '+0.4 к материалам с клана', category: 'economy', max: 2 },
         income_knowledge: { label: '+0.5 к знаниям с клана', category: 'science', max: 2 },
-        pop_growth: { label: '+15% шанс роста кланов', category: 'civic', max: 2 },
+        // hidden: ревизия показала, что механика эффекта не реализована (рост кланов задан константами, набегов нет);
+        // ключи остаются в реестре ради старых сейвов, но генератор больше не предлагает их советнику.
+        pop_growth: { label: '+15% шанс роста кланов', category: 'civic', max: 2, hidden: true },
         storage_bonus: { label: '+5 к складу', category: 'economy', max: 2 },
-        defense_bonus: { label: '+10% защита от набегов', category: 'military', max: 2 },
-        trade_bonus: { label: '+0.3 к торговле (материалы+знания)', category: 'economy', max: 2 },
-        upkeep_reduction: { label: '-0.1 к upkeep зданий', category: 'civic', max: 2 }
+        defense_bonus: { label: '+10% защита от набегов', category: 'military', max: 2, hidden: true },
+        trade_bonus: { label: '+0.3 к материалам и +0.2 к знаниям с торговли', category: 'economy', max: 2 },
+        upkeep_reduction: { label: '-0.1 к upkeep зданий', category: 'civic', max: 2 },
+        fatigue_resist: { label: '+1 ход до усталости в бою', category: 'military', max: 2 },
+        active_building_slots: { label: '+1 активная постройка', category: 'civic', max: 1 },
+        craft_quality: { label: '+1 к качеству ковки', category: 'science', max: 2 }
     };
+    // Эффекты, которые советнику реально предлагает модель: только с рабочей механикой.
+    const GENERATIVE_EFFECTS = Object.keys(EFFECTS).filter(key => !EFFECTS[key].hidden);
 
     // 100500 diversity pools — локальный фолбэк когда нет LLM, как в tribes-legacy.html
     // Каждый игрок получает уникальные названия из этих пулов + seeded random
@@ -714,7 +721,9 @@
         state.player.growthProgress = clampInt(state.player.growthProgress, 0, 999, 0);
         state.player.growthDebt = clampInt(state.player.growthDebt, 0, 999, 0);
         state.player.starvationDays = clampInt(state.player.starvationDays, 0, 999, 0);
-        state.player.activeBuildingSlots = clampInt(state.player.activeBuildingSlots, 4, 5, 4);
+        // Слот строя поднимают только капитальные проекты с эффектом active_building_slots (по одному на постройку).
+        const slotProjects = Array.isArray(state.player.buildings) ? state.player.buildings.filter(b => Array.isArray(b.effects) && b.effects.some(e => e && e.type === 'active_building_slots')).length : 0;
+        state.player.activeBuildingSlots = clampInt(4 + slotProjects, 4, 5, 4);
         state.player.practice = { ...base.player.practice, ...(state.player.practice || {}) };
         state.player.craftLevel = clampInt(state.player.craftLevel, 0, 2, 0);
         state.player.craftXp = clampInt(state.player.craftXp, 0, 2, 0);
@@ -1115,6 +1124,7 @@
             hp: Math.min(12, 5 + effects.max_hp + hpBonus),
             energyMax: Math.min(8, 2 + effects.energy_cap + energyBonus),
             energyGrowth: Math.min(3, 1 + effects.energy_growth),
+            fatigueDelay: Math.min(2, effects.fatigue_resist),
             effects,
             decrees: getActiveDecrees(state),
             historicalCulture: state.player.historicalCulture,
@@ -1493,7 +1503,8 @@
         const effort = Object.hasOwn(CARD_CRAFT_EFFORTS, investment.effort) ? investment.effort : 'quick';
         const material = CARD_CRAFT_MATERIALS[materialQuality];
         const time = CARD_CRAFT_EFFORTS[effort];
-        const qualityScore = Math.min(6, material.grade + state.player.craftLevel + time.score);
+        // «Качество ковки» поднимают действующие постройки с эффектом craft_quality.
+        const qualityScore = Math.min(6, material.grade + state.player.craftLevel + time.score + effectTotals(state).craft_quality);
         const odds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
         const cost = {
             food: material.cost.food + time.cost.food,
@@ -2436,7 +2447,7 @@
     }
 
     const api = {
-        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, SEED_CHOICES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH, MAP_VISION_RADIUS,
+        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, GENERATIVE_EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, SEED_CHOICES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH, MAP_VISION_RADIUS,
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,

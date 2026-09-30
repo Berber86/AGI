@@ -42,6 +42,7 @@ export interface Player {
   hp: number; maxHp: number;
   deck: Hand[]; hand: Hand[]; discard: Hand[];
   fatigue: number;
+  fatigueStart: number;
   front: (Unit | null)[]; back: (Unit | null)[];
   energy: number; energyMax: number; energyCap: number; energyGrowth: number; energyGrowthBlockedNext: number;
   hitSeq: number; lastDmg: number;
@@ -62,7 +63,8 @@ export interface Battle {
   usedMilitia: number;
 }
 
-export interface SideConfig { hp: number; energyMax: number; energyGrowth: number }
+// fatigueDelay — сколько дополнительных кругов сторона выдерживает без усталости (эффект построек fatigue_resist)
+export interface SideConfig { hp: number; energyMax: number; energyGrowth: number; fatigueDelay?: number }
 
 const opp = (s: Side): Side => (s === "me" ? "enemy" : "me");
 
@@ -76,7 +78,7 @@ function newPlayer(deck: Card[], cfg: SideConfig): Player {
   return {
     hp: cfg.hp, maxHp: cfg.hp,
     deck: shuffle(deck.map((c) => ({ ...JSON.parse(JSON.stringify(c)), iid: uid() }))),
-    hand: [], discard: [], fatigue: 0,
+    hand: [], discard: [], fatigue: 0, fatigueStart: 6 + Math.max(0, Math.min(3, cfg.fatigueDelay || 0)),
     front: Array(FRONT).fill(null), back: Array(BACK).fill(null),
     energy: 1, energyMax: 1, energyCap: cfg.energyMax, energyGrowth: cfg.energyGrowth, energyGrowthBlockedNext: 0,
     hitSeq: 0, lastDmg: 0,
@@ -243,7 +245,7 @@ function drawOne(b: Battle, side: Side, silent = false): boolean {
     p.discard = [];
     if (!silent) log(b, side, `${say(side, 'перетасовывает', 'перетасовываете')} сброс в колоду.`);
   }
-  if (p.deck.length === 0 && b.turn < 6) return false; // первые пять кругов усталости нет — микро-колоды не должны умирать сами собой
+  if (p.deck.length === 0 && b.turn < p.fatigueStart) return false; // первые круги усталости нет — микро-колоды не должны умирать сами собой (fatigueStart сдвигает эффект построек)
   if (p.deck.length === 0) {
     p.fatigue++;
     hurtHero(b, side, p.fatigue);

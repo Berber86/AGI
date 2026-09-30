@@ -116,7 +116,7 @@ export default function BattleScreen() {
     const ec = M.getOpponentBattleConfig(game, m.opponentId);
     const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
     const enemyDeck = customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, ec.deckLimit);
-    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth }, m, used);
+    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
   };
   const bRef = useRef<Battle>(null as any);
   if (!bRef.current) bRef.current = build();
