@@ -1618,6 +1618,7 @@
             <button data-screen="deck" onclick="switchScreen('deck')">🎴 Колода <span id="deck-count" style="color:#e94560">(0/10)</span></button>
             <button data-screen="battle" onclick="startBattle()" id="battle-nav-btn">⚔️ Бой</button>
             <button data-screen="campaign" onclick="switchScreen('campaign')">🏛️ Кампания</button>
+            <button data-screen="world-map" onclick="switchScreen('world-map')">🗺️ Мир</button>
         </div>
         <details class="connection-settings" id="api-details">
             <summary><span>⚙️ API и модель</span><span class="status-dot" id="api-status" aria-label="Статус API"></span></summary>
@@ -1757,6 +1758,16 @@
             <div id="campaign-root" class="campaign-root"></div>
         </div>
 
+        <!-- ========== PROCEDURAL WORLD MAP ========== -->
+        <div id="screen-world-map" class="screen">
+            <header class="screen-hero world-map-screen-hero">
+                <span class="hero-kicker">ИССЛЕДОВАНИЕ · ЛОКАЛЬНЫЙ МИР</span>
+                <h1>🗺️ Мировая карта</h1>
+                <p class="subtitle">Новый мир 7×7 создаётся локально; ваше поселение находится в самом центре.</p>
+            </header>
+            <div id="world-map-root" class="world-map-root"></div>
+        </div>
+
         <!-- ========== BATTLE SCREEN ========== -->
         <div id="screen-battle" class="screen">
             <header class="screen-hero battle-hero">
@@ -1843,6 +1854,7 @@
 
     </div>
 
+    <script src="world-map.js"></script>
     <script src="campaign.js"></script>
     <script>
     // ============================================
@@ -1977,6 +1989,7 @@
         if (screen === 'collection') renderCollection();
         if (screen === 'deck') renderDeck();
         if (screen === 'campaign' && window.CampaignMvp) window.CampaignMvp.render();
+        if (screen === 'world-map' && window.CampaignMvp) window.CampaignMvp.renderWorldMap();
         if (screen === 'forge') renderCraftQuote();
     }
 
@@ -2281,8 +2294,6 @@
         const blocked = forgeSlotBlock(campaign);
         if (blocked) { status.textContent = blocked; renderForgeAdvice(); return; }
 
-        const definitions = new Map(window.CampaignMvp.REGION_DEFINITIONS.map(region => [region.id, region.name]));
-        const ownedRegions = campaign.regions.filter(region => region.ownerId === 'player').map(region => definitions.get(region.id)).filter(Boolean);
         const resources = campaign.player.resources;
         const p = campaign.player;
         const biomeText = p.biome ? `${p.biome.name} (${p.biome.desc})` : 'неизвестный биом';
@@ -2307,14 +2318,13 @@
             `Историческое наследие (текущее): ${histText}.`,
             `Культурная линия (эволюция от древности): ${lineage}.`,
             `Детали линии:\n${lineageDescs}`,
-            `Земли: ${ownedRegions.join(' · ') || 'только поселение'}.`,
             `Запасы: провизия ${resources.food}, материалы ${resources.materials}, знания ${resources.knowledge}.`,
             `Уровень кузнеца: ${campaign.player.craftLevel + 1}.`,
             `Уклады: ${(p.decrees||[]).map(d => window.CampaignMvp.DECREES[d.id]?.label).join(' · ') || 'нет'}.`
         ].join('\n');
-        const systemPrompt = `Ты — военный советник игры Infinite Forge. По контексту цивилизации предложи РОВНО ТРИ разных замысла для будущих карт. Не создавай саму карту: никаких характеристик, цен, редкости, keywords или effects. Для card_type используй ровно одно значение: unit (отряд), spell (тактический манёвр) или structure (военная постройка); по возможности разнообразь типы. Названия и замыслы должны быть короткими, историчными для открытой эпохи и опираться на земли/ресурсы народа, его биом, черту племени и историческое наследие (Ямная культура — кони и курганы, Аккад Саргона — первая империя и проф армия, Египет — Нил и колесницы, Шумер — клинопись, Хараппа — города и т.д.). Каждая культура даёт свой стиль юнитов: ямники — конница и повозки, аккадцы — дисциплинированная пехота и осада, египтяне — оборона и колесницы, шумеры — ополчение и зиккураты, хараппцы — городская стража. Все три идеи должны отличаться по роли и образу, но отражать наследие народа. Верни строго JSON вида {"choices":[{"card_type":"unit","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"spell","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"structure","title":"короткое название","pitch":"одно предложение о роли/образе"}]}. Массив choices содержит ровно три объекта.`;
+        const systemPrompt = `Ты — военный советник игры Infinite Forge. По контексту цивилизации предложи РОВНО ТРИ разных замысла для будущих карт. Не создавай саму карту: никаких характеристик, цен, редкости, keywords или effects. Для card_type используй ровно одно значение: unit (отряд), spell (тактический манёвр) или structure (военная постройка); по возможности разнообразь типы. Названия и замыслы должны быть короткими, историчными для открытой эпохи и опираться на местный ландшафт и ресурсы народа, его биом, черту племени и историческое наследие (Ямная культура — кони и курганы, Аккад Саргона — первая империя и проф армия, Египет — Нил и колесницы, Шумер — клинопись, Хараппа — города и т.д.). Каждая культура даёт свой стиль юнитов: ямники — конница и повозки, аккадцы — дисциплинированная пехота и осада, египтяне — оборона и колесницы, шумеры — ополчение и зиккураты, хараппцы — городская стража. Все три идеи должны отличаться по роли и образу, но отражать наследие народа. Верни строго JSON вида {"choices":[{"card_type":"unit","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"spell","title":"короткое название","pitch":"одно предложение о роли/образе"},{"card_type":"structure","title":"короткое название","pitch":"одно предложение о роли/образе"}]}. Массив choices содержит ровно три объекта.`;
         forgeAdviceLoading = true;
-        forgeAdviceMessage = 'Советник выбирает три замысла по эпохе, землям, биому и наследию…';
+        forgeAdviceMessage = 'Советник выбирает три замысла по эпохе, ландшафту и наследию…';
         renderForgeAdvice();
         const key = getApiKey();
         if (!key) {
@@ -4349,11 +4359,9 @@
             document.getElementById('enemy-name').textContent = campaignMatch
                 ? `${campaignMatch.name} · ИИ-заглушка`
                 : 'Вождь племени';
-            document.getElementById('battle-subtitle').textContent = campaignMatch?.kind === 'expedition'
-                ? `Экспедиция за регион «${campaignMatch.regionName}» против ${campaignMatch.clan}. Победа меняет владельца; поражение расходует приказ и припасы. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки.`
-                : campaignMatch
-                    ? `Тренировка: ${campaignMatch.clan}. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки. Рейтинг не меняется.`
-                    : 'Враг у порога!';
+            document.getElementById('battle-subtitle').textContent = campaignMatch
+                ? `Тренировка: ${campaignMatch.clan}. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки. Рейтинг не меняется.`
+                : 'Враг у порога!';
             if (campaignMatch && backButton && againButton) {
                 backButton.textContent = 'К кампании';
                 backButton.onclick = () => switchScreen('campaign');
@@ -4454,12 +4462,8 @@
             ? window.CampaignMvp.recordBattleResult(campaignMatch, win)
             : null;
         const content = document.getElementById('battle-end-content');
-        const campaignFlavor = campaignMatch?.kind === 'expedition'
-            ? (win ? 'Ты выиграл сражение за регион.' : 'Экспедиция отступила без захвата территории.')
-            : (win ? 'Ты сокрушил вражеского вождя!' : 'Вождь племени одержал верх...');
-        const campaignMessage = campaignMatch?.kind === 'expedition'
-            ? (campaignOutcome?.message || 'Стратегический результат экспедиции не удалось записать.')
-            : (campaignOutcome?.message || 'Тренировочный бой завершён.');
+        const campaignFlavor = win ? 'Ты сокрушил вражеского вождя!' : 'Вождь племени одержал верх...';
+        const campaignMessage = campaignOutcome?.message || 'Тренировочный бой завершён.';
         content.innerHTML = `
             <div class="battle-end-icon">${win ? '🏆' : '💀'}</div>
             <div class="battle-end-title ${win ? 'win' : 'lose'}">${win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ'}</div>
