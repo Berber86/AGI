@@ -179,7 +179,7 @@ function ResChip({ k }: { k: ResKey }) {
   const v = game.player.resources[k];
   const n = net[k];
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title={`${RES[k].label}: ${fmt(v, 0)} из ${cap} на складе; ${signed(n)} в день`}>
+    <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title={`${RES[k].label}: ${fmt(v, 0)} из ${cap} на складе; ${signed(n)} в день. Запасы копятся дробно; излишек сверх склада тает вдвое.`}>
       <ResIcon k={k} size={18} />
       <div className="leading-none">
         <div className="text-[15px] font-bold tabular-nums text-parch">{Math.floor(v)}</div>
@@ -209,7 +209,7 @@ export function TopBar() {
         </div>
         <div className="no-scrollbar ml-1 flex flex-1 items-center gap-2 overflow-x-auto lg:ml-6">
           {(["food", "materials", "knowledge"] as ResKey[]).map((k) => <ResChip key={k} k={k} />)}
-          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title="Население">
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title="Население. Растёт на 1, когда провизии на складе больше 10 и дневной профицит еды больше 2; голод уносит людей.">
             <Users size={18} className="text-dim" />
             <div className="leading-none">
               <div className="text-[15px] font-bold tabular-nums text-parch">{p.population}</div>

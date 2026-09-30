@@ -1459,17 +1459,27 @@
         } else if (current.day >= SEASON_LENGTH) {
             next = 'Сезон подошёл к концу, а вступительный маршрут ещё не пройден. Подведите итоги сезона, чтобы продолжить кампанию.';
         } else if (!openingProject.researched) {
-            next = player.dailyOrders.researchUsed || player.ap <= 0
-                ? 'Исследовательский приказ на сегодня исчерпан (осталось приказов: ' + player.ap + '). Завершите день и изучите «' + openingProject.scienceName + '» — это стоит 1 провизию и 1 знание.'
-                : 'Изучите «' + openingProject.scienceName + '» в разделе развития: это стоит 1 провизию и 1 знание.';
+            // причина блокировки считается по-настоящему: AP, дневной приказ или нехватка ресурсов
+            const blocked = canOrder(current, 'research');
+            const short = player.resources.food < 1 || player.resources.knowledge < 1
+                ? ' Сейчас не хватает: есть ' + Math.floor(player.resources.food) + ' 🌾 и ' + Math.floor(player.resources.knowledge) + ' 📚 из нужных 1 🌾 + 1 📚.'
+                : '';
+            next = blocked
+                ? blocked + ' Затем изучите «' + openingProject.scienceName + '» — это стоит 1 провизию и 1 знание.'
+                : 'Изучите «' + openingProject.scienceName + '» в разделе развития — это стоит 1 провизию и 1 знание.' + short;
         } else if (!openingProject.built) {
-            next = player.dailyOrders.constructionUsed || player.ap <= 0
-                ? 'Строительный приказ на сегодня исчерпан. Завершите день и постройте «' + openingProject.buildingName + '» за 3 материала.'
-                : 'Постройте «' + openingProject.buildingName + '» за 3 материала — чертёж уже исследован.';
+            const blocked = canOrder(current, 'construction');
+            const short = player.resources.materials < 3
+                ? ' Сейчас не хватает материалов: есть ' + Math.floor(player.resources.materials) + ' 🪵 из 3.'
+                : '';
+            next = blocked
+                ? blocked + ' Затем постройте «' + openingProject.buildingName + '» за 3 материала.'
+                : 'Постройте «' + openingProject.buildingName + '» за 3 материала — чертёж уже исследован.' + short;
         } else if (ownedLandCount <= 1) {
-            next = player.dailyOrders.frontierUsed || player.ap <= 0
-                ? 'Приказ фронтира на сегодня исчерпан. Завершите день, затем выберите на карте соседнюю нейтральную область.'
-                : 'Откройте карту и выберите соседнюю нейтральную область: свободную можно освоить за 2 провизии и 2 материала, а охраняемую сначала освобождает квестовый бой.';
+            const blocked = canOrder(current, 'frontier');
+            next = blocked
+                ? blocked + ' После ночи выберите на карте соседнюю нейтральную область.'
+                : 'Откройте карту и выберите соседнюю нейтральную область: свободную можно освоить за 2 провизии и 2 материала, а охраняемую сначала освобождает квестовый бой (при поражении отряд вернёт половину припасов).';
         } else {
             next = 'Сыграйте тренировочный бой с любым ИИ-соседом в разделе армии. Победа не обязательна, а кампанийные ресурсы тренировка не расходует.';
         }
@@ -2115,7 +2125,7 @@
             + '<div class="campaign-worker-row"><span>🪵 Материалы: ' + w.materials + ' → +' + breakdown.workerProduction.materials.toFixed(1) + '</span><span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'materials\',\'idle\')">-</button><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'idle\',\'materials\')">+</button></span></div>'
             + '<div class="campaign-worker-row"><span>📚 Знания: ' + w.knowledge + ' → +' + breakdown.workerProduction.knowledge.toFixed(1) + '</span><span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'knowledge\',\'idle\')">-</button><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.assignWorker(\'idle\',\'knowledge\')">+</button></span></div>'
             + '<div class="campaign-worker-row"><span>💤 Свободны: ' + w.idle + '</span><span>бонусы: 🌾+' + breakdown.workerBonus.food.toFixed(1) + ' 🪵+' + breakdown.workerBonus.materials.toFixed(1) + ' 📚+' + breakdown.workerBonus.knowledge.toFixed(1) + '</span></div>'
-            + '</div><small class="campaign-fold-note">Каждый клан — община на сотни людей. Здания дают бонус к каждому клану. Без кланов — нет базового дохода. Голод: -1 клан за каждые 3🌾 дефицита. Тысячи лет истории — 30 дней прототипа, тестеры вращают дни.</small></section>';
+            + '</div><small class="campaign-fold-note">Каждый клан — община на сотни людей. Здания дают бонус к каждому клану. Без кланов — нет базового дохода. Голод: -1 клан за каждые 3🌾 дефицита. Рост клана: >10🌾 на складе и профицит еды >2/д. Склад ' + current.player.storageCap + ': излишек тает вдвое, дробные запасы копятся. Тысячи лет истории — 30 дней прототипа.</small></section>';
     }
 
     function renderCraftQueue(orders) {
