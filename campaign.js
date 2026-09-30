@@ -297,6 +297,15 @@
         { id: 'materials', title: 'Каменное ремесло', icon: '🪨', scienceName: 'Обработка кремня', scienceDescription: 'Подбор формы и угла скола делает каменные орудия надёжнее.', buildingName: 'Каменная мастерская', buildingDescription: 'Общая мастерская ускоряет заготовку строительных материалов.', category: 'economy', effect: 'income_materials' },
         { id: 'knowledge', title: 'Сезонные наблюдения', icon: '📚', scienceName: 'Круг времён года', scienceDescription: 'Повторяющиеся знаки природы помогают заранее готовиться к сезонам.', buildingName: 'Календарный круг', buildingDescription: 'Место наблюдений поддерживает передачу знаний между поколениями.', category: 'science', effect: 'income_knowledge' }
     ];
+    // Затравка народа: игрок только выбирает, чем живёт народ, — ничего не пишет.
+    const SEED_CHOICES = [
+        { id: 'river', icon: '🐟', name: 'Река и рыба', line: 'Мы живём рыбой и тростником, верим в разливы реки', hint: 'Вода, рыболовство, запасы на сухой сезон' },
+        { id: 'forge', icon: '⚒️', name: 'Горн и ремесло', line: 'Мы кузнецы: ищем камень, медь и огонь для горна', hint: 'Камень, медь, оружие и строительство' },
+        { id: 'sky', icon: '⭐', name: 'Звёзды и счёт', line: 'Мы считаем звёзды, чтобы знать время сева и паводков', hint: 'Наблюдения, счёт времени, знания' },
+        { id: 'herd', icon: '🐎', name: 'Кони и воля', line: 'Мы пастухи коней, нам нужны воля и быстрый налёт', hint: 'Скот, движение, набег и защита' },
+        { id: 'trade', icon: '🧂', name: 'Соль и обмен', line: 'Мы торговцы соли и обсидиана, живём обменом', hint: 'Обмен, дороги, редкости и договоры' },
+        { id: 'field', icon: '🌾', name: 'Земля и хлеб', line: 'Мы пахари: земля кормит нас, если её слушать', hint: 'Земледелие, ирригация, урожай' }
+    ];
     const REGION_CAPTURE_COST = { food: 2, materials: 2, knowledge: 0 };
     const REGION_EXPEDITION_COST = { food: 4, materials: 2, knowledge: 0 };
     const REGION_BUILDINGS = {
@@ -482,7 +491,7 @@
             medals: [],
             player: {
                 name: 'Твоё поселение', clan: 'Медный Ворон', era: 0, research: 0,
-                onboardingComplete: false, originId: null, openingFocusId: null, seedLine: '', awaitingOpeningProject: false, guideDismissed: false,
+                onboardingComplete: false, originId: null, openingFocusId: null, seedLine: '', seedChoiceId: null, awaitingOpeningProject: false, guideDismissed: false,
                 biome: null, geography: null, trait: null, nearby: null, historicalCulture: null, culturalLineage: [],
                 resources: { food: 10, materials: 10, knowledge: 6 },
                 population: POP_START,
@@ -677,6 +686,7 @@
         state.player.originId = ORIGINS.some(item => item.id === state.player.originId) ? state.player.originId : null;
         state.player.openingFocusId = OPENING_FOCUSES.some(item => item.id === state.player.openingFocusId) ? state.player.openingFocusId : null;
         state.player.seedLine = String(state.player.seedLine || '').slice(0, 240);
+        state.player.seedChoiceId = SEED_CHOICES.some(item => item.id === state.player.seedChoiceId) ? state.player.seedChoiceId : null;
         state.player.guideDismissed = Boolean(state.player.guideDismissed);
         state.player.awaitingOpeningProject = Boolean(state.player.awaitingOpeningProject);
         state.player.research = clampInt(state.player.research, 0, 1, 0);
@@ -843,13 +853,16 @@
     }
 
     // Общая настройка происхождения для старого и нового входа.
-    function applyOriginSetup(state, { name, originId, seedLine } = {}) {
+    function applyOriginSetup(state, { name, originId, seedLine, seedChoiceId } = {}) {
         const origin = ORIGINS.find(item => item.id === originId);
         if (!origin) return { error: 'Выберите происхождение народа.' };
         const cleanName = String(name || '').trim().slice(0, 24);
         state.player.name = cleanName || origin.name;
         state.player.originId = origin.id;
-        state.player.seedLine = String(seedLine || '').trim().slice(0, 240);
+        const seedChoice = SEED_CHOICES.find(item => item.id === seedChoiceId) || null;
+        state.player.seedChoiceId = seedChoice ? seedChoice.id : null;
+        // Игрок ничего не пишет: затравка — выбранная строка. Старые сохранения с текстом не ломаем.
+        state.player.seedLine = seedChoice ? seedChoice.line : String(seedLine || '').trim().slice(0, 240);
         state.player.resources[origin.resource] = Math.min(999, state.player.resources[origin.resource] + origin.bonus);
         // --- историчность и биомы как в легаси ---
         const seed = hashString(state.player.name + state.player.clan + originId);
@@ -915,10 +928,15 @@
 
     // Новый вход React-версии: игрок задаёт имя, происхождение и затравку народа.
     // Готовых наук и построек здесь нет: первый проект создаёт ИИ по затравке.
-    function beginOnboardingState(input, { name, originId, seedLine } = {}) {
+    function beginOnboardingState(input, { name, originId, seedId, seedLine } = {}) {
         const state = normalizeState(input);
         if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
-        const setup = applyOriginSetup(state, { name, originId, seedLine });
+        const seedChoice = SEED_CHOICES.find(item => item.id === seedId)
+            || SEED_CHOICES.find(item => item.line === seedLine)
+            || null;
+        if (!seedChoice && !seedLine) return { state, error: 'Выберите, чем живёт народ.' };
+        const seedChoiceId = seedChoice ? seedChoice.id : null;
+        const setup = applyOriginSetup(state, { name, originId, seedLine, seedChoiceId });
         if (setup.error) return { state, error: setup.error };
         state.player.openingFocusId = null;
         state.player.blueprints = state.player.blueprints.filter(item => !item.openingProject);
@@ -2399,7 +2417,7 @@
     }
 
     const api = {
-        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH, MAP_VISION_RADIUS,
+        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, SEED_CHOICES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH, MAP_VISION_RADIUS,
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,

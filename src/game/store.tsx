@@ -61,7 +61,7 @@ interface Store {
   setModel: (m: string) => void;
   verifyKey: (candidate?: string, quiet?: boolean) => Promise<boolean>;
   /** Основание народа: имя, происхождение и затравка; первый проект создаёт ИИ. */
-  foundCampaign: (input: { name: string; originId: string; seedLine: string }) => Promise<{ ok: boolean; project?: any; error?: string }>;
+  foundCampaign: (input: { name: string; originId: string; seedId: string }) => Promise<{ ok: boolean; project?: any; error?: string }>;
   /** Игрок увидел созданное первое дело и начинает первый день. */
   startFirstDay: (project?: any) => boolean;
   /** Даёт постройке в земле уникальное имя от советника. */
@@ -186,19 +186,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [apiKey, model, toast]);
 
   /** Полный старт: модель получает затравку и придумывает первое дело народа. */
-  const foundCampaign = useCallback(async ({ name, originId, seedLine }: { name: string; originId: string; seedLine: string }) => {
+  const foundCampaign = useCallback(async ({ name, originId, seedId }: { name: string; originId: string; seedId: string }) => {
     if (!apiKey.trim()) return { ok: false, error: "Нужен API-ключ: первый проект создаёт советник." };
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
     let base = M.clone(current);
     if (resumable) {
-      base.player.seedLine = seedLine.trim().slice(0, 240);
+      const choice = (M.SEED_CHOICES || []).find((item: any) => item.id === seedId) || null;
+      base.player.seedChoiceId = choice ? choice.id : base.player.seedChoiceId;
+      base.player.seedLine = choice ? choice.line : base.player.seedLine;
       base.player.name = name.trim().slice(0, 24) || base.player.name;
       base = M.normalizeState(base);
       commit(base, { silent: true });
     } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedLine });
+      const begun = M.beginOnboardingState(base, { name, originId, seedId });
       if (begun.error) return { ok: false, error: begun.error };
       base = begun.state;
       commit(base, { silent: true });
@@ -210,7 +212,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Начало игры фиксируется только после того, как игрок увидел первый проект.
       setPendingOpening({ state: applied.state });
       // Черновик спасает уже оплаченную генерацию, если игрок закроет вкладку до первого дня.
-      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedLine: base.player.seedLine, project: applied.blueprint })); } catch { /* переполнение хранилища не критично */ }
+      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, project: applied.blueprint })); } catch { /* переполнение хранилища не критично */ }
       return { ok: true, project: applied.blueprint };
     } catch (e: any) {
       return { ok: false, error: e?.message || "Советник недоступен." };

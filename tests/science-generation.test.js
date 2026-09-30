@@ -7,7 +7,8 @@ const ts = require('typescript');
 const Campaign = require('../campaign.js');
 
 const root = path.join(__dirname, '..');
-const SEED_LINE = 'Мы кузнецы: ищем камень, медь и огонь для горна';
+const SEED = Campaign.SEED_CHOICES.find(choice => choice.id === 'forge');
+const SEED_LINE = SEED.line;
 
 function fakeResponse(payload, ok = true, status = 200) {
   return { ok, status, json: async () => payload, text: async () => JSON.stringify(payload) };
@@ -58,7 +59,7 @@ function loadCards(fetchImpl) {
 }
 
 function readyState() {
-  return Campaign.beginOnboardingState(Campaign.createState(4242), { name: 'Тест', originId: 'river', seedLine: SEED_LINE }).state;
+  return Campaign.beginOnboardingState(Campaign.createState(4242), { name: 'Тест', originId: 'river', seedId: 'forge' }).state;
 }
 
 test('the first science is generated from the player seed, not from a local catalogue', async () => {

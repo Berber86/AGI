@@ -5,7 +5,9 @@ const path = require('node:path');
 const Campaign = require('../campaign.js');
 
 const TEST_SEED = 4242;
-const SEED_LINE = 'Мы живём рыбой и тростником, верим в разливы реки';
+const SEED = Campaign.SEED_CHOICES.find(choice => choice.id === 'river');
+const SEED_LINE = SEED.line;
+const seedInput = extra => ({ name: 'Тест', originId: 'river', seedId: 'river', ...extra });
 
 function project(overrides = {}) {
   return {
@@ -21,10 +23,11 @@ function project(overrides = {}) {
 }
 
 test('beginOnboardingState stores the player seed and does not pre-create any project', () => {
-  const result = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedLine: SEED_LINE });
+  const result = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput());
   assert.equal(result.error, null);
   const player = result.state.player;
-  assert.equal(player.seedLine, SEED_LINE);
+  assert.equal(player.seedLine, SEED_LINE, 'the seed comes from the chosen option');
+  assert.equal(player.seedChoiceId, 'river');
   assert.equal(player.originId, 'river');
   assert.equal(player.onboardingComplete, false);
   assert.equal(player.awaitingOpeningProject, true);
@@ -34,13 +37,13 @@ test('beginOnboardingState stores the player seed and does not pre-create any pr
 });
 
 test('beginOnboardingState rejects an unknown origin', () => {
-  const result = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'not-an-origin', seedLine: SEED_LINE });
+  const result = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput({ originId: 'not-an-origin' }));
   assert.equal(typeof result.error, 'string');
   assert.equal(result.state.player.onboardingComplete, false);
 });
 
 test('setOpeningProject completes the start only with a valid AI project', () => {
-  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedLine: SEED_LINE }).state;
+  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
   const invalid = Campaign.setOpeningProject(Campaign.clone(begun), project({ effects: [{ type: 'not_an_effect', amount: 1 }] }));
   assert.equal(typeof invalid.error, 'string');
   assert.equal(invalid.state.player.onboardingComplete, false);
@@ -58,7 +61,7 @@ test('setOpeningProject completes the start only with a valid AI project', () =>
 });
 
 test('the first session guide leads from the generated project and can be dismissed', () => {
-  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedLine: SEED_LINE }).state;
+  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
   assert.equal(Campaign.getFirstSessionGuide(begun), null, 'no guide before the first project exists');
 
   const started = Campaign.setOpeningProject(begun, project()).state;
@@ -74,10 +77,27 @@ test('the first session guide leads from the generated project and can be dismis
 });
 
 test('the science advisor situation carries the player seed line', () => {
-  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedLine: SEED_LINE }).state;
+  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
   const situation = Campaign.scienceAdvisorSituation(begun);
   assert.equal(situation.seedLine, SEED_LINE);
   assert.ok(situation.summary.includes(SEED_LINE), 'the summary given to the model contains the seed line');
+});
+
+test('the starting screen offers choices only — the player never writes game content', () => {
+  const read = relative => fs.readFileSync(path.join(__dirname, '..', relative), 'utf8');
+  const onboarding = read('src/pages/Onboarding.tsx');
+  assert.equal(/<textarea/.test(onboarding), false, 'no free-text seed field');
+  const inputs = (onboarding.match(/<input/g) || []).length;
+  const credentials = (onboarding.match(/type="password"/g) || []).length;
+  assert.equal(inputs, credentials, 'the only field left is the API key');
+  assert.ok(onboarding.includes('M.SEED_CHOICES'), 'the seed is chosen from the prepared options');
+  assert.ok(onboarding.includes('M.ORIGINS'), 'the origin is chosen from the prepared options');
+
+  const noChoice = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river' });
+  assert.equal(typeof noChoice.error, 'string', 'the game cannot start without a chosen seed');
+  const wrongChoice = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedId: 'invented' });
+  assert.equal(typeof wrongChoice.error, 'string');
+  assert.ok(Campaign.SEED_CHOICES.length >= 4, 'there are enough options to choose from');
 });
 
 test('the redesigned interface has no pre-written sciences, buildings or card ideas', () => {
@@ -102,7 +122,7 @@ test('the redesigned interface has no pre-written sciences, buildings or card id
 });
 
 test('the hand-held route can be finished: research, build, take land and train', () => {
-  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedLine: SEED_LINE }).state;
+  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
   const started = Campaign.setOpeningProject(begun, project()).state;
   const blueprintId = started.player.blueprints[0].id;
 
