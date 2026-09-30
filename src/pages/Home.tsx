@@ -139,8 +139,10 @@ function People() {
           <span className="w-[74px]" />
         </div>
       </div>
-      <div className="mt-2 rounded-xl bg-ground/60 p-3 text-[12.5px] leading-relaxed text-dim">
-        Народ съедает <b className="text-parch">{fmt(b.consumption)}</b> провизии в день, здания и земли требуют <b className="text-parch">{fmt(b.upkeep)}</b> материалов. Склад вмещает {cap} каждого ресурса — излишек тает вдвое.
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-ground/60 p-3 text-[12.5px] text-dim">
+        <span>🌾 съедаем <b className="text-parch">{fmt(b.consumption)}</b>/д</span>
+        <span>🪵 здания и земли <b className="text-parch">{fmt(b.upkeep)}</b>/д</span>
+        <span>📦 склад <b className="text-parch">{cap}</b> на ресурс, излишек тает вдвое</span>
       </div>
       <details className="mt-2 rounded-xl border border-line bg-ground/40 px-3 py-2.5 text-[12.5px]">
         <summary className="cursor-pointer font-medium text-dim hover:text-parch">Свод правил: рост народа, походы, бой</summary>
@@ -148,6 +150,7 @@ function People() {
           <li>• <b className="text-parch">Рост:</b> +1 человек, если провизии на складе больше 10 и дневной профицит еды больше 2 (35% за день). Голод, наоборот, уносит людей.</li>
           <li>• <b className="text-parch">Походы:</b> освоение свободной клетки — 2 🌾 + 2 🪵; квестовый бой и экспедиция — 4 🌾 + 2 🪵. При поражении отряд возвращает 2 🌾 припасов, но приказ и материалы теряются.</li>
           <li>• <b className="text-parch">Бой:</b> колода {cfg.deckLimit} карт, свободные места добирает ополчение. Вы ходите первым; с 6-го хода пустая колода бьёт вождя нарастающей усталостью — затягивать нельзя обеим сторонам.</li>
+          <li>• <b className="text-parch">Словарь:</b> замысел — фраза, из которой советник выводит первое дело; дело — первый проект народа; уклад — выбор на новой эпохе; приказ — одно дневное действие (исследование, стройка, поход); поход — освоение клетки или экспедиция.</li>
           <li>• <b className="text-parch">Запасы дробные:</b> доход 0.7 в день копится и округляется только на экране — один работник на знаниях рано или поздно окупается.</li>
         </ul>
       </details>

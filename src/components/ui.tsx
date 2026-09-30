@@ -128,7 +128,7 @@ export function Empty({ icon, title, hint, action }: { icon: ReactNode; title: s
 
 export function Tabs<T extends string>({ value, onChange, items, className }: { value: T; onChange: (v: T) => void; items: { id: T; label: string; badge?: ReactNode }[]; className?: string }) {
   return (
-    <div className={cn("no-scrollbar flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1", className)} role="tablist">
+    <div className={cn("no-scrollbar flex w-full min-w-0 max-w-full shrink gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1 sm:w-auto sm:shrink-0", className)} role="tablist">
       {items.map((it) => (
         <button
           key={it.id}

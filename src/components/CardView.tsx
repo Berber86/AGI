@@ -79,6 +79,7 @@ export function CardFace({ card, onClick, selected, footer, badge, detailed, cla
         <CostEnergy value={card.drop_cost} />
         <div className="text-right">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-dim">{type.label}</div>
+          {card.militia && <div className="text-[10px] font-semibold text-bronze-soft" title="Ополчение: карта не из коллекции, занимает свободный слот">ополчение</div>}
           {rarity && <div className={cn("text-[10px] font-medium", rarity.color)}>{rarity.label}</div>}
         </div>
       </div>
@@ -125,7 +126,8 @@ export function CardTile({ card, onClick, selected, right, dim, className }: { c
     <Wrapper
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl border bg-surface px-3 py-2.5 text-left transition-colors",
+        // min-w-0 обязателен: в узких колонках плитка сжимается и обрезает имя, а не растягивает страницу.
+        "flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border bg-surface px-3 py-2.5 text-left transition-colors",
         rarity?.ring ?? "border-line",
         onClick && "hover:bg-raised",
         selected && "border-bronze bg-raised",
@@ -136,14 +138,15 @@ export function CardTile({ card, onClick, selected, right, dim, className }: { c
       <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line-strong bg-ground/70 text-xl">{card.emoji}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-parch">{card.name}</span>
-        <span className="flex items-center gap-2 text-[11px] text-faint">
+        <span className="block truncate text-[11px] text-faint">
           {CARD_TYPE_INFO[card.card_type].label}
-          {rarity && <span className={rarity.color}>· {rarity.label}</span>}
+          {card.militia && <span className="text-bronze-soft"> · ополчение</span>}
+          {rarity && <span className={rarity.color}> · {rarity.label}</span>}
         </span>
       </span>
-      <StatPair card={card} className="shrink-0 text-[13px]" />
+      <StatPair card={card} className="hidden shrink-0 text-[13px] sm:flex" />
       <CostEnergy value={card.drop_cost} className="shrink-0" />
-      {right}
+      {right && <span className="shrink-0">{right}</span>}
     </Wrapper>
   );
 }

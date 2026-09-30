@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, ArrowRight, X, Check, CircleAlert, Info, Flag, KeyRound, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { AVAILABLE_MODELS, currentGuideStep, useDerived, useStore, type Page } from "@/game/store";
+import { MODEL_FAMILIES, currentGuideStep, modelSummary, useDerived, useStore, type Page } from "@/game/store";
 import { Btn, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -97,9 +97,10 @@ export function GuideBar() {
         <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft">
           <Flag size={13} />Наставник · шаг {index} из {guide.steps.length}
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
           <div className="truncate text-sm font-semibold text-parch">{step.label}</div>
-          <div className="truncate text-xs text-dim">{guide.next}</div>
+          {/* На телефоне подсказку наставника видно целиком (до трёх строк), на десктопе она и так в одну строку. */}
+          <div className="line-clamp-3 text-xs text-dim sm:line-clamp-2 lg:line-clamp-none">{guide.next}</div>
         </div>
         {currentPage === page
           ? <span className="rounded-full border border-line-strong px-2.5 py-1 text-[11px] text-dim">Вы на месте</span>
@@ -302,9 +303,14 @@ export function SettingsModal() {
         <label className="block">
           <Label className="mb-1.5">Модель для науки и советов</Label>
           <select value={model} onChange={(e) => setModel(e.target.value)} className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none focus:border-bronze">
-            {AVAILABLE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            {MODEL_FAMILIES.map((f) => (
+              <optgroup key={f.id} label={f.label}>
+                {f.models.map((m) => <option key={m.id} value={m.id}>{m.label}{m.note ? ` — ${m.note}` : ""}</option>)}
+              </optgroup>
+            ))}
           </select>
-          <span className="mt-1.5 block text-xs text-faint">Модель ковки выбирается автоматически по редкости карты.</span>
+          <span className="mt-1.5 block text-xs text-faint">Семейство — школа модели: сильные точнее придумывают проекты, быстрые отвечают за секунды. На правила игры выбор не влияет, модель ковки берётся по редкости карты.</span>
+          <span className="mt-1 block text-xs text-dim">Выбрано: <b className="text-parch">{modelSummary(model).family}</b>{modelSummary(model).note ? ` · ${modelSummary(model).note}` : ""}</span>
         </label>
       </div>
       <a href="/legacy.html" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-bronze hover:text-bronze-soft hover:underline">

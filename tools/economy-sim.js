@@ -139,6 +139,7 @@ function ensureEra(input, targetEra, stats = {}) {
         let project = state.player.blueprints.find(item => !item.researched);
         if (!project) {
             draftIndex++;
+            // Приём проекта занимает приказ «Исследование»: проект берём сегодня, изучаем после ночи.
             const added = Campaign.addBlueprint(state, {
                 scienceName: `Исследование фронтира ${draftIndex}`,
                 scienceDescription: 'Местные наблюдения для расширения поселения.',
@@ -147,8 +148,9 @@ function ensureEra(input, targetEra, stats = {}) {
                 category: 'science', effects: [{ type: 'income_knowledge', amount: 1 }]
             }, 'both');
             if (added.error) throw new Error(added.error);
-            state = added.state;
-            project = added.blueprint;
+            state = advanceDay(added.state);
+            project = state.player.blueprints.find(item => !item.researched);
+            if (!project) continue;
         }
         const researched = Campaign.researchBlueprint(state, project.id);
         if (!researched.error) {
@@ -338,6 +340,9 @@ function simulateResearchAndConstruction() {
         loop++;
         if (state.player.ap <= 0) { const n = advanceDay(state); if (n===state) break; state=n; continue; }
         let readyToResearch = state.player.blueprints.find(p => !p.researched);
+        if (!readyToResearch && state.player.dailyOrders.researchUsed && state.player.blueprints.every(p => p.built)) {
+            const n = advanceDay(state); if (n === state) break; state = n; continue;
+        }
         if (!readyToResearch && state.player.blueprints.every(p => p.built)) {
             const idx = generatedBlueprints;
             const effect = incomeEffects[idx % incomeEffects.length];
@@ -348,7 +353,12 @@ function simulateResearchAndConstruction() {
                 buildingDescription: 'Здание с эффектом.',
                 category: 'economy', effects: [{ type: effect, amount: 1 }]
             }, 'both');
-            if (!added.error) { state = added.state; generatedBlueprints++; readyToResearch = added.blueprint; }
+            if (!added.error) {
+                // Приём проекта тратит приказ «Исследование»: изучаем его уже на следующий день.
+                state = advanceDay(added.state);
+                generatedBlueprints++;
+                readyToResearch = state.player.blueprints.find(p => !p.researched);
+            }
         }
         if (!state.player.dailyOrders.researchUsed && readyToResearch) {
             const res = Campaign.researchBlueprint(state, readyToResearch.id);
@@ -547,7 +557,8 @@ function simulateDecrees() {
         let proj = state.player.blueprints.find(p => !p.researched);
         if (!proj) {
             const added = Campaign.addBlueprint(state, { scienceName: `Наука ${attempts}`, scienceDescription: 'd', buildingName: `Здание ${attempts}`, buildingDescription: 'd', category: 'economy', effects: [{type:'income_food', amount:1}]}, 'both');
-            if (!added.error) { state = added.state; proj = added.blueprint; }
+            // Приём проекта занимает приказ «Исследование», поэтому исследование уезжает на завтра.
+            if (!added.error) { state = advanceDay(added.state); proj = state.player.blueprints.find(p => !p.researched); }
         }
         if (proj) {
             const res = Campaign.researchBlueprint(state, proj.id);

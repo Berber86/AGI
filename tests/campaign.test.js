@@ -96,10 +96,13 @@ function draft(overrides = {}) {
   };
 }
 
+// Приём проекта в кодекс тратит приказ «Исследование»: проект берут одним днём, изучают следующим.
 function researchAndBuild(state, definition) {
   const added = Campaign.addBlueprint(state, definition, 'both');
   assert.equal(added.error, null);
-  let researched = Campaign.researchBlueprint(added.state, added.blueprint.id);
+  assert.equal(added.state.player.dailyOrders.researchUsed, true, 'приём проекта занимает приказ «Исследование»');
+  state = Campaign.finishDayState(added.state).state;
+  const researched = Campaign.researchBlueprint(state, added.blueprint.id);
   assert.equal(researched.error, null);
   state = Campaign.finishDayState(researched.state).state;
   const built = Campaign.constructBlueprint(state, added.blueprint.id);
@@ -718,23 +721,27 @@ test('LLM campaign effects are declarative, allowlisted and bounded', () => {
 test('research and construction have independent limits via AP and can chain on one project', () => {
   let state = Campaign.createState(TEST_SEED);
   const first = Campaign.addBlueprint(state, draft(), 'both');
-  const second = Campaign.addBlueprint(first.state, draft({ scienceName: 'Вторая наука', buildingName: 'Второе здание' }), 'both');
   assert.equal(first.error, null);
+  // Второй проект в тот же день уже нельзя: приём стоит приказа «Исследование».
+  assert.match(Campaign.addBlueprint(first.state, draft({ scienceName: 'Вторая наука', buildingName: 'Второе здание' }), 'both').error, /исследование уже проведено|AP/);
+  const nextDay = Campaign.finishDayState(first.state).state;
+  const second = Campaign.addBlueprint(nextDay, draft({ scienceName: 'Вторая наука', buildingName: 'Второе здание' }), 'both');
   assert.equal(second.error, null);
 
-  const researched = Campaign.researchBlueprint(second.state, first.blueprint.id);
+  const prepared = Campaign.finishDayState(second.state).state;
+  const researched = Campaign.researchBlueprint(prepared, first.blueprint.id);
   assert.equal(researched.error, null);
   assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researched, true);
   assert.equal(researched.state.player.dailyOrders.researchUsed, true);
   assert.equal(researched.state.player.dailyOrders.constructionUsed, false);
   assert.equal(researched.state.player.ap, researched.state.player.apMax - 1);
-  assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researchedDay, state.day);
+  assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researchedDay, prepared.day);
   assert.match(Campaign.researchBlueprint(researched.state, second.blueprint.id).error, /исследование уже проведено|AP/);
 
   const built = Campaign.constructBlueprint(researched.state, first.blueprint.id);
   assert.equal(built.error, null);
   assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).built, true);
-  assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).builtDay, state.day);
+  assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).builtDay, prepared.day);
   assert.equal(built.state.player.dailyOrders.constructionUsed, true);
   assert.equal(built.state.player.buildings.length, 2);
 
@@ -749,7 +756,7 @@ test('craft, research and construction share AP pool - cannot do everything in o
   state.player.resources = { food: 30, materials: 30, knowledge: 30 };
   const added = Campaign.addBlueprint(state, draft(), 'both');
   assert.equal(added.error, null);
-  state = added.state;
+  state = Campaign.finishDayState(added.state).state;
 
   const researched = Campaign.researchBlueprint(state, added.blueprint.id);
   assert.equal(researched.error, null);
@@ -773,7 +780,8 @@ test('only active buildings change combat limits and economic buildings give wor
   const added = Campaign.addBlueprint(state, draft({
     category: 'military', effects: [{ type: 'deck_slots', amount: 1 }, { type: 'max_hp', amount: 1 }]
   }), 'allies');
-  state = Campaign.researchBlueprint(added.state, added.blueprint.id).state;
+  state = Campaign.finishDayState(added.state).state;
+  state = Campaign.researchBlueprint(state, added.blueprint.id).state;
   state = Campaign.finishDayState(state).state;
   state = Campaign.constructBlueprint(state, added.blueprint.id).state;
   assert.equal(state.player.buildings[1].active, true);
@@ -817,7 +825,12 @@ test('active LLM buildings modify one energy pool and its per-turn growth', () =
   const added = Campaign.addBlueprint(Campaign.createState(TEST_SEED), draft({
     category: 'civic', effects: [{ type: 'energy_cap', amount: 1 }, { type: 'energy_growth', amount: 1 }]
   }), 'both');
-  const state = researchAndBuild(added.state, added.blueprint);
+  assert.equal(added.error, null);
+  const researchDay = Campaign.finishDayState(added.state).state;
+  const studied = Campaign.researchBlueprint(researchDay, added.blueprint.id);
+  assert.equal(studied.error, null);
+  const buildDay = Campaign.finishDayState(studied.state).state;
+  const state = Campaign.constructBlueprint(buildDay, added.blueprint.id).state;
   assert.equal(Campaign.getBattleConfig(state).energyMax, 3);
   assert.equal(Campaign.getBattleConfig(state).energyGrowth, 2);
   const disabled = Campaign.toggleBuildingState(state, state.player.buildings[1].id).state;
@@ -872,7 +885,7 @@ test('player era advances bring selected barbarian decks forward too', () => {
   state.player.historicalCulture = Campaign.HISTORICAL_CULTURES[0];
   const first = Campaign.addBlueprint(state, draft(), 'both');
   assert.equal(first.error, null);
-  state = first.state;
+  state = Campaign.finishDayState(first.state).state;
   state.player.research = 1;
   const antiquity = Campaign.researchBlueprint(state, first.blueprint.id);
   assert.equal(antiquity.error, null);
@@ -886,7 +899,7 @@ test('player era advances bring selected barbarian decks forward too', () => {
   state = Campaign.finishDayState(antiquity.state).state;
   const second = Campaign.addBlueprint(state, draft({ scienceName: 'Новая бронзовая наука', buildingName: 'Бронзовая мастерская' }), 'both');
   assert.equal(second.error, null);
-  state = second.state;
+  state = Campaign.finishDayState(second.state).state;
   state.player.research = 1;
   const medieval = Campaign.researchBlueprint(state, second.blueprint.id);
   assert.equal(medieval.error, null);
@@ -1193,4 +1206,75 @@ test('v3: region building loss on conquest loss', () => {
   state.regions.find(r => r.id === foodTileId).ownerId = null;
   state.regions.find(r => r.id === foodTileId).building = null;
   assert.equal(Campaign.getRegionalIncome(state).food, 0);
+});
+
+test('codex: accepting a project spends the research order and duplicates never enter', () => {
+  const state = Campaign.createState(TEST_SEED);
+  const first = Campaign.addBlueprint(state, draft(), 'both');
+  assert.equal(first.error, null);
+  assert.equal(first.state.player.dailyOrders.researchUsed, true, 'acceptance consumes the research order');
+  assert.equal(first.state.player.ap, state.player.apMax - 1);
+
+  // Второй приём в тот же день запрещён — и проектом, и исследованием.
+  const sameDay = Campaign.addBlueprint(first.state, draft({ scienceName: 'Другая наука', buildingName: 'Другое здание' }), 'both');
+  assert.match(sameDay.error, /исследование уже проведено|AP/);
+  assert.match(Campaign.researchBlueprint(first.state, first.blueprint.id).error, /исследование уже проведено|AP/);
+
+  // Дубликат по имени науки или постройки отсекается даже в новый день.
+  const nextDay = Campaign.finishDayState(first.state).state;
+  const byScience = Campaign.addBlueprint(nextDay, draft({ scienceName: '  обжиг   ГЛИНЫ ', buildingName: 'Совсем другое здание' }), 'both');
+  assert.match(byScience.error, /уже есть в кодексе/);
+  assert.equal(byScience.duplicate, true);
+  const byBuilding = Campaign.addBlueprint(nextDay, draft({ scienceName: 'Новая наука', buildingName: 'Обжиговая мастерская' }), 'both');
+  assert.match(byBuilding.error, /уже есть в кодексе/);
+  assert.equal(nextDay.player.blueprints.length, first.state.player.blueprints.length, 'rejected drafts do not grow the codex');
+
+  // Приём стоит приказа, но не ресурсов: запасы не тронуты.
+  assert.deepEqual(first.state.player.resources, state.player.resources);
+});
+
+test('codex: unstarted projects can be deleted, studied and opening ones cannot', () => {
+  const state = Campaign.createState(TEST_SEED);
+  const added = Campaign.addBlueprint(state, draft(), 'both');
+  const id = added.blueprint.id;
+  const removed = Campaign.removeBlueprint(added.state, id);
+  assert.equal(removed.error, null);
+  assert.equal(removed.state.player.blueprints.some(item => item.id === id), false);
+
+  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', seedId: 'river' }).state;
+  const opened = Campaign.setOpeningProject(Campaign.clone(begun), {
+    scienceName: 'Первое дело', scienceDescription: 'Первое наблюдение народа.', buildingName: 'Первая постройка', buildingDescription: 'Первое строение поселения.',
+    category: 'economy', effects: [{ type: 'income_food', amount: 1 }]
+  }).state;
+  const opening = opened.player.blueprints.find(item => item.openingProject);
+  assert.ok(opening, 'onboarding leaves the opening deal in the codex');
+  assert.match(Campaign.removeBlueprint(opened, opening.id).error, /навсегда/);
+
+  const researched = Campaign.finishDayState(added.state).state;
+  const studied = Campaign.researchBlueprint(researched, id).state;
+  assert.match(Campaign.removeBlueprint(studied, id).error, /нельзя убрать/);
+  assert.match(Campaign.removeBlueprint(added.state, 'нет-такого-id').error, /не найден/);
+});
+
+test('militia deck: player assigns the reserves that will fill empty battle slots', () => {
+  const state = Campaign.createState(TEST_SEED);
+  assert.deepEqual(state.player.deckMilitia, [], 'new campaigns start with an empty reserve choice');
+
+  const first = Campaign.toggleDeckMilitiaState(state, 'Топорники племени');
+  assert.equal(first.error, null);
+  assert.deepEqual(first.state.player.deckMilitia, ['Топорники племени']);
+  assert.equal(first.state.player.ap, state.player.ap, 'choosing reserves costs no orders');
+
+  const second = Campaign.toggleDeckMilitiaState(first.state, 'Охотники с луками');
+  assert.deepEqual(second.state.player.deckMilitia, ['Топорники племени', 'Охотники с луками']);
+  const off = Campaign.toggleDeckMilitiaState(second.state, 'Топорники племени');
+  assert.deepEqual(off.state.player.deckMilitia, ['Охотники с луками']);
+
+  let capped = off.state;
+  for (const name of ['A', 'B', 'C', 'D', 'E', 'F', 'G']) capped = Campaign.toggleDeckMilitiaState(capped, name).state;
+  assert.equal(capped.player.deckMilitia.length, Campaign.DECK_MILITIA_LIMIT);
+
+  // Сохранение переживает нормализацию и чистит мусор.
+  const migrated = Campaign.normalizeState({ ...capped, player: { ...capped.player, deckMilitia: ['  Охотники с луками  ', 'Охотники с луками', 42, ''] } });
+  assert.deepEqual(migrated.player.deckMilitia, ['Охотники с луками']);
 });

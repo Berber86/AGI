@@ -48,6 +48,8 @@
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
     const BARBARIAN_ERA_CAP = 2; // В локальном MVP племена автоматически развиваются не дальше Средневековья.
     const BARBARIAN_DECK_SIZES = [4, 6, 8]; // Небольшие, но полные колоды по эпохам.
+    const BLUEPRINT_LIMIT = 30; // Вместимость сезонного кодекса проектов.
+    const DECK_MILITIA_LIMIT = 6; // Сколько ополченцев игрок может назначить в свободные слоты колоды.
     const ERA_HISTORICAL = [
         { era: 0, cultures: ['Ямная культура — курганы и кони', 'Триполье — большие поселения', 'Чатал-Хююк — обсидиан', 'Натуф — первые земледельцы'], desc: 'Неолит — от Ямной степи до Чатал-Хююка. Ямы, курганы, первые города' },
         { era: 1, cultures: ['Шумер — Урук и Ур, клинопись', 'Аккад Саргона — первая империя', 'Древнее Царство Египта — пирамиды', 'Хараппа — канализация и кирпичи'], desc: 'Бронзовый век ранний — Аккад, Египет, Шумер, Хараппа. Первые империи и письмо' },
@@ -525,6 +527,7 @@
                 scienceChoices: null,
                 chronicle: [],
                 deckCardIds: [],
+                deckMilitia: [],
                 practice: { wins: 0, losses: 0, leaderWins: 0, leaderLosses: 0 }
             },
             opponents,
@@ -826,6 +829,8 @@
             text: String(entry.text || '').slice(0, 500)
         })).filter(e => e.text) : [];
         state.player.deckCardIds = Array.isArray(state.player.deckCardIds) ? [...new Set(state.player.deckCardIds.filter(id => typeof id === 'string'))].slice(0, 8) : [];
+        // Ополчение: игрок сам назначает, кто закроет свободные слоты колоды. Имена сверяются с пулом интерфейса при сборке боя.
+        state.player.deckMilitia = normalizeDeckMilitia(state.player.deckMilitia);
         state.opponents = Array.isArray(value.opponents) && value.opponents.length
             ? value.opponents.map((opponent, i) => {
                 const defaults = base.opponents[i % base.opponents.length];
@@ -1630,13 +1635,75 @@
         };
     }
 
-    function addBlueprint(input, raw, visibility) {
+    // Названия сравниваем без регистра, «ё», знаков и лишних пробелов: «Террасное земледелие» и «террасное  земледелие» — один проект.
+    function blueprintKey(value) {
+        return String(value || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim();
+    }
+
+    function normalizeDeckMilitia(value) {
+        if (!Array.isArray(value)) return [];
+        const out = [];
+        for (const raw of value) {
+            if (typeof raw !== 'string') continue;
+            const name = raw.trim().slice(0, 60);
+            if (name && !out.includes(name) && out.length < DECK_MILITIA_LIMIT) out.push(name);
+        }
+        return out;
+    }
+
+    /** Назначить/снять ополченца в свободный слот колоды. Выбор бесплатный: это план на бой, а не приказ. */
+    function toggleDeckMilitia(input, name) {
         const state = normalizeState(input);
-        if (state.player.blueprints.length >= 30) return { state, error: 'В сезонном кодексе уже 30 проектов.' };
+        const clean = String(name || '').trim().slice(0, 60);
+        if (!clean) return { state, error: 'Неизвестный ополченец.' };
+        const current = normalizeDeckMilitia(state.player.deckMilitia);
+        if (current.includes(clean)) state.player.deckMilitia = current.filter(item => item !== clean);
+        else if (current.length >= DECK_MILITIA_LIMIT) return { state, error: 'В колоде не больше ' + DECK_MILITIA_LIMIT + ' назначенных ополченцев.' };
+        else state.player.deckMilitia = [...current, clean];
+        return { state, error: null };
+    }
+
+    // Дубликат — совпадение имени науки или имени постройки (без регистра, «ё» и знаков).
+    // Похожие эффекты дубликатом не считаются: две разные науки вправе вести к одному доходу.
+    function findDuplicateBlueprint(state, raw) {
+        const scienceKey = blueprintKey(raw?.scienceName);
+        const buildingKey = blueprintKey(raw?.buildingName);
+        return state.player.blueprints.find(item =>
+            (scienceKey && scienceKey === blueprintKey(item.scienceName))
+            || (buildingKey && buildingKey === blueprintKey(item.buildingName))) || null;
+    }
+
+    /**
+     * Приём проекта в кодекс. Стоит дневной приказ «Исследование»: сегодня уже нельзя
+     * ни принять второй проект, ни изучить науку. Дубликаты не принимаются.
+     * options.free — только для онбординга (первое дело народа приходит до первого дня).
+     */
+    function addBlueprint(input, raw, visibility, options = {}) {
+        const state = normalizeState(input);
+        if (state.player.blueprints.length >= BLUEPRINT_LIMIT) return { state, error: 'В сезонном кодексе уже ' + BLUEPRINT_LIMIT + ' проектов.' };
+        const duplicate = findDuplicateBlueprint(state, raw);
+        if (duplicate) return { state, error: 'Такой проект уже есть в кодексе: «' + duplicate.scienceName + '». Советник не тратит записи на повторы.', duplicate: true };
         const blueprint = normalizeBlueprint(raw, state, visibility);
         if (!blueprint) return { state, error: 'Наука, здание или эффект не прошли проверку схемы.' };
+        if (!options.free) {
+            const orderError = canOrder(state, 'research');
+            if (orderError) return { state, error: orderError };
+            markDailyOrderUsed(state, 'research');
+        }
         state.player.blueprints.unshift(blueprint);
+        if (!options.free) state.player.campaignNotice = 'Проект «' + blueprint.scienceName + '» принят в кодекс; приказ «Исследование» на сегодня потрачен.';
         return { state, blueprint, error: null };
+    }
+
+    /** Из кодекса можно убрать только неначатый проект: изученное и построенное — уже история народа. */
+    function removeBlueprint(input, id) {
+        const state = normalizeState(input);
+        const blueprint = state.player.blueprints.find(item => item.id === id);
+        if (!blueprint) return { state, error: 'Проект не найден.' };
+        if (blueprint.openingProject) return { state, error: 'Первое дело народа остаётся в кодексе навсегда.' };
+        if (blueprint.researched || blueprint.built) return { state, error: 'Изучённый проект уже часть истории народа — его нельзя убрать.' };
+        state.player.blueprints = state.player.blueprints.filter(item => item.id !== id);
+        return { state, error: null };
     }
 
     function researchBlueprint(input, id) {
@@ -2195,7 +2262,7 @@
         }).join('');
         const opponentRows = state.opponents.map(opponent => {
             const battleConfig = getOpponentBattleConfig(state, opponent.id);
-            return '<article class="campaign-opponent"><div class="campaign-opponent-top"><span class="campaign-opponent-avatar">' + (opponent.leader ? '👑' : '🧭') + '</span><div><b>' + escapeHtml(opponent.name) + '</b><small>' + escapeHtml(opponent.clan) + '</small></div><span class="campaign-opponent-rating">Э' + (opponent.era + 1) + '</span></div><small class="campaign-opponent-deck">' + escapeHtml(battleConfig.deckStyle) + ' · ' + battleConfig.deckLimit + ' карт</small><button class="campaign-btn campaign-btn-challenge" ' + (p.pendingExpedition ? 'disabled' : '') + ' onclick="CampaignMvp.challenge(\'' + htmlAttr(opponent.id) + '\', ' + (opponent.leader ? 'true' : 'false') + ')">' + (p.pendingExpedition ? 'Сначала заверши экспедицию' : 'Тренировка') + '</button></article>';
+            return '<article class="campaign-opponent"><div class="campaign-opponent-top"><span class="campaign-opponent-avatar">' + (opponent.leader ? '👑' : '🧭') + '</span><div><b>' + escapeHtml(opponent.name) + '</b><small>' + escapeHtml(opponent.clan) + '</small></div><span class="campaign-opponent-rating" title="Эпоха и рейтинг силы колоды">эпоха ' + (opponent.era + 1) + ' · ' + opponent.rating + '</span></div><small class="campaign-opponent-deck">' + escapeHtml(battleConfig.deckStyle) + ' · ' + battleConfig.deckLimit + ' карт</small><button class="campaign-btn campaign-btn-challenge" ' + (p.pendingExpedition ? 'disabled' : '') + ' onclick="CampaignMvp.challenge(\'' + htmlAttr(opponent.id) + '\', ' + (opponent.leader ? 'true' : 'false') + ')">' + (p.pendingExpedition ? 'Сначала заверши экспедицию' : 'Тренировка') + '</button></article>';
         }).join('');
         const deckCards = choices.length ? choices.map(card => {
             const selected = p.deckCardIds.includes(card.id);
@@ -2447,14 +2514,16 @@
     }
 
     const api = {
-        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, GENERATIVE_EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, SEED_CHOICES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH, MAP_VISION_RADIUS,
+        ERAS, ERA_HISTORICAL, DECREES, BLUEPRINT_LIMIT, DECK_MILITIA_LIMIT, EFFECTS, GENERATIVE_EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, SEED_CHOICES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH, MAP_VISION_RADIUS,
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
         createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         getRegionalIncome, getAvailableMaterialQualities, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
-        addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
+        addBlueprint, removeBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, findDuplicateBlueprint,
+        chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard,
+        toggleDeckMilitiaState: toggleDeckMilitia, BLUEPRINT_LIMIT, DECK_MILITIA_LIMIT, finishDayState: finishDay,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
         getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker, getActiveDecreesState: state => getActiveDecrees(normalizeState(state)), clone, hashString, seededRandom, pickRandom, eraName,
         quoteCardCraft: investment => cardCraftQuote(state, investment),

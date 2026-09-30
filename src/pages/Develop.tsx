@@ -108,6 +108,15 @@ function Science() {
     toast(`«${raw.scienceName}» добавлено в кодекс. Теперь его можно изучить.`, "ok");
   };
 
+  const researchSpent = Boolean(p.dailyOrders.researchUsed);
+  // Причина, по которой замысел нельзя принять прямо сейчас: приказ дня, лимит кодекса или дубль.
+  const pickErr = (raw: any): string | null => M.addBlueprint(M.clone(game), raw, "both").error;
+
+  const remove = (id: string) => {
+    const res = act((s) => M.removeBlueprint(s, id));
+    if (res) toast("Проект убран из кодекса.", "ok");
+  };
+
   const research = (id: string, onEra?: () => void) => {
     const oldEra = p.era;
     const res = act((s) => M.researchBlueprint(s, id));
@@ -128,11 +137,16 @@ function Science() {
           <div className="mt-3 flex flex-wrap gap-1.5">
             {branches.slice(0, 4).map((b) => <Chip key={b.id}>{b.label}</Chip>)}
           </div>
-          <Btn variant="primary" className="mt-4 w-full" size="lg" onClick={generate} disabled={loading || bps.length >= 30}>
+          <Btn variant="primary" className="mt-4 w-full" size="lg" onClick={generate} disabled={loading || bps.length >= M.BLUEPRINT_LIMIT}>
             {loading ? <Loader2 size={18} className="animate-spin" /> : choices ? <RefreshCw size={16} /> : <Sparkles size={16} />}
             {loading ? "Советник думает…" : choices ? "Предложить другие замыслы" : "Спросить советника"}
           </Btn>
           {!apiKey && <p className="mt-2 text-[11.5px] text-bad">API-ключ обязателен: без него советник не может придумать проекты.</p>}
+          <p className={cn("mt-2 text-[11.5px]", researchSpent ? "text-bronze-soft" : "text-faint")}>
+            {researchSpent
+              ? "Приказ «Исследование» на сегодня потрачен: принять новый проект или изучить старый можно только после конца дня."
+              : "Приём проекта расходует приказ «Исследование» — в один день либо принимают замысел советника, либо изучают уже принятый."}
+          </p>
         </Panel>
 
         {p.pendingDecreeChoice && (
@@ -147,7 +161,9 @@ function Science() {
           <Panel className="animate-rise border-bronze/30 p-5">
             <Heading title="Выберите один путь" eyebrow="Советник прочитал вашу ситуацию" className="[&_h2]:text-lg" />
             <div className="mt-4 grid gap-3">
-              {choices.projects.map((pr: any, i: number) => (
+              {choices.projects.map((pr: any, i: number) => {
+                const acceptErr: string | null = pickErr(pr);
+                return (
                 <div key={i} className="rounded-xl border border-line bg-raised/50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -157,16 +173,20 @@ function Science() {
                       <div className="mt-2"><EffectChips effects={pr.effects} /></div>
                       {pr.rationale && <p className="mt-2 text-xs italic leading-relaxed text-faint">{pr.rationale}</p>}
                     </div>
-                    <Btn size="sm" variant="primary" onClick={() => choose(i)}>Выбрать</Btn>
+                    {acceptErr
+                      ? <Btn size="sm" variant="primary" disabled title={acceptErr}>Занято</Btn>
+                      : <Btn size="sm" variant="primary" onClick={() => choose(i)}>Выбрать</Btn>}
                   </div>
+                  {acceptErr && <p className="mt-2 text-xs text-bronze-soft">{acceptErr}</p>}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Panel>
         )}
 
         <Panel className="p-5">
-          <Heading title="Кодекс проектов" eyebrow={`${bps.length} из 30`} className="[&_h2]:text-lg" />
+          <Heading title="Кодекс проектов" eyebrow={`${bps.length} из ${M.BLUEPRINT_LIMIT}`} className="[&_h2]:text-lg" />
           {sorted.length === 0 ? (
             <p className="mt-4 text-sm text-dim">Кодекс пуст. Спросите советника слева — он придумает проекты под вашу затравку.</p>
           ) : (
@@ -197,6 +217,9 @@ function Science() {
                         {s === 2 && (<><Cost cost={{ materials: 3 }} have={p.resources} />
                           <Btn size="sm" variant="primary" disabled={!!cErr} title={cErr || ""} onClick={() => act((st) => M.constructBlueprint(st, b.id))}>Построить</Btn></>)}
                         {s === 3 && <Chip tone="ok"><Check size={11} />Построено</Chip>}
+                        {s === 1 && !b.openingProject && (
+                          <Btn size="sm" variant="ghost" title="Убрать проект из кодекса" onClick={() => remove(b.id)}>Убрать</Btn>
+                        )}
                       </div>
                     </div>
                     {(rErr && s === 1) || (cErr && s === 2) ? <p className="mt-2 text-xs text-faint">{s === 1 ? rErr : cErr}</p> : null}

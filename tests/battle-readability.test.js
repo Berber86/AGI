@@ -69,3 +69,35 @@ test('fatigue waits until turn six instead of killing micro-decks at turn four',
     battle.beginEnemyTurn(b); battle.beginPlayerTurn(b);
     assert.ok(b.enemy.hp < 5, 'the enemy feels fatigue from turn six too');
 });
+
+test('militia picker: chosen reserves fill empty slots first and are marked, spare pool tops up the rest', () => {
+    const pool = militia;
+    const byId = new Map(militia.slice(0, 2).map((card) => [card.id, card]));
+    const onlyOne = battle.buildBattleDeck(byId, militia.slice(0, 1).map((c) => c.id), 4, pool, [pool[3].name, pool[5].name]);
+    assert.equal(onlyOne.deck.length, 4, 'deck is filled up to the limit');
+    // Массив приходит из vm-песочницы: сравниваем строки, а не прототипы разных realm'ов.
+    assert.equal(onlyOne.deck.slice(1, 3).map((c) => c.name).join('|'), [pool[3].name, pool[5].name].join('|'), 'chosen reserves keep the player order');
+    assert.equal(onlyOne.used, 3, 'every militia card is counted for the battle summary');
+    assert.ok(onlyOne.deck.slice(1).every((c) => c.militia === true), 'militia cards are marked');
+    const fullById = new Map(militia.slice(0, 3).map((card) => [card.id, card]));
+    const full = battle.buildBattleDeck(fullById, militia.slice(0, 3).map((c) => c.id), 3, pool, [pool[3].name]);
+    assert.equal(full.deck.length, 3);
+    assert.equal(full.used, 0, 'a full deck keeps no room for reserves');
+    const exhausted = battle.buildBattleDeck(byId, militia.slice(0, 1).map((c) => c.id), 4, pool, [pool[0].name]);
+    assert.equal(new Set(exhausted.deck.map((c) => c.name)).size, exhausted.deck.length, 'no duplicate militia in the battle deck');
+});
+
+test('coach opening: first practice battle has no enemy structures and one extra energy on turn one', () => {
+    const structures = battle.enemyDeckForEra(0, 8).filter((c) => c.card_type === 'structure');
+    assert.ok(structures.length > 0, 'base enemy deck does contain structures');
+    assert.equal(battle.withoutStructures(battle.enemyDeckForEra(0, 8)).some((c) => c.card_type === 'structure'), false);
+
+    const b = battle.createBattle(militia.slice(0, 4), CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' }, 0);
+    assert.equal(b.me.energyMax, 1, 'without coaching the first turn gives one energy');
+    battle.applyCoachOpening(b);
+    assert.equal(b.me.energy, 2);
+    assert.equal(b.me.energyMax, 2);
+    assert.ok(b.log.some((entry) => /Обучение/.test(entry.text)), 'the coach bonus is announced in the log');
+    battle.beginPlayerTurn(b);
+    assert.equal(b.me.energyMax, 2, 'the bonus does not stack with the normal growth');
+});

@@ -105,6 +105,36 @@ export function enemyDeckForEra(era: number, limit: number): Card[] {
   return ordered.slice(0, limit).map((c) => ({ ...c, name: ENEMY_MILITIA_NAMES[c.name] ?? c.name }));
 }
 
+/**
+ * Колода боя: сначала выкованные карты, затем назначенное игроком ополчение (в его порядке),
+ * и только потом запас — пока не заполнится лимит. Возвращает и счётчик ополченцев для итога боя.
+ */
+export function buildBattleDeck(cardsById: Map<string, any>, deckIds: string[], deckLimit: number, militiaPool: Card[], chosenNames: string[] = []): { deck: Card[]; used: number } {
+  const deck = deckIds.map((id) => cardsById.get(id)).filter(Boolean).slice(0, deckLimit) as Card[];
+  const chosen = chosenNames.map((name) => militiaPool.find((c) => c.name === name)).filter(Boolean) as Card[];
+  let used = 0;
+  for (const mi of [...chosen, ...militiaPool]) {
+    if (deck.length >= deckLimit) break;
+    if (deck.some((c) => c.name === mi.name)) continue;
+    deck.push({ ...mi, militia: true });
+    used++;
+  }
+  return { deck, used };
+}
+
+/** Первый обучающий бой: у врага нет построек — новичок не получает бесплатный урон каждый ход. */
+export function withoutStructures(deck: Card[]): Card[] {
+  return deck.filter((c) => c.card_type !== "structure");
+}
+
+/** Первый обучающий бой: +1 энергии на первый ход, чтобы было что вывести из руки. */
+export function applyCoachOpening(b: Battle): Battle {
+  b.me.energyMax = Math.min(b.me.energyCap, b.me.energyMax + 1);
+  b.me.energy = b.me.energyMax;
+  log(b, "system", "Обучение: у врага нет построек, а вы начинаете с +1 энергии.");
+  return b;
+}
+
 export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[], enemyCfg: SideConfig, match: Match, usedMilitia: number): Battle {
   const b: Battle = {
     me: newPlayer(myDeck, myCfg), enemy: newPlayer(enemyDeck, enemyCfg),

@@ -15,7 +15,7 @@
         water: { label: 'Вода', icon: '≈', names: ['воды', 'протоки', 'заводи', 'озёра', 'плёсы', 'заливы'] },
         plains: { label: 'Равнина', icon: '🌾', names: ['луга', 'поля', 'степи', 'низины', 'долины', 'пастбища'] },
         forest: { label: 'Лес', icon: '🌲', names: ['рощи', 'чащи', 'дубравы', 'леса', 'просеки', 'опушки'] },
-        hills: { label: 'Холмы', icon: '⛰️', names: ['холмы', 'склоны', 'увалы', 'гребни', 'предгорья', 'кря́жи'] },
+        hills: { label: 'Холмы', icon: '⛰️', names: ['холмы', 'склоны', 'увалы', 'гребни', 'предгорья', 'кряжи'] },
         mountain: { label: 'Горы', icon: '🏔️', names: ['вершины', 'горы', 'скалы', 'хребты', 'ущелья', 'перевалы'] },
         wetlands: { label: 'Плавни', icon: '🌿', names: ['плавни', 'топи', 'болота', 'камыши', 'заводи', 'сырые луга'] },
         desert: { label: 'Сухие земли', icon: '🏜️', names: ['барханы', 'пустоши', 'солончаки', 'сухие земли', 'пески', 'сухие низины'] },
@@ -459,7 +459,9 @@
             } else {
                 tile.name = makeUniqueName(tile.terrain, rng, usedNames, index);
             }
-            tile.shortName = tile.name.length > 15 ? tile.name.slice(0, 14) + '…' : tile.name;
+            // Никаких обрезок в модели: имя земли должно читаться целиком, перенос делает интерфейс.
+            tile.name = tile.name.normalize('NFC').replace(/[\u0300-\u036f]/g, '');
+            tile.shortName = tile.name;
             tile.description = makeDescription(tile, rng).slice(0, 360);
             if (tile.feature === 'copper-vein') tile.shortText = 'Медь · плавильня';
             else if (tile.feature === 'tin-route') tile.shortText = 'Олово · торговый путь';
@@ -541,7 +543,7 @@
                 elevation: clamp(saved.elevation, 0, 100, fallback.elevation),
                 moisture: clamp(saved.moisture, 0, 100, fallback.moisture),
                 name: cleanText(saved.name, 64, fallback.name),
-                shortName: cleanText(saved.shortName, 20, fallback.shortName),
+                shortName: cleanText(saved.shortName, 64, fallback.shortName),
                 description: cleanText(saved.description, 360, fallback.description),
                 shortText: cleanText(saved.shortText, 80, fallback.shortText),
                 initialOwner: fallback.x === CENTER.x && fallback.y === CENTER.y ? 'player' : initialOwner,

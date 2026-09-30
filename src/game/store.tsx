@@ -23,17 +23,36 @@ export function currentGuideStep(game: any): { step: any; guide: any; page: Page
 export interface Toast { id: number; text: string; tone: Tone }
 
 export const AVAILABLE_MODELS = [
-  { id: "gpt-6-luna", label: "GPT-6 Luna (по умолчанию)" },
-  { id: "gpt-6-sol", label: "GPT-6 Sol (сильная)" },
-  { id: "gpt-6-astra", label: "GPT-6 Astra" },
-  { id: "glm-5.2", label: "GLM-5.2" },
-  { id: "glm-5.1", label: "GLM-5.1" },
-  { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
-  { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash (быстрая)" },
-  { id: "deepseek-v3.2", label: "DeepSeek V3.2" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
-  { id: "hydra-gpt-mini", label: "Hydra GPT Mini (бесплатная)" },
+  { id: "gpt-6-luna", label: "GPT-6 Luna (по умолчанию)", family: "gpt", note: "быстрая и аккуратная" },
+  { id: "gpt-6-sol", label: "GPT-6 Sol (сильная)", family: "gpt", note: "самая сильная" },
+  { id: "gpt-6-astra", label: "GPT-6 Astra", family: "gpt", note: "ровная" },
+  { id: "glm-5.2", label: "GLM-5.2", family: "glm", note: "новая" },
+  { id: "glm-5.1", label: "GLM-5.1", family: "glm", note: "прошлая" },
+  { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro", family: "deepseek", note: "сильная" },
+  { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash", family: "deepseek", note: "быстрая" },
+  { id: "deepseek-v3.2", label: "DeepSeek V3.2", family: "deepseek", note: "прошлая" },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5", family: "claude", note: "сильная" },
+  { id: "hydra-gpt-mini", label: "Hydra GPT Mini", family: "hydra", note: "бесплатная" },
 ];
+
+/**
+ * Бренды моделей на месте (игрок узнаёт знакомые имена), но выбор идёт по семействам:
+ * «сильная / быстрая / бесплатная» понятнее, чем список технических названий.
+ */
+export const MODEL_FAMILIES = [
+  { id: "gpt", label: "GPT-6", hint: "Универсальные: Sol — самая сильная, Luna — быстрая и аккуратная" },
+  { id: "glm", label: "GLM", hint: "Крепкие модели, хороши в описаниях и названиях" },
+  { id: "deepseek", label: "DeepSeek", hint: "Pro точнее, Flash отвечает быстрее" },
+  { id: "claude", label: "Claude", hint: "Сильные тексты и аккуратные правила" },
+  { id: "hydra", label: "Hydra", hint: "Бесплатная модель для пробы" },
+].map((family) => ({ ...family, models: AVAILABLE_MODELS.filter((m) => m.family === family.id) }));
+
+/** Модель и её семейство одной строкой для подписи под списком. */
+export function modelSummary(id: string): { family: string; note: string } {
+  const model = AVAILABLE_MODELS.find((m) => m.id === id);
+  const family = MODEL_FAMILIES.find((f) => f.id === model?.family);
+  return { family: family?.label ?? "Модель", note: model?.note ?? "" };
+}
 
 export interface ApiKeyCheck { status: "unknown" | "checking" | "ok" | "bad"; message: string }
 
