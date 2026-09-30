@@ -1,10 +1,10 @@
 (function (root) {
     'use strict';
 
+    const CampaignMap = root.CampaignMap || (typeof require === 'function' ? require('./campaign-map.js') : null);
+    if (!CampaignMap) throw new Error('campaign-map.js must be loaded before campaign.js.');
+
     const STORAGE_KEY = 'iforge_campaign_v4';
-    const LEGACY_STORAGE_KEYS = ['iforge_campaign_v3', 'iforge_campaign_v2'];
-    const WorldMap = root.WorldMapGenerator || (typeof require === 'function' ? require('./world-map.js') : null);
-    if (!WorldMap) throw new Error('world-map.js must load before campaign.js.');
     const SEASON_LENGTH = 30;
     const POP_START = 5;
     const POP_MAX = 20;
@@ -110,14 +110,22 @@
         },
         scienceSuffixes: ['практики', 'наблюдений', 'опыт общины', 'старших', 'ремесла', 'уклада', 'заповедь', 'знание', 'приём'],
         buildingPrefixes: {
-            floodplain: ['Запруда', 'Канава', 'Плотина', 'Арык', 'Пойменный амбар', 'Речные ворота', 'Иловые поля', 'Шадуф', 'Бассейн Нила'],
-            hills: ['Каменоломня', 'Щебёночная яма', 'Тёска', 'Каменный навес', 'Кремнёвый склад', 'Горная тропа', 'Обсидиановая мастерская', 'Кремнёвый прииск'],
-            calendar: ['Круг камней', 'Обсерватория', 'Солнечные часы', 'Звёздная площадка', 'Календарный столб', 'Тени', 'Стоунхендж', 'Карнак'],
-            copper: ['Медная яма', 'Плавильня', 'Горн', 'Тигельная', 'Медный двор', 'Дымная печь', 'Малахитовая шахта', 'Медный горн Балкан'],
-            'tin-route': ['Караван-сарай', 'Оловянный склад', 'Торговый стан', 'Меняльный двор', 'Путь олова', 'Перевал', 'Караван Аккада', 'Путь Саргона'],
-            'rival-settlement': ['Форпост', 'Сторожка', 'Острог', 'Застава', 'Пограничный двор', 'Крепостица', 'Курган Ямников', 'Стан Степного Круга'],
-            oasis: ['Финиковая роща', 'Оазис', 'Колодец', 'Пальмовый сад', 'Сад Набатеи', 'Финиковый рай'],
-            'salt-flats': ['Солеварня', 'Соляная яма', 'Соляной склад', 'Соляные копи Галича', 'Солёное озеро']
+            food: ['Речная запруда', 'Зерновой амбар', 'Пойменный стан', 'Общий загон', 'Иловые поля'],
+            materials: ['Каменная мастерская', 'Лесной стан', 'Кремнёвый навес', 'Древесный двор', 'Каменоломня'],
+            knowledge: ['Календарный круг', 'Звёздная площадка', 'Дом писцов', 'Место наблюдений', 'Солнечные камни'],
+            copper: ['Медная плавильня', 'Тигельный двор', 'Малахитовая мастерская', 'Горн у жилы'],
+            tin: ['Оловянный склад', 'Караванный стан', 'Торговый двор', 'Перевальный рынок'],
+            salt: ['Солеварня', 'Соляной склад', 'Белые копи', 'Соляной двор'],
+            settlement: ['Форпост', 'Общий двор', 'Пограничный стан', 'Застава', 'Крепкие ворота']
+        },
+        regionEvents: {
+            food: ['запруды удержали воду и рыбу', 'первые канавы напоили сухую землю', 'в амбарах сохранили запас до нового разлива'],
+            materials: ['в склоне нашли ровный камень для стен', 'сухие брёвна пригодились для новых крыш', 'мастера отобрали крепкий кремень'],
+            knowledge: ['старейшины сопоставили звёзды с паводком', 'наблюдатели отметили начало сухого сезона', 'дети запомнили счёт теней на камнях'],
+            copper: ['медь отделилась от породы в малом горне', 'зелёный малахит подсказал, где искать руду', 'первый слиток обменяли на зерно'],
+            tin: ['путники принесли вести с оловянной тропы', 'редкая руда дошла до общины через обмен', 'караван прошёл перевал до первых дождей'],
+            salt: ['соль уложили в сосуды для долгого хранения', 'белые кристаллы обменяли на шкуры и зерно', 'солевой промысел спас припасы от сырости'],
+            settlement: ['дозорные укрепили ворота и вернулись к дозору', 'соседние земли дали рынку новых ремесленников', 'поселение собрало людей для общего частокола']
         },
         buildingSuffixes: ['общины', 'рода', 'клана', 'поселения', 'у реки', 'на холме', 'старших', 'кузнецов', 'пахарей'],
         adjectives: ['Большой', 'Малый', 'Старый', 'Новый', 'Верхний', 'Нижний', 'Солнечный', 'Медный', 'Каменный', 'Речной', 'Лесной', 'Степной', 'Северный', 'Южный'],
@@ -187,6 +195,17 @@
             });
         }
         return variants;
+    }
+
+    function generateLocalRegionFlavor(region, playerSeed) {
+        const definition = typeof region === 'string' ? getWorldTile(state?.world, region) : region;
+        const siteType = definition?.siteType || 'materials';
+        const rng = seededRandom((Number(playerSeed) || 0) + hashString(definition?.id || siteType) + 42);
+        const prefixes = DIVERSITY_POOLS.buildingPrefixes[siteType] || DIVERSITY_POOLS.buildingPrefixes.materials;
+        const name = pickRandom(rng, DIVERSITY_POOLS.adjectives) + ' ' + pickRandom(rng, prefixes) + ' ' + pickRandom(rng, DIVERSITY_POOLS.buildingSuffixes);
+        const eventPool = DIVERSITY_POOLS.regionEvents[siteType] || DIVERSITY_POOLS.regionEvents.materials;
+        const event = pickRandom(rng, eventPool);
+        return { name: name.slice(0, 80), description: (event + '. Постройка общины, приспособленная к местности.').slice(0, 200) };
     }
 
     function generateChronicleEntry(state, branchId, projectName) {
@@ -275,8 +294,33 @@
         { id: 'materials', title: 'Каменное ремесло', icon: '🪨', scienceName: 'Обработка кремня', scienceDescription: 'Подбор формы и угла скола делает каменные орудия надёжнее.', buildingName: 'Каменная мастерская', buildingDescription: 'Общая мастерская ускоряет заготовку строительных материалов.', category: 'economy', effect: 'income_materials' },
         { id: 'knowledge', title: 'Сезонные наблюдения', icon: '📚', scienceName: 'Круг времён года', scienceDescription: 'Повторяющиеся знаки природы помогают заранее готовиться к сезонам.', buildingName: 'Календарный круг', buildingDescription: 'Место наблюдений поддерживает передачу знаний между поколениями.', category: 'science', effect: 'income_knowledge' }
     ];
+    const REGION_CAPTURE_COST = { food: 2, materials: 2, knowledge: 0 };
+    const REGION_EXPEDITION_COST = { food: 4, materials: 2, knowledge: 0 };
+    const REGION_BUILDINGS = {
+        food: { id: 'irrigation', name: 'Ирригация и запруды', cost: { materials: 4 }, yields: { food: 2, materials: 0, knowledge: 0 }, workerBonus: { food: 0.3 }, description: 'Запруды и канавы дают +2🌾 в день и помогают земледельцам.' },
+        materials: { id: 'quarry', name: 'Каменный и древесный стан', cost: { materials: 4 }, yields: { food: 0, materials: 2, knowledge: 0 }, workerBonus: {}, description: 'Местное сырьё даёт +2🪵 в день.' },
+        knowledge: { id: 'observatory', name: 'Место наблюдений', cost: { materials: 3, knowledge: 1 }, yields: { food: 0, materials: 0, knowledge: 2 }, workerBonus: {}, description: 'Знаки природы и неба дают +2📚 в день.' },
+        copper: { id: 'smelter', name: 'Медная плавильня', cost: { materials: 5, knowledge: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['refined'], description: '+1🪵 в день и открывает отборное сырьё.' },
+        tin: { id: 'caravan', name: 'Оловянный торговый стан', cost: { materials: 4, food: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['masterwork'], description: '+1🪵 в день; вместе с медной плавильней открывает мастерское сырьё.' },
+        salt: { id: 'salt-works', name: 'Солеварня', cost: { materials: 4 }, yields: { food: 0, materials: 1, knowledge: 1 }, workerBonus: {}, description: '+1🪵 и +1📚 в день.' },
+        settlement: { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: 'Форпост в покорённом поселении даёт по +1 каждого ресурса.' }
+    };
+
+    function getWorldTiles(world) { return world?.tiles || []; }
+    function getWorldTile(world, tileId) { return getWorldTiles(world).find(tile => tile.id === tileId) || null; }
+    function getRegionBuilding(definition) { return definition ? REGION_BUILDINGS[definition.siteType] || null : null; }
+    function createStartingRegions(world) {
+        return getWorldTiles(world).map(tile => ({
+            id: tile.id,
+            ownerId: tile.initialOwner || null,
+            capturedDay: tile.initialOwner ? 1 : null,
+            building: null,
+            buildingFlavor: null
+        }));
+    }
+
     function createDailyOrders() {
-        return { craftUsed: false, researchUsed: false, constructionUsed: false, legacyBlocked: false };
+        return { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false };
     }
 
     const STARTER_CARDS = [
@@ -289,13 +333,19 @@
         const n = Number(value);
         return Number.isFinite(n) ? Math.max(min, Math.min(max, Math.floor(n))) : fallback;
     }
-    function createWorldSeed() {
-        return Date.now().toString(36) + '-' + Math.floor(Math.random() * 0x100000000).toString(36);
-    }
     function makeStarterBuilding() {
-        return { id: 'starter-granary', name: 'Общий амбар', description: 'Запас зерна поддерживает поселение. Даёт +0.5 к каждому 🌾-рабочему.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }], active: true, builtDay: 1, blueprintId: null };
+        return { id: 'starter-granary', name: 'Общий амбар', description: 'Запас зерна поддерживает поселение. Даёт +0.5 к каждому 🌾-рабочему.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }], active: true, builtDay: 1, blueprintId: null, regionId: null };
     }
-    function createState() {
+    function createDefaultOpponents() {
+        return [
+            { id: 'reed', name: 'Илмар из Речных Земель', clan: 'Речной Союз', era: 0, research: 0, pace: 4, offset: 1, rating: 1040, leader: false },
+            { id: 'steppe', name: 'Тархан Степной', clan: 'Степной Круг', era: 2, research: 0, pace: 3, offset: 2, rating: 1125, leader: true },
+            { id: 'north', name: 'Эйрик Каменный Пояс', clan: 'Северный Пакт', era: 1, research: 1, pace: 2, offset: 1, rating: 980, leader: false }
+        ];
+    }
+    function createState(seed) {
+        const opponents = createDefaultOpponents();
+        const world = CampaignMap.generateWorld(seed, opponents);
         return {
             version: 4,
             season: 1,
@@ -317,7 +367,7 @@
                 growthProgress: 0,
                 growthDebt: 0,
                 starvationDays: 0,
-                dailyOrders: createDailyOrders(), actionUsed: false, campaignNotice: '',
+                dailyOrders: createDailyOrders(), actionUsed: false, pendingExpedition: null, campaignNotice: '',
                 craftLevel: 0, craftXp: 0, nextCraftOrderId: 1, craftOrders: [],
                 buildings: [makeStarterBuilding()],
                 activeBuildingSlots: 4,
@@ -327,12 +377,9 @@
                 deckCardIds: [],
                 practice: { wins: 0, losses: 0, leaderWins: 0, leaderLosses: 0 }
             },
-            opponents: [
-                { id: 'reed', name: 'Илмар из Речных Земель', clan: 'Речной Союз', era: 0, research: 0, pace: 4, offset: 1, rating: 1040, leader: false },
-                { id: 'steppe', name: 'Тархан Степной', clan: 'Степной Круг', era: 2, research: 0, pace: 3, offset: 2, rating: 1125, leader: true },
-                { id: 'north', name: 'Эйрик Каменный Пояс', clan: 'Северный Пакт', era: 1, research: 1, pace: 2, offset: 1, rating: 980, leader: false }
-            ],
-            worldMap: WorldMap.createExplorationState(createWorldSeed())
+            opponents,
+            world,
+            regions: createStartingRegions(world)
         };
     }
 
@@ -371,6 +418,54 @@
         return { food, materials, knowledge, idle };
     }
 
+    function normalizeRegions(raw, opponents, world, preserveTerritory) {
+        const savedRegions = Array.isArray(raw) ? raw : [];
+        const validOwners = new Set(['player', ...opponents.map(opponent => opponent.id)]);
+        return getWorldTiles(world).map(definition => {
+            const saved = preserveTerritory ? savedRegions.find(region => region && region.id === definition.id) : null;
+            const isWater = definition.terrain === 'water';
+            const isHome = definition.x === CampaignMap.CENTER.x && definition.y === CampaignMap.CENTER.y;
+            let ownerId = saved ? saved.ownerId : definition.initialOwner || null;
+            if (ownerId !== null && !validOwners.has(ownerId)) ownerId = definition.initialOwner || null;
+            if (isWater) ownerId = null;
+            if (isHome) ownerId = 'player';
+
+            const buildingDefinition = getRegionBuilding(definition);
+            const building = saved && ownerId === 'player' && buildingDefinition && saved.building === buildingDefinition.id
+                ? buildingDefinition.id
+                : null;
+            let buildingFlavor = null;
+            if (building && saved?.buildingFlavor && typeof saved.buildingFlavor === 'object') {
+                buildingFlavor = {
+                    name: String(saved.buildingFlavor.name || '').slice(0, 80),
+                    description: String(saved.buildingFlavor.description || '').slice(0, 400)
+                };
+            }
+            return {
+                id: definition.id,
+                ownerId,
+                capturedDay: ownerId === null ? null : clampInt(saved?.capturedDay || definition.initialOwner && 1, 1, SEASON_LENGTH, 1),
+                building,
+                buildingFlavor
+            };
+        });
+    }
+
+    function normalizedPendingExpedition(raw, state) {
+        if (!raw || typeof raw !== 'object') return null;
+        const definition = getWorldTile(state.world, raw.regionId);
+        const record = state.regions.find(region => region.id === raw.regionId);
+        const opponent = state.opponents.find(item => item.id === raw.opponentId);
+        if (!definition || definition.kind !== 'settlement' || definition.terrain === 'water' || !record || !opponent || record.ownerId !== opponent.id) return null;
+        return {
+            regionId: definition.id,
+            opponentId: opponent.id,
+            launchDay: clampInt(raw.launchDay, 1, SEASON_LENGTH, state.day),
+            cost: { ...REGION_EXPEDITION_COST },
+            battleStarted: Boolean(raw.battleStarted)
+        };
+    }
+
     function normalizeDailyOrders(raw, state, legacyActionUsed) {
         const orders = createDailyOrders();
         if (raw && typeof raw === 'object') {
@@ -378,23 +473,28 @@
         } else if (legacyActionUsed) {
             const day = state.day;
             const currentCraft = state.player.craftOrders.some(order => order.createdDay === day && order.status !== 'failed');
+            const currentExpedition = Boolean(state.player.pendingExpedition?.launchDay === day);
+            const currentSettlement = state.regions.some(region => region.ownerId === 'player' && region.capturedDay === day
+                && getWorldTile(state.world, region.id)?.kind !== 'home');
             const currentConstruction = state.player.buildings.some(building => building.blueprintId && building.builtDay === day);
             const currentResearch = state.player.blueprints.some(blueprint => blueprint.researchedDay === day);
             if (currentCraft) orders.craftUsed = true;
+            else if (currentExpedition || currentSettlement) orders.frontierUsed = true;
             else if (currentConstruction) orders.constructionUsed = true;
             else if (currentResearch) orders.researchUsed = true;
             else orders.legacyBlocked = true;
         }
+        if (state.player.pendingExpedition) orders.frontierUsed = true;
         return orders;
     }
 
     function syncLegacyActionUsed(state) {
         const orders = state.player.dailyOrders;
-        state.player.actionUsed = Boolean(orders.craftUsed || orders.researchUsed || orders.constructionUsed || orders.legacyBlocked || state.player.ap < state.player.apMax);
+        state.player.actionUsed = Boolean(orders.craftUsed || orders.researchUsed || orders.constructionUsed || orders.frontierUsed || orders.legacyBlocked || state.player.pendingExpedition || state.player.ap < state.player.apMax);
     }
 
     function markDailyOrderUsed(state, type) {
-        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed' }[type];
+        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) throw new Error('Неизвестный дневной лимит: ' + type);
         state.player.dailyOrders[key] = true;
         if (state.player.ap > 0) state.player.ap -= 1;
@@ -402,7 +502,7 @@
     }
 
     function clearDailyOrder(state, type) {
-        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed' }[type];
+        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) return;
         state.player.dailyOrders[key] = false;
         state.player.ap = Math.min(state.player.apMax, state.player.ap + 1);
@@ -425,8 +525,8 @@
     function normalizeState(value) {
         const base = createState();
         if (!value || typeof value !== 'object') return base;
-        // v2/v3 saves keep their civilization progress; old territories are intentionally discarded.
         const isV2 = value.version === 2;
+        const isLegacyMapSave = value.version === 2 || value.version === 3;
         if (![2, 3, 4].includes(value.version)) return base;
         const state = { ...base, ...value };
         state.version = 4;
@@ -434,10 +534,6 @@
         state.day = clampInt(value.day, 1, SEASON_LENGTH, 1);
         state.medals = Array.isArray(value.medals) ? value.medals.filter(m => m && typeof m.id === 'string') : [];
         state.player = { ...base.player, ...(value.player || {}) };
-        const migrationIdentity = [state.player.name, state.player.clan, value.season, value.day].join('|');
-        state.worldMap = WorldMap.normalizeExplorationState(value.worldMap, 'legacy-' + hashString(migrationIdentity).toString(36));
-        delete state.player.pendingExpedition;
-        delete state.regions;
         const legacyActionUsed = Boolean(state.player.actionUsed);
         state.player.era = clampInt(state.player.era, 0, ERAS.length - 1, 0);
         state.player.onboardingComplete = typeof value.player?.onboardingComplete === 'boolean' ? value.player.onboardingComplete : (isV2 ? true : false);
@@ -503,6 +599,7 @@
             active: Boolean(building.active),
             builtDay: clampInt(building.builtDay, 1, SEASON_LENGTH, 1),
             blueprintId: building.blueprintId || null,
+            regionId: building.regionId || null
         })) : [makeStarterBuilding()];
         if (!state.player.buildings.some(building => building.id === 'starter-granary')) state.player.buildings.unshift(makeStarterBuilding());
         let activeCount = 0;
@@ -569,6 +666,17 @@
                 era: clampInt(opponent.era, 0, ERAS.length - 1, 0), research: clampInt(opponent.research, 0, 1, 0),
                 pace: clampInt(opponent.pace, 1, 10, 3), offset: clampInt(opponent.offset, 0, 10, 0), rating: clampInt(opponent.rating, 0, 99999, 1000)
             })) : base.opponents;
+        const legacyWorldSeed = hashString([
+            state.player.name, state.player.clan, String(state.season), String(state.day), String(state.player.era)
+        ].join('|'));
+        state.world = isLegacyMapSave
+            ? CampaignMap.generateWorld(legacyWorldSeed, state.opponents)
+            : CampaignMap.normalizeWorld(value.world, state.opponents);
+        state.regions = normalizeRegions(value.regions, state.opponents, state.world, !isLegacyMapSave);
+        state.player.pendingExpedition = isLegacyMapSave ? null : normalizedPendingExpedition(value.player?.pendingExpedition, state);
+        if (isLegacyMapSave && Array.isArray(value.regions)) {
+            state.player.campaignNotice = 'Создана новая карта 7×7. Владения прежней карты не перенесены.';
+        }
         state.player.dailyOrders = normalizeDailyOrders(value.player?.dailyOrders, state, legacyActionUsed);
         if (isV2) {
             state.player.ap = AP_MAX;
@@ -576,6 +684,7 @@
             if (state.player.dailyOrders.craftUsed) state.player.ap = Math.max(0, state.player.ap - 1);
             if (state.player.dailyOrders.researchUsed) state.player.ap = Math.max(0, state.player.ap - 1);
             if (state.player.dailyOrders.constructionUsed) state.player.ap = Math.max(0, state.player.ap - 1);
+            if (state.player.dailyOrders.frontierUsed) state.player.ap = Math.max(0, state.player.ap - 1);
         }
         syncLegacyActionUsed(state);
         return state;
@@ -702,14 +811,27 @@
                 bonusKnow += dec.bonuses.workerBonus.knowledge || 0;
             }
         }
+        const hasRegionalIrrigation = state.regions.some(region => region.ownerId === 'player' && region.building === 'irrigation');
+        if (hasRegionalIrrigation && bonusFood > 0) bonusFood += 0.3;
+
         const workerProd = {
             food: workers.food * (WORKER_BASE_YIELD.food + bonusFood),
             materials: workers.materials * (WORKER_BASE_YIELD.materials + bonusMat),
             knowledge: workers.knowledge * (WORKER_BASE_YIELD.knowledge + bonusKnow)
         };
 
+        const regional = { food: 0, materials: 0, knowledge: 0 };
+        for (const region of state.regions) {
+            if (region.ownerId !== 'player' || !region.building) continue;
+            const def = getRegionBuilding(getWorldTile(state.world, region.id));
+            if (!def || def.id !== region.building) continue;
+            regional.food += def.yields.food || 0;
+            regional.materials += def.yields.materials || 0;
+            regional.knowledge += def.yields.knowledge || 0;
+        }
+
         const consumption = getFoodConsumption(state);
-        let upkeep = state.player.buildings.filter(b => b.active).length * UPKEEP_PER_BUILDING;
+        let upkeep = state.player.buildings.filter(b => b.active).length * UPKEEP_PER_BUILDING + state.regions.filter(r => r.ownerId === 'player' && r.building).length * UPKEEP_PER_BUILDING;
         // upkeep_reduction и defense/trade пока символически снижают upkeep
         upkeep = Math.max(0, upkeep - (totals.upkeep_reduction || 0) * 0.1);
         // Историческая культура и черта влияют на производство (ямники — еда/кони, аккадцы — материалы, египтяне — склад)
@@ -733,6 +855,7 @@
             workerBase: { ...WORKER_BASE_YIELD },
             workerBonus: { food: bonusFood, materials: bonusMat, knowledge: bonusKnow },
             workerProduction: workerProd,
+            regional,
             consumption,
             upkeep,
             totals,
@@ -789,22 +912,201 @@
     }
     function canOrder(state, type) {
         if (state.day >= SEASON_LENGTH) return 'Сезон завершён. Подведи итоги.';
+        if (type === 'frontier' && state.player.pendingExpedition) return 'Сначала заверши незавершённую экспедицию.';
         if (state.player.dailyOrders.legacyBlocked) return 'Старый приказ из сохранения нельзя определить; продвинь день, чтобы восстановить лимиты.';
         if (state.player.ap <= 0) return 'AP исчерпаны на сегодня. Заверши день.';
-        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed' }[type];
+        const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) return 'Тип дневного действия не распознан.';
         if (state.player.dailyOrders[key]) {
             return {
                 craft: 'Сегодняшняя ковка уже заказана. Продвинь день.',
                 research: 'Сегодняшнее исследование уже проведено. Продвинь день.',
-                construction: 'Сегодняшнее строительство уже выполнено. Продвинь день.'
+                construction: 'Сегодняшнее строительство уже выполнено. Продвинь день.',
+                frontier: 'Сегодняшний поход за землёй уже использован. Продвинь день.'
             }[type];
         }
         return null;
     }
 
-    function getAvailableMaterialQualities() {
-        return Object.keys(CARD_CRAFT_MATERIALS);
+    function getRegionRecord(state, regionId) {
+        return state.regions.find(region => region.id === regionId) || null;
+    }
+    function isRegionConnected(state, definition) {
+        return definition.neighbors.some(id => getRegionRecord(state, id)?.ownerId === 'player');
+    }
+    function getRegionalIncome(input) {
+        const state = normalizeState(input);
+        const income = { food: 0, materials: 0, knowledge: 0 };
+        for (const region of state.regions) {
+            if (region.ownerId !== 'player' || !region.building) continue;
+            const definition = getWorldTile(state.world, region.id);
+            const building = getRegionBuilding(definition);
+            if (!building || building.id !== region.building) continue;
+            income.food += building.yields.food || 0;
+            income.materials += building.yields.materials || 0;
+            income.knowledge += building.yields.knowledge || 0;
+        }
+        return income;
+    }
+    function getAvailableMaterialQualities(input) {
+        const state = normalizeState(input);
+        const ownedBuildings = new Set(state.regions.filter(region => region.ownerId === 'player' && region.building).map(region => region.building));
+        const available = ['standard'];
+        if (ownedBuildings.has('smelter')) available.push('refined');
+        if (ownedBuildings.has('smelter') && ownedBuildings.has('caravan')) available.push('masterwork');
+        return available;
+    }
+    function getRegionActionState(input, regionId) {
+        const state = normalizeState(input);
+        const definition = getWorldTile(state.world, regionId);
+        if (!definition) return { action: 'blocked', enabled: false, reason: 'Область карты не найдена.' };
+        const record = getRegionRecord(state, regionId);
+        if (!record) return { action: 'blocked', enabled: false, reason: 'Состояние области карты не найдено.' };
+        if (definition.terrain === 'water') return { action: 'blocked', enabled: false, reason: 'Водный участок пока нельзя освоить.' };
+
+        if (record.ownerId === 'player') {
+            if (!record.building) {
+                const building = getRegionBuilding(definition);
+                if (!building) return { action: 'owned', enabled: false, reason: 'Центральное поселение не требует региональной постройки.' };
+                const orderError = canOrder(state, 'construction');
+                if (orderError) return { action: 'build', enabled: false, reason: orderError, cost: { ...building.cost }, building };
+                if (!Object.keys(building.cost).every(key => state.player.resources[key] >= building.cost[key])) {
+                    return { action: 'build', enabled: false, reason: 'Не хватает ресурсов на ' + building.name + '.', cost: { ...building.cost }, building };
+                }
+                return {
+                    action: 'build', enabled: true,
+                    reason: 'Построить ' + building.name + ' за ' + Object.entries(building.cost).map(function (entry) {
+                        return entry[1] + (entry[0] === 'food' ? '🌾' : entry[0] === 'materials' ? '🪵' : '📚');
+                    }).join(' '),
+                    cost: { ...building.cost }, building
+                };
+            }
+            const building = getRegionBuilding(definition);
+            return { action: 'owned', enabled: false, reason: 'Участок под контролем. Постройка: ' + (building?.name || record.building) };
+        }
+
+        if (state.player.pendingExpedition) {
+            if (state.player.pendingExpedition.regionId === regionId && !state.player.pendingExpedition.battleStarted) {
+                return { action: 'resume', enabled: true, reason: 'Экспедиция ждёт начала боя.' };
+            }
+            if (state.player.pendingExpedition.regionId === regionId) {
+                return { action: 'return', enabled: true, reason: 'Экспедиционный бой уже идёт.' };
+            }
+            return { action: 'blocked', enabled: false, reason: 'Сначала заверши текущую экспедицию.' };
+        }
+
+        const isNeutral = record.ownerId === null;
+        const action = isNeutral ? 'settle' : 'attack';
+        const cost = isNeutral ? REGION_CAPTURE_COST : REGION_EXPEDITION_COST;
+        const orderError = canOrder(state, 'frontier');
+        if (orderError) return { action, enabled: false, reason: orderError, cost: { ...cost } };
+        if (!isRegionConnected(state, definition)) return { action, enabled: false, reason: 'Сначала займи соседнюю область.', cost: { ...cost } };
+        if (state.player.era < definition.minEra) {
+            return { action, enabled: false, reason: 'Нужна эпоха «' + eraName(definition.minEra) + '».', cost: { ...cost } };
+        }
+        if (!Object.keys(cost).every(key => state.player.resources[key] >= cost[key])) {
+            return { action, enabled: false, reason: isNeutral ? 'Нужно 2 провизии и 2 материала.' : 'Для экспедиции нужны 4 провизии и 2 материала.', cost: { ...cost } };
+        }
+        return { action, enabled: true, reason: '', cost: { ...cost } };
+    }
+    function settleRegion(input, regionId) {
+        const state = normalizeState(input);
+        const action = getRegionActionState(state, regionId);
+        if (action.action !== 'settle' || !action.enabled) return { state, error: action.reason || 'Эту область нельзя освоить.' };
+        const definition = getWorldTile(state.world, regionId);
+        spend(state, action.cost || REGION_CAPTURE_COST);
+        const record = getRegionRecord(state, regionId);
+        record.ownerId = 'player';
+        record.capturedDay = state.day;
+        record.building = null;
+        markDailyOrderUsed(state, 'frontier');
+        return { state, region: { ...definition, ownerId: 'player', capturedDay: state.day, building: null }, error: null };
+    }
+    function buildRegionBuilding(input, regionId) {
+        const state = normalizeState(input);
+        const action = getRegionActionState(state, regionId);
+        if (action.action !== 'build' || !action.enabled) return { state, error: action.reason || 'Здесь нельзя строить.' };
+        const definition = getWorldTile(state.world, regionId);
+        const building = getRegionBuilding(definition);
+        if (!building) return { state, error: 'Для этой области нет подходящей постройки.' };
+        if (!spend(state, building.cost)) return { state, error: 'Не хватает ресурсов.' };
+        const record = getRegionRecord(state, regionId);
+        record.building = building.id;
+        const seed = hashString(state.world.seed + ':' + state.player.name + state.player.clan + regionId + String(state.day));
+        record.buildingFlavor = generateLocalRegionFlavor(definition, seed);
+        markDailyOrderUsed(state, 'construction');
+        state.player.campaignNotice = 'Построено: ' + record.buildingFlavor.name + ' (' + building.name + ') в области «' + definition.name + '». Доход начнётся завтра.';
+        return { state, error: null };
+    }
+    function makeExpeditionMatch(state, pending = state.player.pendingExpedition) {
+        if (!pending) return null;
+        const definition = getWorldTile(state.world, pending.regionId);
+        const opponent = state.opponents.find(item => item.id === pending.opponentId);
+        if (!definition || definition.kind !== 'settlement' || !opponent) return null;
+        return {
+            kind: 'expedition', regionId: definition.id, regionName: definition.name,
+            opponentId: opponent.id, name: opponent.name, clan: opponent.clan,
+            era: opponent.era, leaderBattle: true
+        };
+    }
+    function beginRegionExpedition(input, regionId) {
+        const state = normalizeState(input);
+        const action = getRegionActionState(state, regionId);
+        if (action.action !== 'attack' || !action.enabled) return { state, error: action.reason || 'Эту область нельзя атаковать.' };
+        const definition = getWorldTile(state.world, regionId);
+        const record = getRegionRecord(state, regionId);
+        const opponent = state.opponents.find(item => item.id === record.ownerId);
+        if (!opponent || definition.kind !== 'settlement') return { state, error: 'Защитник поселения не найден.' };
+        const cost = action.cost || REGION_EXPEDITION_COST;
+        spend(state, cost);
+        markDailyOrderUsed(state, 'frontier');
+        state.player.pendingExpedition = { regionId, opponentId: opponent.id, launchDay: state.day, cost: { ...cost }, battleStarted: false };
+        return { state, match: makeExpeditionMatch(state), error: null };
+    }
+    function finishRegionExpedition(input, match, won) {
+        let state = normalizeState(input);
+        const pending = state.player.pendingExpedition;
+        if (!match || !pending || match.kind !== 'expedition' || match.regionId !== pending.regionId || match.opponentId !== pending.opponentId) {
+            return { state, error: 'Эта экспедиция не найдена или уже завершена.' };
+        }
+        const definition = getWorldTile(state.world, pending.regionId);
+        const opponent = state.opponents.find(item => item.id === pending.opponentId);
+        const record = getRegionRecord(state, pending.regionId);
+        if (!definition || definition.kind !== 'settlement' || !opponent || !record || record.ownerId !== opponent.id) {
+            return { state, error: 'Состояние поселения изменилось; экспедицию нельзя завершить.' };
+        }
+        const victory = Boolean(won);
+        const practice = recordPractice(state, opponent.id, victory, true);
+        state = practice.state;
+        if (victory) {
+            const conquered = getRegionRecord(state, pending.regionId);
+            conquered.ownerId = 'player';
+            conquered.capturedDay = state.day;
+            conquered.building = null;
+        }
+        state.player.pendingExpedition = null;
+        const message = victory
+            ? 'Победа! «' + definition.name + '» переходит под твой контроль. Построй там форпост, чтобы получать доход.'
+            : 'Поражение. «' + definition.name + '» удерживает соперник. Ресурсы и AP за экспедицию уже потрачены.';
+        return { state, regionId: definition.id, regionName: definition.name, won: victory, message, error: null };
+    }
+    function markExpeditionBattleStarted(input, match) {
+        const state = normalizeState(input);
+        const pending = state.player.pendingExpedition;
+        if (!match || match.kind !== 'expedition' || !pending || pending.regionId !== match.regionId || pending.opponentId !== match.opponentId) {
+            return { state, error: 'Нельзя отметить неизвестную экспедицию.' };
+        }
+        pending.battleStarted = true;
+        return { state, error: null };
+    }
+    function recoverInterruptedExpedition(input) {
+        const state = normalizeState(input);
+        if (!state.player.pendingExpedition?.battleStarted) return { state, recovered: false };
+        const match = makeExpeditionMatch(state);
+        const outcome = finishRegionExpedition(state, match, false);
+        if (outcome.error) return { state, recovered: false, error: outcome.error };
+        outcome.state.player.campaignNotice = 'Экспедиционный бой был прерван перезагрузкой и засчитан как поражение; припасы и AP не возвращены.';
+        return { state: outcome.state, recovered: true };
     }
 
     function scienceBranchesForEra(era) {
@@ -815,22 +1117,31 @@
     function scienceAdvisorSituation(input) {
         const current = normalizeState(input);
         const player = current.player;
+        const regions = getWorldTiles(current.world).filter(region => region.terrain !== 'water' && getRegionRecord(current, region.id)?.ownerId === 'player');
+        const regionalIncome = getRegionalIncome(current);
         const breakdown = getProductionBreakdown(current);
         const dailyIncome = {
-            food: breakdown.workerProduction.food,
-            materials: breakdown.workerProduction.materials,
-            knowledge: breakdown.workerProduction.knowledge
+            food: breakdown.workerProduction.food + regionalIncome.food,
+            materials: breakdown.workerProduction.materials + regionalIncome.materials,
+            knowledge: breakdown.workerProduction.knowledge + regionalIncome.knowledge
         };
         const resourceLabels = { food: 'провизия', materials: 'материалы', knowledge: 'знания' };
+        const reserveDays = Object.keys(dailyIncome).map(key => ({
+            key,
+            days: (player.resources[key] || 0) / Math.max(1, dailyIncome[key] + (key === 'food' ? 0 : 0))
+        })).sort((a, b) => a.days - b.days)[0];
         const reserves = {
             food: player.resources.food || 0,
             materials: player.resources.materials || 0,
             knowledge: player.resources.knowledge || 0
         };
-        const reserveDays = Object.keys(dailyIncome).map(key => ({
-            key,
-            days: reserves[key] / Math.max(1, dailyIncome[key])
-        })).sort((a, b) => a.days - b.days)[0];
+        const regionNames = regions.map(region => region.name);
+        const localContexts = regions.map(region => ({
+            id: region.id,
+            name: region.name,
+            description: region.description,
+            biome: region.terrain || 'unknown'
+        }));
         const biomeInfo = player.biome ? player.biome.name + ' (' + player.biome.desc + ')' : 'неизвестный биом';
         const geoInfo = player.geography ? player.geography.name + ' — ' + player.geography.desc : '';
         const traitInfo = player.trait ? player.trait.name + ' (' + player.trait.desc + ')' : '';
@@ -838,8 +1149,8 @@
         const histInfo = player.historicalCulture ? player.historicalCulture.name + ' — ' + player.historicalCulture.desc : '';
         const origin = ORIGINS.find(o => o.id === player.originId);
         const originHist = origin ? origin.historical : '';
-        const summary = 'Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
-        return { reserves, dailyIncome, currentNeed: reserveDays.key, summary, breakdown, biome: player.biome, geography: player.geography, trait: player.trait, nearby: player.nearby, historicalCulture: player.historicalCulture, origin };
+        const summary = 'Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
+        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary, breakdown, biome: player.biome, geography: player.geography, trait: player.trait, nearby: player.nearby, historicalCulture: player.historicalCulture, origin };
     }
 
     function getFirstSessionGuide(input) {
@@ -849,17 +1160,19 @@
         if (!player.onboardingComplete || !openingProject) return null;
 
         const practiceCount = (player.practice.wins || 0) + (player.practice.losses || 0);
+        const ownedLandCount = current.regions.filter(region => region.ownerId === 'player'
+            && getWorldTile(current.world, region.id)?.terrain !== 'water').length;
         const steps = [
             { id: 'research', label: 'Исследовать «' + openingProject.scienceName + '»', done: Boolean(openingProject.researched) },
             { id: 'build', label: 'Построить «' + openingProject.buildingName + '»', done: Boolean(openingProject.built) },
-            { id: 'explore', label: 'Исследовать несколько мест на карте', done: current.worldMap.visited.length >= 3 },
+            { id: 'territory', label: 'Занять соседнюю область', done: ownedLandCount > 1 },
             { id: 'battle', label: 'Сыграть тренировочный бой с ИИ', done: practiceCount > 0 }
         ];
         const completedCount = steps.filter(step => step.done).length;
         const complete = completedCount === steps.length;
         let next;
         if (complete) {
-            next = 'Первый маршрут пройден. Теперь можно свободно развивать поселение, заказывать карты в кузнице, исследовать карту или тренироваться с ИИ.';
+            next = 'Первый маршрут пройден. Теперь можно свободно развивать поселение, заказывать карты в кузнице или продолжать тренировочные бои.';
         } else if (current.day >= SEASON_LENGTH) {
             next = 'Сезон дошёл до последнего дня до завершения вступительного маршрута. Подведи итоги сезона, чтобы продолжить кампанию.';
         } else if (!openingProject.researched) {
@@ -870,8 +1183,10 @@
             next = player.dailyOrders.constructionUsed || player.ap <= 0
                 ? 'Строительный лимит на сегодня исчерпан. Заверши день, затем построй «' + openingProject.buildingName + '» за 4 материала.'
                 : 'Построй «' + openingProject.buildingName + '» за 4 материала — чертёж уже исследован.';
-        } else if (current.worldMap.visited.length < 3) {
-            next = 'Открой «Мировую карту», выбери соседнюю открытую клетку и отправься туда. Исследование не расходует ресурсы и не влияет на кампанийную экономику.';
+        } else if (ownedLandCount <= 1) {
+            next = player.dailyOrders.frontierUsed || player.ap <= 0
+                ? 'Лимит фронтира/AP на сегодня исчерпан. Заверши день, затем займи соседний нейтральный регион за 2 провизии и 2 материала.'
+                : 'На карте выбери соседний нейтральный регион и займи его за 2 провизии и 2 материала. Его доход будет 0 пока не построишь здание.';
         } else {
             next = 'Выбери любого ИИ-соседа и сыграй тренировочный бой. Победа не обязательна; тренировочный бой не расходует кампанийные ресурсы.';
         }
@@ -892,9 +1207,11 @@
             materials: material.cost.materials + time.cost.materials,
             knowledge: material.cost.knowledge + time.cost.knowledge
         };
-        const availableMaterialQualities = getAvailableMaterialQualities();
+        const availableMaterialQualities = getAvailableMaterialQualities(state);
         const materialQualityUnlocked = availableMaterialQualities.includes(materialQuality);
-        const qualityUnlockText = '';
+        const qualityUnlockText = materialQuality === 'refined'
+            ? 'освоить медное месторождение и построить плавильню'
+            : materialQuality === 'masterwork' ? 'освоить медь и олово, построить плавильню и торговый стан' : '';
         return {
             materialQuality, materialLabel: material.label, effort, effortLabel: time.label,
             effortDays: time.days, craftLevel: state.player.craftLevel, qualityScore,
@@ -1076,7 +1393,7 @@
         const hasSlot = state.player.buildings.filter(building => building.active).length < state.player.activeBuildingSlots;
         state.player.buildings.push({
             id: 'building-' + blueprint.id, name: blueprint.buildingName, description: blueprint.buildingDescription,
-            category: blueprint.category, effects: clone(blueprint.effects), active: hasSlot, builtDay: state.day, blueprintId: blueprint.id
+            category: blueprint.category, effects: clone(blueprint.effects), active: hasSlot, builtDay: state.day, blueprintId: blueprint.id, regionId: null
         });
         blueprint.built = true;
         blueprint.builtDay = state.day;
@@ -1143,14 +1460,16 @@
     function finishDay(input) {
         const state = normalizeState(input);
         if (state.day >= SEASON_LENGTH) return { state, error: 'Это последний день сезона. Подведи итоги.' };
+        if (state.player.pendingExpedition) return { state, error: 'Заверши бой экспедиции до смены дня.' };
         if (state.player.craftOrders.some(order => order.status === 'generating')) return { state, error: 'Дождись ответа кузницы: незавершённый сетевой запрос нельзя проскочить сменой дня.' };
 
         const breakdown = getProductionBreakdown(state);
+        const regionalIncome = getRegionalIncome(state);
         const storageCap = getStorageCap(state);
 
-        let foodGained = breakdown.workerProduction.food;
-        let materialsGained = breakdown.workerProduction.materials;
-        let knowledgeGained = breakdown.workerProduction.knowledge;
+        let foodGained = breakdown.workerProduction.food + regionalIncome.food;
+        let materialsGained = breakdown.workerProduction.materials + regionalIncome.materials;
+        let knowledgeGained = breakdown.workerProduction.knowledge + regionalIncome.knowledge;
 
         const consumption = breakdown.consumption;
         const upkeep = breakdown.upkeep;
@@ -1256,12 +1575,12 @@
     function completeSeason(input) {
         const state = normalizeState(input);
         if (state.day < SEASON_LENGTH) return { state, error: 'Сезон ещё не завершён.' };
+        if (state.player.pendingExpedition) return { state, error: 'Сначала заверши бой экспедиции.' };
         if (state.player.craftOrders.some(order => ['generating', 'working', 'ready'].includes(order.status))) {
             return { state, error: 'Сначала заверши очередь кузницы и забери готовые карты.' };
         }
         const medal = { id: 'season-' + state.season + '-' + Date.now(), season: state.season, name: 'Сезон ' + state.season + ': ' + ERAS[state.player.era], description: 'Наивысшая эпоха: ' + ERAS[state.player.era] + '. Население: ' + state.player.population + '.' };
         const fresh = createState();
-        fresh.worldMap = clone(state.worldMap);
         fresh.season = state.season + 1;
         fresh.player.onboardingComplete = true;
         fresh.player.deckCardIds = STARTER_CARDS.map(card => card.id);
@@ -1290,22 +1609,24 @@
     function save(value) { try { root.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(value))); return true; } catch (_) { return false; } }
     function load() {
         try {
-            let raw = null;
-            let sourceKey = STORAGE_KEY;
-            for (const key of [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]) {
-                const stored = root.localStorage.getItem(key);
-                if (!stored) continue;
-                const parsed = JSON.parse(stored);
-                if (parsed && typeof parsed === 'object') {
-                    raw = parsed;
-                    sourceKey = key;
-                    break;
+            let raw = JSON.parse(root.localStorage.getItem(STORAGE_KEY) || 'null');
+            let migratedOldSave = false;
+            if (!raw) {
+                for (const oldKey of ['iforge_campaign_v3', 'iforge_campaign_v2']) {
+                    try {
+                        const oldRaw = JSON.parse(root.localStorage.getItem(oldKey) || 'null');
+                        if (oldRaw && [2, 3].includes(oldRaw.version)) {
+                            raw = oldRaw;
+                            migratedOldSave = true;
+                            break;
+                        }
+                    } catch (_) {}
                 }
             }
-            if (!raw) return createState();
             const craftRecovery = recoverInterruptedCardCrafts(raw);
-            if (sourceKey !== STORAGE_KEY || raw.version !== 4 || craftRecovery.recovered) save(craftRecovery.state);
-            return craftRecovery.state;
+            const expeditionRecovery = recoverInterruptedExpedition(craftRecovery.state);
+            if (migratedOldSave || craftRecovery.recovered || expeditionRecovery.recovered) save(expeditionRecovery.state);
+            return expeditionRecovery.state;
         } catch (_) { return createState(); }
     }
     function escapeHtml(value) {
@@ -1320,6 +1641,7 @@
     function htmlAttr(value) { return escapeHtml(String(value)).replace(/`/g, '&#96;'); }
 
     let state = root.localStorage ? load() : createState();
+    let selectedMapTileId = CampaignMap.tileId(CampaignMap.CENTER.x, CampaignMap.CENTER.y);
     let pendingMatch = null;
     let lastMatch = null;
     function commit(next) { state = normalizeState(next); state.player.campaignNotice = ''; save(state); render(); if (typeof root.refreshForgeUi === 'function') root.refreshForgeUi(); }
@@ -1327,90 +1649,105 @@
     function getCardChoices() { return typeof root.getCampaignCardChoices === 'function' ? root.getCampaignCardChoices() : []; }
     function alertResult(result) { if (result.error) { root.alert(result.error); return false; } commit(result.state); return true; }
 
-    function renderWorldMapScreen(host) {
-        const target = host || root.document?.getElementById('world-map-root');
-        if (!target) return;
-        const world = WorldMap.normalizeExplorationState(state.worldMap);
-        state.worldMap = world;
-        const revealed = new Set(world.revealed);
-        const visited = new Set(world.visited);
-        const currentId = WorldMap.tileId(world.current.x, world.current.y);
-        const selected = world.tiles.find(tile => tile.id === world.selectedId) || world.tiles.find(tile => tile.id === currentId);
-        const progress = WorldMap.getProgress(world);
-        const mapTiles = new Map(world.tiles.map(tile => [tile.id, tile]));
-        const rows = [];
+    function renderRegionMap() {
+        const income = getRegionalIncome(state);
+        const definitions = getWorldTiles(state.world);
+        const landDefinitions = definitions.filter(definition => definition.terrain !== 'water');
+        const ownedCount = state.regions.filter(region => region.ownerId === 'player'
+            && getWorldTile(state.world, region.id)?.terrain !== 'water').length;
+        const qualities = getAvailableMaterialQualities(state);
+        const breakdown = getProductionBreakdown(state);
+        const selected = getWorldTile(state.world, selectedMapTileId) || getWorldTile(state.world, CampaignMap.tileId(CampaignMap.CENTER.x, CampaignMap.CENTER.y));
+        const selectedRecord = getRegionRecord(state, selected.id);
+        const selectedAction = getRegionActionState(state, selected.id);
+        const getOwnerLabel = function (definition, record) {
+            if (definition.terrain === 'water') return 'Водная граница';
+            if (record.ownerId === 'player') return definition.kind === 'home' ? 'Столица · ваша земля' : 'Под вашим контролем';
+            if (record.ownerId === null) return 'Не освоено';
+            return state.opponents.find(opponent => opponent.id === record.ownerId)?.clan || 'Земля соседей';
+        };
+        const ownerClassFor = function (definition, record) {
+            if (definition.terrain === 'water') return 'is-water';
+            if (record.ownerId === 'player') return 'is-owned';
+            return record.ownerId === null ? 'is-neutral' : 'is-rival';
+        };
+        const markerFor = function (definition, record) {
+            if (definition.kind === 'home') return '⌂';
+            if (definition.kind === 'settlement') return '⚑';
+            if (definition.feature === 'copper-vein') return '◆';
+            if (definition.feature === 'tin-route') return '◇';
+            if (definition.feature === 'salt-deposit') return '✦';
+            if (record.ownerId === 'player') return '●';
+            if (record.ownerId !== null) return '⚑';
+            return '';
+        };
+        const cells = definitions.map(definition => {
+            const record = getRegionRecord(state, definition.id);
+            const selectedClass = definition.id === selected.id ? ' is-selected' : '';
+            const homeClass = definition.kind === 'home' ? ' is-home' : '';
+            const ownerClass = ownerClassFor(definition, record);
+            const icon = definition.kind === 'home' ? '⌂' : definition.kind === 'settlement' ? '⚑' : definition.icon;
+            const marker = markerFor(definition, record);
+            const title = definition.name + ' · ' + definition.terrainLabel + '. ' + definition.description;
+            return '<button type="button" class="campaign-map-cell ' + ownerClass + homeClass + selectedClass + '" data-terrain="' + htmlAttr(definition.terrain) + '" data-feature="' + htmlAttr(definition.feature || '') + '" aria-pressed="' + (definition.id === selected.id) + '" aria-label="' + htmlAttr(title) + '" title="' + htmlAttr(title) + '" onclick="CampaignMvp.selectMapTile(\'' + htmlAttr(definition.id) + '\')"><span class="campaign-map-cell-icon" aria-hidden="true">' + icon + '</span><span class="campaign-map-cell-name">' + escapeHtml(definition.shortName || definition.name) + '</span>' + (marker ? '<span class="campaign-map-cell-marker" aria-hidden="true">' + marker + '</span>' : '') + '</button>';
+        }).join('');
+        const tileLookup = new Map(definitions.map(definition => [definition.id, definition]));
+        const riverPoints = (state.world.rivers || []).map(id => tileLookup.get(id)).filter(Boolean)
+            .map(definition => ((definition.x + 0.5) * 100) + ',' + ((definition.y + 0.5) * 100)).join(' ');
+        const riverOverlay = riverPoints
+            ? '<svg class="campaign-map-river-overlay" viewBox="0 0 700 700" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + riverPoints + '" fill="none" stroke="#6ec9d0" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" opacity=".28"/><polyline points="' + riverPoints + '" fill="none" stroke="#78dce0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity=".76"/></svg>'
+            : '';
 
-        for (let y = 0; y < WorldMap.SIZE; y++) {
-            const cells = [];
-            for (let x = 0; x < WorldMap.SIZE; x++) {
-                const id = WorldMap.tileId(x, y);
-                const tile = mapTiles.get(id);
-                const known = revealed.has(id);
-                const isCurrent = id === currentId;
-                const isSelected = id === world.selectedId;
-                if (!known) {
-                    cells.push('<button type="button" class="world-map-tile is-fogged" disabled aria-label="Неизведанная клетка"><span class="world-map-fog-glyph">·</span><small>?</small></button>');
-                    continue;
-                }
-                const displayName = tile.isHome ? 'Дом' : tile.name;
-                const label = tile.isHome ? '🏛️' : tile.icon;
-                const aria = (tile.isHome ? 'Поселение ' + state.player.name : tile.name) + ', ' + tile.biomeName + (isCurrent ? ', вы здесь' : visited.has(id) ? ', посещено' : ', разведано');
-                const classes = [
-                    'world-map-tile',
-                    'biome-' + tile.biome,
-                    tile.isHome ? 'is-home' : '',
-                    isCurrent ? 'is-current' : '',
-                    isSelected ? 'is-selected' : '',
-                    visited.has(id) ? 'is-visited' : 'is-revealed'
-                ].filter(Boolean).join(' ');
-                cells.push('<button type="button" class="' + classes + '" data-biome="' + htmlAttr(tile.biome) + '" aria-label="' + htmlAttr(aria) + '" aria-pressed="' + isSelected + '" onclick="CampaignMvp.selectMapTile(' + x + ',' + y + ')"><span class="world-map-tile-icon">' + escapeHtml(label) + '</span><span class="world-map-tile-name">' + escapeHtml(displayName) + '</span>' + (isCurrent ? '<span class="world-map-you">ВЫ</span>' : '') + '</button>');
-            }
-            rows.push('<div class="world-map-row">' + cells.join('') + '</div>');
+        let ownerLabel = getOwnerLabel(selected, selectedRecord);
+        const mapBuilding = getRegionBuilding(selected);
+        let yieldMarkup = '';
+        if (selectedRecord.building && mapBuilding) {
+            const yields = Object.entries(mapBuilding.yields).filter(entry => entry[1] > 0).map(entry => {
+                return (entry[0] === 'food' ? '🌾' : entry[0] === 'materials' ? '🪵' : '📚') + ' +' + entry[1];
+            }).join(' · ');
+            yieldMarkup = '<div class="campaign-map-detail-yield"><b>' + escapeHtml(yields || 'Построено') + '</b>' + (selectedRecord.buildingFlavor?.name ? '<span>· ' + escapeHtml(selectedRecord.buildingFlavor.name) + '</span>' : '') + '</div>';
+        } else if (selected.kind === 'settlement' && selectedRecord.ownerId !== 'player') {
+            yieldMarkup = '<div class="campaign-map-detail-yield">После захвата здесь можно построить форпост · +1🌾 +1🪵 +1📚</div>';
+        } else if (mapBuilding) {
+            yieldMarkup = '<div class="campaign-map-detail-yield">Возможная постройка: ' + escapeHtml(mapBuilding.name) + '</div>';
+        } else if (selected.resourceLabel) {
+            yieldMarkup = '<div class="campaign-map-detail-yield">Ресурс: ' + escapeHtml(selected.resourceLabel) + '</div>';
         }
 
-        const selectedIsHome = Boolean(selected?.isHome);
-        const selectedTitle = selectedIsHome ? 'Поселение «' + state.player.name + '»' : selected?.name || 'Неизвестное место';
-        const canMove = Boolean(selected && selected.id !== currentId && revealed.has(selected.id)
-            && Math.abs(world.current.x - selected.x) + Math.abs(world.current.y - selected.y) === 1);
-        const selectedVisited = selected ? visited.has(selected.id) : false;
-        const detailStatus = selected?.id === currentId
-            ? '<span class="world-map-status is-current">Ваше текущее место</span>'
-            : selectedVisited
-                ? '<span class="world-map-status is-visited">Уже посещено</span>'
-                : '<span class="world-map-status is-revealed">Местность разведана</span>';
-        const travelMarkup = selected?.id === currentId
-            ? '<p class="world-map-travel-note">Вы находитесь здесь. Выберите соседнюю открытую клетку, чтобы продолжить путь.</p>'
-            : canMove
-                ? '<button class="campaign-btn campaign-btn-gold world-map-travel" type="button" onclick="CampaignMvp.moveMapExplorer(' + selected.x + ',' + selected.y + ')">Отправиться сюда →</button>'
-                : '<p class="world-map-travel-note">Чтобы добраться сюда, пройдите через соседние разведанные места.</p>';
+        let actionMarkup = '';
+        if (selectedAction.action === 'owned') {
+            actionMarkup = '<span class="campaign-map-action-note is-done">✓ ' + escapeHtml(ownerLabel) + '</span>';
+        } else if (selectedAction.action === 'resume' || selectedAction.action === 'return') {
+            actionMarkup = '<button type="button" class="campaign-btn campaign-btn-gold campaign-map-action" title="' + htmlAttr(selectedAction.reason) + '" onclick="CampaignMvp.resumeRegionExpedition()">' + (selectedAction.action === 'return' ? 'Вернуться к бою →' : 'Начать экспедицию →') + '</button>';
+        } else if (selectedAction.action === 'build') {
+            const label = selectedAction.enabled
+                ? 'Построить · ' + Object.entries(selectedAction.cost || {}).map(entry => entry[1] + (entry[0] === 'food' ? '🌾' : entry[0] === 'materials' ? '🪵' : '📚')).join(' ')
+                : 'Построить';
+            const accessibleLabel = selectedAction.enabled ? label : label + '. ' + selectedAction.reason;
+            actionMarkup = '<button type="button" class="campaign-btn campaign-btn-secondary campaign-map-action" ' + (selectedAction.enabled ? '' : 'disabled') + ' title="' + htmlAttr(selectedAction.reason) + '" aria-label="' + htmlAttr(accessibleLabel) + '" onclick="CampaignMvp.buildRegionBuilding(\'' + htmlAttr(selected.id) + '\')">' + label + '</button>';
+        } else if (selectedAction.action === 'settle' || selectedAction.action === 'attack') {
+            const isSettle = selectedAction.action === 'settle';
+            const label = selectedAction.enabled
+                ? (isSettle ? 'Освоить · 2🌾 2🪵' : 'В поход · 4🌾 2🪵')
+                : (isSettle ? 'Освоить область' : 'В поход');
+            const handler = isSettle ? 'claimRegion' : 'attackRegion';
+            const accessibleLabel = selectedAction.enabled ? label : label + '. ' + selectedAction.reason;
+            actionMarkup = '<button type="button" class="campaign-btn ' + (isSettle ? 'campaign-btn-secondary' : 'campaign-btn-challenge') + ' campaign-map-action" ' + (selectedAction.enabled ? '' : 'disabled') + ' title="' + htmlAttr(selectedAction.reason) + '" aria-label="' + htmlAttr(accessibleLabel) + '" onclick="CampaignMvp.' + handler + '(\'' + htmlAttr(selected.id) + '\')">' + label + '</button>';
+        } else {
+            actionMarkup = '<span class="campaign-map-action-note">' + escapeHtml(selectedAction.reason || 'Пока недоступно.') + '</span>';
+        }
+        const eraTag = selected.minEra > state.player.era
+            ? '<span class="campaign-map-era-gate">Доступно с эпохи «' + escapeHtml(eraName(selected.minEra)) + '»</span>'
+            : '';
+        const selectedDetail = '<aside class="campaign-map-inspector" aria-live="polite"><div class="campaign-map-inspector-head"><span class="campaign-kicker">' + (selected.kind === 'home' ? 'ЦЕНТР МИРА' : 'ОБЛАСТЬ · ' + (selected.x + 1) + ':' + (selected.y + 1)) + '</span><span class="campaign-map-terrain-tag">' + escapeHtml(selected.terrainLabel) + '</span></div><h3>' + escapeHtml(selected.name) + '</h3><p class="campaign-map-description">' + escapeHtml(selected.description) + '</p><div class="campaign-map-owner"><span class="campaign-map-owner-mark ' + ownerClassFor(selected, selectedRecord) + '"></span><b>' + escapeHtml(ownerLabel) + '</b></div>' + (selected.shortText ? '<small class="campaign-map-short-text">' + escapeHtml(selected.shortText) + '</small>' : '') + yieldMarkup + eraTag + '<div class="campaign-map-action-area">' + actionMarkup + '</div></aside>';
+        const materialAccess = qualities.includes('masterwork') ? 'Мастерское сырьё'
+            : qualities.includes('refined') ? 'Отборное сырьё'
+                : 'Обычное сырьё · медь откроет отборное';
+        const seedLabel = Number(state.world.seed).toString(36).toUpperCase().padStart(7, '0');
+        const migrationNotice = state.player.campaignNotice
+            ? '<div class="campaign-region-notice" role="status">' + escapeHtml(state.player.campaignNotice) + '</div>' : '';
 
-        target.innerHTML = '<section class="world-map-panel">'
-            + '<div class="world-map-heading"><div><span class="campaign-kicker">ПРОЦЕДУРНО СОЗДАННЫЙ МИР · SEED ' + escapeHtml(world.seed) + '</span><h2>Мировая карта</h2><p>Вы начинаете в центре. Новые места открываются по мере исследования.</p></div>'
-            + '<div class="world-map-progress"><b>' + progress.revealed + '<span>/49</span></b><small>разведано</small><b>' + progress.visited + '<span>/49</span></b><small>посещено</small></div></div>'
-            + '<div class="world-map-layout"><div class="world-map-grid" role="group" aria-label="Карта мира, 7 на 7">' + rows.join('') + '</div>'
-            + '<aside class="world-map-detail" aria-live="polite"><div class="world-map-detail-top"><span class="world-map-detail-icon">' + (selectedIsHome ? '🏛️' : escapeHtml(selected?.icon || '🧭')) + '</span><div><span class="world-map-detail-kicker">' + (selected ? 'СТОЛБЕЦ ' + (selected.x + 1) + ' · РЯД ' + (selected.y + 1) : '') + ' · ' + (selectedIsHome ? 'СТАРТОВАЯ ТОЧКА' : 'МЕСТО НА КАРТЕ') + '</span><h3>' + escapeHtml(selectedTitle) + '</h3></div></div>'
-            + '<div class="world-map-detail-tags"><span>' + escapeHtml(selected?.biomeName || '') + '</span><span>' + escapeHtml(selected?.interest || '') + '</span></div>'
-            + '<p class="world-map-description">' + escapeHtml(selected?.description || '') + '</p>' + detailStatus + travelMarkup
-            + '<div class="world-map-howto"><b>Как исследовать</b><span>Выберите соседнюю открытую клетку и отправьтесь туда. Каждый переход открывает соседние места.</span><span>Перемещение не тратит AP, ресурсы и не меняет экономику или результаты боя.</span></div></aside></div>'
-            + '<div class="world-map-footer"><span>🧭 Текущее положение отмечено «ВЫ» · 🔒 туман — неисследованная местность</span><button class="campaign-btn campaign-btn-quiet" type="button" onclick="CampaignMvp.regenerateWorldMap()">Создать другой мир</button></div>'
-            + '</section>';
-    }
-
-    function selectMapTile(x, y) {
-        const result = WorldMap.selectTile(state.worldMap, x, y);
-        if (result.error) return;
-        commit({ ...state, worldMap: result.state });
-    }
-
-    function moveMapExplorer(x, y) {
-        const result = WorldMap.moveToTile(state.worldMap, x, y);
-        if (result.error) { root.alert(result.error); return; }
-        commit({ ...state, worldMap: result.state });
-    }
-
-    function regenerateWorldMap() {
-        if (!root.confirm('Создать новый мир? Прогресс исследования текущей карты будет сброшен. Кампания и коллекция карт сохранятся.')) return;
-        commit({ ...state, worldMap: WorldMap.createExplorationState(createWorldSeed()) });
+        return '<section id="campaign-world" class="campaign-panel campaign-world"><div class="campaign-panel-heading"><div><span class="campaign-kicker">КРАЙ · МЕСТНАЯ КАМПАНИЯ</span><h2>🗺️ Карта земель</h2></div><span class="campaign-day-badge">' + ownedCount + '/' + landDefinitions.length + ' участков · AP ' + state.player.ap + '/' + state.player.apMax + '</span></div><div class="campaign-world-summary"><span>🌾 +' + income.food.toFixed(1) + ' · 🪵 +' + income.materials.toFixed(1) + ' · 📚 +' + income.knowledge.toFixed(1) + ' / день от земель · 👥 ' + state.player.population + ' чел · 🍞 -' + breakdown.consumption.toFixed(1) + '/д</span><b>' + materialAccess + '</b><small>СИД ' + seedLabel + ' · 7×7</small></div>' + migrationNotice + '<div class="campaign-world-layout"><div class="campaign-world-map-column"><div class="campaign-world-map-label"><span>СЕВЕР ↑</span><span>Каждая клетка — отдельная область</span></div><div class="campaign-world-map-graphic"><div class="campaign-world-board" role="group" aria-label="Мировая карта 7 на 7">' + cells + '</div>' + riverOverlay + '</div><div class="campaign-world-legend"><span><i class="is-owned"></i> ваша земля</span><span><i class="is-neutral"></i> свободная земля</span><span><i class="is-rival"></i> поселение соседа</span><span><i class="is-water"></i> вода</span></div></div>' + selectedDetail + '</div><small class="campaign-world-footnote">Локальный генерируемый край для кампании-прототипа · не общий MMO-мир</small></section>';
     }
 
     function renderDailyOrdersPanel(current) {
@@ -1429,7 +1766,7 @@
         const craftStatus = blocked ? 'Завтра' : player.dailyOrders.craftUsed ? 'Готово' : craftQueueBusy ? 'Очередь' : ap <= 0 ? 'Нет AP' : 'Доступно';
         const craftClass = player.dailyOrders.craftUsed || blocked ? 'is-used' : craftQueueBusy || ap <= 0 ? 'is-blocked' : 'is-ready';
         const craft = '<button class="campaign-day-action ' + craftClass + '" type="button" onclick="switchScreen(\'forge\')" title="' + (craftQueueBusy ? 'Дождись завершения текущей ковки.' : 'Перейти в кузницу. Стоит 1 AP.') + '"><span>⚒️</span><b>Ковка</b><small>' + craftStatus + '</small></button>';
-        return '<nav class="campaign-daily-strip" aria-label="Дневные возможности"><div class="campaign-ap-display">AP: ' + ap + '/' + player.apMax + '</div>' + craft + slot('🔬', 'Наука', '#campaign-development', player.dailyOrders.researchUsed, !hasResearch, 'Исследование стоит 1 AP.') + slot('🏗️', 'Стройка', '#campaign-development', player.dailyOrders.constructionUsed, !hasConstruction, 'Построить изученный чертёж. Стоит 1 AP.') + '</nav>';
+        return '<nav class="campaign-daily-strip" aria-label="Дневные возможности"><div class="campaign-ap-display">AP: ' + ap + '/' + player.apMax + '</div>' + craft + slot('🔬', 'Наука', '#campaign-development', player.dailyOrders.researchUsed, !hasResearch, 'Исследование стоит 1 AP.') + slot('🏗️', 'Стройка', '#campaign-development', player.dailyOrders.constructionUsed, !hasConstruction, 'Построить изученный чертёж или здание в регионе. Стоит 1 AP.') + slot('🗺️', 'Фронтир', '#campaign-world', player.dailyOrders.frontierUsed, false, 'Одно заселение или экспедиция за день. Стоит 1 AP.') + '</nav>';
     }
 
     function renderBlueprintOrder(blueprint, player, readyToClose) {
@@ -1488,7 +1825,6 @@
     }
 
     function render() {
-        renderWorldMapScreen();
         const host = root.document && root.document.getElementById('campaign-root');
         if (!host) return;
         const openDetails = new Set(Array.from(host.querySelectorAll?.('details[data-campaign-key][open]') || []).map(detail => detail.dataset.campaignKey));
@@ -1498,6 +1834,7 @@
         }
         const p = state.player;
         const config = getBattleConfig(state);
+        const regionalIncome = getRegionalIncome(state);
         const scienceSituation = scienceAdvisorSituation(state);
         const breakdown = getProductionBreakdown(state);
         const activeBuildings = p.buildings.filter(building => building.active);
@@ -1506,34 +1843,34 @@
         const activeBlueprints = p.blueprints.filter(blueprint => !blueprint.built);
         const activeCraftOrders = p.craftOrders.filter(order => ['generating', 'working', 'ready'].includes(order.status));
         const generatingCraft = p.craftOrders.some(order => order.status === 'generating');
-        const craftBlocksSeason = activeCraftOrders.length > 0;
+        const craftBlocksSeason = activeCraftOrders.length > 0 || Boolean(p.pendingExpedition);
         const readyToClose = state.day >= SEASON_LENGTH;
         const guide = getFirstSessionGuide(state);
         const firstSessionGuide = guide && !guide.complete ? guide : null;
         const eraProgress = p.era === ERAS.length - 1 ? 100 : p.research * 50;
-        const dayBlockReason = generatingCraft ? 'Дождись ответа кузницы.' : readyToClose && activeCraftOrders.length ? 'Заверши ковку и забери готовые карты.' : '';
+        const dayBlockReason = p.pendingExpedition ? 'Сначала заверши экспедицию.' : generatingCraft ? 'Дождись ответа кузницы.' : readyToClose && activeCraftOrders.length ? 'Заверши ковку и забери готовые карты.' : '';
         const developmentButton = readyToClose
             ? '<button class="campaign-btn campaign-btn-gold" ' + (craftBlocksSeason ? 'disabled' : '') + ' title="' + htmlAttr(dayBlockReason) + '" onclick="CampaignMvp.completeSeason()">Подвести итоги</button>'
-            : '<button class="campaign-btn campaign-btn-gold" ' + (generatingCraft ? 'disabled' : '') + ' title="' + htmlAttr(dayBlockReason) + '" onclick="CampaignMvp.finishDay()">Завершить день →</button>';
+            : '<button class="campaign-btn campaign-btn-gold" ' + (generatingCraft || p.pendingExpedition ? 'disabled' : '') + ' title="' + htmlAttr(dayBlockReason) + '" onclick="CampaignMvp.finishDay()">Завершить день →</button>';
         const buildingRows = p.buildings.map(building => {
             const blueprint = p.blueprints.find(item => item.id === building.blueprintId);
             const effects = (building.effects || []).map(effect => EFFECTS[effect.type]?.label || effect.type).join(' · ');
-            return '<article class="campaign-order campaign-building-row"><div class="campaign-order-icon">' + (building.category === 'military' ? '⚔️' : building.category === 'economy' ? '🌾' : building.category === 'science' ? '📚' : '🏛️') + '</div><div class="campaign-order-main"><b title="' + htmlAttr(blueprint?.scienceName || building.description || '') + '">' + escapeHtml(building.name) + '</b><small>' + escapeHtml(effects) + '</small></div><button class="campaign-btn ' + (building.active ? 'campaign-btn-secondary' : '') + '" onclick="CampaignMvp.toggleBuilding(\'' + htmlAttr(building.id) + '\')">' + (building.active ? 'Выключить' : 'Включить') + '</button></article>';
+            return '<article class="campaign-order campaign-building-row"><div class="campaign-order-icon">' + (building.category === 'military' ? '⚔️' : building.category === 'economy' ? '🌾' : building.category === 'science' ? '📚' : '🏛️') + '</div><div class="campaign-order-main"><b title="' + htmlAttr(blueprint?.scienceName || building.description || '') + '">' + escapeHtml(building.name) + '</b><small>' + escapeHtml(effects) + (building.regionId ? ' · в регионе' : '') + '</small></div><button class="campaign-btn ' + (building.active ? 'campaign-btn-secondary' : '') + '" onclick="CampaignMvp.toggleBuilding(\'' + htmlAttr(building.id) + '\')">' + (building.active ? 'Выключить' : 'Включить') + '</button></article>';
         }).join('');
-        const opponentRows = state.opponents.map(opponent => '<article class="campaign-opponent"><div class="campaign-opponent-top"><span class="campaign-opponent-avatar">' + (opponent.leader ? '👑' : '🧭') + '</span><div><b>' + escapeHtml(opponent.name) + '</b><small>' + escapeHtml(opponent.clan) + '</small></div><span class="campaign-opponent-rating">Э' + (opponent.era + 1) + '</span></div><button class="campaign-btn campaign-btn-challenge" onclick="CampaignMvp.challenge(\'' + htmlAttr(opponent.id) + '\', ' + (opponent.leader ? 'true' : 'false') + ')">Тренировка</button></article>').join('');
+        const opponentRows = state.opponents.map(opponent => '<article class="campaign-opponent"><div class="campaign-opponent-top"><span class="campaign-opponent-avatar">' + (opponent.leader ? '👑' : '🧭') + '</span><div><b>' + escapeHtml(opponent.name) + '</b><small>' + escapeHtml(opponent.clan) + '</small></div><span class="campaign-opponent-rating">Э' + (opponent.era + 1) + '</span></div><button class="campaign-btn campaign-btn-challenge" ' + (p.pendingExpedition ? 'disabled' : '') + ' onclick="CampaignMvp.challenge(\'' + htmlAttr(opponent.id) + '\', ' + (opponent.leader ? 'true' : 'false') + ')">' + (p.pendingExpedition ? 'Сначала заверши экспедицию' : 'Тренировка') + '</button></article>').join('');
         const deckCards = choices.length ? choices.map(card => {
             const selected = p.deckCardIds.includes(card.id);
             return '<button type="button" class="campaign-project-card campaign-card-choice ' + (selected ? 'is-selected' : '') + '" onclick="CampaignMvp.toggleDeckCard(\'' + htmlAttr(card.id) + '\')"><span>' + (selected ? '✓ В колоде' : 'Добавить') + ' · ' + escapeHtml(card.card_type || 'карта') + '</span><b>' + escapeHtml(card.name || 'Без названия') + '</b><small>' + (Number(card.drop_cost) || 0) + ' энергии · атака ' + (Number(card.action_cost) || 0) + '</small></button>';
         }).join('') : '<div class="campaign-project-empty">Коллекция пока пуста. Для тренировки доступна стартовая колода.</div>';
 
-        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          ' + renderDecreeChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="Научный прогресс эпохи" aria-label="Научный прогресс эпохи"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          <a class="campaign-map-entry" href="#" onclick="switchScreen(\'world-map\');return false">🗺️ Открыть мировую карту · ' + state.worldMap.visited.length + '/49 мест посещено</a>\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + p.resources.food + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + p.resources.materials + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + p.resources.knowledge + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            <form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)"><label><span>Новый проект</span><select id="campaign-project-branch" aria-label="Направление науки">' + scienceBranchesForEra(p.era).map(branch => '<option value="' + branch.id + '">' + escapeHtml(branch.label) + '</option>').join('') + '</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">+ Советник</button></form>\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Выбирается только широкая ветвь; тему и местный контекст советник подбирает автоматически по эпохе, биому и запасам.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (p.era === ERAS.length - 1 ? 'Последняя эпоха открыта' : 'Открытия эпохи: ' + p.research + '/2') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
+        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          ' + renderDecreeChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="Научный прогресс эпохи" aria-label="Научный прогресс эпохи"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + p.resources.food + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + p.resources.materials + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + p.resources.knowledge + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            <form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)"><label><span>Новый проект</span><select id="campaign-project-branch" aria-label="Направление науки">' + scienceBranchesForEra(p.era).map(branch => '<option value="' + branch.id + '">' + escapeHtml(branch.label) + '</option>').join('') + '</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">+ Советник</button></form>\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Выбирается только широкая ветвь; тему и местный контекст советник подбирает автоматически по эпохе, землям и запасам.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (p.era === ERAS.length - 1 ? 'Последняя эпоха открыта' : 'Открытия эпохи: ' + p.research + '/2') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
         for (const detail of host.querySelectorAll?.('details[data-campaign-key]') || []) detail.open = openDetails.has(detail.dataset.campaignKey);
     }
 
     function renderOnboarding(host) {
         const originCards = ORIGINS.map((origin, index) => '\n          <label class="campaign-onboarding-choice"><input type="radio" name="campaign-origin" value="' + origin.id + '" ' + (index === 0 ? 'checked' : '') + '><span class="campaign-choice-icon">' + origin.icon + '</span><span><b>' + escapeHtml(origin.name) + '</b><small>' + escapeHtml(origin.place) + ' · +' + origin.bonus + ' ' + (origin.resource === 'food' ? 'провизии' : origin.resource === 'materials' ? 'материала' : 'знания') + '</small><span class="campaign-choice-description">' + escapeHtml(origin.description) + '</span></span></label>').join('');
         const focusCards = OPENING_FOCUSES.map((focus, index) => '\n          <label class="campaign-onboarding-choice"><input type="radio" name="campaign-focus" value="' + focus.id + '" ' + (index === 0 ? 'checked' : '') + '><span class="campaign-choice-icon">' + focus.icon + '</span><span><b>' + escapeHtml(focus.title) + '</b><small>' + escapeHtml(focus.scienceName) + ' → ' + escapeHtml(focus.buildingName) + '</small><span class="campaign-choice-description">' + escapeHtml(focus.buildingDescription) + ' Эффект здания: ' + escapeHtml(EFFECTS[focus.effect].label) + '.</span></span></label>').join('');
-        host.innerHTML = '\n          <section class="campaign-onboarding-hero"><span class="campaign-kicker">INFINITE FORGE · НАЧАЛО СЕЗОНА</span><h2>Рождение народа</h2><p>Выбери место, которое станет домом, и первое дело общины. Это задаст стартовый ресурс и первый научный проект.</p></section>\n          <form class="campaign-onboarding-form" onsubmit="CampaignMvp.beginOnboarding(event)">\n            <section class="campaign-panel campaign-onboarding-section"><h3>1 · Кто вы?</h3><label class="campaign-onboarding-name">Имя народа<input id="campaign-start-name" maxlength="24" placeholder="Например, Дети Великой Реки" autocomplete="off"></label><div class="campaign-onboarding-options">' + originCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-section"><h3>2 · На что направите силы?</h3><p class="campaign-small">Выбор откроет готовый первый проект. Генерация через ИИ для начала не требуется.</p><div class="campaign-onboarding-options">' + focusCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-deck"><h3>3 · Уже есть чем защищаться</h3><p class="campaign-small">Стартовая колода из двух карт доступна сразу — без ковки, API-ключа и предварительной сборки.</p><div class="campaign-starter-preview">' + STARTER_CARDS.map(card => '<article><span>' + card.emoji + '</span><div><b>' + escapeHtml(card.name) + '</b><small>' + card.atk + '/' + card.hp + ' · ' + card.drop_cost + ' энергии на вывод</small><p>' + escapeHtml(card.description) + '</p></div></article>').join('') + '</div><p class="campaign-small">Позже колоду можно менять картами из коллекции. Тренировочные бои против ИИ не дают ресурсов, медалей или рейтинга.</p></section>\n            <button class="campaign-btn campaign-btn-gold campaign-onboarding-submit" type="submit">Начать путь цивилизации →</button>\n          </form>';
+        host.innerHTML = '\n          <section class="campaign-onboarding-hero"><span class="campaign-kicker">INFINITE FORGE · НАЧАЛО СЕЗОНА</span><h2>Рождение народа</h2><p>Твоя столица появится в центре сгенерированного мира 7×7. Выбери происхождение общины и первое дело — они зададут стартовый ресурс и научный проект.</p></section>\n          <form class="campaign-onboarding-form" onsubmit="CampaignMvp.beginOnboarding(event)">\n            <section class="campaign-panel campaign-onboarding-section"><h3>1 · Кто вы?</h3><label class="campaign-onboarding-name">Имя народа<input id="campaign-start-name" maxlength="24" placeholder="Например, Дети Великой Реки" autocomplete="off"></label><div class="campaign-onboarding-options">' + originCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-section"><h3>2 · На что направите силы?</h3><p class="campaign-small">Выбор откроет готовый первый проект. Генерация через ИИ для начала не требуется.</p><div class="campaign-onboarding-options">' + focusCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-deck"><h3>3 · Уже есть чем защищаться</h3><p class="campaign-small">Стартовая колода из двух карт доступна сразу — без ковки, API-ключа и предварительной сборки.</p><div class="campaign-starter-preview">' + STARTER_CARDS.map(card => '<article><span>' + card.emoji + '</span><div><b>' + escapeHtml(card.name) + '</b><small>' + card.atk + '/' + card.hp + ' · ' + card.drop_cost + ' энергии на вывод</small><p>' + escapeHtml(card.description) + '</p></div></article>').join('') + '</div><p class="campaign-small">Позже колоду можно менять картами из коллекции. Тренировочные бои против ИИ не дают ресурсов, медалей или рейтинга.</p></section>\n            <button class="campaign-btn campaign-btn-gold campaign-onboarding-submit" type="submit">Начать путь цивилизации →</button>\n          </form>';
     }
 
     function beginOnboarding(event) {
@@ -1559,29 +1896,85 @@
         commit(result.state);
         root.alert('Сезон завершён. Получена медаль «' + result.medal.name + '».');
     }
-    function chooseDecreeAction(decreeId) { alertResult(chooseDecree(state, decreeId)); }
     function challenge(opponentId, leaderBattle) {
+        if (state.player.pendingExpedition) { root.alert('Сначала заверши текущую экспедицию.'); return; }
         const opponent = state.opponents.find(item => item.id === opponentId);
         if (!opponent) return;
         if (typeof root.startBattle !== 'function') { root.alert('Боевой экран пока недоступен.'); return; }
         pendingMatch = { kind: 'practice', opponentId, leaderBattle: Boolean(leaderBattle), name: opponent.name, clan: opponent.clan, era: opponent.era };
         root.startBattle();
     }
+    function selectMapTile(tileId) {
+        if (!getWorldTile(state.world, tileId)) return;
+        selectedMapTileId = tileId;
+        render();
+    }
+    function claimRegionAction(regionId) { alertResult(settleRegion(state, regionId)); }
+    async function buildRegionBuildingAction(regionId) {
+        const result = buildRegionBuilding(state, regionId);
+        if (result.error) { root.alert(result.error); return; }
+        commit(result.state);
+        // Если есть API ключ — попробовать улучшить название через ИИ (уникализация)
+        try {
+            const flavor = await requestRegionFlavor(regionId);
+            if (flavor && flavor.name) {
+                const rec = getRegionRecord(state, regionId);
+                if (rec && rec.building) {
+                    rec.buildingFlavor = flavor;
+                    save(state);
+                    render();
+                }
+            }
+        } catch (_) {}
+    }
+    function chooseDecreeAction(decreeId) { alertResult(chooseDecree(state, decreeId)); }
+    function attackRegionAction(regionId) {
+        if (typeof root.startBattle !== 'function') { root.alert('Боевой экран пока недоступен.'); return; }
+        const result = beginRegionExpedition(state, regionId);
+        if (result.error) { root.alert(result.error); return; }
+        pendingMatch = result.match;
+        commit(result.state);
+        root.startBattle();
+    }
+    function resumeRegionExpeditionAction() {
+        if (state.player.pendingExpedition?.battleStarted) {
+            if (typeof root.switchScreen === 'function') root.switchScreen('battle');
+            else root.alert('Экспедиционный бой уже идёт в открытом экране.');
+            return;
+        }
+        if (typeof root.startBattle !== 'function') { root.alert('Боевой экран пока недоступен.'); return; }
+        const match = makeExpeditionMatch(state);
+        if (!match) { root.alert('Незавершённая экспедиция не найдена.'); return; }
+        pendingMatch = match;
+        root.startBattle();
+    }
     function consumePendingMatch() {
         const match = pendingMatch;
         pendingMatch = null;
         lastMatch = match;
+        if (match?.kind === 'expedition') {
+            const started = markExpeditionBattleStarted(state, match);
+            if (!started.error) { state = started.state; save(state); }
+        }
         return match;
     }
     function recordBattleResult(match, won) {
         if (!match) return null;
+        if (match.kind === 'expedition') {
+            const outcome = finishRegionExpedition(state, match, Boolean(won));
+            if (outcome.error) return { kind: 'expedition', won: Boolean(won), message: outcome.error, error: outcome.error };
+            commit(outcome.state);
+            return { kind: 'expedition', won: Boolean(won), message: outcome.message, regionName: outcome.regionName };
+        }
         const result = recordPractice(state, match.opponentId, Boolean(won), match.leaderBattle);
         if (!result.error) commit(result.state);
-        return { kind: 'practice', won: Boolean(won), message: 'Тренировочный результат: ресурсы и прогресс кампании не изменены.' };
+        return { kind: 'practice', won: Boolean(won), message: 'Тренировочный результат: ресурсы, земля и рейтинг клана не изменены.' };
     }
     function rematch() {
         if (!lastMatch) { root.switchScreen('campaign'); return; }
-        pendingMatch = { ...lastMatch };
+        pendingMatch = lastMatch.kind === 'expedition'
+            ? { ...lastMatch, kind: 'practice', regionId: null, regionName: null }
+            : { ...lastMatch };
         if (typeof root.startBattle === 'function') root.startBattle();
     }
 
@@ -1595,13 +1988,10 @@
         if (!branch) { status.textContent = 'Эта научная ветвь ещё не открыта.'; return; }
 
         const situation = scienceAdvisorSituation(state);
-        const localContexts = [situation.biome, situation.geography, situation.nearby].filter(Boolean);
-        const selectedContext = localContexts[Math.floor(Math.random() * localContexts.length)];
-        const context = selectedContext
-            ? { name: selectedContext.name || 'местность', description: selectedContext.desc || selectedContext.description || '' }
-            : { name: 'поселение', description: 'местная община и её повседневные нужды' };
+        const context = situation.localContexts[Math.floor(Math.random() * situation.localContexts.length)]
+            || { name: 'поселение', description: 'местная община и её повседневные нужды' };
         button.disabled = true;
-        status.textContent = 'Советник готовит 3 замысла по «' + branch.label + '» с учётом биома и запасов…';
+        status.textContent = 'Советник готовит 3 замысла по «' + branch.label + '» с учётом земель и запасов…';
         let projects = [];
         let usedLlm = false;
         try {
@@ -1676,23 +2066,60 @@
         if (status) status.textContent = 'Выбран путь: «' + raw.scienceName + '». ' + entryText;
     }
 
+    async function requestRegionFlavor(regionId) {
+        const def = getWorldTile(state.world, regionId);
+        const rb = getRegionBuilding(def);
+        if (!def || !rb) return null;
+        try {
+            const key = typeof root.getApiKey === 'function' ? root.getApiKey() : '';
+            if (!key) throw new Error('no-key');
+            const situation = scienceAdvisorSituation(state);
+            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+                method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
+                    messages: [
+                        { role: 'system', content: 'Ты придумываешь уникальные названия для региональных построек в исторической стратегии. Верни JSON: {\"name\":\"уникальное название до 40 символов\",\"description\":\"короткое описание до 120 символов без магии\"}. Название должно быть уникальным, с характером, не шаблонным.' },
+                        { role: 'user', content: 'Регион: ' + def.name + ' — ' + def.description + '. Тип постройки: ' + rb.name + ' — ' + rb.description + '. Эпоха: ' + eraName(state.player.era) + '. Клан: ' + state.player.clan + '. Механика: ' + JSON.stringify(rb.yields) + '. Придумай уникальное имя для этой постройки именно этой общины.' }
+                    ],
+                    temperature: 0.95, max_tokens: 200, response_format: { type: 'json_object' }
+                })
+            });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content || '';
+            const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
+            if (parsed.name) return { name: String(parsed.name).slice(0, 80), description: String(parsed.description || rb.description).slice(0, 400) };
+        } catch (_) {}
+        const seed = hashString(state.world.seed + ':' + state.player.name + state.player.clan + regionId + String(state.day));
+        return generateLocalRegionFlavor(regionId, seed);
+    }
+
     function resetLocal() {
 
         if (!root.confirm('Сбросить локальную кампанию, включая медали, здания и науку?')) return;
         state = createState(); pendingMatch = null; lastMatch = null;
+        selectedMapTileId = CampaignMap.tileId(CampaignMap.CENTER.x, CampaignMap.CENTER.y);
         if (typeof root.clearForgeAdvice === 'function') root.clearForgeAdvice();
         save(state); render(); if (typeof root.refreshForgeUi === 'function') root.refreshForgeUi();
     }
 
     const api = {
-        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, STORAGE_KEY, SEASON_LENGTH,
+        ERAS, ERA_HISTORICAL, DECREES, EFFECTS, DIVERSITY_POOLS, BIOMES, GEOGRAPHY, TRAITS, NEARBY, HISTORICAL_CULTURES, ORIGINS, OPENING_FOCUSES, STARTER_CARDS, SCIENCE_BRANCHES, REGION_BUILDINGS, REGION_CAPTURE_COST, REGION_EXPEDITION_COST, CARD_CRAFT_MATERIALS, CARD_CRAFT_EFFORTS, CARD_RARITY_ODDS, CATEGORIES, CATEGORY_NAMES, UPKEEP_PER_BUILDING, STORAGE_KEY, SEASON_LENGTH,
+        WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         createState, normalizeState, completeOnboarding, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig,
-        getAvailableMaterialQualities, addBlueprint, researchBlueprint, constructBlueprint, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
+        getRegionalIncome, getAvailableMaterialQualities, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
+        markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
+        addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
-        getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker, getActiveDecreesState: state => getActiveDecrees(normalizeState(state)),
+        getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker, getActiveDecreesState: state => getActiveDecrees(normalizeState(state)), clone, hashString, seededRandom, pickRandom, eraName,
         quoteCardCraft: investment => cardCraftQuote(state, investment),
-        getWorldMap: () => clone(state.worldMap),
+        generateWorld: (seed, opponents) => clone(CampaignMap.generateWorld(seed, opponents || state.opponents)),
+        getWorldMap: () => clone(state.world.tiles.map(definition => ({ ...definition, ...getRegionRecord(state, definition.id) }))),
+        getRegionalMap: () => clone(state.world.tiles.map(definition => ({ ...definition, ...getRegionRecord(state, definition.id) }))),
+        getMapTile: tileId => { const definition = getWorldTile(state.world, tileId); return definition ? clone({ ...definition, ...getRegionRecord(state, tileId) }) : null; },
+        selectMapTile,
         beginCardCraft: (investment, roll, advisorOrder) => { const result = beginCardCraft(state, investment, roll, advisorOrder); if (!result.error) commit(result.state); return result; },
         completeCardCraft: (orderId, card) => { const result = completeCardCraft(state, orderId, card); if (!result.error) commit(result.state); return result; },
         failCardCraft: (orderId, reason) => { const result = failCardCraft(state, orderId, reason); if (!result.error) commit(result.state); return result; },
@@ -1700,12 +2127,11 @@
         getReadyCraftCard: orderId => { const order = state.player.craftOrders.find(item => item.id === orderId && item.status === 'ready'); return order?.card ? clone(order.card) : null; },
         claimCardCraft: orderId => { const result = claimCardCraft(state, orderId); if (result.error) { root.alert(result.error); return null; } commit(result.state); return clone(result.card); },
         getScienceBranchesForEra: () => scienceBranchesForEra(state.player.era),
-        recordPractice, completeSeasonState: completeSeason, load, save, render, renderWorldMap: renderWorldMapScreen,
+        recordPractice, completeSeasonState: completeSeason, load, save, render,
         research, construct, toggleBuilding: toggleBuildingAction, toggleDeckCard: toggleDeckCardAction,
-        finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, chooseDecree: chooseDecreeAction, hasPendingMatch: () => Boolean(pendingMatch),
+        finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, claimRegion: claimRegionAction, buildRegionBuilding: buildRegionBuildingAction, chooseDecree: chooseDecreeAction, attackRegion: attackRegionAction, resumeRegionExpedition: resumeRegionExpeditionAction, hasPendingMatch: () => Boolean(pendingMatch),
         getPendingMatch: () => pendingMatch ? { ...pendingMatch } : null,
-        consumePendingMatch, recordBattleResult, rematch, generateProject, chooseScience, DIVERSITY_POOLS, generateLocalScienceVariants,
-        selectMapTile, moveMapExplorer, regenerateWorldMap,
+        consumePendingMatch, recordBattleResult, rematch, generateProject, chooseScience, requestRegionFlavor, DIVERSITY_POOLS, generateLocalScienceVariants, generateLocalRegionFlavor, resetLocal,
         beginOnboarding, getStarterCards: () => clone(STARTER_CARDS), getBattleDeckIds: () => state.player.deckCardIds.slice(), getBattleConfigForCurrentPlayer: () => getBattleConfig(state),
         assignWorker: (from, to) => { const result = assignWorker(state, from, to); if (!result.error) commit(result.state); return result; },
         getState: () => clone(state)

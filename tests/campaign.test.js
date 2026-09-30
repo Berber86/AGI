@@ -4,13 +4,73 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const Campaign = require('../campaign.js');
-const WorldMap = require('../world-map.js');
+const CampaignMap = require('../campaign-map.js');
 const EconomySim = require('../tools/economy-sim.js');
+const TEST_SEED = 12345;
 
 function playableCampaign() {
-  const state = Campaign.createState();
+  const state = Campaign.createState(TEST_SEED);
   state.player.onboardingComplete = true;
   return state;
+}
+
+function mapTileId(state, key) {
+  const tiles = state.world.tiles;
+  const find = predicate => tiles.find(predicate)?.id || null;
+  if (tiles.some(tile => tile.id === key)) return key;
+  switch (key) {
+    case 'home': return find(tile => tile.x === CampaignMap.CENTER.x && tile.y === CampaignMap.CENTER.y);
+    case 'floodplain':
+    case 'oasis': {
+      const home = tiles.find(tile => tile.x === CampaignMap.CENTER.x && tile.y === CampaignMap.CENTER.y);
+      const adjacentFood = home.neighbors.map(id => tiles.find(tile => tile.id === id))
+        .find(tile => tile?.terrain !== 'water' && tile.siteType === 'food');
+      return adjacentFood?.id || find(tile => tile.siteType === 'food');
+    }
+    case 'hills':
+    case 'calendar': return find(tile => tile.siteType === 'knowledge' && tile.kind === 'resource')
+      || find(tile => tile.siteType === 'materials' && tile.kind === 'resource');
+    case 'copper': return find(tile => tile.feature === 'copper-vein');
+    case 'tin-route': return find(tile => tile.feature === 'tin-route');
+    case 'salt-flats': return find(tile => tile.feature === 'salt-deposit');
+    case 'rival-settlement': return find(tile => tile.kind === 'settlement' && tile.initialOwner === 'steppe')
+      || find(tile => tile.kind === 'settlement');
+    default: return null;
+  }
+}
+
+function controlRegions(state, regionIds) {
+  const controlled = new Set(regionIds.map(regionId => mapTileId(state, regionId) || regionId));
+  const result = structuredClone(state);
+  result.regions = result.regions.map(region => controlled.has(region.id)
+    ? { ...region, ownerId: 'player', capturedDay: result.day, building: region.building || null }
+    : region);
+  return result;
+}
+
+function controlRegionsWithBuildings(state, regionBuildingMap) {
+  // Keys may name a generated tile directly or a map fixture (copper, tin-route, etc.).
+  const mappedBuildings = new Map(Object.entries(regionBuildingMap).map(([regionId, buildingId]) => [mapTileId(state, regionId) || regionId, buildingId]));
+  const result = structuredClone(state);
+  result.regions = result.regions.map(region => {
+    if (mappedBuildings.has(region.id)) {
+      return { ...region, ownerId: 'player', capturedDay: result.day, building: mappedBuildings.get(region.id) };
+    }
+    return region;
+  });
+  return result;
+}
+
+function adjacentLandTileId(state, tileId) {
+  const tile = state.world.tiles.find(item => item.id === tileId);
+  return tile?.neighbors.find(id => state.world.tiles.find(item => item.id === id)?.terrain !== 'water') || null;
+}
+
+function grantExpeditionAccess(state, targetKey = 'rival-settlement') {
+  const targetId = mapTileId(state, targetKey);
+  const neighborId = adjacentLandTileId(state, targetId);
+  assert.ok(targetId && neighborId, 'generated map should have a land neighbor beside the rival settlement');
+  return controlRegions(state, [neighborId]);
 }
 
 function draft(overrides = {}) {
@@ -36,8 +96,76 @@ function researchAndBuild(state, definition) {
   return built.state;
 }
 
+test('procedural world generation is reproducible, rectangular and connected by four-way neighbors', () => {
+  const opponents = Campaign.createState(TEST_SEED).opponents;
+  const world = CampaignMap.generateWorld(TEST_SEED, opponents);
+  assert.deepEqual(CampaignMap.generateWorld(TEST_SEED, opponents), world, 'the same seed should reproduce the saved map');
+  assert.equal(world.size, 7);
+  assert.equal(world.tiles.length, 49);
+  assert.equal(new Set(world.tiles.map(tile => tile.id)).size, 49);
+  assert.equal(new Set(world.tiles.map(tile => tile.name)).size, 49);
+  assert.ok(world.rivers.length > 0, 'generated geography should include a river landmark');
+
+  const center = world.tiles.find(tile => tile.x === 3 && tile.y === 3);
+  assert.equal(center.id, 'tile-3-3');
+  assert.equal(center.kind, 'home');
+  assert.equal(center.initialOwner, 'player');
+  assert.ok(center.neighbors.every(id => world.tiles.find(tile => tile.id === id)?.terrain !== 'water'), 'the four starting directions should be land');
+  for (const tile of world.tiles) {
+    assert.ok(tile.name && tile.description.length >= 40, `${tile.id} should have a local name and a substantive description`);
+    const expectedNeighbors = CampaignMap.neighborsOf(tile.x, tile.y);
+    assert.deepEqual(tile.neighbors, expectedNeighbors, `${tile.id} uses only orthogonal neighbors`);
+    for (const neighborId of tile.neighbors) {
+      const neighbor = world.tiles.find(other => other.id === neighborId);
+      assert.ok(neighbor.neighbors.includes(tile.id), 'four-way adjacency should be symmetric');
+    }
+  }
+  assert.ok(world.tiles.some(tile => tile.feature === 'copper-vein'));
+  assert.ok(world.tiles.some(tile => tile.feature === 'tin-route'));
+  assert.equal(world.tiles.filter(tile => tile.kind === 'settlement').length, opponents.length);
+});
+
+test('map generation remains valid across a broad set of seeds', () => {
+  const opponents = Campaign.createState(TEST_SEED).opponents;
+  for (let seed = 0; seed < 100; seed++) {
+    const world = CampaignMap.generateWorld(seed, opponents);
+    assert.equal(world.tiles.length, 49, `seed ${seed} must contain exactly 49 cells`);
+    assert.equal(world.tiles.find(tile => tile.x === 3 && tile.y === 3).initialOwner, 'player');
+    assert.ok(world.tiles.every(tile => tile.name && tile.description));
+    assert.ok(world.tiles.some(tile => tile.feature === 'copper-vein'));
+    assert.ok(world.tiles.some(tile => tile.feature === 'tin-route'));
+    assert.equal(world.tiles.filter(tile => tile.kind === 'settlement').length, opponents.length);
+  }
+});
+
+test('regional building names and flavor use deterministic local site templates', () => {
+  const world = CampaignMap.generateWorld(TEST_SEED, Campaign.createState(TEST_SEED).opponents);
+  const siteTypes = ['food', 'materials', 'knowledge', 'copper', 'tin', 'salt', 'settlement'];
+  for (const siteType of siteTypes) {
+    const tile = world.tiles.find(candidate => candidate.siteType === siteType);
+    assert.ok(tile, `generated map should contain a ${siteType} site`);
+    const flavor = Campaign.generateLocalRegionFlavor(tile, 9876);
+    assert.deepEqual(flavor, Campaign.generateLocalRegionFlavor(tile, 9876), 'local building flavor should be reproducible');
+    assert.ok(flavor.name && flavor.description);
+    assert.ok(Campaign.DIVERSITY_POOLS.regionEvents[siteType].some(event => flavor.description.startsWith(event + '.')),
+      `the ${siteType} site should use a relevant local description`);
+  }
+});
+
+test('campaign state stores its generated map and starts only in the center', () => {
+  const state = Campaign.createState(TEST_SEED);
+  const normalized = Campaign.normalizeState(JSON.parse(JSON.stringify(state)));
+  const centerId = CampaignMap.tileId(CampaignMap.CENTER.x, CampaignMap.CENTER.y);
+  assert.equal(state.version, 4);
+  assert.equal(state.world.seed, TEST_SEED);
+  assert.equal(state.world.tiles.length, 49);
+  assert.deepEqual(normalized.world, state.world);
+  assert.equal(state.regions.length, 49);
+  assert.deepEqual(state.regions.filter(region => region.ownerId === 'player').map(region => region.id), [centerId]);
+});
+
 test('new campaign starts with onboarding; choosing origins and priorities creates a playable start', () => {
-  const fresh = Campaign.createState();
+  const fresh = Campaign.createState(TEST_SEED);
   assert.equal(fresh.player.onboardingComplete, false);
   assert.equal(Campaign.completeOnboarding(fresh, { originId: 'not-an-origin', openingFocusId: 'food' }).error !== null, true);
 
@@ -56,8 +184,8 @@ test('new campaign starts with onboarding; choosing origins and priorities creat
   assert.equal(Campaign.researchBlueprint(result.state, 'opening-materials').error, null);
 });
 
-test('optional first-session guide advances through research, construction, map exploration and a practice battle', () => {
-  const started = Campaign.completeOnboarding(Campaign.createState(), {
+test('optional first-session guide advances through research, construction, expansion and a practice battle', () => {
+  const started = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), {
     name: 'Народ Реки', originId: 'river', openingFocusId: 'food'
   });
   let state = started.state;
@@ -71,23 +199,18 @@ test('optional first-session guide advances through research, construction, map 
   assert.equal(guide.steps[0].done, true);
   assert.match(guide.next, /Построй «Речная запруда»/);
 
+  // need AP for second action, finish day if needed
   if (state.player.ap <= 0) state = Campaign.finishDayState(state).state;
   state = Campaign.constructBlueprint(state, 'opening-food').state;
   guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.steps[1].done, true);
   assert.equal(guide.steps[2].done, false);
-  assert.match(guide.next, /Мировую карту/);
+  // after two actions AP is 0, so the guide mentions the frontier limit
+  assert.match(guide.next, /соседний нейтральный регион/);
 
-  let exploration = state.worldMap;
-  while (exploration.visited.length < 3) {
-    const target = WorldMap.getNeighbors(exploration.current.x, exploration.current.y)
-      .find(point => !exploration.visited.includes(WorldMap.tileId(point.x, point.y)));
-    assert.ok(target, 'an unvisited adjacent tile should be available');
-    const moved = WorldMap.moveToTile(exploration, target.x, target.y);
-    assert.equal(moved.error, null);
-    exploration = moved.state;
-  }
-  state = { ...state, worldMap: exploration };
+  if (state.player.ap <= 0 || state.player.dailyOrders.frontierUsed) state = Campaign.finishDayState(state).state;
+  const foodTileId = mapTileId(state, 'floodplain');
+  state = Campaign.settleRegionState(state, foodTileId).state;
   guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.steps[2].done, true);
   assert.match(guide.next, /тренировочный бой/);
@@ -99,10 +222,9 @@ test('optional first-session guide advances through research, construction, map 
 });
 
 test('first-session guide is rendered on the live campaign screen', () => {
-  const state = Campaign.completeOnboarding(Campaign.createState(), {
+  const state = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), {
     name: 'Тестовый народ', originId: 'river', openingFocusId: 'food'
   }).state;
-  const mapHost = { innerHTML: '' };
   const host = {
     _html: '',
     details: ['first-steps', 'season-menu', 'advisor-context', 'buildings', 'civilization', 'opponents', 'deck'].map(campaignKey => ({ dataset: { campaignKey }, open: false })),
@@ -118,9 +240,9 @@ test('first-session guide is rendered on the live campaign screen', () => {
     setItem() {}
   };
   const fakeWindow = {
-    WorldMapGenerator: WorldMap,
+    CampaignMap: require('../campaign-map.js'),
     localStorage: storage,
-    document: { getElementById: id => id === 'campaign-root' ? host : id === 'world-map-root' ? mapHost : null },
+    document: { getElementById: id => id === 'campaign-root' ? host : null },
     alert() {}
   };
   const sandbox = { window: fakeWindow, console, Date, Math, JSON, Number, String, Object, Array, Set };
@@ -134,11 +256,10 @@ test('first-session guide is rendered on the live campaign screen', () => {
   assert.match(host.innerHTML, /aria-label=\"Дневные возможности\"/);
   assert.match(host.innerHTML, /campaign-day-action/);
   assert.match(host.innerHTML, /Завершить день/);
-  assert.match(host.innerHTML, /Открыть мировую карту/);
-  assert.doesNotMatch(host.innerHTML, /campaign-world-board|claimRegion|campaign-region/);
-  assert.match(mapHost.innerHTML, /class=\"world-map-grid\"/);
-  assert.match(mapHost.innerHTML, /world-map-tile biome-riverlands is-home is-current is-selected/);
-  assert.equal((mapHost.innerHTML.match(/<button type=\"button\" class=\"world-map-tile /g) || []).length, 49);
+  assert.match(host.innerHTML, /campaign-world-board/);
+  assert.match(host.innerHTML, /CampaignMvp.selectMapTile/);
+  assert.equal((host.innerHTML.match(/class="campaign-map-cell /g) || []).length, 49, 'the live campaign renders exactly 49 map cells');
+  assert.match(host.innerHTML, /class="campaign-map-cell is-owned is-home is-selected" data-terrain="[^"]+"[^>]+data-feature="[^"]*"[^>]+aria-pressed="true"[^>]+aria-label="[^"]+"[^>]+title="[^"]+"[^>]+onclick="CampaignMvp\.selectMapTile\('tile-3-3'\)"/, 'the central starting settlement is marked on the map');
   assert.match(host.innerHTML, /<details class=\"campaign-panel campaign-fold campaign-opponents\"/);
   assert.match(host.innerHTML, /<details class=\"campaign-panel campaign-fold campaign-codex\"/);
   assert.doesNotMatch(host.innerHTML, /Очередь пуста/);
@@ -148,41 +269,44 @@ test('first-session guide is rendered on the live campaign screen', () => {
   assert.equal(deckDisclosure.open, true, 'an open disclosure should survive a full campaign redraw');
 });
 
-test('economy simulator includes a territory-independent map exploration scenario', () => {
+test('v3 economy: no orders leads to scarcity not abundance, and region without building gives 0', () => {
   const report = EconomySim.runReport();
   const noOrders = report.scenarios.find(s => s.strategy.includes('пропускать дни'));
   assert.ok(noOrders);
   assert.equal(noOrders.day, Campaign.SEASON_LENGTH);
+  // v2 had 97 food, v3 should have much less
   assert.ok(noOrders.resourcesAtSeasonEnd.food < 30, 'food should be scarce without orders, was ' + noOrders.resourcesAtSeasonEnd.food);
-  assert.equal(noOrders.exploration.visited, 1);
-
-  const exploration = report.scenarios.find(s => s.strategy.includes('локальных перехода'));
-  assert.ok(exploration);
-  assert.equal(exploration.mapMoves, 3);
-  assert.equal(exploration.explorationEconomyNeutral, true);
-  assert.equal(exploration.mapFinal.visited, 4);
-  assert.equal(exploration.resourcesAtSeasonEnd.ap, '2/2');
-  assert.deepEqual(exploration.economyAfter, exploration.economyBefore);
+  assert.equal(noOrders.regionalDailyIncome.food, 0, 'empty region gives 0');
+  assert.equal(noOrders.regionsWithBuildings, 0);
 });
 
-test('campaign progression and every crafting material quality are independent of the world map', () => {
+test('the approved 30-day sandbox can progress through eras and unlock masterwork via buildings', () => {
   const report = EconomySim.runReport();
   const development = report.scenarios.find(scenario => scenario.strategy.includes('исследовать и строить'));
   assert.ok(development);
   assert.equal(development.day, Campaign.SEASON_LENGTH);
+  // v3: with AP 2/day, reaching final era in 30 days is hard, but should reach at least Neolithic
   assert.ok(Campaign.ERAS.indexOf(development.eraReached) >= 1, 'should reach at least Неолит, got ' + development.eraReached);
   assert.ok(development.researchOrders > 0);
 
-  const allQualities = ['standard', 'refined', 'masterwork'];
   const refined = report.scenarios.find(scenario => scenario.strategy.includes('Отборное сырьё'));
   assert.ok(refined);
-  assert.equal(refined.materialQualityUnlockedAtStart, true);
-  assert.deepEqual(refined.availableQualities, allQualities);
+  assert.ok(refined.prerequisiteResearchOrders >= 2);
+  assert.ok(refined.territoryOrders >= 2);
+  assert.ok(refined.buildingOrders >= 1 || refined.regionsWithBuildings >= 1);
+  assert.ok(refined.availableQualities.includes('refined'));
 
   const masterwork = report.scenarios.find(scenario => scenario.strategy === 'Редкое сырьё / Мастерская работа');
   assert.ok(masterwork);
-  assert.equal(masterwork.materialQualityUnlockedAtStart, true);
-  assert.deepEqual(masterwork.availableQualities, allQualities);
+  assert.ok(masterwork.materialSiteFeatures.includes('tin-route'));
+  assert.ok(masterwork.materialSites.every(id => /^tile-\d-\d$/.test(id)), 'material-site references should be generated cell IDs');
+  assert.ok(masterwork.availableQualities.includes('masterwork'));
+
+  const frontier = report.scenarios.find(scenario => scenario.rivalSettlementCaptured);
+  assert.ok(frontier, 'frontier scenario should capture rival settlement');
+  assert.equal(frontier.day, Campaign.SEASON_LENGTH);
+  assert.deepEqual(frontier.availableMaterialQualities, ['standard', 'refined', 'masterwork']);
+  assert.equal(frontier.forgedCardRarity, 'rare');
 });
 
 test('existing version-two campaign saves do not get redirected into onboarding', () => {
@@ -191,10 +315,8 @@ test('existing version-two campaign saves do not get redirected into onboarding'
   const restored = Campaign.normalizeState(legacySave);
   assert.equal(restored.player.onboardingComplete, true);
   assert.equal(restored.version, 4);
-  assert.equal(restored.worldMap.width, 7);
-  assert.deepEqual(restored.worldMap.current, { x: 3, y: 3 });
   // v3 fresh without onboarding should stay false
-  const fresh = Campaign.createState();
+  const fresh = Campaign.createState(TEST_SEED);
   delete fresh.player.onboardingComplete;
   const freshRestored = Campaign.normalizeState({ ...fresh, version: 3, player: { ...fresh.player, onboardingComplete: undefined } });
   assert.equal(freshRestored.player.onboardingComplete, false);
@@ -204,6 +326,7 @@ test('version-two saves migrate old shared orders into separate daily limits wit
   const crafted = Campaign.beginCardCraftState(playableCampaign(), { materialQuality: 'standard', effort: 'quick' }, 0.1);
   assert.equal(crafted.error, null);
   const legacyCraft = structuredClone(crafted.state);
+  legacyCraft.version = 2;
   delete legacyCraft.player.dailyOrders;
   const migratedCraft = Campaign.normalizeState(legacyCraft);
   assert.equal(migratedCraft.player.dailyOrders.craftUsed, true);
@@ -211,6 +334,7 @@ test('version-two saves migrate old shared orders into separate daily limits wit
   assert.equal(migratedCraft.player.actionUsed, true);
 
   const project = Campaign.addBlueprint(playableCampaign(), draft(), 'both');
+  project.state.version = 2;
   project.state.player.blueprints[0].researched = true;
   project.state.player.blueprints[0].researchedDay = project.state.day;
   project.state.player.actionUsed = true;
@@ -227,71 +351,238 @@ test('version-two saves migrate old shared orders into separate daily limits wit
   assert.equal(Campaign.finishDayState(migratedAmbiguous).state.player.dailyOrders.legacyBlocked, false);
 });
 
-test('legacy territory data is discarded while unrelated campaign progress is preserved', () => {
-  for (const version of [2, 3]) {
-    const old = structuredClone(Campaign.createState());
-    old.version = version;
-    old.season = 4;
-    old.day = 12;
-    old.player.name = 'Старое поселение';
-    old.player.era = 3;
-    old.player.resources = { food: 31, materials: 22, knowledge: 17 };
-    old.player.pendingExpedition = { regionId: 'rival-settlement', battleStarted: false };
-    old.player.buildings[0].regionId = 'home';
-    old.regions = [{ id: 'home', ownerId: 'player' }, { id: 'copper', ownerId: 'player' }];
-
-    const restored = Campaign.normalizeState(old);
-    assert.equal(restored.version, 4);
-    assert.equal(restored.season, 4);
-    assert.equal(restored.day, 12);
-    assert.equal(restored.player.name, 'Старое поселение');
-    assert.equal(restored.player.era, 3);
-    assert.deepEqual(restored.player.resources, { food: 31, materials: 22, knowledge: 17 });
-    assert.equal(Object.hasOwn(restored, 'regions'), false);
-    assert.equal(Object.hasOwn(restored.player, 'pendingExpedition'), false);
-    assert.equal(Object.hasOwn(restored.player.buildings[0], 'regionId'), false);
-    assert.equal(restored.worldMap.tiles.length, 49);
-    assert.deepEqual(restored.worldMap.current, { x: 3, y: 3 });
-    assert.deepEqual(Campaign.normalizeState(restored).worldMap, restored.worldMap, 'missing legacy map seed should remain deterministic');
-  }
+test('v3 territory is replaced while campaign progress and deck choices survive migration', () => {
+  const legacy = playableCampaign();
+  legacy.version = 3;
+  delete legacy.world;
+  legacy.regions = [
+    { id: 'home', ownerId: 'player', building: null },
+    { id: 'floodplain', ownerId: 'player', building: 'irrigation' },
+    { id: 'hills', ownerId: 'player', building: 'quarry' }
+  ];
+  legacy.player.name = 'Старое поселение';
+  legacy.player.era = 2;
+  legacy.player.resources = { food: 19, materials: 11, knowledge: 7 };
+  legacy.player.deckCardIds = ['owned-card-a', 'owned-card-b'];
+  legacy.player.craftLevel = 1;
+  const restored = Campaign.normalizeState(legacy);
+  assert.equal(restored.version, 4);
+  assert.equal(restored.world.tiles.length, 49);
+  assert.equal(restored.regions.length, 49);
+  assert.equal(restored.player.name, 'Старое поселение');
+  assert.equal(restored.player.era, 2);
+  assert.deepEqual(restored.player.resources, { food: 19, materials: 11, knowledge: 7 });
+  assert.deepEqual(restored.player.deckCardIds, ['owned-card-a', 'owned-card-b']);
+  assert.equal(restored.player.craftLevel, 1);
+  assert.equal(restored.regions.filter(region => region.ownerId === 'player').length, 1, 'old territories must not be transferred');
+  assert.match(restored.player.campaignNotice, /Владения прежней карты не перенесены/);
 });
 
-test('legacy storage keys load into the v4 campaign slot without resetting unrelated progress', () => {
-  const legacy = structuredClone(Campaign.createState());
+test('loading a v3 save from its previous key migrates it into the v4 key', () => {
+  const legacy = playableCampaign();
   legacy.version = 3;
-  legacy.season = 6;
-  legacy.day = 19;
-  legacy.player.name = 'Сохранённый народ';
-  legacy.player.resources = { food: 27, materials: 18, knowledge: 12 };
-  legacy.player.era = 4;
-  legacy.player.practice.wins = 3;
-  legacy.player.buildings[0].regionId = 'home';
-  legacy.regions = [{ id: 'home', ownerId: 'player' }];
-  delete legacy.worldMap;
-
-  let savedV4 = null;
+  delete legacy.world;
+  legacy.regions = [{ id: 'home', ownerId: 'player' }, { id: 'floodplain', ownerId: 'player', building: 'irrigation' }];
+  legacy.player.deckCardIds = ['collection-backed-card'];
+  const values = new Map([['iforge_campaign_v3', JSON.stringify(legacy)]]);
   const fakeWindow = {
-    WorldMapGenerator: WorldMap,
+    CampaignMap,
     localStorage: {
-      getItem: key => key === 'iforge_campaign_v3' ? JSON.stringify(legacy) : null,
-      setItem: (key, value) => { if (key === 'iforge_campaign_v4') savedV4 = value; }
-    }
+      getItem: key => values.get(key) || null,
+      setItem: (key, value) => values.set(key, value)
+    },
+    document: { getElementById: () => null },
+    alert() {}
   };
   const source = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
   vm.runInNewContext(source, { window: fakeWindow, console, Date, Math, JSON, Number, String, Object, Array, Set });
-  const restored = fakeWindow.CampaignMvp.getState();
+  const savedV4 = JSON.parse(values.get(Campaign.STORAGE_KEY));
+  assert.equal(fakeWindow.CampaignMvp.getState().version, 4);
+  assert.equal(savedV4.world.tiles.length, 49);
+  assert.deepEqual(savedV4.player.deckCardIds, ['collection-backed-card']);
+  assert.equal(values.has('iforge_campaign_v3'), true, 'migration should not delete the prior save key');
+});
 
-  assert.equal(restored.version, 4);
-  assert.equal(restored.season, 6);
-  assert.equal(restored.day, 19);
-  assert.equal(restored.player.name, 'Сохранённый народ');
-  assert.deepEqual(restored.player.resources, { food: 27, materials: 18, knowledge: 12 });
-  assert.equal(restored.player.era, 4);
-  assert.equal(restored.player.practice.wins, 3);
-  assert.equal(Object.hasOwn(restored, 'regions'), false);
-  assert.ok(restored.worldMap.seed.startsWith('legacy-'));
-  assert.ok(savedV4, 'migrated state should be written to the v4 storage key');
-  assert.equal(JSON.parse(savedV4).version, 4);
+test('a missing v4 region ledger is reconstructed from its saved world', () => {
+  const old = Campaign.createState(TEST_SEED);
+  delete old.regions;
+  old.player.name = 'Старое поселение';
+  const restored = Campaign.normalizeState(old);
+  assert.equal(restored.player.name, 'Старое поселение');
+  assert.equal(restored.regions.length, 49);
+  assert.equal(restored.world.tiles.length, 49);
+  const centerId = CampaignMap.tileId(CampaignMap.CENTER.x, CampaignMap.CENTER.y);
+  assert.equal(restored.regions.find(region => region.id === centerId).ownerId, 'player');
+  assert.ok(restored.regions.some(region => region.ownerId === 'steppe'), 'generated opponent holdings should remain represented');
+  assert.ok(restored.regions.some(region => region.ownerId === null), 'unclaimed generated land should remain available');
+});
+
+test('claiming an adjacent region spends AP and frontier slot, region without building gives 0 income', () => {
+  let state = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), {
+    name: 'Дети Реки', originId: 'river', openingFocusId: 'food'
+  }).state;
+  const foodTileId = mapTileId(state, 'floodplain');
+  const regionAction = Campaign.getRegionActionState(state, foodTileId);
+  assert.equal(regionAction.action, 'settle');
+  assert.equal(regionAction.enabled, true);
+  assert.deepEqual(regionAction.cost, { food: 2, materials: 2, knowledge: 0 });
+
+  const beforeAp = state.player.ap;
+  const claim = Campaign.settleRegionState(state, foodTileId);
+  assert.equal(claim.error, null);
+  assert.equal(claim.state.player.ap, beforeAp - 1);
+  assert.equal(claim.state.player.dailyOrders.frontierUsed, true);
+  assert.equal(claim.state.player.dailyOrders.craftUsed, false);
+  assert.equal(claim.state.regions.find(region => region.id === foodTileId).ownerId, 'player');
+  assert.equal(claim.state.regions.find(r => r.id === foodTileId).building, null);
+  assert.equal(claim.state.player.resources.food, state.player.resources.food - 2);
+  assert.equal(claim.state.player.resources.materials, state.player.resources.materials - 2);
+  assert.match(Campaign.settleRegionState(claim.state, mapTileId(claim.state, 'hills')).error, /поход за землёй|AP/);
+
+  const nextDay = Campaign.finishDayState(claim.state);
+  assert.equal(nextDay.error, null);
+  assert.deepEqual(nextDay.state.player.dailyOrders, { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false });
+  assert.equal(nextDay.state.player.ap, nextDay.state.player.apMax);
+  // without building, regional income 0
+  assert.deepEqual(Campaign.getRegionalIncome(nextDay.state), { food: 0, materials: 0, knowledge: 0 });
+  // but after building irrigation, should give 2 food
+  const buildAction = Campaign.getRegionActionState(nextDay.state, foodTileId);
+  assert.equal(buildAction.action, 'build');
+  assert.equal(buildAction.enabled, true);
+  const built = Campaign.buildRegionBuildingState(nextDay.state, foodTileId);
+  assert.equal(built.error, null);
+  assert.deepEqual(Campaign.getRegionalIncome(built.state), { food: 2, materials: 0, knowledge: 0 });
+});
+
+test('frontier claims require adjacency and an era gate, while ore unlocks craft grades via buildings', () => {
+  let state = playableCampaign();
+  state.player.era = 2;
+  const copperId = mapTileId(state, 'copper');
+  const foodTileId = mapTileId(state, 'floodplain');
+  assert.match(Campaign.getRegionActionState(state, copperId).reason, /соседнюю область/);
+  state = Campaign.settleRegionState(state, foodTileId).state;
+  state = Campaign.finishDayState(state).state;
+  state = Campaign.buildRegionBuildingState(state, foodTileId).state;
+  state = Campaign.finishDayState(state).state;
+  state = controlRegions(state, [adjacentLandTileId(state, copperId)]);
+  const copper = Campaign.settleRegionState(state, copperId);
+  assert.equal(copper.error, null);
+  // without smelter building, still only standard
+  assert.deepEqual(Campaign.getAvailableMaterialQualities(copper.state), ['standard']);
+  assert.match(Campaign.beginCardCraftState(playableCampaign(), { materialQuality: 'refined', effort: 'quick' }).error, /плавильню/i);
+
+  let withBuilding = Campaign.buildRegionBuildingState(copper.state, copperId);
+  if (withBuilding.error) {
+    // need resources, advance day
+    withBuilding.state = Campaign.finishDayState(copper.state).state;
+    withBuilding = Campaign.buildRegionBuildingState(withBuilding.state, copperId);
+  }
+  assert.equal(withBuilding.error, null);
+  assert.deepEqual(Campaign.getAvailableMaterialQualities(withBuilding.state), ['standard', 'refined']);
+
+  let withTin = controlRegions(withBuilding.state, ['copper', 'tin-route']);
+  // need caravan building for masterwork
+  withTin = controlRegionsWithBuildings(withTin, { copper: 'smelter', 'tin-route': 'caravan', floodplain: 'irrigation' });
+  assert.deepEqual(Campaign.getAvailableMaterialQualities(withTin), ['standard', 'refined', 'masterwork']);
+  const quote = Campaign.cardCraftQuote(withTin, { materialQuality: 'masterwork', effort: 'quick' });
+  assert.equal(quote.materialQualityUnlocked, true);
+});
+
+test('strategic expedition persists until battle, then a win transfers land without building and a loss keeps the spend', () => {
+  let state = controlRegionsWithBuildings(grantExpeditionAccess(playableCampaign()), { copper: 'smelter', 'tin-route': 'caravan' });
+  state.player.era = 2;
+  const rivalId = mapTileId(state, 'rival-settlement');
+  const rivalName = state.world.tiles.find(tile => tile.id === rivalId).name;
+  const available = Campaign.getRegionActionState(state, rivalId);
+  assert.equal(available.action, 'attack');
+  assert.equal(available.enabled, true);
+  assert.deepEqual(available.cost, { food: 4, materials: 2, knowledge: 0 });
+
+  const launched = Campaign.beginRegionExpeditionState(state, rivalId);
+  assert.equal(launched.error, null);
+  assert.equal(launched.match.kind, 'expedition');
+  assert.equal(launched.match.regionName, rivalName);
+  assert.equal(launched.state.player.pendingExpedition.regionId, rivalId);
+  assert.equal(launched.state.player.resources.food, state.player.resources.food - 4);
+  assert.equal(launched.state.player.resources.materials, state.player.resources.materials - 2);
+  assert.match(Campaign.finishDayState(launched.state).error, /Заверши бой экспедиции/);
+  assert.deepEqual(Campaign.normalizeState(launched.state).player.pendingExpedition, launched.state.player.pendingExpedition);
+
+  const victory = Campaign.finishRegionExpeditionState(launched.state, launched.match, true);
+  assert.equal(victory.error, null);
+  assert.equal(victory.state.regions.find(region => region.id === rivalId).ownerId, 'player');
+  assert.equal(victory.state.regions.find(r => r.id === rivalId).building, null, 'conquered region should have no building');
+  assert.equal(victory.state.player.pendingExpedition, null);
+  assert.equal(victory.state.player.practice.leaderWins, 1);
+  // after conquest, no income until outpost built
+  assert.deepEqual(Campaign.getRegionalIncome(victory.state), { food: 0, materials: 2, knowledge: 0 }); // only copper+tin
+
+  const defeat = Campaign.finishRegionExpeditionState(launched.state, launched.match, false);
+  assert.equal(defeat.error, null);
+  assert.equal(defeat.state.regions.find(region => region.id === rivalId).ownerId, 'steppe');
+  assert.equal(defeat.state.player.practice.leaderLosses, 1);
+  assert.deepEqual(defeat.state.player.resources, launched.state.player.resources);
+});
+
+test('reloading after a territory battle begins records one loss instead of a free retry', () => {
+  let state = grantExpeditionAccess(playableCampaign());
+  state.player.era = 2;
+  const rivalId = mapTileId(state, 'rival-settlement');
+  const launch = Campaign.beginRegionExpeditionState(state, rivalId);
+  assert.equal(launch.error, null);
+  const marked = Campaign.markExpeditionBattleStartedState(launch.state, launch.match);
+  assert.equal(marked.error, null);
+  assert.equal(marked.state.player.pendingExpedition.battleStarted, true);
+
+  const recovered = Campaign.recoverInterruptedExpeditionState(marked.state);
+  assert.equal(recovered.recovered, true);
+  assert.equal(recovered.state.player.pendingExpedition, null);
+  assert.equal(recovered.state.regions.find(region => region.id === rivalId).ownerId, 'steppe');
+  assert.equal(recovered.state.player.practice.leaderLosses, 1);
+  assert.deepEqual(recovered.state.player.resources, marked.state.player.resources);
+  assert.match(recovered.state.player.campaignNotice, /засчитан как поражение/);
+
+  const beforeBattle = Campaign.recoverInterruptedExpeditionState(launch.state);
+  assert.equal(beforeBattle.recovered, false);
+  assert.ok(beforeBattle.state.player.pendingExpedition);
+});
+
+test('the campaign loader persists an interrupted-expedition loss and displays a notice', () => {
+  let state = grantExpeditionAccess(playableCampaign());
+  state.player.era = 2;
+  const rivalId = mapTileId(state, 'rival-settlement');
+  const launch = Campaign.beginRegionExpeditionState(state, rivalId);
+  const started = Campaign.markExpeditionBattleStartedState(launch.state, launch.match).state;
+  let stored = JSON.stringify(started);
+  const storage = {
+    getItem: key => key === Campaign.STORAGE_KEY ? stored : null,
+    setItem: (key, value) => { if (key === Campaign.STORAGE_KEY) stored = value; }
+  };
+  const fakeWindow = {
+    CampaignMap: require('../campaign-map.js'),
+    localStorage: storage,
+    document: { getElementById: () => null },
+    alert() {}
+  };
+  const sandbox = { window: fakeWindow, console, Date, Math, JSON, Number, String, Object, Array, Set };
+  const source = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
+  vm.runInNewContext(source, sandbox);
+
+  const loaded = fakeWindow.CampaignMvp.getState();
+  assert.equal(loaded.player.pendingExpedition, null);
+  assert.equal(loaded.player.practice.leaderLosses, 1);
+  assert.match(loaded.player.campaignNotice, /засчитан как поражение/);
+  assert.equal(JSON.parse(stored).player.pendingExpedition, null);
+});
+
+test('pending territory battles cannot be discarded when a season ends', () => {
+  let state = grantExpeditionAccess(playableCampaign());
+  state.player.era = 2;
+  const rivalId = mapTileId(state, 'rival-settlement');
+  const launch = Campaign.beginRegionExpeditionState(state, rivalId);
+  assert.equal(launch.error, null);
+  const endSeason = Campaign.completeSeasonState({ ...launch.state, day: Campaign.SEASON_LENGTH });
+  assert.match(endSeason.error, /экспедиции/);
 });
 
 test('LLM campaign effects are declarative, allowlisted and bounded', () => {
@@ -303,7 +594,7 @@ test('LLM campaign effects are declarative, allowlisted and bounded', () => {
 });
 
 test('research and construction have independent limits via AP and can chain on one project', () => {
-  let state = Campaign.createState();
+  let state = Campaign.createState(TEST_SEED);
   const first = Campaign.addBlueprint(state, draft(), 'both');
   const second = Campaign.addBlueprint(first.state, draft({ scienceName: 'Вторая наука', buildingName: 'Второе здание' }), 'both');
   assert.equal(first.error, null);
@@ -331,7 +622,8 @@ test('research and construction have independent limits via AP and can chain on 
 });
 
 test('craft, research and construction share AP pool - cannot do everything in one day', () => {
-  let state = playableCampaign();
+  let state = controlRegions(playableCampaign(), ['home', 'copper']);
+  state.player.era = 2;
   state.player.resources = { food: 30, materials: 30, knowledge: 30 };
   const added = Campaign.addBlueprint(state, draft(), 'both');
   assert.equal(added.error, null);
@@ -355,7 +647,7 @@ test('craft, research and construction share AP pool - cannot do everything in o
 });
 
 test('only active buildings change combat limits and economic buildings give worker bonus', () => {
-  let state = Campaign.createState();
+  let state = Campaign.createState(TEST_SEED);
   const added = Campaign.addBlueprint(state, draft({
     category: 'military', effects: [{ type: 'deck_slots', amount: 1 }, { type: 'max_hp', amount: 1 }]
   }), 'allies');
@@ -376,14 +668,14 @@ test('only active buildings change combat limits and economic buildings give wor
 });
 
 test('previous local prototypes migrate their building loadout to four slots', () => {
-  const old = Campaign.createState();
+  const old = Campaign.createState(TEST_SEED);
   old.player.activeBuildingSlots = 2;
   const migrated = Campaign.normalizeState(old);
   assert.equal(migrated.player.activeBuildingSlots, 4);
 });
 
 test('the civilization loadout supports four active buildings and rejects a fifth', () => {
-  let state = Campaign.createState();
+  let state = Campaign.createState(TEST_SEED);
   for (let index = 1; index <= 4; index++) {
     if (state.player.ap <= 0) state = Campaign.finishDayState(state).state;
     if (state.player.dailyOrders.researchUsed || state.player.dailyOrders.constructionUsed) state = Campaign.finishDayState(state).state;
@@ -400,7 +692,7 @@ test('the civilization loadout supports four active buildings and rejects a fift
 });
 
 test('active LLM buildings modify one energy pool and its per-turn growth', () => {
-  const added = Campaign.addBlueprint(Campaign.createState(), draft({
+  const added = Campaign.addBlueprint(Campaign.createState(TEST_SEED), draft({
     category: 'civic', effects: [{ type: 'energy_cap', amount: 1 }, { type: 'energy_growth', amount: 1 }]
   }), 'both');
   const state = researchAndBuild(added.state, added.blueprint);
@@ -412,7 +704,7 @@ test('active LLM buildings modify one energy pool and its per-turn growth', () =
 });
 
 test('player and AI dummies advance through eras independently', () => {
-  let state = Campaign.createState();
+  let state = Campaign.createState(TEST_SEED);
   const initial = state.opponents.map(opponent => opponent.era);
   for (let day = 0; day < 14; day++) state = Campaign.finishDayState(state).state;
   assert.ok(new Set(state.opponents.map(opponent => opponent.era)).size > 1);
@@ -421,7 +713,7 @@ test('player and AI dummies advance through eras independently', () => {
 });
 
 test('AI dummy era changes its local test battle profile', () => {
-  const state = Campaign.createState();
+  const state = Campaign.createState(TEST_SEED);
   const early = Campaign.getOpponentBattleConfig(state, 'reed');
   const advanced = Campaign.getOpponentBattleConfig(state, 'steppe');
   assert.equal(early.deckLimit, 2);
@@ -432,7 +724,7 @@ test('AI dummy era changes its local test battle profile', () => {
 });
 
 test('campaign deck selection respects its current building-derived limit', () => {
-  let state = Campaign.createState();
+  let state = Campaign.createState(TEST_SEED);
   state = Campaign.toggleDeckCardState(state, 'card-a').state;
   state = Campaign.toggleDeckCardState(state, 'card-b').state;
   assert.equal(state.player.deckCardIds.length, 2);
@@ -441,7 +733,7 @@ test('campaign deck selection respects its current building-derived limit', () =
 });
 
 test('AI practice is only local test data and does not change clan rating or resources', () => {
-  const state = Campaign.createState();
+  const state = Campaign.createState(TEST_SEED);
   const opponent = state.opponents.find(item => item.leader);
   const resources = { ...state.player.resources };
   const result = Campaign.recordPractice(state, opponent.id, true, true);
@@ -451,9 +743,8 @@ test('AI practice is only local test data and does not change clan rating or res
   assert.equal(result.state.opponents.find(item => item.id === opponent.id).rating, opponent.rating);
 });
 
-test('season reset preserves world exploration independently of campaign progress', () => {
-  let state = Campaign.createState();
-  state.worldMap = WorldMap.moveToTile(state.worldMap, 4, 3).state;
+test('only a medal carries over when the local season is reset', () => {
+  let state = Campaign.createState(TEST_SEED);
   state.day = Campaign.SEASON_LENGTH;
   state.player.era = 4;
   state.player.blueprints.push({ id: 'bp', ...draft(), researched: true, built: false, visibility: 'allies', createdDay: 2 });
@@ -468,7 +759,6 @@ test('season reset preserves world exploration independently of campaign progres
   assert.equal(result.state.player.blueprints.length, 0);
   assert.deepEqual(result.state.player.deckCardIds, Campaign.STARTER_CARDS.map(card => card.id));
   assert.equal(result.state.player.onboardingComplete, true);
-  assert.deepEqual(result.state.worldMap, state.worldMap, 'the separate exploration layer should survive a season reset');
   assert.equal(result.state.medals.length, 1);
   assert.match(result.state.medals[0].name, /Пара и Стали|Новейшее|Будущее|Средневековье|Ренессанс|Античный|Каменный/);
 });
@@ -481,12 +771,14 @@ test('card craft quote shows material, progression, effort and rarity odds befor
   assert.deepEqual(quote.cost, { food: 2, materials: 2, knowledge: 0 });
 
   state.player.craftLevel = 1;
+  state = controlRegionsWithBuildings(state, { copper: 'smelter' });
   quote = Campaign.cardCraftQuote(state, { materialQuality: 'refined', effort: 'focused' });
   assert.equal(quote.qualityScore, 3);
   assert.deepEqual(quote.odds, { ordinary: 50, uncommon: 38, rare: 12 });
   assert.deepEqual(quote.cost, { food: 3, materials: 5, knowledge: 1 });
 
   state.player.craftLevel = 2;
+  state = controlRegionsWithBuildings(state, { copper: 'smelter', 'tin-route': 'caravan' });
   quote = Campaign.cardCraftQuote(state, { materialQuality: 'masterwork', effort: 'painstaking' });
   assert.equal(quote.qualityScore, 6);
   assert.deepEqual(quote.odds, { ordinary: 15, uncommon: 45, rare: 40 });
@@ -495,7 +787,9 @@ test('card craft quote shows material, progression, effort and rarity odds befor
 
 test('card craft rolls rarity before generation, pays upfront and routes the model by rarity', () => {
   const initial = playableCampaign();
-  const rare = Campaign.beginCardCraftState(initial, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Копейная линия');
+  const metalAccess = controlRegionsWithBuildings(initial, { copper: 'smelter', 'tin-route': 'caravan' });
+  metalAccess.player.era = 2;
+  const rare = Campaign.beginCardCraftState(metalAccess, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Копейная линия');
   assert.equal(rare.error, null);
   assert.equal(rare.order.rarity, 'rare');
   assert.equal(rare.order.modelId, 'glm-5.2');
@@ -514,7 +808,9 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
 });
 
 test('crafted cards wait for invested days, become claimable and persist in the collection payload', () => {
-  const started = Campaign.beginCardCraftState(playableCampaign(), { materialQuality: 'refined', effort: 'focused' }, 0.8, 'Пращники из холмов');
+  const copperAccess = controlRegionsWithBuildings(playableCampaign(), { copper: 'smelter' });
+  copperAccess.player.era = 2;
+  const started = Campaign.beginCardCraftState(copperAccess, { materialQuality: 'refined', effort: 'focused' }, 0.8, 'Пращники из холмов');
   assert.equal(started.error, null);
   assert.equal(started.order.rarity, 'uncommon');
   assert.equal(started.order.modelId, 'glm-5.2');
@@ -542,7 +838,9 @@ test('crafted cards wait for invested days, become claimable and persist in the 
 
 test('invalid generation refunds the upfront investment and frees a same-day order', () => {
   const initial = playableCampaign();
-  const started = Campaign.beginCardCraftState(initial, { materialQuality: 'refined', effort: 'focused' }, 0.2);
+  const copperAccess = controlRegionsWithBuildings(initial, { copper: 'smelter' });
+  copperAccess.player.era = 2;
+  const started = Campaign.beginCardCraftState(copperAccess, { materialQuality: 'refined', effort: 'focused' }, 0.2);
   const failed = Campaign.failCardCraftState(started.state, started.order.id, 'JSON schema mismatch');
   assert.equal(failed.error, null);
   assert.deepEqual(failed.state.player.resources, initial.player.resources);
@@ -559,15 +857,18 @@ test('science advisor only offers fixed branches unlocked by the current era', (
   assert.ok(Campaign.scienceBranchesForEra(3).some(branch => branch.id === 'bronze'));
 });
 
-test('science advice uses cultural context and reserves while exposing only one broad choice', async () => {
-  const state = Campaign.completeOnboarding(Campaign.createState(), {
-    name: 'Народ Реки', originId: 'river', openingFocusId: 'food'
-  }).state;
+test('science advice uses current territory and reserves while exposing only one broad choice', async () => {
+  const base = playableCampaign();
+  const center = base.world.tiles.find(tile => tile.x === CampaignMap.CENTER.x && tile.y === CampaignMap.CENTER.y);
+  const adjacent = center.neighbors.map(id => base.world.tiles.find(tile => tile.id === id)).find(tile => tile.terrain !== 'water');
+  const other = base.world.tiles.find(tile => tile.terrain !== 'water' && tile.id !== center.id && tile.id !== adjacent.id);
+  const contextIds = new Set([center.id, adjacent.id, other.id]);
+  const state = controlRegions(base, [...contextIds]);
   const situation = Campaign.scienceAdvisorSituation(state);
+  const expectedContexts = base.world.tiles.filter(tile => contextIds.has(tile.id));
+  assert.deepEqual(situation.regionNames, expectedContexts.map(tile => tile.name));
+  assert.deepEqual(situation.localContexts.map(region => region.id), expectedContexts.map(tile => tile.id));
   assert.equal(situation.reserves.food, state.player.resources.food);
-  assert.ok(situation.biome);
-  assert.ok(situation.geography);
-  assert.equal(Object.hasOwn(situation, 'regionNames'), false);
 
   const host = { innerHTML: '' };
   const status = { textContent: '' };
@@ -580,7 +881,7 @@ test('science advice uses cultural context and reserves while exposing only one 
   };
   let stored = JSON.stringify(state);
   const fakeWindow = {
-    WorldMapGenerator: WorldMap,
+    CampaignMap: require('../campaign-map.js'),
     localStorage: {
       getItem: key => key === Campaign.STORAGE_KEY ? stored : null,
       setItem: (key, value) => { if (key === Campaign.STORAGE_KEY) stored = value; }
@@ -645,7 +946,9 @@ test('craft queue cannot deadlock the last season days or advance during an LLM 
 
 test('reloading during model generation compensates the interrupted order', () => {
   const initial = playableCampaign();
-  const started = Campaign.beginCardCraftState(initial, { materialQuality: 'refined', effort: 'focused' }, 0.5);
+  const copperAccess = controlRegionsWithBuildings(initial, { copper: 'smelter' });
+  copperAccess.player.era = 2;
+  const started = Campaign.beginCardCraftState(copperAccess, { materialQuality: 'refined', effort: 'focused' }, 0.5);
   const recovery = Campaign.recoverInterruptedCardCrafts(started.state);
   assert.equal(recovery.recovered, true);
   assert.deepEqual(recovery.state.player.resources, initial.player.resources);
@@ -680,7 +983,7 @@ test('v3: starvation reduces population', () => {
 });
 
 test('v3: storage cap and rot', () => {
-  let state = Campaign.completeOnboarding(Campaign.createState(), { name: 'Тест', originId: 'river', openingFocusId: 'food' }).state;
+  let state = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', openingFocusId: 'food' }).state;
   state.player.resources.food = 25;
   state.player.buildings = state.player.buildings.slice(0, 1);
   state.player.workers = { food: 5, materials: 0, knowledge: 0, idle: 0 };
@@ -695,13 +998,13 @@ test('v3: storage cap and rot', () => {
 });
 
 test('v3: AP system', () => {
-  let state = Campaign.completeOnboarding(Campaign.createState(), { name: 'Тест', originId: 'river', openingFocusId: 'food' }).state;
+  let state = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), { name: 'Тест', originId: 'river', openingFocusId: 'food' }).state;
   assert.equal(state.player.ap, 2);
   assert.equal(state.player.apMax, 2);
   const blueprintId = state.player.blueprints[0].id;
   state = Campaign.researchBlueprint(state, blueprintId).state;
   assert.equal(state.player.ap, 1);
-  state = Campaign.constructBlueprint(state, blueprintId).state;
+  state = Campaign.settleRegionState(state, mapTileId(state, 'floodplain')).state;
   assert.equal(state.player.ap, 0);
   const blocked = Campaign.beginCardCraftState(state, { materialQuality: 'standard', effort: 'quick' }, 0.1);
   assert.match(blocked.error, /AP/);
@@ -709,12 +1012,12 @@ test('v3: AP system', () => {
   assert.equal(state.player.ap, 2);
 });
 
-test('all material grades are available without regional ownership or buildings', () => {
-  const state = playableCampaign();
-  assert.deepEqual(Campaign.getAvailableMaterialQualities(state), ['standard', 'refined', 'masterwork']);
-  for (const materialQuality of ['standard', 'refined', 'masterwork']) {
-    const quote = Campaign.cardCraftQuote(state, { materialQuality, effort: 'quick' });
-    assert.equal(quote.materialQualityUnlocked, true);
-    assert.equal(quote.qualityUnlockText, '');
-  }
+test('v3: region building loss on conquest loss', () => {
+  let state = controlRegionsWithBuildings(playableCampaign(), { floodplain: 'irrigation' });
+  const foodTileId = mapTileId(state, 'floodplain');
+  assert.equal(Campaign.getRegionalIncome(state).food, 2);
+  // simulate losing region: set owner to null
+  state.regions.find(r => r.id === foodTileId).ownerId = null;
+  state.regions.find(r => r.id === foodTileId).building = null;
+  assert.equal(Campaign.getRegionalIncome(state).food, 0);
 });
