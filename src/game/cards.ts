@@ -169,144 +169,6 @@ export function allCards(collection: Card[]): Card[] {
   return [...(M.STARTER_CARDS as Card[]), ...collection];
 }
 
-/* ---------- Совет кузнеца (замыслы) ---------- */
-
-interface Seed { title: string; pitch: string; hint: string }
-const POOL: Record<CardType, { ancient: Seed[]; bronze: Seed[] }> = {
-  unit: {
-    ancient: [
-      { title: "Стражи брода", pitch: "Копейщики стоят по колено в воде и не пускают врага через реку.", hint: "tank" },
-      { title: "Пращники кургана", pitch: "Меткие бросальщики камней прячутся за насыпью.", hint: "ranged" },
-      { title: "Степные наездники", pitch: "Всадники налетают из степи и уходят раньше, чем враг опомнится.", hint: "charge" },
-      { title: "Охотники на туров", pitch: "Привыкли к тяжёлой добыче — и к тяжёлому бою.", hint: "brute" },
-      { title: "Ночной дозор", pitch: "Сторожа у костров первыми замечают врага.", hint: "skirmish" },
-      { title: "Жрецы-целители", pitch: "Травы и заговоры ставят раненых на ноги.", hint: "heal" },
-    ],
-    bronze: [
-      { title: "Бронзовая фаланга", pitch: "Сомкнутый строй копий и бронзовых щитов.", hint: "phalanx" },
-      { title: "Колесничие Саргона", pitch: "Быстрые повозки ломают строй и рассеивают лучников.", hint: "charge" },
-      { title: "Лучники Аккада", pitch: "Составные луки бьют дальше и точнее.", hint: "ranged" },
-      { title: "Медные секироносцы", pitch: "Литые секиры пробивают кожаные доспехи.", hint: "brute" },
-      { title: "Храмовая стража", pitch: "Профессиональные воины при зиккурате.", hint: "tank" },
-      { title: "Писцы-лекари", pitch: "Учёт ран и ремесло исцеления идут рука об руку.", hint: "heal" },
-    ],
-  },
-  spell: {
-    ancient: [
-      { title: "Сигнальный костёр", pitch: "Дым с кургана собирает ополчение и подгоняет отстающих.", hint: "inspire" },
-      { title: "Ночная засада", pitch: "Огонь по вражескому стану, пока тот спит.", hint: "fire" },
-      { title: "Разведка брода", pitch: "Знаешь, где мелко, — знаешь, где враг.", hint: "draw" },
-      { title: "Целебный отвар", pitch: "Кора, мёд и терпение возвращают силы.", hint: "heal" },
-      { title: "Метательный залп", pitch: "Общий залп из-за частокола.", hint: "strike" },
-    ],
-    bronze: [
-      { title: "Приказ писца", pitch: "Точный счёт припасов — быстрее походные обозы.", hint: "supply" },
-      { title: "Залп по стене", pitch: "Расчёт и дисциплина превращают стрелы в шквал.", hint: "strike" },
-      { title: "Клич полководца", pitch: "Одно слово — и строй становится единым.", hint: "inspire" },
-      { title: "Смоляные горшки", pitch: "Горящая смола разрушает вражеский строй.", hint: "fire" },
-      { title: "Донесение лазутчиков", pitch: "Карта вражеских дорог в чужих руках.", hint: "draw" },
-    ],
-  },
-  structure: {
-    ancient: [
-      { title: "Частокол на насыпи", pitch: "Крепкие колья задерживают любого врага.", hint: "wall" },
-      { title: "Сторожевая вышка", pitch: "Дозорный с луком видит всё поле.", hint: "tower" },
-      { title: "Общий очаг", pitch: "У огня раненые быстрее приходят в себя.", hint: "hearth" },
-      { title: "Курган вождя", pitch: "Память предков придаёт духа воинам.", hint: "banner" },
-    ],
-    bronze: [
-      { title: "Кирпичная башня", pitch: "Обожжённый кирпич выдерживает многое.", hint: "tower" },
-      { title: "Литейный двор", pitch: "Кузнецы подносят оружие прямо к строю.", hint: "forge" },
-      { title: "Городская стена", pitch: "Толстые стены Урука знали не одну осаду.", hint: "wall" },
-      { title: "Храм у зиккурата", pitch: "Жрецы поддерживают войско молитвой и лекарствами.", hint: "hearth" },
-    ],
-  },
-};
-
-function rngFrom(seedStr: string) {
-  return M.seededRandom(M.hashString(seedStr));
-}
-
-export function localAdvice(state: any, nonce = 0): Advice[] {
-  const era: "ancient" | "bronze" = state.player.era >= 3 ? "bronze" : "ancient";
-  const rng = rngFrom(state.player.name + state.day + ":" + nonce);
-  const types: CardType[] = ["unit", "spell", "structure"];
-  return types.map((t) => {
-    const merged = era === "bronze" ? [...POOL[t].bronze, ...POOL[t].ancient.slice(0, 2)] : POOL[t].ancient;
-    const s = merged[Math.floor(rng() * merged.length)];
-    return { id: `${t}-${s.title}`, cardType: t, title: s.title, pitch: s.pitch, hint: s.hint };
-  });
-}
-
-/* ---------- Локальная ковка (без ключа) ---------- */
-
-const HINT_EMOJI: Record<string, string> = {
-  tank: "🛡️", ranged: "🏹", charge: "🐎", brute: "🪓", skirmish: "🎯", heal: "🌿", phalanx: "🔱",
-  inspire: "📯", fire: "🔥", draw: "🧭", strike: "☄️", supply: "📜",
-  wall: "🧱", tower: "🗼", hearth: "🔥", banner: "🚩", forge: "⚒️",
-};
-
-export function localCard(advice: Advice, rarity: Rarity, state: any): Card {
-  const rng = M.seededRandom(Math.floor(Math.random() * 1e9));
-  const r = (n: number) => Math.floor(rng() * n);
-  const tier = rarity === "rare" ? 2 : rarity === "uncommon" ? 1 : 0;
-  const era: "ancient" | "bronze" = state.player.era >= 3 && rng() < 0.5 ? "bronze" : "ancient";
-  const hint = advice.hint || "brute";
-  const base: Card = {
-    id: "card-" + uid(), name: advice.title, card_type: advice.cardType, era,
-    emoji: HINT_EMOJI[hint] ?? "⚒️", drop_cost: 1, action_cost: 0, hp: 0, atk: 0,
-    description: advice.pitch, tags: [], abilities: [], keywords: [], effects: [], monkey_paw: "", rarity,
-  };
-  if (advice.cardType === "unit") {
-    const cost = 1 + tier + r(2);
-    const pts = 3 + cost + tier;
-    let atk = Math.ceil(pts / 2), hp = pts - atk;
-    const kws: string[] = [];
-    if (hint === "tank") { hp += 1; atk = Math.max(1, atk - 1); kws.push(tier ? "shieldwall" : "armor:1", "taunt"); }
-    if (hint === "ranged") { atk += 1; hp = Math.max(1, hp - 1); kws.push("ranged"); }
-    if (hint === "charge") { atk += 1; kws.push("charge", "skirmish"); }
-    if (hint === "brute") { atk += 1; kws.push(tier ? "pierce:1" : "wedge"); }
-    if (hint === "skirmish") { kws.push("skirmish", "ranged"); }
-    if (hint === "phalanx") { kws.push("phalanx", "holdground"); }
-    if (hint === "heal") { kws.push(`heal:${1 + (tier > 1 ? 1 : 0)}`); hp += 1; atk = Math.max(1, atk - 1); }
-    if (tier >= 1) kws.push(["sturdy", "rally", "morale"][r(3)]);
-    base.drop_cost = cost;
-    base.action_cost = tier === 2 && atk >= 4 ? 2 : 1;
-    base.atk = Math.max(1, atk);
-    base.hp = Math.max(1, hp);
-    base.keywords = [...new Set(kws)].slice(0, 3);
-    if (tier === 2) {
-      base.effects = [{ event: "enter_play", target: { side: "enemy", entity: "unit", select: "lowest_hp", count: 1 }, action: { type: "damage", amount: 1 + r(2) } }];
-    } else if (tier === 1 && hint === "heal") {
-      base.effects = [{ event: "turn_start", target: { side: "friendly", entity: "unit", select: "lowest_hp_ratio", count: 1 }, action: { type: "heal", amount: 1 } }];
-    }
-  } else if (advice.cardType === "spell") {
-    base.drop_cost = 1 + tier + (hint === "supply" ? 0 : r(2));
-    const amt = 1 + tier + r(2);
-    const effects: any[] = [];
-    if (hint === "strike") effects.push({ event: "enter_play", target: { side: "enemy", entity: "unit", select: "lowest_hp", count: 1 + (tier === 2 ? 1 : 0) }, action: { type: "damage", amount: amt + 1 } });
-    if (hint === "fire") effects.push({ event: "enter_play", target: { side: "enemy", entity: "unit", zone: "front", select: "highest_attack", count: 1 }, action: { type: "apply_status", status: "burn", amount: 1 + tier, turns: 2 + (tier > 0 ? 1 : 0) } });
-    if (hint === "heal") effects.push({ event: "enter_play", target: { side: "friendly", entity: "unit", select: "lowest_hp_ratio", count: 1 + (tier > 0 ? 1 : 0) }, action: { type: "heal", amount: amt + 1 } });
-    if (hint === "draw") effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "draw", amount: 1 + (tier > 1 ? 1 : 0) } });
-    if (hint === "inspire") effects.push({ event: "enter_play", target: { side: "friendly", entity: "unit", select: "highest_attack", count: 1 + (tier > 0 ? 1 : 0) }, action: { type: "modify_stat", stat: "attack", amount: 1 + (tier > 1 ? 1 : 0), turns: 2 } });
-    if (hint === "supply") effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "modify_resource", resource: "energy", amount: 2 + tier } });
-    if (!effects.length) effects.push({ event: "enter_play", target: { side: "enemy", entity: "player" }, action: { type: "damage", amount: amt } });
-    if (tier === 2) effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "draw", amount: 1 } });
-    base.effects = effects;
-  } else {
-    base.drop_cost = 2 + tier + r(2);
-    base.hp = 3 + tier * 2 + r(2);
-    const kws: string[] = [];
-    if (hint === "wall") kws.push(`armor:${1 + tier}`);
-    if (hint === "banner") kws.push("rally");
-    base.keywords = kws;
-    if (hint === "hearth") base.effects = [{ event: "turn_start", target: { side: "friendly", entity: "unit", select: "lowest_hp_ratio", count: 1 + (tier > 1 ? 1 : 0) }, action: { type: "heal", amount: 1 + (tier > 0 ? 1 : 0) } }];
-    if (hint === "tower") base.effects = [{ event: "turn_start", target: { side: "enemy", entity: "unit", select: "lowest_hp", count: 1 }, action: { type: "damage", amount: 1 } }];
-    if (hint === "forge") base.effects = [{ event: "turn_start", target: { side: "controller", entity: "player" }, action: { type: "modify_resource", resource: "energy", amount: 1 } }];
-  }
-  return base;
-}
-
 /* ---------- Валидация карты (для ответа LLM) ---------- */
 
 const EVENTS = ["enter_play", "attack", "turn_start", "death", "card_death"];
@@ -428,8 +290,109 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
 
 /* ---------- LLM (Hydra API) ---------- */
 
+const HYDRA_URL = "https://api.hydraai.ru/v1/chat/completions";
+
+/** Минимальная проверка ключа: один короткий запрос без разбора ответа модели. */
+export async function probeApiKey(key: string, model: string): Promise<void> {
+  if (!key || !key.trim()) throw new Error("Введите API-ключ.");
+  let resp: Response;
+  try {
+    resp = await fetch(HYDRA_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: model || "gpt-6-luna",
+        messages: [{ role: "user", content: "Ответь одним словом: готов" }],
+        max_tokens: 8,
+        temperature: 0,
+      }),
+    });
+  } catch {
+    throw new Error("Нет связи с api.hydraai.ru. Проверьте интернет.");
+  }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `Ключ не принят (HTTP ${resp.status}).`);
+  }
+  const data = await resp.json().catch(() => ({}));
+  if (data?.error) throw new Error(data.error.message || "Ключ не принят.");
+}
+
+/** Приводит проект совета к схеме кампании; null — если проект невалиден. */
+export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): any | null {
+  if (!raw || typeof raw !== "object") return null;
+  const scienceName = String(raw.scienceName || "").trim().slice(0, 80);
+  const buildingName = String(raw.buildingName || "").trim().slice(0, 80);
+  const scienceDescription = String(raw.scienceDescription || "").trim().slice(0, 400);
+  const buildingDescription = String(raw.buildingDescription || "").trim().slice(0, 400);
+  if (!scienceName || !buildingName || !scienceDescription || !buildingDescription) return null;
+  const effects = M.cleanEffects(raw.effects);
+  if (!effects) return null;
+  return {
+    scienceName,
+    scienceDescription,
+    buildingName,
+    buildingDescription,
+    category: M.CATEGORIES.includes(raw.category) ? raw.category : fallbackCategory,
+    effects,
+    rationale: String(raw.rationale || "").trim().slice(0, 300),
+  };
+}
+
+const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}],"rationale":"1 предложение: почему это следует из затравки"}`;
+
+/** Первый проект народа: единственная наука, выведенная из затравки игрока. */
+export async function llmOpeningProject(key: string, model: string, state: any): Promise<any> {
+  const sit = M.scienceAdvisorSituation(state);
+  const p = state.player;
+  const effects = Object.keys(M.EFFECTS).join(", ");
+  const data = await hydraChat({
+    key, model, temperature: 1, maxTokens: 1200,
+    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
+Игрок только что основал народ и выбрал его затравку — готовый замысел о том, чем этот народ живёт и куда смотрит.
+Придумай РОВНО ОДНО первое дело народа: науку и связанную с ней постройку. Оно должно прямо продолжать затравку и опираться на землю, черту и наследие народа. Никаких готовых шаблонов — придумай свой образ.
+Ответ — строго JSON: ${PROJECT_SHAPE}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1. Язык — русский, без магии.`,
+    user: `Затравка игрока: «${p.seedLine || "не задана — опирайся на происхождение и землю"}»\nПроисхождение: ${sit.origin?.name || p.originId || "неизвестно"} — ${sit.origin?.historical || ""}\nСитуация: ${sit.summary}`,
+  });
+  const project = sanitizeScienceProject(data);
+  if (!project) throw new Error("Советник не вернул первый проект в понятной форме.");
+  return project;
+}
+
+/** Три новых проекта по текущей ситуации и затравке; направление выбирает сам советник. */
+export async function llmScienceOffers(key: string, model: string, state: any): Promise<any[]> {
+  const sit = M.scienceAdvisorSituation(state);
+  const effects = Object.keys(M.EFFECTS).join(", ");
+  const data = await hydraChat({
+    key, model, temperature: 1, maxTokens: 1600,
+    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
+Игрок не выбирает направление — ты сам читаешь затравку народа, земли, запасы и эпоху. Предложи ровно 3 РАЗНЫХ проекта (наука + связанная постройка): один отвечает на нехватку пропитания и хозяйство, один — на защиту и войну, один — на знания и устройство общества. Каждый проект должен опираться на конкретную ситуацию народа, а не на общий список наук.
+Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ...]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1. Язык — русский, без магии.`,
+    user: `Ситуация: ${sit.summary}\nУже известные науки: ${(state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет"}`,
+  });
+  const list = Array.isArray(data.projects) ? data.projects : data.scienceName ? [data] : [];
+  const cleaned = list.map((raw: any) => sanitizeScienceProject(raw)).filter(Boolean).slice(0, 3);
+  if (!cleaned.length) throw new Error("Советник не предложил ни одного проекта.");
+  return cleaned;
+}
+
+/** Имя и описание постройки в новой земле: уникальные для этого народа, а не из списка. */
+export async function llmRegionBuildingName(key: string, model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
+  const p = state.player;
+  const data = await hydraChat({
+    key, model, temperature: 1, maxTokens: 300,
+    system: `Ты — летописец исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
+Народ обустроил новую землю и возводит там постройку. Придумай ИМЕННО ЭТОЙ общине своё имя постройки и короткое описание — не шаблонное, связанное с местом и затравкой народа.
+Ответ — строго JSON: {"name":"до 40 знаков","description":"одно предложение до 160 знаков"}. Язык — русский.`,
+    user: `Народ: ${p.name} (${p.clan}). Затравка: «${p.seedLine || "не задана"}». Земля: ${tile.name} — ${tile.description}. Постройка по назначению: ${building.name} — ${building.description}. Эпоха: ${M.eraName(p.era)}. Земли народа: ${(state.regions || []).filter((r: any) => r.ownerId === "player").map((r: any) => (state.world?.tiles || []).find((t: any) => t.id === r.id)?.name).filter(Boolean).join(", ") || "поселение"}.`,
+  });
+  const name = String(data?.name || "").trim().slice(0, 60);
+  if (!name) return null;
+  return { name, description: String(data?.description || "").trim().slice(0, 180) };
+}
+
 async function hydraChat(opts: { key: string; model: string; system: string; user: string; temperature: number; maxTokens: number }) {
-  const resp = await fetch("https://api.hydraai.ru/v1/chat/completions", {
+  const resp = await fetch(HYDRA_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${opts.key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -453,6 +416,7 @@ async function hydraChat(opts: { key: string; model: string; system: string; use
 export function contextOf(state: any): string {
   const p = state.player;
   return [
+    p.seedLine && `Затравка народа: «${p.seedLine}»`,
     p.biome && `Биом: ${p.biome.name} — ${p.biome.desc}`,
     p.geography && `География: ${p.geography.name}`,
     p.trait && `Черта: ${p.trait.name} — ${p.trait.desc}`,

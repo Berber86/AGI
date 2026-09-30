@@ -1,5 +1,6 @@
-import { StoreProvider, useStore } from "@/game/store";
-import { DayReportModal, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
+import { useEffect, useRef } from "react";
+import { StoreProvider, currentGuideStep, useStore } from "@/game/store";
+import { DayReportModal, GuideBar, KeyGate, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
 import Onboarding from "@/pages/Onboarding";
 import Home from "@/pages/Home";
 import MapPage from "@/pages/MapPage";
@@ -9,8 +10,19 @@ import Army from "@/pages/Army";
 import Battle from "@/pages/Battle";
 
 function Root() {
-  const { game, page, match } = useStore();
-  if (!game.player.onboardingComplete) {
+  const { game, page, match, go } = useStore();
+  const routed = useRef(false);
+  const onboarded = game.player.onboardingComplete;
+
+  // Первый маршрут ведёт сам: игрок попадает на тот экран, где находится следующий шаг.
+  useEffect(() => {
+    if (!onboarded || routed.current) return;
+    routed.current = true;
+    const guided = currentGuideStep(game);
+    if (guided && guided.page !== page) go(guided.page);
+  }, [game, onboarded, page, go]);
+
+  if (!onboarded) {
     return (
       <>
         <Onboarding />
@@ -22,6 +34,7 @@ function Root() {
     <div className="min-h-dvh lg:pl-[216px]">
       <SideNav />
       <TopBar />
+      <GuideBar />
       <main>
         {page === "home" && <Home />}
         {page === "map" && <MapPage />}
@@ -33,6 +46,7 @@ function Root() {
       <SettingsModal />
       <DayReportModal />
       {match && <Battle />}
+      <KeyGate />
       <Toasts />
     </div>
   );

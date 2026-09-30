@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Lock, Swords, Hammer, Flag, Crown, Sprout, ArrowRight, Compass, Shield } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { useStore } from "@/game/store";
+import { currentGuideStep, useStore } from "@/game/store";
 import { Btn, Chip, Cost, Label, Panel, ResIcon, type ResKey } from "@/components/ui";
 import { PageFrame } from "@/components/Shell";
 
@@ -85,7 +85,7 @@ function tileMarker(tile: any, ownerId: string | null) {
 }
 
 export default function MapPage() {
-  const { game, selectedRegion, selectRegion, act, toast, startExpedition, resumeExpedition } = useStore();
+  const { game, selectedRegion, selectRegion, act, toast, startExpedition, resumeExpedition, nameRegionBuilding } = useStore();
   const definitions: any[] = game.world?.tiles || [];
   const visibleIds = useMemo(() => new Set<string>(M.getVisibleRegionIds(game)), [game]);
   const records = useMemo(() => new Map<string, any>(game.regions.map((r: any): [string, any] => [r.id, r])), [game.regions]);
@@ -125,6 +125,8 @@ export default function MapPage() {
     return segments;
   }, [definitionById, game.world?.rivers, visibleIds]);
 
+  const guided = currentGuideStep(game);
+  const territoryStep = guided?.step.id === "territory" ? guided : null;
   const selected = selectedRegion && visibleIds.has(selectedRegion) ? definitionById.get(selectedRegion) : null;
   const ownerOf = (id: string) => info[id]?.owner ?? null;
   const ownerName = (id: string | null) => {
@@ -151,6 +153,16 @@ export default function MapPage() {
           <Flag size={14} className="text-bronze" />Поход: {game.player.dailyOrders.frontierUsed ? "использован сегодня" : "доступен"}
         </div>
       </div>
+
+      {territoryStep && (
+        <Panel className="mb-4 border-bronze/40 bg-bronze/8 p-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft"><Compass size={14} />Шаг {territoryStep.guide.steps.findIndex((s: any) => s.id === territoryStep.step.id) + 1} из {territoryStep.guide.steps.length}: займите соседнюю область</span>
+            <span className="min-w-0 flex-1 text-[13px] leading-relaxed text-dim">{territoryStep.guide.next}</span>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-faint">Подсвеченные пунктиром клетки граничат с вашими землями. Нажмите такую клетку и выполните действие справа.</p>
+        </Panel>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Panel className="overflow-hidden p-3 sm:p-5">
@@ -194,6 +206,7 @@ export default function MapPage() {
                       mine && tile.kind !== "home" && "border-ok/90 shadow-[inset_0_0_0_2px_rgba(138,179,108,.42)]",
                       rival && "border-clay/90 shadow-[inset_0_0_0_2px_rgba(196,98,63,.32)]",
                       guarded && "border-bronze-soft/80 border-dashed shadow-[inset_0_0_0_1px_rgba(233,193,118,.35)]",
+                      reachable && territoryStep && "z-30 ring-2 ring-bronze-soft/70",
                       tile.kind === "home" && "z-20 border-bronze-soft ring-2 ring-bronze/65 shadow-[0_0_18px_rgba(217,164,69,.55)]",
                       isSelected && "z-30 ring-2 ring-parch shadow-[0_0_0_4px_rgba(240,230,208,.14)]",
                       locked && tile.terrain !== "water" && "saturate-75",
@@ -210,7 +223,7 @@ export default function MapPage() {
                     </span>
                     {mark && <span className={cn("absolute right-1 top-0.5 z-10 text-[9px] font-black text-bronze-soft sm:text-[11px]", mine && "text-ok", rival && "text-[#ffc0a6]")} aria-hidden="true">{mark}</span>}
                     {locked && tile.terrain !== "water" && <Lock size={10} className="absolute left-1 top-1 z-10 text-parch/70" aria-hidden="true" />}
-                    {reachable && <span className="pointer-events-none absolute inset-0 rounded-md border border-dashed border-bronze-soft/80" aria-hidden="true" />}
+                    {reachable && <span className={cn("pointer-events-none absolute inset-0 rounded-md border border-dashed", territoryStep ? "border-2 border-bronze-soft shadow-[0_0_14px_rgba(233,193,118,.5)]" : "border-bronze-soft/80")} aria-hidden="true" />}
                   </button>
                 );
               })}
@@ -247,6 +260,7 @@ export default function MapPage() {
               toast={toast}
               startExpedition={startExpedition}
               resumeExpedition={resumeExpedition}
+              nameRegionBuilding={nameRegionBuilding}
             />
           ) : (
             <Panel className="p-5">
@@ -280,7 +294,7 @@ export default function MapPage() {
   );
 }
 
-function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resumeExpedition }: any) {
+function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resumeExpedition, nameRegionBuilding }: any) {
   const { game } = useStore();
   const rb = M.REGION_BUILDINGS[def.siteType];
   const action = info.action;
@@ -294,7 +308,7 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
       if (act((s: any) => M.settleRegion(s, def.id), { silent: true })) toast(`«${def.name}» теперь ваша земля. Постройте здание, чтобы получать доход.`, "ok");
     } else if (action.action === "build") {
       const res = act((s: any) => M.buildRegionBuilding(s, def.id), { silent: true });
-      if (res) toast(`Здание построено в «${def.name}».`, "ok");
+      if (res) { toast(`Здание построено в «${def.name}».`, "ok"); void nameRegionBuilding(def.id); }
     } else if (action.action === "attack" || action.action === "quest") startExpedition(def.id);
     else if (action.action === "resume" || action.action === "return") resumeExpedition();
   };
