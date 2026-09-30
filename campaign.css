@@ -209,105 +209,209 @@
 .campaign-era-historical small { color: #e8cfa0; font-size: 0.66rem; line-height: 1.4; }
 .campaign-era-historical small:last-child { color: var(--text-dim); font-size: 0.6rem; }
 
-/* World map — ancient parchment */
+/* Generated local world map — compact prototype layer, intentionally independent from MMO world storage. */
 .campaign-world {
-  padding: 16px;
+  padding: 0;
   background:
-    radial-gradient(800px 400px at 50% 0%, rgba(240,184,107,0.06), transparent),
-    linear-gradient(165deg, rgba(26, 22, 36, 0.92), rgba(14, 12, 18, 0.96));
+    radial-gradient(900px 520px at 50% 0%, rgba(240,184,107,0.09), transparent 68%),
+    linear-gradient(165deg, rgba(26,22,36,0.96), rgba(12,14,17,0.98));
 }
+.campaign-world > .campaign-panel-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 10px;
+}
+.campaign-world > .campaign-panel-heading h2 { margin: 3px 0 0; font-size: 1.24rem; }
 .campaign-world-summary {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 0 0 12px;
-  padding: 10px 14px;
-  border: 1px solid rgba(240,184,107,0.16);
+  gap: 7px 14px;
+  margin: 0 18px 14px;
+  padding: 10px 13px;
+  border: 1px solid rgba(240,184,107,0.18);
   border-radius: 12px;
-  background: linear-gradient(180deg, rgba(20,16,28,0.6), rgba(12,10,18,0.8));
-  font-size: 0.68rem;
+  background: linear-gradient(180deg, rgba(20,18,22,0.76), rgba(11,14,16,0.88));
   color: var(--text-dim);
+  font-size: 0.68rem;
 }
 .campaign-world-summary b { color: var(--gold); }
-
-.campaign-world-scroll { overflow-x: auto; padding: 4px 0 10px; scrollbar-width: thin; scrollbar-color: #5a4a6a #15111d; }
-.campaign-world-board {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0,1fr));
-  grid-template-rows: repeat(3, 126px);
-  gap: 14px;
-  min-width: 1040px;
-  padding: 8px;
-}
-.campaign-world-links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-
-/* Region nodes — biome themed */
-.campaign-region-node {
+.campaign-world-summary small { color: #827769; font-size: 0.58rem; letter-spacing: 0.08em; }
+.campaign-world > .campaign-region-notice { position: relative; z-index: 1; margin: 0 18px 12px; }
+.campaign-world-layout {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  height: 126px;
-  padding: 10px 10px 8px;
-  border-radius: 14px;
-  border: 1.5px solid rgba(200,160,240,0.18);
-  background: linear-gradient(165deg, rgba(28,22,40,0.96), rgba(16,14,22,0.98));
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.36fr) minmax(250px, 0.78fr);
+  gap: 16px;
+  align-items: stretch;
+  padding: 0 18px 12px;
 }
-.campaign-region-node::before {
+.campaign-world-map-column { min-width: 0; }
+.campaign-world-map-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 4px 7px;
+  color: #9aa9a0;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.campaign-world-map-label span:last-child { color: #7f887f; font-weight: 600; letter-spacing: 0; }
+.campaign-world-map-graphic {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid rgba(206,189,142,0.3);
+  border-radius: 18px;
+  background-color: #20454c;
+  background-image:
+    radial-gradient(ellipse at 18% 20%, rgba(119,190,183,0.2), transparent 35%),
+    radial-gradient(ellipse at 85% 80%, rgba(11,38,47,0.55), transparent 43%),
+    repeating-linear-gradient(164deg, rgba(165,220,213,0.025) 0 1px, transparent 1px 9px);
+  box-shadow: 0 14px 35px rgba(0,0,0,0.42), inset 0 0 34px rgba(6,19,24,0.35);
+}
+.campaign-world-board {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0,1fr));
+  grid-template-rows: repeat(7, minmax(0,1fr));
+  gap: 3px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: rgba(17,35,35,0.3);
+}
+.campaign-map-cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+  padding: 4px 3px;
+  border: 1px solid rgba(237,224,174,0.18);
+  border-radius: 7px;
+  color: #f0e6ca;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.75);
+  cursor: pointer;
+  transition: filter 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  background-color: #8b9661;
+  background-image: radial-gradient(ellipse at 30% 30%, rgba(233,222,166,0.2), transparent 60%), linear-gradient(145deg, rgba(115,132,75,0.96), rgba(76,97,60,0.98));
+}
+.campaign-map-cell::before {
   content: '';
   position: absolute;
   inset: 0;
-  opacity: 0.08;
-  background: radial-gradient(200px 100px at 30% 0%, white, transparent);
   pointer-events: none;
+  opacity: 0.18;
+  background: repeating-linear-gradient(25deg, transparent 0 7px, rgba(248,239,196,0.17) 7px 8px, transparent 8px 14px);
 }
-.campaign-region-node:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 16px 36px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) inset;
+.campaign-map-cell:hover { filter: brightness(1.18) saturate(1.12); border-color: rgba(255,235,166,0.68); z-index: 3; }
+.campaign-map-cell.is-fogged { cursor: default; border-color: rgba(185,195,184,0.08); color: rgba(190,199,190,0.5); text-shadow: none; background-color: #18201e; background-image: repeating-linear-gradient(135deg, rgba(177,190,179,0.045) 0 2px, transparent 2px 8px), radial-gradient(ellipse at 50% 50%, rgba(93,109,101,0.13), transparent 75%), linear-gradient(145deg, #26302d, #151c1a); }
+.campaign-map-cell.is-fogged::before { opacity: 0.22; background: radial-gradient(circle, rgba(190,201,190,0.22) 0 1px, transparent 2px); background-size: 9px 9px; }
+.campaign-map-cell.is-fogged:hover { filter: none; border-color: rgba(185,195,184,0.08); z-index: 1; }
+.campaign-map-cell.is-guarded:not(.is-selected) { border-style: dashed; border-color: rgba(235,191,111,0.78); box-shadow: inset 0 0 0 1px rgba(235,191,111,0.2); }
+.campaign-map-cell:focus-visible { outline: 2px solid #fff0aa; outline-offset: -3px; z-index: 4; }
+.campaign-map-cell[data-terrain="water"] {
+  color: #d6efdf;
+  border-color: rgba(132,204,211,0.23);
+  background-color: #285762;
+  background-image: repeating-radial-gradient(ellipse at 40% 55%, transparent 0 11px, rgba(135,211,217,0.16) 12px 13px, transparent 14px 23px), linear-gradient(145deg, #386d73, #1c414e);
+}
+.campaign-map-cell[data-terrain="plains"] { background-image: radial-gradient(ellipse at 25% 18%, rgba(246,226,154,0.25), transparent 55%), repeating-linear-gradient(168deg, transparent 0 11px, rgba(244,220,135,0.12) 11px 12px, transparent 12px 20px), linear-gradient(145deg, #9b9a5c, #64764d); }
+.campaign-map-cell[data-terrain="forest"] { background-image: radial-gradient(circle at 25% 28%, rgba(162,192,111,0.32) 0 7%, transparent 8%), radial-gradient(circle at 68% 70%, rgba(45,88,56,0.82) 0 15%, transparent 16%), linear-gradient(145deg, #496e4d, #254d3c); }
+.campaign-map-cell[data-terrain="hills"] { background-image: radial-gradient(ellipse at 30% 70%, rgba(225,200,133,0.38), transparent 32%), radial-gradient(ellipse at 73% 28%, rgba(64,82,62,0.45), transparent 40%), linear-gradient(145deg, #877d58, #555e4b); }
+.campaign-map-cell[data-terrain="mountain"] { background-image: repeating-linear-gradient(138deg, transparent 0 13px, rgba(228,225,204,0.16) 13px 14px, transparent 14px 21px), linear-gradient(145deg, #7e8580, #465451); }
+.campaign-map-cell[data-terrain="wetlands"] { background-image: repeating-linear-gradient(90deg, transparent 0 12px, rgba(198,206,119,0.16) 12px 13px, transparent 13px 22px), radial-gradient(ellipse at 50% 70%, rgba(31,91,73,0.65), transparent 60%), linear-gradient(145deg, #667c55, #405d4e); }
+.campaign-map-cell[data-terrain="desert"] { background-image: repeating-linear-gradient(162deg, transparent 0 12px, rgba(247,212,140,0.2) 12px 13px, transparent 13px 25px), linear-gradient(145deg, #b89a62, #8b714b); }
+.campaign-map-cell[data-terrain="coast"] { background-image: radial-gradient(ellipse at 76% 20%, rgba(230,212,151,0.34), transparent 44%), linear-gradient(145deg, #7c9672, #4e847e 70%, #356872); }
+.campaign-map-cell.is-owned:not(.is-home) { border-color: rgba(116,218,154,0.9); box-shadow: inset 0 0 0 2px rgba(73,179,115,0.38); }
+.campaign-map-cell.is-rival { border-color: rgba(242,135,111,0.9); box-shadow: inset 0 0 0 2px rgba(205,82,71,0.28); }
+.campaign-map-cell.is-home { border-color: #ffe08b; box-shadow: inset 0 0 0 2px rgba(245,192,91,0.78), 0 0 18px rgba(244,199,111,0.62); z-index: 2; }
+.campaign-map-cell.is-selected:not(.is-home) { border-color: #fff0a6; box-shadow: inset 0 0 0 2px rgba(255,229,135,0.85), 0 0 14px rgba(255,230,149,0.4); z-index: 2; }
+.campaign-map-cell.is-home.is-selected { box-shadow: inset 0 0 0 3px rgba(255,238,178,0.95), 0 0 21px rgba(255,219,117,0.85); }
+.campaign-map-cell-icon, .campaign-map-cell-name, .campaign-map-cell-marker { position: relative; z-index: 4; }
+.campaign-map-cell-icon { font-size: clamp(0.78rem, 1.5vw, 1.3rem); line-height: 1; }
+.campaign-map-cell-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: rgba(255,249,223,0.94);
+  font-family: 'Manrope', system-ui, sans-serif;
+  font-size: clamp(0.42rem, 0.75vw, 0.62rem);
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.campaign-map-cell-marker {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  color: #fff0b0;
+  font-size: clamp(0.48rem, 0.75vw, 0.66rem);
+  font-weight: 900;
+  text-shadow: 0 1px 4px #12120e;
+}
+.campaign-map-cell.is-rival .campaign-map-cell-marker { color: #ffc0a6; }
+.campaign-map-cell.is-owned .campaign-map-cell-marker { color: #b9ffd0; }
+.campaign-map-river-overlay {
+  position: absolute;
+  inset: 8px;
   z-index: 2;
+  width: calc(100% - 16px);
+  height: calc(100% - 16px);
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px rgba(41,154,174,0.45));
 }
-.campaign-region-node.is-owned {
-  border-color: rgba(116,201,150,0.5);
-  background: linear-gradient(165deg, rgba(28, 60, 44, 0.92), rgba(16, 28, 20, 0.96));
-  box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 18px rgba(116,201,150,0.15), inset 0 1px 0 rgba(255,255,255,0.06);
+.campaign-world-legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 3px 0; color: #a5aa9b; font-size: 0.61rem; }
+.campaign-world-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.campaign-world-legend i, .campaign-map-owner-mark { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.campaign-world-legend i.is-owned, .campaign-map-owner-mark.is-owned { background: #74c996; box-shadow: 0 0 8px rgba(116,201,150,0.55); }
+.campaign-world-legend i.is-neutral, .campaign-map-owner-mark.is-neutral { background: #e5c47b; }
+.campaign-world-legend i.is-rival, .campaign-map-owner-mark.is-rival { background: #e87864; }
+.campaign-world-legend i.is-water, .campaign-map-owner-mark.is-water { background: #68c7d1; }
+.campaign-map-inspector {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 11px;
+  padding: 17px;
+  border: 1px solid rgba(240,184,107,0.2);
+  border-radius: 16px;
+  background: linear-gradient(155deg, rgba(35,32,28,0.94), rgba(14,17,18,0.96));
+  box-shadow: inset 0 1px rgba(255,255,255,0.04), 0 8px 24px rgba(0,0,0,0.22);
 }
-.campaign-region-node.is-rival {
-  border-color: rgba(232, 120, 100, 0.4);
-  background: linear-gradient(165deg, rgba(60, 28, 32, 0.92), rgba(28, 16, 20, 0.96));
-}
-.campaign-region-node.is-home {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 2px rgba(240,184,107,0.15), 0 12px 32px rgba(0,0,0,0.45);
-}
-/* Biome tints */
-.campaign-region-node[data-biome="river"] { background: linear-gradient(165deg, rgba(20, 50, 80, 0.9), rgba(14, 22, 36, 0.96)); border-color: rgba(100,160,255,0.28); }
-.campaign-region-node[data-biome="steppe"] { background: linear-gradient(165deg, rgba(70, 60, 24, 0.85), rgba(28, 24, 14, 0.96)); border-color: rgba(220,200,80,0.28); }
-.campaign-region-node[data-biome="desert"] { background: linear-gradient(165deg, rgba(80, 50, 20, 0.85), rgba(32, 20, 12, 0.96)); border-color: rgba(240,160,60,0.28); }
-.campaign-region-node[data-biome="highlands"] { background: linear-gradient(165deg, rgba(50, 50, 60, 0.85), rgba(22, 22, 28, 0.96)); border-color: rgba(160,160,180,0.24); }
-.campaign-region-node[data-biome="oasis"] { background: linear-gradient(165deg, rgba(30, 70, 40, 0.85), rgba(14, 28, 18, 0.96)); border-color: rgba(100,200,120,0.28); }
-
-.campaign-region-top { display: flex; align-items: center; justify-content: space-between; width: 100%; font-size: 1.05rem; }
-.campaign-region-era { padding: 2px 6px; border: 1px solid rgba(240,184,107,0.22); border-radius: 99px; background: rgba(12,10,16,0.7); color: var(--gold); font-size: 0.48rem; font-weight: 800; }
-.campaign-region-node>b { color: #f5e8d0; font-family: 'Cinzel', serif; font-size: 0.68rem; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.campaign-region-owner { color: var(--text-dim); font-size: 0.52rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.campaign-region-node.is-owned .campaign-region-owner { color: #8ed6a0; }
-.campaign-region-node.is-rival .campaign-region-owner { color: #e8a090; }
-.campaign-region-yield { color: var(--gold); font-size: 0.56rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.campaign-region-action { width: 100%; min-height: 26px; margin-top: auto; padding: 5px 6px; font-size: 0.56rem; border-radius: 8px; font-weight: 800; letter-spacing: 0.02em; }
-.campaign-region-owned { margin-top: auto; color: #8ed6a0; font-size: 0.58rem; font-weight: 800; }
-
-.campaign-world-legend { display: flex; gap: 14px; flex-wrap: wrap; padding-top: 6px; color: var(--text-dim2); font-size: 0.56rem; }
-.campaign-world-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.campaign-world-legend i.is-owned { background: var(--teal); box-shadow: 0 0 8px var(--teal); }
-.campaign-world-legend i.is-neutral { background: var(--gold); }
-.campaign-world-legend i.is-rival { background: #e87864; }
+.campaign-map-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.campaign-map-inspector-head .campaign-kicker { font-size: 0.52rem; }
+.campaign-map-terrain-tag { padding: 4px 8px; border: 1px solid rgba(188,197,162,0.22); border-radius: 999px; color: #c6d2b6; background: rgba(109,131,86,0.14); font-size: 0.6rem; font-weight: 800; }
+.campaign-map-inspector h3 { margin: 0; color: #f3e7cb; font-family: 'Cinzel', serif; font-size: 1.15rem; line-height: 1.2; }
+.campaign-map-description { margin: 0; color: #c0bcad; font-size: 0.77rem; line-height: 1.55; }
+.campaign-map-owner { display: flex; align-items: center; gap: 8px; min-height: 20px; color: #d8ceb8; font-size: 0.69rem; }
+.campaign-map-short-text { color: #d6b76d; font-size: 0.66rem; }
+.campaign-map-detail-yield { display: flex; flex-wrap: wrap; gap: 5px; color: #e0c579; font-size: 0.69rem; line-height: 1.35; }
+.campaign-map-detail-yield span { color: #a8a08b; }
+.campaign-map-era-gate { color: #e5ad6d; font-size: 0.65rem; font-weight: 800; }
+.campaign-map-action-area { display: grid; gap: 7px; margin-top: auto; padding-top: 5px; }
+.campaign-map-action { width: 100%; min-height: 38px; font-size: 0.72rem; }
+.campaign-map-action-note { color: #a9a496; font-size: 0.66rem; line-height: 1.4; }
+.campaign-map-action-note.is-done { color: #8ed6a0; font-weight: 800; }
+.campaign-world-footnote { display: block; position: relative; z-index: 1; padding: 0 20px 14px; color: #777b72; font-size: 0.57rem; letter-spacing: 0.04em; }
 
 /* Workers — clan cards */
 .campaign-workers { background: linear-gradient(165deg, rgba(28,24,38,0.92), rgba(16,14,22,0.96)); }
@@ -627,6 +731,9 @@
 }
 .campaign-first-session>summary { padding: 14px 18px; }
 
+/* Opponent deck identity */
+.campaign-opponent-deck { display: block; margin: 4px 0 8px 52px; color: var(--text-dim2); font-size: 0.72rem; }
+
 /* Secondary grid */
 .campaign-secondary-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; align-items: start; }
 .campaign-fold { border-radius: var(--radius); background: linear-gradient(165deg, rgba(24,18,34,0.85), rgba(14,12,20,0.92)); border: 1px solid var(--border); }
@@ -644,14 +751,29 @@
 @media(max-width: 900px) {
   .campaign-daily-strip { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .campaign-daily-strip .campaign-ap-display { grid-column: 1/-1; }
+  .campaign-world-layout { grid-template-columns: minmax(0,1fr); }
+  .campaign-map-inspector { min-height: 0; }
   .campaign-secondary-grid { grid-template-columns: 1fr 1fr; }
   .campaign-secondary-grid .campaign-opponents { grid-column: span 2; }
 }
 @media(max-width: 600px) {
   .campaign-root { padding: 0; gap: 12px; }
   .campaign-seasonbar { flex-direction: column; align-items: flex-start; }
-  .campaign-world-board { min-width: 900px; grid-template-rows: repeat(3, 110px); }
-  .campaign-region-node { height: 110px; }
+  .campaign-world > .campaign-panel-heading { align-items: flex-start; padding: 15px 13px 9px; }
+  .campaign-world > .campaign-panel-heading h2 { font-size: 1.06rem; }
+  .campaign-world-summary { margin: 0 11px 12px; padding: 9px 10px; font-size: 0.61rem; }
+  .campaign-world-layout { gap: 11px; padding: 0 11px 10px; }
+  .campaign-world-map-label { font-size: 0.51rem; }
+  .campaign-world-map-graphic { border-radius: 14px; }
+  .campaign-world-board { inset: 5px; gap: 2px; border-radius: 10px; }
+  .campaign-map-cell { gap: 1px; padding: 2px 1px; border-radius: 4px; }
+  .campaign-map-cell-icon { font-size: clamp(0.72rem, 4vw, 1rem); }
+  .campaign-map-cell-name { font-size: clamp(0.34rem, 1.55vw, 0.47rem); line-height: 1; }
+  .campaign-map-cell-marker { top: 1px; right: 2px; font-size: 0.45rem; }
+  .campaign-map-river-overlay { inset: 5px; width: calc(100% - 10px); height: calc(100% - 10px); }
+  .campaign-world-legend { gap: 7px 11px; padding-top: 8px; font-size: 0.54rem; }
+  .campaign-map-inspector { padding: 14px; }
+  .campaign-world-footnote { padding: 0 13px 12px; font-size: 0.53rem; }
   .campaign-science-grid { grid-template-columns: 1fr; }
   .campaign-decree-options { grid-template-columns: 1fr; }
   .campaign-onboarding-options { grid-template-columns: 1fr; }
@@ -664,16 +786,11 @@
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
 @keyframes glow {
   0%, 100% { box-shadow: 0 0 12px rgba(240,184,107,0.15); }
   50% { box-shadow: 0 0 24px rgba(240,184,107,0.3); }
 }
 
-.campaign-region-node.is-owned { animation: float 6s ease-in-out infinite; }
 .campaign-era-step.is-current span { animation: glow 2.5s ease-in-out infinite; }
 
 /* Forge integration — make forge match campaign */

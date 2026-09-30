@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'legacy.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if (!script) throw new Error('Could not find the app inline script');
 
@@ -28,22 +28,31 @@ const resolveHitFunction = extract('    function resolveHit(attacker, target, ba
 
 function makeHitHarness() {
     const prelude = `
-        const MAX_DROP_MANA = 10;
-        let battle = { me: { dropMana: 0 }, enemy: { dropMana: 0 } };
+        const MAX_ENERGY = 10;
+        let battle = {
+            me: { energy: 0, energyMax: 10, energyCap: 10 },
+            enemy: { energy: 0, energyMax: 10, energyCap: 10 }
+        };
         function hasKw(unit, keyword) { return !!unit?.statuses?.[keyword]; }
+        function adjustEnergy(side, amount) {
+            const p = battle[side];
+            const before = p.energy;
+            p.energy = Math.max(0, Math.min(p.energyMax, before + amount));
+            return p.energy - before;
+        }
         function getUnitArmor(unit) { return unit?.statuses?.armor || 0; }
         function _hasFlankNeighbors() { return false; }
         function logBattle() {}
     `;
     const context = vm.createContext({ console, Math });
     vm.runInContext(`${prelude}\n${eraRules}\n${resolveHitFunction}\n` +
-        `globalThis.api = { resolveHit, getBattle: () => battle };`, context, { timeout: 1000 });
+        `globalThis.api = { resolveHit, getBattle: () => battle, setBattle: value => { battle = value; } };`, context, { timeout: 1000 });
     return context.api;
 }
 
 function makeBattle() {
     const player = () => ({
-        hp: 25, dropMana: 0, dropManaMax: 12, actionMana: 0, actionManaMax: 5,
+        hp: 25, energy: 0, energyMax: 12, energyCap: 12, energyGrowth: 1, energyGrowthBlockedNext: 0,
         hand: [], deck: [], discard: [], fatigue: 0, front: [null, null, null], back: [null, null, null]
     });
     return { me: player(), enemy: player(), log: [], whoseTurn: 'me', turn: 1, turnCounters: { me:1, enemy:0 }, playerOrder: ['me','enemy'], nextCardPlayOrder: 0 };
@@ -52,6 +61,7 @@ function makeBattle() {
 function makeHarness(battle = makeBattle()) {
     const prelude = `
         const MAX_HP = 30;
+        const MAX_ENERGY = 10;
         const HAND_LIMIT = 7;
         let idCounter = 0;
         function uid() { return 'test-' + (++idCounter); }
@@ -65,6 +75,7 @@ function makeHarness(battle = makeBattle()) {
         function logBattle(msg, cls = '') { battle.log.unshift({ msg, cls }); }
         function renderBattle() {}
         function renderCardChoiceModal() {}
+        function hasKw(unit, keyword) { return !!unit?.statuses?.[keyword]; }
         function checkBattleEnd() { return false; }
         function _unitPos(unit) {
             for (const side of ['me','enemy']) for (const row of ['front','back']) {
@@ -91,6 +102,10 @@ function makeHarness(battle = makeBattle()) {
             toggleCardChoice,
             moveScryCard,
             expireTemporaryModifiers,
+            effectConditionPasses,
+            currentEnergy,
+            adjustEnergy,
+            applyEnergyKeywordsOnPlay,
             getUnitAttack,
             getUnitArmor,
             getUnitActionCost,
@@ -106,7 +121,7 @@ function makeHarness(battle = makeBattle()) {
     return context.api;
 }
 
-function makeBattleStartHarness(cardCount, campaignMode = false) {
+function makeBattleStartHarness(cardCount, campaignMode = false, opponentDeck = null) {
     const cards = Array.from({ length: cardCount }, (_, index) => ({
         id: `card-${index}`, name: `Card ${index}`, card_type: 'unit', hp: 2, atk: 1
     }));
@@ -114,7 +129,8 @@ function makeBattleStartHarness(cardCount, campaignMode = false) {
     const campaign = campaignMode ? { CampaignMvp: {
         hasPendingMatch: () => true,
         getBattleConfigForCurrentPlayer: () => ({ deckLimit: 2, hp: 5, energyMax: 2, energyGrowth: 1 }),
-        getOpponentBattleConfig: () => ({ deckLimit: 2, hp: 5, energyMax: 2, energyGrowth: 1 }),
+        getOpponentBattleConfig: () => ({ deckLimit: opponentDeck?.length || 2, hp: opponentDeck ? 7 : 5, energyMax: opponentDeck ? 4 : 2, energyGrowth: opponentDeck ? 2 : 1 }),
+        ...(opponentDeck ? { getOpponentBattleDeck: () => opponentDeck } : {}),
         getPendingMatch: () => ({ opponentId: 'dummy' }),
         getState: () => ({ opponents: [{ id: 'dummy', era: 0 }] }),
         getBattleDeckIds: () => [],
@@ -129,7 +145,7 @@ function makeBattleStartHarness(cardCount, campaignMode = false) {
         let effectPumpActive = false, effectQueueWaiters = [];
         let selectedHandIdx = null, selectedUnitId = null, awaitingTarget = false, animating = false;
         const DECK_LIMIT = 10, MAX_HP = 20, FRONT_SLOTS = 4, BACK_SLOTS = 4;
-        const STARTING_ACTION_MANA = 2, START_HAND = 0;
+        const ENERGY_PER_TURN = 1, MAX_ENERGY = 10, START_HAND = 0;
         const screens = [];
         const localStorage = { getItem: () => 'Arena tester' };
         const document = { getElementById: () => ({ textContent: '' }) };
@@ -180,6 +196,11 @@ test('a complete ten-card deck starts battle without a runtime error', () => {
     const api = makeBattleStartHarness(10);
     assert.doesNotThrow(() => api.startBattle());
     assert.equal(api.getBattle().me.deck.length, 10);
+    assert.equal(api.getBattle().me.energy, 1);
+    assert.equal(api.getBattle().me.energyMax, 1);
+    assert.equal(api.getBattle().me.energyCap, 10);
+    assert.equal(api.getBattle().me.energyGrowth, 1);
+    assert.equal(api.getBattle().me.actionMana, undefined);
     assert.equal(api.getScreens().at(-1), 'battle');
 });
 
@@ -198,10 +219,24 @@ test('campaign practice uses the building-defined two-card deck and starter fill
     assert.equal(api.getBattle().enemy.deck.length, 2);
     assert.equal(api.getBattle().me.hp, 5);
     assert.equal(api.getBattle().enemy.hp, 5);
-    assert.equal(api.getBattle().me.dropMana, 1);
-    assert.equal(api.getBattle().me.actionMana, 0);
+    assert.equal(api.getBattle().me.energy, 1);
+    assert.equal(api.getBattle().me.energyMax, 1);
+    assert.equal(api.getBattle().me.energyCap, 2);
+    assert.equal(api.getBattle().me.energyGrowth, 1);
+    assert.equal(api.getBattle().me.actionMana, undefined);
     assert.equal(api.getBattle().campaignMatch.opponentId, 'dummy');
     assert.equal(api.getScreens().at(-1), 'battle');
+});
+
+test('legacy campaign battle uses the opponent-specific deck and battle profile', () => {
+    const opponentDeck = Array.from({ length: 4 }, (_, index) => ({
+        id: `barbarian-${index}`, name: `River card ${index}`, card_type: 'unit',
+    }));
+    const api = makeBattleStartHarness(0, true, opponentDeck);
+    assert.doesNotThrow(() => api.startBattle());
+    assert.deepEqual(api.getBattle().enemy.deck.map(card => card.name), opponentDeck.map(card => card.name));
+    assert.equal(api.getBattle().enemy.energyCap, 4);
+    assert.equal(api.getBattle().enemy.energyGrowth, 2);
 });
 
 function unit(name, side = 'me', row = 'front', props = {}) {
@@ -218,6 +253,85 @@ function place(battle, card, side, row, index) {
     battle[side][row][index] = card;
     return card;
 }
+
+test('legacy deploy keywords change the shared energy pool on the intended sides', () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    battle.me.energy = 0;
+    battle.me.energyMax = 1;
+    battle.me.energyCap = 3;
+    battle.enemy.energy = 1;
+    battle.enemy.energyMax = 2;
+    battle.enemy.energyCap = 3;
+
+    api.applyEnergyKeywordsOnPlay({ name: 'Снабженец', statuses: {
+        supply: true, warcry: true, harras: true, exhaustenemy: true
+    } }, 'me');
+
+    assert.equal(battle.me.energy, 2, 'supply and warcry both replenish the common pool');
+    assert.equal(battle.me.energyMax, 2, 'supply raises the available energy maximum');
+    assert.equal(battle.enemy.energy, 0, 'exhaustenemy drains the opponent common pool');
+    assert.equal(battle.enemy.energyGrowthBlockedNext, 1, 'harras blocks the opponent next energy growth');
+
+    api.applyEnergyKeywordsOnPlay({ name: 'Приказ снабжения', keywords: ['supply', 'warcry', 'exhaustenemy'] }, 'enemy');
+    assert.equal(battle.enemy.energy, 2, 'spell energy keywords read their raw keyword list and use the same pool');
+    assert.equal(battle.enemy.energyMax, 3);
+    assert.equal(battle.me.energy, 1);
+});
+
+test('legacy drop/action resource labels both target and test the same owner or opponent energy', async () => {
+    const api = makeHarness();
+    const battle = api.getBattle();
+    battle.me.energy = 1;
+    battle.enemy.energy = 0;
+    const effects = [
+        {
+            event: 'enter_play',
+            target: { side: 'controller', entity: 'player' },
+            condition: { type: 'resource', side: 'controller', resource: 'action', op: 'eq', value: 1 },
+            action: { type: 'modify_resource', resource: 'drop', amount: 1 }
+        },
+        {
+            event: 'enter_play',
+            target: { side: 'opponent', entity: 'player' },
+            condition: { type: 'resource', side: 'controller', resource: 'drop', op: 'eq', value: 2 },
+            action: { type: 'modify_resource', resource: 'action', amount: 2 }
+        }
+    ];
+    const [normalized] = api.validateEffects(effects);
+    assert.equal(normalized.action.resource, 'energy');
+    assert.equal(normalized.condition.resource, 'energy');
+    const [canonical] = api.validateEffects([{
+        event: 'enter_play', target: { side: 'controller', entity: 'player' },
+        condition: { type: 'resource', side: 'controller', resource: 'energy', op: 'gte', value: 1 },
+        action: { type: 'modify_resource', resource: 'energy', amount: 1 }
+    }]);
+    assert.equal(canonical.action.resource, 'energy');
+    assert.equal(canonical.condition.resource, 'energy');
+
+    api.resolveCardEffects({ name: 'Общий запас', effects }, 'enter_play', 'me');
+    await api.waitForEffectQueue();
+
+    assert.equal(battle.me.energy, 2);
+    assert.equal(battle.enemy.energy, 2);
+});
+
+test('raider and loot transfer energy from an enemy unit through the shared pool', () => {
+    const api = makeHitHarness();
+    const battle = api.getBattle();
+    battle.me.energy = 1;
+    battle.me.energyMax = 3;
+    battle.enemy.energy = 1;
+    battle.enemy.energyMax = 3;
+    const attacker = { name: 'Налётчик', era: 'ancient', statuses: { raider: true, loot: true } };
+    const target = { name: 'Караванщик', era: 'ancient', currentHp: 1, hp: 1, statuses: {}, isStructure: false };
+
+    api.resolveHit(attacker, target, 1, 'me');
+
+    assert.equal(target.currentHp, 0);
+    assert.equal(battle.enemy.energy, 0);
+    assert.equal(battle.me.energy, 3, 'steal and kill bonuses add energy to the attacker before its attack cost');
+});
 
 test('a runtime card-effect error cannot wedge the queue or block later effects', async () => {
     const api = makeHarness();
@@ -236,7 +350,7 @@ test('a runtime card-effect error cannot wedge the queue or block later effects'
     assert.doesNotThrow(() => api.resolveCardEffects(followUp, 'enter_play', 'me'));
     await api.waitForEffectQueue();
 
-    assert.equal(battle.me.dropMana, 1);
+    assert.equal(battle.me.energy, 1);
     assert.equal(api.getPending(), null);
     assert.ok(battle.log.some(entry => entry.msg.includes('Broken effect')));
 });
@@ -290,8 +404,8 @@ test('death observers distinguish all, own-side and opposing-side deaths', () =>
     assert.equal(api.cardEffects(doomed).length, 2);
     api.cleanupDead();
 
-    assert.equal(battle.me.dropMana, 4, JSON.stringify(battle.log)); // own death effect + all + friendly
-    assert.equal(battle.enemy.dropMana, 7, JSON.stringify(battle.log)); // all + enemy relative to the enemy watcher
+    assert.equal(battle.me.energy, 4, JSON.stringify(battle.log)); // own death effect + all + friendly
+    assert.equal(battle.enemy.energy, 7, JSON.stringify(battle.log)); // all + enemy relative to the enemy watcher
     assert.equal(battle.me.back[1], null);
     assert.equal(doomed._deathQueued, true);
     assert.equal(battle.me.deck.length, 2);
@@ -329,7 +443,7 @@ test('death triggers use active-player-first order and then earliest deployment 
 
         api.cleanupDead();
         return [...battle.log].reverse().map(entry => entry.msg)
-            .filter(msg => msg.includes('💎'))
+            .filter(msg => msg.includes('энергии'))
             .map(msg => ['doomed','me-old','me-new','enemy-old','enemy-new'].find(name => msg.includes(name)));
     };
 
@@ -402,7 +516,7 @@ test('skipping a multi-target choice cancels that effect and resumes later effec
     assert.equal(api.getPending(), null);
     assert.equal(a.currentHp, 5);
     assert.equal(b.currentHp, 5);
-    assert.equal(battle.me.dropMana, 1);
+    assert.equal(battle.me.energy, 1);
 });
 
 test('a lethal manually-selected action resolves the target death trigger before removal', async () => {
@@ -421,7 +535,7 @@ test('a lethal manually-selected action resolves the target death trigger before
     await api.waitForEffectQueue();
 
     assert.equal(battle.enemy.front[0], null);
-    assert.equal(battle.enemy.dropMana, 2);
+    assert.equal(battle.enemy.energy, 2);
     assert.equal(doomed.currentHp, 0);
 });
 
@@ -519,12 +633,12 @@ test('manual discard pauses the queue, then commits the selected hand card', () 
     ] };
     api.resolveCardEffects(card,'enter_play','me');
     assert.equal(api.getCardChoice().kind, 'discard');
-    assert.equal(api.getBattle().me.dropMana, 0, 'later effects wait for the card choice');
+    assert.equal(api.getBattle().me.energy, 0, 'later effects wait for the card choice');
     api.toggleCardChoice(1);
     api.confirmCardChoice();
     assert.equal(Array.from(api.getBattle().me.hand, c => c.name).join('|'), 'Дешёвый манёвр|Копейщик');
     assert.equal(Array.from(api.getBattle().me.discard, c => c.name).join('|'), 'Редкая колесница');
-    assert.equal(api.getBattle().me.dropMana, 1);
+    assert.equal(api.getBattle().me.energy, 1);
     assert.equal(api.getCardChoice(), null);
 });
 
