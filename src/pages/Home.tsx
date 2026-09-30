@@ -105,7 +105,7 @@ function Orders() {
 
 function People() {
   const { game, act } = useStore();
-  const { breakdown: b, cap } = useDerived();
+  const { breakdown: b, cap, cfg } = useDerived();
   const p = game.player;
   const rows: { k: ResKey; perWorker: number; workers: number; total: number }[] = (["food", "materials", "knowledge"] as ResKey[]).map((k) => ({
     k, workers: p.workers[k], perWorker: b.workerBase[k] + b.workerBonus[k], total: b.workerProduction[k],
@@ -142,6 +142,15 @@ function People() {
       <div className="mt-2 rounded-xl bg-ground/60 p-3 text-[12.5px] leading-relaxed text-dim">
         Народ съедает <b className="text-parch">{fmt(b.consumption)}</b> провизии в день, здания и земли требуют <b className="text-parch">{fmt(b.upkeep)}</b> материалов. Склад вмещает {cap} каждого ресурса — излишек тает вдвое.
       </div>
+      <details className="mt-2 rounded-xl border border-line bg-ground/40 px-3 py-2.5 text-[12.5px]">
+        <summary className="cursor-pointer font-medium text-dim hover:text-parch">Свод правил: рост народа, походы, бой</summary>
+        <ul className="mt-2 space-y-1.5 leading-relaxed text-dim">
+          <li>• <b className="text-parch">Рост:</b> +1 человек, если провизии на складе больше 10 и дневной профицит еды больше 2 (35% за день). Голод, наоборот, уносит людей.</li>
+          <li>• <b className="text-parch">Походы:</b> освоение свободной клетки — 2 🌾 + 2 🪵; квестовый бой и экспедиция — 4 🌾 + 2 🪵. При поражении отряд возвращает 2 🌾 припасов, но приказ и материалы теряются.</li>
+          <li>• <b className="text-parch">Бой:</b> колода {cfg.deckLimit} карт, свободные места добирает ополчение. Вы ходите первым; с 6-го хода пустая колода бьёт вождя нарастающей усталостью — затягивать нельзя обеим сторонам.</li>
+          <li>• <b className="text-parch">Запасы дробные:</b> доход 0.7 в день копится и округляется только на экране — один работник на знаниях рано или поздно окупается.</li>
+        </ul>
+      </details>
     </Panel>
   );
 }

@@ -36,6 +36,7 @@ function loadCards(fetchImpl) {
             cleanEffects: Campaign.cleanEffects,
             CATEGORIES: Campaign.CATEGORIES,
             EFFECTS: Campaign.EFFECTS,
+            GENERATIVE_EFFECTS: Campaign.GENERATIVE_EFFECTS,
             DECREES: Campaign.DECREES,
             eraName: Campaign.eraName,
             scienceAdvisorSituation: Campaign.scienceAdvisorSituation,

@@ -70,6 +70,11 @@ export default function Army() {
             <Chip><Zap size={12} className="text-bronze" />Энергия до {cfg.energyMax}, +{cfg.energyGrowth}/ход</Chip>
           </div>
         </div>
+        {deck.length < cfg.deckLimit && (
+          <p className="mt-2.5 text-xs leading-relaxed text-faint">
+            Свободные слоты ({cfg.deckLimit - deck.length}) в бою добирают ополченцы — копейщики, пращники, лучники и другие бойцы поселения. Они не входят в вашу коллекцию: как выкуете новую карту, назначьте её на место ополченца.
+          </p>
+        )}
         <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {slots.map((c, i) => c ? (
             <CardTile key={c.id} card={c} right={<button aria-label="Убрать из колоды" onClick={() => toggle(c.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-hover hover:text-bad"><Minus size={16} /></button>} />

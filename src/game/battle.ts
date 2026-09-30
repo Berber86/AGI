@@ -42,6 +42,7 @@ export interface Player {
   hp: number; maxHp: number;
   deck: Hand[]; hand: Hand[]; discard: Hand[];
   fatigue: number;
+  fatigueStart: number;
   front: (Unit | null)[]; back: (Unit | null)[];
   energy: number; energyMax: number; energyCap: number; energyGrowth: number; energyGrowthBlockedNext: number;
   hitSeq: number; lastDmg: number;
@@ -62,7 +63,8 @@ export interface Battle {
   usedMilitia: number;
 }
 
-export interface SideConfig { hp: number; energyMax: number; energyGrowth: number }
+// fatigueDelay — сколько дополнительных кругов сторона выдерживает без усталости (эффект построек fatigue_resist)
+export interface SideConfig { hp: number; energyMax: number; energyGrowth: number; fatigueDelay?: number }
 
 const opp = (s: Side): Side => (s === "me" ? "enemy" : "me");
 
@@ -76,17 +78,31 @@ function newPlayer(deck: Card[], cfg: SideConfig): Player {
   return {
     hp: cfg.hp, maxHp: cfg.hp,
     deck: shuffle(deck.map((c) => ({ ...JSON.parse(JSON.stringify(c)), iid: uid() }))),
-    hand: [], discard: [], fatigue: 0,
+    hand: [], discard: [], fatigue: 0, fatigueStart: 6 + Math.max(0, Math.min(3, cfg.fatigueDelay || 0)),
     front: Array(FRONT).fill(null), back: Array(BACK).fill(null),
     energy: 1, energyMax: 1, energyCap: cfg.energyMax, energyGrowth: cfg.energyGrowth, energyGrowthBlockedNext: 0,
     hitSeq: 0, lastDmg: 0,
   };
 }
 
+// вражеское ополчение говорит своими именами: «Племенные копейщики атакует „Племенные копейщики"» в журнале нечитаемо
+const ENEMY_MILITIA_NAMES: Record<string, string> = {
+  "Племенные копейщики": "Налётчики с копьями",
+  "Пращники из холмов": "Пращники разбойников",
+  "Охотники с луками": "Стрелки из засады",
+  "Топорники племени": "Топоры мародёров",
+  "Разведчики на лошадях": "Всадники-загонщики",
+  "Дружина вождя": "Стража атамана",
+  "Частокол": "Баррикады",
+  "Ночной набег": "Поджог лагеря",
+  "Бронзовые наёмники": "Бронзовые головорезы",
+  "Военный лагерь": "Стоянка грабителей",
+};
+
 export function enemyDeckForEra(era: number, limit: number): Card[] {
   const all = buildMilitia();
   const ordered = era >= 1 ? [...all.filter((c) => c.era === "bronze"), ...all.filter((c) => c.era !== "bronze")] : all;
-  return ordered.slice(0, limit);
+  return ordered.slice(0, limit).map((c) => ({ ...c, name: ENEMY_MILITIA_NAMES[c.name] ?? c.name }));
 }
 
 export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[], enemyCfg: SideConfig, match: Match, usedMilitia: number): Battle {
@@ -98,7 +114,7 @@ export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[
   const n = Math.min(START_HAND, myDeck.length);
   for (let i = 0; i < n; i++) { drawOne(b, "me", true); }
   for (let i = 0; i < Math.min(START_HAND, enemyDeck.length); i++) { drawOne(b, "enemy", true); }
-  log(b, "system", "Бой начался. Вы ходите первым.");
+  log(b, "system", "Бой начался. Вы ходите первым — темп боя изначально на вашей стороне.");
   return b;
 }
 
@@ -110,6 +126,8 @@ export function log(b: Battle, side: LogEntry["side"], text: string) {
 }
 
 const nm = (s: Side) => (s === "me" ? "Вы" : "Враг");
+// глаголы 3-го лица ломают «Вы ...» в журнале («Вы тянет») — подбираем форму под сторону
+const say = (s: Side, third: string, second: string) => `${nm(s)} ${s === "me" ? second : third}`;
 
 export interface Slot { side: Side; row: "front" | "back"; i: number; unit: Unit }
 
@@ -225,13 +243,13 @@ function drawOne(b: Battle, side: Side, silent = false): boolean {
   if (p.deck.length === 0 && p.discard.length > 0) {
     p.deck = shuffle(p.discard);
     p.discard = [];
-    if (!silent) log(b, side, `${nm(side)} перетасовывает сброс в колоду.`);
+    if (!silent) log(b, side, `${say(side, 'перетасовывает', 'перетасовываете')} сброс в колоду.`);
   }
-  if (p.deck.length === 0 && b.turn < 4) return false; // первые три круга усталости нет
+  if (p.deck.length === 0 && b.turn < p.fatigueStart) return false; // первые круги усталости нет — микро-колоды не должны умирать сами собой (fatigueStart сдвигает эффект построек)
   if (p.deck.length === 0) {
     p.fatigue++;
     hurtHero(b, side, p.fatigue);
-    if (!silent) log(b, side, `${nm(side)} тянет из пустой колоды: усталость ${p.fatigue} наносит ${p.fatigue} урона.`);
+    if (!silent) log(b, side, `${say(side, 'тянет', 'тянете')} из пустой колоды: усталость ${p.fatigue} наносит ${p.fatigue} урона.`);
     return false;
   }
   if (p.hand.length >= HAND_LIMIT) {
@@ -249,7 +267,7 @@ function drawOne(b: Battle, side: Side, silent = false): boolean {
 function drawMany(b: Battle, side: Side, n: number, src: string) {
   let got = 0;
   for (let i = 0; i < n && b[side].hp > 0; i++) if (drawOne(b, side)) got++;
-  log(b, side, `${src}: ${nm(side).toLowerCase()} берёт карт — ${got}.`);
+  log(b, side, `${src}: ${say(side, "берёт", "берёте").toLowerCase()} карт — ${got}.`);
 }
 
 function discardFrom(b: Battle, side: Side, n: number, choice: string, src: string) {
@@ -376,7 +394,7 @@ export function deploy(b: Battle, side: Side, handIdx: number, row: "front" | "b
   p.hand.splice(handIdx, 1);
   const u = makeUnit(b, card);
   p[row][slot] = u;
-  log(b, side, `${nm(side)} выводит «${u.name}».`);
+  log(b, side, `${say(side, 'выводит', 'выводите')} «${u.name}».`);
   applyEnergyKeywordsOnPlay(b, side, u);
   runEffects(b, u, "enter_play", side, null);
   settle(b);
@@ -390,7 +408,7 @@ export function cast(b: Battle, side: Side, handIdx: number): boolean {
   p.energy -= card.drop_cost;
   p.hand.splice(handIdx, 1);
   p.discard.push(card);
-  log(b, side, `${nm(side)} разыгрывает манёвр «${card.name}».`);
+  log(b, side, `${say(side, 'разыгрывает', 'разыгрываете')} манёвр «${card.name}».`);
   applyEnergyKeywordsOnPlay(b, side, card);
   runEffects(b, { name: card.name, effects: card.effects } as any, "enter_play", side, null);
   settle(b);

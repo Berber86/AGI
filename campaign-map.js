@@ -475,11 +475,10 @@
         const guardCandidates = tiles.filter(tile => tile.kind === 'resource' && tile.terrain !== 'water');
         const guardPlacementRng = seededRandom((worldSeed ^ 0x9e3779b9) >>> 0);
         const guardCount = Math.floor(guardCandidates.length / 2);
-        const guarded = guardCandidates
+        const guardPlacements = guardCandidates
             .map(tile => ({ tile, score: guardPlacementRng() }))
-            .sort((a, b) => a.score - b.score || a.tile.id.localeCompare(b.tile.id))
-            .slice(0, guardCount);
-        for (const { tile } of guarded) {
+            .sort((a, b) => a.score - b.score || a.tile.id.localeCompare(b.tile.id));
+        const placeGuard = (tile) => {
             const tileSeed = (worldSeed + (tile.y * SIZE + tile.x + 1) * 0x6d2b79f5) >>> 0;
             const guardRng = seededRandom(tileSeed);
             const distance = Math.abs(tile.x - CENTER.x) + Math.abs(tile.y - CENTER.y);
@@ -490,6 +489,17 @@
                 clan: pick(guardRng, GUARD_CLANS),
                 era
             };
+        };
+        for (const { tile } of guardPlacements.slice(0, guardCount)) placeGuard(tile);
+        // Инвариант обучающего шага «освой свободную клетку»: рядом со стартом всегда есть земля без охраны.
+        const homeAdjacent = neighborsOf(CENTER.x, CENTER.y)
+            .map(neighborId => tiles.find(tile => tile.id === neighborId))
+            .filter(tile => tile && tile.kind === 'resource' && tile.terrain !== 'water');
+        if (homeAdjacent.length > 0 && homeAdjacent.every(tile => tile.guard)) {
+            const freed = homeAdjacent[0];
+            delete freed.guard;
+            const replacement = guardPlacements.find(({ tile }) => tile !== freed && !tile.guard);
+            if (replacement) placeGuard(replacement.tile);
         }
 
         return {

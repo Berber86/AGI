@@ -116,7 +116,7 @@ export default function BattleScreen() {
     const ec = M.getOpponentBattleConfig(game, m.opponentId);
     const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
     const enemyDeck = customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, ec.deckLimit);
-    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth }, m, used);
+    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
   };
   const bRef = useRef<Battle>(null as any);
   if (!bRef.current) bRef.current = build();
@@ -305,7 +305,7 @@ export default function BattleScreen() {
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <EnergyPips energy={b.me.energy} max={b.me.energyMax} cap={b.me.energyCap} />
-              <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad"> · усталость {b.me.fatigue}</span>}</span>
+              <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad" title="С 6-го хода каждая попытка добрать из пустой колоды бьёт вождя нарастающим уроном"> · усталость {b.me.fatigue}</span>}</span>
             </div>
             <Hero side="me" b={b} name={game.player.name} sub={`${game.player.clan} · ${M.eraName(game.player.era)}`} />
           </div>
