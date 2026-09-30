@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, ArrowRight, X, Check, CircleAlert, Info, Flag, KeyRound, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { AVAILABLE_MODELS, useDerived, useStore, type Page } from "@/game/store";
+import { AVAILABLE_MODELS, currentGuideStep, useDerived, useStore, type Page } from "@/game/store";
 import { Btn, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -39,8 +39,9 @@ function useAlerts(): Partial<Record<Page, number>> {
 }
 
 export function SideNav() {
-  const { page, go, openSettings, apiKey } = useStore();
+  const { game, page, go, openSettings, apiKey } = useStore();
   const alerts = useAlerts();
+  const guided = currentGuideStep(game);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[216px] flex-col border-r border-line bg-surface/80 px-3 py-5 backdrop-blur lg:flex">
       <div className="mb-8 flex items-center gap-3 px-2">
@@ -64,6 +65,8 @@ export function SideNav() {
             <span className="flex-1 text-left">{label}</span>
             {alerts[id] ? (
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-bronze px-1 text-[11px] font-bold text-ground">{alerts[id]}</span>
+            ) : guided?.page === id ? (
+              <span className="h-2 w-2 rounded-full bg-bronze-soft" title="Следующий шаг наставника" />
             ) : null}
           </button>
         ))}
@@ -72,16 +75,88 @@ export function SideNav() {
         <button onClick={() => openSettings(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-dim hover:bg-raised/60 hover:text-parch">
           <Settings size={18} className="text-faint" />
           <span className="flex-1 text-left">Настройки</span>
-          <span className={cn("h-2 w-2 rounded-full", apiKey ? "bg-ok" : "bg-faint")} title={apiKey ? "ИИ подключён" : "Офлайн-режим"} />
+          <span className={cn("h-2 w-2 rounded-full", apiKey ? "bg-ok" : "bg-bad")} title={apiKey ? "ИИ подключён" : "Нужен API-ключ"} />
         </button>
       </div>
     </aside>
   );
 }
 
+const GUIDE_CTA: Record<string, string> = { develop: "К развитию", map: "К карте", army: "В бой" };
+
+/** Наставник первого маршрута: один следующий шаг и одна кнопка на всех экранах. */
+export function GuideBar() {
+  const { game, page: currentPage, go, act, toast } = useStore();
+  const guided = currentGuideStep(game);
+  if (!guided) return null;
+  const { step, guide, page } = guided;
+  const index = guide.steps.findIndex((s: any) => s.id === step.id) + 1;
+  return (
+    <div className="sticky top-[57px] z-20 border-b border-bronze/30 bg-bronze/10 backdrop-blur">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 lg:px-8">
+        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft">
+          <Flag size={13} />Наставник · шаг {index} из {guide.steps.length}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-parch">{step.label}</div>
+          <div className="truncate text-xs text-dim">{guide.next}</div>
+        </div>
+        {currentPage === page
+          ? <span className="rounded-full border border-line-strong px-2.5 py-1 text-[11px] text-dim">Вы на месте</span>
+          : <Btn variant="primary" size="sm" onClick={() => go(page)}>{GUIDE_CTA[page] ?? "Дальше"}<ArrowRight size={15} /></Btn>}
+        <button
+          onClick={() => { if (act((s) => M.skipGuide(s), { silent: true })) toast("Обучение скрыто. Все экраны открыты.", "info"); }}
+          className="text-[11px] font-medium text-faint hover:text-parch"
+        >
+          Пропустить
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Без ключа ИИ не может придумывать науки, постройки и карты — вход в игру закрыт. */
+export function KeyGate() {
+  const { game, apiKey, keyCheck, verifyKey } = useStore();
+  const [value, setValue] = useState(apiKey);
+  const [busy, setBusy] = useState(false);
+  const needed = !apiKey || keyCheck.status === "bad";
+  // Сохранённый ключ мог устареть: тихо проверяем его, чтобы не впускать с нерабочим.
+  useEffect(() => { if (apiKey && keyCheck.status === "unknown") void verifyKey(undefined, true); }, [apiKey, keyCheck.status, verifyKey]);
+  if (!game.player.onboardingComplete || !needed) return null;
+  const submit = async () => {
+    setBusy(true);
+    await verifyKey(value);
+    setBusy(false);
+  };
+  return (
+    <Modal open onClose={() => {}} title="Нужен API-ключ">
+      <Label>Обязательный шаг</Label>
+      <h2 className="font-display text-2xl font-semibold">Подключите ИИ</h2>
+      <p className="mt-2 text-sm leading-relaxed text-dim">
+        Науки, постройки и карты придумывает модель прямо во время игры — готовых вариантов в игре нет. Без ключа продолжить нельзя.
+      </p>
+      <label className="mt-5 block">
+        <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ</Label>
+        <input
+          type="password" value={value} autoFocus onChange={(e) => setValue(e.target.value)} autoComplete="off" placeholder="Ключ с dashboard.hydraai.ru"
+          className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none placeholder:text-faint focus:border-bronze"
+        />
+      </label>
+      {keyCheck.status === "bad" && keyCheck.message && <p className="mt-2 text-xs text-bad">{keyCheck.message}</p>}
+      {keyCheck.status === "ok" && <p className="mt-2 text-xs text-ok">{keyCheck.message}</p>}
+      <Btn variant="primary" size="lg" className="mt-5 w-full" disabled={busy || !value.trim()} onClick={submit}>
+        {busy ? "Проверяем ключ…" : "Проверить ключ и играть"}
+      </Btn>
+      <p className="mt-2 text-xs leading-relaxed text-faint">Ключ хранится только в этом браузере и отправляется напрямую на api.hydraai.ru.</p>
+    </Modal>
+  );
+}
+
 export function MobileNav() {
-  const { page, go } = useStore();
+  const { game, page, go } = useStore();
   const alerts = useAlerts();
+  const guided = currentGuideStep(game);
   return (
     <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-5">
@@ -89,7 +164,8 @@ export function MobileNav() {
           <button key={id} onClick={() => go(id)} className={cn("relative flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-medium", page === id ? "text-bronze" : "text-faint")}>
             <Icon size={20} />
             {label}
-            {alerts[id] ? <span className="absolute right-[26%] top-1.5 h-2 w-2 rounded-full bg-bronze" /> : null}
+            {alerts[id] ? <span className="absolute right-[26%] top-1.5 h-2 w-2 rounded-full bg-bronze" />
+              : guided?.page === id ? <span className="absolute right-[34%] top-1.5 h-2 w-2 rounded-full bg-bronze-soft" /> : null}
           </button>
         ))}
       </div>
@@ -186,19 +262,26 @@ export function Toasts() {
 }
 
 export function SettingsModal() {
-  const { settingsOpen, openSettings, apiKey, setApiKey, model, setModel, resetCampaign } = useStore();
+  const { settingsOpen, openSettings, apiKey, setApiKey, model, setModel, resetCampaign, keyCheck, verifyKey } = useStore();
   const [confirm, setConfirm] = useState(false);
   return (
     <Modal open={settingsOpen} onClose={() => { openSettings(false); setConfirm(false); }} title="Настройки">
       <h2 className="font-display text-xl font-semibold">Настройки</h2>
-      <p className="mt-1 text-sm text-dim">Игра полностью работает офлайн. ИИ-советники лишь делают замыслы и карты уникальнее.</p>
+      <p className="mt-1 text-sm text-dim">Ключ обязателен: науки, постройки и карты придумывает модель во время игры, готовых вариантов нет.</p>
       <div className="mt-5 space-y-4">
         <label className="block">
-          <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ (необязательно)</Label>
+          <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ (обязателен для игры)</Label>
           <input
             type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" placeholder="Ключ с dashboard.hydraai.ru"
             className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none placeholder:text-faint focus:border-bronze"
           />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Btn size="sm" variant="secondary" onClick={() => verifyKey()} disabled={!apiKey || keyCheck.status === "checking"}>
+              {keyCheck.status === "checking" ? "Проверяем…" : "Проверить ключ"}
+            </Btn>
+            {keyCheck.status === "ok" && <span className="text-xs text-ok">{keyCheck.message}</span>}
+            {keyCheck.status === "bad" && keyCheck.message && <span className="text-xs text-bad">{keyCheck.message}</span>}
+          </div>
           <span className="mt-1.5 block text-xs text-faint">Ключ хранится только в этом браузере и отправляется напрямую на api.hydraai.ru. Не вводите его на чужом устройстве.</span>
         </label>
         <label className="block">
@@ -210,7 +293,7 @@ export function SettingsModal() {
         </label>
       </div>
       <a href="/legacy.html" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-bronze hover:text-bronze-soft hover:underline">
-        Открыть прежний интерфейс <ArrowRight size={13} />
+        Открыть прежний интерфейс (локальные заготовки, без ИИ) <ArrowRight size={13} />
       </a>
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-line pt-5">
         {confirm ? (

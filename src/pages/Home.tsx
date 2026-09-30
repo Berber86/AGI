@@ -13,17 +13,20 @@ function useNext(): Next {
   const { net } = useDerived();
   const p = game.player;
   const guide = M.getFirstSessionGuide(game);
+  const guided = Boolean(guide && !guide.complete);
+  const step = guided ? guide!.steps.find((s: any) => !s.done) : null;
+  const stepIndex = step ? guide!.steps.findIndex((s: any) => s.id === step.id) + 1 : 0;
+  const stepPage: Page | null = step?.id === "territory" ? "map" : step?.id === "battle" ? "army" : step ? "develop" : null;
   if (p.pendingExpedition) return { title: "Экспедиция ждёт вас", text: "Начатый поход нужно закончить, прежде чем продолжить день.", cta: { label: "К карте", page: "map" }, tone: "bronze" };
   if (p.pendingDecreeChoice) return { title: "Выберите уклад новой эпохи", text: "Народ вошёл в новую эпоху. Уклад определит производство и состав армии на много дней вперёд.", cta: { label: "Выбрать уклад", page: "develop" }, tone: "bronze" };
-  if (p.craftOrders.some((o: any) => o.status === "ready")) return { title: "В кузнице ждёт готовая карта", text: "Мастер закончил работу. Заберите карту, чтобы она попала в коллекцию.", cta: { label: "Забрать в кузнице", page: "forge" }, tone: "ok" };
   const daysFood = net.food < 0 ? p.resources.food / -net.food : Infinity;
   if (daysFood < 3) return { title: `Провизии хватит на ${Math.max(1, Math.floor(daysFood))} дн.`, text: "Народ съедает больше, чем приносят поля. Направьте рабочих на провизию или займите плодородные земли.", cta: null, tone: "bad" };
-  if (p.workers.idle > 0) return { title: `${p.workers.idle} без дела`, text: "Свободные люди не приносят ресурсов. Назначьте их на провизию, материалы или знания.", cta: null, tone: "bronze" };
-  if (guide && !guide.complete) {
-    const step = guide.steps.find((s: any) => !s.done);
-    const page: Page = step?.id === "territory" ? "map" : step?.id === "battle" ? "army" : "develop";
-    return { title: step ? step.label : "Продолжайте развитие", text: guide.next, cta: { label: page === "map" ? "Открыть карту" : page === "army" ? "К армии" : "К развитию", page }, tone: "bronze" };
+  // Первый маршрут важнее прочих напоминаний: в начале игры ведём за руку по одному шагу.
+  if (step && stepPage) {
+    return { title: `Шаг ${stepIndex} из ${guide!.steps.length}: ${step.label}`, text: guide!.next, cta: { label: stepPage === "map" ? "Открыть карту" : stepPage === "army" ? "К армии" : "К развитию", page: stepPage }, tone: "bronze" };
   }
+  if (p.craftOrders.some((o: any) => o.status === "ready")) return { title: "В кузнице ждёт готовая карта", text: "Мастер закончил работу. Заберите карту, чтобы она попала в коллекцию.", cta: { label: "Забрать в кузнице", page: "forge" }, tone: "ok" };
+  if (p.workers.idle > 0) return { title: `${p.workers.idle} без дела`, text: "Свободные люди не приносят ресурсов. Назначьте их на провизию, материалы или знания.", cta: null, tone: "bronze" };
   if (game.day >= M.SEASON_LENGTH) return { title: "Сезон подходит к концу", text: "Заберите готовые карты и подведите итоги — вы получите медаль и начнёте новый сезон.", cta: null, tone: "ok" };
   const research = p.blueprints.find((b: any) => !b.researched);
   const build = p.blueprints.find((b: any) => b.researched && !b.built);
@@ -265,6 +268,32 @@ export default function Home() {
   const { game } = useStore();
   const [tab, setTab] = useState<"overview" | "chronicle" | "rivals">("overview");
   const p = game.player;
+  const guide = M.getFirstSessionGuide(game);
+  const guided = Boolean(guide && !guide.complete);
+  // Первые шаги: один экран — одна задача. Никаких вкладок и второстепенных панелей.
+  if (guided) {
+    return (
+      <PageFrame>
+        <div className="mb-5">
+          <Label>Сезон {game.season} · день {game.day} · первые шаги</Label>
+          <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">{p.name}</h1>
+          <p className="mt-1 text-sm text-dim">{p.clan} · {M.eraName(p.era)} · наставник сверху подскажет, что делать</p>
+        </div>
+        <div className="mx-auto grid max-w-3xl gap-4">
+          <NextCard />
+          <People />
+          <Panel className="p-5">
+            <Heading title="Как устроен день" className="[&_h2]:text-lg" />
+            <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-dim">
+              <li>• <b className="text-parch">2 приказа</b> в день: наука, стройка, поход или ковка.</li>
+              <li>• Затем <b className="text-parch">«Завершить день»</b> — рабочие соберут ресурсы, народ съест провизию.</li>
+              <li>• Первое дело народа уже в кодексе: изучите его, а потом постройте здание по чертежу.</li>
+            </ul>
+          </Panel>
+        </div>
+      </PageFrame>
+    );
+  }
   return (
     <PageFrame>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">

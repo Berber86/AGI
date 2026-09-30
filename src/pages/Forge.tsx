@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Anvil, Sparkles, RefreshCw, Loader2, Lock, Check, Clock, Hourglass, Gift } from "lucide-react";
+import { Anvil, Sparkles, Loader2, Lock, Check, Clock, Hourglass, Gift } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { CARD_TYPE_INFO, RARITY_INFO, localAdvice, localCard, llmAdvice, llmCard, type Advice, type Card, type Rarity } from "@/game/cards";
+import { CARD_TYPE_INFO, RARITY_INFO, llmAdvice, llmCard, type Advice, type Card, type Rarity } from "@/game/cards";
 import { useStore } from "@/game/store";
 import { Btn, Chip, Cost, Heading, Label, Meter, Modal, Panel } from "@/components/ui";
 import { CardFace } from "@/components/CardView";
@@ -21,8 +21,7 @@ function readAdvice(season: number, day: number): Advice[] | null {
 export default function Forge() {
   const { game, act, addCard, apiKey, model, toast, go } = useStore();
   const p = game.player;
-  const [advice, setAdvice] = useState<Advice[]>(() => readAdvice(game.season, game.day) ?? localAdvice(game, 0));
-  const [nonce, setNonce] = useState(0);
+  const [advice, setAdvice] = useState<Advice[]>(() => readAdvice(game.season, game.day) ?? []);
   const [pick, setPick] = useState<string | null>(null);
   const [material, setMaterial] = useState("standard");
   const [effort, setEffort] = useState("quick");
@@ -35,7 +34,7 @@ export default function Forge() {
   useEffect(() => {
     if (day.current !== game.day) {
       day.current = game.day;
-      setAdvice(localAdvice(game, 0)); setPick(null);
+      setAdvice([]); setPick(null);
     }
   }, [game]);
 
@@ -45,20 +44,19 @@ export default function Forge() {
   const block: string | null = !selected ? "Выберите замысел карты." : dry.error || null;
 
   const askAdvisor = async () => {
+    if (!apiKey) {
+      toast("Нужен API-ключ: замыслы придумывает советник, готовых идей в игре нет.", "bad");
+      return;
+    }
     setAskLoading(true);
     try {
-      if (apiKey) {
-        const list = await llmAdvice(apiKey, model, game);
-        setAdvice(list);
-        toast("Советник предложил новые замыслы.", "ok");
-      } else {
-        setAdvice(localAdvice(game, nonce + 1));
-      }
+      const list = await llmAdvice(apiKey, model, game);
+      setAdvice(list);
+      toast("Советник предложил новые замыслы.", "ok");
     } catch (e: any) {
-      toast(`Советник недоступен (${e?.message}). Использованы местные замыслы.`, "info");
-      setAdvice(localAdvice(game, nonce + 1));
+      toast(`Советник недоступен: ${e?.message}. Попробуйте ещё раз — заготовок нет.`, "bad");
     }
-    setNonce((n) => n + 1); setPick(null); setAskLoading(false);
+    setPick(null); setAskLoading(false);
   };
 
   const claim = (orderId: string) => {
@@ -76,10 +74,9 @@ export default function Forge() {
     setBusy(order.id);
     const started = Date.now();
     try {
+      if (!apiKey) throw new Error("нужен API-ключ");
       const snapshot = M.clone(game);
-      const card: Card = apiKey
-        ? await llmCard(apiKey, order.modelId, selected, order.rarity as Rarity, snapshot)
-        : localCard(selected, order.rarity as Rarity, snapshot);
+      const card: Card = await llmCard(apiKey, order.modelId, selected, order.rarity as Rarity, snapshot);
       const wait = 1400 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       const done = act((s) => M.completeCardCraft(s, order.id, card), { silent: true });
@@ -130,9 +127,14 @@ export default function Forge() {
           <Panel className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <StepTitle n={1} title="Замысел" hint="Что нужно вашему народу? Советник предлагает три идеи." />
-              <Btn size="sm" onClick={askAdvisor} disabled={askLoading}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : apiKey ? <Sparkles size={14} /> : <RefreshCw size={14} />}{apiKey ? "Спросить ИИ-советника" : "Другие идеи"}</Btn>
+              <Btn size="sm" onClick={askAdvisor} disabled={askLoading}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{advice.length ? "Другие замыслы" : "Спросить ИИ-советника"}</Btn>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {advice.length === 0 && (
+                <p className="rounded-xl border border-dashed border-line-strong p-4 text-sm leading-relaxed text-dim md:col-span-3">
+                  Замыслов пока нет: их придумывает советник по вашей ситуации. Нажмите «Спросить ИИ-советника».
+                </p>
+              )}
               {advice.map((a) => (
                 <button key={a.id} onClick={() => setPick(a.id)} className={cn("flex flex-col items-start rounded-xl border p-4 text-left transition-all", pick === a.id ? "border-bronze bg-raised shadow-[0_0_0_1px_rgba(217,164,69,0.4)]" : "border-line hover:border-line-strong hover:bg-raised/50")}>
                   <div className="flex w-full items-center justify-between"><Chip tone={a.cardType === "unit" ? "clay" : a.cardType === "spell" ? "know" : "bronze"}>{CARD_TYPE_INFO[a.cardType].label}</Chip>{pick === a.id && <Check size={16} className="text-bronze" />}</div>
@@ -191,7 +193,7 @@ export default function Forge() {
               <div className="flex items-center justify-between"><dt className="text-dim">Цена</dt><dd><Cost cost={quote.cost} have={p.resources} /></dd></div>
               <div className="flex items-center justify-between"><dt className="text-dim">Срок</dt><dd className="font-medium">{quote.effortDays ? `${quote.effortDays} дн.` : "сразу"}</dd></div>
               <div className="flex items-center justify-between"><dt className="text-dim">Мастерство кузнеца</dt><dd className="font-medium">ур. {p.craftLevel}{p.craftLevel < 2 ? ` · ${p.craftXp}/3` : " · макс."}</dd></div>
-              <div className="flex items-center justify-between"><dt className="text-dim">Мастер</dt><dd className="text-xs text-dim">{apiKey ? "ИИ-кузнец" : "Местный кузнец"}</dd></div>
+              <div className="flex items-center justify-between"><dt className="text-dim">Мастер</dt><dd className="text-xs text-dim">ИИ-кузнец</dd></div>
             </dl>
             <Btn variant="primary" size="lg" className="mt-5 w-full" disabled={!!block || !!busy} onClick={forge}>
               {busy ? <><Loader2 size={18} className="animate-spin" />Кузнец за работой…</> : <><Anvil size={18} />Ковать карту</>}

@@ -482,7 +482,7 @@
             medals: [],
             player: {
                 name: 'Твоё поселение', clan: 'Медный Ворон', era: 0, research: 0,
-                onboardingComplete: false, originId: null, openingFocusId: null,
+                onboardingComplete: false, originId: null, openingFocusId: null, seedLine: '', awaitingOpeningProject: false, guideDismissed: false,
                 biome: null, geography: null, trait: null, nearby: null, historicalCulture: null, culturalLineage: [],
                 resources: { food: 10, materials: 10, knowledge: 6 },
                 population: POP_START,
@@ -676,6 +676,9 @@
         state.player.onboardingComplete = typeof value.player?.onboardingComplete === 'boolean' ? value.player.onboardingComplete : (isV2 ? true : false);
         state.player.originId = ORIGINS.some(item => item.id === state.player.originId) ? state.player.originId : null;
         state.player.openingFocusId = OPENING_FOCUSES.some(item => item.id === state.player.openingFocusId) ? state.player.openingFocusId : null;
+        state.player.seedLine = String(state.player.seedLine || '').slice(0, 240);
+        state.player.guideDismissed = Boolean(state.player.guideDismissed);
+        state.player.awaitingOpeningProject = Boolean(state.player.awaitingOpeningProject);
         state.player.research = clampInt(state.player.research, 0, 1, 0);
         state.player.campaignNotice = String(state.player.campaignNotice || '').slice(0, 240);
         state.player.resources = { ...base.player.resources, ...(state.player.resources || {}) };
@@ -757,6 +760,7 @@
             createdDay: clampInt(blueprint.createdDay, 1, SEASON_LENGTH, 1),
             openingProject: Boolean(blueprint.openingProject)
         })).filter(blueprint => blueprint.id && blueprint.scienceName && blueprint.buildingName) : [];
+        if (state.player.blueprints.some(blueprint => blueprint.openingProject)) state.player.awaitingOpeningProject = false;
         // scienceChoices: 3 варианта на выбор от ИИ (как в кузнице)
         if (value.player?.scienceChoices && typeof value.player.scienceChoices === 'object') {
             const sc = value.player.scienceChoices;
@@ -838,16 +842,14 @@
         return state;
     }
 
-    function completeOnboarding(input, { name, originId, openingFocusId } = {}) {
-        const state = normalizeState(input);
-        if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
+    // Общая настройка происхождения для старого и нового входа.
+    function applyOriginSetup(state, { name, originId, seedLine } = {}) {
         const origin = ORIGINS.find(item => item.id === originId);
-        const focus = OPENING_FOCUSES.find(item => item.id === openingFocusId);
-        if (!origin || !focus) return { state, error: 'Выбери происхождение и первое направление.' };
+        if (!origin) return { error: 'Выберите происхождение народа.' };
         const cleanName = String(name || '').trim().slice(0, 24);
         state.player.name = cleanName || origin.name;
         state.player.originId = origin.id;
-        state.player.openingFocusId = focus.id;
+        state.player.seedLine = String(seedLine || '').trim().slice(0, 240);
         state.player.resources[origin.resource] = Math.min(999, state.player.resources[origin.resource] + origin.bonus);
         // --- историчность и биомы как в легаси ---
         const seed = hashString(state.player.name + state.player.clan + originId);
@@ -871,6 +873,27 @@
             }
         }
         state.player.deckCardIds = STARTER_CARDS.map(card => card.id);
+        // первая запись летописи с историчностью
+        const originHist = origin.historical || '';
+        const seedNote = state.player.seedLine ? ' Замысел народа: «' + state.player.seedLine + '».' : '';
+        state.player.chronicle = [{
+            day: 1,
+            era: 0,
+            text: 'Народ ' + state.player.clan + ' из ' + state.player.biome.name + ' (' + state.player.biome.desc + '). Рядом ' + state.player.geography.name + ' — ' + state.player.geography.desc + '. Черта: ' + state.player.trait.name + '. Наследие: ' + originHist + '. Как ' + state.player.historicalCulture.name + ' — ' + state.player.historicalCulture.desc + '.' + seedNote
+        }];
+        return { error: null };
+    }
+
+    // Старый вход: происхождение + готовое «первое дело» из локального списка.
+    // Оставлен для standalone-страницы legacy.html и существующих сохранений.
+    function completeOnboarding(input, { name, originId, openingFocusId } = {}) {
+        const state = normalizeState(input);
+        if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
+        const focus = OPENING_FOCUSES.find(item => item.id === openingFocusId);
+        if (!focus) return { state, error: 'Выбери происхождение и первое направление.' };
+        const setup = applyOriginSetup(state, { name, originId });
+        if (setup.error) return { state, error: 'Выбери происхождение и первое направление.' };
+        state.player.openingFocusId = focus.id;
         state.player.blueprints.unshift({
             id: 'opening-' + focus.id,
             scienceName: focus.scienceName,
@@ -885,14 +908,49 @@
             createdDay: state.day,
             openingProject: true
         });
-        // первая запись летописи с историчностью
-        const originHist = origin.historical || '';
-        state.player.chronicle = [{
-            day: 1,
-            era: 0,
-            text: 'Народ ' + state.player.clan + ' из ' + state.player.biome.name + ' (' + state.player.biome.desc + '). Рядом ' + state.player.geography.name + ' — ' + state.player.geography.desc + '. Черта: ' + state.player.trait.name + '. Наследие: ' + originHist + '. Как ' + state.player.historicalCulture.name + ' — ' + state.player.historicalCulture.desc
-        }];
+        state.player.awaitingOpeningProject = false;
         state.player.onboardingComplete = true;
+        return { state, error: null };
+    }
+
+    // Новый вход React-версии: игрок задаёт имя, происхождение и затравку народа.
+    // Готовых наук и построек здесь нет: первый проект создаёт ИИ по затравке.
+    function beginOnboardingState(input, { name, originId, seedLine } = {}) {
+        const state = normalizeState(input);
+        if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
+        const setup = applyOriginSetup(state, { name, originId, seedLine });
+        if (setup.error) return { state, error: setup.error };
+        state.player.openingFocusId = null;
+        state.player.blueprints = state.player.blueprints.filter(item => !item.openingProject);
+        state.player.awaitingOpeningProject = true;
+        state.player.onboardingComplete = false;
+        return { state, error: null };
+    }
+
+    // Готовый первый проект от ИИ: единственный путь завершить начало игры в React-версии.
+    function setOpeningProject(input, raw) {
+        const state = normalizeState(input);
+        if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
+        if (!state.player.originId) return { state, error: 'Сначала выберите происхождение народа.' };
+        const blueprint = normalizeBlueprint(raw, state, 'both');
+        if (!blueprint) return { state, error: 'Первый проект не прошёл проверку: нужны наука, здание и 1–2 поддерживаемых эффекта.' };
+        blueprint.id = 'opening-' + blueprint.id;
+        blueprint.openingProject = true;
+        blueprint.createdDay = state.day;
+        state.player.blueprints = [blueprint, ...state.player.blueprints.filter(item => !item.openingProject)].slice(0, 30);
+        state.player.awaitingOpeningProject = false;
+        state.player.onboardingComplete = true;
+        state.player.chronicle = [...(state.player.chronicle || []), {
+            day: state.day,
+            era: state.player.era,
+            text: 'Первое дело народа — «' + blueprint.scienceName + '»: ' + blueprint.scienceDescription + ' Постройка: «' + blueprint.buildingName + '» — ' + blueprint.buildingDescription
+        }].slice(-20);
+        return { state, blueprint, error: null };
+    }
+
+    function skipGuide(input) {
+        const state = normalizeState(input);
+        state.player.guideDismissed = true;
         return { state, error: null };
     }
 
@@ -1343,15 +1401,19 @@
         const histInfo = player.historicalCulture ? player.historicalCulture.name + ' — ' + player.historicalCulture.desc : '';
         const origin = ORIGINS.find(o => o.id === player.originId);
         const originHist = origin ? origin.historical : '';
-        const summary = 'Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
-        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary, breakdown, biome: player.biome, geography: player.geography, trait: player.trait, nearby: player.nearby, historicalCulture: player.historicalCulture, origin };
+        const summary = 'Замысел народа: «' + (player.seedLine || 'не задан') + '». Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
+        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary, seedLine: player.seedLine || '', breakdown, biome: player.biome, geography: player.geography, trait: player.trait, nearby: player.nearby, historicalCulture: player.historicalCulture, origin };
     }
 
     function getFirstSessionGuide(input) {
         const current = normalizeState(input);
         const player = current.player;
+        if (!player.onboardingComplete) return null;
+        if (player.guideDismissed) {
+            return { steps: [], completedCount: 0, complete: true, dismissed: true, next: 'Обучение пропущено — развивайтесь свободно.' };
+        }
         const openingProject = player.blueprints.find(project => project.openingProject);
-        if (!player.onboardingComplete || !openingProject) return null;
+        if (!openingProject) return null;
 
         const practiceCount = (player.practice.wins || 0) + (player.practice.losses || 0);
         const ownedLandCount = current.regions.filter(region => region.ownerId === 'player'
@@ -1366,23 +1428,23 @@
         const complete = completedCount === steps.length;
         let next;
         if (complete) {
-            next = 'Первый маршрут пройден. Теперь можно свободно развивать поселение, заказывать карты в кузнице или продолжать тренировочные бои.';
+            next = 'Первый маршрут пройден. Дальше можно свободно развивать поселение, заказывать карты в кузнице или продолжать тренировочные бои.';
         } else if (current.day >= SEASON_LENGTH) {
-            next = 'Сезон дошёл до последнего дня до завершения вступительного маршрута. Подведи итоги сезона, чтобы продолжить кампанию.';
+            next = 'Сезон подошёл к концу, а вступительный маршрут ещё не пройден. Подведите итоги сезона, чтобы продолжить кампанию.';
         } else if (!openingProject.researched) {
             next = player.dailyOrders.researchUsed || player.ap <= 0
-                ? 'Исследовательский лимит на сегодня исчерпан (' + player.ap + ' AP). Заверши день, затем исследуй «' + openingProject.scienceName + '» за 1 провизию, 1 материал и 2 знания.'
-                : 'Исследуй «' + openingProject.scienceName + '» в панели развития: это стоит 1 провизию, 1 материал и 2 знания.';
+                ? 'Исследовательский приказ на сегодня исчерпан (осталось приказов: ' + player.ap + '). Завершите день и изучите «' + openingProject.scienceName + '» — это стоит 1 провизию и 1 знание.'
+                : 'Изучите «' + openingProject.scienceName + '» в разделе развития: это стоит 1 провизию и 1 знание.';
         } else if (!openingProject.built) {
             next = player.dailyOrders.constructionUsed || player.ap <= 0
-                ? 'Строительный лимит на сегодня исчерпан. Заверши день, затем построй «' + openingProject.buildingName + '» за 4 материала.'
-                : 'Построй «' + openingProject.buildingName + '» за 4 материала — чертёж уже исследован.';
+                ? 'Строительный приказ на сегодня исчерпан. Завершите день и постройте «' + openingProject.buildingName + '» за 3 материала.'
+                : 'Постройте «' + openingProject.buildingName + '» за 3 материала — чертёж уже исследован.';
         } else if (ownedLandCount <= 1) {
             next = player.dailyOrders.frontierUsed || player.ap <= 0
-                ? 'Лимит фронтира/AP на сегодня исчерпан. Заверши день, затем выбери соседнюю нейтральную область: охраняемую освобождают квестовым боем, свободную можно освоить напрямую.'
-                : 'На карте выбери соседнюю нейтральную область. Охраняемую освобождают квестовым боем за 4 провизии и 2 материала; свободную можно освоить за 2 провизии и 2 материала. Доход появится после постройки здания.';
+                ? 'Приказ фронтира на сегодня исчерпан. Завершите день, затем выберите на карте соседнюю нейтральную область.'
+                : 'Откройте карту и выберите соседнюю нейтральную область: свободную можно освоить за 2 провизии и 2 материала, а охраняемую сначала освобождает квестовый бой.';
         } else {
-            next = 'Выбери любого ИИ-соседа и сыграй тренировочный бой. Победа не обязательна; тренировочный бой не расходует кампанийные ресурсы.';
+            next = 'Сыграйте тренировочный бой с любым ИИ-соседом в разделе армии. Победа не обязательна, а кампанийные ресурсы тренировка не расходует.';
         }
 
         return { steps, completedCount, complete, next };
@@ -2099,7 +2161,7 @@
     function renderOnboarding(host) {
         const originCards = ORIGINS.map((origin, index) => '\n          <label class="campaign-onboarding-choice"><input type="radio" name="campaign-origin" value="' + origin.id + '" ' + (index === 0 ? 'checked' : '') + '><span class="campaign-choice-icon">' + origin.icon + '</span><span><b>' + escapeHtml(origin.name) + '</b><small>' + escapeHtml(origin.place) + ' · +' + origin.bonus + ' ' + (origin.resource === 'food' ? 'провизии' : origin.resource === 'materials' ? 'материала' : 'знания') + '</small><span class="campaign-choice-description">' + escapeHtml(origin.description) + '</span></span></label>').join('');
         const focusCards = OPENING_FOCUSES.map((focus, index) => '\n          <label class="campaign-onboarding-choice"><input type="radio" name="campaign-focus" value="' + focus.id + '" ' + (index === 0 ? 'checked' : '') + '><span class="campaign-choice-icon">' + focus.icon + '</span><span><b>' + escapeHtml(focus.title) + '</b><small>' + escapeHtml(focus.scienceName) + ' → ' + escapeHtml(focus.buildingName) + '</small><span class="campaign-choice-description">' + escapeHtml(focus.buildingDescription) + ' Эффект здания: ' + escapeHtml(EFFECTS[focus.effect].label) + '.</span></span></label>').join('');
-        host.innerHTML = '\n          <section class="campaign-onboarding-hero"><span class="campaign-kicker">INFINITE FORGE · НАЧАЛО СЕЗОНА</span><h2>Рождение народа</h2><p>Твоя столица появится в центре сгенерированного мира 7×7. Выбери происхождение общины и первое дело — они зададут стартовый ресурс и научный проект.</p></section>\n          <form class="campaign-onboarding-form" onsubmit="CampaignMvp.beginOnboarding(event)">\n            <section class="campaign-panel campaign-onboarding-section"><h3>1 · Кто вы?</h3><label class="campaign-onboarding-name">Имя народа<input id="campaign-start-name" maxlength="24" placeholder="Например, Дети Великой Реки" autocomplete="off"></label><div class="campaign-onboarding-options">' + originCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-section"><h3>2 · На что направите силы?</h3><p class="campaign-small">Выбор откроет готовый первый проект. Генерация через ИИ для начала не требуется.</p><div class="campaign-onboarding-options">' + focusCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-deck"><h3>3 · Уже есть чем защищаться</h3><p class="campaign-small">Стартовая колода из двух карт доступна сразу — без ковки, API-ключа и предварительной сборки.</p><div class="campaign-starter-preview">' + STARTER_CARDS.map(card => '<article><span>' + card.emoji + '</span><div><b>' + escapeHtml(card.name) + '</b><small>' + card.atk + '/' + card.hp + ' · ' + card.drop_cost + ' энергии на вывод</small><p>' + escapeHtml(card.description) + '</p></div></article>').join('') + '</div><p class="campaign-small">Позже колоду можно менять картами из коллекции. Тренировочные бои против ИИ не дают ресурсов, медалей или рейтинга.</p></section>\n            <button class="campaign-btn campaign-btn-gold campaign-onboarding-submit" type="submit">Начать путь цивилизации →</button>\n          </form>';
+        host.innerHTML = '\n          <section class="campaign-onboarding-hero"><span class="campaign-kicker">INFINITE FORGE · НАЧАЛО СЕЗОНА</span><h2>Рождение народа</h2><p>Твоя столица появится в центре сгенерированного мира 7×7. Выбери происхождение общины и первое дело — они зададут стартовый ресурс и научный проект.</p></section>\n          <form class="campaign-onboarding-form" onsubmit="CampaignMvp.beginOnboarding(event)">\n            <section class="campaign-panel campaign-onboarding-section"><h3>1 · Кто вы?</h3><label class="campaign-onboarding-name">Имя народа<input id="campaign-start-name" maxlength="24" placeholder="Например, Дети Великой Реки" autocomplete="off"></label><div class="campaign-onboarding-options">' + originCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-section"><h3>2 · На что направите силы?</h3><p class="campaign-small">Старый экран: первый проект берётся из локального списка. В новом интерфейсе науки и постройки придумывает ИИ по затравке народа.</p><div class="campaign-onboarding-options">' + focusCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-deck"><h3>3 · Уже есть чем защищаться</h3><p class="campaign-small">Стартовая колода из двух карт доступна сразу — без ковки, API-ключа и предварительной сборки.</p><div class="campaign-starter-preview">' + STARTER_CARDS.map(card => '<article><span>' + card.emoji + '</span><div><b>' + escapeHtml(card.name) + '</b><small>' + card.atk + '/' + card.hp + ' · ' + card.drop_cost + ' энергии на вывод</small><p>' + escapeHtml(card.description) + '</p></div></article>').join('') + '</div><p class="campaign-small">Позже колоду можно менять картами из коллекции. Тренировочные бои против ИИ не дают ресурсов, медалей или рейтинга.</p></section>\n            <button class="campaign-btn campaign-btn-gold campaign-onboarding-submit" type="submit">Начать путь цивилизации →</button>\n          </form>';
     }
 
     function beginOnboarding(event) {
@@ -2341,7 +2403,7 @@
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
-        createState, normalizeState, completeOnboarding, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
+        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         getRegionalIncome, getAvailableMaterialQualities, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,

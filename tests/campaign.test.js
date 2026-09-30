@@ -239,12 +239,12 @@ test('optional first-session guide advances through research, construction, expa
   let guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.complete, false);
   assert.equal(guide.completedCount, 0);
-  assert.match(guide.next, /Исследуй «Рыбные запруды»/);
+  assert.match(guide.next, /Изучите «Рыбные запруды»/);
 
   state = Campaign.researchBlueprint(state, 'opening-food').state;
   guide = Campaign.getFirstSessionGuide(state);
   assert.equal(guide.steps[0].done, true);
-  assert.match(guide.next, /Построй «Речная запруда»/);
+  assert.match(guide.next, /Постройте «Речная запруда»/);
 
   // need AP for second action, finish day if needed
   if (state.player.ap <= 0) state = Campaign.finishDayState(state).state;

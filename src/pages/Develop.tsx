@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { llmScience } from "@/game/cards";
+import { llmScienceOffers } from "@/game/cards";
 import { useStore } from "@/game/store";
 import { Btn, Chip, Cost, Heading, Label, Panel, Tabs } from "@/components/ui";
 import { PageFrame } from "@/components/Shell";
@@ -23,41 +23,78 @@ function EffectChips({ effects }: { effects: any[] }) {
 function Science() {
   const { game, act, commit, apiKey, model, toast } = useStore();
   const p = game.player;
-  const branches: any[] = M.scienceBranchesForEra(p.era);
-  const [branchId, setBranchId] = useState<string>(branches[0]?.id);
   const [loading, setLoading] = useState(false);
-  const [nonce, setNonce] = useState(0);
   const choices = p.scienceChoices;
+  const branches: any[] = M.scienceBranchesForEra(p.era);
+  const opening = p.blueprints.find((b: any) => b.openingProject);
+  const guide = M.getFirstSessionGuide(game);
+  const guided = Boolean(guide && !guide.complete);
+  const stage = (b: any) => (b.built ? 3 : b.researched ? 2 : 1);
+  const stepIndex = guided ? guide!.steps.findIndex((s: any) => s.id === "research") + 1 : 0;
+
+  // Пока первое дело не сделано, ведём за руку: один проект и одно действие.
+  if (guided && opening && !opening.built) {
+    const s = stage(opening);
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Panel className="border-bronze/40 p-5 sm:p-6">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft">
+            <Sparkles size={13} />Первое дело народа · шаг {stepIndex} из {guide!.steps.length}
+          </div>
+          <h2 className="font-display mt-2 text-2xl font-semibold">{opening.scienceName}</h2>
+          <p className="mt-2 text-[14px] leading-relaxed text-dim">{opening.scienceDescription}</p>
+          <div className="mt-3"><EffectChips effects={opening.effects} /></div>
+          <div className="mt-5 rounded-xl border border-line bg-ground/50 p-4">
+            <Label>Постройка по чертежу</Label>
+            <div className="mt-0.5 font-display text-lg font-semibold">{opening.buildingName}</div>
+            <p className="mt-1 text-[13px] leading-relaxed text-dim">{opening.buildingDescription}</p>
+          </div>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {s === 1 && (
+              <>
+                <Cost cost={{ food: 1, knowledge: 1 }} have={p.resources} />
+                <Btn variant="primary" size="lg" onClick={() => { act((st: any) => M.researchBlueprint(st, opening.id)); }}>
+                  <Telescope size={18} />Изучить науку
+                </Btn>
+              </>
+            )}
+            {s === 2 && (
+              <>
+                <Cost cost={{ materials: 3 }} have={p.resources} />
+                <Btn variant="primary" size="lg" onClick={() => { act((st: any) => M.constructBlueprint(st, opening.id)); }}>
+                  <Hammer size={18} />Построить здание
+                </Btn>
+              </>
+            )}
+            {s === 3 && <Chip tone="ok"><Check size={12} />Первое дело сделано</Chip>}
+          </div>
+          <p className="mt-4 text-xs leading-relaxed text-faint">{guide!.next}</p>
+        </Panel>
+        <Panel className="mt-4 p-5">
+          <div className="flex items-center gap-2 text-sm text-dim"><Lock size={14} className="text-bronze" />Новые замыслы откроются, когда первое дело будет построено.</div>
+        </Panel>
+      </div>
+    );
+  }
 
   const generate = async () => {
-    const branch = branches.find((b) => b.id === branchId);
-    if (!branch) return;
-    setLoading(true);
-    let projects: any[] = [];
-    let usedLlm = false;
-    try {
-      if (!apiKey) throw new Error("no-key");
-      projects = await llmScience(apiKey, model, game, branch);
-      usedLlm = projects.length > 0;
-    } catch (e: any) {
-      if (e?.message !== "no-key") toast(`ИИ недоступен (${e?.message}). Использованы местные пулы.`, "info");
+    if (!apiKey) {
+      toast("Нужен API-ключ: советник придумывает проекты сам, готовых списков в игре нет.", "bad");
+      return;
     }
-    if (!projects.length) projects = M.generateLocalScienceVariants(branchId, M.hashString(p.name + p.clan + branchId + game.day + ":" + nonce + Date.now()), 3);
-    const cleaned = projects.map((raw) => ({
-      scienceName: String(raw.scienceName || "").slice(0, 80),
-      scienceDescription: String(raw.scienceDescription || "").slice(0, 400),
-      buildingName: String(raw.buildingName || "").slice(0, 80),
-      buildingDescription: String(raw.buildingDescription || "").slice(0, 400),
-      category: M.CATEGORIES.includes(raw.category) ? raw.category : branch.category,
-      effects: M.cleanEffects(raw.effects) || [{ type: branch.effect, amount: 1 }],
-    })).filter((x) => x.scienceName && x.buildingName).slice(0, 3);
-    setLoading(false);
-    if (!cleaned.length) { toast("Советник не смог придумать проекты — попробуйте ещё раз.", "bad"); return; }
-    const next = M.clone(game);
-    next.player.scienceChoices = { branchId, day: game.day, projects: cleaned };
-    commit(next, { silent: true });
-    setNonce((n) => n + 1);
-    if (usedLlm) toast("Советник предложил три уникальных замысла.", "ok");
+    setLoading(true);
+    try {
+      const projects = await llmScienceOffers(apiKey, model, game);
+      if (!projects.length) throw new Error("не пришло ни одного проекта");
+      const next = M.clone(game);
+      next.player.scienceChoices = { branchId: "advisor", day: game.day, projects };
+      commit(next, { silent: true });
+      toast("Советник предложил три замысла под вашу ситуацию.", "ok");
+    } catch (e: any) {
+      toast(`Советник недоступен: ${e?.message}. Заготовок нет — попробуйте ещё раз.`, "bad");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const choose = (idx: number) => {
@@ -78,7 +115,6 @@ function Science() {
   };
 
   const bps: any[] = p.blueprints;
-  const stage = (b: any) => (b.built ? 3 : b.researched ? 2 : 1);
   const sorted = [...bps].sort((a, b) => stage(a) - stage(b));
 
   return (
@@ -86,23 +122,17 @@ function Science() {
       <div className="space-y-4">
         <Panel className="p-5">
           <Heading title="Научный советник" eyebrow="Новые замыслы" className="[&_h2]:text-lg" />
-          <p className="mt-1 text-[13px] text-dim">Выберите широкое направление — советник предложит три конкретных пути с учётом ваших земель и запасов.</p>
-          <div className="mt-4 grid gap-2">
-            {branches.map((b) => (
-              <button key={b.id} onClick={() => setBranchId(b.id)} className={cn("flex items-center gap-3 rounded-xl border px-3.5 py-2.5 text-left transition-colors", branchId === b.id ? "border-bronze bg-raised" : "border-line hover:bg-raised/60")}>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{b.label}</span>
-                  <span className="block truncate text-xs text-faint">{M.EFFECTS[b.effect]?.label}</span>
-                </span>
-                <Chip tone={CAT[b.category]?.tone}>{CAT[b.category]?.label}</Chip>
-              </button>
-            ))}
+          <p className="mt-1 text-[13px] leading-relaxed text-dim">
+            Направление советник выбирает сам: читает затравку народа, эпоху, земли и запасы и придумывает три разных проекта — хозяйство, защиту и знания. Готовых наук и построек в игре нет.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {branches.slice(0, 4).map((b) => <Chip key={b.id}>{b.label}</Chip>)}
           </div>
-          <Btn variant="primary" className="mt-4 w-full" onClick={generate} disabled={loading || bps.length >= 30}>
-            {loading ? <Loader2 size={16} className="animate-spin" /> : choices ? <RefreshCw size={16} /> : <Sparkles size={16} />}
-            {loading ? "Советник думает…" : choices ? "Предложить другие замыслы" : "Получить три замысла"}
+          <Btn variant="primary" className="mt-4 w-full" size="lg" onClick={generate} disabled={loading || bps.length >= 30}>
+            {loading ? <Loader2 size={18} className="animate-spin" /> : choices ? <RefreshCw size={16} /> : <Sparkles size={16} />}
+            {loading ? "Советник думает…" : choices ? "Предложить другие замыслы" : "Спросить советника"}
           </Btn>
-          {!apiKey && <p className="mt-2 text-[11.5px] text-faint">Без API-ключа замыслы составляются из местных пулов — у каждого народа они свои.</p>}
+          {!apiKey && <p className="mt-2 text-[11.5px] text-bad">API-ключ обязателен: без него советник не может придумать проекты.</p>}
         </Panel>
 
         {p.pendingDecreeChoice && (
@@ -115,7 +145,7 @@ function Science() {
       <div className="space-y-4">
         {choices && (
           <Panel className="animate-rise border-bronze/30 p-5">
-            <Heading title="Выберите один путь" eyebrow={`Направление: ${branches.find((b) => b.id === choices.branchId)?.label ?? ""}`} className="[&_h2]:text-lg" />
+            <Heading title="Выберите один путь" eyebrow="Советник прочитал вашу ситуацию" className="[&_h2]:text-lg" />
             <div className="mt-4 grid gap-3">
               {choices.projects.map((pr: any, i: number) => (
                 <div key={i} className="rounded-xl border border-line bg-raised/50 p-4">
@@ -125,6 +155,7 @@ function Science() {
                       <p className="mt-1 text-[13px] leading-snug text-dim">{pr.scienceDescription}</p>
                       <div className="mt-2 flex items-center gap-1.5 text-xs text-faint"><Hammer size={12} />Здание: <span className="text-parch">{pr.buildingName}</span></div>
                       <div className="mt-2"><EffectChips effects={pr.effects} /></div>
+                      {pr.rationale && <p className="mt-2 text-xs italic leading-relaxed text-faint">{pr.rationale}</p>}
                     </div>
                     <Btn size="sm" variant="primary" onClick={() => choose(i)}>Выбрать</Btn>
                   </div>
@@ -137,7 +168,7 @@ function Science() {
         <Panel className="p-5">
           <Heading title="Кодекс проектов" eyebrow={`${bps.length} из 30`} className="[&_h2]:text-lg" />
           {sorted.length === 0 ? (
-            <p className="mt-4 text-sm text-dim">Кодекс пуст. Получите замыслы у советника слева.</p>
+            <p className="mt-4 text-sm text-dim">Кодекс пуст. Спросите советника слева — он придумает проекты под вашу затравку.</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {sorted.map((b) => {
@@ -274,6 +305,20 @@ export default function Develop() {
   const { game } = useStore();
   const [tab, setTab] = useState<"science" | "buildings" | "decrees">(game.player.pendingDecreeChoice ? "decrees" : "science");
   const p = game.player;
+  const guide = M.getFirstSessionGuide(game);
+  const guided = Boolean(guide && !guide.complete);
+  // В первые шаги вкладок нет: одна задача на экране.
+  if (guided && !p.pendingDecreeChoice) {
+    return (
+      <PageFrame wide>
+        <div className="mb-6">
+          <Label>Первые шаги · развитие</Label>
+          <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Первое дело народа</h1>
+        </div>
+        <Science />
+      </PageFrame>
+    );
+  }
   return (
     <PageFrame wide>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">

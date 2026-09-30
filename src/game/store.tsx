@@ -1,10 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { M } from "./model";
-import type { Card } from "./cards";
+import { llmOpeningProject, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
 import type { Match } from "./battle";
 
 export type Page = "home" | "map" | "develop" | "forge" | "army";
 export type Tone = "info" | "ok" | "bad";
+
+/** Шаг первого маршрута ведёт на конкретный экран — игрок не ищет, куда нажать. */
+export function guideStepPage(stepId: string): Page {
+  if (stepId === "territory") return "map";
+  if (stepId === "battle") return "army";
+  return "develop";
+}
+
+export function currentGuideStep(game: any): { step: any; guide: any; page: Page } | null {
+  const guide = M.getFirstSessionGuide(game);
+  if (!guide || guide.complete) return null;
+  const step = guide.steps.find((s: any) => !s.done);
+  if (!step) return null;
+  return { step, guide, page: guideStepPage(step.id) };
+}
 export interface Toast { id: number; text: string; tone: Tone }
 
 export const AVAILABLE_MODELS = [
@@ -19,6 +34,8 @@ export const AVAILABLE_MODELS = [
   { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
   { id: "hydra-gpt-mini", label: "Hydra GPT Mini (бесплатная)" },
 ];
+
+export interface ApiKeyCheck { status: "unknown" | "checking" | "ok" | "bad"; message: string }
 
 export interface DayReport {
   day: number;
@@ -38,9 +55,17 @@ interface Store {
   game: any;
   collection: Card[];
   apiKey: string;
+  keyCheck: ApiKeyCheck;
   model: string;
   setApiKey: (k: string) => void;
   setModel: (m: string) => void;
+  verifyKey: (candidate?: string, quiet?: boolean) => Promise<boolean>;
+  /** Основание народа: имя, происхождение и затравка; первый проект создаёт ИИ. */
+  foundCampaign: (input: { name: string; originId: string; seedLine: string }) => Promise<{ ok: boolean; project?: any; error?: string }>;
+  /** Игрок увидел созданное первое дело и начинает первый день. */
+  startFirstDay: (project?: any) => boolean;
+  /** Даёт постройке в земле уникальное имя от советника. */
+  nameRegionBuilding: (regionId: string) => void;
   page: Page;
   go: (p: Page) => void;
   toasts: Toast[];
@@ -89,12 +114,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const gameRef = useRef(game);
   const [collection, setCollection] = useState<Card[]>(loadCollection);
   const [apiKey, setApiKeyState] = useState(() => localStorage.getItem("iforge_hydra_key") || "");
+  const [keyCheck, setKeyCheck] = useState<ApiKeyCheck>(() => ({ status: localStorage.getItem("iforge_hydra_key") ? "unknown" : "bad", message: "" }));
   const [model, setModelState] = useState(() => localStorage.getItem("iforge_model") || "gpt-6-luna");
   const [page, setPage] = useState<Page>("home");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [dayReport, setDayReport] = useState<DayReport | null>(null);
   const [settingsOpen, openSettings] = useState(false);
   const [match, setMatch] = useState<Match | null>(null);
+  const [pendingOpening, setPendingOpening] = useState<{ state: any } | null>(null);
   const [selectedRegion, selectRegion] = useState<string | null>(null);
   const toastId = useRef(0);
 
@@ -135,7 +162,91 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [commit]);
 
-  const setApiKey = (k: string) => { setApiKeyState(k); localStorage.setItem("iforge_hydra_key", k.trim()); };
+  const setApiKey = (k: string) => {
+    setApiKeyState(k);
+    localStorage.setItem("iforge_hydra_key", k.trim());
+    setKeyCheck({ status: k.trim() ? "unknown" : "bad", message: "" });
+  };
+
+  const verifyKey = useCallback(async (candidate?: string, quiet = false): Promise<boolean> => {
+    const key = (candidate ?? apiKey).trim();
+    if (!key) { setKeyCheck({ status: "bad", message: "Введите ключ с dashboard.hydraai.ru." }); return false; }
+    setKeyCheck({ status: "checking", message: "" });
+    try {
+      await probeApiKey(key, model);
+      setApiKeyState(key);
+      localStorage.setItem("iforge_hydra_key", key);
+      setKeyCheck({ status: "ok", message: "Ключ работает — ИИ подключён." });
+      if (!quiet) toast("Ключ проверен: советники на связи.", "ok");
+      return true;
+    } catch (e: any) {
+      setKeyCheck({ status: "bad", message: e?.message || "Ключ не принят." });
+      return false;
+    }
+  }, [apiKey, model, toast]);
+
+  /** Полный старт: модель получает затравку и придумывает первое дело народа. */
+  const foundCampaign = useCallback(async ({ name, originId, seedLine }: { name: string; originId: string; seedLine: string }) => {
+    if (!apiKey.trim()) return { ok: false, error: "Нужен API-ключ: первый проект создаёт советник." };
+    const current = gameRef.current;
+    // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
+    const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
+    let base = M.clone(current);
+    if (resumable) {
+      base.player.seedLine = seedLine.trim().slice(0, 240);
+      base.player.name = name.trim().slice(0, 24) || base.player.name;
+      base = M.normalizeState(base);
+      commit(base, { silent: true });
+    } else {
+      const begun = M.beginOnboardingState(base, { name, originId, seedLine });
+      if (begun.error) return { ok: false, error: begun.error };
+      base = begun.state;
+      commit(base, { silent: true });
+    }
+    try {
+      const project = await llmOpeningProject(apiKey, model, base);
+      const applied = M.setOpeningProject(M.clone(base), project);
+      if (applied.error) return { ok: false, error: applied.error };
+      // Начало игры фиксируется только после того, как игрок увидел первый проект.
+      setPendingOpening({ state: applied.state });
+      // Черновик спасает уже оплаченную генерацию, если игрок закроет вкладку до первого дня.
+      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedLine: base.player.seedLine, project: applied.blueprint })); } catch { /* переполнение хранилища не критично */ }
+      return { ok: true, project: applied.blueprint };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "Советник недоступен." };
+    }
+  }, [apiKey, model, commit]);
+
+  const startFirstDay = useCallback((project?: any) => {
+    let prepared = pendingOpening?.state ?? null;
+    if (!prepared && project) {
+      const applied = M.setOpeningProject(M.clone(gameRef.current), project);
+      if (applied.error) return false;
+      prepared = applied.state;
+    }
+    if (!prepared) return false;
+    commit(prepared, { silent: true });
+    setPendingOpening(null);
+    try { localStorage.removeItem("iforge_opening_draft"); } catch { /* пусто */ }
+    return true;
+  }, [pendingOpening, commit]);
+  /** Постройка в новой земле получает своё имя от советника; при сбое остаётся местное. */
+  const nameRegionBuilding = useCallback(async (regionId: string) => {
+    const tile = (gameRef.current.world?.tiles || []).find((t: any) => t.id === regionId);
+    const building = tile ? M.REGION_BUILDINGS[tile.siteType] : null;
+    if (!tile || !building || !apiKey) return;
+    try {
+      const flavor = await llmRegionBuildingName(apiKey, model, gameRef.current, tile, building);
+      if (!flavor) return;
+      const next = M.clone(gameRef.current);
+      const record = next.regions.find((r: any) => r.id === regionId);
+      if (!record?.building || record.ownerId !== "player") return;
+      record.buildingFlavor = flavor;
+      commit(next, { silent: true });
+      toast(`Постройка в «${tile.name}» получила имя: ${flavor.name}.`, "ok");
+    } catch { /* местное имя остаётся, стройка уже оплачена */ }
+  }, [apiKey, model, commit, toast]);
+
   const setModel = (m: string) => { setModelState(m); localStorage.setItem("iforge_model", m); };
 
   const go = useCallback((p: Page) => { setPage(p); window.scrollTo({ top: 0 }); }, []);
@@ -169,6 +280,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit, toast]);
 
   const resetCampaign = useCallback(() => {
+    try { localStorage.removeItem("iforge_opening_draft"); } catch { /* пусто */ }
+    setPendingOpening(null);
     commit(M.createState(), { silent: true });
     setMatch(null);
     setPage("home");
@@ -214,10 +327,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const closeBattle = useCallback(() => setMatch(null), []);
 
   const value = useMemo<Store>(() => ({
-    game, collection, apiKey, model, setApiKey, setModel, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
+    game, collection, apiKey, keyCheck, model, setApiKey, setModel, verifyKey, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
     endDay, dayReport, closeDayReport: () => setDayReport(null), resetCampaign, settingsOpen, openSettings,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, selectRegion,
-  }), [game, collection, apiKey, model, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
+  }), [game, collection, apiKey, keyCheck, model, verifyKey, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
