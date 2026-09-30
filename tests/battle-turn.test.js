@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'legacy.html'), 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 if (!script) throw new Error('Could not find the app inline script');
 

@@ -112,7 +112,7 @@ test('optional first-session guide advances through research, construction, expa
   assert.equal(guide.completedCount, 4);
 });
 
-test('first-session guide is rendered on the live campaign screen', () => {
+test('the preserved legacy campaign renderer keeps the first-session guide', () => {
   const state = Campaign.completeOnboarding(Campaign.createState(), {
     name: 'Тестовый народ', originId: 'river', openingFocusId: 'food'
   }).state;
