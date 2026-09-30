@@ -1,14 +1,65 @@
 #!/usr/bin/env node
 'use strict';
 const Campaign = require('../campaign.js');
+const CampaignMap = require('../campaign-map.js');
 const ORIGIN = 'river';
 const OPENING_FOCUS = 'food';
 const SIMULATION_ROLL = 0.5;
+const SIMULATION_SEED = 12345;
 
-function newCampaign() {
-    const r = Campaign.completeOnboarding(Campaign.createState(), { name: 'Тест', originId: ORIGIN, openingFocusId: OPENING_FOCUS });
+function newCampaign(seed = SIMULATION_SEED) {
+    const r = Campaign.completeOnboarding(Campaign.createState(seed), { name: 'Тест', originId: ORIGIN, openingFocusId: OPENING_FOCUS });
     if (r.error) throw new Error(r.error);
     return r.state;
+}
+function findTile(state, predicate) { return state.world.tiles.find(predicate) || null; }
+function findTileId(state, predicate) { return findTile(state, predicate)?.id || null; }
+function getRegion(state, tileId) { return state.regions.find(region => region.id === tileId) || null; }
+function getPlayerLandIds(state) {
+    return new Set(state.regions.filter(region => region.ownerId === 'player'
+        && state.world.tiles.find(tile => tile.id === region.id)?.terrain !== 'water').map(region => region.id));
+}
+function landPathTo(state, destinationId) {
+    const tiles = new Map(state.world.tiles.map(tile => [tile.id, tile]));
+    const owned = getPlayerLandIds(state);
+    const destination = tiles.get(destinationId);
+    if (!destination || destination.terrain === 'water') return null;
+    if (owned.has(destinationId)) return [];
+    const previous = new Map();
+    const queue = [];
+    for (const id of owned) { previous.set(id, null); queue.push(id); }
+    while (queue.length) {
+        const currentId = queue.shift();
+        if (currentId === destinationId) break;
+        const current = tiles.get(currentId);
+        for (const neighborId of current?.neighbors || []) {
+            if (previous.has(neighborId)) continue;
+            const neighbor = tiles.get(neighborId);
+            const region = getRegion(state, neighborId);
+            if (!neighbor || neighbor.terrain === 'water' || (region?.ownerId && region.ownerId !== 'player')) continue;
+            if (neighbor.kind === 'settlement' && neighborId !== destinationId) continue;
+            previous.set(neighborId, currentId);
+            queue.push(neighborId);
+        }
+    }
+    if (!previous.has(destinationId)) return null;
+    const path = [];
+    let cursor = destinationId;
+    while (cursor && !owned.has(cursor)) { path.push(cursor); cursor = previous.get(cursor); }
+    return path.reverse();
+}
+function pathToSettlementBorder(state, settlementId) {
+    const target = findTile(state, tile => tile.id === settlementId);
+    if (!target) return null;
+    return target.neighbors
+        .filter(id => {
+            const tile = findTile(state, other => other.id === id);
+            const region = getRegion(state, id);
+            return tile && tile.terrain !== 'water' && tile.kind !== 'settlement' && (!region || !region.ownerId || region.ownerId === 'player');
+        })
+        .map(id => ({ destinationId: id, path: landPathTo(state, id) }))
+        .filter(item => item.path)
+        .sort((a, b) => a.path.length - b.path.length || a.destinationId.localeCompare(b.destinationId))[0] || null;
 }
 function advanceDay(state) {
     if (state.day >= Campaign.SEASON_LENGTH) return state;
@@ -53,7 +104,8 @@ function summarize(state, extra = {}) {
         eraReached: Campaign.ERAS[state.player.era],
         buildings: state.player.buildings.length,
         activeBuildings: state.player.buildings.filter(b => b.active).length,
-        controlledRegions: state.regions.filter(r => r.ownerId === 'player').length,
+        controlledRegions: state.regions.filter(r => r.ownerId === 'player'
+            && state.world.tiles.find(tile => tile.id === r.id)?.terrain !== 'water').length,
         regionsWithBuildings: state.regions.filter(r => r.ownerId === 'player' && r.building).length,
         regionalDailyIncome: Campaign.getRegionalIncome(state),
         availableQualities: Campaign.getAvailableMaterialQualities(state)
@@ -72,65 +124,26 @@ function simulateNoOrders() {
     return summarize(state, { strategy: 'пропускать дни, не отдавая приказы (проверка голода)', starvationEvents });
 }
 
-function tryStabilizeFood(state) {
-    let orders = 0;
-    let attempts = 0;
-    while (state.day < Campaign.SEASON_LENGTH && attempts < 30) {
-        attempts++;
-        const fp = state.regions.find(r => r.id === 'floodplain');
-        if (!fp || fp.ownerId !== 'player') {
-            const act = Campaign.getRegionActionState(state, 'floodplain');
-            if (act.enabled && act.action === 'settle') {
-                const res = Campaign.settleRegionState(state, 'floodplain');
-                if (!res.error) { state = res.state; orders++; continue; }
-            }
-            // need resources or AP
-            if (state.player.ap <= 0) { state = advanceDay(state); continue; }
-            const next = advanceDay(state);
-            if (next === state) break;
-            state = next;
-            continue;
-        }
-        if (!fp.building) {
-            const act = Campaign.getRegionActionState(state, 'floodplain');
-            if (act.enabled && act.action === 'build') {
-                const res = Campaign.buildRegionBuildingState(state, 'floodplain');
-                if (!res.error) { state = res.state; orders++; break; }
-            }
-            if (state.player.ap <= 0) { state = advanceDay(state); continue; }
-            const next = advanceDay(state);
-            if (next === state) break;
-            state = next;
-            continue;
-        }
-        break;
-    }
-    return { state, orders };
-}
-
-function unlockMaterialSites(input, materialQuality) {
+function ensureEra(input, targetEra, stats = {}) {
     let state = input;
-    let researchOrders = 0, territoryOrders = 0, buildingOrders = 0;
-    if (materialQuality === 'standard') return { state, researchOrders, territoryOrders, buildingOrders, sites: [] };
-
-    let stab = tryStabilizeFood(state);
-    state = stab.state;
-    territoryOrders += stab.orders;
-
-    let researchDraft = 0;
-    let eraAttempts = 0;
-    while (state.player.era < 2 && state.day < Campaign.SEASON_LENGTH && eraAttempts < 100) {
-        eraAttempts++;
-        if (state.player.ap <= 0) { const n = advanceDay(state); if (n === state) break; state = n; continue; }
-        if (state.player.dailyOrders.researchUsed) { const n = advanceDay(state); if (n === state) break; state = n; continue; }
-        let project = state.player.blueprints.find(p => !p.researched);
+    let draftIndex = 0;
+    let attempts = 0;
+    while (state.player.era < targetEra && state.day < Campaign.SEASON_LENGTH && attempts < 120) {
+        attempts++;
+        if (state.player.ap <= 0 || state.player.dailyOrders.researchUsed) {
+            const next = advanceDay(state);
+            if (next === state) break;
+            state = next;
+            continue;
+        }
+        let project = state.player.blueprints.find(item => !item.researched);
         if (!project) {
-            const idx = ++researchDraft;
+            draftIndex++;
             const added = Campaign.addBlueprint(state, {
-                scienceName: `Добычная наука ${idx}`,
-                scienceDescription: 'Знания для рудных месторождений.',
-                buildingName: `Добычный чертёж ${idx}`,
-                buildingDescription: 'Локальный проект.',
+                scienceName: `Исследование фронтира ${draftIndex}`,
+                scienceDescription: 'Местные наблюдения для расширения поселения.',
+                buildingName: `Полевой чертёж ${draftIndex}`,
+                buildingDescription: 'Практический проект для поселения.',
                 category: 'science', effects: [{ type: 'income_knowledge', amount: 1 }]
             }, 'both');
             if (added.error) throw new Error(added.error);
@@ -138,45 +151,124 @@ function unlockMaterialSites(input, materialQuality) {
             project = added.blueprint;
         }
         const researched = Campaign.researchBlueprint(state, project.id);
-        if (researched.error) { const n = advanceDay(state); if (n === state) break; state = n; continue; }
-        state = researched.state;
-        researchOrders++;
+        if (!researched.error) {
+            state = researched.state;
+            stats.researchOrders = (stats.researchOrders || 0) + 1;
+            continue;
+        }
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
     }
+    return state;
+}
 
-    const sites = materialQuality === 'masterwork' ? ['floodplain', 'copper', 'hills', 'tin-route'] : ['floodplain', 'copper'];
-    for (const regionId of sites) {
-        if (state.day >= Campaign.SEASON_LENGTH) break;
-        // settle
-        let attempts = 0;
-        while (attempts < 20 && state.day < Campaign.SEASON_LENGTH) {
-            attempts++;
-            const rec = state.regions.find(r => r.id === regionId);
-            if (rec && rec.ownerId === 'player') break;
-            if (state.player.ap <= 0) { state = advanceDay(state); continue; }
-            if (state.player.dailyOrders.frontierUsed) { state = advanceDay(state); continue; }
-            const claim = Campaign.settleRegionState(state, regionId);
-            if (!claim.error) { state = claim.state; territoryOrders++; break; }
-            const n = advanceDay(state);
-            if (n === state) break;
-            state = n;
+function claimPathTo(input, destinationId, stats = {}) {
+    let state = input;
+    let attempts = 0;
+    while (state.day < Campaign.SEASON_LENGTH && attempts < 100) {
+        attempts++;
+        const record = getRegion(state, destinationId);
+        if (record?.ownerId === 'player') return { state, reached: true };
+        const path = landPathTo(state, destinationId);
+        if (!path || !path.length) return { state, reached: false };
+        const nextId = path[0];
+        const tile = findTile(state, item => item.id === nextId);
+        if (!tile || tile.kind === 'settlement') return { state, reached: false };
+        if (tile.minEra > state.player.era) {
+            const beforeDay = state.day;
+            state = ensureEra(state, tile.minEra, stats);
+            if (state.day === beforeDay && state.player.era < tile.minEra) return { state, reached: false };
+            continue;
         }
-        // build
-        attempts = 0;
-        while (attempts < 20 && state.day < Campaign.SEASON_LENGTH) {
-            attempts++;
-            const rec = state.regions.find(r => r.id === regionId);
-            if (!rec || rec.ownerId !== 'player') break;
-            if (rec.building) break;
-            if (state.player.ap <= 0) { state = advanceDay(state); continue; }
-            if (state.player.dailyOrders.constructionUsed) { state = advanceDay(state); continue; }
-            const build = Campaign.buildRegionBuildingState(state, regionId);
-            if (!build.error) { state = build.state; buildingOrders++; break; }
-            const n = advanceDay(state);
-            if (n === state) break;
-            state = n;
+        const action = Campaign.getRegionActionState(state, nextId);
+        if (action.enabled && action.action === 'settle') {
+            const claim = Campaign.settleRegionState(state, nextId);
+            if (!claim.error) {
+                state = claim.state;
+                stats.territoryOrders = (stats.territoryOrders || 0) + 1;
+                continue;
+            }
+        } else if (action.enabled && action.action === 'quest') {
+            // The economy simulation treats quest encounters as victories so it can model expansion costs.
+            const expedition = Campaign.beginRegionExpeditionState(state, nextId);
+            if (!expedition.error) {
+                const outcome = Campaign.finishRegionExpeditionState(expedition.state, expedition.match, true);
+                if (!outcome.error) {
+                    state = outcome.state;
+                    stats.territoryOrders = (stats.territoryOrders || 0) + 1;
+                    stats.questBattles = (stats.questBattles || 0) + 1;
+                    continue;
+                }
+            }
         }
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
     }
-    return { state, researchOrders, territoryOrders, buildingOrders, sites };
+    return { state, reached: getRegion(state, destinationId)?.ownerId === 'player' };
+}
+
+function ownAndBuildSite(input, tileId, stats = {}) {
+    const claimed = claimPathTo(input, tileId, stats);
+    let state = claimed.state;
+    if (!claimed.reached) return { state, reached: false };
+    let attempts = 0;
+    while (state.day < Campaign.SEASON_LENGTH && attempts < 50) {
+        attempts++;
+        const record = getRegion(state, tileId);
+        if (!record || record.ownerId !== 'player') break;
+        if (record.building) return { state, reached: true };
+        const action = Campaign.getRegionActionState(state, tileId);
+        if (action.enabled && action.action === 'build') {
+            const built = Campaign.buildRegionBuildingState(state, tileId);
+            if (!built.error) {
+                state = built.state;
+                stats.buildingOrders = (stats.buildingOrders || 0) + 1;
+                return { state, reached: true };
+            }
+        }
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
+    }
+    return { state, reached: Boolean(getRegion(state, tileId)?.building) };
+}
+
+function tryStabilizeFood(input) {
+    const center = findTile(input, tile => tile.x === CampaignMap.CENTER.x && tile.y === CampaignMap.CENTER.y);
+    const foodTiles = input.world.tiles.filter(tile => tile.kind === 'resource' && tile.siteType === 'food')
+        .sort((a, b) => (Math.abs(a.x - center.x) + Math.abs(a.y - center.y)) - (Math.abs(b.x - center.x) + Math.abs(b.y - center.y)));
+    const target = foodTiles[0];
+    const stats = { territoryOrders: 0, buildingOrders: 0 };
+    if (!target) return { state: input, orders: 0, ...stats };
+    const result = ownAndBuildSite(input, target.id, stats);
+    return { state: result.state, orders: stats.territoryOrders + stats.buildingOrders, ...stats, siteId: target.id };
+}
+
+function unlockMaterialSites(input, materialQuality) {
+    let state = input;
+    const stats = { researchOrders: 0, territoryOrders: 0, buildingOrders: 0 };
+    if (materialQuality === 'standard') return { state, ...stats, sites: [] };
+
+    const stabilization = tryStabilizeFood(state);
+    state = stabilization.state;
+    stats.territoryOrders += stabilization.territoryOrders;
+    stats.buildingOrders += stabilization.buildingOrders;
+    stats.questBattles = stabilization.questBattles || 0;
+
+    state = ensureEra(state, 2, stats);
+    const features = materialQuality === 'masterwork' ? ['copper-vein', 'tin-route'] : ['copper-vein'];
+    const sites = [];
+    for (const feature of features) {
+        if (state.day >= Campaign.SEASON_LENGTH) break;
+        const target = findTile(state, tile => tile.feature === feature);
+        if (!target) continue;
+        sites.push(target.id);
+        const result = ownAndBuildSite(state, target.id, stats);
+        state = result.state;
+    }
+    return { state, ...stats, sites };
 }
 
 function simulateCrafting(materialQuality, effort) {
@@ -227,8 +319,10 @@ function simulateCrafting(materialQuality, effort) {
         craftXpTowardNextLevel: state.player.craftXp,
         prerequisiteResearchOrders: access.researchOrders,
         territoryOrders: access.territoryOrders,
+        questBattles: access.questBattles || 0,
         buildingOrders: access.buildingOrders,
         materialSites: access.sites,
+        materialSiteFeatures: access.sites.map(id => findTile(state, tile => tile.id === id)?.feature).filter(Boolean),
         firstCraftDay
     });
 }
@@ -272,6 +366,7 @@ function simulateResearchAndConstruction() {
     return summarize(state, {
         strategy: 'исследовать и строить каждый доступный день (после стабилизации еды)',
         generatedBlueprints, researchOrders, constructionOrders,
+        territoryOrders: stab.territoryOrders, questBattles: stab.questBattles || 0,
         unfinishedProjects: state.player.blueprints.filter(p => !p.built).length
     });
 }
@@ -279,67 +374,113 @@ function simulateResearchAndConstruction() {
 function simulateFrontierToForge() {
     const access = unlockMaterialSites(newCampaign(), 'masterwork');
     let state = access.state;
-    if (state.day >= Campaign.SEASON_LENGTH) return summarize(state, { strategy: 'frontier fail - season ended early', ...access, rivalSettlementCaptured: false });
-    // accumulate resources for expedition
+    const stats = {
+        researchOrders: access.researchOrders,
+        territoryOrders: access.territoryOrders,
+        questBattles: access.questBattles || 0,
+        buildingOrders: access.buildingOrders
+    };
+    const settlement = findTile(state, tile => tile.kind === 'settlement' && tile.initialOwner === 'steppe');
+    if (!settlement || state.day >= Campaign.SEASON_LENGTH) {
+        return summarize(state, { strategy: 'frontier fail - season ended early', ...access, rivalSettlementCaptured: false });
+    }
+
+    const border = pathToSettlementBorder(state, settlement.id);
+    if (!border) return summarize(state, {
+        strategy: 'frontier path blocked', error: 'No land route to a neighboring tile.', ...access, rivalSettlementCaptured: false
+    });
+    const approach = claimPathTo(state, border.destinationId, stats);
+    state = approach.state;
+    if (!approach.reached) return summarize(state, {
+        strategy: 'frontier approach blocked', error: 'Could not claim a path to the generated settlement.',
+        ...access, ...stats, rivalSettlementCaptured: false
+    });
+
     let wait = 0;
     while (state.day < Campaign.SEASON_LENGTH && wait < 20) {
         wait++;
-        const act = Campaign.getRegionActionState(state, 'rival-settlement');
-        if (act.enabled) break;
-        const n = advanceDay(state);
-        if (n === state) break;
-        state = n;
+        const action = Campaign.getRegionActionState(state, settlement.id);
+        if (action.enabled) break;
+        if (state.player.ap <= 0 || state.player.dailyOrders.frontierUsed || /Не хватает|нужны/.test(action.reason || '')) {
+            const next = advanceDay(state);
+            if (next === state) break;
+            state = next;
+            continue;
+        }
+        if (state.player.era < settlement.minEra) {
+            state = ensureEra(state, settlement.minEra, stats);
+            continue;
+        }
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
     }
-    if (state.player.ap <= 0) state = advanceDay(state);
-    if (state.player.dailyOrders.frontierUsed) state = advanceDay(state);
-    const expedition = Campaign.beginRegionExpeditionState(state, 'rival-settlement');
-    if (expedition.error) return summarize(state, { strategy: 'frontier expedition blocked after wait', error: expedition.error, waitDays: wait, ...access, rivalSettlementCaptured: false });
+    const expedition = Campaign.beginRegionExpeditionState(state, settlement.id);
+    if (expedition.error) return summarize(state, {
+        strategy: 'frontier expedition blocked after wait', error: expedition.error, waitDays: wait,
+        ...access, ...stats, rivalSettlementCaptured: false
+    });
     const outcome = Campaign.finishRegionExpeditionState(expedition.state, expedition.match, true);
     if (outcome.error) throw new Error(outcome.error);
     state = advanceDay(outcome.state);
-    if (state.regions.find(r => r.id === 'rival-settlement')?.ownerId === 'player') {
-        // try build outpost if possible
-        let bWait = 0;
-        while (bWait < 10 && state.day < Campaign.SEASON_LENGTH) {
-            bWait++;
-            if (state.player.ap <= 0) { state = advanceDay(state); continue; }
-            if (state.player.dailyOrders.constructionUsed) { state = advanceDay(state); continue; }
-            const b = Campaign.buildRegionBuildingState(state, 'rival-settlement');
-            if (!b.error) { state = b.state; break; }
-            const n = advanceDay(state);
-            if (n === state) break;
-            state = n;
+
+    if (getRegion(state, settlement.id)?.ownerId === 'player') {
+        let buildWait = 0;
+        while (buildWait < 10 && state.day < Campaign.SEASON_LENGTH) {
+            buildWait++;
+            const build = Campaign.buildRegionBuildingState(state, settlement.id);
+            if (!build.error) { state = build.state; stats.buildingOrders++; break; }
+            const next = advanceDay(state);
+            if (next === state) break;
+            state = next;
         }
     }
-    // accumulate for forge
-    wait = 0;
-    while (state.day < Campaign.SEASON_LENGTH && wait < 20) {
-        wait++;
+
+    let forgeWait = 0;
+    while (state.day < Campaign.SEASON_LENGTH && forgeWait < 20) {
+        forgeWait++;
         const quote = Campaign.cardCraftQuote(state, { materialQuality: 'masterwork', effort: 'painstaking' });
         if (quote.affordable && quote.materialQualityUnlocked) break;
-        const n = advanceDay(state);
-        if (n === state) break;
-        state = n;
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
     }
-    if (state.player.ap <= 0) state = advanceDay(state);
+    if (state.player.ap <= 0 || state.player.dailyOrders.craftUsed) state = advanceDay(state);
     const started = Campaign.beginCardCraftState(state, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Сценарий фронтира');
-    if (started.error) return summarize(state, { strategy: 'frontier forge blocked after accumulation', error: started.error, ...access, rivalSettlementCaptured: state.regions.find(r => r.id === 'rival-settlement')?.ownerId === 'player' });
-    const generated = Campaign.completeCardCraftState(started.state, started.order.id, { id: 'frontier-forge-card', name: 'Проверочная мастерская карта', card_type: 'unit', atk: 4, hp: 4 });
+    if (started.error) return summarize(state, {
+        strategy: 'frontier forge blocked after accumulation', error: started.error,
+        ...access, ...stats, rivalSettlementCaptured: getRegion(state, settlement.id)?.ownerId === 'player'
+    });
+    const generated = Campaign.completeCardCraftState(started.state, started.order.id, {
+        id: 'frontier-forge-card', name: 'Проверочная мастерская карта', card_type: 'unit', atk: 4, hp: 4
+    });
     if (generated.error) throw new Error(generated.error);
     state = generated.state;
-    let loop=0;
-    while (state.player.craftOrders.find(o => o.id === started.order.id)?.status === 'working' && state.day < Campaign.SEASON_LENGTH && loop<30) { loop++; const n=advanceDay(state); if(n===state) break; state=n; }
+    let loop = 0;
+    while (state.player.craftOrders.find(order => order.id === started.order.id)?.status === 'working'
+        && state.day < Campaign.SEASON_LENGTH && loop < 30) {
+        loop++;
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
+    }
     const claimed = Campaign.claimCardCraftState(state, started.order.id);
     if (claimed.error) throw new Error(claimed.error);
     state = claimed.state;
-    while (state.day < Campaign.SEASON_LENGTH) { const n=advanceDay(state); if(n===state) break; state=n; }
+    while (state.day < Campaign.SEASON_LENGTH) {
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
+    }
     return summarize(state, {
-        strategy: 'освоить медь и олово → победить в экспедиции → выковать редкую карту (v3: нужны здания)',
+        strategy: 'освоить медь и олово → победить в экспедиции → выковать редкую карту',
         assumedBattleVictory: true,
         prerequisiteResearchOrders: access.researchOrders,
-        territoryOrders: access.territoryOrders,
-        buildingOrders: access.buildingOrders,
-        rivalSettlementCaptured: state.regions.find(r => r.id === 'rival-settlement')?.ownerId === 'player',
+        territoryOrders: stats.territoryOrders,
+        questBattles: stats.questBattles,
+        buildingOrders: stats.buildingOrders,
+        rivalSettlementId: settlement.id,
+        rivalSettlementCaptured: getRegion(state, settlement.id)?.ownerId === 'player',
         availableMaterialQualities: Campaign.getAvailableMaterialQualities(state),
         forgedCardRarity: claimed.card.rarity,
         forgedCardModel: claimed.card.generationModel,
@@ -351,7 +492,7 @@ function simulateHistoricalForging() {
     const cultures = ['yamnaya','akkad','egypt-old','sumer'];
     const results = [];
     for (const cid of cultures) {
-        const state = Campaign.createState();
+        const state = Campaign.createState(SIMULATION_SEED);
         state.player.name = 'Test ' + cid;
         state.player.clan = 'Clan ' + cid;
         state.player.historicalCulture = Campaign.HISTORICAL_CULTURES.find(c=>c.id===cid);
@@ -371,18 +512,19 @@ function simulateHistoricalForging() {
 
 function simulateDiversity() {
     // 100500 diversity: every player gets unique building names from pools + seeded random
-    const s1 = Campaign.createState();
+    const s1 = Campaign.createState(12345);
     s1.player.name = 'Дети Реки';
     s1.player.clan = 'Медный Ворон';
-    const s2 = Campaign.createState();
+    const s2 = Campaign.createState(67890);
     s2.player.name = 'Горные Волки';
     s2.player.clan = 'Каменный Коготь';
     const seed1 = 12345;
     const seed2 = 67890;
     const variants1 = Campaign.DIVERSITY_POOLS ? Campaign.generateLocalScienceVariants('agriculture', seed1, 3) : [];
     const variants2 = Campaign.DIVERSITY_POOLS ? Campaign.generateLocalScienceVariants('agriculture', seed2, 3) : [];
-    const region1 = Campaign.generateLocalRegionFlavor ? Campaign.generateLocalRegionFlavor('floodplain', seed1) : { name: 'test' };
-    const region2 = Campaign.generateLocalRegionFlavor ? Campaign.generateLocalRegionFlavor('floodplain', seed2) : { name: 'test2' };
+    const foodSite = s1.world.tiles.find(tile => tile.kind === 'resource' && tile.siteType === 'food');
+    const region1 = Campaign.generateLocalRegionFlavor ? Campaign.generateLocalRegionFlavor(foodSite, seed1) : { name: 'test' };
+    const region2 = Campaign.generateLocalRegionFlavor ? Campaign.generateLocalRegionFlavor(foodSite, seed2) : { name: 'test2' };
     return {
         strategy: '100500 разнообразия: уникальные названия зданий/наук у каждого игрока (пулы + seed + LLM)',
         scienceVariantsPlayer1: variants1.map(v => `${v.scienceName} → ${v.buildingName} [${v.effects.map(e=>e.type).join(',')}]`),
@@ -432,6 +574,8 @@ function runReport() {
             seasonLengthDays: Campaign.SEASON_LENGTH,
             origin: ORIGIN,
             openingFocus: OPENING_FOCUS,
+            map: '49 procedural tiles on a 7×7 grid; center tile is the player start; four-way adjacency only.',
+            mapSeed: SIMULATION_SEED,
             eras: Campaign.ERAS,
             decrees: Object.values(Campaign.DECREES).map(d => `${d.icon} ${d.label}: ${d.description}`),
             baseDailyIncome: 'НЕТ - доход только от кланов и зданий в регионах (v3)',

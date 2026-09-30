@@ -66,6 +66,12 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   sturdy: { name: "Стойкий", desc: "Первый удар за ход наносит на 1 меньше урона." },
   holdground: { name: "Удержание", desc: "В первый ход не боится страха и натиска." },
   upkeep: { name: "Содержание", desc: "Без соседей в ряду теряет 1 HP за ход." },
+  supply: { name: "Снабжение", desc: "При розыгрыше повышает доступный предел энергии на 1 и даёт 1 энергию." },
+  warcry: { name: "Боевой клич", desc: "При розыгрыше даёт 1 энергию в общий запас, не выше текущего предела." },
+  loot: { name: "Трофеи", desc: "За убийство отряда даёт 1 энергию в общий запас." },
+  raider: { name: "Налётчик", desc: "При попадании по отряду крадёт 1 энергию у противника и передаёт её вам." },
+  harras: { name: "Набег", desc: "На следующий ход противника уменьшает прирост общей энергии на 1." },
+  exhaustenemy: { name: "Изнурение", desc: "При розыгрыше отнимает 1 текущую энергию у противника." },
 };
 
 const SUPPORTED_KEYWORDS = new Set(Object.keys(KEYWORD_INFO));
@@ -283,7 +289,7 @@ export function localCard(advice: Advice, rarity: Rarity, state: any): Card {
     if (hint === "heal") effects.push({ event: "enter_play", target: { side: "friendly", entity: "unit", select: "lowest_hp_ratio", count: 1 + (tier > 0 ? 1 : 0) }, action: { type: "heal", amount: amt + 1 } });
     if (hint === "draw") effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "draw", amount: 1 + (tier > 1 ? 1 : 0) } });
     if (hint === "inspire") effects.push({ event: "enter_play", target: { side: "friendly", entity: "unit", select: "highest_attack", count: 1 + (tier > 0 ? 1 : 0) }, action: { type: "modify_stat", stat: "attack", amount: 1 + (tier > 1 ? 1 : 0), turns: 2 } });
-    if (hint === "supply") effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "modify_resource", resource: "drop", amount: 2 + tier } });
+    if (hint === "supply") effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "modify_resource", resource: "energy", amount: 2 + tier } });
     if (!effects.length) effects.push({ event: "enter_play", target: { side: "enemy", entity: "player" }, action: { type: "damage", amount: amt } });
     if (tier === 2) effects.push({ event: "enter_play", target: { side: "controller", entity: "player" }, action: { type: "draw", amount: 1 } });
     base.effects = effects;
@@ -296,7 +302,7 @@ export function localCard(advice: Advice, rarity: Rarity, state: any): Card {
     base.keywords = kws;
     if (hint === "hearth") base.effects = [{ event: "turn_start", target: { side: "friendly", entity: "unit", select: "lowest_hp_ratio", count: 1 + (tier > 1 ? 1 : 0) }, action: { type: "heal", amount: 1 + (tier > 0 ? 1 : 0) } }];
     if (hint === "tower") base.effects = [{ event: "turn_start", target: { side: "enemy", entity: "unit", select: "lowest_hp", count: 1 }, action: { type: "damage", amount: 1 } }];
-    if (hint === "forge") base.effects = [{ event: "turn_start", target: { side: "controller", entity: "player" }, action: { type: "modify_resource", resource: "drop", amount: 1 } }];
+    if (hint === "forge") base.effects = [{ event: "turn_start", target: { side: "controller", entity: "player" }, action: { type: "modify_resource", resource: "energy", amount: 1 } }];
   }
   return base;
 }
@@ -323,7 +329,7 @@ function validateCondition(node: any, depth = 0): any {
   if (node.type === "target_wounded") return { type: "target_wounded" };
   if (node.type === "target_status") { if (!["poison", "burn"].includes(node.status)) throw new Error("Неизвестный статус в условии."); return { type: "target_status", status: node.status }; }
   if (node.type === "target_stat") { if (!["hp", "attack", "armor"].includes(node.stat) || !CMP.includes(node.op)) throw new Error("Некорректное условие target_stat."); return { type: "target_stat", stat: node.stat, op: node.op, value: int(node.value, 0, 99, "value") }; }
-  if (node.type === "resource") { if (!["controller", "opponent"].includes(node.side) || !["drop", "action"].includes(node.resource) || !CMP.includes(node.op)) throw new Error("Некорректное условие resource."); return { type: "resource", side: node.side, resource: node.resource, op: node.op, value: int(node.value, 0, 99, "value") }; }
+  if (node.type === "resource") { if (!["controller", "opponent"].includes(node.side) || !["energy", "drop", "action"].includes(node.resource) || !CMP.includes(node.op)) throw new Error("Некорректное условие resource."); return { type: "resource", side: node.side, resource: "energy", op: node.op, value: int(node.value, 0, 99, "value") }; }
   throw new Error("Неизвестный тип условия.");
 }
 
@@ -349,8 +355,8 @@ export function validateEffects(raw: any): any[] {
       action.turns = a.turns === undefined ? 2 : int(a.turns, 1, 3, "turns");
     }
     if (a.type === "modify_resource") {
-      if (!["drop", "action"].includes(a.resource)) fail("resource: drop или action.");
-      action.resource = a.resource; action.amount = int(a.amount, -5, 5, "amount"); if (!action.amount) fail("amount не может быть 0.");
+      if (!["energy", "drop", "action"].includes(a.resource)) fail("resource: energy (drop/action — совместимые старые значения).");
+      action.resource = "energy"; action.amount = int(a.amount, -5, 5, "amount"); if (!action.amount) fail("amount не может быть 0.");
     }
     if (a.type === "modify_stat") {
       if (!["attack", "armor", "max_hp"].includes(a.stat)) fail("stat: attack, armor или max_hp.");
@@ -405,6 +411,7 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .map((k) => String(k).toLowerCase().trim())
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
+  if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
   c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
@@ -472,13 +479,14 @@ export async function llmAdvice(key: string, model: string, state: any): Promise
 
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Эпохи карт: "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
-Ключевые слова (keywords, постоянные свойства): armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep. Яд/поджог/лечение оформляй через effects[].
+Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep. Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
+Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
 description — 1–2 коротких предложения, один образ.
 effects[] — объекты {event, target, action, condition?, watch?}:
  event: enter_play | attack | turn_start | death | card_death (для card_death обязателен watch:{side:all|friendly|enemy}).
  target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|any, relation?: any|self|adjacent|attack_target, select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose, count?: 1-3}
- action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn, amount 1-5, turns 1-3) | destroy | modify_resource(resource drop|action, amount -5..5; target player) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
+ action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn, amount 1-5, turns 1-3) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
 У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки atk=0, action_cost=0, hp≥1. У отряда hp≥1.
 Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
 {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":""}

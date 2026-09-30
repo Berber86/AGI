@@ -296,8 +296,7 @@
             font-weight: bold;
             font-size: 0.7em;
         }
-        .cost-badge.drop-cost { background: #4a7cff; color: white; }
-        .cost-badge.action-cost { background: #ff6b4a; color: white; }
+        .cost-badge.energy-cost { background: #4a7cff; color: white; }
         .cost-badge .cost-num { font-size: 1.3em; line-height: 1; }
         .cost-badge .cost-label { font-size: 0.65em; opacity: 0.8; }
         .game-card .card-name {
@@ -683,14 +682,14 @@
         .turn-indicator.enemy { border-color: #f85149; color: #f88; }
         .turn-indicator.me { border-color: #3fb950; color: #3fb950; }
 
-        /* ===== Mana Bar ===== */
-        .mana-display {
+        /* ===== Shared Energy ===== */
+        .energy-display {
             display: flex;
             justify-content: center;
             gap: 20px;
             margin-bottom: 10px;
         }
-        .mana-pip-row {
+        .energy-pip-row {
             display: flex;
             align-items: center;
             gap: 6px;
@@ -698,21 +697,21 @@
             background: rgba(30,20,55,0.6);
             border-radius: 20px;
         }
-        .mana-pip {
+        .energy-pip {
             width: 18px;
             height: 18px;
             border-radius: 50%;
             border: 2px solid #4a7cff;
         }
-        .mana-pip.available { background: #4a7cff; box-shadow: 0 0 8px #4a7cff; }
-        .mana-pip.spent { background: #1a1030; border-color: #3d2a5c; }
-        .mana-label {
+        .energy-pip.available { background: #4a7cff; box-shadow: 0 0 8px #4a7cff; }
+        .energy-pip.spent { background: #1a1030; border-color: #3d2a5c; }
+        .energy-label {
             font-size: 0.8em;
             color: #a08ec0;
             margin-left: 4px;
         }
-        .action-mana .mana-pip { border-color: #ff6b4a; }
-        .action-mana .mana-pip.available { background: #ff6b4a; box-shadow: 0 0 8px #ff6b4a; }
+        .enemy-energy .energy-pip { border-color: #f85149; }
+        .enemy-energy .energy-pip.available { background: #f85149; box-shadow: 0 0 8px #f85149; }
 
         /* ===== Battlefield ===== */
         .battlefield {
@@ -879,7 +878,7 @@
         .hand .game-card .card-costs { top: 6px; right: 6px; }
         .hand .game-card .cost-badge { width: 26px; height: 26px; }
         .hand .game-card .cost-badge .cost-num { font-size: 1em; }
-        .hand .game-card .cost-badge .cost-label { display: none; }
+        .hand .game-card .cost-badge .cost-label { display: block; font-size: .48em; letter-spacing: -.03em; }
         .hand .game-card .card-effects-preview { font-size:.55em; line-height:1.15; color:#ffd080; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin:1px 0 3px; }
         .hand .game-card .card-stats { margin-bottom: 2px; }
         .hand .game-card .stat-chip { font-size: 0.6em; padding: 1px 5px; }
@@ -1270,7 +1269,7 @@
         .battle-top .player-banner.me { border-color: rgba(110,224,153,.42); }
         .player-avatar { box-shadow: inset 0 0 0 1px rgba(255,255,255,.13),0 0 20px rgba(189,131,255,.11); }
         .turn-indicator { padding: 9px 17px; background: rgba(26,18,35,.9); box-shadow: 0 0 20px rgba(189,131,255,.13); letter-spacing: .08em; }
-        .mana-pip-row { border: 1px solid rgba(189,131,255,.13); background: rgba(20,15,27,.88); box-shadow: inset 0 1px rgba(255,255,255,.04); }
+        .energy-pip-row { border: 1px solid rgba(189,131,255,.13); background: rgba(20,15,27,.88); box-shadow: inset 0 1px rgba(255,255,255,.04); }
         .hand-section { padding: 14px; border: 1px solid rgba(189,131,255,.16); border-radius: 18px; background: rgba(16,12,22,.72); }
         .hand { min-height: 222px; padding: 12px 4px 17px; }
         .hand-section h3 { color: #e4d1f0; letter-spacing: .02em; }
@@ -1330,10 +1329,10 @@
             .battle-top .player-banner { min-width: calc(50% - 5px); padding: 8px 10px; gap: 7px; }
             .battle-top .player-avatar { width: 36px; height: 36px; font-size: 1.25em; }
             .turn-indicator { order: -1; flex: 1 0 100%; }
-            .mana-display { gap: 6px; flex-wrap: wrap; }
-            .mana-pip-row { gap: 4px; padding: 6px 8px; }
-            .mana-pip { width: 13px; height: 13px; }
-            .mana-label { font-size: .68em; }
+            .energy-display { gap: 6px; flex-wrap: wrap; }
+            .energy-pip-row { gap: 4px; padding: 6px 8px; }
+            .energy-pip { width: 13px; height: 13px; }
+            .energy-label { font-size: .68em; }
             .hand-section { padding: 10px; }
             .hand { min-height: 193px; }
             .hand .game-card { min-width: 138px; max-width: 138px; }
@@ -1795,19 +1794,19 @@
                 <button type="button" id="effect-target-skip" class="effect-target-skip" onclick="skipManualEffect()">Пропустить эффект</button>
             </div>
 
-            <!-- Mana -->
-            <div class="mana-display">
-                <div class="mana-pip-row" id="drop-mana-pips">
-                    <span class="mana-label" id="drop-mana-label">💎 0/0</span>
+            <!-- Shared energy by side -->
+            <div class="energy-display">
+                <div class="energy-pip-row enemy-energy" id="enemy-energy-pips">
+                    <span class="energy-label">👹⚡ 0/0</span>
                 </div>
-                <div class="mana-pip-row action-mana" id="action-mana-pips">
-                    <span class="mana-label" id="action-mana-label">⚡ 0/0</span>
+                <div class="energy-pip-row" id="energy-pips">
+                    <span class="energy-label">⚡ 0/0</span>
                 </div>
-                <div class="mana-pip-row">
-                    <span class="mana-label">📚 Колода: <span id="deck-remaining">0</span></span>
+                <div class="energy-pip-row">
+                    <span class="energy-label">📚 Колода: <span id="deck-remaining">0</span></span>
                 </div>
-                <div class="mana-pip-row">
-                    <span class="mana-label">🪦 Сброс: <span id="discard-count">0</span></span>
+                <div class="energy-pip-row">
+                    <span class="energy-label">🪦 Сброс: <span id="discard-count">0</span></span>
                 </div>
             </div>
 
@@ -1843,6 +1842,7 @@
 
     </div>
 
+    <script src="campaign-map.js"></script>
     <script src="campaign.js"></script>
     <script>
     // ============================================
@@ -2432,7 +2432,7 @@
         if (card.tags !== undefined && (!Array.isArray(card.tags) || card.tags.length > 4)) throw new Error('Поле tags должно содержать не более 4 коротких тегов (не показываются игроку).');
         card.tags = (card.tags || []).map(tag => String(tag).slice(0, 60));
         if (!Array.isArray(card.keywords) || card.keywords.length > 24) throw new Error('Поле keywords должно быть массивом до 24 свойств.');
-        const unsupportedEventKeywords = new Set(['sabotage','spy','supply','warcry','loot','raider','harras','exhaustenemy']);
+        const unsupportedEventKeywords = new Set(['sabotage','spy']);
         card.keywords = card.keywords.map(raw => {
             if (typeof raw !== 'string') throw new Error('Каждое ключевое слово должно быть строкой.');
             const parts = raw.toLowerCase().trim().split(':');
@@ -2446,6 +2446,7 @@
         if (!Array.isArray(card.effects)) throw new Error('Поле effects должно быть массивом структурированных эффектов.');
         card.effects = validateEffects(card.effects);
         const rawKws = card.keywords.map(raw => raw.split(':')[0]);
+        if (card.card_type !== 'unit' && rawKws.some(kw => ['raider','loot'].includes(kw))) throw new Error('Ключевые слова raider и loot доступны только отрядам.');
         if (card.card_type === 'spell' && rawKws.some(kw => ['heal','poison','burn'].includes(kw))) throw new Error('Для манёвра heal/poison/burn оформляй как effects[], а не keywords.');
         if (card.card_type === 'spell' && !card.effects.length) throw new Error('Для манёвра укажи хотя бы один поддерживаемый эффект в effects[].');
         if (card.card_type === 'spell' && card.effects.some(effect => effect.event !== 'enter_play')) throw new Error('Манёвр может запускать только событие enter_play.');
@@ -2627,10 +2628,14 @@
 - poison и burn — периодические статусы; для новых карт используй соответствующие effects[].
 - heal — лечение; для новых карт используй effects[].
 - rally, fear, morale, siege, sturdy, holdground, upkeep — поддерживаемые постоянные свойства.
+- supply — при выводе отряда/постройки или розыгрыше манёвра +1 к пределу общей энергии и +1 текущей энергии; warcry — +1 общей энергии при розыгрыше.
+- loot — +1 общей энергии за убийство отряда; raider — крадёт 1 общую энергию у врага при попадании по отряду; оба свойства доступны только отрядам.
+- harras — −1 к приросту общей энергии врага в его следующий ход; exhaustenemy — −1 текущая общая энергия врага при розыгрыше.
+Все расходы на вывод и атаки оплачиваются из одного запаса энергии.
 
 ВАЖНО — ОПИСАНИЕ БЕЗ БОРЩА:
 • Только keywords и effects[] создают механику. Движок не выводит правила из description, abilities, tags или названия.
-• Не используй в новых картах event-слова sabotage, spy, supply, warcry, loot, raider, harras, exhaustenemy: если их эффект можно представить в разрешённой схеме, опиши его через effects[].
+• Не используй в новых картах event-слова sabotage и spy: их эффектов нет в разрешённой схеме.
 • description — РОВНО 1-2 КОРОТКИХ предложения, 1 конкретный образ. ЗАПРЕЩЁН БОРЩ: не пиши в одном описании сразу про болота+звёзды+туман+травы+свайные поселения+дельту+дозор. Выбери ОДНУ сцену: либо брод через протоку, либо ночной дозор, либо сухой курган. Пиши сухо, как хроника, без лирического нагромождения. Пример ХОРОШО: "Всадник держит брод у сухой насыпи. Ночью сверяет путь по Полярной." Пример ПЛОХО (борщ): "Ямные всадники обходят затопленные протоки и находят брод по звёздам, прежде чем туман скроет берега. Их кони несут дозорных между свайными поселениями, а наблюдатели запоминают безопасные переправы и знают ядовитые травы."
 • abilities всегда [].
 • monkey_paw необязателен и может быть только короткой флафф-ремаркой. Никогда не добавляй обязательный штраф за сильную карту.
@@ -2646,8 +2651,8 @@
 • События: enter_play, attack, turn_start, death, card_death. Для card_death обязательно watch.side: all|friendly|enemy.
 • Для действий damage/heal/apply_status/destroy/modify_stat/modify_cost/draw/discard/exchange/scry укажи target. Для modify_resource target можно опустить; тогда это controller.
 • Сторона: friendly/controller — свои, enemy/opponent — противник, either — обе; entity: unit, structure, permanent, player. zone: front, rear, any. relation: any, self, adjacent, attack_target. select: choose, first, lowest_hp, lowest_hp_ratio, highest_attack, attack_target. count — целое 1–3.
-• Действия: damage (урон), heal (исцеление), apply_status только poison/burn (amount, turns 1–3), destroy, modify_resource (drop/action, amount -5..5), modify_stat (attack/armor/max_hp, amount -3..3; attack/armor могут иметь turns 1–3), modify_cost (action, amount -3..3, turns 1–3), draw/discard/exchange/scry (amount 1–5). В action включай только нужные поля.
-• Условия: all/any содержат 1–4 условия, not инвертирует одно. Листья: target_wounded, target_status, resource (side controller/opponent, resource drop/action, op eq/ne/lt/lte/gt/gte, value), target_stat (stat hp/attack/armor, op, value). Глубина максимум 3.
+• Действия: damage (урон), heal (исцеление), apply_status только poison/burn (amount, turns 1–3), destroy, modify_resource (resource energy, amount -5..5; старые drop/action значения тоже читаются как общая энергия), modify_stat (attack/armor/max_hp, amount -3..3; attack/armor могут иметь turns 1–3), modify_cost (action, amount -3..3, turns 1–3), draw/discard/exchange/scry (amount 1–5). В action включай только нужные поля.
+• Условия: all/any содержат 1–4 условия, not инвертирует одно. Листья: target_wounded, target_status, resource (side controller/opponent, resource energy; старые drop/action значения тоже проверяют общий запас, op eq/ne/lt/lte/gt/gte, value), target_stat (stat hp/attack/armor, op, value). Глубина максимум 3.
 • Не придумывай события, сущности, статусы, цели или действия вне списка. Максимум 6 структурированных effects — это технический лимит движка.
 
 Используй выбранный советником замысел из следующего сообщения только как художественное направление; технические ограничения этой инструкции важнее.
@@ -2857,14 +2862,14 @@
             <div class="game-card ${typeDef.cls}" data-card-id="${card.id}" style="max-width:320px; width:100%">
                 ${inDeckBadge}
                 <div class="card-costs">
-                    <div class="cost-badge drop-cost" title="Стоимость выхода">
+                    <div class="cost-badge energy-cost" title="Стоимость вывода из общего запаса энергии">
                         <span class="cost-num">${card.drop_cost}</span>
-                        <span class="cost-label">💎</span>
+                        <span class="cost-label">вывод</span>
                     </div>
                     ${card.action_cost > 0 ? `
-                    <div class="cost-badge action-cost" title="Стоимость действия">
+                    <div class="cost-badge energy-cost" title="Стоимость атаки из общего запаса энергии">
                         <span class="cost-num">${card.action_cost}</span>
-                        <span class="cost-label">⚡</span>
+                        <span class="cost-label">атака</span>
                     </div>` : ''}
                 </div>
                 <div class="card-name">${escapeCardHtml(card.name)}</div>
@@ -3209,11 +3214,8 @@
     const FRONT_SLOTS = 4;
     const BACK_SLOTS = 4;
     const START_HAND = 4;
-    const DROP_MANA_PER_TURN = 1;
-    const MAX_DROP_MANA = 10;
-    const STARTING_ACTION_MANA = 2;
-    const ACTION_MANA_PER_TURN = 1;
-    const MAX_ACTION_MANA = 8;
+    const ENERGY_PER_TURN = 1;
+    const MAX_ENERGY = 10;
     const HAND_LIMIT = 7;
     const DRAW_PER_TURN = 1;
 
@@ -3240,13 +3242,13 @@
         siege:      { label: '🏰', desc: 'Осада: двойной урон постройкам.' },
         spy:        { label: '🕵️', desc: 'Разведка: раскрывает карту врага.' },
         sabotage:   { label: '💣', desc: 'Диверсия: шанс разрушить постройку.' },
-        // === Мана-манипуляции ===
-        supply:     { label: '📦', desc: 'Снабженец: при высадке даёт +1💎 к макс. ресурсам.' },
-        warcry:     { label: '📯', desc: 'Боевой клич: при высадке даёт +1⚡ действий в этот ход.' },
-        loot:       { label: '🪙', desc: 'Добыча: при гибели врага даёт +1💎.' },
-        raider:     { label: '🗡️', desc: 'Налётчик: при атаке крадёт 1💎 у врага.' },
-        harras:     { label: '🏴', desc: 'Партизан: блокирует +1💎 маны врага в следующий ход.' },
-        exhaustenemy:{label: '💤', desc: 'Измот: отнимает 1⚡ действия у врага.' },
+        // === Манипуляции общей энергией ===
+        supply:     { label: '📦', desc: 'Снабжение: при розыгрыше повышает предел доступной энергии на 1 и даёт +1 энергию.' },
+        warcry:     { label: '📯', desc: 'Боевой клич: при розыгрыше даёт +1 энергию в общий запас на этот ход.' },
+        loot:       { label: '🪙', desc: 'Трофеи: за убийство вражеского отряда даёт +1 энергию.' },
+        raider:     { label: '🗡️', desc: 'Налётчик: при попадании по отряду крадёт 1 энергию у врага и передаёт её вам.' },
+        harras:     { label: '🏴', desc: 'Набег: уменьшает прирост энергии врага на 1 в его следующий ход.' },
+        exhaustenemy:{label: '💤', desc: 'Изнурение: при розыгрыше отнимает 1 текущую энергию у врага.' },
         // Защитные / формационные (покрывают часто встречаемые описания юнитов)
         sturdy:     { label: '🧱', desc: 'Стойкий: −1 урона от первой атаки в каждый ход.' },
         holdground: { label: '⚓', desc: 'Удержание строя: иммунитет к страху и чаржу в первый ход после высадки.' },
@@ -3331,15 +3333,16 @@
         target.currentHp -= dmg;
         target.justDamaged = true;
 
-        // Raider: крадём 1💎 у врага при удачной атаке (по юниту, не по герою)
-        if (hasKw(attacker,'raider') && wasAlive && !target.isStructure) {
-            const def = battle[defSide], att = battle[atkSide];
-            if (def.dropMana > 0) { def.dropMana = Math.max(0, def.dropMana - 1); att.dropMana = Math.min(MAX_DROP_MANA, att.dropMana + 1); }
+        // Налётчик крадёт энергию при успешном ударе по отряду (не по герою или постройке).
+        if (hasKw(attacker,'raider') && wasAlive && !target.isStructure && battle[defSide].energy > 0) {
+            adjustEnergy(defSide, -1);
+            adjustEnergy(atkSide, 1);
+            logBattle(`🗡️ ${attacker.name} крадёт 1 энергию у противника.`, atkSide);
         }
-        // Loot: при гибели врага +1💎 атакующему
+        // Трофеи дают энергию только за убийство отряда.
         if (hasKw(attacker,'loot') && target.currentHp <= 0 && !target.isStructure) {
-            battle[atkSide].dropMana = Math.min(MAX_DROP_MANA, battle[atkSide].dropMana + 1);
-            logBattle(`🪙 ${attacker.name} берёт трофеи: +1💎.`, atkSide);
+            const gained = adjustEnergy(atkSide, 1);
+            if (gained) logBattle(`🪙 ${attacker.name} берёт трофеи: +${gained} энергии.`, atkSide);
         }
         return dmg;
     }
@@ -3494,8 +3497,8 @@
                 action.turns = intField(raw.action, 'turns', 1, 3, false) ?? 2;
             }
             if (action.type === 'modify_resource') {
-                if (!['drop','action'].includes(raw.action.resource)) fail('resource должен быть drop или action.');
-                action.resource = raw.action.resource;
+                if (!['energy','drop','action'].includes(raw.action.resource)) fail('resource должен быть energy; старые drop/action тоже принимаются.');
+                action.resource = 'energy';
                 action.amount = intField(raw.action, 'amount', -5, 5);
                 if (!action.amount) fail('изменение ресурса не может быть равно нулю.');
             }
@@ -3585,8 +3588,8 @@
         if (node.type === 'target_status' && Object.keys(node).every(k => ['type','status'].includes(k)) && EFFECT_STATUSES.includes(node.status)) return { type: node.type, status: node.status };
         if (node.type === 'resource') {
             if (Object.keys(node).some(k => !['type','side','resource','op','value'].includes(k))) throw new Error('Некорректные поля условия resource.');
-            if (!['controller','opponent'].includes(node.side) || !['drop','action'].includes(node.resource) || !EFFECT_COMPARE.includes(node.op) || !Number.isInteger(node.value) || node.value < 0 || node.value > 12) throw new Error('Некорректное условие resource.');
-            return { type: node.type, side: node.side, resource: node.resource, op: node.op, value: node.value };
+            if (!['controller','opponent'].includes(node.side) || !['energy','drop','action'].includes(node.resource) || !EFFECT_COMPARE.includes(node.op) || !Number.isInteger(node.value) || node.value < 0 || node.value > 12) throw new Error('Некорректное условие resource.');
+            return { type: node.type, side: node.side, resource: 'energy', op: node.op, value: node.value };
         }
         if (node.type === 'target_stat') {
             if (Object.keys(node).some(k => !['type','stat','op','value'].includes(k))) throw new Error('Некорректные поля условия target_stat.');
@@ -3608,9 +3611,6 @@
         if (kw.heal) out.push({ event:'enter_play', target:{ side:'friendly', entity:'unit', select:'lowest_hp_ratio', count:1 }, action:{ type:'heal', amount:Math.min(8, kw.heal || (card.drop_cost + 1)) } });
         if (kw.poison) out.push({ event:'enter_play', target:{ side:'enemy', entity:'unit', zone:'front', select:'first', count:1 }, action:{ type:'apply_status', status:'poison', amount:Math.min(5,kw.poison), turns:2 } });
         if (kw.burn) out.push({ event:'enter_play', target:{ side:'enemy', entity:'unit', zone:'front', select:'first', count:1 }, action:{ type:'apply_status', status:'burn', amount:Math.min(3,kw.burn), turns:2 } });
-        if (kw.supply) out.push({ event:'enter_play', action:{ type:'modify_resource', resource:'drop', amount:1 } });
-        if (kw.warcry) out.push({ event:'enter_play', action:{ type:'modify_resource', resource:'action', amount:1 } });
-        if (kw.exhaustenemy) out.push({ event:'enter_play', target:{ side:'opponent', entity:'player' }, action:{ type:'modify_resource', resource:'action', amount:-1 } });
         if (kw.sabotage) out.push({ event:'enter_play', target:{ side:'enemy', entity:'structure', select:'first', count:1 }, action:{ type:'destroy' } });
         return out;
     }
@@ -3699,7 +3699,7 @@
         if (condition.type === 'resource') {
             const side = condition.side === 'controller' ? context.ownerSide : (context.ownerSide === 'me' ? 'enemy' : 'me');
             const p = battle[side];
-            const value = condition.resource === 'drop' || battle.mode === 'campaign' ? p.dropMana : p.actionMana;
+            const value = p.energy;
             return compareEffectValues(value,condition.op,condition.value);
         }
         return false;
@@ -3724,14 +3724,45 @@
     function getUnitActionCost(unit) {
         return Math.max(0, Math.min(99, (unit?.action_cost || 0) + getTemporaryModifierTotal(unit, 'action_cost')));
     }
-    function currentActionEnergy(side) {
-        return battle?.mode === 'campaign' ? battle[side].dropMana : battle[side].actionMana;
+    function currentEnergy(side) {
+        return battle?.[side]?.energy ?? 0;
     }
-    function adjustActionEnergy(side, amount) {
-        const p = battle[side];
-        const field = battle.mode === 'campaign' ? 'dropMana' : 'actionMana';
-        const maxField = battle.mode === 'campaign' ? 'dropManaMax' : 'actionManaMax';
-        p[field] = Math.max(0, Math.min(p[maxField], p[field] + amount));
+    function adjustEnergy(side, amount) {
+        const p = battle?.[side];
+        if (!p) return 0;
+        const before = p.energy || 0;
+        const max = Number.isFinite(p.energyMax) ? p.energyMax : (p.energyCap ?? MAX_ENERGY);
+        p.energy = Math.max(0, Math.min(max, before + amount));
+        return p.energy - before;
+    }
+    function cardHasKeyword(card, keyword) {
+        if (hasKw(card, keyword)) return true;
+        return (card?.keywords || []).some(raw => String(raw || '').toLowerCase().trim().split(':')[0] === keyword);
+    }
+    function applyEnergyKeywordsOnPlay(card, side) {
+        if (!battle?.[side] || !card) return;
+        const opponent = side === 'me' ? 'enemy' : 'me';
+        const player = battle[side];
+        if (cardHasKeyword(card, 'supply')) {
+            const beforeMax = player.energyMax;
+            const cap = player.energyCap ?? MAX_ENERGY;
+            player.energyMax = Math.min(cap, player.energyMax + 1);
+            const gained = adjustEnergy(side, 1);
+            if (player.energyMax > beforeMax || gained) logBattle(`📦 ${card.name} приносит снабжение: +${gained} энергии; предел ${player.energyMax}.`, side);
+        }
+        if (cardHasKeyword(card, 'warcry')) {
+            const gained = adjustEnergy(side, 1);
+            if (gained) logBattle(`📯 ${card.name} поднимает боевой дух: +${gained} энергии.`, side);
+        }
+        if (cardHasKeyword(card, 'harras')) {
+            const enemy = battle[opponent];
+            enemy.energyGrowthBlockedNext = (enemy.energyGrowthBlockedNext || 0) + 1;
+            logBattle(`🏴 ${card.name} задерживает прирост энергии противника на следующий ход.`, side);
+        }
+        if (cardHasKeyword(card, 'exhaustenemy')) {
+            const drained = adjustEnergy(opponent, -1);
+            if (drained) logBattle(`💤 ${card.name} изматывает противника: ${drained} энергии.`, side);
+        }
     }
 
     function expireTemporaryModifiers(side) {
@@ -3827,14 +3858,9 @@
         const who = context.ownerSide;
         const signed = signedNumber;
         if (action.type === 'modify_resource') {
-            const p = battle[side || who];
-            const usesEnergy = action.resource === 'drop' || battle.mode === 'campaign';
-            const field = usesEnergy ? 'dropMana' : 'actionMana';
-            const maxField = usesEnergy ? 'dropManaMax' : 'actionManaMax';
-            const before = p[field];
-            p[field] = Math.max(0, Math.min(p[maxField], before + action.amount));
-            const delta = p[field] - before;
-            if (delta) logBattle(`⚙️ ${context.card.name}: ${delta > 0 ? '+' : ''}${delta}${usesEnergy ? (battle.mode === 'campaign' ? '⚡' : '💎') : '⚡'} ${side === who ? 'владельцу' : 'противнику'}.`, who);
+            const targetSide = side || who;
+            const delta = adjustEnergy(targetSide, action.amount);
+            if (delta) logBattle(`⚙️ ${context.card.name}: ${delta > 0 ? '+' : ''}${delta}⚡ энергии ${targetSide === who ? 'владельцу' : 'противнику'}.`, who);
             return false;
         }
         if (action.type === 'draw' && target.kind === 'player') {
@@ -4190,7 +4216,7 @@
         if (a.type === 'heal') actionText = `лечит на ${a.amount} HP`;
         if (a.type === 'apply_status') actionText = `накладывает ${a.status === 'poison' ? 'яд' : 'огонь'} (${a.amount}, ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'})`;
         if (a.type === 'destroy') actionText = 'уничтожает цель';
-        if (a.type === 'modify_resource') actionText = `${a.amount > 0 ? '+' : ''}${a.amount}${a.resource === 'drop' ? '💎' : '⚡'} игроку`;
+        if (a.type === 'modify_resource') actionText = `${a.amount > 0 ? '+' : ''}${a.amount}⚡ энергии`;
         if (a.type === 'modify_stat') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к ${a.stat === 'attack' ? 'атаке' : a.stat === 'armor' ? 'броне' : 'макс. здоровью'}${a.turns ? ` на ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'}` : ''}`;
         if (a.type === 'modify_cost') actionText = `${a.amount > 0 ? '+' : ''}${a.amount} к цене действия${a.turns ? ` на ${a.turns} ${a.turns === 1 ? 'ход' : 'хода'}` : ''}`;
         if (a.type === 'draw') actionText = `добирает ${a.amount} карт`;
@@ -4209,7 +4235,7 @@
         const op = { eq:'=', ne:'≠', lt:'<', lte:'≤', gt:'>', gte:'≥' }[condition.op] || condition.op;
         if (condition.type === 'target_wounded') return 'цель ранена';
         if (condition.type === 'target_status') return `у цели есть статус «${condition.status}»`;
-        if (condition.type === 'resource') return `${condition.side === 'controller' ? 'у владельца' : 'у противника'} ${condition.resource === 'drop' ? '💎' : '⚡'} ${op} ${condition.value}`;
+        if (condition.type === 'resource') return `${condition.side === 'controller' ? 'у владельца' : 'у противника'} энергия ${op} ${condition.value}`;
         if (condition.type === 'target_stat') return `у цели ${condition.stat === 'hp' ? 'здоровье' : condition.stat === 'attack' ? 'атака' : 'броня'} ${op} ${condition.value}`;
         return 'условие выполнено';
     }
@@ -4353,7 +4379,7 @@
                 ? `Экспедиция за регион «${campaignMatch.regionName}» против ${campaignMatch.clan}. Победа меняет владельца; поражение расходует приказ и припасы. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки.`
                 : campaignMatch
                     ? `Тренировка: ${campaignMatch.clan}. ${campaignMatch.usingStarterDeck ? 'Тестовые карты. ' : ''}Единая энергия оплачивает вывод карт и атаки. Рейтинг не меняется.`
-                    : 'Враг у порога!';
+                    : 'Враг у порога! Вывод карт и атаки оплачиваются из общего запаса энергии.';
             if (campaignMatch && backButton && againButton) {
                 backButton.textContent = 'К кампании';
                 backButton.onclick = () => switchScreen('campaign');
@@ -4368,9 +4394,16 @@
             return copy;
         }
 
-        let enemyDeckSource = buildEnemyDeck();
+        const individualEnemyDeck = isCampaignChallenge && typeof campaignApi.getOpponentBattleDeck === 'function'
+            ? campaignApi.getOpponentBattleDeck(campaignApi.getState(), pendingCampaignMatch.opponentId)
+            : null;
+        let enemyDeckSource = Array.isArray(individualEnemyDeck) && individualEnemyDeck.length
+            ? individualEnemyDeck
+            : buildEnemyDeck();
         if (isCampaignChallenge) {
-            if (enemyCampaignConfig.era >= 3) enemyDeckSource = [...enemyDeckSource.filter(card => card.era === ERA_BRONZE), ...enemyDeckSource.filter(card => card.era !== ERA_BRONZE)];
+            if ((!individualEnemyDeck || !individualEnemyDeck.length) && enemyCampaignConfig.era >= 1) {
+                enemyDeckSource = [...enemyDeckSource.filter(card => card.era === ERA_BRONZE), ...enemyDeckSource.filter(card => card.era !== ERA_BRONZE)];
+            }
             enemyDeckSource = enemyDeckSource.slice(0, enemyCampaignConfig.deckLimit);
         } else enemyDeckSource = enemyDeckSource.slice(0, DECK_LIMIT);
         const enemyCards = shuffle(enemyDeckSource.map(c => {
@@ -4399,10 +4432,11 @@
                 fatigue: 0,
                 front: new Array(FRONT_SLOTS).fill(null),
                 back: new Array(BACK_SLOTS).fill(null),
-                dropMana: 1,
-                dropManaMax: 1,
-                actionMana: campaignMatch ? 0 : STARTING_ACTION_MANA,
-                actionManaMax: campaignMatch ? 0 : STARTING_ACTION_MANA
+                energy: 1,
+                energyMax: 1,
+                energyCap: campaignMatch ? campaignConfig.energyMax : MAX_ENERGY,
+                energyGrowth: campaignMatch ? campaignConfig.energyGrowth : ENERGY_PER_TURN,
+                energyGrowthBlockedNext: 0
             },
             enemy: {
                 hp: campaignMatch ? enemyCampaignConfig.hp : MAX_HP,
@@ -4413,10 +4447,11 @@
                 fatigue: 0,
                 front: new Array(FRONT_SLOTS).fill(null),
                 back: new Array(BACK_SLOTS).fill(null),
-                dropMana: 1,
-                dropManaMax: 1,
-                actionMana: campaignMatch ? 0 : STARTING_ACTION_MANA,
-                actionManaMax: campaignMatch ? 0 : STARTING_ACTION_MANA
+                energy: 1,
+                energyMax: 1,
+                energyCap: campaignMatch ? enemyCampaignConfig.energyMax : MAX_ENERGY,
+                energyGrowth: campaignMatch ? enemyCampaignConfig.energyGrowth : ENERGY_PER_TURN,
+                energyGrowthBlockedNext: 0
             },
             log: []
         };
@@ -4569,11 +4604,9 @@
         ti.className = 'turn-indicator ' + (whoseTurn === 'me' ? 'me' : 'enemy');
         ti.textContent = `ХОД ${turn} — ${whoseTurn === 'me' ? 'ТЫ' : 'ВРАГ'}`;
 
-        // Мана
-        renderManaPips('drop-mana-pips', 'drop-mana-label', battle.mode === 'campaign' ? '⚡' : '💎', me.dropMana, me.dropManaMax);
-        const actionManaRow = document.getElementById('action-mana-pips');
-        if (actionManaRow) actionManaRow.style.display = battle.mode === 'campaign' ? 'none' : '';
-        renderManaPips('action-mana-pips', 'action-mana-label', '⚡', me.actionMana, me.actionManaMax);
+        // Общая энергия доступна и на вывод, и на атаки для обеих сторон.
+        renderEnergyPips('enemy-energy-pips', '👹⚡', enemy.energy, enemy.energyMax);
+        renderEnergyPips('energy-pips', '⚡', me.energy, me.energyMax);
         document.getElementById('deck-remaining').textContent = me.deck.length;
         const discardCount = document.getElementById('discard-count');
         if (discardCount) discardCount.textContent = (me.discard || []).length;
@@ -4615,8 +4648,8 @@
             const isSelected = selected.has(index);
             const mark = pending.kind === 'scry' ? (isSelected ? '⬇️ ВНИЗ' : '⬆️ ОСТАВИТЬ') : (isSelected ? '✓ ВЫБРАНО' : '');
             const meta = pending.kind === 'scry'
-                ? `Позиция ${pending.order.indexOf(index) + 1} · ${card.drop_cost ?? 0}💎`
-                : `${card.card_type === 'spell' ? 'Манёвр' : card.card_type === 'structure' ? 'Постройка' : 'Отряд'} · ${card.drop_cost ?? 0}💎 · ${card.action_cost ?? 0}⚡`;
+                ? `Позиция ${pending.order.indexOf(index) + 1} · вывод ${card.drop_cost ?? 0}⚡`
+                : `${card.card_type === 'spell' ? 'Манёвр' : card.card_type === 'structure' ? 'Постройка' : 'Отряд'} · вывод ${card.drop_cost ?? 0}⚡${card.card_type === 'unit' ? ` · атака ${card.action_cost ?? 0}⚡` : ''}`;
             if (pending.kind === 'scry') {
                 const position = pending.order.indexOf(index);
                 return `<div class="card-choice-option ${isSelected ? 'selected' : ''}">
@@ -4642,13 +4675,14 @@
         confirm.disabled = pending.selected.length < pending.min || pending.selected.length > pending.max;
     }
 
-    function renderManaPips(containerId, labelId, icon, cur, max) {
+    function renderEnergyPips(containerId, icon, cur, max) {
         const c = document.getElementById(containerId);
+        if (!c) return;
         let html = '';
         for (let i = 0; i < Math.max(max, 1); i++) {
-            html += `<div class="mana-pip ${i < cur ? 'available' : 'spent'}"></div>`;
+            html += `<div class="energy-pip ${i < cur ? 'available' : 'spent'}"></div>`;
         }
-        c.innerHTML = html + `<span class="mana-label">${icon} ${cur}/${max}</span>`;
+        c.innerHTML = html + `<span class="energy-label">${icon} ${cur}/${max}</span>`;
     }
 
     function renderRow(containerId, row, side) {
@@ -4667,7 +4701,7 @@
                 let droppable = false;
                 if (!pendingManualTarget && isMyRow && selectedHandIdx !== null && !awaitingTarget && whoseTurn_isMe()) {
                     const card = battle.me.hand[selectedHandIdx];
-                    if (card && battle.me.dropMana >= card.drop_cost) {
+                    if (card && battle.me.energy >= card.drop_cost) {
                         if (card.card_type === 'structure' && !isFront) droppable = true;
                         if (card.card_type === 'unit') droppable = true; // юнита можно ставить в любой ряд
                     }
@@ -4675,7 +4709,7 @@
                 html += `<div class="bf-slot ${droppable ? 'droppable' : ''}" onclick="playCardTo(${i}, ${isFront})"></div>`;
             } else {
                 const effectTargetable = !!pendingManualTarget?.candidates.some(t => t.kind === 'unit' && t.unit === u);
-                const selectable = !pendingManualTarget && !pendingCardChoice && isMyRow && whoseTurn_isMe() && !u.exhausted && getUnitActionCost(u) <= currentActionEnergy('me') && u.card_type === 'unit';
+                const selectable = !pendingManualTarget && !pendingCardChoice && isMyRow && whoseTurn_isMe() && !u.exhausted && getUnitActionCost(u) <= currentEnergy('me') && u.card_type === 'unit';
                 const targeted = awaitingTarget && !isMyRow; // атакуем вражеский ряд
                 const targetedMe = awaitingTarget && isMyRow && selectedUnitId; // пока не разрешаем атаковать своих
                 let cls = `bf-unit ${side}`;
@@ -4757,7 +4791,7 @@
         }
         let html = '';
         hand.forEach((card, idx) => {
-            const canDrop = battle.me.dropMana >= card.drop_cost;
+            const canDrop = battle.me.energy >= card.drop_cost;
             const canPlay = canDrop; // спеллы тоже требуют drop маны
             // Для спеллов нужна еще проверка action cost (0 у спеллов обычно)
             let playable = canPlay;
@@ -4774,11 +4808,11 @@
 
             html += `<div class="game-card ${typeDef.cls} ${unplayableCls} ${selectedCls}" onclick="selectHandCard(${idx})">
                 <div class="card-costs">
-                    <div class="cost-badge drop-cost">
-                        <span class="cost-num">${card.drop_cost}</span>${battle.mode === 'campaign' ? '<span class="cost-label">вывод</span>' : ''}
+                    <div class="cost-badge energy-cost" title="Стоимость вывода из общего запаса энергии">
+                        <span class="cost-num">${card.drop_cost}</span><span class="cost-label">вывод</span>
                     </div>
-                    ${card.action_cost > 0 ? `<div class="cost-badge ${battle.mode === 'campaign' ? 'drop-cost' : 'action-cost'}">
-                        <span class="cost-num">${card.action_cost}</span>${battle.mode === 'campaign' ? '<span class="cost-label">атака</span>' : ''}
+                    ${card.action_cost > 0 ? `<div class="cost-badge energy-cost" title="Стоимость атаки из общего запаса энергии">
+                        <span class="cost-num">${card.action_cost}</span><span class="cost-label">атака</span>
                     </div>` : ''}
                 </div>
                 <div class="card-name">${card.name}</div>
@@ -4811,8 +4845,8 @@
         if (!whoseTurn_isMe() || animating || pendingManualTarget) return;
         const card = battle.me.hand[idx];
         if (!card) return;
-        if (battle.me.dropMana < card.drop_cost) {
-            logBattle(`❌ Недостаточно маны выхода для ${card.name} (нужно ${card.drop_cost}💎)`, 'system');
+        if (battle.me.energy < card.drop_cost) {
+            logBattle(`❌ Недостаточно энергии для вывода ${card.name} (нужно ${card.drop_cost}⚡)`, 'system');
             return;
         }
 
@@ -4851,8 +4885,12 @@
         const atk = Math.max(0, parseInt(card.atk) || 0);
         const hp = Math.max(1, parseInt(card.hp) || 1);
 
-        // Высадим
-        battle.me.dropMana -= dropCost;
+        // Вывод карты тратит тот же общий запас энергии, что и атака.
+        if (battle.me.energy < dropCost) {
+            logBattle(`❌ Недостаточно энергии для вывода ${card.name} (нужно ${dropCost}⚡)`, 'system');
+            return;
+        }
+        battle.me.energy -= dropCost;
         const unit = {
             instanceId: uid(),
             _enteredPlayOrder: battle.nextCardPlayOrder++,
@@ -4882,28 +4920,8 @@
         };
         applyCardKeywordsToUnit(unit);
         rowArr[slotIdx] = unit;
-        logBattle(`🧙 Ты выводишь ${card.name} (${dropCost}💎)`, 'me');
-
-        // Мана-эффекты при высадке (supply +warcry)
-        if (unit.statuses.supply) {
-            battle.me.dropManaMax = Math.min(MAX_DROP_MANA, battle.me.dropManaMax + 1);
-            battle.me.dropMana += 1;
-            logBattle(`📦 ${card.name} подвозит припасы: +1💎!`, 'me');
-        }
-        if (unit.statuses.warcry) {
-            if (battle.mode === 'campaign') adjustActionEnergy('me', 1);
-            else battle.me.actionMana = Math.min(MAX_ACTION_MANA, battle.me.actionMana + 1);
-            logBattle(`📯 ${card.name} поднимает боевой дух: +1⚡!`, 'me');
-        }
-        if (unit.statuses.harras) {
-            battle.enemy._blockDropNext = (battle.enemy._blockDropNext||0) + 1;
-            logBattle(`🏴 ${card.name} тревожит вражеские обозы!`, 'me');
-        }
-        if (unit.statuses.exhaustenemy) {
-            if (battle.mode === 'campaign') adjustActionEnergy('enemy', -1);
-            else battle.enemy.actionMana = Math.max(0, battle.enemy.actionMana - 1);
-            logBattle(`💤 ${card.name} изматывает врага: -1⚡ у врага!`, 'me');
-        }
+        logBattle(`🧙 Ты выводишь ${card.name} (${dropCost}⚡)`, 'me');
+        applyEnergyKeywordsOnPlay(unit, 'me');
 
         // Удаляем из руки
         battle.me.hand.splice(selectedHandIdx, 1);
@@ -4916,11 +4934,12 @@
 
     function playSpellFromHand(idx, target) {
         const card = battle.me.hand[idx];
-        if (!card || battle.me.dropMana < card.drop_cost) return;
-        battle.me.dropMana -= card.drop_cost;
+        if (!card || battle.me.energy < card.drop_cost) return;
+        battle.me.energy -= card.drop_cost;
         battle.me.hand.splice(idx, 1);
         selectedHandIdx = null;
         logBattle(`📜 Ты разыгрываешь манёвр «${card.name}».`, 'me');
+        applyEnergyKeywordsOnPlay(card, 'me');
         resolveCardEffects(card, 'enter_play', 'me');
         cleanupDead();
         renderBattle();
@@ -4932,7 +4951,7 @@
         let unit = battle.me.front.concat(battle.me.back).find(u => u && u.instanceId === instanceId);
         if (!unit || unit.exhausted || unit.isStructure) return;
 
-        if (currentActionEnergy('me') < getUnitActionCost(unit)) {
+        if (currentEnergy('me') < getUnitActionCost(unit)) {
             logBattle(`❌ Недостаточно энергии для атаки ${unit.name} (нужно ${getUnitActionCost(unit)}⚡)`, 'system');
             return;
         }
@@ -5005,8 +5024,7 @@
         }
 
         attacker.exhausted = true;
-        if (battle.mode === 'campaign') battle.me.dropMana -= getUnitActionCost(attacker);
-        else battle.me.actionMana -= getUnitActionCost(attacker);
+        adjustEnergy('me', -getUnitActionCost(attacker));
         const attackEffectTarget = targetInfo.row === 'hero'
             ? { kind:'player', side:'enemy' }
             : (targetInfo.u ? { kind:'unit', unit:targetInfo.u, side:'enemy' } : null);
@@ -5194,26 +5212,16 @@
         battle.turnCounters = battle.turnCounters || { me:1, enemy:0 };
         battle.turnCounters[who] = (battle.turnCounters[who] || 0) + 1;
         expireTemporaryModifiers(who);
-        // Обновление маны
-        const blocked = p._blockDropNext || 0;
+        // Обновление единого запаса энергии; помехи блокируют его прирост, а не отдельный ресурс.
+        const blocked = p.energyGrowthBlockedNext || 0;
         if (blocked > 0) {
-            logBattle(`🏴 Обозы ${who==='me'?'тебя':'врага'} перехвачены — прирост маны ресурсов задержан!`, 'system');
+            logBattle(`🏴 Прирост энергии ${who === 'me' ? 'тебя' : 'врага'} задержан на ${blocked}.`, 'system');
         }
-        const campaignEnergy = battle.mode === 'campaign'
-            ? (who === 'me' ? battle.campaignConfig : battle.enemyCampaignConfig)
-            : null;
-        const energyGrowth = campaignEnergy ? campaignEnergy.energyGrowth : DROP_MANA_PER_TURN;
-        const energyCap = campaignEnergy ? campaignEnergy.energyMax : MAX_DROP_MANA;
-        p.dropManaMax = Math.min(energyCap, p.dropManaMax + Math.max(0, energyGrowth - blocked));
-        p.dropMana = p.dropManaMax;
-        if (battle.mode === 'campaign') {
-            p.actionManaMax = 0;
-            p.actionMana = 0;
-        } else {
-            p.actionManaMax = Math.min(MAX_ACTION_MANA, p.actionManaMax + ACTION_MANA_PER_TURN);
-            p.actionMana = p.actionManaMax;
-        }
-        p._blockDropNext = 0;
+        const energyGrowth = Math.max(0, p.energyGrowth ?? ENERGY_PER_TURN);
+        const energyCap = p.energyCap ?? MAX_ENERGY;
+        p.energyMax = Math.min(energyCap, p.energyMax + Math.max(0, energyGrowth - blocked));
+        p.energy = p.energyMax;
+        p.energyGrowthBlockedNext = 0;
 
         // Сначала тикаем статусы (DoT/огонь/бегство)
         tickStatuses(who);
@@ -5306,9 +5314,7 @@
         // Добор; каждый пропуск из-за пустой колоды увеличивает усталость.
         drawCard(who);
         if (checkBattleEnd()) return;
-        logBattle(battle.mode === 'campaign'
-            ? `🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Энергия: ${p.dropMana}/${p.dropManaMax}`
-            : `🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Мана: 💎${p.dropMana}/${p.dropManaMax} ⚡${p.actionMana}/${p.actionManaMax}`, 'system');
+        logBattle(`🔄 Ход ${battle.turn} — ${who === 'me' ? 'твой' : 'врага'}. Энергия: ⚡${p.energy}/${p.energyMax}.`, 'system');
 
         await fireStructures(who);
         cleanupDead();
@@ -5351,7 +5357,7 @@
         await delay(600);
         if (checkBattleEnd()) return;
 
-        // 1) Высадка карт: жадно пробуем сыграть самые дорогие, на которые хватает drop-маны
+        // 1) Вывод карт оплачивается из того же запаса энергии, что и атаки.
         let attempts = 0;
         while (attempts < 10) {
             if (!battle || battle._endScheduled) return;
@@ -5359,7 +5365,7 @@
             // Ищем карту которую можем сыграть
             const playable = e.hand
                 .map((c, i) => ({ c, i }))
-                .filter(({ c }) => c.drop_cost <= e.dropMana)
+                .filter(({ c }) => c.drop_cost <= e.energy)
                 .sort((a, b) => b.c.drop_cost - a.c.drop_cost);
 
             if (playable.length === 0) break;
@@ -5367,9 +5373,10 @@
             const { c: card, i: idx } = playable[0];
 
             if (card.card_type === 'spell') {
-                e.dropMana -= card.drop_cost;
+                e.energy -= card.drop_cost;
                 e.hand.splice(idx, 1);
                 logBattle(`📜 Враг разыгрывает манёвр «${card.name}».`, 'enemy');
+                applyEnergyKeywordsOnPlay(card, 'enemy');
                 resolveCardEffects(card, 'enter_play', 'enemy');
                 cleanupDead();
                 await waitForEffectQueue();
@@ -5393,7 +5400,7 @@
                         const eAct = Math.max(0, parseInt(card.action_cost) || 0);
                         const eAtk = Math.max(0, parseInt(card.atk) || 0);
                         const eHp = Math.max(1, parseInt(card.hp) || 1);
-                        e.dropMana -= eDrop;
+                        e.energy -= eDrop;
                         e.hand.splice(idx, 1);
                         const unit = {
                             instanceId: uid(),
@@ -5415,22 +5422,10 @@
                         };
                         applyCardKeywordsToUnit(unit);
                         row[si] = unit;
-                        if (unit.statuses.supply) {
-                            e.dropManaMax = Math.min(MAX_DROP_MANA, e.dropManaMax + 1);
-                            e.dropMana += 1;
-                        }
-                        if (unit.statuses.warcry) {
-                            if (battle.mode === 'campaign') adjustActionEnergy('enemy', 1);
-                            else e.actionMana = Math.min(MAX_ACTION_MANA, e.actionMana + 1);
-                        }
-                        if (unit.statuses.harras) battle.me._blockDropNext = (battle.me._blockDropNext||0) + 1;
-                        if (unit.statuses.exhaustenemy) {
-                            if (battle.mode === 'campaign') adjustActionEnergy('me', -1);
-                            else battle.me.actionMana = Math.max(0, battle.me.actionMana - 1);
-                        }
+                        applyEnergyKeywordsOnPlay(unit, 'enemy');
                         resolveCardEffects(unit, 'enter_play', 'enemy');
                         cleanupDead();
-                        logBattle(`👹 Враг выводит ${card.name} (${eDrop}💎)`, 'enemy');
+                        logBattle(`👹 Враг выводит ${card.name} (${eDrop}⚡)`, 'enemy');
                         placed = true;
                         break;
                     }
@@ -5445,16 +5440,13 @@
             if (checkBattleEnd()) return;
         }
 
-        // 2) Атаки всеми не-использованными юнитами, на которые хватает action-маны
+        // 2) Атаки используют остаток общего запаса энергии.
         let attackAttempts = 0;
         while (attackAttempts < 15) {
             if (!battle || battle._endScheduled) return;
             attackAttempts++;
-            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && getUnitActionCost(u) <= currentActionEnergy('enemy'));
+            const attacker = [...e.front, ...e.back].find(u => u && !u.exhausted && !u.isStructure && getUnitActionCost(u) <= currentEnergy('enemy'));
             if (!attacker) break;
-
-            if (battle.mode === 'campaign') e.dropMana -= getUnitActionCost(attacker);
-            else e.actionMana -= getUnitActionCost(attacker);
 
             let aRow=null,aSlot=-1;
             for (let i=0;i<FRONT_SLOTS;i++) if (e.front[i]===attacker){aRow='front';aSlot=i;}
@@ -5487,6 +5479,7 @@
                 logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}`, 'enemy');
                 attacker.justAttacked = true;
             }
+            adjustEnergy('enemy', -getUnitActionCost(attacker));
             attacker.exhausted = true;
             const enemyAttackEffectTarget = targetInfo.row === 'hero'
                 ? { kind:'player', side:'me' }

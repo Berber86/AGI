@@ -8,7 +8,7 @@ const output = path.join(root, "dist");
 // Keep the old standalone UI available as a recovery path. Its scripts and
 // styles are intentionally copied unchanged; the current tests still exercise it.
 await mkdir(output, { recursive: true });
-for (const file of ["legacy.html", "tribes-legacy.html", "campaign.css", "campaign.js", "manifest.webmanifest"]) {
+for (const file of ["legacy.html", "tribes-legacy.html", "campaign.css", "campaign.js", "campaign-map.js", "manifest.webmanifest"]) {
   await copyFile(path.join(root, file), path.join(output, file));
 }
 for (const directory of ["assets", "images"]) {

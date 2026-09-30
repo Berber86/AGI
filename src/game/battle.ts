@@ -43,14 +43,14 @@ export interface Player {
   deck: Hand[]; hand: Hand[]; discard: Hand[];
   fatigue: number;
   front: (Unit | null)[]; back: (Unit | null)[];
-  energy: number; energyMax: number; energyCap: number; energyGrowth: number;
+  energy: number; energyMax: number; energyCap: number; energyGrowth: number; energyGrowthBlockedNext: number;
   hitSeq: number; lastDmg: number;
 }
 export interface LogEntry { id: number; side: Side | "system"; text: string }
 export interface Match {
   kind: "practice" | "expedition";
   opponentId: string; name: string; clan: string; era: number; leaderBattle: boolean;
-  regionId?: string; regionName?: string;
+  regionId?: string; regionName?: string; questBattle?: boolean;
 }
 export interface Battle {
   me: Player; enemy: Player;
@@ -78,14 +78,14 @@ function newPlayer(deck: Card[], cfg: SideConfig): Player {
     deck: shuffle(deck.map((c) => ({ ...JSON.parse(JSON.stringify(c)), iid: uid() }))),
     hand: [], discard: [], fatigue: 0,
     front: Array(FRONT).fill(null), back: Array(BACK).fill(null),
-    energy: 1, energyMax: 1, energyCap: cfg.energyMax, energyGrowth: cfg.energyGrowth,
+    energy: 1, energyMax: 1, energyCap: cfg.energyMax, energyGrowth: cfg.energyGrowth, energyGrowthBlockedNext: 0,
     hitSeq: 0, lastDmg: 0,
   };
 }
 
 export function enemyDeckForEra(era: number, limit: number): Card[] {
   const all = buildMilitia();
-  const ordered = era >= 3 ? [...all.filter((c) => c.era === "bronze"), ...all.filter((c) => c.era !== "bronze")] : all;
+  const ordered = era >= 1 ? [...all.filter((c) => c.era === "bronze"), ...all.filter((c) => c.era !== "bronze")] : all;
   return ordered.slice(0, limit);
 }
 
@@ -154,6 +154,40 @@ export function atkOf(b: Battle, u: Unit): number {
 }
 export const armorOf = (b: Battle, u: Unit) => Math.max(0, (u.st.armor || 0) + modTotal(b, u, "armor"));
 export const costOf = (b: Battle, u: Unit) => Math.max(0, u.action_cost + modTotal(b, u, "action_cost"));
+
+function adjustEnergy(b: Battle, side: Side, amount: number): number {
+  const player = b[side];
+  const before = player.energy;
+  player.energy = Math.max(0, Math.min(player.energyMax, before + amount));
+  return player.energy - before;
+}
+
+function hasCardKeyword(card: { keywords?: string[] }, keyword: string): boolean {
+  return (card.keywords || []).some((raw) => String(raw).toLowerCase().trim().split(":")[0] === keyword);
+}
+
+function applyEnergyKeywordsOnPlay(b: Battle, side: Side, card: { name: string; keywords?: string[] }) {
+  const player = b[side];
+  const enemySide = opp(side);
+  if (hasCardKeyword(card, "supply")) {
+    const beforeMax = player.energyMax;
+    player.energyMax = Math.min(player.energyCap, player.energyMax + 1);
+    const gained = adjustEnergy(b, side, 1);
+    if (player.energyMax > beforeMax || gained) log(b, side, `«${card.name}» приносит снабжение: +${gained} энергии, предел ${player.energyMax}.`);
+  }
+  if (hasCardKeyword(card, "warcry")) {
+    const gained = adjustEnergy(b, side, 1);
+    if (gained) log(b, side, `«${card.name}» поднимает боевой дух: +${gained} энергии.`);
+  }
+  if (hasCardKeyword(card, "harras")) {
+    b[enemySide].energyGrowthBlockedNext = (b[enemySide].energyGrowthBlockedNext || 0) + 1;
+    log(b, side, `«${card.name}» задерживает прирост энергии противника на следующий ход.`);
+  }
+  if (hasCardKeyword(card, "exhaustenemy")) {
+    const drained = adjustEnergy(b, enemySide, -1);
+    if (drained) log(b, side, `«${card.name}» изматывает противника: ${drained} энергии.`);
+  }
+}
 
 function makeUnit(b: Battle, card: Card): Unit {
   const atk = Math.max(0, Math.floor(card.atk) || 0);
@@ -264,7 +298,8 @@ export function canAct(b: Battle, side: Side, u: Unit): boolean {
 
 /* ---------- удар ---------- */
 
-function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number): number {
+function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attackerSide: Side): number {
+  const wasAlive = target.curHp > 0;
   let dmg = base;
   if (attacker.era === "bronze" && target.era === "ancient") dmg += 1;
   if (attacker.era === "ancient" && target.era === "bronze") dmg = Math.max(1, dmg - 1);
@@ -277,6 +312,17 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number): numb
   if (has(attacker, "fear") && Math.random() < 0.25 && !(has(target, "holdground") && target.fresh)) target.fears = true;
   dmg = Math.max(1, Math.floor(dmg));
   hurtUnit(target, dmg);
+
+  const defenderSide = opp(attackerSide);
+  if (has(attacker, "raider") && wasAlive && !target.isStructure && b[defenderSide].energy > 0) {
+    adjustEnergy(b, defenderSide, -1);
+    adjustEnergy(b, attackerSide, 1);
+    log(b, attackerSide, `«${attacker.name}» крадёт 1 энергию у противника.`);
+  }
+  if (has(attacker, "loot") && wasAlive && target.curHp <= 0 && !target.isStructure) {
+    const gained = adjustEnergy(b, attackerSide, 1);
+    if (gained) log(b, attackerSide, `«${attacker.name}» получает трофеи: +${gained} энергии.`);
+  }
   return dmg;
 }
 
@@ -292,11 +338,11 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     log(b, side, `${attacker.name} бьёт ${target.side === "me" ? "вашего вождя" : "вражеского вождя"}: −${d}.`);
   } else {
     const t = target.unit;
-    const d = resolveHit(b, attacker, t, atkOf(b, attacker));
+    const d = resolveHit(b, attacker, t, atkOf(b, attacker), side);
     let counter = 0;
     if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
       const cb = atkOf(b, t);
-      if (cb > 0) counter = resolveHit(b, t, attacker, cb);
+      if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
     }
     log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
     if (has(attacker, "poison")) t.st.poison = (t.st.poison || 0) + 1;
@@ -308,7 +354,7 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
   }
   attacker.fresh = false;
   attacker.exhausted = true;
-  b[side].energy -= costOf(b, attacker);
+  adjustEnergy(b, side, -costOf(b, attacker));
   if (attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : { kind: "unit", side: target.side, unit: target.unit });
   settle(b);
   return true;
@@ -331,6 +377,7 @@ export function deploy(b: Battle, side: Side, handIdx: number, row: "front" | "b
   const u = makeUnit(b, card);
   p[row][slot] = u;
   log(b, side, `${nm(side)} выводит «${u.name}».`);
+  applyEnergyKeywordsOnPlay(b, side, u);
   runEffects(b, u, "enter_play", side, null);
   settle(b);
   return true;
@@ -344,6 +391,7 @@ export function cast(b: Battle, side: Side, handIdx: number): boolean {
   p.hand.splice(handIdx, 1);
   p.discard.push(card);
   log(b, side, `${nm(side)} разыгрывает манёвр «${card.name}».`);
+  applyEnergyKeywordsOnPlay(b, side, card);
   runEffects(b, { name: card.name, effects: card.effects } as any, "enter_play", side, null);
   settle(b);
   return true;
@@ -599,7 +647,9 @@ export function startTurn(b: Battle, side: Side) {
   const p = b[side];
   b.counters[side]++;
   for (const s of unitsOf(b, side)) s.unit.mods = s.unit.mods.filter((m) => m.expires > b.counters[side]);
-  p.energyMax = Math.min(p.energyCap, p.energyMax + Math.max(0, p.energyGrowth));
+  const blockedGrowth = Math.max(0, p.energyGrowthBlockedNext || 0);
+  p.energyMax = Math.min(p.energyCap, p.energyMax + Math.max(0, p.energyGrowth - blockedGrowth));
+  p.energyGrowthBlockedNext = 0;
   p.energy = p.energyMax;
   log(b, "system", `Ход ${b.turn}: ${side === "me" ? "ваш" : "вражеский"}. Энергия ${p.energy}.`);
   if (b.turn >= 12) {

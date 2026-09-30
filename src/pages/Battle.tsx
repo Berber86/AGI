@@ -114,7 +114,9 @@ export default function BattleScreen() {
       deck.push({ ...mi, militia: true }); used++;
     }
     const ec = M.getOpponentBattleConfig(game, m.opponentId);
-    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth }, enemyDeckForEra(ec.era, ec.deckLimit), { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth }, m, used);
+    const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
+    const enemyDeck = customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, ec.deckLimit);
+    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth }, m, used);
   };
   const bRef = useRef<Battle>(null as any);
   if (!bRef.current) bRef.current = build();
@@ -280,7 +282,7 @@ export default function BattleScreen() {
       <header className="relative z-10 flex items-center justify-between gap-3 px-3 py-2.5 sm:px-6">
         <Btn variant="ghost" size="sm" onClick={() => (b.over ? undefined : setConfirmRetreat(true))} disabled={!!b.over}><Flag size={14} />Отступить</Btn>
         <div className="text-center">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{m.kind === "expedition" ? `Экспедиция · ${m.regionName}` : "Тренировочный бой"}</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{m.questBattle ? `Квестовый бой · ${m.regionName || m.name}` : m.kind === "expedition" ? `Экспедиция · ${m.regionName}` : "Тренировочный бой"}</div>
           <div className={cn("text-sm font-semibold", b.active === "me" ? "text-bronze-soft" : "text-clay")}>{b.over ? "Бой окончен" : `Ход ${b.turn} · ${b.active === "me" ? "ваш" : "врага"}`}</div>
         </div>
         <Btn variant="ghost" size="sm" className="lg:hidden" onClick={() => setLogOpen(true)}><ScrollText size={14} />Журнал</Btn>
@@ -355,7 +357,7 @@ export default function BattleScreen() {
 
       <Modal open={confirmRetreat} onClose={() => setConfirmRetreat(false)} title="Отступить">
         <h2 className="font-display text-xl font-semibold">Отступить с поля боя?</h2>
-        <p className="mt-2 text-sm text-dim">{m.kind === "expedition" ? "Экспедиция будет засчитана как поражение: припасы и приказ уже потрачены, регион останется у соперника." : "Тренировка прервётся без последствий для кампании."}</p>
+        <p className="mt-2 text-sm text-dim">{m.kind === "expedition" ? m.questBattle ? "Квестовый бой будет засчитан как поражение: припасы и приказ уже потрачены, участок останется нейтральным." : "Экспедиция будет засчитана как поражение: припасы и приказ уже потрачены, регион останется у соперника." : "Тренировка прервётся без последствий для кампании."}</p>
         <div className="mt-6 flex justify-end gap-3"><Btn variant="ghost" onClick={() => setConfirmRetreat(false)}>Продолжить бой</Btn><Btn variant="danger" onClick={retreat}>Отступить</Btn></div>
       </Modal>
 
@@ -423,4 +425,3 @@ function LogList({ b, className, bare }: { b: Battle; className?: string; bare?:
     </div>
   );
 }
-

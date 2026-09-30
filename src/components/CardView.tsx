@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Sword, Heart, Zap, Gem } from "lucide-react";
+import { Sword, Heart, Zap } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { CARD_TYPE_INFO, RARITY_INFO, describeEffect, kwName, type Card } from "@/game/cards";
 
@@ -26,10 +26,10 @@ export function KeywordChips({ keywords, className, limit }: { keywords: string[
   );
 }
 
-export function CostGem({ value, className }: { value: number; className?: string }) {
+export function CostEnergy({ value, className }: { value: number; className?: string }) {
   return (
-    <span className={cn("inline-flex h-7 min-w-7 items-center justify-center gap-0.5 rounded-full border border-bronze/50 bg-ground/80 px-1.5 text-[13px] font-bold tabular-nums text-bronze-soft", className)} title="Стоимость выхода (энергия)">
-      {value}
+    <span className={cn("inline-flex h-7 min-w-7 items-center justify-center gap-0.5 rounded-full border border-bronze/50 bg-ground/80 px-1.5 text-[13px] font-bold tabular-nums text-bronze-soft", className)} title="Стоимость вывода (общая энергия)">
+      <Zap size={12} />{value}
     </span>
   );
 }
@@ -76,7 +76,7 @@ export function CardFace({ card, onClick, selected, footer, badge, detailed, cla
       )}
     >
       <div className={cn("relative flex items-start justify-between bg-gradient-to-b to-transparent px-3 pt-3", TYPE_TINT[card.card_type])}>
-        <CostGem value={card.drop_cost} />
+        <CostEnergy value={card.drop_cost} />
         <div className="text-right">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-dim">{type.label}</div>
           {rarity && <div className={cn("text-[10px] font-medium", rarity.color)}>{rarity.label}</div>}
@@ -105,7 +105,7 @@ export function CardFace({ card, onClick, selected, footer, badge, detailed, cla
         <div className="flex items-center justify-between border-t border-line pt-2">
           <StatPair card={card} />
           {card.card_type === "unit" && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-dim" title="Стоимость атаки (энергия)"><Gem size={12} className="text-bronze" />атака {card.action_cost}</span>
+            <span className="inline-flex items-center gap-1 text-[11px] text-dim" title="Стоимость атаки (общая энергия)"><Zap size={12} className="text-bronze" />атака {card.action_cost}</span>
           )}
           {card.card_type === "structure" && <span className="text-[11px] text-dim">бьёт врага раз в ход</span>}
           {card.card_type === "spell" && <span className="text-[11px] text-dim">одноразовый</span>}
@@ -142,7 +142,7 @@ export function CardTile({ card, onClick, selected, right, dim, className }: { c
         </span>
       </span>
       <StatPair card={card} className="shrink-0 text-[13px]" />
-      <CostGem value={card.drop_cost} className="shrink-0" />
+      <CostEnergy value={card.drop_cost} className="shrink-0" />
       {right}
     </Wrapper>
   );
