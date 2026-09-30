@@ -141,6 +141,19 @@ test('procedural world generation is reproducible, rectangular and connected by 
   assert.ok(world.tiles.filter(tile => tile.kind === 'settlement' || tile.kind === 'home' || tile.terrain === 'water').every(tile => !tile.guard));
 });
 
+test('every generated world keeps at least one unguarded land tile next to the start', () => {
+  const opponents = Campaign.createState(TEST_SEED).opponents;
+  for (let seed = 1; seed <= 600; seed++) {
+    const world = CampaignMap.generateWorld(seed, opponents);
+    const home = world.tiles.find(tile => tile.kind === 'home');
+    const adjacentLand = home.neighbors
+      .map(id => world.tiles.find(tile => tile.id === id))
+      .filter(tile => tile && tile.kind === 'resource' && tile.terrain !== 'water');
+    assert.ok(adjacentLand.length > 0, `world ${seed} should have land next to the start`);
+    assert.ok(adjacentLand.some(tile => !tile.guard), `world ${seed} should keep a free neighbour for the tutorial settle step`);
+  }
+});
+
 test('map vision uses a two-cell four-way radius and expands from every owned region', () => {
   const opponents = Campaign.createState(TEST_SEED).opponents;
   const world = CampaignMap.generateWorld(TEST_SEED, opponents);
@@ -586,7 +599,7 @@ test('quest-guard expeditions claim neutral land on victory and leave it neutral
   assert.equal(defeat.state.regions.find(region => region.id === tile.id).ownerId, null);
   assert.equal(defeat.state.player.pendingExpedition, null);
   assert.deepEqual(defeat.state.player.practice, state.player.practice);
-  assert.deepEqual(defeat.state.player.resources, launched.state.player.resources);
+  assert.deepEqual(defeat.state.player.resources, { ...launched.state.player.resources, food: launched.state.player.resources.food + 2 }, 'a defeat refunds half the food');
   assert.match(defeat.message, /остаётся неосвоенной/);
 
   const marked = Campaign.markExpeditionBattleStartedState(launched.state, launched.match);
@@ -597,7 +610,7 @@ test('quest-guard expeditions claim neutral land on victory and leave it neutral
   assert.deepEqual(recovered.state.player.practice, state.player.practice);
 });
 
-test('strategic expedition persists until battle, then a win transfers land without building and a loss keeps the spend', () => {
+test('strategic expedition persists until battle, then a win transfers land without building and a loss refunds half the food', () => {
   let state = controlRegionsWithBuildings(grantExpeditionAccess(playableCampaign()), { copper: 'smelter', 'tin-route': 'caravan' });
   state.player.era = 2;
   const rivalId = mapTileId(state, 'rival-settlement');
@@ -630,7 +643,7 @@ test('strategic expedition persists until battle, then a win transfers land with
   assert.equal(defeat.error, null);
   assert.equal(defeat.state.regions.find(region => region.id === rivalId).ownerId, 'steppe');
   assert.equal(defeat.state.player.practice.leaderLosses, 1);
-  assert.deepEqual(defeat.state.player.resources, launched.state.player.resources);
+  assert.deepEqual(defeat.state.player.resources, { ...launched.state.player.resources, food: launched.state.player.resources.food + 2 }, 'a defeat refunds half the food');
 });
 
 test('reloading after a territory battle begins records one loss instead of a free retry', () => {
@@ -648,7 +661,7 @@ test('reloading after a territory battle begins records one loss instead of a fr
   assert.equal(recovered.state.player.pendingExpedition, null);
   assert.equal(recovered.state.regions.find(region => region.id === rivalId).ownerId, 'steppe');
   assert.equal(recovered.state.player.practice.leaderLosses, 1);
-  assert.deepEqual(recovered.state.player.resources, marked.state.player.resources);
+  assert.deepEqual(recovered.state.player.resources, { ...marked.state.player.resources, food: marked.state.player.resources.food + 2 }, 'the interrupted battle also refunds half the food');
   assert.match(recovered.state.player.campaignNotice, /засчитан как поражение/);
 
   const beforeBattle = Campaign.recoverInterruptedExpeditionState(launch.state);
@@ -764,12 +777,12 @@ test('only active buildings change combat limits and economic buildings give wor
   state = Campaign.finishDayState(state).state;
   state = Campaign.constructBlueprint(state, added.blueprint.id).state;
   assert.equal(state.player.buildings[1].active, true);
-  assert.equal(Campaign.getBattleConfig(state).deckLimit, 3);
+  assert.equal(Campaign.getBattleConfig(state).deckLimit, 5);
   assert.equal(Campaign.getBattleConfig(state).hp, 6);
   const toggled = Campaign.toggleBuildingState(state, state.player.buildings[1].id);
   assert.equal(toggled.error, null);
   assert.equal(toggled.state.player.buildings[1].active, false);
-  assert.equal(Campaign.getBattleConfig(toggled.state).deckLimit, 2);
+  assert.equal(Campaign.getBattleConfig(toggled.state).deckLimit, 4);
   assert.equal(Campaign.getBattleConfig(toggled.state).effects.income_food, 1); // remains from the starter granary
   // check worker bonus
   const breakdown = Campaign.getProductionBreakdown(state);
@@ -884,11 +897,10 @@ test('player era advances bring selected barbarian decks forward too', () => {
 
 test('campaign deck selection respects its current building-derived limit', () => {
   let state = Campaign.createState(TEST_SEED);
-  state = Campaign.toggleDeckCardState(state, 'card-a').state;
-  state = Campaign.toggleDeckCardState(state, 'card-b').state;
-  assert.equal(state.player.deckCardIds.length, 2);
-  const denied = Campaign.toggleDeckCardState(state, 'card-c');
-  assert.match(denied.error, /лимит колоды 2/);
+  for (const id of ['card-a', 'card-b', 'card-c', 'card-d']) state = Campaign.toggleDeckCardState(state, id).state;
+  assert.equal(state.player.deckCardIds.length, 4);
+  const denied = Campaign.toggleDeckCardState(state, 'card-e');
+  assert.match(denied.error, /лимит колоды 4/);
 });
 
 test('AI practice is only local test data and does not change clan rating or resources', () => {

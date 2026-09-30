@@ -194,6 +194,7 @@ export function TopBar() {
   const { ap, apMax, cap } = useDerived();
   const p = game.player;
   const last = game.day >= M.SEASON_LENGTH;
+  const [confirmSeason, setConfirmSeason] = useState(false);
   const completeSeason = () => {
     const res = act((s) => M.completeSeason(s));
     if (res) { toast(`Сезон завершён. Медаль: ${res.medal.name}`, "ok"); go("home"); }
@@ -233,7 +234,7 @@ export function TopBar() {
             ))}
           </div>
           {last ? (
-            <Btn variant="primary" onClick={completeSeason}>Итоги сезона<ArrowRight size={16} /></Btn>
+            <Btn variant="primary" onClick={() => setConfirmSeason(true)}>Итоги сезона<ArrowRight size={16} /></Btn>
           ) : (
             <Btn variant="primary" onClick={endDay} title="Провести день: рабочие соберут ресурсы, народ съест провизию">
               <span className="hidden sm:inline">Завершить день</span><span className="sm:hidden">День {game.day}</span><ArrowRight size={16} />
@@ -241,6 +242,20 @@ export function TopBar() {
           )}
         </div>
       </div>
+      <Modal open={confirmSeason} onClose={() => setConfirmSeason(false)} title="Решение народа">
+        <Label>Итоги сезона</Label>
+        <h2 className="font-display text-2xl font-semibold">Завершить сезон {game.season}?</h2>
+        <p className="mt-2 text-sm leading-relaxed text-dim">
+          Новый сезон — новая жизнь: мир, земли, науки, постройки и запасы начнутся с чистого листа. Вам покажут новую карту.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-dim">
+          Останутся с вами: медаль за сезон, мастерство кузнеца, численность народа и собранная коллекция карт.
+        </p>
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <Btn variant="ghost" onClick={() => setConfirmSeason(false)}>Ещё пораньше</Btn>
+          <Btn variant="primary" onClick={() => { setConfirmSeason(false); completeSeason(); }}>Завершить сезон<ArrowRight size={16} /></Btn>
+        </div>
+      </Modal>
     </header>
   );
 }
@@ -333,8 +348,8 @@ export function DayReportModal() {
                 <div className="text-xs text-faint">{extra}</div>
               </div>
               <div className="text-right tabular-nums">
-                <div className="text-base font-bold text-parch">{r.after[k]}</div>
-                <div className={cn("text-xs font-medium", d < 0 ? "text-bad" : "text-ok")}>{d >= 0 ? "+" : ""}{d}</div>
+                <div className="text-base font-bold text-parch">{Math.floor(r.after[k])}</div>
+                <div className={cn("text-xs font-medium", d < 0 ? "text-bad" : "text-ok")}>{d >= 0 ? "+" : ""}{fmt(d)}</div>
               </div>
             </div>
           );

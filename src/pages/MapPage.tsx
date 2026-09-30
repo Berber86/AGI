@@ -302,6 +302,11 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
   const mine = info.owner === "player";
   const have = game.player.resources;
   const featureLabel = FEATURE_LABEL[def.feature] || SITE_LABEL[def.siteType] || "Местность";
+  // Разведка стражи: честная грубая оценка сил перед платным квестовым боем.
+  const questEst = action.action === "quest" && def.guard ? M.getOpponentBattleConfig(game, def.guard.id) : null;
+  const questCfg = questEst ? M.getBattleConfig(game) : null;
+  const questScore = questEst && questCfg ? (questCfg.deckLimit - questEst.deckLimit) + (questCfg.hp - questEst.hp) + (questCfg.energyMax - questEst.energyMax) : 0;
+  const questVerdict = questEst ? questScore >= 2 ? "ваш отряд сильнее" : questScore >= -1 ? "силы примерно равны" : "стража заметно сильнее" : null;
 
   const run = () => {
     if (action.action === "settle") {
@@ -372,7 +377,7 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
           {!action.enabled && action.reason && <p className="mt-2 text-xs leading-relaxed text-bad/90">{action.reason}</p>}
           {action.enabled && orderName && <p className="mt-2 text-xs text-faint">{orderName}</p>}
           {action.action === "attack" && action.enabled && <p className="mt-2 text-xs leading-relaxed text-faint">Победа в бою отдаёт вам участок. При поражении припасы и приказ потеряны.</p>}
-          {action.action === "quest" && action.enabled && <p className="mt-2 text-xs leading-relaxed text-faint">Квестовый бой снимает охрану и занимает участок при победе. При поражении земля остаётся нейтральной.</p>}
+          {action.action === "quest" && action.enabled && <p className="mt-2 text-xs leading-relaxed text-faint">Разведка: {questVerdict}. Квестовый бой снимает охрану и отдаёт участок при победе. При поражении земля остаётся нейтральной, но отряд возвращает 2 🌾 припасов.</p>}
         </div>
       ) : (
         <p className="mt-4 rounded-lg bg-raised/60 p-3 text-xs leading-relaxed text-faint">{action.reason || (def.kind === "home" ? "Центральное поселение — начало всех путей." : "Это место пока недоступно для освоения.")}</p>
