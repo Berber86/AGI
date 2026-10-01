@@ -43,7 +43,9 @@
         { id: 'writing', label: 'Письмо и учёт', prompt: 'клинопись Шумера, иероглифы Египта, счёт и бюрократия. Урук 3400 до н.э.', minEra: 1, category: 'science', effect: 'income_knowledge', building: 'дом табличек или школа писцов' },
         { id: 'metallurgy', label: 'Медь и металлургия', prompt: 'добыча и обработка меди, доступные для текущей эпохи. Балканы 5000 до н.э., первые медники', minEra: 2, category: 'economy', effect: 'income_materials', building: 'рудник или литейная мастерская' },
         { id: 'bronze', label: 'Бронзовые сплавы', prompt: 'бронзовое литьё и снабжение инструментами. Аккад — бронзовое оружие Саргона', minEra: 3, category: 'economy', effect: 'income_materials', building: 'бронзовая литейная' },
-        { id: 'irrigation-empire', label: 'Империя ирригации', prompt: 'государство каналов, как Аккад и Египет — централизация, налоги зерном, бюрократия', minEra: 2, category: 'civic', effect: 'storage_bonus', building: 'государственные закрома или домена фараона' }
+        { id: 'irrigation-empire', label: 'Империя ирригации', prompt: 'государство каналов, как Аккад и Египет — централизация, налоги зерном, бюрократия', minEra: 2, category: 'civic', effect: 'storage_bonus', building: 'государственные закрома или домена фараона' },
+        { id: 'administration', label: 'Управление и распорядок', prompt: 'учёт дневных дел общины, писцы-распорядители, которые помогают вождю успевать больше дел за день. Урук и ранние царства — табличка нарядов, староста общины', minEra: 1, category: 'civic', effect: 'ap_max', building: 'палата нарядов или дом распорядителя' },
+        { id: 'guilds', label: 'Цеха и ремёсла', prompt: 'объединение мастеров в цеха и наставничество, которые позволяют повторить одно и то же дело дважды за день. Поздняя бронза и раннее железо — цеховые уставы', minEra: 2, category: 'civic', effect: 'order_capacity', building: 'дом цехов или зал мастеров' }
     ];
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
     const BARBARIAN_ERA_CAP = 2; // В локальном MVP племена автоматически развиваются не дальше Средневековья.
@@ -98,6 +100,12 @@
         fatigue_resist: { label: '+1 ход до усталости в бою', category: 'military', max: 2 },
         active_building_slots: { label: '+1 активная постройка', category: 'civic', max: 1 },
         craft_quality: { label: '+1 к качеству ковки', category: 'science', max: 2 },
+        // Баланс-ревизия: до этого эффекта ни одна постройка советника не могла поднять
+        // ни сам пул AP, ни дневной лимит повторения одного и того же приказа — игрок был
+        // навечно заперт в "2 AP на 4 ветки", сколько бы эпох ни прошло. Эти два эффекта
+        // дают учёному реальный рычаг прокачать именно дневной темп игрока, а не только доход/бой.
+        ap_max: { label: '+1 к максимуму AP в день', category: 'civic', max: 1 },
+        order_capacity: { label: '+1 к дневному лимиту каждого приказа (можно повторить тот же тип за день)', category: 'civic', max: 1 },
         // Воинская доктрина эпохи: советник может предложить такое здание в любое время,
         // но построить его реально получится только когда освоен ключевой ресурс ТЕКУЩЕЙ
         // эпохи (см. ERA_KEY_RESOURCE и hasEraKeyResource) — проверка идёт в constructBlueprint.
@@ -120,7 +128,9 @@
             bronze: ['Бронзовый сплав', 'Олово и медь', 'Литейные формы', 'Закалка', 'Инструменты', 'Бронзовый век'],
             horse: ['Приручение коня', 'Повозки', 'Курганы', 'Кони Ямной', 'Колесницы', 'Всадники степи', 'Табун'],
             writing: ['Клинопись', 'Иероглифы', 'Счётные таблички', 'Дом табличек', 'Школа писцов', 'Учёт зерна', 'Печать'],
-            'irrigation-empire': ['Каналы фараона', 'Закрома Аккада', 'Налоги зерном', 'Ирригационная империя', 'Домен', 'Государство']
+            'irrigation-empire': ['Каналы фараона', 'Закрома Аккада', 'Налоги зерном', 'Ирригационная империя', 'Домен', 'Государство'],
+            administration: ['Табличка нарядов', 'Палата дел', 'Распорядок дня', 'Писцы-распорядители', 'Смотритель общины', 'Учёт нарядов'],
+            guilds: ['Цеховой устав', 'Мастеровые ряды', 'Общий зал ремёсел', 'Наставники цеха', 'Порядок мастерских']
         },
         scienceSuffixes: ['практики', 'наблюдений', 'опыт общины', 'старших', 'ремесла', 'уклада', 'заповедь', 'знание', 'приём'],
         buildingPrefixes: {
@@ -164,7 +174,9 @@
             writing: ['первая табличка исписана', 'писец подсчитал зерно', 'печать оттиснута на глине'],
             metallurgy: ['медь потекла как воск', 'первый слиток блестит на солнце', 'горн загудел сильнее'],
             bronze: ['бронза звенит как колокол', 'новый сплав не гнётся', 'инструменты режут камень'],
-            'irrigation-empire': ['каналы наполнились водой', 'закрома полны', 'налог собран']
+            'irrigation-empire': ['каналы наполнились водой', 'закрома полны', 'налог собран'],
+            administration: ['распорядитель расписал дела по дням', 'писцы впервые учли все наряды разом', 'старейшины одобрили новый распорядок работ'],
+            guilds: ['мастера впервые собрались единым цехом', 'подмастерья переняли два ремесла сразу', 'цеховой устав ускорил общий труд']
         }
     };
 
@@ -355,7 +367,11 @@
     }
 
     function createDailyOrders() {
-        return { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false };
+        // *Used хранит не true/false, а СКОЛЬКО РАЗ этот тип приказа уже отдан сегодня (0, 1, 2, ...),
+        // чтобы учитывать повышенный эффектом order_capacity лимит (см. getOrderCapacity). 0 и false
+        // эквивалентны в JS-проверках truthy/falsy, так что старые сохранения с булевыми флагами
+        // остаются совместимы (см. normalizeDailyOrders).
+        return { craftUsed: 0, researchUsed: 0, constructionUsed: 0, frontierUsed: 0, legacyBlocked: false };
     }
 
     const STARTER_CARDS = [
@@ -644,7 +660,12 @@
     function normalizeDailyOrders(raw, state, legacyActionUsed) {
         const orders = createDailyOrders();
         if (raw && typeof raw === 'object') {
-            for (const key of Object.keys(orders)) orders[key] = Boolean(raw[key]);
+            // Старые сохранения хранили true/false; clampInt(true,...)=1, clampInt(false,...)=0 —
+            // совместимо автоматически. Верхняя граница 2 — максимум, который вообще можно выбрать
+            // (базовый лимит 1 + потолок бонуса order_capacity 1, см. getOrderCapacity).
+            for (const key of Object.keys(orders)) {
+                orders[key] = key === 'legacyBlocked' ? Boolean(raw[key]) : clampInt(raw[key], 0, 2, 0);
+            }
         } else if (legacyActionUsed) {
             const day = state.day;
             const currentCraft = state.player.craftOrders.some(order => order.createdDay === day && order.status !== 'failed');
@@ -653,13 +674,13 @@
                 && getWorldTile(state.world, region.id)?.kind !== 'home');
             const currentConstruction = state.player.buildings.some(building => building.blueprintId && building.builtDay === day);
             const currentResearch = state.player.blueprints.some(blueprint => blueprint.researchedDay === day);
-            if (currentCraft) orders.craftUsed = true;
-            else if (currentExpedition || currentSettlement) orders.frontierUsed = true;
-            else if (currentConstruction) orders.constructionUsed = true;
-            else if (currentResearch) orders.researchUsed = true;
+            if (currentCraft) orders.craftUsed = 1;
+            else if (currentExpedition || currentSettlement) orders.frontierUsed = 1;
+            else if (currentConstruction) orders.constructionUsed = 1;
+            else if (currentResearch) orders.researchUsed = 1;
             else orders.legacyBlocked = true;
         }
-        if (state.player.pendingExpedition) orders.frontierUsed = true;
+        if (state.player.pendingExpedition) orders.frontierUsed = Math.max(orders.frontierUsed, 1);
         return orders;
     }
 
@@ -671,7 +692,7 @@
     function markDailyOrderUsed(state, type) {
         const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) throw new Error('Неизвестный дневной лимит: ' + type);
-        state.player.dailyOrders[key] = true;
+        state.player.dailyOrders[key] += 1;
         if (state.player.ap > 0) state.player.ap -= 1;
         syncLegacyActionUsed(state);
     }
@@ -679,7 +700,7 @@
     function clearDailyOrder(state, type) {
         const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) return;
-        state.player.dailyOrders[key] = false;
+        state.player.dailyOrders[key] = Math.max(0, state.player.dailyOrders[key] - 1);
         state.player.ap = Math.min(state.player.apMax, state.player.ap + 1);
         syncLegacyActionUsed(state);
     }
@@ -726,7 +747,6 @@
         state.player.workers = normalizeWorkers(state.player.workers, state.player.population);
         state.player.storageCap = clampInt(state.player.storageCap, STORAGE_BASE, 999, STORAGE_BASE);
         state.player.ap = clampInt(state.player.ap, 0, 10, AP_MAX);
-        state.player.apMax = clampInt(state.player.apMax, 1, 10, AP_MAX);
         state.player.decree = state.player.decree && ['military', 'agricultural', 'priestly'].includes(state.player.decree) ? state.player.decree : null;
         state.player.decrees = Array.isArray(state.player.decrees) ? state.player.decrees.filter(d => d && typeof d.id === 'string' && DECREES[d.id]).map(d => ({
             id: d.id,
@@ -789,6 +809,14 @@
         if (!state.player.buildings.some(building => building.id === 'starter-granary')) state.player.buildings.unshift(makeStarterBuilding());
         let activeCount = 0;
         state.player.buildings.forEach(building => { if (building.active && activeCount++ >= state.player.activeBuildingSlots) building.active = false; });
+        // Баланс-ревизия: apMax больше не застывший AP_MAX=2 навсегда — постройка советника с эффектом
+        // ap_max (например, "Палата нарядов") поднимает дневной пул AP, пока активна (не навечно, в
+        // отличие от active_building_slots). Пересчитываем при каждой нормализации состояния, сразу
+        // после того как buildings гарантированно стали валидным массивом. Потолок +2 (AP 2 -> максимум 4),
+        // чтобы темп игры не улетал бесконтрольно даже если постройки такого типа накопятся.
+        const apBonus = Math.min(2, effectTotals(state).ap_max || 0);
+        state.player.apMax = clampInt(AP_MAX + apBonus, 1, 10, AP_MAX);
+        state.player.ap = Math.min(state.player.ap, state.player.apMax);
         state.player.blueprints = Array.isArray(state.player.blueprints) ? state.player.blueprints.slice(0, 30).map(blueprint => ({
             id: String(blueprint.id || ''),
             scienceName: String(blueprint.scienceName || '').slice(0, 80),
@@ -1017,6 +1045,17 @@
         return totals;
     }
 
+    // Дневной лимит повторения ОДНОГО И ТОГО ЖЕ приказа (ковка/наука/стройка/фронтир).
+    // По умолчанию 1 раз/день на тип — постройка советника с эффектом order_capacity поднимает
+    // лимит до 2 (можно, например, дважды исследовать за день, если хватит AP на обе попытки).
+    // Принимает либо полный state (с .player), либо голый player — нужно для UI-кода, где под рукой
+    // не всегда есть весь state (см. renderBlueprintOrder).
+    function getOrderCapacity(input) {
+        const state = input && input.player ? input : { player: input };
+        const totals = effectTotals(state);
+        return 1 + Math.min(1, totals.order_capacity || 0);
+    }
+
     function getActiveDecrees(state) {
         // ВАЖНО: действует только уклад ТЕКУЩЕЙ эпохи, а не все когда-либо выбранные. state.player.decrees —
         // это исторический журнал (на нём держится renderDecreeChoice/лор), но бонусы и штрафы прошлых эпох не
@@ -1225,7 +1264,9 @@
         if (state.player.ap <= 0) return 'AP исчерпаны на сегодня. Заверши день.';
         const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) return 'Тип дневного действия не распознан.';
-        if (state.player.dailyOrders[key]) {
+        // Базовый лимит — 1 раз/день на тип; постройка советника с эффектом order_capacity
+        // поднимает его до 2 (см. getOrderCapacity).
+        if (state.player.dailyOrders[key] >= getOrderCapacity(state)) {
             return {
                 craft: 'Сегодняшняя ковка уже заказана. Продвинь день.',
                 research: 'Сегодняшнее исследование уже проведено. Продвинь день.',
@@ -2278,21 +2319,30 @@
         const craftQueueBusy = player.craftOrders.some(order => ['generating', 'working'].includes(order.status));
         const blocked = player.dailyOrders.legacyBlocked;
         const ap = player.ap;
-        const slot = function(icon, label, href, used, unavailable, detail) {
-            const status = blocked ? 'Завтра' : used ? 'Готово' : unavailable ? 'Нет цели' : ap <= 0 ? 'Нет AP' : 'Доступно';
+        // order_capacity от построек советника может поднять лимит с 1 до 2 повторений в день —
+        // показываем "x/лимит" только когда лимит выше базового, чтобы не загромождать интерфейс
+        // в обычной игре без такой постройки.
+        const cap = getOrderCapacity(current);
+        const ratio = count => cap > 1 ? ' ' + count + '/' + cap : '';
+        const slot = function(icon, label, href, count, unavailable, detail) {
+            const used = count >= cap;
+            const status = blocked ? 'Завтра' : used ? 'Готово' + ratio(count) : unavailable ? 'Нет цели' : ap <= 0 ? 'Нет AP' : 'Доступно' + ratio(count);
             const style = used || blocked ? 'is-used' : unavailable || ap <= 0 ? 'is-blocked' : 'is-ready';
-            const title = blocked ? 'Старый приказ: лимиты восстановятся после смены дня.' : detail;
+            const title = blocked ? 'Старый приказ: лимиты восстановятся после смены дня.' : detail + (cap > 1 ? ' Лимит поднят постройкой до ' + cap + ' раз(а) в день.' : '');
             return '<a class="campaign-day-action ' + style + '" href="' + href + '" title="' + htmlAttr(title) + '"><span>' + icon + '</span><b>' + label + '</b><small>' + status + '</small></a>';
         };
-        const craftStatus = blocked ? 'Завтра' : player.dailyOrders.craftUsed ? 'Готово' : craftQueueBusy ? 'Очередь' : ap <= 0 ? 'Нет AP' : 'Доступно';
-        const craftClass = player.dailyOrders.craftUsed || blocked ? 'is-used' : craftQueueBusy || ap <= 0 ? 'is-blocked' : 'is-ready';
+        const craftUsedUp = player.dailyOrders.craftUsed >= cap;
+        const craftStatus = blocked ? 'Завтра' : craftUsedUp ? 'Готово' + ratio(player.dailyOrders.craftUsed) : craftQueueBusy ? 'Очередь' : ap <= 0 ? 'Нет AP' : 'Доступно' + ratio(player.dailyOrders.craftUsed);
+        const craftClass = craftUsedUp || blocked ? 'is-used' : craftQueueBusy || ap <= 0 ? 'is-blocked' : 'is-ready';
         const craft = '<button class="campaign-day-action ' + craftClass + '" type="button" onclick="switchScreen(\'forge\')" title="' + (craftQueueBusy ? 'Дождись завершения текущей ковки.' : 'Перейти в кузницу. Стоит 1 AP.') + '"><span>⚒️</span><b>Ковка</b><small>' + craftStatus + '</small></button>';
         return '<nav class="campaign-daily-strip" aria-label="Дневные возможности"><div class="campaign-ap-display">AP: ' + ap + '/' + player.apMax + '</div>' + craft + slot('🔬', 'Наука', '#campaign-development', player.dailyOrders.researchUsed, !hasResearch, 'Исследование стоит 1 AP.') + slot('🏗️', 'Стройка', '#campaign-development', player.dailyOrders.constructionUsed, !hasConstruction, 'Построить изученный чертёж или здание в регионе. Стоит 1 AP.') + slot('🗺️', 'Фронтир', '#campaign-world', player.dailyOrders.frontierUsed, false, 'Одно заселение или экспедиция за день. Стоит 1 AP.') + '</nav>';
     }
 
     function renderBlueprintOrder(blueprint, player, readyToClose) {
         const actionType = blueprint.researched ? 'construction' : 'research';
-        const used = actionType === 'construction' ? player.dailyOrders.constructionUsed : player.dailyOrders.researchUsed;
+        const cap = getOrderCapacity(player);
+        const count = actionType === 'construction' ? player.dailyOrders.constructionUsed : player.dailyOrders.researchUsed;
+        const used = count >= cap;
         const disabled = player.dailyOrders.legacyBlocked || used || readyToClose || player.ap <= 0;
         const buttonText = blueprint.researched
             ? (used ? 'Готово сегодня' : 'Построить · 4🪵')
@@ -2638,7 +2688,7 @@
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
-        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
+        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getOrderCapacity, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         getRegionalIncome, getAvailableMaterialQualities, hasEraKeyResource, ERA_KEY_RESOURCE, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,

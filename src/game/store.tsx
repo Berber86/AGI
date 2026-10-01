@@ -403,7 +403,10 @@ export function useDerived() {
     };
     const cap = M.getStorageCap(game);
     const cfg = M.getBattleConfig(game);
-    const ordersUsed = Object.values(p.dailyOrders).filter((v) => v === true).length - (p.dailyOrders.legacyBlocked ? 1 : 0);
+    // *Used хранит счётчик (0,1,2...), а не true/false — order_capacity от построек советника
+    // может поднять дневной лимит приказа с 1 до 2 (см. campaign.js getOrderCapacity).
+    const ordersUsed = (["craftUsed", "researchUsed", "constructionUsed", "frontierUsed"] as const)
+      .reduce((sum, key) => sum + (Number(p.dailyOrders[key]) || 0), 0);
     return { breakdown: b, net, cap, cfg, ordersUsed, ap: p.ap, apMax: p.apMax };
   }, [game]);
 }

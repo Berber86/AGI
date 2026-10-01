@@ -100,7 +100,10 @@ function Science() {
     toast(`«${res.blueprint.scienceName}» в кодексе. Приказ «Исследование» потрачен — изучить её можно завтра.`, "ok");
   };
 
-  const researchOrderUsed = Boolean(p.dailyOrders?.researchUsed);
+  // order_capacity от построек советника может поднять дневной лимит приказа с 1 до 2 —
+  // "потрачен" наступает только когда счётчик достиг лимита, а не после первого же раза.
+  const researchOrderCap = M.getOrderCapacity(game);
+  const researchOrderUsed = (p.dailyOrders?.researchUsed || 0) >= researchOrderCap;
   const orderBlock = researchOrderUsed
     ? "Приказ «Исследование» уже потрачен сегодня."
     : p.ap <= 0

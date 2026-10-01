@@ -156,7 +156,13 @@ export default function MapPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-dim">
-          <Flag size={14} className="text-bronze" />Поход: {game.player.dailyOrders.frontierUsed ? "использован сегодня" : "доступен"}
+          <Flag size={14} className="text-bronze" />Поход: {(() => {
+            // order_capacity от построек советника может поднять дневной лимит похода с 1 до 2.
+            const cap = M.getOrderCapacity(game);
+            const count = game.player.dailyOrders.frontierUsed || 0;
+            const suffix = cap > 1 ? ` (${count}/${cap})` : "";
+            return (count >= cap ? "использован сегодня" : "доступен") + suffix;
+          })()}
         </div>
       </div>
 

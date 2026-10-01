@@ -101,7 +101,15 @@ export default function Forge() {
           <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Выковать карту</h1>
           <p className="mt-1 max-w-xl text-sm text-dim">Три шага: замысел, сырьё, усилия. Чем лучше вложения, тем выше шанс редкой карты. Одна ковка в день.</p>
         </div>
-        <Chip tone={p.dailyOrders.craftUsed ? "neutral" : "bronze"}><Anvil size={12} />{p.dailyOrders.craftUsed ? "Ковка сегодня использована" : "Ковка доступна"}</Chip>
+        {(() => {
+          // order_capacity от построек советника может поднять дневной лимит ковки с 1 до 2.
+          const craftCap = M.getOrderCapacity(game);
+          const craftUsedUp = (p.dailyOrders.craftUsed || 0) >= craftCap;
+          const craftLabel = craftUsedUp
+            ? "Ковка сегодня использована" + (craftCap > 1 ? ` (${p.dailyOrders.craftUsed}/${craftCap})` : "")
+            : "Ковка доступна" + (craftCap > 1 ? ` (${p.dailyOrders.craftUsed}/${craftCap})` : "");
+          return <Chip tone={craftUsedUp ? "neutral" : "bronze"}><Anvil size={12} />{craftLabel}</Chip>;
+        })()}
       </div>
 
       {orders.length > 0 && (

@@ -30,8 +30,11 @@ function useNext(): Next {
   if (game.day >= M.SEASON_LENGTH) return { title: "Сезон подходит к концу", text: "Заберите готовые карты и подведите итоги — вы получите медаль и начнёте новый сезон.", cta: null, tone: "ok" };
   const research = p.blueprints.find((b: any) => !b.researched);
   const build = p.blueprints.find((b: any) => b.researched && !b.built);
-  if (p.ap > 0 && !p.dailyOrders.constructionUsed && build) return { title: `Постройте «${build.buildingName}»`, text: "Чертёж изучен — здание даст постоянный бонус.", cta: { label: "К развитию", page: "develop" }, tone: "bronze" };
-  if (p.ap > 0 && !p.dailyOrders.researchUsed && research) return { title: `Изучите «${research.scienceName}»`, text: "Новая наука приближает следующую эпоху.", cta: { label: "К развитию", page: "develop" }, tone: "bronze" };
+  // order_capacity от построек советника может поднять дневной лимит приказа с 1 до 2 —
+  // подсказка должна учитывать реальный лимит, а не считать приказ потраченным после первого раза.
+  const orderCap = M.getOrderCapacity(game);
+  if (p.ap > 0 && (p.dailyOrders.constructionUsed || 0) < orderCap && build) return { title: `Постройте «${build.buildingName}»`, text: "Чертёж изучен — здание даст постоянный бонус.", cta: { label: "К развитию", page: "develop" }, tone: "bronze" };
+  if (p.ap > 0 && (p.dailyOrders.researchUsed || 0) < orderCap && research) return { title: `Изучите «${research.scienceName}»`, text: "Новая наука приближает следующую эпоху.", cta: { label: "К развитию", page: "develop" }, tone: "bronze" };
   if (p.ap > 0) return { title: "У вас остались приказы", text: "Придумайте новое исследование, займите землю или откуйте карту. Или завершите день.", cta: { label: "К карте", page: "map" }, tone: "bronze" };
   return { title: "Приказы на сегодня исчерпаны", text: "Нажмите «Завершить день» — народ соберёт ресурсы, и завтра будут новые приказы.", cta: null, tone: "ok" };
 }
@@ -71,11 +74,14 @@ function NextCard() {
 function Orders() {
   const { game, go } = useStore();
   const p = game.player;
-  const items: { key: string; used: boolean; label: string; hint: string; Icon: typeof Hammer; page: Page }[] = [
-    { key: "researchUsed", used: p.dailyOrders.researchUsed, label: "Исследование", hint: "Изучить науку или принять замысел", Icon: Telescope, page: "develop" },
-    { key: "constructionUsed", used: p.dailyOrders.constructionUsed, label: "Строительство", hint: "Здание на карте или чертёж", Icon: Hammer, page: "develop" },
-    { key: "frontierUsed", used: p.dailyOrders.frontierUsed, label: "Поход", hint: "Занять землю", Icon: Compass, page: "map" },
-    { key: "craftUsed", used: p.dailyOrders.craftUsed, label: "Ковка", hint: "Новая карта", Icon: Anvil, page: "forge" },
+  // order_capacity от построек советника может поднять дневной лимит КАЖДОГО приказа с 1 до 2
+  // (можно повторить тот же тип за день) — см. campaign.js getOrderCapacity.
+  const orderCap = M.getOrderCapacity(game);
+  const items: { key: string; count: number; used: boolean; label: string; hint: string; Icon: typeof Hammer; page: Page }[] = [
+    { key: "researchUsed", count: p.dailyOrders.researchUsed || 0, used: (p.dailyOrders.researchUsed || 0) >= orderCap, label: "Исследование", hint: "Изучить науку или принять замысел", Icon: Telescope, page: "develop" },
+    { key: "constructionUsed", count: p.dailyOrders.constructionUsed || 0, used: (p.dailyOrders.constructionUsed || 0) >= orderCap, label: "Строительство", hint: "Здание на карте или чертёж", Icon: Hammer, page: "develop" },
+    { key: "frontierUsed", count: p.dailyOrders.frontierUsed || 0, used: (p.dailyOrders.frontierUsed || 0) >= orderCap, label: "Поход", hint: "Занять землю", Icon: Compass, page: "map" },
+    { key: "craftUsed", count: p.dailyOrders.craftUsed || 0, used: (p.dailyOrders.craftUsed || 0) >= orderCap, label: "Ковка", hint: "Новая карта", Icon: Anvil, page: "forge" },
   ];
   return (
     <Panel className="p-5">
@@ -83,9 +89,9 @@ function Orders() {
         <Heading title="Приказы дня" className="[&_h2]:text-lg" />
         <Chip tone={p.ap > 0 ? "bronze" : "neutral"}>{p.ap > 0 ? `Осталось ${p.ap} из ${p.apMax}` : "Приказы исчерпаны"}</Chip>
       </div>
-      <p className="mt-1 text-[13px] text-dim">Выберите любые {p.apMax} из четырёх — каждый тип можно выполнить один раз в день.</p>
+      <p className="mt-1 text-[13px] text-dim">Выберите любые {p.apMax} из четырёх — каждый тип можно выполнить {orderCap > 1 ? `до ${orderCap} раз` : "один раз"} в день.</p>
       <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-        {items.map(({ key, used, label, hint, Icon, page }) => (
+        {items.map(({ key, count, used, label, hint, Icon, page }) => (
           <button key={key} onClick={() => go(page)} disabled={false}
             className={cn("group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-colors", used ? "border-line bg-ground/40 text-faint" : p.ap > 0 ? "border-line-strong bg-raised hover:border-bronze/60" : "border-line bg-ground/40 text-faint")}>
             <span className="flex w-full items-center justify-between">
@@ -94,7 +100,7 @@ function Orders() {
             </span>
             <span>
               <span className={cn("block text-sm font-semibold", used ? "text-dim" : "text-parch")}>{label}</span>
-              <span className="block text-[11.5px] text-faint">{used ? "Выполнено сегодня" : hint}</span>
+              <span className="block text-[11.5px] text-faint">{(used ? "Выполнено сегодня" : hint) + (orderCap > 1 ? ` (${count}/${orderCap})` : "")}</span>
             </span>
           </button>
         ))}
