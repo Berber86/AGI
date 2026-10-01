@@ -85,7 +85,7 @@ python3 -m http.server 8144 --directory /home/user/AGI/dist >/dev/null 2>&1 &
 Браузер не смог бы выйти в интернет, да и не должен. Перехват:
 
 ```js
-await page.route('**/api.hydraai.ru/**', async r => {
+await page.route('**/api/hydra', async r => {
   // ВАЖНО: шаг «Проверить ключ» бьёт POST /v1/chat/completions — любой 200 с choices годится
   let content = JSON.stringify({
     scienceName: 'Террасовые сады', scienceDescription: '…',
@@ -131,7 +131,7 @@ for (let i = 0; i < 4; i++) {
   await clickByText('Далее'); await page.waitForTimeout(600);
 }
 // Шаг 4 «ИИ» — обязателен реальный «успех» проверки ключа (моком из п.5)
-await page.fill('input[type="password"]', 'test-key-12345');
+// Hydra подключается автоматически через /api/hydra; секрет в браузер не вводится.
 await clickByText('Проверить'); await page.waitForTimeout(1200);
 await clickByText('Далее');   await page.waitForTimeout(700);
 // Финал: «Создать первое дело» → генерация проекта → «Начать» — игра жива

@@ -54,7 +54,7 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   shieldwall: { name: "Стена щитов", desc: "+1 брони; при соседях урон ниже ещё на 1." },
   wedge: { name: "Клин", desc: "+1 к атаке за каждого соседа (до +2)." },
   phalanx: { name: "Фаланга", desc: "+1 к атаке и +1 брони." },
-  skirmish: { name: "Засадный", desc: "После атаки отступает в тыл." },
+  skirmish: { name: "Засадный", desc: "После атаки отступает в тыл; из тыла снова бьёт как дальнобойный. При атаке в ближнем бою отступает до обмена ударами." },
   taunt: { name: "Провокация", desc: "Враг обязан атаковать этот отряд первым." },
   poison: { name: "Яд", desc: "Отравляет цель при атаке: N урона в начале её хода." },
   burn: { name: "Поджог", desc: "Поджигает цель при атаке; огонь может перекинуться." },
@@ -317,16 +317,21 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
 
 /* ---------- LLM (Hydra API) ---------- */
 
-const HYDRA_URL = "https://api.hydraai.ru/v1/chat/completions";
+// В браузере запрос идёт через Vercel Function: HYDRA_API_KEY остаётся на сервере.
+// Node-тесты и standalone-инструменты сохраняют прямой режим с явно переданным ключом.
+const HYDRA_URL = typeof window === "undefined" ? "https://api.hydraai.ru/v1/chat/completions" : "/api/hydra";
+const IS_SERVER_PROXY = typeof window !== "undefined";
 
 /** Минимальная проверка ключа: один короткий запрос без разбора ответа модели. */
 export async function probeApiKey(key: string, model: string): Promise<void> {
-  if (!key || !key.trim()) throw new Error("Введите API-ключ.");
+  if (!IS_SERVER_PROXY && (!key || !key.trim())) throw new Error("Введите API-ключ.");
   let resp: Response;
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (!IS_SERVER_PROXY && key.trim()) headers.Authorization = `Bearer ${key.trim()}`;
     resp = await fetch(HYDRA_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         model: model || "gpt-6-luna",
         messages: [{ role: "user", content: "Ответь одним словом: готов" }],
@@ -419,9 +424,11 @@ export async function llmRegionBuildingName(key: string, model: string, state: a
 }
 
 async function hydraChat(opts: { key: string; model: string; system: string; user: string; temperature: number; maxTokens: number }) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (!IS_SERVER_PROXY && opts.key.trim()) headers.Authorization = `Bearer ${opts.key.trim()}`;
   const resp = await fetch(HYDRA_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${opts.key}`, "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       model: opts.model,
       messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.user }],

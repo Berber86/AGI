@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { StoreProvider, currentGuideStep, useStore } from "@/game/store";
-import { DayReportModal, GuideBar, KeyGate, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
+import { DayReportModal, GuideBar, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
 import Onboarding from "@/pages/Onboarding";
 import Home from "@/pages/Home";
 import MapPage from "@/pages/MapPage";
@@ -55,7 +55,6 @@ function Root() {
       <MobileNav />
       <SettingsModal />
       <DayReportModal />
-      <KeyGate />
       <Toasts />
     </div>
   );

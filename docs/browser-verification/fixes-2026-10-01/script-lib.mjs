@@ -43,7 +43,7 @@ export async function newPage({ profile = '/tmp/prof', viewport = { width: 1440,
   const errors = [];
   page.on('pageerror', e => errors.push(String(e).split('\n')[0]));
   page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text().slice(0, 160)); });
-  await page.route('**/api.hydraai.ru/**', async r => {
+  await page.route('**/api/hydra', async r => {
     let body = {}; try { body = r.request().postDataJSON(); } catch {}
     await r.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(contentFor(body)) } }] }) });
@@ -66,10 +66,9 @@ export async function clickText(page, t, timeout = 8000) {
 }
 
 export async function onboarding(page) {
-  await clickText(page, 'Медный Ворон'); await clickText(page, 'Далее'); await page.waitForTimeout(350);
+  await clickText(page, 'Перебросить название'); await clickText(page, 'Далее'); await page.waitForTimeout(350);
   await clickText(page, 'Береговые Рыбаки'); await clickText(page, 'Далее'); await page.waitForTimeout(350);
   await clickText(page, 'Река и рыба'); await clickText(page, 'Далее'); await page.waitForTimeout(350);
-  await page.fill('input[type="password"]', 'test-key-12345');
   await clickText(page, 'Далее'); await page.waitForTimeout(2200);
   await clickText(page, 'Создать первое дело'); await page.waitForTimeout(2600);
   await clickText(page, 'Начать первый день'); await page.waitForTimeout(1200);

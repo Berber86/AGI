@@ -1,15 +1,24 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, KeyRound, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { MODEL_GROUPS, useStore } from "@/game/store";
+import { useStore } from "@/game/store";
 import { Btn, Chip, Label, ResIcon, RES, type ResKey } from "@/components/ui";
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
-const NAMES = ["Медный Ворон", "Речные Сыны", "Дети Кургана", "Хранители Огня", "Люди Соляной Тропы", "Каменные Братья", "Стада Быстрой Воды", "Соль Озёр"];
+const NAME_PEOPLE = ["Дети", "Сыны", "Хранители", "Люди", "Племя", "Наследники", "Сородичи", "Стражи"];
+const NAME_IMAGES = ["Медной Реки", "Красного Ила", "Быстрой Воды", "Соляных Озёр", "Каменного Порога", "Тихого Огня", "Северного Ветра", "Высоких Курганов", "Чёрного Тростника", "Золотой Пыли", "Длинной Тени", "Белых Склонов"];
 
-const STEPS = ["Имя", "Происхождение", "Замысел", "ИИ", "Начало"];
+function rollPeopleName(previous = "") {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const candidate = `${NAME_PEOPLE[Math.floor(Math.random() * NAME_PEOPLE.length)]} ${NAME_IMAGES[Math.floor(Math.random() * NAME_IMAGES.length)]}`;
+    if (candidate !== previous) return candidate;
+  }
+  return `${NAME_PEOPLE[0]} ${NAME_IMAGES[0]}`;
+}
+
+const STEPS = ["Название", "Происхождение", "Замысел", "Начало"];
 
 /** Черновик первого проекта: генерацию уже оплатили, терять её нельзя. */
 function readOpeningDraft(seedLine: string): any | null {
@@ -21,16 +30,15 @@ function readOpeningDraft(seedLine: string): any | null {
 }
 
 export default function Onboarding() {
-  const { game, apiKey, keyCheck, verifyKey, model, setModel, foundCampaign, startFirstDay, toast } = useStore();
+  const { game, foundCampaign, startFirstDay, toast } = useStore();
   const p = game.player;
-  const [step, setStep] = useState(() => (p.awaitingOpeningProject && p.originId ? 4 : 0));
-  const [name, setName] = useState(() => (p.originId ? p.name : ""));
+  const [step, setStep] = useState(() => (p.awaitingOpeningProject && p.originId ? 3 : 0));
+  const [name, setName] = useState(() => (p.originId ? p.name : rollPeopleName()));
   const [originId, setOriginId] = useState<string | null>(p.originId || null);
   // Старое сохранение могло хранить затравку текстом: узнаём её среди готовых замыслов.
   const [seedId, setSeedId] = useState<string | null>(() => p.seedChoiceId
     || (M.SEED_CHOICES || []).find((c: any) => c.line === p.seedLine)?.id
     || null);
-  const [keyInput, setKeyInput] = useState(apiKey);
   const seedChoice = (M.SEED_CHOICES || []).find((c: any) => c.id === seedId) || null;
   const seedLine = seedChoice?.line || p.seedLine || "";
   const draft = p.awaitingOpeningProject ? readOpeningDraft(seedLine) : null;
@@ -39,24 +47,12 @@ export default function Onboarding() {
   const [error, setError] = useState("");
 
   const origin = M.ORIGINS.find((o: any) => o.id === originId);
-  // Ключ готов, только если он проверен прямо сейчас и не переписан после проверки.
-  const keyReady = keyCheck.status === "ok" && keyInput.trim() === apiKey.trim();
 
-  // Ключ уже сохранён в браузере — проверяем его тихо, чтобы не заставлять вводить заново.
-  useEffect(() => {
-    if (apiKey && keyCheck.status === "unknown") void verifyKey(apiKey, true);
-  }, [apiKey, keyCheck.status, verifyKey]);
-
-  const canNext = step === 0 ? true
+  // verifyKey выполняется автоматически в StoreProvider: ключ живёт в серверном окружении Vercel.
+  const canNext = step === 0 ? name.trim().length > 0
     : step === 1 ? !!originId
       : step === 2 ? !!seedId
-        : step === 3 ? keyInput.trim().length > 0 && keyCheck.status !== "checking"
-          : true;
-
-  const checkKey = async () => {
-    const ok = await verifyKey(keyInput);
-    if (ok) toast("Ключ работает — советник на связи.", "ok");
-  };
+        : true;
 
   const found = async () => {
     if (!originId || !seedId) return;
@@ -165,20 +161,16 @@ export default function Onboarding() {
         <div className="flex-1 animate-rise" key={step}>
           {step === 0 && (
             <div className="max-w-xl">
-              <h2 className="font-display text-3xl font-semibold">Как назовём ваш народ?</h2>
-              <p className="mt-2 text-dim">Выберите имя — писать ничего не нужно. Оно появится в летописи и в названиях ваших построек.</p>
-              <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
-                {NAMES.map((n) => (
-                  <button key={n} onClick={() => setName(n)}
-                    className={cn("flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all",
-                      name === n ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
-                    <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-sm font-bold", name === n ? "border-bronze text-bronze" : "border-line text-faint")}>{n.slice(0, 1)}</span>
-                    <span className="min-w-0 flex-1 truncate font-display text-[15px] font-semibold">{n}</span>
-                    {name === n && <Check size={16} className="text-bronze" />}
-                  </button>
-                ))}
+              <h2 className="font-display text-3xl font-semibold">Название народа</h2>
+              <p className="mt-2 text-dim">Имя появится само — выбирать из списка или писать его не нужно. Не понравилось? Сделайте переброс.</p>
+              <div className="mt-8 rounded-2xl border border-bronze/40 bg-bronze/8 p-5 sm:p-6">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-bronze-soft">Сгенерировано для вас</div>
+                <div className="mt-3 font-display text-3xl font-semibold text-parch sm:text-4xl">{name}</div>
+                <Btn variant="secondary" size="lg" className="mt-5" onClick={() => setName((previous: string) => rollPeopleName(previous))}>
+                  <RefreshCw size={17} />Перебросить название
+                </Btn>
               </div>
-              <p className="mt-4 text-xs text-faint">Можно не выбирать — тогда имя возьмём из происхождения.</p>
+              <p className="mt-4 text-xs leading-relaxed text-faint">Генератор собирает новое имя из историчных образов. Перебрасывайте сколько угодно раз.</p>
             </div>
           )}
 
@@ -230,43 +222,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
-            <div className="max-w-xl">
-              <h2 className="font-display text-3xl font-semibold">Подключите советника</h2>
-              <p className="mt-2 text-dim">
-                Науки, постройки и карты создаёт модель во время игры. В игре нет заранее записанных вариантов, поэтому ключ обязателен — без него народу нечего открывать.
-              </p>
-              <label className="mt-6 block">
-                <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ</Label>
-                <input
-                  type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} autoComplete="off" placeholder="Ключ с dashboard.hydraai.ru"
-                  className="h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-parch outline-none placeholder:text-faint focus:border-bronze"
-                />
-              </label>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <Btn variant="secondary" onClick={checkKey} disabled={!keyInput.trim() || keyCheck.status === "checking"}>
-                  {keyCheck.status === "checking" ? <><Loader2 size={16} className="animate-spin" />Проверяем…</> : <><Wand2 size={16} />Проверить ключ</>}
-                </Btn>
-                {keyReady ? <span className="inline-flex items-center gap-1.5 text-sm text-ok"><Check size={15} />Ключ работает</span>
-                  : keyCheck.status === "bad" && keyCheck.message ? <span className="text-sm text-bad">{keyCheck.message}</span>
-                    : <span className="text-xs text-faint">Проверка занимает пару секунд.</span>}
-              </div>
-              <label className="mt-5 block">
-                <Label className="mb-1.5">Модель для наук и советов</Label>
-                <select value={model} onChange={(e) => setModel(e.target.value)} className="h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-parch outline-none focus:border-bronze">
-                  {MODEL_GROUPS.map((g) => (
-                    <optgroup key={g.id} label={`${g.label} — ${g.hint}`}>
-                      {g.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-                <span className="mt-1.5 block text-xs text-faint">Карты в кузнице модель выбирает сама по выпавшей редкости.</span>
-              </label>
-              <p className="mt-4 text-xs leading-relaxed text-faint">Ключ хранится только в этом браузере и отправляется напрямую на api.hydraai.ru. Не вводите его на чужом устройстве.</p>
-            </div>
-          )}
-
-          {step === 4 && origin && (
+          {step === 3 && origin && (
             <div className="max-w-xl">
               <h2 className="font-display text-3xl font-semibold">{name.trim() || origin.name} готовы к первому дню</h2>
               <div className="mt-6 space-y-3">
@@ -286,20 +242,12 @@ export default function Onboarding() {
 
         <div className="mt-8 flex items-center justify-between gap-3">
           <Btn variant="ghost" onClick={() => setStep(step - 1)} disabled={step === 0}><ArrowLeft size={16} />Назад</Btn>
-          {step < 4 ? (
-            <Btn
-              variant="primary" size="lg" disabled={!canNext}
-              onClick={async () => {
-                // На шаге ключа «Далее» сама проверяет его: лишней кнопки игроку не нужно.
-                if (step === 3 && !keyReady) {
-                  const ok = await verifyKey(keyInput);
-                  if (!ok) return;
-                }
-                setStep(step + 1);
-              }}
-            >Далее<ArrowRight size={18} /></Btn>
+          {step < 3 ? (
+            <Btn variant="primary" size="lg" disabled={!canNext} onClick={() => setStep(step + 1)}>
+              Далее<ArrowRight size={18} />
+            </Btn>
           ) : (
-            <Btn variant="primary" size="lg" onClick={found} disabled={!keyReady}><Sparkles size={18} />Создать первое дело</Btn>
+            <Btn variant="primary" size="lg" onClick={found} disabled={!name.trim()}><Sparkles size={18} />Создать первое дело</Btn>
           )}
         </div>
       </div>

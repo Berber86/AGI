@@ -2385,9 +2385,8 @@
         let usedLlm = false;
         try {
             const key = typeof root.getApiKey === 'function' ? root.getApiKey() : '';
-            if (!key) throw new Error('no-key');
-            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
-                method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+            const response = await fetch('/api/hydra', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
                     messages: [
@@ -2463,10 +2462,9 @@
         if (!def || !rb) return null;
         try {
             const key = typeof root.getApiKey === 'function' ? root.getApiKey() : '';
-            if (!key) throw new Error('no-key');
             const situation = scienceAdvisorSituation(state);
-            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
-                method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+            const response = await fetch('/api/hydra', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
                     messages: [

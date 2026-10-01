@@ -150,6 +150,34 @@ function posOf(b: Battle, u: Unit): Slot | null {
 const has = (u: Unit | null | undefined, k: string) => !!(u && u.st && u.st[k]);
 const isRanged = (u: Unit) => has(u, "ranged");
 
+/**
+ * Засадный отряд, однажды отскочивший в тыл, продолжает бой как дальнобойный:
+ * он больше не застревает без цели и не получает ответный удар от цели.
+ */
+function isAmbushBackliner(b: Battle, u: Unit): boolean {
+  const p = posOf(b, u);
+  return !!p && p.row === "back" && has(u, "skirmishBackline");
+}
+
+function canAttackFromBack(b: Battle, u: Unit): boolean {
+  return isRanged(u) || isAmbushBackliner(b, u);
+}
+
+/** Переводит засадный отряд из авангарда в тыл, если там есть свободное место. */
+function retreatAmbusher(b: Battle, side: Side, u: Unit, reason: "attack" | "evade"): boolean {
+  const p = posOf(b, u);
+  if (!p || p.row !== "front" || !has(u, "skirmish")) return false;
+  const free = b[side].back.indexOf(null);
+  if (free < 0) return false;
+  b[side].front[p.i] = null;
+  b[side].back[free] = u;
+  u.st.skirmishBackline = true;
+  log(b, side, reason === "attack"
+    ? `${u.name} отступает в тыл после атаки.`
+    : `${u.name} отступает в тыл до обмена ударами.`);
+  return true;
+}
+
 function modTotal(b: Battle, u: Unit, stat: Mod["stat"]) {
   const p = posOf(b, u);
   const side: Side | null = p ? p.side : null;
@@ -308,6 +336,13 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
     for (let i = 0; i < FRONT; i++) if (E.front[i]) return { kind: "unit", side: es, row: "front", i, unit: E.front[i]! };
     return { kind: "hero", side: es };
   }
+  // Засадник, отскочивший в тыл, получает ту же свободу действий, что и
+  // дальнобойный: сначала выбираем любой живой отряд, затем вождя.
+  if (isAmbushBackliner(b, attacker)) {
+    for (let i = 0; i < FRONT; i++) if (E.front[i]) return { kind: "unit", side: es, row: "front", i, unit: E.front[i]! };
+    for (let i = 0; i < BACK; i++) if (E.back[i]) return { kind: "unit", side: es, row: "back", i, unit: E.back[i]! };
+    return { kind: "hero", side: es };
+  }
   if (has(attacker, "reach") && E.front[p.i]) return { kind: "unit", side: es, row: "front", i: p.i, unit: E.front[p.i]! };
   return null;
 }
@@ -358,18 +393,23 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     log(b, side, `${attacker.name} бьёт ${target.side === "me" ? "вашего вождя" : "вражеского вождя"}: −${d}.`);
   } else {
     const t = target.unit;
+    // Засада срабатывает как уклонение: перемещение происходит до первого
+    // урона, поэтому расчёт брони, соседей и ответного удара уже видит тыл.
+    const ambushRetreated = !isRanged(attacker) && !t.isStructure
+      ? retreatAmbusher(b, target.side, t, "evade")
+      : false;
     const d = resolveHit(b, attacker, t, atkOf(b, attacker), side);
     let counter = 0;
-    if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
+    const attackerBackliner = canAttackFromBack(b, attacker);
+    if (!attackerBackliner && t.curHp > 0 && !t.isStructure) {
       const cb = atkOf(b, t);
       if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
     }
-    log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
+    log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}${ambushRetreated ? " (засадник ушёл в тыл)" : ""}.`);
     if (has(attacker, "poison")) t.st.poison = (t.st.poison || 0) + 1;
     if (has(attacker, "burn")) t.st.burn = (t.st.burn || 0) + 1;
     if (has(attacker, "skirmish") && p.row === "front" && attacker.curHp > 0) {
-      const free = b[side].back.indexOf(null);
-      if (free >= 0) { b[side].front[p.i] = null; b[side].back[free] = attacker; log(b, side, `${attacker.name} отступает в тыл.`); }
+      retreatAmbusher(b, side, attacker, "attack");
     }
   }
   attacker.fresh = false;

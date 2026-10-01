@@ -1619,16 +1619,12 @@
             <button data-screen="campaign" onclick="switchScreen('campaign')">🏛️ Кампания</button>
         </div>
         <details class="connection-settings" id="api-details">
-            <summary><span>⚙️ API и модель</span><span class="status-dot" id="api-status" aria-label="Статус API"></span></summary>
+            <summary><span>⚙️ API и модель</span><span class="status-dot ok" id="api-status" aria-label="Статус API"></span></summary>
             <div class="connection-fields">
-                <label for="api-key-input">🔑 Hydra API (работает и без ключа — офлайн с биомами)</label>
-                <div style="display:flex; gap:8px;">
-                    <input type="text" id="api-key-input" placeholder="Ключ с dashboard.hydraai.ru (не обязательно)" oninput="saveApiKey()" autocomplete="off" style="flex:1;">
-                    <button type="button" onclick="saveApiKey()" style="padding:8px 12px; border-radius:8px; border:1px solid #5a3c7c; background:#2d1f4a; color:#fff; cursor:pointer;">OK</button>
-                </div>
+                <p>🔒 Hydra подключена автоматически через серверное окружение Vercel. Секрет не вводится в игре и не хранится в браузере.</p>
                 <label for="model-select">🤖 Модель советника</label>
                 <select id="model-select" onchange="saveSelectedModel()"></select>
-                <small>Без ключа — советник работает офлайн из пулов (Ямная, Аккад, Египет) с учётом биома и наследия. С ключом — LLM придумывает уникальнее. Модель ковки выбирается по редкости.</small>
+                <small>Запросы идут через same-origin <code>/api/hydra</code>. Модель ковки выбирается по редкости.</small>
                 <button type="button" onclick="document.getElementById('api-details').open=false" style="margin-top:8px; padding:6px 10px; border-radius:8px; border:1px solid #3d2a5c; background:transparent; color:#a08ec0; cursor:pointer; width:100%;">Закрыть</button>
             </div>
         </details>
@@ -1899,17 +1895,9 @@
     // ИНИЦИАЛИЗАЦИЯ
     // ============================================
     window.onload = function() {
-        const key = localStorage.getItem('iforge_hydra_key') || '';
-        const input = document.getElementById('api-key-input');
-        if (input) input.value = key;
+        // Hydra вызывается через same-origin /api/hydra; секрет остаётся на Vercel.
         const dot = document.getElementById('api-status');
-        if (dot) dot.className = 'status-dot' + (key ? ' ok' : '');
-        // Auto-open API settings if no key — fix for mobile where user can't find input
-        const details = document.getElementById('api-details');
-        if (details && !key) {
-            details.open = true;
-            setTimeout(() => { if (input) input.focus(); }, 300);
-        }
+        if (dot) dot.className = 'status-dot ok';
 
         // Заполняем селектор моделей
         const sel = document.getElementById('model-select');
@@ -1943,13 +1931,10 @@
     // ============================================
     // API KEY + MODEL
     // ============================================
-    function saveApiKey() {
-        const key = document.getElementById('api-key-input').value.trim();
-        localStorage.setItem('iforge_hydra_key', key);
-        document.getElementById('api-status').className = 'status-dot' + (key ? ' ok' : '');
-        refreshForgeUi();
-    }
-    function getApiKey() { return localStorage.getItem('iforge_hydra_key') || ''; }
+    // Совместимость со старой логикой: секрет больше не читается из браузера.
+    function saveApiKey() { return ''; }
+    function getApiKey() { return '__server_proxy__'; }
+    const HYDRA_ENDPOINT = '/api/hydra';
     function saveSelectedModel() {
         const sel = document.getElementById('model-select');
         localStorage.setItem('iforge_model', sel.value);
@@ -2242,7 +2227,7 @@
         const messageDay = `${campaign.season}:${campaign.day}`;
         if (forgeAdviceMessageDay !== messageDay) { forgeAdviceMessageDay = messageDay; forgeAdviceMessage = ''; }
         const advice = readForgeAdviceForToday();
-        const keyAvailable = Boolean(getApiKey());
+        const keyAvailable = true; // ключ подставляет Vercel Function
         const slotBlock = forgeSlotBlock(campaign);
         const labels = { unit: '⚔️ Отряд', spell: '📜 Манёвр', structure: '🏗️ Постройка' };
 
@@ -2316,7 +2301,7 @@
         forgeAdviceLoading = true;
         forgeAdviceMessage = 'Советник выбирает три замысла по эпохе, землям, биому и наследию…';
         renderForgeAdvice();
-        const key = getApiKey();
+        const key = '__server_proxy__';
         if (!key) {
             try {
                 const localChoices = generateLocalForgeAdvice(campaign);
@@ -2332,9 +2317,9 @@
             return;
         }
         try {
-            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+            const response = await fetch(HYDRA_ENDPOINT, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: getSelectedModel(),
                     messages: [
@@ -2681,9 +2666,9 @@
             const rarityLabel = rarityLabels[order.rarity];
             const userPrompt = `Выбранный замысел советника: «${advisorOrder.title}». ${advisorOrder.pitch} Создай именно card_type="${advisorOrder.cardType}" (${FORGE_ADVISOR_TYPE_NAMES[advisorOrder.cardType]}).\n\nИсторический контекст цивилизации (ВЛИЯЕТ НА КОВКУ):\n${histContext}\n\nТекущая эпоха кампании: ${window.CampaignMvp.ERAS[campaignEra]}. Разрешённые эпохи карты: ${allowedEraText}. Выпала редкость «${rarityLabel}». ${rarityDirective} Полные статы, цены, keywords и effects придумай самостоятельно с учётом биома, черты и наследия — у ямников кони/повозки, у аккадцев дисциплина/осада, у египтян колесницы/оборона. Сильный результат не ослабляй ради баланса. Верни полный JSON-объект строго по схеме.`;
 
-            const resp = await fetch('https://api.hydraai.ru/v1/chat/completions', {
+            const resp = await fetch(HYDRA_ENDPOINT, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: order.modelId,
                     messages: [
@@ -3261,6 +3246,26 @@
         return hasKw(u, 'ranged');
     }
 
+    function isAmbushBackliner(u, side, rowName) {
+        return !!u && rowName === 'back' && hasKw(u, 'skirmish') && u._ambushBackline;
+    }
+
+    // Засадник уходит в тыл до первого урона при атаке по нему и после
+    // собственной атаки сохраняет возможность действовать как дальнобойный.
+    function retreatAmbusher(u, side, reason) {
+        const rows = battle[side];
+        let rowName = null, slot = -1;
+        for (let i = 0; i < FRONT_SLOTS; i++) if (rows.front[i] === u) { rowName = 'front'; slot = i; }
+        if (rowName !== 'front') return false;
+        const free = rows.back.findIndex(x => !x);
+        if (free < 0) return false;
+        rows.front[slot] = null;
+        rows.back[free] = u;
+        u._ambushBackline = true;
+        logBattle(reason === 'attack' ? `🎯 ${u.name} отступает в тыл после атаки.` : `🎯 ${u.name} отступает в тыл до обмена ударами.`, side);
+        return true;
+    }
+
     // ============================================
     // ВЫБОР ЦЕЛИ (Total War-style, ряд на ряд)
     // ============================================
@@ -3291,6 +3296,11 @@
         // 3) Атакующий в тылу
         if (isRangedUnit(attacker)) {
             for (let i = 0; i < FRONT_SLOTS; i++) if (E.front[i]) return { u: E.front[i], row: 'front', i };
+            return { u: null, row: 'hero', i: -1 };
+        }
+        if (isAmbushBackliner(attacker, side, rowName)) {
+            for (let i = 0; i < FRONT_SLOTS; i++) if (E.front[i]) return { u: E.front[i], row: 'front', i };
+            for (let i = 0; i < BACK_SLOTS; i++) if (E.back[i]) return { u: E.back[i], row: 'back', i };
             return { u: null, row: 'hero', i: -1 };
         }
         // Длинное оружие (пики/саррисы/reach) или копейщики — бьют визави из тыла
@@ -4991,32 +5001,25 @@
             logBattle(`⚔️ ${attacker.name} врезается в вражеского вождя → ${dmgDealt} урона!`, 'me');
         } else if (targetInfo && targetInfo.u) {
             const target = targetInfo.u;
+            const attackerRanged = isRangedUnit(attacker) || isAmbushBackliner(attacker, 'me', aRow);
+            const ambushRetreated = !attackerRanged && !target.isStructure && retreatAmbusher(target, 'enemy', 'evade');
             const baseDmg = getUnitAttack(attacker);
             dmgDealt = resolveHit(attacker, target, baseDmg, 'me');
             // Контратака: только если контактный бой (не ranged) и цель не постройка и тоже жива
-            const attackerRanged = isRangedUnit(attacker);
             if (!attackerRanged && target.currentHp > 0 && !target.isStructure) {
                 const counterBase = getUnitAttack(target);
                 if (counterBase > 0) {
                     counterDealt = resolveHit(target, attacker, counterBase, 'enemy');
                 }
             }
-            logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}`, 'me');
+            logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}${ambushRetreated?' (засадник ушёл в тыл)':''}`, 'me');
             // Чарж срабатывает один раз
             if (attacker._justDeployed) attacker._justDeployed = false;
             // Отравленное оружие
             if (hasKw(attacker,'poison')) target.statuses.poison = (target.statuses.poison||0) + 1;
             if (hasKw(attacker,'burn')) target.statuses.burn = (target.statuses.burn||0) + 1;
-            // Skirmish — отскок
-            if (hasKw(attacker,'skirmish') && aRow === 'front') {
-                for (let i=0;i<BACK_SLOTS;i++){
-                    if (!battle.me.back[i]){
-                        battle.me.front[aSlot]=null; battle.me.back[i]=attacker;
-                        logBattle(`🎯 ${attacker.name} отступает в тыл после атаки.`,'me');
-                        break;
-                    }
-                }
-            }
+            // Засада — отскок в тыл с сохранением дальней атаки.
+            if (hasKw(attacker,'skirmish') && aRow === 'front') retreatAmbusher(attacker, 'me', 'attack');
             attacker.justAttacked = true;
         } else {
             logBattle(`❌ ${attacker.name} не может достать до врага.`, 'system');
@@ -5467,16 +5470,19 @@
                 attacker.justAttacked = true;
             } else {
                 const target = targetInfo.u;
+                const attackerRanged = isRangedUnit(attacker) || isAmbushBackliner(attacker, 'enemy', aRow);
+                const ambushRetreated = !attackerRanged && !target.isStructure && retreatAmbusher(target, 'me', 'evade');
                 const dmgDealt = resolveHit(attacker, target, getUnitAttack(attacker), 'enemy');
                 let counterDealt = 0;
-                if (!isRangedUnit(attacker) && target.currentHp > 0 && !target.isStructure) {
+                if (!attackerRanged && target.currentHp > 0 && !target.isStructure) {
                     const c = getUnitAttack(target);
                     if (c > 0) counterDealt = resolveHit(target, attacker, c, 'me');
                 }
                 if (hasKw(attacker,'poison')) target.statuses.poison=(target.statuses.poison||0)+1;
                 if (hasKw(attacker,'burn')) target.statuses.burn=(target.statuses.burn||0)+1;
                 if (attacker._justDeployed) attacker._justDeployed=false;
-                logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}`, 'enemy');
+                if (hasKw(attacker,'skirmish') && aRow === 'front') retreatAmbusher(attacker, 'enemy', 'attack');
+                logBattle(`⚔️ ${attacker.name} атакует ${target.name} → ${dmgDealt}${counterDealt?' / '+counterDealt+' встречный':''}${ambushRetreated?' (засадник ушёл в тыл)':''}`, 'enemy');
                 attacker.justAttacked = true;
             }
             adjustEnergy('enemy', -getUnitActionCost(attacker));
