@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight } from "lucide-react";
+import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { llmScienceOffers } from "@/game/cards";
@@ -97,16 +97,19 @@ function Science() {
     }
   };
 
+  // Приём замысла — это и есть приказ «Исследование»: он тратит день и AP.
   const choose = (idx: number) => {
-    const raw = choices.projects[idx];
-    const res = M.addBlueprint(M.clone(game), raw, "both");
-    if (res.error) { toast(res.error, "bad"); return; }
-    const entry = M.generateChronicleEntry(res.state, choices.branchId, raw.scienceName);
-    res.state.player.chronicle = [...(res.state.player.chronicle || []), { day: res.state.day, era: res.state.player.era, text: entry }].slice(-20);
-    res.state.player.scienceChoices = null;
-    commit(res.state, { silent: true });
-    toast(`«${raw.scienceName}» добавлено в кодекс. Теперь его можно изучить.`, "ok");
+    const res = act((s: any) => M.acceptScienceProject(s, idx), { silent: true });
+    if (!res) return;
+    toast(`«${res.blueprint.scienceName}» в кодексе. Приказ «Исследование» потрачен — изучить её можно завтра.`, "ok");
   };
+
+  const researchOrderUsed = Boolean(p.dailyOrders?.researchUsed);
+  const orderBlock = researchOrderUsed
+    ? "Приказ «Исследование» уже потрачен сегодня."
+    : p.ap <= 0
+      ? "AP на сегодня исчерпаны."
+      : null;
 
   const research = (id: string, onEra?: () => void) => {
     const oldEra = p.era;
@@ -146,6 +149,9 @@ function Science() {
         {choices && (
           <Panel className="animate-rise border-bronze/30 p-5">
             <Heading title="Выберите один путь" eyebrow="Советник прочитал вашу ситуацию" className="[&_h2]:text-lg" />
+            <p className="mt-2 text-[12.5px] leading-relaxed text-dim">
+              Приём замысла — это дневной приказ «Исследование»: он тратит 1 приказ и AP. Остальные замыслы останутся здесь и на следующие дни.
+            </p>
             <div className="mt-4 grid gap-3">
               {choices.projects.map((pr: any, i: number) => (
                 <div key={i} className="rounded-xl border border-line bg-raised/50 p-4">
@@ -157,7 +163,10 @@ function Science() {
                       <div className="mt-2"><EffectChips effects={pr.effects} /></div>
                       {pr.rationale && <p className="mt-2 text-xs italic leading-relaxed text-faint">{pr.rationale}</p>}
                     </div>
-                    <Btn size="sm" variant="primary" onClick={() => choose(i)}>Выбрать</Btn>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      <Btn size="sm" variant="primary" disabled={!!orderBlock} title={orderBlock || ""} onClick={() => choose(i)}>Выбрать</Btn>
+                      {orderBlock && <span className="max-w-[190px] text-right text-[10.5px] leading-snug text-faint">{orderBlock}</span>}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -197,6 +206,14 @@ function Science() {
                         {s === 2 && (<><Cost cost={{ materials: 3 }} have={p.resources} />
                           <Btn size="sm" variant="primary" disabled={!!cErr} title={cErr || ""} onClick={() => act((st) => M.constructBlueprint(st, b.id))}>Построить</Btn></>)}
                         {s === 3 && <Chip tone="ok"><Check size={11} />Построено</Chip>}
+                        {s === 1 && !b.openingProject && (
+                          <Btn size="sm" variant="ghost" title="Убрать проект из кодекса" onClick={() => {
+                            const res = act((st: any) => M.removeBlueprint(st, b.id));
+                            if (res) toast(`«${b.scienceName}» убрано из кодекса.`, "info");
+                          }}>
+                            <Trash2 size={14} />
+                          </Btn>
+                        )}
                       </div>
                     </div>
                     {(rErr && s === 1) || (cErr && s === 2) ? <p className="mt-2 text-xs text-faint">{s === 1 ? rErr : cErr}</p> : null}

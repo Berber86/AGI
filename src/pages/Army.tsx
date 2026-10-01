@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Swords, Search, Plus, Minus, Trash2, Heart, Zap, Layers, Crown, Shield, Info } from "lucide-react";
+import { Swords, Sword, Search, Plus, Minus, Trash2, Heart, Zap, Layers, Crown, Shield, Info } from "lucide-react";
 import { M } from "@/game/model";
-import { allCards, type Card, type CardType } from "@/game/cards";
+import { cn } from "@/utils/cn";
+import { allCards, militiaFill, militiaPool, type Card, type CardType } from "@/game/cards";
 import { currentGuideStep, useDerived, useStore } from "@/game/store";
 import { Btn, Chip, Empty, Label, Modal, Panel, Tabs } from "@/components/ui";
 import { CardFace, CardTile } from "@/components/CardView";
 import { PageFrame } from "@/components/Shell";
 
 export default function Army() {
-  const { game, collection, act, removeCard, startPractice, go } = useStore();
+  const { game, collection, act, removeCard, startPractice, go, militiaPicks, toggleMilitiaPick } = useStore();
   const { cfg } = useDerived();
   const p = game.player;
   const guided = currentGuideStep(game);
@@ -35,6 +36,11 @@ export default function Army() {
   const full = deck.length >= cfg.deckLimit;
 
   const slots = Array.from({ length: cfg.deckLimit }, (_, i) => deck[i] ?? null);
+  const pool = militiaPool(p.era);
+  const fill = militiaFill(militiaPicks, p.era);
+  // Кто именно закроет свободные слоты: порядок выбора = порядок выхода.
+  const incoming = fill.slice(0, missing);
+  const picked = new Set(militiaPicks);
 
   return (
     <PageFrame wide>
@@ -72,30 +78,70 @@ export default function Army() {
         </div>
         {deck.length < cfg.deckLimit && (
           <p className="mt-2.5 text-xs leading-relaxed text-faint">
-            Свободные слоты ({cfg.deckLimit - deck.length}) в бою добирают ополченцы — копейщики, пращники, лучники и другие бойцы поселения. Они не входят в вашу коллекцию: как выкуете новую карту, назначьте её на место ополченца.
+            Свободные слоты ({cfg.deckLimit - deck.length}) в бою добьют ополченцы поселения — они не входят в коллекцию и уходят, когда вы выкуете свои карты.
           </p>
         )}
         <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           {slots.map((c, i) => c ? (
             <CardTile key={c.id} card={c} right={<button aria-label="Убрать из колоды" onClick={() => toggle(c.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-faint hover:bg-hover hover:text-bad"><Minus size={16} /></button>} />
           ) : (
-            <div key={i} className="flex h-[66px] items-center justify-center rounded-xl border border-dashed border-line-strong text-xs text-faint">Свободный слот · займёт ополчение</div>
+            <div key={i} className="flex h-[66px] min-w-0 items-center justify-center gap-2 overflow-hidden rounded-xl border border-dashed border-line-strong px-2 text-xs text-faint">
+              {incoming[i - deck.length] ? (
+                <><span className="text-base leading-none">{incoming[i - deck.length].emoji}</span>
+                  <span className="min-w-0 truncate">{incoming[i - deck.length].name}</span>
+                  <span className="shrink-0 text-[10px] uppercase tracking-wide text-bronze-soft">ополчение</span></>
+              ) : "Свободный слот"}
+            </div>
           ))}
         </div>
         {missing > 0 && (
           <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-dim"><Info size={14} className="mt-0.5 shrink-0 text-bronze" />Не хватает {missing} {missing === 1 ? "карты" : "карт"}: в бою пустые места займёт ополчение. Откуйте новые карты в кузнице или добавьте из коллекции ниже.</p>
         )}
         <p className="mt-2 text-xs leading-relaxed text-faint">Больше слотов дают военный уклад, здания военных наук и культура народа.</p>
+
+        {missing > 0 && (
+          <div className="mt-4 rounded-xl border border-line bg-ground/40 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-display text-base font-semibold">Кого возьмём в ополчение</h3>
+              <span className="text-xs text-faint">Выбрано {incoming.length} из {missing} свободных слотов</span>
+            </div>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-dim">
+              Свободные слоты займут эти бойцы — в том порядке, в каком вы их выбрали. Нажмите, чтобы взять или отпустить.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {pool.map((c) => {
+                const on = picked.has(c.id);
+                const order = militiaPicks.indexOf(c.id);
+                return (
+                  <button key={c.id} onClick={() => toggleMilitiaPick(c.id)}
+                    className={cn("flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-colors",
+                      on ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/50")}>
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-ground/70 text-lg">{c.emoji}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold">{c.name}</span>
+                      <span className="flex items-center gap-2 text-[11px] text-faint">
+                        <span className="inline-flex items-center gap-1 text-clay"><Sword size={10} />{c.atk}</span>
+                        <span className="inline-flex items-center gap-1 text-ok"><Heart size={10} />{c.hp}</span>
+                        <span>вывод {c.drop_cost}<Zap size={9} className="inline text-bronze" /></span>
+                      </span>
+                    </span>
+                    {on && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-bronze text-[11px] font-bold text-ground">{order + 1}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-3"><h2 className="font-display text-xl font-semibold">Коллекция</h2><span className="text-sm text-dim">{cards.length} карт</span></div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
+          <div className="relative min-w-0 max-w-full flex-1 sm:flex-none">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по названию" className="h-10 w-52 rounded-lg border border-line-strong bg-surface pl-9 pr-3 text-sm outline-none placeholder:text-faint focus:border-bronze" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Поиск по названию" className="h-10 w-full rounded-lg border border-line-strong bg-surface pl-9 pr-3 text-sm outline-none placeholder:text-faint focus:border-bronze sm:w-52" />
           </div>
-          <Tabs value={filter} onChange={setFilter} items={[{ id: "all", label: "Все" }, { id: "unit", label: "Отряды" }, { id: "spell", label: "Манёвры" }, { id: "structure", label: "Постройки" }]} />
+          <Tabs className="min-w-0 max-w-full" value={filter} onChange={setFilter} items={[{ id: "all", label: "Все" }, { id: "unit", label: "Отряды" }, { id: "spell", label: "Манёвры" }, { id: "structure", label: "Постройки" }]} />
         </div>
       </div>
 
@@ -133,7 +179,7 @@ export default function Army() {
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{o.name} {o.leader && <Chip tone="clay" className="ml-1">лидер</Chip>}</div>
                   <div className="text-xs text-faint">{o.clan} · {M.eraName(o.era)}</div>
-                  <div className="mt-1 flex gap-3 text-xs text-dim"><span className="inline-flex items-center gap-1"><Heart size={11} />{oc.hp}</span><span className="inline-flex items-center gap-1"><Layers size={11} />{oc.deckLimit} карт</span><span className="inline-flex items-center gap-1"><Shield size={11} />рейтинг {o.rating}</span></div>
+                  <div className="mt-1 flex gap-3 text-xs text-dim"><span className="inline-flex items-center gap-1"><Heart size={11} />{oc.hp}</span><span className="inline-flex items-center gap-1"><Layers size={11} />{oc.deckLimit} карт</span><span className="inline-flex items-center gap-1" title="Рейтинг — грубая сила отряда: здоровье вождя, карты и их состав. Чем выше, тем труднее бой."><Shield size={11} />сила {o.rating}</span></div>
                   <div className="mt-1 text-[11px] text-faint" title={oc.deckDescription}>{oc.deckStyle} · состав растёт вместе с эпохой</div>
                 </div>
                 <Btn variant="primary" onClick={() => { setPicker(false); startPractice(o.id); }}>Начать бой</Btn>

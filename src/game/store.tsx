@@ -22,18 +22,49 @@ export function currentGuideStep(game: any): { step: any; guide: any; page: Page
 }
 export interface Toast { id: number; text: string; tone: Tone }
 
-export const AVAILABLE_MODELS = [
-  { id: "gpt-6-luna", label: "GPT-6 Luna (по умолчанию)" },
-  { id: "gpt-6-sol", label: "GPT-6 Sol (сильная)" },
-  { id: "gpt-6-astra", label: "GPT-6 Astra" },
-  { id: "glm-5.2", label: "GLM-5.2" },
-  { id: "glm-5.1", label: "GLM-5.1" },
-  { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
-  { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash (быстрая)" },
-  { id: "deepseek-v3.2", label: "DeepSeek V3.2" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5" },
-  { id: "hydra-gpt-mini", label: "Hydra GPT Mini (бесплатная)" },
+/**
+ * Модели сгруппированы по семействам: бренд остаётся на месте, а рядом пометка,
+ * чем модель отличается, — выбор не превращается в угадывание названий.
+ */
+export const MODEL_GROUPS: { id: string; label: string; hint: string; models: { id: string; label: string }[] }[] = [
+  {
+    id: "gpt", label: "GPT-6", hint: "Универсальные: Sol — самая сильная, Luna — быстрая и аккуратная",
+    models: [
+      { id: "gpt-6-luna", label: "GPT-6 Luna · по умолчанию" },
+      { id: "gpt-6-sol", label: "GPT-6 Sol · сильная" },
+      { id: "gpt-6-astra", label: "GPT-6 Astra · ровная" },
+    ],
+  },
+  {
+    id: "glm", label: "GLM", hint: "Крепкие модели, хороши в описаниях и названиях",
+    models: [
+      { id: "glm-5.2", label: "GLM-5.2 · новая" },
+      { id: "glm-5.1", label: "GLM-5.1 · прошлая" },
+    ],
+  },
+  {
+    id: "deepseek", label: "DeepSeek", hint: "Pro точнее, Flash отвечает быстрее",
+    models: [
+      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro · сильная" },
+      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash · быстрая" },
+      { id: "deepseek-v3.2", label: "DeepSeek V3.2 · прошлая" },
+    ],
+  },
+  {
+    id: "claude", label: "Claude", hint: "Сильные тексты и аккуратные правила",
+    models: [
+      { id: "claude-sonnet-5", label: "Claude Sonnet 5 · сильная" },
+    ],
+  },
+  {
+    id: "hydra", label: "Hydra", hint: "Бесплатная модель для пробы",
+    models: [
+      { id: "hydra-gpt-mini", label: "Hydra GPT Mini · бесплатная" },
+    ],
+  },
 ];
+
+export const AVAILABLE_MODELS = MODEL_GROUPS.flatMap((g) => g.models);
 
 export interface ApiKeyCheck { status: "unknown" | "checking" | "ok" | "bad"; message: string }
 
@@ -90,6 +121,9 @@ interface Store {
   closeBattle: () => void;
   selectedRegion: string | null;
   selectRegion: (id: string | null) => void;
+  /** Выбранные игроком ополченцы: заполняют свободные слоты колоды в бою. */
+  militiaPicks: string[];
+  toggleMilitiaPick: (cardId: string) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -100,6 +134,14 @@ export const useStore = () => {
 };
 
 const COLL_KEY = "iforge_collection";
+const MILITIA_KEY = "iforge_militia";
+
+function loadMilitiaPicks(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(MILITIA_KEY) || "[]");
+    return Array.isArray(raw) ? raw.filter((id) => typeof id === "string").slice(0, 6) : [];
+  } catch { return []; }
+}
 
 function loadCollection(): Card[] {
   try {
@@ -113,6 +155,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [game, setGame] = useState<any>(() => M.load());
   const gameRef = useRef(game);
   const [collection, setCollection] = useState<Card[]>(loadCollection);
+  const [militiaPicks, setMilitiaPicks] = useState<string[]>(loadMilitiaPicks);
   const [apiKey, setApiKeyState] = useState(() => localStorage.getItem("iforge_hydra_key") || "");
   const [keyCheck, setKeyCheck] = useState<ApiKeyCheck>(() => ({ status: localStorage.getItem("iforge_hydra_key") ? "unknown" : "bad", message: "" }));
   const [model, setModelState] = useState(() => localStorage.getItem("iforge_model") || "gpt-6-luna");
@@ -150,6 +193,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [commit, toast]);
 
   useEffect(() => { localStorage.setItem(COLL_KEY, JSON.stringify(collection)); }, [collection]);
+  useEffect(() => { localStorage.setItem(MILITIA_KEY, JSON.stringify(militiaPicks)); }, [militiaPicks]);
+
+  // Порядок выбора = порядок выхода: первый выбранный ополченец занимает первый свободный слот.
+  const toggleMilitiaPick = useCallback((cardId: string) => {
+    setMilitiaPicks((picks) => picks.includes(cardId) ? picks.filter((id) => id !== cardId) : [...picks, cardId].slice(0, 6));
+  }, []);
 
   const addCard = useCallback((c: Card) => setCollection((list) => [c, ...list.filter((x) => x.id !== c.id)]), []);
   const removeCard = useCallback((id: string) => {
@@ -295,7 +344,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (g.player.pendingExpedition) { toast("Сначала завершите начатую экспедицию.", "bad"); return; }
     const o = g.opponents.find((x: any) => x.id === opponentId);
     if (!o) return;
-    setMatch({ kind: "practice", opponentId, name: o.name, clan: o.clan, era: o.era, leaderBattle: !!o.leader });
+    // Первый в жизни игрока бой ведёт наставник: подсказки, враг без построек, полная энергия на выходе.
+    const practiceCount = (g.player.practice?.wins || 0) + (g.player.practice?.losses || 0);
+    setMatch({ kind: "practice", opponentId, name: o.name, clan: o.clan, era: o.era, leaderBattle: !!o.leader, tutorial: practiceCount === 0 });
   }, [toast]);
 
   const startExpedition = useCallback((regionId: string) => {
@@ -331,9 +382,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => ({
     game, collection, apiKey, keyCheck, model, setApiKey, setModel, verifyKey, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
     endDay, dayReport, closeDayReport: () => setDayReport(null), resetCampaign, settingsOpen, openSettings,
-    match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, selectRegion,
+    match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, selectRegion, militiaPicks, toggleMilitiaPick,
   }), [game, collection, apiKey, keyCheck, model, verifyKey, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
-    match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion]);
+    match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, militiaPicks, toggleMilitiaPick]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

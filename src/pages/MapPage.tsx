@@ -218,8 +218,8 @@ export default function MapPage() {
                   >
                     <span className={cn("relative z-10 text-base leading-none sm:text-xl", locked && tile.terrain !== "water" && "grayscale")}
                       aria-hidden="true">{tile.kind === "home" ? "⌂" : tile.kind === "settlement" ? "⚑" : tile.icon}</span>
-                    <span className="relative z-10 max-w-full truncate px-0.5 text-[8px] font-semibold leading-tight text-parch sm:text-[10px]">
-                      {tile.shortName || tile.name}
+                    <span className="relative z-10 line-clamp-2 max-w-full break-words px-0.5 text-[8px] font-semibold leading-[1.15] text-parch sm:text-[10px]">
+                      {tile.name}
                     </span>
                     {mark && <span className={cn("absolute right-1 top-0.5 z-10 text-[9px] font-black text-bronze-soft sm:text-[11px]", mine && "text-ok", rival && "text-[#ffc0a6]")} aria-hidden="true">{mark}</span>}
                     {locked && tile.terrain !== "water" && <Lock size={10} className="absolute left-1 top-1 z-10 text-parch/70" aria-hidden="true" />}

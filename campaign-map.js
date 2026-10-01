@@ -15,7 +15,7 @@
         water: { label: 'Вода', icon: '≈', names: ['воды', 'протоки', 'заводи', 'озёра', 'плёсы', 'заливы'] },
         plains: { label: 'Равнина', icon: '🌾', names: ['луга', 'поля', 'степи', 'низины', 'долины', 'пастбища'] },
         forest: { label: 'Лес', icon: '🌲', names: ['рощи', 'чащи', 'дубравы', 'леса', 'просеки', 'опушки'] },
-        hills: { label: 'Холмы', icon: '⛰️', names: ['холмы', 'склоны', 'увалы', 'гребни', 'предгорья', 'кря́жи'] },
+        hills: { label: 'Холмы', icon: '⛰️', names: ['холмы', 'склоны', 'увалы', 'гребни', 'предгорья', 'кряжи'] },
         mountain: { label: 'Горы', icon: '🏔️', names: ['вершины', 'горы', 'скалы', 'хребты', 'ущелья', 'перевалы'] },
         wetlands: { label: 'Плавни', icon: '🌿', names: ['плавни', 'топи', 'болота', 'камыши', 'заводи', 'сырые луга'] },
         desert: { label: 'Сухие земли', icon: '🏜️', names: ['барханы', 'пустоши', 'солончаки', 'сухие земли', 'пески', 'сухие низины'] },
@@ -485,7 +485,7 @@
             const era = Math.min(4, Math.max(tile.minEra, Math.floor(distance / 3)));
             tile.guard = {
                 id: 'guard-' + tile.id,
-                name: pick(guardRng, GUARD_RANKS) + ' «' + tile.shortName + '»',
+                name: pick(guardRng, GUARD_RANKS) + ' «' + tile.name + '»',
                 clan: pick(guardRng, GUARD_CLANS),
                 era
             };

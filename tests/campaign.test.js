@@ -817,7 +817,10 @@ test('active LLM buildings modify one energy pool and its per-turn growth', () =
   const added = Campaign.addBlueprint(Campaign.createState(TEST_SEED), draft({
     category: 'civic', effects: [{ type: 'energy_cap', amount: 1 }, { type: 'energy_growth', amount: 1 }]
   }), 'both');
-  const state = researchAndBuild(added.state, added.blueprint);
+  assert.equal(added.error, null);
+  const researched = Campaign.researchBlueprint(added.state, added.blueprint.id);
+  assert.equal(researched.error, null);
+  const state = Campaign.constructBlueprint(Campaign.finishDayState(researched.state).state, added.blueprint.id).state;
   assert.equal(Campaign.getBattleConfig(state).energyMax, 3);
   assert.equal(Campaign.getBattleConfig(state).energyGrowth, 2);
   const disabled = Campaign.toggleBuildingState(state, state.player.buildings[1].id).state;
@@ -1079,13 +1082,22 @@ test('science advice uses current territory and reserves while exposing only one
   assert.ok(stateAfter.player.scienceChoices.projects[0].scienceName);
   assert.match(status.textContent, /API-ключ не задан|черновика|разные/);
   assert.equal(button.disabled, false);
-  // choose one
+  // choose one: приём замысла тратит приказ «Исследование» и AP
+  const offersBefore = stateAfter.player.scienceChoices.projects.length;
   app.chooseScience(0);
   const afterChoose = app.getState();
-  assert.equal(afterChoose.player.scienceChoices, null);
-  assert.ok(afterChoose.player.blueprints.length > 0);
+  assert.equal(afterChoose.player.blueprints.length > 0, true);
   assert.equal(afterChoose.player.blueprints[0].visibility, 'both');
+  assert.equal(afterChoose.player.dailyOrders.researchUsed, true, 'приём проекта тратит приказ «Исследование»');
+  // оставшиеся замыслы не выбрасываются — их можно принять в следующие дни
+  assert.ok(afterChoose.player.scienceChoices, 'остальные замыслы остаются на столе');
+  assert.equal(afterChoose.player.scienceChoices.projects.length, offersBefore - 1);
   assert.ok(afterChoose.player.chronicle.length > 0, 'chronicle should have entry');
+  // второй приём в тот же день невозможен
+  const secondIndex = 0;
+  const before = app.getState();
+  const blocked = Campaign.acceptScienceProject(before, secondIndex);
+  assert.match(blocked.error, /исследование уже проведено/);
 });
 
 test('season cannot discard an active or ready craft and preserves crafting mastery', () => {

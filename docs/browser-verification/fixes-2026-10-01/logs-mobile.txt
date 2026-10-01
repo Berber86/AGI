@@ -1,0 +1,45 @@
+ONBOARDING OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+HOME OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+BOTTOM NAV: Поселение Карта Развитие Кузница Армия | h=58.75
+
+ARMY OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+PICKS: ["militia-Разведчики на лошадях","militia-Топорники племени"]
+
+SLOTS VISIBLE: 🐎 Разведчики на лошадях ОПОЛЧЕНИЕ,🪓 Топорники племени ОПОЛЧЕНИЕ,🔺 Племенные копейщики ОПОЛЧЕНИЕ
+
+BATTLE OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+BATTLE ENERGY: ВЫ 2/2 колода 1 · сброс 0 Медный Ворон 5/5
+
+COACH1: Учебный бой.Шаг 1: выберите карту в руке и поставьте её на поле.
+
+TOUCH TARGETS: {"handCards":5,"handSize":"76x90","endTurn":"71x90 visible=true"}
+
+DEPLOY CARD POINT: {"x":50,"y":787} SLOT POINT: {"x":55.5,"y":445.875}
+
+COACH2: Учебный бой.Отряд вышел в этом ходу и пока не атакует — так у всех. Нажмите «Конец хода».
+
+COACH3 TURN2: Учебный бой.Шаг 2: отряд с золотой рамкой готов — нажмите на него, затем на цель.
+
+BATTLE OVERFLOW T2: {"sw":390,"cw":390,"ok":true}
+
+RULES MODAL FITS: {"w":390,"h":499,"withinVh":true,"scrollable":false}
+
+RULES HAS TEXT: true
+
+КАРТА OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+MAP LABELS: ["Настройки","Верхние луга","Утренние камыши","Речные предгорья","Северные горы","Сухие перевалы"]
+
+MAP CLAMP COUNT: 13
+
+РАЗВИТИЕ OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+КУЗНИЦА OVERFLOW: {"sw":390,"cw":390,"ok":true}
+
+SETTINGS: {"dialog":true,"groups":["Универсальные — Разнообр","Сильные — Лучше следуют ","Быстрые и экономные — Де"],"options":10}
+
+SETTINGS OVERFLOW: {"sw":390,"cw":390,"ok":true}

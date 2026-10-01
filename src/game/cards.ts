@@ -163,6 +163,33 @@ export function buildMilitia(): Card[] {
   ];
 }
 
+/* ---------- Ополчение: пул по эпохе и выбор игрока ---------- */
+
+/** Пул ополчения народа в эту эпоху: бронзовые бойцы приходят вместе со второй эпохой. */
+export function militiaPool(era = 0): Card[] {
+  return buildMilitia().filter((c) => c.era !== "bronze" || era >= 1);
+}
+
+export function militiaById(id: string, era = 0): Card | null {
+  return militiaPool(era).find((c) => c.id === id) ?? null;
+}
+
+/** Учебный бой: враг приходит без построек, чтобы новичка не били бесплатно из тыла. */
+export function withoutStructures(pool: Card[]): Card[] {
+  return pool.filter((c) => c.card_type !== "structure");
+}
+
+/**
+ * Порядок ополчения: сначала выбранные игроком карты (в его порядке), затем остальные из пула —
+ * если колода выросла или выбор не сделан, пустые слоты всё равно добьются ополченцами.
+ */
+export function militiaFill(picks: string[] = [], era = 0): Card[] {
+  const pool = militiaPool(era);
+  const chosen = picks.map((id) => pool.find((c) => c.id === id)).filter(Boolean) as Card[];
+  const rest = pool.filter((c) => !chosen.some((x) => x.id === c.id));
+  return [...chosen, ...rest];
+}
+
 /* ---------- Карты игрока: стартовые + коллекция ---------- */
 
 export function allCards(collection: Card[]): Card[] {

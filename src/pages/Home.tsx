@@ -72,7 +72,7 @@ function Orders() {
   const { game, go } = useStore();
   const p = game.player;
   const items: { key: string; used: boolean; label: string; hint: string; Icon: typeof Hammer; page: Page }[] = [
-    { key: "researchUsed", used: p.dailyOrders.researchUsed, label: "Исследование", hint: "Новая наука", Icon: Telescope, page: "develop" },
+    { key: "researchUsed", used: p.dailyOrders.researchUsed, label: "Исследование", hint: "Изучить науку или принять замысел", Icon: Telescope, page: "develop" },
     { key: "constructionUsed", used: p.dailyOrders.constructionUsed, label: "Строительство", hint: "Здание на карте или чертёж", Icon: Hammer, page: "develop" },
     { key: "frontierUsed", used: p.dailyOrders.frontierUsed, label: "Поход", hint: "Занять землю", Icon: Compass, page: "map" },
     { key: "craftUsed", used: p.dailyOrders.craftUsed, label: "Ковка", hint: "Новая карта", Icon: Anvil, page: "forge" },
@@ -139,12 +139,13 @@ function People() {
           <span className="w-[74px]" />
         </div>
       </div>
-      <div className="mt-2 rounded-xl bg-ground/60 p-3 text-[12.5px] leading-relaxed text-dim">
-        Народ съедает <b className="text-parch">{fmt(b.consumption)}</b> провизии в день, здания и земли требуют <b className="text-parch">{fmt(b.upkeep)}</b> материалов. Склад вмещает {cap} каждого ресурса — излишек тает вдвое.
-      </div>
+      <p className="mt-2 text-[12.5px] leading-relaxed text-faint">
+        Расход: <b className="text-dim">{fmt(b.consumption)} 🌾</b> на еду и <b className="text-dim">{fmt(b.upkeep)} 🪵</b> на содержание в день.
+      </p>
       <details className="mt-2 rounded-xl border border-line bg-ground/40 px-3 py-2.5 text-[12.5px]">
-        <summary className="cursor-pointer font-medium text-dim hover:text-parch">Свод правил: рост народа, походы, бой</summary>
+        <summary className="cursor-pointer font-medium text-dim hover:text-parch">Свод правил: склад, рост народа, походы, бой</summary>
         <ul className="mt-2 space-y-1.5 leading-relaxed text-dim">
+          <li>• <b className="text-parch">Склад:</b> вмещает {cap} каждого ресурса; излишек сверх склада тает вдвое — вовремя пускайте запасы в дело.</li>
           <li>• <b className="text-parch">Рост:</b> +1 человек, если провизии на складе больше 10 и дневной профицит еды больше 2 (35% за день). Голод, наоборот, уносит людей.</li>
           <li>• <b className="text-parch">Походы:</b> освоение свободной клетки — 2 🌾 + 2 🪵; квестовый бой и экспедиция — 4 🌾 + 2 🪵. При поражении отряд возвращает 2 🌾 припасов, но приказ и материалы теряются.</li>
           <li>• <b className="text-parch">Бой:</b> колода {cfg.deckLimit} карт, свободные места добирает ополчение. Вы ходите первым; с 6-го хода пустая колода бьёт вождя нарастающей усталостью — затягивать нельзя обеим сторонам.</li>
@@ -185,7 +186,7 @@ function EraTrack() {
     <Panel className="p-5">
       <div className="flex items-center justify-between">
         <Heading title={M.eraName(p.era)} eyebrow="Эпоха" className="[&_h2]:text-xl" />
-        <Chip tone="bronze"><Telescope size={12} />{p.research}/2 до следующей</Chip>
+        <Chip tone="bronze"><Telescope size={12} />Открытий до новой эпохи: {p.research}/2</Chip>
       </div>
       <div className="mt-4 flex items-center gap-1">
         {M.ERAS.map((e: string, i: number) => (

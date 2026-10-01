@@ -1630,13 +1630,60 @@
         };
     }
 
+    // Дубликаты в кодексе: советник не должен дважды продавать одну и ту же науку.
+    function blueprintKey(text) { return String(text || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+    function findBlueprintTwin(state, raw) {
+        const scienceKey = blueprintKey(raw?.scienceName);
+        const buildingKey = blueprintKey(raw?.buildingName);
+        return state.player.blueprints.find(item => (scienceKey && blueprintKey(item.scienceName) === scienceKey)
+            || (buildingKey && blueprintKey(item.buildingName) === buildingKey)) || null;
+    }
+
     function addBlueprint(input, raw, visibility) {
         const state = normalizeState(input);
         if (state.player.blueprints.length >= 30) return { state, error: 'В сезонном кодексе уже 30 проектов.' };
+        const twin = findBlueprintTwin(state, raw);
+        if (twin) return { state, error: '«' + twin.scienceName + '» уже есть в кодексе — выберите другой замысел.' };
         const blueprint = normalizeBlueprint(raw, state, visibility);
         if (!blueprint) return { state, error: 'Наука, здание или эффект не прошли проверку схемы.' };
         state.player.blueprints.unshift(blueprint);
         return { state, blueprint, error: null };
+    }
+
+    /**
+     * Приём замысла советника — это и есть дневной приказ «Исследование»:
+     * придумал проект сегодня — изучать или принимать другой сегодня уже нельзя.
+     */
+    function acceptScienceProject(input, index) {
+        const state = normalizeState(input);
+        const choices = state.player.scienceChoices;
+        const project = choices && Array.isArray(choices.projects) ? choices.projects[index] : null;
+        if (!project) return { state, error: 'Такого замысла уже нет — спросите советника снова.' };
+        const orderError = canOrder(state, 'research');
+        if (orderError) return { state, error: orderError };
+        const result = addBlueprint(state, project, 'both');
+        if (result.error) return result;
+        markDailyOrderUsed(result.state, 'research');
+        const entry = generateChronicleEntry(result.state, choices.branchId || 'advisor', project.scienceName);
+        result.state.player.chronicle = [...(result.state.player.chronicle || []), { day: result.state.day, era: result.state.player.era, text: entry }].slice(-20);
+        // Остальные замыслы остаются на столе: их можно принять в следующие дни.
+        const rest = choices.projects.filter((_, i) => i !== index);
+        result.state.player.scienceChoices = rest.length ? { branchId: choices.branchId, day: choices.day, projects: rest } : null;
+        result.entry = entry;
+        return result;
+    }
+
+    /** Удаление из кодекса: только то, что ещё не изучено и не построено. */
+    function removeBlueprint(input, id) {
+        const state = normalizeState(input);
+        const blueprint = state.player.blueprints.find(item => item.id === id);
+        if (!blueprint) return { state, error: 'Проект не найден в кодексе.' };
+        if (blueprint.openingProject) return { state, error: 'Первое дело народа нельзя убрать из кодекса.' };
+        if (blueprint.built) return { state, error: 'Постройка уже стоит — проект нельзя убрать.' };
+        if (blueprint.researched) return { state, error: 'Наука уже изучена — проект нельзя убрать.' };
+        state.player.blueprints = state.player.blueprints.filter(item => item.id !== id);
+        return { state, error: null };
     }
 
     function researchBlueprint(input, id) {
@@ -2389,23 +2436,25 @@
     }
 
     function chooseScience(index) {
-        const choices = state.player.scienceChoices;
-        if (!choices || !Array.isArray(choices.projects) || !choices.projects[index]) return;
-        const raw = choices.projects[index];
-        const result = addBlueprint(state, raw, 'both');
+        const result = acceptScienceProject(state, index);
         if (result.error) {
             const status = root.document.getElementById('campaign-project-status');
             if (status) status.textContent = 'Проект отклонён: ' + result.error;
             return;
         }
-        const entryText = generateChronicleEntry(result.state, choices.branchId, raw.scienceName);
-        result.state.player.chronicle = [...(result.state.player.chronicle || []), { day: result.state.day, era: result.state.player.era, text: entryText }].slice(-20);
-        result.state.player.scienceChoices = null;
         state = result.state;
         save(state);
         render();
         const status = root.document.getElementById('campaign-project-status');
-        if (status) status.textContent = 'Выбран путь: «' + raw.scienceName + '». ' + entryText;
+        if (status) status.textContent = 'Выбран путь: «' + result.blueprint.scienceName + '». ' + result.entry;
+    }
+
+    function dropScienceProject(id) {
+        const result = removeBlueprint(state, id);
+        if (result.error) { root.alert(result.error); return; }
+        state = result.state;
+        save(state);
+        render();
     }
 
     async function requestRegionFlavor(regionId) {
@@ -2474,7 +2523,7 @@
         research, construct, toggleBuilding: toggleBuildingAction, toggleDeckCard: toggleDeckCardAction,
         finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, claimRegion: claimRegionAction, buildRegionBuilding: buildRegionBuildingAction, chooseDecree: chooseDecreeAction, attackRegion: attackRegionAction, resumeRegionExpedition: resumeRegionExpeditionAction, hasPendingMatch: () => Boolean(pendingMatch),
         getPendingMatch: () => pendingMatch ? { ...pendingMatch } : null,
-        consumePendingMatch, recordBattleResult, rematch, generateProject, chooseScience, requestRegionFlavor, DIVERSITY_POOLS, generateLocalScienceVariants, generateLocalRegionFlavor, resetLocal,
+        consumePendingMatch, recordBattleResult, rematch, generateProject, chooseScience, dropScienceProject, acceptScienceProject, removeBlueprint, requestRegionFlavor, DIVERSITY_POOLS, generateLocalScienceVariants, generateLocalRegionFlavor, resetLocal,
         beginOnboarding, getStarterCards: () => clone(STARTER_CARDS), getBattleDeckIds: () => state.player.deckCardIds.slice(), getBattleConfigForCurrentPlayer: () => getBattleConfig(state),
         assignWorker: (from, to) => { const result = assignWorker(state, from, to); if (!result.error) commit(result.state); return result; },
         getState: () => clone(state)
