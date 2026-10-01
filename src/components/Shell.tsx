@@ -308,7 +308,7 @@ export function SettingsModal() {
               </optgroup>
             ))}
           </select>
-          <span className="mt-1.5 block text-xs text-faint">Названия моделей оставлены для тех, кому важно, кто именно думает. Карты в кузнице модель выбирает сама по редкости.</span>
+          <span className="mt-1.5 block text-xs text-faint">Модели сгруппированы по семействам — школе, к которой они относятся; на правила и баланс выбор не влияет. Карты в кузнице модель выбирает сама по редкости.</span>
         </label>
       </div>
       <a href="/legacy.html" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-bronze hover:text-bronze-soft hover:underline">
