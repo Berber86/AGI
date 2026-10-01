@@ -37,7 +37,7 @@ export interface Unit {
   rarity?: string;
   description: string;
 }
-export interface Hand extends Card { iid?: string }
+export interface Hand extends Card { iid?: string; revivedOnce?: boolean }
 export interface Player {
   hp: number; maxHp: number;
   deck: Hand[]; hand: Hand[]; discard: Hand[];
@@ -245,9 +245,16 @@ function hurtUnit(u: Unit, amount: number) {
 function drawOne(b: Battle, side: Side, silent = false): boolean {
   const p = b[side];
   if (p.deck.length === 0 && p.discard.length > 0) {
-    p.deck = shuffle(p.discard);
-    p.discard = [];
-    if (!silent) log(b, side, `${say(side, 'перетасовывает', 'перетасовываете')} сброс в колоду.`);
+    // Погибшая карта возвращается в колоду через перетасовку сброса только один раз:
+    // карты, уже однажды вернувшиеся так в игру, остаются в сбросе навсегда.
+    const revivable = p.discard.filter((c) => !c.revivedOnce);
+    const stuck = p.discard.filter((c) => c.revivedOnce);
+    if (revivable.length > 0) {
+      for (const c of revivable) c.revivedOnce = true;
+      p.deck = shuffle(revivable);
+      p.discard = stuck;
+      if (!silent) log(b, side, `${say(side, 'перетасовывает', 'перетасовываете')} сброс в колоду (каждая карта возвращается так не больше раза).`);
+    }
   }
   if (p.deck.length === 0 && b.turn < p.fatigueStart) return false; // первые круги усталости нет — микро-колоды не должны умирать сами собой (fatigueStart сдвигает эффект построек)
   if (p.deck.length === 0) {

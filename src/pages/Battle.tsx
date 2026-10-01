@@ -52,16 +52,37 @@ function Hero({ side, b, name, sub, targeted, onClick }: { side: "me" | "enemy";
   );
 }
 
-function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; onClick: () => void; onHover: (v: boolean) => void }) {
+function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
   const atk = atkOf(b, u);
   const armor = armorOf(b, u);
   const hurt = u.curHp < u.hp;
+  // Долгий тап/зажатие мышью — раскрыть карточку юнита целиком (свою или вражескую),
+  // не выполняя обычное действие (выбор/атаку) по короткому клику.
+  const pressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+  const clearPress = () => { if (pressTimer.current !== null) { window.clearTimeout(pressTimer.current); pressTimer.current = null; } };
+  const startPress = () => {
+    longPressed.current = false;
+    clearPress();
+    pressTimer.current = window.setTimeout(() => { longPressed.current = true; onInspect(); }, 480);
+  };
+  const handleClick = () => {
+    if (longPressed.current) { longPressed.current = false; return; }
+    onClick();
+  };
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
+      onPointerDown={startPress}
+      onPointerUp={clearPress}
+      onPointerLeave={clearPress}
+      onPointerCancel={clearPress}
+      onContextMenu={(e) => e.preventDefault()}
       onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
+      onMouseLeave={() => { onHover(false); clearPress(); }}
+      style={{ WebkitTouchCallout: "none" } as React.CSSProperties}
       className={cn(
+        "select-none touch-manipulation",
         "relative flex h-full w-full flex-col items-center justify-between overflow-hidden rounded-xl border px-1 pb-1.5 pt-1.5 text-center transition-all sm:px-2",
         u.isStructure ? "border-mat/40 bg-[#2a2016]" : mine ? "border-line-strong bg-[#241f17]" : "border-clay/40 bg-[#2a1a14]",
         ready && "border-bronze shadow-[0_0_0_1px_rgba(217,164,69,0.6),0_0_20px_-4px_rgba(217,164,69,0.55)]",
@@ -121,8 +142,10 @@ export default function BattleScreen() {
     // В первом учебном бою враг приходит без построек: никто не бьёт новичка бесплатно из тыла.
     const enemyDeck = (m.tutorial ? withoutStructures(enemyPool) : enemyPool).slice(0, ec.deckLimit);
     const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
-    // Первый ход новичка начинается с полного предела энергии: в руке карты за 2, а не 1.
-    if (m.tutorial) { battle.me.energyMax = battle.me.energyCap; battle.me.energy = battle.me.energyCap; }
+    // Первый ход новичка начинается с энергии 2 (а не 1), чтобы в руке можно было сыграть карту за 2.
+    // Берём фиксированное значение 2, а не текущий предел игрока: иначе бонусы эпохи/черты
+    // характера (например, «Владыки Коней») поднимали бы старт сразу до 3 энергии.
+    if (m.tutorial) { const start = Math.min(2, battle.me.energyCap); battle.me.energyMax = start; battle.me.energy = start; }
     return battle;
   };
   const bRef = useRef<Battle>(null as any);
@@ -131,6 +154,7 @@ export default function BattleScreen() {
   const [selHand, setSelHand] = useState<number | null>(null);
   const [selUnit, setSelUnit] = useState<string | null>(null);
   const [hover, setHover] = useState<Unit | null>(null);
+  const [inspectUnit, setInspectUnit] = useState<Unit | null>(null);
   const [result, setResult] = useState<{ won: boolean; msg: string } | null>(null);
   const [confirmRetreat, setConfirmRetreat] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
@@ -153,7 +177,7 @@ export default function BattleScreen() {
   useEffect(() => {
     if (b.over && !finished.current) {
       finished.current = true;
-      setSelHand(null); setSelUnit(null);
+      setSelHand(null); setSelUnit(null); setInspectUnit(null);
       setTimeout(() => {
         const won = bRef.current.over === "win";
         const msg = finishBattle(won);
@@ -190,7 +214,7 @@ export default function BattleScreen() {
 
   const endTurn = () => {
     if (!myTurn) return;
-    setSelHand(null); setSelUnit(null);
+    setSelHand(null); setSelUnit(null); setInspectUnit(null);
     mutate(endPlayerTurn);
     runEnemy();
   };
@@ -233,7 +257,7 @@ export default function BattleScreen() {
   };
 
   const rematch = () => {
-    bRef.current = build(); setB(bRef.current); setResult(null); finished.current = false; busy.current = false; setSelHand(null); setSelUnit(null);
+    bRef.current = build(); setB(bRef.current); setResult(null); finished.current = false; busy.current = false; setSelHand(null); setSelUnit(null); setInspectUnit(null);
   };
 
   const validSlot = (row: "front" | "back", i: number) => !!selCard && selCard.card_type !== "spell" && selCard.drop_cost <= b.me.energy && !b.me[row][i] && !(selCard.card_type === "structure" && row === "front");
@@ -293,6 +317,7 @@ export default function BattleScreen() {
                 targeted={!!selU && target?.kind === "unit" && target.unit === u}
                 onClick={() => (side === "me" ? clickMyUnit(u) : clickEnemyUnit(u))}
                 onHover={(v) => setHover(v ? u : null)}
+                onInspect={() => setInspectUnit(u)}
               />
             ) : undefined}
           </Slot>
@@ -403,6 +428,10 @@ export default function BattleScreen() {
       <Modal open={logOpen} onClose={() => setLogOpen(false)} title="Журнал боя">
         <h2 className="font-display mb-3 text-xl font-semibold">Журнал боя</h2>
         <LogList b={b} className="max-h-[60dvh]" bare />
+      </Modal>
+
+      <Modal open={!!inspectUnit} onClose={() => setInspectUnit(null)} title={inspectUnit?.name || "Карта"}>
+        {inspectUnit && <Inspector inspect={{ unit: inspectUnit }} b={b} />}
       </Modal>
 
       <Modal open={confirmRetreat} onClose={() => setConfirmRetreat(false)} title="Отступить">
