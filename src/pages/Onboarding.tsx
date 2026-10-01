@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, KeyRound, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Dices, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { MODEL_GROUPS, useStore } from "@/game/store";
@@ -7,9 +7,36 @@ import { Btn, Chip, Label, ResIcon, RES, type ResKey } from "@/components/ui";
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
-const NAMES = ["Медный Ворон", "Речные Сыны", "Дети Кургана", "Хранители Огня", "Люди Соляной Тропы", "Каменные Братья", "Стада Быстрой Воды", "Соль Озёр"];
+const STEPS = ["Имя", "Происхождение", "Замысел", "Советник", "Начало"];
 
-const STEPS = ["Имя", "Происхождение", "Замысел", "ИИ", "Начало"];
+/* ---------- генератор имени народа (с перебросами, без ручного выбора из списка) ---------- */
+
+// «Люди/Братья/...» + родительный падеж — согласование рода не требуется, сочетание всегда корректно.
+const TRIBE_PEOPLE = ["Дети", "Сыны", "Братья", "Люди", "Хранители", "Потомки", "Стада", "Налётчики", "Воины", "Странники", "Кочевники", "Всадники", "Дозорные", "Старейшины"];
+const TRIBE_OF = [
+  "Кургана", "Огня", "Ветра", "Соли", "Реки", "Горизонта", "Чёрного Леса", "Быстрой Воды", "Соляной Тропы",
+  "Утренней Зари", "Красной Скалы", "Степного Простора", "Южного Ветра", "Древних Курганов", "Высоких Гор",
+  "Студёного Моря", "Священного Пепла", "Волчьей Тропы", "Бронзовых Холмов", "Янтарного Берега",
+];
+// Тотемный зверь мужского рода + согласованное прилагательное.
+const TRIBE_MASC_ADJ = ["Медный", "Каменный", "Янтарный", "Огненный", "Бронзовый", "Суровый", "Древний", "Северный", "Горный", "Степной", "Солнечный", "Железный"];
+const TRIBE_MASC_NOUN = ["Ворон", "Волк", "Орёл", "Медведь", "Бык", "Олень", "Сокол", "Барс", "Тур", "Кабан"];
+// Множественное число людей + согласованное прилагательное во множественном числе.
+const TRIBE_PLUR_ADJ = ["Каменные", "Степные", "Горные", "Огненные", "Бронзовые", "Суровые", "Древние", "Северные", "Быстрые", "Вольные", "Солёные", "Янтарные"];
+const TRIBE_PLUR_NOUN = ["Братья", "Сыны", "Дети", "Люди", "Воины", "Странники", "Кочевники", "Потомки", "Хранители", "Всадники"];
+
+const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+
+function generateTribeName(exclude?: string): string {
+  let out = exclude;
+  for (let i = 0; i < 8 && (!out || out === exclude); i++) {
+    const roll = Math.random();
+    out = roll < 0.5 ? `${pick(TRIBE_PEOPLE)} ${pick(TRIBE_OF)}`
+      : roll < 0.75 ? `${pick(TRIBE_MASC_ADJ)} ${pick(TRIBE_MASC_NOUN)}`
+        : `${pick(TRIBE_PLUR_ADJ)} ${pick(TRIBE_PLUR_NOUN)}`;
+  }
+  return out!;
+}
 
 /** Черновик первого проекта: генерацию уже оплатили, терять её нельзя. */
 function readOpeningDraft(seedLine: string): any | null {
@@ -21,16 +48,16 @@ function readOpeningDraft(seedLine: string): any | null {
 }
 
 export default function Onboarding() {
-  const { game, apiKey, keyCheck, verifyKey, model, setModel, foundCampaign, startFirstDay, toast } = useStore();
+  const { game, model, setModel, foundCampaign, startFirstDay, toast } = useStore();
   const p = game.player;
   const [step, setStep] = useState(() => (p.awaitingOpeningProject && p.originId ? 4 : 0));
-  const [name, setName] = useState(() => (p.originId ? p.name : ""));
+  // Имя народа никто не выбирает руками — его придумывает генератор; переброс даёт другой вариант.
+  const [name, setName] = useState(() => (p.originId ? p.name : generateTribeName()));
   const [originId, setOriginId] = useState<string | null>(p.originId || null);
   // Старое сохранение могло хранить затравку текстом: узнаём её среди готовых замыслов.
   const [seedId, setSeedId] = useState<string | null>(() => p.seedChoiceId
     || (M.SEED_CHOICES || []).find((c: any) => c.line === p.seedLine)?.id
     || null);
-  const [keyInput, setKeyInput] = useState(apiKey);
   const seedChoice = (M.SEED_CHOICES || []).find((c: any) => c.id === seedId) || null;
   const seedLine = seedChoice?.line || p.seedLine || "";
   const draft = p.awaitingOpeningProject ? readOpeningDraft(seedLine) : null;
@@ -39,24 +66,11 @@ export default function Onboarding() {
   const [error, setError] = useState("");
 
   const origin = M.ORIGINS.find((o: any) => o.id === originId);
-  // Ключ готов, только если он проверен прямо сейчас и не переписан после проверки.
-  const keyReady = keyCheck.status === "ok" && keyInput.trim() === apiKey.trim();
-
-  // Ключ уже сохранён в браузере — проверяем его тихо, чтобы не заставлять вводить заново.
-  useEffect(() => {
-    if (apiKey && keyCheck.status === "unknown") void verifyKey(apiKey, true);
-  }, [apiKey, keyCheck.status, verifyKey]);
 
   const canNext = step === 0 ? true
     : step === 1 ? !!originId
       : step === 2 ? !!seedId
-        : step === 3 ? keyInput.trim().length > 0 && keyCheck.status !== "checking"
-          : true;
-
-  const checkKey = async () => {
-    const ok = await verifyKey(keyInput);
-    if (ok) toast("Ключ работает — советник на связи.", "ok");
-  };
+        : true;
 
   const found = async () => {
     if (!originId || !seedId) return;
@@ -166,19 +180,15 @@ export default function Onboarding() {
           {step === 0 && (
             <div className="max-w-xl">
               <h2 className="font-display text-3xl font-semibold">Как назовём ваш народ?</h2>
-              <p className="mt-2 text-dim">Выберите имя — писать ничего не нужно. Оно появится в летописи и в названиях ваших построек.</p>
-              <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
-                {NAMES.map((n) => (
-                  <button key={n} onClick={() => setName(n)}
-                    className={cn("flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all",
-                      name === n ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
-                    <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-sm font-bold", name === n ? "border-bronze text-bronze" : "border-line text-faint")}>{n.slice(0, 1)}</span>
-                    <span className="min-w-0 flex-1 truncate font-display text-[15px] font-semibold">{n}</span>
-                    {name === n && <Check size={16} className="text-bronze" />}
-                  </button>
-                ))}
+              <p className="mt-2 text-dim">Выбирать ничего не нужно — имя придумывает генератор. Не понравилось — перебросьте ещё раз.</p>
+              <div className="mt-6 flex items-center gap-3 rounded-2xl border border-bronze/40 bg-bronze/8 px-5 py-6">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-bronze/50 bg-raised text-xl font-bold text-bronze">{name.slice(0, 1)}</span>
+                <span className="min-w-0 flex-1 truncate font-display text-2xl font-semibold text-parch">{name}</span>
               </div>
-              <p className="mt-4 text-xs text-faint">Можно не выбирать — тогда имя возьмём из происхождения.</p>
+              <Btn variant="secondary" size="lg" className="mt-4 w-full" onClick={() => setName(generateTribeName(name))}>
+                <Dices size={18} />Перебросить имя
+              </Btn>
+              <p className="mt-4 text-xs text-faint">Имя появится в летописи и в названиях ваших построек. Перебрасывайте сколько угодно раз.</p>
             </div>
           )}
 
@@ -232,26 +242,11 @@ export default function Onboarding() {
 
           {step === 3 && (
             <div className="max-w-xl">
-              <h2 className="font-display text-3xl font-semibold">Подключите советника</h2>
+              <h2 className="font-display text-3xl font-semibold">Ваш советник</h2>
               <p className="mt-2 text-dim">
-                Науки, постройки и карты создаёт модель во время игры. В игре нет заранее записанных вариантов, поэтому ключ обязателен — без него народу нечего открывать.
+                Науки, постройки и карты создаёт модель прямо во время игры — готовых вариантов в игре нет. Доступ к ИИ уже настроен заранее, ключ вводить не нужно: выберите только школу модели.
               </p>
               <label className="mt-6 block">
-                <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ</Label>
-                <input
-                  type="password" value={keyInput} onChange={(e) => setKeyInput(e.target.value)} autoComplete="off" placeholder="Ключ с dashboard.hydraai.ru"
-                  className="h-11 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-parch outline-none placeholder:text-faint focus:border-bronze"
-                />
-              </label>
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <Btn variant="secondary" onClick={checkKey} disabled={!keyInput.trim() || keyCheck.status === "checking"}>
-                  {keyCheck.status === "checking" ? <><Loader2 size={16} className="animate-spin" />Проверяем…</> : <><Wand2 size={16} />Проверить ключ</>}
-                </Btn>
-                {keyReady ? <span className="inline-flex items-center gap-1.5 text-sm text-ok"><Check size={15} />Ключ работает</span>
-                  : keyCheck.status === "bad" && keyCheck.message ? <span className="text-sm text-bad">{keyCheck.message}</span>
-                    : <span className="text-xs text-faint">Проверка занимает пару секунд.</span>}
-              </div>
-              <label className="mt-5 block">
                 <Label className="mb-1.5">Модель для наук и советов</Label>
                 <select value={model} onChange={(e) => setModel(e.target.value)} className="h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-parch outline-none focus:border-bronze">
                   {MODEL_GROUPS.map((g) => (
@@ -262,7 +257,6 @@ export default function Onboarding() {
                 </select>
                 <span className="mt-1.5 block text-xs text-faint">Карты в кузнице модель выбирает сама по выпавшей редкости.</span>
               </label>
-              <p className="mt-4 text-xs leading-relaxed text-faint">Ключ хранится только в этом браузере и отправляется напрямую на api.hydraai.ru. Не вводите его на чужом устройстве.</p>
             </div>
           )}
 
@@ -287,19 +281,9 @@ export default function Onboarding() {
         <div className="mt-8 flex items-center justify-between gap-3">
           <Btn variant="ghost" onClick={() => setStep(step - 1)} disabled={step === 0}><ArrowLeft size={16} />Назад</Btn>
           {step < 4 ? (
-            <Btn
-              variant="primary" size="lg" disabled={!canNext}
-              onClick={async () => {
-                // На шаге ключа «Далее» сама проверяет его: лишней кнопки игроку не нужно.
-                if (step === 3 && !keyReady) {
-                  const ok = await verifyKey(keyInput);
-                  if (!ok) return;
-                }
-                setStep(step + 1);
-              }}
-            >Далее<ArrowRight size={18} /></Btn>
+            <Btn variant="primary" size="lg" disabled={!canNext} onClick={() => setStep(step + 1)}>Далее<ArrowRight size={18} /></Btn>
           ) : (
-            <Btn variant="primary" size="lg" onClick={found} disabled={!keyReady}><Sparkles size={18} />Создать первое дело</Btn>
+            <Btn variant="primary" size="lg" onClick={found}><Sparkles size={18} />Создать первое дело</Btn>
           )}
         </div>
       </div>

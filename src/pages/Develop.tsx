@@ -21,7 +21,7 @@ function EffectChips({ effects }: { effects: any[] }) {
 /* ---------- Наука ---------- */
 
 function Science() {
-  const { game, act, commit, apiKey, model, toast } = useStore();
+  const { game, act, commit, model, toast } = useStore();
   const p = game.player;
   const [loading, setLoading] = useState(false);
   const choices = p.scienceChoices;
@@ -78,13 +78,9 @@ function Science() {
   }
 
   const generate = async () => {
-    if (!apiKey) {
-      toast("Нужен API-ключ: советник придумывает проекты сам, готовых списков в игре нет.", "bad");
-      return;
-    }
     setLoading(true);
     try {
-      const projects = await llmScienceOffers(apiKey, model, game);
+      const projects = await llmScienceOffers(model, game);
       if (!projects.length) throw new Error("не пришло ни одного проекта");
       const next = M.clone(game);
       next.player.scienceChoices = { branchId: "advisor", day: game.day, projects };
@@ -104,7 +100,10 @@ function Science() {
     toast(`«${res.blueprint.scienceName}» в кодексе. Приказ «Исследование» потрачен — изучить её можно завтра.`, "ok");
   };
 
-  const researchOrderUsed = Boolean(p.dailyOrders?.researchUsed);
+  // order_capacity от построек советника может поднять дневной лимит приказа с 1 до 2 —
+  // "потрачен" наступает только когда счётчик достиг лимита, а не после первого же раза.
+  const researchOrderCap = M.getOrderCapacity(game);
+  const researchOrderUsed = (p.dailyOrders?.researchUsed || 0) >= researchOrderCap;
   const orderBlock = researchOrderUsed
     ? "Приказ «Исследование» уже потрачен сегодня."
     : p.ap <= 0
@@ -135,7 +134,7 @@ function Science() {
             {loading ? <Loader2 size={18} className="animate-spin" /> : choices ? <RefreshCw size={16} /> : <Sparkles size={16} />}
             {loading ? "Советник думает…" : choices ? "Предложить другие замыслы" : "Спросить советника"}
           </Btn>
-          {!apiKey && <p className="mt-2 text-[11.5px] text-bad">API-ключ обязателен: без него советник не может придумать проекты.</p>}
+
         </Panel>
 
         {p.pendingDecreeChoice && (

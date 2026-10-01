@@ -34,6 +34,7 @@ function mapTileId(state, key) {
     case 'copper': return find(tile => tile.feature === 'copper-vein');
     case 'tin-route': return find(tile => tile.feature === 'tin-route');
     case 'salt-flats': return find(tile => tile.feature === 'salt-deposit');
+    case 'obsidian': return find(tile => tile.feature === 'obsidian-vein');
     case 'rival-settlement': return find(tile => tile.kind === 'settlement' && tile.initialOwner === 'steppe')
       || find(tile => tile.kind === 'settlement');
     default: return null;
@@ -393,8 +394,8 @@ test('version-two saves migrate old shared orders into separate daily limits wit
   legacyCraft.version = 2;
   delete legacyCraft.player.dailyOrders;
   const migratedCraft = Campaign.normalizeState(legacyCraft);
-  assert.equal(migratedCraft.player.dailyOrders.craftUsed, true);
-  assert.equal(migratedCraft.player.dailyOrders.researchUsed, false);
+  assert.equal(migratedCraft.player.dailyOrders.craftUsed, 1);
+  assert.equal(migratedCraft.player.dailyOrders.researchUsed, 0);
   assert.equal(migratedCraft.player.actionUsed, true);
 
   const project = Campaign.addBlueprint(playableCampaign(), draft(), 'both');
@@ -404,7 +405,7 @@ test('version-two saves migrate old shared orders into separate daily limits wit
   project.state.player.actionUsed = true;
   delete project.state.player.dailyOrders;
   const migratedResearch = Campaign.normalizeState(project.state);
-  assert.equal(migratedResearch.player.dailyOrders.researchUsed, true);
+  assert.equal(migratedResearch.player.dailyOrders.researchUsed, 1);
 
   const ambiguous = playableCampaign();
   delete ambiguous.player.dailyOrders;
@@ -498,8 +499,8 @@ test('claiming an adjacent region spends AP and frontier slot, region without bu
   const claim = claimNeutralRegion(state, foodTileId);
   assert.equal(claim.error, null);
   assert.equal(claim.state.player.ap, beforeAp - 1);
-  assert.equal(claim.state.player.dailyOrders.frontierUsed, true);
-  assert.equal(claim.state.player.dailyOrders.craftUsed, false);
+  assert.equal(claim.state.player.dailyOrders.frontierUsed, 1);
+  assert.equal(claim.state.player.dailyOrders.craftUsed, 0);
   assert.equal(claim.state.regions.find(region => region.id === foodTileId).ownerId, 'player');
   assert.equal(claim.state.regions.find(r => r.id === foodTileId).building, null);
   assert.equal(claim.state.player.resources.food, state.player.resources.food - expectedCost.food);
@@ -509,7 +510,7 @@ test('claiming an adjacent region spends AP and frontier slot, region without bu
 
   const nextDay = Campaign.finishDayState(claim.state);
   assert.equal(nextDay.error, null);
-  assert.deepEqual(nextDay.state.player.dailyOrders, { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false });
+  assert.deepEqual(nextDay.state.player.dailyOrders, { craftUsed: 0, researchUsed: 0, constructionUsed: 0, frontierUsed: 0, legacyBlocked: false });
   assert.equal(nextDay.state.player.ap, nextDay.state.player.apMax);
   // without building, regional income 0
   assert.deepEqual(Campaign.getRegionalIncome(nextDay.state), { food: 0, materials: 0, knowledge: 0 });
@@ -725,8 +726,8 @@ test('research and construction have independent limits via AP and can chain on 
   const researched = Campaign.researchBlueprint(second.state, first.blueprint.id);
   assert.equal(researched.error, null);
   assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researched, true);
-  assert.equal(researched.state.player.dailyOrders.researchUsed, true);
-  assert.equal(researched.state.player.dailyOrders.constructionUsed, false);
+  assert.equal(researched.state.player.dailyOrders.researchUsed, 1);
+  assert.equal(researched.state.player.dailyOrders.constructionUsed, 0);
   assert.equal(researched.state.player.ap, researched.state.player.apMax - 1);
   assert.equal(researched.state.player.blueprints.find(item => item.id === first.blueprint.id).researchedDay, state.day);
   assert.match(Campaign.researchBlueprint(researched.state, second.blueprint.id).error, /исследование уже проведено|AP/);
@@ -735,7 +736,7 @@ test('research and construction have independent limits via AP and can chain on 
   assert.equal(built.error, null);
   assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).built, true);
   assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).builtDay, state.day);
-  assert.equal(built.state.player.dailyOrders.constructionUsed, true);
+  assert.equal(built.state.player.dailyOrders.constructionUsed, 1);
   assert.equal(built.state.player.buildings.length, 2);
 
   const readySecond = structuredClone(built.state);
@@ -939,9 +940,19 @@ test('only a medal carries over when the local season is reset', () => {
 
 test('card craft quote shows material, progression, effort and rarity odds before payment', () => {
   let state = playableCampaign();
+  // Era 0 (Stone Age) hard-locks the rare tier until the obsidian workshop is built: the
+  // would-be 5% rare chance is folded into uncommon instead of being rolled.
+  const locked = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
+  assert.equal(locked.qualityScore, 0);
+  assert.deepEqual(locked.odds, { ordinary: 70, uncommon: 30, rare: 0 });
+  assert.equal(locked.rareLocked, true);
+  assert.match(locked.rareLockText, /обсидиан/i);
+
+  state = controlRegionsWithBuildings(state, { obsidian: 'obsidian-workshop' });
   let quote = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
   assert.equal(quote.qualityScore, 0);
   assert.deepEqual(quote.odds, { ordinary: 70, uncommon: 25, rare: 5 });
+  assert.equal(quote.rareLocked, false);
   assert.deepEqual(quote.cost, { food: 2, materials: 2, knowledge: 0 });
 
   state.player.craftLevel = 1;
@@ -963,13 +974,16 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
   const initial = playableCampaign();
   const metalAccess = controlRegionsWithBuildings(initial, { copper: 'smelter', 'tin-route': 'caravan' });
   metalAccess.player.era = 2;
+  // Ковка теперь дорожает с эпохой (баланс-ревизия), поэтому для этого снимка выдаём заведомо достаточный запас —
+  // сам тест проверяет цену/редкость/маршрутизацию модели, а не способность экономики прокормить ковку на 2-й эпохе.
+  metalAccess.player.resources = { food: 20, materials: 20, knowledge: 20 };
   const rare = Campaign.beginCardCraftState(metalAccess, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Копейная линия');
   assert.equal(rare.error, null);
   assert.equal(rare.order.rarity, 'rare');
   assert.equal(rare.order.modelId, 'glm-5.2');
-  assert.deepEqual(rare.order.cost, { food: 4, materials: 8, knowledge: 3 });
-  assert.deepEqual(rare.state.player.resources, { food: 6, materials: 2, knowledge: 3 });
-  assert.equal(rare.state.player.dailyOrders.craftUsed, true);
+  assert.deepEqual(rare.order.cost, { food: 8, materials: 15, knowledge: 6 });
+  assert.deepEqual(rare.state.player.resources, { food: 12, materials: 5, knowledge: 14 });
+  assert.equal(rare.state.player.dailyOrders.craftUsed, 1);
   assert.match(Campaign.beginCardCraftState(rare.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, /ковка уже заказана|AP/);
 
   const ordinary = Campaign.beginCardCraftState(initial, { materialQuality: 'standard', effort: 'quick' }, 0, 'Копейная линия');
@@ -1018,7 +1032,7 @@ test('invalid generation refunds the upfront investment and frees a same-day ord
   const failed = Campaign.failCardCraftState(started.state, started.order.id, 'JSON schema mismatch');
   assert.equal(failed.error, null);
   assert.deepEqual(failed.state.player.resources, initial.player.resources);
-  assert.equal(failed.state.player.dailyOrders.craftUsed, false);
+  assert.equal(failed.state.player.dailyOrders.craftUsed, 0);
   assert.equal(failed.state.player.craftOrders[0].status, 'failed');
   assert.match(failed.state.player.craftOrders[0].failure, /schema mismatch/);
   assert.equal(Campaign.beginCardCraftState(failed.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, null);
@@ -1088,7 +1102,7 @@ test('science advice uses current territory and reserves while exposing only one
   const afterChoose = app.getState();
   assert.equal(afterChoose.player.blueprints.length > 0, true);
   assert.equal(afterChoose.player.blueprints[0].visibility, 'both');
-  assert.equal(afterChoose.player.dailyOrders.researchUsed, true, 'приём проекта тратит приказ «Исследование»');
+  assert.equal(afterChoose.player.dailyOrders.researchUsed, 1, 'приём проекта тратит приказ «Исследование»');
   // оставшиеся замыслы не выбрасываются — их можно принять в следующие дни
   assert.ok(afterChoose.player.scienceChoices, 'остальные замыслы остаются на столе');
   assert.equal(afterChoose.player.scienceChoices.projects.length, offersBefore - 1);

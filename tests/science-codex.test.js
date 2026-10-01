@@ -24,12 +24,12 @@ function stateWithOffers() {
 
 test('приём замысла тратит приказ «Исследование» и оставляет остальные замыслы', () => {
   const state = stateWithOffers();
-  assert.equal(state.player.dailyOrders.researchUsed, false);
+  assert.equal(state.player.dailyOrders.researchUsed, 0);
   const apBefore = state.player.ap;
 
   const accepted = Campaign.acceptScienceProject(state, 0);
   assert.equal(accepted.error, null);
-  assert.equal(accepted.state.player.dailyOrders.researchUsed, true);
+  assert.equal(accepted.state.player.dailyOrders.researchUsed, 1);
   assert.equal(accepted.state.player.ap, apBefore - 1);
   assert.equal(accepted.state.player.blueprints[0].scienceName, 'Террасные поля');
   assert.equal(accepted.state.player.scienceChoices.projects.length, 2);

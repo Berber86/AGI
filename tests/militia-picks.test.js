@@ -30,21 +30,25 @@ function loadCards() {
 
 const cards = loadCards();
 
-test('пул ополчения открывает бронзовых бойцов со второй эпохи', () => {
+test('бесплатное ополчение намеренно ограничено двумя простыми бойцами', () => {
+  // Остальные бойцы племени (топорники, конница, дружина, постройки, наёмники...) больше не
+  // раздаются даром — они становятся доступны только когда игрок куёт собственные карты.
   const ancient = cards.militiaPool(0).map((c) => c.name);
   const bronze = cards.militiaPool(1).map((c) => c.name);
-  assert.ok(ancient.includes('Племенные копейщики'));
+  // массивы приходят из vm-песочницы: сравниваем по значению, а не по прототипу
+  assert.equal(JSON.stringify(ancient), JSON.stringify(['Племенные копейщики', 'Пращники из холмов']));
+  assert.equal(JSON.stringify(bronze), JSON.stringify(ancient), 'пул ополчения не растёт вместе с эпохой');
   assert.equal(ancient.includes('Бронзовые наёмники'), false);
-  assert.equal(bronze.includes('Бронзовые наёмники'), true);
+  assert.equal(ancient.includes('Топорники племени'), false);
 });
 
 test('выбранные ополченцы идут первыми и в порядке выбора', () => {
   const pool = cards.militiaPool(0);
-  const picks = [pool[3].id, pool[1].id];
+  const picks = [pool[1].id, pool[0].id];
   const fill = cards.militiaFill(picks, 0);
   assert.equal(fill.length, pool.length);
   // массивы приходят из vm-песочницы: сравниваем по значению, а не по прототипу
-  assert.equal(JSON.stringify(fill.slice(0, 2).map((c) => c.id)), JSON.stringify(picks));
+  assert.equal(JSON.stringify(fill.map((c) => c.id)), JSON.stringify(picks));
   // остальные карты пула не теряются и не дублируются
   assert.equal(new Set(fill.map((c) => c.id)).size, fill.length);
 });
@@ -55,9 +59,9 @@ test('неизвестный или устаревший выбор уходит
   assert.equal(fill.length, cards.militiaPool(0).length);
 });
 
-test('без выбора ополчение всё равно заполняет свободные слоты', () => {
+test('без выбора ополчение всё равно заполняет до двух свободных слотов', () => {
   const fill = cards.militiaFill([], 0);
-  assert.ok(fill.length >= 5);
+  assert.equal(fill.length, 2);
   assert.ok(fill.every((c) => c.name && c.drop_cost >= 0));
 });
 

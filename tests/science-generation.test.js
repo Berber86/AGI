@@ -78,12 +78,12 @@ test('the first science is generated from the player seed, not from a local cata
     requests.push({ url, body: JSON.parse(init.body) });
     return modelReply(project);
   });
-  const result = await api.llmOpeningProject('test-key', 'gpt-6-luna', readyState());
+  const result = await api.llmOpeningProject('gpt-6-luna', readyState());
 
   assert.equal(result.scienceName, 'Горновая тяга');
   assert.deepEqual(result.effects, [{ type: 'income_materials', amount: 1 }]);
   assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, 'https://api.hydraai.ru/v1/chat/completions');
+  assert.equal(requests[0].url, '/api/hydra');
   const [system, user] = requests[0].body.messages.map(message => message.content);
   assert.ok(user.includes(SEED_LINE), 'the seed line is sent to the model');
   assert.ok(user.includes('Затравка игрока'), 'the prompt names the seed explicitly');
@@ -102,7 +102,7 @@ test('an invalid first project is rejected instead of being replaced by a local 
     category: 'economy',
     effects: [{ type: 'not_an_effect', amount: 1 }],
   }));
-  await assert.rejects(() => api.llmOpeningProject('test-key', 'gpt-6-luna', readyState()));
+  await assert.rejects(() => api.llmOpeningProject('gpt-6-luna', readyState()));
 });
 
 test('later offers also come only from the model', async () => {
@@ -123,7 +123,7 @@ test('later offers also come only from the model', async () => {
       effects: [{ type: 'defense_bonus', amount: 1 }],
     }],
   }));
-  const offers = await api.llmScienceOffers('test-key', 'glm-5.2', readyState());
+  const offers = await api.llmScienceOffers('glm-5.2', readyState());
   assert.equal(offers.length, 2);
   assert.deepEqual(offers.map(offer => offer.scienceName), ['Счёт паводков', 'Щиты из ивы']);
 });
@@ -136,7 +136,7 @@ test('a building in a new land is named by the model for this community', async 
   });
   const state = readyState();
   const tile = state.world.tiles.find(candidate => candidate.siteType === 'food') || state.world.tiles[0];
-  const flavor = await api.llmRegionBuildingName('test-key', 'gpt-6-luna', state, tile, {
+  const flavor = await api.llmRegionBuildingName('gpt-6-luna', state, tile, {
     name: 'Ирригация и запруды', description: 'Запруды и канавы',
   });
   assert.equal(flavor.name, 'Запруда Тихой Ивы');
@@ -146,13 +146,16 @@ test('a building in a new land is named by the model for this community', async 
   assert.ok(system.includes('своё имя'), 'the model is asked for an original name');
 });
 
-test('the API key is verified against the provider before the game starts', async () => {
-  const okApi = loadCards(async () => fakeResponse({ choices: [{ message: { content: 'готов' } }] }));
-  await okApi.probeApiKey('good-key', 'gpt-6-luna');
+test('the AI connection is probed through the server proxy, never with a key from the browser', async () => {
+  const requests = [];
+  const okApi = loadCards(async (url, init) => {
+    requests.push({ url, init });
+    return fakeResponse({ choices: [{ message: { content: 'готов' } }] });
+  });
+  await okApi.probeApiKey('gpt-6-luna');
+  assert.equal(requests[0].url, '/api/hydra', 'the client only talks to its own server proxy, never to api.hydraai.ru directly');
+  assert.equal(requests[0].init.headers.Authorization, undefined, 'no API key is ever attached on the client side');
 
-  const badApi = loadCards(async () => fakeResponse({ error: { message: 'Invalid API key' } }, false, 401));
-  await assert.rejects(() => badApi.probeApiKey('bad-key', 'gpt-6-luna'), /Invalid API key/);
-
-  const emptyApi = loadCards(async () => fakeResponse({}));
-  await assert.rejects(() => emptyApi.probeApiKey('  ', 'gpt-6-luna'), /Введите API-ключ/);
+  const badApi = loadCards(async () => fakeResponse({ error: { message: 'Сервер не настроен: переменная окружения HYDRA_API_KEY не задана на Vercel.' } }, false, 500));
+  await assert.rejects(() => badApi.probeApiKey('gpt-6-luna'), /HYDRA_API_KEY/);
 });

@@ -100,6 +100,14 @@
             'Соль можно добывать для хранения пищи и обмена с соседями.',
             'Белые отложения указывают на соляное место, ценное в долгих переходах.'
         ],
+        obsidian: [
+            'Чёрное вулканическое стекло колется острыми сколами — находка для мастерской.',
+            'Застывшая лава даёт обсидиан, ценимый за твёрдость и острый край.'
+        ],
+        iron: [
+            'Рыжие пятна на камне выдают железную руду — твёрже бронзы, если её выплавить.',
+            'Болотная руда и горные жилы сулят железо для крепкого оружия и орудий.'
+        ],
         settlement: [
             'Здесь стоит поселение соседнего народа; его земли охраняет местная дружина.',
             'Дым над крышами выдаёт укреплённую стоянку соперников.'
@@ -314,6 +322,8 @@
         if (tile.feature === 'copper-vein') return pick(rng, TERRAIN_TEXT[tile.terrain]) + ' ' + pick(rng, SITE_TEXT.copper);
         if (tile.feature === 'tin-route') return pick(rng, TERRAIN_TEXT[tile.terrain]) + ' ' + pick(rng, SITE_TEXT.tin);
         if (tile.feature === 'salt-deposit') return pick(rng, TERRAIN_TEXT[tile.terrain]) + ' ' + pick(rng, SITE_TEXT.salt);
+        if (tile.feature === 'obsidian-vein') return pick(rng, TERRAIN_TEXT[tile.terrain]) + ' ' + pick(rng, SITE_TEXT.obsidian);
+        if (tile.feature === 'iron-vein') return pick(rng, TERRAIN_TEXT[tile.terrain]) + ' ' + pick(rng, SITE_TEXT.iron);
         const base = pick(rng, TERRAIN_TEXT[tile.terrain]);
         const site = pick(rng, SITE_TEXT[tile.siteType] || SITE_TEXT.food);
         return tile.hasRiver ? base + ' Рядом проходит река. ' + site : base + ' ' + site;
@@ -449,6 +459,25 @@
             salt.resource = 'salt';
             salt.resourceLabel = 'Соляное место';
         }
+        // Обсидиан: ключевой ресурс Каменного века (эра 0), доступен с самого начала игры
+        // (нет minEra) — месторождения лавового стекла ищут среди гор и холмов, как и медь.
+        const obsidian = metalCandidate(['mountain', 'hills'], true);
+        if (obsidian) {
+            obsidian.siteType = 'obsidian';
+            obsidian.feature = 'obsidian-vein';
+            obsidian.resource = 'obsidian';
+            obsidian.resourceLabel = 'Обсидиановая жила';
+        }
+        // Железо: ключевой ресурс Античности (эра 3) — как медь/олово, доступно для освоения
+        // только с достижением этой эпохи (minEra: 3).
+        const iron = metalCandidate(['hills', 'mountain'], true);
+        if (iron) {
+            iron.siteType = 'iron';
+            iron.feature = 'iron-vein';
+            iron.resource = 'iron';
+            iron.resourceLabel = 'Железная руда';
+            iron.minEra = 3;
+        }
 
         const usedNames = new Set();
         for (let index = 0; index < tiles.length; index++) {
@@ -464,6 +493,8 @@
             if (tile.feature === 'copper-vein') tile.shortText = 'Медь · плавильня';
             else if (tile.feature === 'tin-route') tile.shortText = 'Олово · торговый путь';
             else if (tile.feature === 'salt-deposit') tile.shortText = 'Соль · солеварня';
+            else if (tile.feature === 'obsidian-vein') tile.shortText = 'Обсидиан · мастерская';
+            else if (tile.feature === 'iron-vein') tile.shortText = 'Железо · кузница';
             else if (tile.kind === 'settlement') tile.shortText = tile.factionName;
             else if (tile.kind === 'home') tile.shortText = 'Столица игрока';
             else if (tile.hasRiver) tile.shortText = 'Река · ' + tile.terrainLabel.toLowerCase();
@@ -526,7 +557,7 @@
             const saved = rawById.get(fallback.id);
             if (!saved || Number(saved.x) !== fallback.x || Number(saved.y) !== fallback.y) return fallback;
             const terrain = Object.hasOwn(TERRAIN, saved.terrain) ? saved.terrain : fallback.terrain;
-            const allowedSiteTypes = ['water', 'home', 'food', 'materials', 'knowledge', 'copper', 'tin', 'salt', 'settlement'];
+            const allowedSiteTypes = ['water', 'home', 'food', 'materials', 'knowledge', 'copper', 'tin', 'salt', 'obsidian', 'iron', 'settlement'];
             const kind = ['water', 'home', 'resource', 'settlement'].includes(saved.kind) ? saved.kind : fallback.kind;
             const initialOwner = saved.initialOwner === 'player' || opponentIds.has(saved.initialOwner) ? saved.initialOwner : fallback.initialOwner;
             return {
@@ -536,7 +567,7 @@
                 icon: TERRAIN[terrain].icon,
                 kind: fallback.x === CENTER.x && fallback.y === CENTER.y ? 'home' : kind,
                 siteType: allowedSiteTypes.includes(saved.siteType) ? saved.siteType : fallback.siteType,
-                feature: typeof saved.feature === 'string' && ['river', 'settlement', 'copper-vein', 'tin-route', 'salt-deposit'].includes(saved.feature) ? saved.feature : fallback.feature,
+                feature: typeof saved.feature === 'string' && ['river', 'settlement', 'copper-vein', 'tin-route', 'salt-deposit', 'obsidian-vein', 'iron-vein'].includes(saved.feature) ? saved.feature : fallback.feature,
                 hasRiver: Boolean(saved.hasRiver),
                 elevation: clamp(saved.elevation, 0, 100, fallback.elevation),
                 moisture: clamp(saved.moisture, 0, 100, fallback.moisture),
@@ -546,7 +577,7 @@
                 shortText: cleanText(saved.shortText, 80, fallback.shortText),
                 initialOwner: fallback.x === CENTER.x && fallback.y === CENTER.y ? 'player' : initialOwner,
                 minEra: clamp(saved.minEra, 0, 6, fallback.minEra),
-                resource: ['copper', 'tin', 'salt'].includes(saved.resource) ? saved.resource : fallback.resource,
+                resource: ['copper', 'tin', 'salt', 'obsidian', 'iron'].includes(saved.resource) ? saved.resource : fallback.resource,
                 resourceLabel: cleanText(saved.resourceLabel, 60, fallback.resourceLabel),
                 factionName: cleanText(saved.factionName, 60, fallback.factionName),
                 guard: fallback.guard ? { ...fallback.guard } : null,

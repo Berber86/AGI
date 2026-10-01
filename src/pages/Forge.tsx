@@ -19,7 +19,7 @@ function readAdvice(season: number, day: number): Advice[] | null {
 }
 
 export default function Forge() {
-  const { game, act, addCard, apiKey, model, toast, go } = useStore();
+  const { game, act, addCard, model, toast, go } = useStore();
   const p = game.player;
   const [advice, setAdvice] = useState<Advice[]>(() => readAdvice(game.season, game.day) ?? []);
   const [pick, setPick] = useState<string | null>(null);
@@ -44,13 +44,9 @@ export default function Forge() {
   const block: string | null = !selected ? "Выберите замысел карты." : dry.error || null;
 
   const askAdvisor = async () => {
-    if (!apiKey) {
-      toast("Нужен API-ключ: замыслы придумывает советник, готовых идей в игре нет.", "bad");
-      return;
-    }
     setAskLoading(true);
     try {
-      const list = await llmAdvice(apiKey, model, game);
+      const list = await llmAdvice(model, game);
       setAdvice(list);
       toast("Советник предложил новые замыслы.", "ok");
     } catch (e: any) {
@@ -65,18 +61,20 @@ export default function Forge() {
   };
 
   const forge = async () => {
-    if (!selected || block) return;
+    if (!selected || block || busy) return;
     const invest = { materialQuality: material, effort };
-    const begin = M.beginCardCraft(M.clone(game), invest, Math.random(), `${CARD_TYPE_INFO[selected.cardType].label}: ${selected.title} — ${selected.pitch}`);
-    if (begin.error) { toast(begin.error, "bad"); return; }
+    const advisorOrder = `${CARD_TYPE_INFO[selected.cardType].label}: ${selected.title} — ${selected.pitch}`;
+    // Коммитим через act(), чтобы beginCardCraft проверял и писал в АКТУАЛЬНОЕ состояние
+    // (а не в замороженный снэпшот) — это не даёт двойному клику дважды списать ресурсы
+    // и затереть уже созданный заказ.
+    const begin = act((s) => M.beginCardCraft(s, invest, Math.random(), advisorOrder), { silent: true });
+    if (!begin) return; // act() уже показал тост с ошибкой
     const order = begin.order;
-    act(() => begin, { silent: true });
     setBusy(order.id);
     const started = Date.now();
     try {
-      if (!apiKey) throw new Error("нужен API-ключ");
       const snapshot = M.clone(game);
-      const card: Card = await llmCard(apiKey, order.modelId, selected, order.rarity as Rarity, snapshot);
+      const card: Card = await llmCard(order.modelId, selected, order.rarity as Rarity, snapshot);
       const wait = 1400 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       const done = act((s) => M.completeCardCraft(s, order.id, card), { silent: true });
@@ -103,7 +101,15 @@ export default function Forge() {
           <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Выковать карту</h1>
           <p className="mt-1 max-w-xl text-sm text-dim">Три шага: замысел, сырьё, усилия. Чем лучше вложения, тем выше шанс редкой карты. Одна ковка в день.</p>
         </div>
-        <Chip tone={p.dailyOrders.craftUsed ? "neutral" : "bronze"}><Anvil size={12} />{p.dailyOrders.craftUsed ? "Ковка сегодня использована" : "Ковка доступна"}</Chip>
+        {(() => {
+          // order_capacity от построек советника может поднять дневной лимит ковки с 1 до 2.
+          const craftCap = M.getOrderCapacity(game);
+          const craftUsedUp = (p.dailyOrders.craftUsed || 0) >= craftCap;
+          const craftLabel = craftUsedUp
+            ? "Ковка сегодня использована" + (craftCap > 1 ? ` (${p.dailyOrders.craftUsed}/${craftCap})` : "")
+            : "Ковка доступна" + (craftCap > 1 ? ` (${p.dailyOrders.craftUsed}/${craftCap})` : "");
+          return <Chip tone={craftUsedUp ? "neutral" : "bronze"}><Anvil size={12} />{craftLabel}</Chip>;
+        })()}
       </div>
 
       {orders.length > 0 && (
@@ -188,6 +194,9 @@ export default function Forge() {
                   <Meter value={quote.odds[k]} max={100} color={bar} />
                 </div>
               ))}
+              {quote.rareLocked && quote.rareLockText && (
+                <p className="text-[11.5px] leading-relaxed text-dim">🔒 {quote.rareLockText}</p>
+              )}
             </div>
             <dl className="mt-5 space-y-2 border-t border-line pt-4 text-sm">
               <div className="flex items-center justify-between"><dt className="text-dim">Цена</dt><dd><Cost cost={quote.cost} have={p.resources} /></dd></div>

@@ -54,7 +54,7 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   shieldwall: { name: "Стена щитов", desc: "+1 брони; при соседях урон ниже ещё на 1." },
   wedge: { name: "Клин", desc: "+1 к атаке за каждого соседа (до +2)." },
   phalanx: { name: "Фаланга", desc: "+1 к атаке и +1 брони." },
-  skirmish: { name: "Засадный", desc: "После атаки отступает в тыл." },
+  skirmish: { name: "Засадный", desc: "После своей атаки уходит в тыл и дальше бьёт как дальний бой — по любой цели. Если его атакуют в ближнем бою, уклоняется в тыл до обмена ударами." },
   taunt: { name: "Провокация", desc: "Враг обязан атаковать этот отряд первым." },
   poison: { name: "Яд", desc: "Отравляет цель при атаке: N урона в начале её хода." },
   burn: { name: "Поджог", desc: "Поджигает цель при атаке; огонь может перекинуться." },
@@ -72,6 +72,12 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   raider: { name: "Налётчик", desc: "При попадании по отряду крадёт 1 энергию у противника и передаёт её вам." },
   harras: { name: "Набег", desc: "На следующий ход противника уменьшает прирост общей энергии на 1." },
   exhaustenemy: { name: "Изнурение", desc: "При розыгрыше отнимает 1 текущую энергию у противника." },
+  cleave: { name: "Рассечение", desc: "При атаке дополнительно наносит N урона всем соседям цели в её ряду." },
+  vengeance: { name: "Месть", desc: "При гибели в бою наносит N урона своему убийце, если тот ещё жив." },
+  relentless: { name: "Неутомимый", desc: "Может атаковать дважды за ход, если хватает энергии на обе атаки." },
+  scavenger: { name: "Мародёр", desc: "+1 к атаке за каждые 2 карты во вражеском сбросе (максимум +2)." },
+  unbreakable: { name: "Несокрушимый", desc: "Полный иммунитет к бегству от страха и морали." },
+  laststand: { name: "Последний рубеж", desc: "Если это единственный живой отряд в своём ряду — +1 к атаке и +1 брони." },
 };
 
 const SUPPORTED_KEYWORDS = new Set(Object.keys(KEYWORD_INFO));
@@ -99,12 +105,19 @@ export function describeEffect(e: any): string {
     enter_play: "При выходе",
     attack: "После атаки",
     turn_start: "В начале хода",
+    turn_end: "В конце хода",
+    damaged: "При получении урона",
     death: "При гибели",
     card_death: `Когда гибнет ${e.watch?.side === "friendly" ? "свой" : e.watch?.side === "enemy" ? "вражеский" : "любой"} отряд`,
+    card_enter_play: `Когда выходит ${e.watch?.side === "friendly" ? "своя" : e.watch?.side === "enemy" ? "вражеская" : "любая"} карта`,
   };
   const a = e.action;
   const t = e.target || {};
-  const who = t.entity === "player" ? `${SIDE_TXT[t.side] ?? ""} вождя`.trim() : `${t.count > 1 ? t.count + " " : ""}${SIDE_TXT[t.side] ?? ""} ${t.entity === "structure" ? "постройку" : "отряд"}`;
+  const entityNoun =
+    t.select === "all" ? (t.entity === "structure" ? "все постройки" : "все отряды") :
+    t.select === "random" ? (t.entity === "structure" ? "случайную постройку" : "случайный отряд") :
+    `${t.count > 1 ? t.count + " " : ""}${t.entity === "structure" ? "постройку" : "отряд"}`;
+  const who = t.entity === "player" ? `${SIDE_TXT[t.side] ?? ""} вождя`.trim() : `${SIDE_TXT[t.side] ?? ""} ${entityNoun}`.trim();
   const rel = t.relation === "self" ? "себя" : t.relation === "adjacent" ? "соседей" : t.relation === "attack_target" ? "цель удара" : null;
   const target = rel ?? who;
   let act = "";
@@ -165,9 +178,15 @@ export function buildMilitia(): Card[] {
 
 /* ---------- Ополчение: пул по эпохе и выбор игрока ---------- */
 
-/** Пул ополчения народа в эту эпоху: бронзовые бойцы приходят вместе со второй эпохой. */
-export function militiaPool(era = 0): Card[] {
-  return buildMilitia().filter((c) => c.era !== "bronze" || era >= 1);
+/**
+ * Пул ополчения, которое бесплатно добивает пустые слоты колоды игрока.
+ * Намеренно ограничен двумя самыми простыми бойцами — копейщиком и пращником:
+ * остальные бойцы племени (топорники, конные разведчики, дружина, постройки и т.д.)
+ * больше не выдаются даром, а становятся доступны только когда игрок выковывает
+ * собственные карты в кузнице.
+ */
+export function militiaPool(_era = 0): Card[] {
+  return buildMilitia().slice(0, 2);
 }
 
 export function militiaById(id: string, era = 0): Card | null {
@@ -198,7 +217,7 @@ export function allCards(collection: Card[]): Card[] {
 
 /* ---------- Валидация карты (для ответа LLM) ---------- */
 
-const EVENTS = ["enter_play", "attack", "turn_start", "death", "card_death"];
+const EVENTS = ["enter_play", "attack", "turn_start", "turn_end", "death", "card_death", "card_enter_play", "damaged"];
 const ACTIONS = ["damage", "heal", "apply_status", "destroy", "modify_resource", "modify_stat", "modify_cost", "draw", "discard", "exchange", "scry"];
 const CMP = ["eq", "ne", "lt", "lte", "gt", "gte"];
 
@@ -219,6 +238,7 @@ function validateCondition(node: any, depth = 0): any {
   if (node.type === "target_status") { if (!["poison", "burn"].includes(node.status)) throw new Error("Неизвестный статус в условии."); return { type: "target_status", status: node.status }; }
   if (node.type === "target_stat") { if (!["hp", "attack", "armor"].includes(node.stat) || !CMP.includes(node.op)) throw new Error("Некорректное условие target_stat."); return { type: "target_stat", stat: node.stat, op: node.op, value: int(node.value, 0, 99, "value") }; }
   if (node.type === "resource") { if (!["controller", "opponent"].includes(node.side) || !["energy", "drop", "action"].includes(node.resource) || !CMP.includes(node.op)) throw new Error("Некорректное условие resource."); return { type: "resource", side: node.side, resource: "energy", op: node.op, value: int(node.value, 0, 99, "value") }; }
+  if (node.type === "board_count") { if (!["controller", "opponent"].includes(node.side) || !CMP.includes(node.op)) throw new Error("Некорректное условие board_count."); return { type: "board_count", side: node.side, op: node.op, value: int(node.value, 0, 8, "value") }; }
   throw new Error("Неизвестный тип условия.");
 }
 
@@ -230,7 +250,7 @@ export function validateEffects(raw: any): any[] {
     if (!e || typeof e !== "object" || Array.isArray(e)) fail("ожидался объект.");
     if (!EVENTS.includes(e.event)) fail("неизвестное событие.");
     let watch: any = undefined;
-    if (e.event === "card_death") {
+    if (e.event === "card_death" || e.event === "card_enter_play") {
       if (!e.watch || !["all", "friendly", "enemy"].includes(e.watch.side)) fail("нужен watch.side.");
       watch = { side: e.watch.side };
     }
@@ -268,7 +288,7 @@ export function validateEffects(raw: any): any[] {
     const target: any = { side: t.side, entity: t.entity };
     if (t.zone !== undefined) { if (!["front", "rear", "any"].includes(t.zone)) fail("zone неизвестна."); target.zone = t.zone; }
     if (t.relation !== undefined) { if (!["any", "self", "adjacent", "attack_target"].includes(t.relation)) fail("relation неизвестен."); target.relation = t.relation; }
-    if (t.select !== undefined) { if (!["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose"].includes(t.select)) fail("select неизвестен."); target.select = t.select; }
+    if (t.select !== undefined) { if (!["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose", "all", "random"].includes(t.select)) fail("select неизвестен."); target.select = t.select; }
     if ((target.select === "attack_target" || target.relation === "attack_target") && e.event !== "attack") fail("attack_target только для события attack.");
     if (target.relation === "adjacent" && target.entity === "player") fail("adjacent неприменим к игроку.");
     if (e.event === "death" && target.relation === "self") fail("погибший источник не может быть целью.");
@@ -283,7 +303,21 @@ export function validateEffects(raw: any): any[] {
   });
 }
 
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[]): Card {
+// Бюджет силы карты от ИИ-Кузнеца. Раньше drop_cost/action_cost/hp/atk проверялись только независимо друг от
+// друга (int() проверяет лишь диапазон 0-99 для каждого поля отдельно) — ничто не мешало модели вернуть,
+// например, atk:99 и hp:99 при drop_cost:0, пройдя валидацию без единой ошибки. Системный промпт просит модель
+// соблюдать баланс сама, но это не гарантия: один "сорвавшийся" ответ создаёт карту вне всякого баланса.
+// Теперь суммарная сила (атака + здоровье + грубый вес ключевых слов) ограничена бюджетом от заявленной
+// стоимости розыгрыша/действия и редкости заказа; излишек урезается пропорционально, а не просто принимается
+// (баланс-ревизия).
+const RARITY_BUDGET_MULT: Record<string, number> = { ordinary: 1, uncommon: 1.3, rare: 1.7 };
+function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string): number {
+  const mult = RARITY_BUDGET_MULT[rarity] || 1;
+  const base = cardType === "structure" ? 2 * dropCost + 1 : 2 * dropCost + actionCost + 1;
+  return Math.max(2, Math.round(base * mult));
+}
+
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary"): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
@@ -301,6 +335,16 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
+  if (c.card_type !== "spell") {
+    const keywordWeight = c.keywords.length;
+    const power = c.atk + c.hp + keywordWeight;
+    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity);
+    if (power > budget) {
+      const scale = budget / power;
+      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
+      c.hp = Math.max(1, Math.round(c.hp * scale));
+    }
+  }
   c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
@@ -315,18 +359,20 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   return c as Card;
 }
 
-/* ---------- LLM (Hydra API) ---------- */
+/* ---------- LLM (Hydra API) ----------
+   Ключ больше нигде не вводится руками: он лежит только в переменной окружения
+   HYDRA_API_KEY на сервере (Vercel) и используется прокси-функцией /api/hydra.
+   Браузер этот ключ никогда не видит — только относительный путь к своей же функции. */
 
-const HYDRA_URL = "https://api.hydraai.ru/v1/chat/completions";
+const HYDRA_PROXY_URL = "/api/hydra";
 
-/** Минимальная проверка ключа: один короткий запрос без разбора ответа модели. */
-export async function probeApiKey(key: string, model: string): Promise<void> {
-  if (!key || !key.trim()) throw new Error("Введите API-ключ.");
+/** Проверка, что сервер настроен и ИИ отвечает: один короткий запрос без разбора ответа модели. */
+export async function probeApiKey(model: string): Promise<void> {
   let resp: Response;
   try {
-    resp = await fetch(HYDRA_URL, {
+    resp = await fetch(HYDRA_PROXY_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: model || "gpt-6-luna",
         messages: [{ role: "user", content: "Ответь одним словом: готов" }],
@@ -335,14 +381,14 @@ export async function probeApiKey(key: string, model: string): Promise<void> {
       }),
     });
   } catch {
-    throw new Error("Нет связи с api.hydraai.ru. Проверьте интернет.");
+    throw new Error("Нет связи с сервером игры. Проверьте интернет.");
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Ключ не принят (HTTP ${resp.status}).`);
+    throw new Error(err?.error?.message || `ИИ недоступен (HTTP ${resp.status}).`);
   }
   const data = await resp.json().catch(() => ({}));
-  if (data?.error) throw new Error(data.error.message || "Ключ не принят.");
+  if (data?.error) throw new Error(data.error.message || "ИИ недоступен.");
 }
 
 /** Приводит проект совета к схеме кампании; null — если проект невалиден. */
@@ -369,12 +415,12 @@ export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): an
 const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}],"rationale":"1 предложение: почему это следует из затравки"}`;
 
 /** Первый проект народа: единственная наука, выведенная из затравки игрока. */
-export async function llmOpeningProject(key: string, model: string, state: any): Promise<any> {
+export async function llmOpeningProject(model: string, state: any): Promise<any> {
   const sit = M.scienceAdvisorSituation(state);
   const p = state.player;
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 1200,
+    model, temperature: 1, maxTokens: 1200,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Игрок только что основал народ и выбрал его затравку — готовый замысел о том, чем этот народ живёт и куда смотрит.
 Придумай РОВНО ОДНО первое дело народа: науку и связанную с ней постройку. Оно должно прямо продолжать затравку и опираться на землю, черту и наследие народа. Никаких готовых шаблонов — придумай свой образ.
@@ -387,11 +433,11 @@ export async function llmOpeningProject(key: string, model: string, state: any):
 }
 
 /** Три новых проекта по текущей ситуации и затравке; направление выбирает сам советник. */
-export async function llmScienceOffers(key: string, model: string, state: any): Promise<any[]> {
+export async function llmScienceOffers(model: string, state: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 1600,
+    model, temperature: 1, maxTokens: 1600,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Игрок не выбирает направление — ты сам читаешь затравку народа, земли, запасы и эпоху. Предложи ровно 3 РАЗНЫХ проекта (наука + связанная постройка): один отвечает на нехватку пропитания и хозяйство, один — на защиту и войну, один — на знания и устройство общества. Каждый проект должен опираться на конкретную ситуацию народа, а не на общий список наук.
 Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ...]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1. Язык — русский, без магии.`,
@@ -404,10 +450,10 @@ export async function llmScienceOffers(key: string, model: string, state: any): 
 }
 
 /** Имя и описание постройки в новой земле: уникальные для этого народа, а не из списка. */
-export async function llmRegionBuildingName(key: string, model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
+export async function llmRegionBuildingName(model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
   const p = state.player;
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 300,
+    model, temperature: 1, maxTokens: 300,
     system: `Ты — летописец исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Народ обустроил новую землю и возводит там постройку. Придумай ИМЕННО ЭТОЙ общине своё имя постройки и короткое описание — не шаблонное, связанное с местом и затравкой народа.
 Ответ — строго JSON: {"name":"до 40 знаков","description":"одно предложение до 160 знаков"}. Язык — русский.`,
@@ -418,10 +464,10 @@ export async function llmRegionBuildingName(key: string, model: string, state: a
   return { name, description: String(data?.description || "").trim().slice(0, 180) };
 }
 
-async function hydraChat(opts: { key: string; model: string; system: string; user: string; temperature: number; maxTokens: number }) {
-  const resp = await fetch(HYDRA_URL, {
+async function hydraChat(opts: { model: string; system: string; user: string; temperature: number; maxTokens: number }) {
+  const resp = await fetch(HYDRA_PROXY_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${opts.key}`, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: opts.model,
       messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.user }],
@@ -453,10 +499,10 @@ export function contextOf(state: any): string {
   ].filter(Boolean).join("\n");
 }
 
-export async function llmAdvice(key: string, model: string, state: any): Promise<Advice[]> {
+export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   const era = state.player.era >= 3 ? "ancient и bronze" : "ancient";
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 900,
+    model, temperature: 1, maxTokens: 900,
     system: "Ты военный советник кузницы исторической карточной стратегии о становлении цивилизаций (древний мир и бронзовый век, без магии и фэнтези). Предложи ровно три замысла карты: один card_type=unit, один spell, один structure. Ответ — JSON: {\"choices\":[{\"card_type\":\"unit|spell|structure\",\"title\":\"короткое название\",\"pitch\":\"1 предложение, один образ\"}]}. Язык — русский.",
     user: `Контекст цивилизации:\n${contextOf(state)}\nРазрешённые эпохи карт: ${era}.`,
   });
@@ -470,38 +516,39 @@ export async function llmAdvice(key: string, model: string, state: any): Promise
 
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Эпохи карт: "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
-Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep. Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
+Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
 description — 1–2 коротких предложения, один образ.
 effects[] — объекты {event, target, action, condition?, watch?}:
- event: enter_play | attack | turn_start | death | card_death (для card_death обязателен watch:{side:all|friendly|enemy}).
- target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|any, relation?: any|self|adjacent|attack_target, select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose, count?: 1-3}
+ event: enter_play | attack | turn_start | turn_end | damaged (это событие срабатывает у самого отряда, когда он получает урон в бою) | death | card_death (когда гибнет отряд) | card_enter_play (когда выходит любая карта: отряд, постройка или манёвр). Для card_death и card_enter_play обязателен watch:{side:all|friendly|enemy}.
+ target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|any, relation?: any|self|adjacent|attack_target, select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random (all — абсолютно все подходящие цели сразу, игнорирует count; random — count случайных целей), count?: 1-3}
  action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn, amount 1-5, turns 1-3) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
+condition (необязательное поле эффекта) помимо target_wounded/target_status/target_stat/resource теперь поддерживает board_count: {type:"board_count", side: controller|opponent, op: eq|ne|lt|lte|gt|gte, value: 0-8} — количество живых отрядов на стороне.
 У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки atk=0, action_cost=0, hp≥1. У отряда hp≥1.
 Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
 {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":""}
 Язык — русский.`;
 
-export async function llmCard(key: string, model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
+export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
   const allowed = state.player.era >= 3 ? ["ancient", "bronze"] : ["ancient"];
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   const raw = await hydraChat({
-    key, model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
+    model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
     system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
     user: `Замысел: «${advice.title}». ${advice.pitch}\ncard_type="${advice.cardType}". ${directive}\n\nКонтекст цивилизации:\n${contextOf(state)}`,
   });
-  const card = validateCard(raw, advice.cardType, allowed);
+  const card = validateCard(raw, advice.cardType, allowed, rarity);
   card.rarity = rarity;
   card.id = "card-" + uid();
   return card;
 }
 
-export async function llmScience(key: string, model: string, state: any, branch: any): Promise<any[]> {
+export async function llmScience(model: string, state: any, branch: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 1400,
+    model, temperature: 1, maxTokens: 1400,
     system: `Ты научный советник исторической стратегии. Игрок выбрал широкую ветвь; придумай 3 РАЗНЫХ замысла (наука + здание). Ответ — JSON: {"projects":[{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}]}]}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1. Язык — русский, без магии.`,
     user: `Эпоха: ${M.eraName(state.player.era)}. Направление: «${branch.label}» — ${branch.prompt}. Ситуация: ${sit.summary}`,
   });

@@ -78,7 +78,7 @@ export default function Army() {
         </div>
         {deck.length < cfg.deckLimit && (
           <p className="mt-2.5 text-xs leading-relaxed text-faint">
-            Свободные слоты ({cfg.deckLimit - deck.length}) в бою добьют ополченцы поселения — они не входят в коллекцию и уходят, когда вы выкуете свои карты.
+            Свободные слоты ({cfg.deckLimit - deck.length}) в бою добьют максимум два простых ополченца поселения — они не входят в коллекцию. Более сильных бойцов нужно выковать самому в кузнице.
           </p>
         )}
         <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -106,7 +106,7 @@ export default function Army() {
               <span className="text-xs text-faint">Выбрано {incoming.length} из {missing} свободных слотов</span>
             </div>
             <p className="mt-1 text-[12.5px] leading-relaxed text-dim">
-              Свободные слоты займут эти бойцы — в том порядке, в каком вы их выбрали. Нажмите, чтобы взять или отпустить.
+              Это всё доступное бесплатное ополчение — только эти двое. Выберите, кто выйдет первым; остальных более сильных бойцов нужно выковать самому в кузнице.
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {pool.map((c) => {

@@ -43,7 +43,9 @@
         { id: 'writing', label: 'Письмо и учёт', prompt: 'клинопись Шумера, иероглифы Египта, счёт и бюрократия. Урук 3400 до н.э.', minEra: 1, category: 'science', effect: 'income_knowledge', building: 'дом табличек или школа писцов' },
         { id: 'metallurgy', label: 'Медь и металлургия', prompt: 'добыча и обработка меди, доступные для текущей эпохи. Балканы 5000 до н.э., первые медники', minEra: 2, category: 'economy', effect: 'income_materials', building: 'рудник или литейная мастерская' },
         { id: 'bronze', label: 'Бронзовые сплавы', prompt: 'бронзовое литьё и снабжение инструментами. Аккад — бронзовое оружие Саргона', minEra: 3, category: 'economy', effect: 'income_materials', building: 'бронзовая литейная' },
-        { id: 'irrigation-empire', label: 'Империя ирригации', prompt: 'государство каналов, как Аккад и Египет — централизация, налоги зерном, бюрократия', minEra: 2, category: 'civic', effect: 'storage_bonus', building: 'государственные закрома или домена фараона' }
+        { id: 'irrigation-empire', label: 'Империя ирригации', prompt: 'государство каналов, как Аккад и Египет — централизация, налоги зерном, бюрократия', minEra: 2, category: 'civic', effect: 'storage_bonus', building: 'государственные закрома или домена фараона' },
+        { id: 'administration', label: 'Управление и распорядок', prompt: 'учёт дневных дел общины, писцы-распорядители, которые помогают вождю успевать больше дел за день. Урук и ранние царства — табличка нарядов, староста общины', minEra: 1, category: 'civic', effect: 'ap_max', building: 'палата нарядов или дом распорядителя' },
+        { id: 'guilds', label: 'Цеха и ремёсла', prompt: 'объединение мастеров в цеха и наставничество, которые позволяют повторить одно и то же дело дважды за день. Поздняя бронза и раннее железо — цеховые уставы', minEra: 2, category: 'civic', effect: 'order_capacity', building: 'дом цехов или зал мастеров' }
     ];
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
     const BARBARIAN_ERA_CAP = 2; // В локальном MVP племена автоматически развиваются не дальше Средневековья.
@@ -97,7 +99,17 @@
         upkeep_reduction: { label: '-0.1 к upkeep зданий', category: 'civic', max: 2 },
         fatigue_resist: { label: '+1 ход до усталости в бою', category: 'military', max: 2 },
         active_building_slots: { label: '+1 активная постройка', category: 'civic', max: 1 },
-        craft_quality: { label: '+1 к качеству ковки', category: 'science', max: 2 }
+        craft_quality: { label: '+1 к качеству ковки', category: 'science', max: 2 },
+        // Баланс-ревизия: до этого эффекта ни одна постройка советника не могла поднять
+        // ни сам пул AP, ни дневной лимит повторения одного и того же приказа — игрок был
+        // навечно заперт в "2 AP на 4 ветки", сколько бы эпох ни прошло. Эти два эффекта
+        // дают учёному реальный рычаг прокачать именно дневной темп игрока, а не только доход/бой.
+        ap_max: { label: '+1 к максимуму AP в день', category: 'civic', max: 1 },
+        order_capacity: { label: '+1 к дневному лимиту каждого приказа (можно повторить тот же тип за день)', category: 'civic', max: 1 },
+        // Воинская доктрина эпохи: советник может предложить такое здание в любое время,
+        // но построить его реально получится только когда освоен ключевой ресурс ТЕКУЩЕЙ
+        // эпохи (см. ERA_KEY_RESOURCE и hasEraKeyResource) — проверка идёт в constructBlueprint.
+        unit_power: { label: '+1 к атаке всех ваших отрядов в бою', category: 'military', max: 1 }
     };
     // Эффекты, которые советнику реально предлагает модель: только с рабочей механикой.
     const GENERATIVE_EFFECTS = Object.keys(EFFECTS).filter(key => !EFFECTS[key].hidden);
@@ -116,7 +128,9 @@
             bronze: ['Бронзовый сплав', 'Олово и медь', 'Литейные формы', 'Закалка', 'Инструменты', 'Бронзовый век'],
             horse: ['Приручение коня', 'Повозки', 'Курганы', 'Кони Ямной', 'Колесницы', 'Всадники степи', 'Табун'],
             writing: ['Клинопись', 'Иероглифы', 'Счётные таблички', 'Дом табличек', 'Школа писцов', 'Учёт зерна', 'Печать'],
-            'irrigation-empire': ['Каналы фараона', 'Закрома Аккада', 'Налоги зерном', 'Ирригационная империя', 'Домен', 'Государство']
+            'irrigation-empire': ['Каналы фараона', 'Закрома Аккада', 'Налоги зерном', 'Ирригационная империя', 'Домен', 'Государство'],
+            administration: ['Табличка нарядов', 'Палата дел', 'Распорядок дня', 'Писцы-распорядители', 'Смотритель общины', 'Учёт нарядов'],
+            guilds: ['Цеховой устав', 'Мастеровые ряды', 'Общий зал ремёсел', 'Наставники цеха', 'Порядок мастерских']
         },
         scienceSuffixes: ['практики', 'наблюдений', 'опыт общины', 'старших', 'ремесла', 'уклада', 'заповедь', 'знание', 'приём'],
         buildingPrefixes: {
@@ -126,6 +140,8 @@
             copper: ['Медная плавильня', 'Тигельный двор', 'Малахитовая мастерская', 'Горн у жилы'],
             tin: ['Оловянный склад', 'Караванный стан', 'Торговый двор', 'Перевальный рынок'],
             salt: ['Солеварня', 'Соляной склад', 'Белые копи', 'Соляной двор'],
+            obsidian: ['Обсидиановая мастерская', 'Стекольный навес', 'Вулканический двор', 'Чёрная жила'],
+            iron: ['Железоплавильня', 'Кузнечный двор', 'Рудный горн', 'Железный стан'],
             settlement: ['Форпост', 'Общий двор', 'Пограничный стан', 'Застава', 'Крепкие ворота']
         },
         regionEvents: {
@@ -135,6 +151,8 @@
             copper: ['медь отделилась от породы в малом горне', 'зелёный малахит подсказал, где искать руду', 'первый слиток обменяли на зерно'],
             tin: ['путники принесли вести с оловянной тропы', 'редкая руда дошла до общины через обмен', 'караван прошёл перевал до первых дождей'],
             salt: ['соль уложили в сосуды для долгого хранения', 'белые кристаллы обменяли на шкуры и зерно', 'солевой промысел спас припасы от сырости'],
+            obsidian: ['вулканическое стекло дало острые лезвия', 'чёрные сколы обменяли на еду с соседями', 'мастера отобрали чистый обсидиан для наконечников'],
+            iron: ['рудокопы вынесли первую рыжую руду', 'в горне выплавили крепкий железный слиток', 'кузнецы закалили первый железный клинок'],
             settlement: ['дозорные укрепили ворота и вернулись к дозору', 'соседние земли дали рынку новых ремесленников', 'поселение собрало людей для общего частокола']
         },
         buildingSuffixes: ['общины', 'рода', 'клана', 'поселения', 'у реки', 'на холме', 'старших', 'кузнецов', 'пахарей'],
@@ -156,7 +174,9 @@
             writing: ['первая табличка исписана', 'писец подсчитал зерно', 'печать оттиснута на глине'],
             metallurgy: ['медь потекла как воск', 'первый слиток блестит на солнце', 'горн загудел сильнее'],
             bronze: ['бронза звенит как колокол', 'новый сплав не гнётся', 'инструменты режут камень'],
-            'irrigation-empire': ['каналы наполнились водой', 'закрома полны', 'налог собран']
+            'irrigation-empire': ['каналы наполнились водой', 'закрома полны', 'налог собран'],
+            administration: ['распорядитель расписал дела по дням', 'писцы впервые учли все наряды разом', 'старейшины одобрили новый распорядок работ'],
+            guilds: ['мастера впервые собрались единым цехом', 'подмастерья переняли два ремесла сразу', 'цеховой устав ускорил общий труд']
         }
     };
 
@@ -287,7 +307,8 @@
         { id: 'clay', name: 'Глиняные берега', icon: '🏺', desc: 'Глина — керамика Триполья и шумерские таблички' },
         { id: 'obsidian', name: 'Обсидиановые россыпи', icon: '🖤', desc: 'Вулканическое стекло — торговля Анатолии' },
         { id: 'copper-vein', name: 'Медная жила', icon: '🟠', desc: 'Малахит и медь — начало металлургии' },
-        { id: 'salt', name: 'Соляные копи', icon: '🧂', desc: 'Соль — богатство и сохранение пищи' }
+        { id: 'salt', name: 'Соляные копи', icon: '🧂', desc: 'Соль — богатство и сохранение пищи' },
+        { id: 'iron-vein', name: 'Железная руда', icon: '⛓️', desc: 'Рыжая руда хеттов — оружие крепче бронзы' }
     ];
     const HISTORICAL_CULTURES = [
         { id: 'yamnaya', name: 'Ямная культура', icon: '🐎', era: 0, desc: '3300-2600 до н.э., Понтийско-Каспийская степь — ямные погребения, курганы, первые кони, повозки. Предки индоевропейцев', bonus: { food: 0.2, materials: 0.2 } },
@@ -315,6 +336,7 @@
     ];
     const REGION_CAPTURE_COST = { food: 2, materials: 2, knowledge: 0 };
     const REGION_EXPEDITION_COST = { food: 4, materials: 2, knowledge: 0 };
+    const REGION_RETRY_COOLDOWN_DAYS = 2;
     const REGION_BUILDINGS = {
         food: { id: 'irrigation', name: 'Ирригация и запруды', cost: { materials: 4 }, yields: { food: 2, materials: 0, knowledge: 0 }, workerBonus: { food: 0.3 }, description: 'Запруды и канавы дают +2🌾 в день и помогают земледельцам.' },
         materials: { id: 'quarry', name: 'Каменный и древесный стан', cost: { materials: 4 }, yields: { food: 0, materials: 2, knowledge: 0 }, workerBonus: {}, description: 'Местное сырьё даёт +2🪵 в день.' },
@@ -322,7 +344,13 @@
         copper: { id: 'smelter', name: 'Медная плавильня', cost: { materials: 5, knowledge: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['refined'], description: '+1🪵 в день и открывает отборное сырьё.' },
         tin: { id: 'caravan', name: 'Оловянный торговый стан', cost: { materials: 4, food: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['masterwork'], description: '+1🪵 в день; вместе с медной плавильней открывает мастерское сырьё.' },
         salt: { id: 'salt-works', name: 'Солеварня', cost: { materials: 4 }, yields: { food: 0, materials: 1, knowledge: 1 }, workerBonus: {}, description: '+1🪵 и +1📚 в день.' },
-        settlement: { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: 'Форпост в покорённом поселении даёт по +1 каждого ресурса.' }
+        settlement: { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: 'Форпост в покорённом поселении даёт по +1 каждого ресурса.' },
+        // Ключевой ресурс Каменного века (эпоха 0) — см. ERA_KEY_RESOURCE: без неё недостижима
+        // редкая ковка и недоступна воинская доктрина эпохи.
+        obsidian: { id: 'obsidian-workshop', name: 'Обсидиановая мастерская', cost: { materials: 4 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, description: '+1🪵 в день; открывает редкую ковку и воинскую доктрину Каменного века.' },
+        // Ключевой ресурс Античности (эпоха 3) — см. ERA_KEY_RESOURCE: без неё недостижима
+        // редкая ковка и недоступна воинская доктрина эпохи.
+        iron: { id: 'ironworks', name: 'Железоплавильня', cost: { materials: 6, knowledge: 1 }, yields: { food: 0, materials: 2, knowledge: 0 }, workerBonus: {}, description: '+2🪵 в день; открывает редкую ковку и воинскую доктрину Античности.' }
     };
 
     function getWorldTiles(world) { return world?.tiles || []; }
@@ -339,7 +367,11 @@
     }
 
     function createDailyOrders() {
-        return { craftUsed: false, researchUsed: false, constructionUsed: false, frontierUsed: false, legacyBlocked: false };
+        // *Used хранит не true/false, а СКОЛЬКО РАЗ этот тип приказа уже отдан сегодня (0, 1, 2, ...),
+        // чтобы учитывать повышенный эффектом order_capacity лимит (см. getOrderCapacity). 0 и false
+        // эквивалентны в JS-проверках truthy/falsy, так что старые сохранения с булевыми флагами
+        // остаются совместимы (см. normalizeDailyOrders).
+        return { craftUsed: 0, researchUsed: 0, constructionUsed: 0, frontierUsed: 0, legacyBlocked: false };
     }
 
     const STARTER_CARDS = [
@@ -596,7 +628,8 @@
                 ownerId,
                 capturedDay: ownerId === null ? null : clampInt(saved?.capturedDay || definition.initialOwner && 1, 1, SEASON_LENGTH, 1),
                 building,
-                buildingFlavor
+                buildingFlavor,
+                lastDefeatDay: ownerId === 'player' || !Number.isFinite(saved?.lastDefeatDay) ? null : clampInt(saved.lastDefeatDay, 1, SEASON_LENGTH, 1)
             };
         });
     }
@@ -627,7 +660,12 @@
     function normalizeDailyOrders(raw, state, legacyActionUsed) {
         const orders = createDailyOrders();
         if (raw && typeof raw === 'object') {
-            for (const key of Object.keys(orders)) orders[key] = Boolean(raw[key]);
+            // Старые сохранения хранили true/false; clampInt(true,...)=1, clampInt(false,...)=0 —
+            // совместимо автоматически. Верхняя граница 2 — максимум, который вообще можно выбрать
+            // (базовый лимит 1 + потолок бонуса order_capacity 1, см. getOrderCapacity).
+            for (const key of Object.keys(orders)) {
+                orders[key] = key === 'legacyBlocked' ? Boolean(raw[key]) : clampInt(raw[key], 0, 2, 0);
+            }
         } else if (legacyActionUsed) {
             const day = state.day;
             const currentCraft = state.player.craftOrders.some(order => order.createdDay === day && order.status !== 'failed');
@@ -636,13 +674,13 @@
                 && getWorldTile(state.world, region.id)?.kind !== 'home');
             const currentConstruction = state.player.buildings.some(building => building.blueprintId && building.builtDay === day);
             const currentResearch = state.player.blueprints.some(blueprint => blueprint.researchedDay === day);
-            if (currentCraft) orders.craftUsed = true;
-            else if (currentExpedition || currentSettlement) orders.frontierUsed = true;
-            else if (currentConstruction) orders.constructionUsed = true;
-            else if (currentResearch) orders.researchUsed = true;
+            if (currentCraft) orders.craftUsed = 1;
+            else if (currentExpedition || currentSettlement) orders.frontierUsed = 1;
+            else if (currentConstruction) orders.constructionUsed = 1;
+            else if (currentResearch) orders.researchUsed = 1;
             else orders.legacyBlocked = true;
         }
-        if (state.player.pendingExpedition) orders.frontierUsed = true;
+        if (state.player.pendingExpedition) orders.frontierUsed = Math.max(orders.frontierUsed, 1);
         return orders;
     }
 
@@ -654,7 +692,7 @@
     function markDailyOrderUsed(state, type) {
         const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) throw new Error('Неизвестный дневной лимит: ' + type);
-        state.player.dailyOrders[key] = true;
+        state.player.dailyOrders[key] += 1;
         if (state.player.ap > 0) state.player.ap -= 1;
         syncLegacyActionUsed(state);
     }
@@ -662,7 +700,7 @@
     function clearDailyOrder(state, type) {
         const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) return;
-        state.player.dailyOrders[key] = false;
+        state.player.dailyOrders[key] = Math.max(0, state.player.dailyOrders[key] - 1);
         state.player.ap = Math.min(state.player.apMax, state.player.ap + 1);
         syncLegacyActionUsed(state);
     }
@@ -709,7 +747,6 @@
         state.player.workers = normalizeWorkers(state.player.workers, state.player.population);
         state.player.storageCap = clampInt(state.player.storageCap, STORAGE_BASE, 999, STORAGE_BASE);
         state.player.ap = clampInt(state.player.ap, 0, 10, AP_MAX);
-        state.player.apMax = clampInt(state.player.apMax, 1, 10, AP_MAX);
         state.player.decree = state.player.decree && ['military', 'agricultural', 'priestly'].includes(state.player.decree) ? state.player.decree : null;
         state.player.decrees = Array.isArray(state.player.decrees) ? state.player.decrees.filter(d => d && typeof d.id === 'string' && DECREES[d.id]).map(d => ({
             id: d.id,
@@ -722,6 +759,10 @@
         state.player.growthDebt = clampInt(state.player.growthDebt, 0, 999, 0);
         state.player.starvationDays = clampInt(state.player.starvationDays, 0, 999, 0);
         // Слот строя поднимают только капитальные проекты с эффектом active_building_slots (по одному на постройку).
+        // Бонус считается по факту постройки (не только "пока активно") — это намеренно "капитальный", разовый
+        // эффект, а не текущий бонус вроде дохода. Но именно поэтому такое здание нельзя выключать (см. toggleBuilding):
+        // иначе игрок мог бы "обналичить" слот навсегда и тут же освободившийся слот отдать под другое здание
+        // (баланс-ревизия).
         const slotProjects = Array.isArray(state.player.buildings) ? state.player.buildings.filter(b => Array.isArray(b.effects) && b.effects.some(e => e && e.type === 'active_building_slots')).length : 0;
         state.player.activeBuildingSlots = clampInt(4 + slotProjects, 4, 5, 4);
         state.player.practice = { ...base.player.practice, ...(state.player.practice || {}) };
@@ -768,6 +809,14 @@
         if (!state.player.buildings.some(building => building.id === 'starter-granary')) state.player.buildings.unshift(makeStarterBuilding());
         let activeCount = 0;
         state.player.buildings.forEach(building => { if (building.active && activeCount++ >= state.player.activeBuildingSlots) building.active = false; });
+        // Баланс-ревизия: apMax больше не застывший AP_MAX=2 навсегда — постройка советника с эффектом
+        // ap_max (например, "Палата нарядов") поднимает дневной пул AP, пока активна (не навечно, в
+        // отличие от active_building_slots). Пересчитываем при каждой нормализации состояния, сразу
+        // после того как buildings гарантированно стали валидным массивом. Потолок +2 (AP 2 -> максимум 4),
+        // чтобы темп игры не улетал бесконтрольно даже если постройки такого типа накопятся.
+        const apBonus = Math.min(2, effectTotals(state).ap_max || 0);
+        state.player.apMax = clampInt(AP_MAX + apBonus, 1, 10, AP_MAX);
+        state.player.ap = Math.min(state.player.ap, state.player.apMax);
         state.player.blueprints = Array.isArray(state.player.blueprints) ? state.player.blueprints.slice(0, 30).map(blueprint => ({
             id: String(blueprint.id || ''),
             scienceName: String(blueprint.scienceName || '').slice(0, 80),
@@ -996,9 +1045,27 @@
         return totals;
     }
 
+    // Дневной лимит повторения ОДНОГО И ТОГО ЖЕ приказа (ковка/наука/стройка/фронтир).
+    // По умолчанию 1 раз/день на тип — постройка советника с эффектом order_capacity поднимает
+    // лимит до 2 (можно, например, дважды исследовать за день, если хватит AP на обе попытки).
+    // Принимает либо полный state (с .player), либо голый player — нужно для UI-кода, где под рукой
+    // не всегда есть весь state (см. renderBlueprintOrder).
+    function getOrderCapacity(input) {
+        const state = input && input.player ? input : { player: input };
+        const totals = effectTotals(state);
+        return 1 + Math.min(1, totals.order_capacity || 0);
+    }
+
     function getActiveDecrees(state) {
+        // ВАЖНО: действует только уклад ТЕКУЩЕЙ эпохи, а не все когда-либо выбранные. state.player.decrees —
+        // это исторический журнал (на нём держится renderDecreeChoice/лор), но бонусы и штрафы прошлых эпох не
+        // должны продолжать копиться вечно поверх новых — иначе, например, дважды выбрав "военный уклад" в
+        // разных эпохах, игрок получал бы двойной бонус и дважды перемноженный штраф к потреблению еды
+        // (баланс-ревизия). Активен всегда только последний выбранный уклад (state.player.decree).
         const list = Array.isArray(state.player.decrees) ? state.player.decrees : [];
-        return list.map(d => DECREES[d.id]).filter(Boolean);
+        if (!list.length) return [];
+        const current = DECREES[state.player.decree] || DECREES[list[list.length - 1].id];
+        return current ? [current] : [];
     }
 
     function getFoodConsumption(input) {
@@ -1049,8 +1116,22 @@
                 bonusKnow += dec.bonuses.workerBonus.knowledge || 0;
             }
         }
+        // Домашний биом (BIOMES[x].yields) раньше был только текстом в описании племени и нигде не влиял на
+        // реальную добычу — производство считалось исключительно от WORKER_BASE_YIELD, то есть выбор биома при
+        // онбординге был декоративным. Теперь его yields действительно добавляются к добыче на рабочего
+        // (баланс-ревизия).
+        if (state.player.biome && state.player.biome.yields) {
+            bonusFood += state.player.biome.yields.food || 0;
+            bonusMat += state.player.biome.yields.materials || 0;
+            bonusKnow += state.player.biome.yields.knowledge || 0;
+        }
+
         const hasRegionalIrrigation = state.regions.some(region => region.ownerId === 'player' && region.building === 'irrigation');
-        if (hasRegionalIrrigation && bonusFood > 0) bonusFood += 0.3;
+        // Раньше бонус ирригации включался только если bonusFood уже был > 0 (то есть требовал чужого источника
+        // бонуса еды) — на биомах без него (степь/пустыня/болото без построек) постройка "ирригация" в регионе
+        // не делала вообще ничего, хотя игрок тратил на неё ресурсы. Бонус теперь применяется безусловно
+        // (баланс-ревизия).
+        if (hasRegionalIrrigation) bonusFood += 0.3;
 
         const workerProd = {
             food: workers.food * (WORKER_BASE_YIELD.food + bonusFood),
@@ -1073,10 +1154,13 @@
         // upkeep_reduction и defense/trade пока символически снижают upkeep
         upkeep = Math.max(0, upkeep - (totals.upkeep_reduction || 0) * 0.1);
         // Историческая культура и черта влияют на производство (ямники — еда/кони, аккадцы — материалы, египтяне — склад)
+        // Раньше бонус черты применялся вдвое против бонуса исторической культуры той же величины (например,
+        // "Крепкие телом" +0.3 материала давали реально +0.6, а культура с тем же +0.3 — только +0.3) без видимой
+        // причины и без разницы в показанных игроку числах (баланс-ревизия): теперь оба применяются одинаково.
         if (state.player.trait && state.player.trait.bonus) {
-            if (state.player.trait.bonus.food) workerProd.food += state.player.trait.bonus.food * 2;
-            if (state.player.trait.bonus.materials) workerProd.materials += state.player.trait.bonus.materials * 2;
-            if (state.player.trait.bonus.knowledge) workerProd.knowledge += state.player.trait.bonus.knowledge * 2;
+            if (state.player.trait.bonus.food) workerProd.food += state.player.trait.bonus.food;
+            if (state.player.trait.bonus.materials) workerProd.materials += state.player.trait.bonus.materials;
+            if (state.player.trait.bonus.knowledge) workerProd.knowledge += state.player.trait.bonus.knowledge;
         }
         if (state.player.historicalCulture && state.player.historicalCulture.bonus) {
             const hb = state.player.historicalCulture.bonus;
@@ -1125,6 +1209,10 @@
             energyMax: Math.min(8, 2 + effects.energy_cap + energyBonus),
             energyGrowth: Math.min(3, 1 + effects.energy_growth),
             fatigueDelay: Math.min(2, effects.fatigue_resist),
+            // Как и у остальных боевых полей выше, суммарный бонус атаки от построек не должен расти
+            // без предела — несколько разных "доктрин" с unit_power иначе дают неограниченный перманентный
+            // урон без контрмер со стороны соперника (баланс-ревизия).
+            atkBonus: Math.min(2, effects.unit_power || 0),
             effects,
             decrees: getActiveDecrees(state),
             historicalCulture: state.player.historicalCulture,
@@ -1139,14 +1227,20 @@
         const stage = barbarianStage(era);
         const profile = opponent && BARBARIAN_DECK_PROFILES[opponent.id];
         const deck = opponent && getBarbarianDeck(opponent.id, era);
+        // Колоды племён жёстко ограничены контентом до BARBARIAN_ERA_CAP (нет карт для поздних эпох), но их боевые
+        // параметры раньше были завязаны на тот же замороженный stage — к Ренессансу и дальше дозоры навсегда
+        // отставали от игрока (deckLimit/hp/energy у игрока продолжают расти, а у варваров — нет). Поэтому силу боя
+        // теперь считаем от реальной эпохи игрока (который и является мерилом текущей угрозы), а не от замороженной
+        // эпохи племени — контент остаётся старым, но сопротивление не становится тривиальным (баланс-ревизия).
+        const threatEra = Math.max(era, opponent ? state.player.era : era);
         return {
             era,
             deckLimit: deck ? deck.length : BARBARIAN_DECK_SIZES[stage],
             deckStyle: profile?.style || (opponent ? 'Соседнее племя' : 'Дозор окраин'),
             deckDescription: profile?.description || 'Смешанный отряд дозорных, лучников и защитников рубежа.',
-            hp: 5 + stage,
-            energyMax: 2 + stage,
-            energyGrowth: stage >= 2 ? 2 : 1
+            hp: Math.min(12, 5 + threatEra),
+            energyMax: Math.min(8, 2 + threatEra),
+            energyGrowth: Math.min(3, 1 + Math.floor(threatEra / 2))
         };
     }
 
@@ -1155,6 +1249,14 @@
         for (const key of Object.keys(cost)) state.player.resources[key] -= cost[key];
         return true;
     }
+    // Жреческий/научный уклад обещает "здания стоят +1🪵" (buildingCostExtra) — раньше это нигде не применялось
+    // к реальной стоимости построек (только +0.05 к символическому upkeep), так что заявленный минус на деле не
+    // работал (баланс-ревизия). Возвращает надбавку к стоимости материалов для любой постройки.
+    function getBuildingCostExtra(state) {
+        let extra = 0;
+        for (const dec of getActiveDecrees(state)) extra += dec.bonuses.buildingCostExtra || 0;
+        return extra;
+    }
     function canOrder(state, type) {
         if (state.day >= SEASON_LENGTH) return 'Сезон завершён. Подведи итоги.';
         if (type === 'frontier' && state.player.pendingExpedition) return 'Сначала заверши незавершённую экспедицию.';
@@ -1162,7 +1264,9 @@
         if (state.player.ap <= 0) return 'AP исчерпаны на сегодня. Заверши день.';
         const key = { craft: 'craftUsed', research: 'researchUsed', construction: 'constructionUsed', frontier: 'frontierUsed' }[type];
         if (!key) return 'Тип дневного действия не распознан.';
-        if (state.player.dailyOrders[key]) {
+        // Базовый лимит — 1 раз/день на тип; постройка советника с эффектом order_capacity
+        // поднимает его до 2 (см. getOrderCapacity).
+        if (state.player.dailyOrders[key] >= getOrderCapacity(state)) {
             return {
                 craft: 'Сегодняшняя ковка уже заказана. Продвинь день.',
                 research: 'Сегодняшнее исследование уже проведено. Продвинь день.',
@@ -1210,6 +1314,21 @@
         if (ownedBuildings.has('smelter')) available.push('refined');
         if (ownedBuildings.has('smelter') && ownedBuildings.has('caravan')) available.push('masterwork');
         return available;
+    }
+    // Пилот «ключевого ресурса эпохи»: пока затронуты 3 эпохи (Каменный век, Бронзовый век,
+    // Античность). Для прочих эпох (1, 4, 5, 6) механика намеренно не включена — hasEraKeyResource
+    // по умолчанию возвращает true (без ограничений), пока эпоха не добавлена в эту таблицу.
+    const ERA_KEY_RESOURCE = {
+        0: { buildings: ['obsidian-workshop'], label: 'обсидиановую мастерскую' },
+        2: { buildings: ['smelter', 'caravan'], label: 'медную плавильню и оловянный торговый стан' },
+        3: { buildings: ['ironworks'], label: 'железоплавильню' }
+    };
+    function hasEraKeyResource(input) {
+        const state = normalizeState(input);
+        const requirement = ERA_KEY_RESOURCE[state.player.era];
+        if (!requirement) return true;
+        const ownedBuildings = new Set(state.regions.filter(region => region.ownerId === 'player' && region.building).map(region => region.building));
+        return requirement.buildings.every(id => ownedBuildings.has(id));
     }
     function getRegionActionState(input, regionId) {
         const state = normalizeState(input);
@@ -1267,6 +1386,15 @@
                     : 'Для экспедиции нужны 4 провизии и 2 материала.';
             return { action, enabled: false, reason, cost: { ...cost } };
         }
+        // Раньше проигранный бой можно было пересдавать хоть каждый день за те же ресурсы (половина цены
+        // возвращается при поражении) — без пауз и усиления защитника это превращало штурм в бесплатный спам
+        // попыток до удачного броска. Теперь после поражения тот же участок недоступен несколько дней (баланс-ревизия).
+        if ((action === 'attack' || action === 'quest') && Number.isFinite(record.lastDefeatDay)) {
+            const daysLeft = REGION_RETRY_COOLDOWN_DAYS - (state.day - record.lastDefeatDay);
+            if (daysLeft > 0) {
+                return { action, enabled: false, reason: 'Отряд ещё не оправился после поражения здесь. Подожди ' + daysLeft + ' дн.', cost: { ...cost } };
+            }
+        }
         return { action, enabled: true, reason: '', cost: { ...cost } };
     }
     function settleRegion(input, regionId) {
@@ -1289,7 +1417,9 @@
         const definition = getWorldTile(state.world, regionId);
         const building = getRegionBuilding(definition);
         if (!building) return { state, error: 'Для этой области нет подходящей постройки.' };
-        if (!spend(state, building.cost)) return { state, error: 'Не хватает ресурсов.' };
+        const regionCostExtra = getBuildingCostExtra(state);
+        const regionCost = regionCostExtra ? { ...building.cost, materials: (building.cost.materials || 0) + regionCostExtra } : building.cost;
+        if (!spend(state, regionCost)) return { state, error: 'Не хватает ресурсов.' };
         const record = getRegionRecord(state, regionId);
         record.building = building.id;
         const seed = hashString(state.world.seed + ':' + state.player.name + state.player.clan + regionId + String(state.day));
@@ -1364,6 +1494,9 @@
             conquered.ownerId = 'player';
             conquered.capturedDay = state.day;
             conquered.building = null;
+            conquered.lastDefeatDay = null;
+        } else {
+            record.lastDefeatDay = state.day;
         }
         state.player.pendingExpedition = null;
         // При поражении отряд возвращается с половиной припасов — серия неудач не должна съедать доход недели.
@@ -1505,22 +1638,34 @@
         const time = CARD_CRAFT_EFFORTS[effort];
         // «Качество ковки» поднимают действующие постройки с эффектом craft_quality.
         const qualityScore = Math.min(6, material.grade + state.player.craftLevel + time.score + effectTotals(state).craft_quality);
-        const odds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
+        const baseOdds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
+        // Ключевой ресурс эпохи хард-блокирует редкую ковку: без обсидиана (эпоха 0) или
+        // меди+олова (эпоха 2) шанс «rare» всегда 0, а освободившиеся проценты уходят в «uncommon».
+        const rareLocked = !hasEraKeyResource(state);
+        const odds = rareLocked
+            ? { ordinary: baseOdds.ordinary, uncommon: baseOdds.uncommon + baseOdds.rare, rare: 0 }
+            : { ...baseOdds };
+        // Стоимость ковки раньше была одинаковой константой во всех 7 эпохах, хотя доход игрока (рабочие,
+        // регионы, торговля) за это время растёт в разы — к поздним эпохам лучшая ковка переставала быть
+        // значимым решением. Надбавка по эпохе держит её ощутимой на протяжении всей партии (баланс-ревизия).
+        const eraCostMult = 1 + state.player.era * 0.4;
         const cost = {
-            food: material.cost.food + time.cost.food,
-            materials: material.cost.materials + time.cost.materials,
-            knowledge: material.cost.knowledge + time.cost.knowledge
+            food: Math.ceil((material.cost.food + time.cost.food) * eraCostMult),
+            materials: Math.ceil((material.cost.materials + time.cost.materials) * eraCostMult),
+            knowledge: Math.ceil((material.cost.knowledge + time.cost.knowledge) * eraCostMult)
         };
         const availableMaterialQualities = getAvailableMaterialQualities(state);
         const materialQualityUnlocked = availableMaterialQualities.includes(materialQuality);
         const qualityUnlockText = materialQuality === 'refined'
             ? 'освоить медное месторождение и построить плавильню'
             : materialQuality === 'masterwork' ? 'освоить медь и олово, построить плавильню и торговый стан' : '';
+        const eraResource = ERA_KEY_RESOURCE[state.player.era];
+        const rareLockText = rareLocked && eraResource ? 'Чтобы ковать редкие карты в этой эпохе, нужно освоить ' + eraResource.label + '.' : '';
         return {
             materialQuality, materialLabel: material.label, effort, effortLabel: time.label,
             effortDays: time.days, craftLevel: state.player.craftLevel, qualityScore,
-            odds: { ...odds }, cost: { ...cost }, availableMaterialQualities,
-            materialQualityUnlocked, qualityUnlockText,
+            odds, cost: { ...cost }, availableMaterialQualities,
+            materialQualityUnlocked, qualityUnlockText, rareLocked, rareLockText,
             affordable: materialQualityUnlocked && Object.keys(cost).every(key => state.player.resources[key] >= cost[key]),
             modelByRarity: { ordinary: 'gpt-6-luna', uncommon: 'glm-5.2', rare: 'glm-5.2' }
         };
@@ -1749,7 +1894,13 @@
         if (!blueprint || !blueprint.researched) return { state, error: 'Сначала исследуй эту науку.' };
         if (blueprint.built) return { state, error: 'Здание по этому чертежу уже построено.' };
         if (state.player.buildings.length >= 30) return { state, error: 'В поселении уже 30 зданий.' };
-        if (!spend(state, { materials: 3 })) return { state, error: 'Для строительства нужны 3 материала.' };
+        const needsEraResource = Array.isArray(blueprint.effects) && blueprint.effects.some(effect => effect.type === 'unit_power');
+        if (needsEraResource && !hasEraKeyResource(state)) {
+            const eraResource = ERA_KEY_RESOURCE[state.player.era];
+            return { state, error: 'Для воинской доктрины этой эпохи нужно сначала освоить ' + (eraResource ? eraResource.label : 'ключевой ресурс эпохи') + '.' };
+        }
+        const blueprintCostExtra = getBuildingCostExtra(state);
+        if (!spend(state, { materials: 3 + blueprintCostExtra })) return { state, error: 'Для строительства нужны ' + (3 + blueprintCostExtra) + ' материала.' };
         const hasSlot = state.player.buildings.filter(building => building.active).length < state.player.activeBuildingSlots;
         state.player.buildings.push({
             id: 'building-' + blueprint.id, name: blueprint.buildingName, description: blueprint.buildingDescription,
@@ -1771,6 +1922,16 @@
         if (state.player.ap <= 0 && state.player.pendingDecreeChoice) {
             // choosing decree is free, does not cost AP, but we check
         }
+        // Как и в toggleBuilding: если смена уклада (например, на "земледельческий", deck_slots:-1) опустит лимит
+        // колоды ниже текущего числа выбранных карт, не обрезаем колоду молча — просим сначала убрать лишние карты
+        // (баланс-ревизия, тот же принцип, что и для зданий).
+        const trial = clone(state);
+        trial.player.decrees = [{ id: decreeId, era: trial.player.era, chosenDay: trial.day }];
+        trial.player.decree = decreeId;
+        const newLimit = getBattleConfig(trial).deckLimit;
+        if (state.player.deckCardIds.length > newLimit) {
+            return { state, error: 'Этот уклад уменьшит лимит колоды до ' + newLimit + ', а сейчас в колоде ' + state.player.deckCardIds.length + ' карт. Сначала убери лишние карты из колоды в разделе «Отряд».' };
+        }
         state.player.decrees.push({ id: decreeId, era: state.player.era, chosenDay: state.day });
         state.player.decree = decreeId;
         state.player.pendingDecreeChoice = false;
@@ -1783,14 +1944,25 @@
         const state = normalizeState(input);
         const building = state.player.buildings.find(item => item.id === id);
         if (!building) return { state, error: 'Здание не найдено.' };
-        if (building.active) building.active = false;
-        else {
+        const grantsSlot = Array.isArray(building.effects) && building.effects.some(e => e && e.type === 'active_building_slots');
+        if (building.active) {
+            if (grantsSlot) {
+                return { state, error: 'Это капитальное здание навсегда подняло лимит активных построек — его нельзя отключить, иначе освободившийся слот достанется другому зданию задаром.' };
+            }
+            building.active = false;
+            const newLimit = getBattleConfig(state).deckLimit;
+            // Не обрезаем колоду молча: если отключение здания опустит лимит ниже текущего
+            // размера колоды, просим сначала вручную убрать лишние карты, иначе игрок
+            // без предупреждения терял бы последние добавленные карты.
+            if (state.player.deckCardIds.length > newLimit) {
+                building.active = true;
+                return { state, error: 'Отключение этого здания уменьшит лимит колоды до ' + newLimit + ', а сейчас в колоде ' + state.player.deckCardIds.length + ' карт. Сначала убери лишние карты из колоды в разделе «Отряд».' };
+            }
+        } else {
             const count = state.player.buildings.filter(item => item.active).length;
             if (count >= state.player.activeBuildingSlots) return { state, error: 'Доступно только ' + state.player.activeBuildingSlots + ' активных слота. Сначала отключи другое здание.' };
             building.active = true;
         }
-        const newLimit = getBattleConfig(state).deckLimit;
-        state.player.deckCardIds = state.player.deckCardIds.slice(0, newLimit);
         return { state, error: null };
     }
 
@@ -1817,7 +1989,7 @@
         return { state, error: null };
     }
 
-    function finishDay(input) {
+    function finishDay(input, growthRoll = Math.random()) {
         const state = normalizeState(input);
         if (state.day >= SEASON_LENGTH) return { state, error: 'Это последний день сезона. Подведи итоги.' };
         if (state.player.pendingExpedition) return { state, error: 'Заверши бой экспедиции до смены дня.' };
@@ -1849,9 +2021,11 @@
         }
 
         if (newMaterials < 0) {
-            const activeBuildings = state.player.buildings.filter(b => b.active);
-            if (activeBuildings.length > 0) {
-                const toDisable = activeBuildings[activeBuildings.length - 1];
+            // Капитальные здания (active_building_slots) нельзя отключать автоматически — они навсегда подняли
+            // лимит активных построек, и их отключение задаром освободило бы слот под другое здание (см. toggleBuilding).
+            const disableable = state.player.buildings.filter(b => b.active && !(Array.isArray(b.effects) && b.effects.some(e => e && e.type === 'active_building_slots')));
+            if (disableable.length > 0) {
+                const toDisable = disableable[disableable.length - 1];
                 toDisable.active = false;
                 state.player.campaignNotice = 'Не хватает 🪵 на upkeep. Здание «' + toDisable.name + '» отключено.';
                 newMaterials = Math.max(0, newMaterials);
@@ -1887,9 +2061,12 @@
         } else {
             const netFood = foodGained - consumption;
             if (state.player.resources.food > 10 && state.player.population < POP_MAX && netFood > 2) {
-                const pseudoRandom = (state.day * 7 + state.player.population * 13 + state.season * 3) % 100;
+                // Раньше шанс роста населения считался по детерминированной формуле от дня/
+                // населения/сезона (без Math.random()), из-за чего результат был полностью
+                // предсказуем и игрок мог заранее вычислить, в какой день население вырастет.
+                const roll = Number.isFinite(growthRoll) ? Math.max(0, Math.min(0.999999999, growthRoll)) : Math.random();
                 const chance = state.player.growthDebt > 0 ? 15 : 35;
-                if (pseudoRandom < chance) {
+                if (roll * 100 < chance) {
                     state.player.population += 1;
                     state.player.workers.idle += 1;
                     state.player.growthProgress = 0;
@@ -2041,6 +2218,8 @@
             if (definition.feature === 'copper-vein') return '◆';
             if (definition.feature === 'tin-route') return '◇';
             if (definition.feature === 'salt-deposit') return '✦';
+            if (definition.feature === 'obsidian-vein') return '▲';
+            if (definition.feature === 'iron-vein') return '■';
             if (record.ownerId === 'player') return '●';
             if (record.ownerId !== null) return '⚑';
             return '';
@@ -2140,21 +2319,30 @@
         const craftQueueBusy = player.craftOrders.some(order => ['generating', 'working'].includes(order.status));
         const blocked = player.dailyOrders.legacyBlocked;
         const ap = player.ap;
-        const slot = function(icon, label, href, used, unavailable, detail) {
-            const status = blocked ? 'Завтра' : used ? 'Готово' : unavailable ? 'Нет цели' : ap <= 0 ? 'Нет AP' : 'Доступно';
+        // order_capacity от построек советника может поднять лимит с 1 до 2 повторений в день —
+        // показываем "x/лимит" только когда лимит выше базового, чтобы не загромождать интерфейс
+        // в обычной игре без такой постройки.
+        const cap = getOrderCapacity(current);
+        const ratio = count => cap > 1 ? ' ' + count + '/' + cap : '';
+        const slot = function(icon, label, href, count, unavailable, detail) {
+            const used = count >= cap;
+            const status = blocked ? 'Завтра' : used ? 'Готово' + ratio(count) : unavailable ? 'Нет цели' : ap <= 0 ? 'Нет AP' : 'Доступно' + ratio(count);
             const style = used || blocked ? 'is-used' : unavailable || ap <= 0 ? 'is-blocked' : 'is-ready';
-            const title = blocked ? 'Старый приказ: лимиты восстановятся после смены дня.' : detail;
+            const title = blocked ? 'Старый приказ: лимиты восстановятся после смены дня.' : detail + (cap > 1 ? ' Лимит поднят постройкой до ' + cap + ' раз(а) в день.' : '');
             return '<a class="campaign-day-action ' + style + '" href="' + href + '" title="' + htmlAttr(title) + '"><span>' + icon + '</span><b>' + label + '</b><small>' + status + '</small></a>';
         };
-        const craftStatus = blocked ? 'Завтра' : player.dailyOrders.craftUsed ? 'Готово' : craftQueueBusy ? 'Очередь' : ap <= 0 ? 'Нет AP' : 'Доступно';
-        const craftClass = player.dailyOrders.craftUsed || blocked ? 'is-used' : craftQueueBusy || ap <= 0 ? 'is-blocked' : 'is-ready';
+        const craftUsedUp = player.dailyOrders.craftUsed >= cap;
+        const craftStatus = blocked ? 'Завтра' : craftUsedUp ? 'Готово' + ratio(player.dailyOrders.craftUsed) : craftQueueBusy ? 'Очередь' : ap <= 0 ? 'Нет AP' : 'Доступно' + ratio(player.dailyOrders.craftUsed);
+        const craftClass = craftUsedUp || blocked ? 'is-used' : craftQueueBusy || ap <= 0 ? 'is-blocked' : 'is-ready';
         const craft = '<button class="campaign-day-action ' + craftClass + '" type="button" onclick="switchScreen(\'forge\')" title="' + (craftQueueBusy ? 'Дождись завершения текущей ковки.' : 'Перейти в кузницу. Стоит 1 AP.') + '"><span>⚒️</span><b>Ковка</b><small>' + craftStatus + '</small></button>';
         return '<nav class="campaign-daily-strip" aria-label="Дневные возможности"><div class="campaign-ap-display">AP: ' + ap + '/' + player.apMax + '</div>' + craft + slot('🔬', 'Наука', '#campaign-development', player.dailyOrders.researchUsed, !hasResearch, 'Исследование стоит 1 AP.') + slot('🏗️', 'Стройка', '#campaign-development', player.dailyOrders.constructionUsed, !hasConstruction, 'Построить изученный чертёж или здание в регионе. Стоит 1 AP.') + slot('🗺️', 'Фронтир', '#campaign-world', player.dailyOrders.frontierUsed, false, 'Одно заселение или экспедиция за день. Стоит 1 AP.') + '</nav>';
     }
 
     function renderBlueprintOrder(blueprint, player, readyToClose) {
         const actionType = blueprint.researched ? 'construction' : 'research';
-        const used = actionType === 'construction' ? player.dailyOrders.constructionUsed : player.dailyOrders.researchUsed;
+        const cap = getOrderCapacity(player);
+        const count = actionType === 'construction' ? player.dailyOrders.constructionUsed : player.dailyOrders.researchUsed;
+        const used = count >= cap;
         const disabled = player.dailyOrders.legacyBlocked || used || readyToClose || player.ap <= 0;
         const buttonText = blueprint.researched
             ? (used ? 'Готово сегодня' : 'Построить · 4🪵')
@@ -2500,8 +2688,8 @@
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
-        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
-        getRegionalIncome, getAvailableMaterialQualities, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
+        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getOrderCapacity, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
+        getRegionalIncome, getAvailableMaterialQualities, hasEraKeyResource, ERA_KEY_RESOURCE, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,

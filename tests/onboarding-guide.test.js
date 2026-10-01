@@ -117,8 +117,12 @@ test('the redesigned interface has no pre-written sciences, buildings or card id
   assert.ok(store.includes('beginOnboardingState'), 'the store starts the campaign through the seed path');
   assert.ok(store.includes('setOpeningProject'), 'the store applies the generated first project');
   const onboarding = read('src/pages/Onboarding.tsx');
-  assert.ok(onboarding.includes('verifyKey'), 'onboarding requires a verified API key');
-  assert.ok(!/ключ[^<]{0,40}необязательн/i.test(onboarding), 'the onboarding never calls the key optional');
+  // The AI key is no longer entered or verified by hand anywhere in the game: it lives only
+  // in the server-side HYDRA_API_KEY environment variable (see api/hydra.js), so onboarding
+  // must not contain any key input/verification flow at all.
+  assert.ok(!onboarding.includes('verifyKey'), 'onboarding must not verify a manually entered API key');
+  assert.equal(/type="password"/.test(onboarding), false, 'no password/API-key field remains in onboarding');
+  assert.ok(onboarding.includes('MODEL_GROUPS'), 'the player still picks which model family answers, just not a key');
 });
 
 test('the hand-held route can be finished: research, build, take land and train', () => {
