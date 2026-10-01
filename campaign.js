@@ -97,7 +97,11 @@
         upkeep_reduction: { label: '-0.1 к upkeep зданий', category: 'civic', max: 2 },
         fatigue_resist: { label: '+1 ход до усталости в бою', category: 'military', max: 2 },
         active_building_slots: { label: '+1 активная постройка', category: 'civic', max: 1 },
-        craft_quality: { label: '+1 к качеству ковки', category: 'science', max: 2 }
+        craft_quality: { label: '+1 к качеству ковки', category: 'science', max: 2 },
+        // Воинская доктрина эпохи: советник может предложить такое здание в любое время,
+        // но построить его реально получится только когда освоен ключевой ресурс ТЕКУЩЕЙ
+        // эпохи (см. ERA_KEY_RESOURCE и hasEraKeyResource) — проверка идёт в constructBlueprint.
+        unit_power: { label: '+1 к атаке всех ваших отрядов в бою', category: 'military', max: 1 }
     };
     // Эффекты, которые советнику реально предлагает модель: только с рабочей механикой.
     const GENERATIVE_EFFECTS = Object.keys(EFFECTS).filter(key => !EFFECTS[key].hidden);
@@ -126,6 +130,7 @@
             copper: ['Медная плавильня', 'Тигельный двор', 'Малахитовая мастерская', 'Горн у жилы'],
             tin: ['Оловянный склад', 'Караванный стан', 'Торговый двор', 'Перевальный рынок'],
             salt: ['Солеварня', 'Соляной склад', 'Белые копи', 'Соляной двор'],
+            obsidian: ['Обсидиановая мастерская', 'Стекольный навес', 'Вулканический двор', 'Чёрная жила'],
             settlement: ['Форпост', 'Общий двор', 'Пограничный стан', 'Застава', 'Крепкие ворота']
         },
         regionEvents: {
@@ -135,6 +140,7 @@
             copper: ['медь отделилась от породы в малом горне', 'зелёный малахит подсказал, где искать руду', 'первый слиток обменяли на зерно'],
             tin: ['путники принесли вести с оловянной тропы', 'редкая руда дошла до общины через обмен', 'караван прошёл перевал до первых дождей'],
             salt: ['соль уложили в сосуды для долгого хранения', 'белые кристаллы обменяли на шкуры и зерно', 'солевой промысел спас припасы от сырости'],
+            obsidian: ['вулканическое стекло дало острые лезвия', 'чёрные сколы обменяли на еду с соседями', 'мастера отобрали чистый обсидиан для наконечников'],
             settlement: ['дозорные укрепили ворота и вернулись к дозору', 'соседние земли дали рынку новых ремесленников', 'поселение собрало людей для общего частокола']
         },
         buildingSuffixes: ['общины', 'рода', 'клана', 'поселения', 'у реки', 'на холме', 'старших', 'кузнецов', 'пахарей'],
@@ -322,7 +328,10 @@
         copper: { id: 'smelter', name: 'Медная плавильня', cost: { materials: 5, knowledge: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['refined'], description: '+1🪵 в день и открывает отборное сырьё.' },
         tin: { id: 'caravan', name: 'Оловянный торговый стан', cost: { materials: 4, food: 1 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, unlocks: ['masterwork'], description: '+1🪵 в день; вместе с медной плавильней открывает мастерское сырьё.' },
         salt: { id: 'salt-works', name: 'Солеварня', cost: { materials: 4 }, yields: { food: 0, materials: 1, knowledge: 1 }, workerBonus: {}, description: '+1🪵 и +1📚 в день.' },
-        settlement: { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: 'Форпост в покорённом поселении даёт по +1 каждого ресурса.' }
+        settlement: { id: 'outpost', name: 'Форпост', cost: { materials: 6 }, yields: { food: 1, materials: 1, knowledge: 1 }, workerBonus: {}, description: 'Форпост в покорённом поселении даёт по +1 каждого ресурса.' },
+        // Ключевой ресурс Каменного века (эпоха 0) — см. ERA_KEY_RESOURCE: без неё недостижима
+        // редкая ковка и недоступна воинская доктрина эпохи.
+        obsidian: { id: 'obsidian-workshop', name: 'Обсидиановая мастерская', cost: { materials: 4 }, yields: { food: 0, materials: 1, knowledge: 0 }, workerBonus: {}, description: '+1🪵 в день; открывает редкую ковку и воинскую доктрину Каменного века.' }
     };
 
     function getWorldTiles(world) { return world?.tiles || []; }
@@ -1125,6 +1134,7 @@
             energyMax: Math.min(8, 2 + effects.energy_cap + energyBonus),
             energyGrowth: Math.min(3, 1 + effects.energy_growth),
             fatigueDelay: Math.min(2, effects.fatigue_resist),
+            atkBonus: effects.unit_power || 0,
             effects,
             decrees: getActiveDecrees(state),
             historicalCulture: state.player.historicalCulture,
@@ -1210,6 +1220,20 @@
         if (ownedBuildings.has('smelter')) available.push('refined');
         if (ownedBuildings.has('smelter') && ownedBuildings.has('caravan')) available.push('masterwork');
         return available;
+    }
+    // Пилот «ключевого ресурса эпохи»: пока затронуты только 2 эпохи (Каменный век и Бронзовый
+    // век). Для прочих эпох (1, 3, 4, 5, 6) механика намеренно не включена — hasEraKeyResource
+    // по умолчанию возвращает true (без ограничений), пока эпоха не добавлена в эту таблицу.
+    const ERA_KEY_RESOURCE = {
+        0: { buildings: ['obsidian-workshop'], label: 'обсидиановую мастерскую' },
+        2: { buildings: ['smelter', 'caravan'], label: 'медную плавильню и оловянный торговый стан' }
+    };
+    function hasEraKeyResource(input) {
+        const state = normalizeState(input);
+        const requirement = ERA_KEY_RESOURCE[state.player.era];
+        if (!requirement) return true;
+        const ownedBuildings = new Set(state.regions.filter(region => region.ownerId === 'player' && region.building).map(region => region.building));
+        return requirement.buildings.every(id => ownedBuildings.has(id));
     }
     function getRegionActionState(input, regionId) {
         const state = normalizeState(input);
@@ -1505,7 +1529,13 @@
         const time = CARD_CRAFT_EFFORTS[effort];
         // «Качество ковки» поднимают действующие постройки с эффектом craft_quality.
         const qualityScore = Math.min(6, material.grade + state.player.craftLevel + time.score + effectTotals(state).craft_quality);
-        const odds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
+        const baseOdds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
+        // Ключевой ресурс эпохи хард-блокирует редкую ковку: без обсидиана (эпоха 0) или
+        // меди+олова (эпоха 2) шанс «rare» всегда 0, а освободившиеся проценты уходят в «uncommon».
+        const rareLocked = !hasEraKeyResource(state);
+        const odds = rareLocked
+            ? { ordinary: baseOdds.ordinary, uncommon: baseOdds.uncommon + baseOdds.rare, rare: 0 }
+            : { ...baseOdds };
         const cost = {
             food: material.cost.food + time.cost.food,
             materials: material.cost.materials + time.cost.materials,
@@ -1516,11 +1546,13 @@
         const qualityUnlockText = materialQuality === 'refined'
             ? 'освоить медное месторождение и построить плавильню'
             : materialQuality === 'masterwork' ? 'освоить медь и олово, построить плавильню и торговый стан' : '';
+        const eraResource = ERA_KEY_RESOURCE[state.player.era];
+        const rareLockText = rareLocked && eraResource ? 'Чтобы ковать редкие карты в этой эпохе, нужно освоить ' + eraResource.label + '.' : '';
         return {
             materialQuality, materialLabel: material.label, effort, effortLabel: time.label,
             effortDays: time.days, craftLevel: state.player.craftLevel, qualityScore,
-            odds: { ...odds }, cost: { ...cost }, availableMaterialQualities,
-            materialQualityUnlocked, qualityUnlockText,
+            odds, cost: { ...cost }, availableMaterialQualities,
+            materialQualityUnlocked, qualityUnlockText, rareLocked, rareLockText,
             affordable: materialQualityUnlocked && Object.keys(cost).every(key => state.player.resources[key] >= cost[key]),
             modelByRarity: { ordinary: 'gpt-6-luna', uncommon: 'glm-5.2', rare: 'glm-5.2' }
         };
@@ -1749,6 +1781,11 @@
         if (!blueprint || !blueprint.researched) return { state, error: 'Сначала исследуй эту науку.' };
         if (blueprint.built) return { state, error: 'Здание по этому чертежу уже построено.' };
         if (state.player.buildings.length >= 30) return { state, error: 'В поселении уже 30 зданий.' };
+        const needsEraResource = Array.isArray(blueprint.effects) && blueprint.effects.some(effect => effect.type === 'unit_power');
+        if (needsEraResource && !hasEraKeyResource(state)) {
+            const eraResource = ERA_KEY_RESOURCE[state.player.era];
+            return { state, error: 'Для воинской доктрины этой эпохи нужно сначала освоить ' + (eraResource ? eraResource.label : 'ключевой ресурс эпохи') + '.' };
+        }
         if (!spend(state, { materials: 3 })) return { state, error: 'Для строительства нужны 3 материала.' };
         const hasSlot = state.player.buildings.filter(building => building.active).length < state.player.activeBuildingSlots;
         state.player.buildings.push({
@@ -2051,6 +2088,7 @@
             if (definition.feature === 'copper-vein') return '◆';
             if (definition.feature === 'tin-route') return '◇';
             if (definition.feature === 'salt-deposit') return '✦';
+            if (definition.feature === 'obsidian-vein') return '▲';
             if (record.ownerId === 'player') return '●';
             if (record.ownerId !== null) return '⚑';
             return '';
@@ -2511,7 +2549,7 @@
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
         createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
-        getRegionalIncome, getAvailableMaterialQualities, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
+        getRegionalIncome, getAvailableMaterialQualities, hasEraKeyResource, ERA_KEY_RESOURCE, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,

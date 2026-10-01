@@ -34,6 +34,7 @@ function mapTileId(state, key) {
     case 'copper': return find(tile => tile.feature === 'copper-vein');
     case 'tin-route': return find(tile => tile.feature === 'tin-route');
     case 'salt-flats': return find(tile => tile.feature === 'salt-deposit');
+    case 'obsidian': return find(tile => tile.feature === 'obsidian-vein');
     case 'rival-settlement': return find(tile => tile.kind === 'settlement' && tile.initialOwner === 'steppe')
       || find(tile => tile.kind === 'settlement');
     default: return null;
@@ -939,9 +940,19 @@ test('only a medal carries over when the local season is reset', () => {
 
 test('card craft quote shows material, progression, effort and rarity odds before payment', () => {
   let state = playableCampaign();
+  // Era 0 (Stone Age) hard-locks the rare tier until the obsidian workshop is built: the
+  // would-be 5% rare chance is folded into uncommon instead of being rolled.
+  const locked = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
+  assert.equal(locked.qualityScore, 0);
+  assert.deepEqual(locked.odds, { ordinary: 70, uncommon: 30, rare: 0 });
+  assert.equal(locked.rareLocked, true);
+  assert.match(locked.rareLockText, /обсидиан/i);
+
+  state = controlRegionsWithBuildings(state, { obsidian: 'obsidian-workshop' });
   let quote = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
   assert.equal(quote.qualityScore, 0);
   assert.deepEqual(quote.odds, { ordinary: 70, uncommon: 25, rare: 5 });
+  assert.equal(quote.rareLocked, false);
   assert.deepEqual(quote.cost, { food: 2, materials: 2, knowledge: 0 });
 
   state.player.craftLevel = 1;

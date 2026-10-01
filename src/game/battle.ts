@@ -46,6 +46,8 @@ export interface Player {
   front: (Unit | null)[]; back: (Unit | null)[];
   energy: number; energyMax: number; energyCap: number; energyGrowth: number; energyGrowthBlockedNext: number;
   hitSeq: number; lastDmg: number;
+  /** Плоский бонус к атаке всех отрядов этой стороны — воинская доктрина эпохи (EFFECTS.unit_power). */
+  atkBonus: number;
 }
 export interface LogEntry { id: number; side: Side | "system"; text: string }
 export interface Match {
@@ -66,7 +68,8 @@ export interface Battle {
 }
 
 // fatigueDelay — сколько дополнительных кругов сторона выдерживает без усталости (эффект построек fatigue_resist)
-export interface SideConfig { hp: number; energyMax: number; energyGrowth: number; fatigueDelay?: number }
+// atkBonus — плоский бонус к атаке всех отрядов стороны (воинская доктрина эпохи, EFFECTS.unit_power)
+export interface SideConfig { hp: number; energyMax: number; energyGrowth: number; fatigueDelay?: number; atkBonus?: number }
 
 const opp = (s: Side): Side => (s === "me" ? "enemy" : "me");
 
@@ -84,6 +87,7 @@ function newPlayer(deck: Card[], cfg: SideConfig): Player {
     front: Array(FRONT).fill(null), back: Array(BACK).fill(null),
     energy: 1, energyMax: 1, energyCap: cfg.energyMax, energyGrowth: cfg.energyGrowth, energyGrowthBlockedNext: 0,
     hitSeq: 0, lastDmg: 0,
+    atkBonus: Math.max(0, cfg.atkBonus || 0),
   };
 }
 
@@ -172,6 +176,8 @@ export function atkOf(b: Battle, u: Unit): number {
   if (has(u, "wedge")) a += Math.min(2, nb.length);
   a += nb.filter((n) => has(n, "rally")).length;
   a += modTotal(b, u, "attack");
+  const p = posOf(b, u);
+  if (p) a += b[p.side].atkBonus || 0;
   return Math.max(0, Math.min(99, a));
 }
 export const armorOf = (b: Battle, u: Unit) => Math.max(0, (u.st.armor || 0) + modTotal(b, u, "armor"));

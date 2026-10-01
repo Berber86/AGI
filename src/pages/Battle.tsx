@@ -141,7 +141,7 @@ export default function BattleScreen() {
     const enemyPool = (customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, 12)) as Card[];
     // В первом учебном бою враг приходит без построек: никто не бьёт новичка бесплатно из тыла.
     const enemyDeck = (m.tutorial ? withoutStructures(enemyPool) : enemyPool).slice(0, ec.deckLimit);
-    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
+    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
     // Первый ход новичка начинается с энергии 2 (а не 1), чтобы в руке можно было сыграть карту за 2.
     // Берём фиксированное значение 2, а не текущий предел игрока: иначе бонусы эпохи/черты
     // характера (например, «Владыки Коней») поднимали бы старт сразу до 3 энергии.

@@ -186,6 +186,9 @@ export default function Forge() {
                   <Meter value={quote.odds[k]} max={100} color={bar} />
                 </div>
               ))}
+              {quote.rareLocked && quote.rareLockText && (
+                <p className="text-[11.5px] leading-relaxed text-dim">🔒 {quote.rareLockText}</p>
+              )}
             </div>
             <dl className="mt-5 space-y-2 border-t border-line pt-4 text-sm">
               <div className="flex items-center justify-between"><dt className="text-dim">Цена</dt><dd><Cost cost={quote.cost} have={p.resources} /></dd></div>
