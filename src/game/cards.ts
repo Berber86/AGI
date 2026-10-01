@@ -54,7 +54,7 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   shieldwall: { name: "Стена щитов", desc: "+1 брони; при соседях урон ниже ещё на 1." },
   wedge: { name: "Клин", desc: "+1 к атаке за каждого соседа (до +2)." },
   phalanx: { name: "Фаланга", desc: "+1 к атаке и +1 брони." },
-  skirmish: { name: "Засадный", desc: "После атаки отступает в тыл." },
+  skirmish: { name: "Засадный", desc: "После своей атаки уходит в тыл и дальше бьёт как дальний бой — по любой цели. Если его атакуют в ближнем бою, уклоняется в тыл до обмена ударами." },
   taunt: { name: "Провокация", desc: "Враг обязан атаковать этот отряд первым." },
   poison: { name: "Яд", desc: "Отравляет цель при атаке: N урона в начале её хода." },
   burn: { name: "Поджог", desc: "Поджигает цель при атаке; огонь может перекинуться." },
@@ -315,18 +315,20 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   return c as Card;
 }
 
-/* ---------- LLM (Hydra API) ---------- */
+/* ---------- LLM (Hydra API) ----------
+   Ключ больше нигде не вводится руками: он лежит только в переменной окружения
+   HYDRA_API_KEY на сервере (Vercel) и используется прокси-функцией /api/hydra.
+   Браузер этот ключ никогда не видит — только относительный путь к своей же функции. */
 
-const HYDRA_URL = "https://api.hydraai.ru/v1/chat/completions";
+const HYDRA_PROXY_URL = "/api/hydra";
 
-/** Минимальная проверка ключа: один короткий запрос без разбора ответа модели. */
-export async function probeApiKey(key: string, model: string): Promise<void> {
-  if (!key || !key.trim()) throw new Error("Введите API-ключ.");
+/** Проверка, что сервер настроен и ИИ отвечает: один короткий запрос без разбора ответа модели. */
+export async function probeApiKey(model: string): Promise<void> {
   let resp: Response;
   try {
-    resp = await fetch(HYDRA_URL, {
+    resp = await fetch(HYDRA_PROXY_URL, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key.trim()}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: model || "gpt-6-luna",
         messages: [{ role: "user", content: "Ответь одним словом: готов" }],
@@ -335,14 +337,14 @@ export async function probeApiKey(key: string, model: string): Promise<void> {
       }),
     });
   } catch {
-    throw new Error("Нет связи с api.hydraai.ru. Проверьте интернет.");
+    throw new Error("Нет связи с сервером игры. Проверьте интернет.");
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `Ключ не принят (HTTP ${resp.status}).`);
+    throw new Error(err?.error?.message || `ИИ недоступен (HTTP ${resp.status}).`);
   }
   const data = await resp.json().catch(() => ({}));
-  if (data?.error) throw new Error(data.error.message || "Ключ не принят.");
+  if (data?.error) throw new Error(data.error.message || "ИИ недоступен.");
 }
 
 /** Приводит проект совета к схеме кампании; null — если проект невалиден. */
@@ -369,12 +371,12 @@ export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): an
 const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}],"rationale":"1 предложение: почему это следует из затравки"}`;
 
 /** Первый проект народа: единственная наука, выведенная из затравки игрока. */
-export async function llmOpeningProject(key: string, model: string, state: any): Promise<any> {
+export async function llmOpeningProject(model: string, state: any): Promise<any> {
   const sit = M.scienceAdvisorSituation(state);
   const p = state.player;
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 1200,
+    model, temperature: 1, maxTokens: 1200,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Игрок только что основал народ и выбрал его затравку — готовый замысел о том, чем этот народ живёт и куда смотрит.
 Придумай РОВНО ОДНО первое дело народа: науку и связанную с ней постройку. Оно должно прямо продолжать затравку и опираться на землю, черту и наследие народа. Никаких готовых шаблонов — придумай свой образ.
@@ -387,11 +389,11 @@ export async function llmOpeningProject(key: string, model: string, state: any):
 }
 
 /** Три новых проекта по текущей ситуации и затравке; направление выбирает сам советник. */
-export async function llmScienceOffers(key: string, model: string, state: any): Promise<any[]> {
+export async function llmScienceOffers(model: string, state: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 1600,
+    model, temperature: 1, maxTokens: 1600,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Игрок не выбирает направление — ты сам читаешь затравку народа, земли, запасы и эпоху. Предложи ровно 3 РАЗНЫХ проекта (наука + связанная постройка): один отвечает на нехватку пропитания и хозяйство, один — на защиту и войну, один — на знания и устройство общества. Каждый проект должен опираться на конкретную ситуацию народа, а не на общий список наук.
 Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ...]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1. Язык — русский, без магии.`,
@@ -404,10 +406,10 @@ export async function llmScienceOffers(key: string, model: string, state: any): 
 }
 
 /** Имя и описание постройки в новой земле: уникальные для этого народа, а не из списка. */
-export async function llmRegionBuildingName(key: string, model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
+export async function llmRegionBuildingName(model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
   const p = state.player;
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 300,
+    model, temperature: 1, maxTokens: 300,
     system: `Ты — летописец исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Народ обустроил новую землю и возводит там постройку. Придумай ИМЕННО ЭТОЙ общине своё имя постройки и короткое описание — не шаблонное, связанное с местом и затравкой народа.
 Ответ — строго JSON: {"name":"до 40 знаков","description":"одно предложение до 160 знаков"}. Язык — русский.`,
@@ -418,10 +420,10 @@ export async function llmRegionBuildingName(key: string, model: string, state: a
   return { name, description: String(data?.description || "").trim().slice(0, 180) };
 }
 
-async function hydraChat(opts: { key: string; model: string; system: string; user: string; temperature: number; maxTokens: number }) {
-  const resp = await fetch(HYDRA_URL, {
+async function hydraChat(opts: { model: string; system: string; user: string; temperature: number; maxTokens: number }) {
+  const resp = await fetch(HYDRA_PROXY_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${opts.key}`, "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: opts.model,
       messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.user }],
@@ -453,10 +455,10 @@ export function contextOf(state: any): string {
   ].filter(Boolean).join("\n");
 }
 
-export async function llmAdvice(key: string, model: string, state: any): Promise<Advice[]> {
+export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   const era = state.player.era >= 3 ? "ancient и bronze" : "ancient";
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 900,
+    model, temperature: 1, maxTokens: 900,
     system: "Ты военный советник кузницы исторической карточной стратегии о становлении цивилизаций (древний мир и бронзовый век, без магии и фэнтези). Предложи ровно три замысла карты: один card_type=unit, один spell, один structure. Ответ — JSON: {\"choices\":[{\"card_type\":\"unit|spell|structure\",\"title\":\"короткое название\",\"pitch\":\"1 предложение, один образ\"}]}. Язык — русский.",
     user: `Контекст цивилизации:\n${contextOf(state)}\nРазрешённые эпохи карт: ${era}.`,
   });
@@ -483,11 +485,11 @@ effects[] — объекты {event, target, action, condition?, watch?}:
 {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":""}
 Язык — русский.`;
 
-export async function llmCard(key: string, model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
+export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
   const allowed = state.player.era >= 3 ? ["ancient", "bronze"] : ["ancient"];
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   const raw = await hydraChat({
-    key, model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
+    model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
     system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
     user: `Замысел: «${advice.title}». ${advice.pitch}\ncard_type="${advice.cardType}". ${directive}\n\nКонтекст цивилизации:\n${contextOf(state)}`,
   });
@@ -497,11 +499,11 @@ export async function llmCard(key: string, model: string, advice: Advice, rarity
   return card;
 }
 
-export async function llmScience(key: string, model: string, state: any, branch: any): Promise<any[]> {
+export async function llmScience(model: string, state: any, branch: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
   const data = await hydraChat({
-    key, model, temperature: 1, maxTokens: 1400,
+    model, temperature: 1, maxTokens: 1400,
     system: `Ты научный советник исторической стратегии. Игрок выбрал широкую ветвь; придумай 3 РАЗНЫХ замысла (наука + здание). Ответ — JSON: {"projects":[{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}]}]}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1. Язык — русский, без магии.`,
     user: `Эпоха: ${M.eraName(state.player.era)}. Направление: «${branch.label}» — ${branch.prompt}. Ситуация: ${sit.summary}`,
   });

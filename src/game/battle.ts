@@ -149,6 +149,8 @@ function posOf(b: Battle, u: Unit): Slot | null {
 
 const has = (u: Unit | null | undefined, k: string) => !!(u && u.st && u.st[k]);
 const isRanged = (u: Unit) => has(u, "ranged");
+// засадный боец, отступивший в тыл, бьёт как дальний бой — иначе он застревает там без атак
+const strikesFromRear = (u: Unit) => has(u, "ranged") || has(u, "skirmish");
 
 function modTotal(b: Battle, u: Unit, stat: Mod["stat"]) {
   const p = posOf(b, u);
@@ -304,7 +306,7 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
     }
     return { kind: "hero", side: es };
   }
-  if (isRanged(attacker)) {
+  if (strikesFromRear(attacker)) {
     for (let i = 0; i < FRONT; i++) if (E.front[i]) return { kind: "unit", side: es, row: "front", i, unit: E.front[i]! };
     return { kind: "hero", side: es };
   }
@@ -352,30 +354,43 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
   const target = findTarget(b, attacker, side);
   const p = posOf(b, attacker)!;
   if (!target) { attacker.exhausted = true; return true; }
+  let hitLanded = true;
   if (target.kind === "hero") {
     const d = Math.max(1, atkOf(b, attacker));
     hurtHero(b, target.side, d);
     log(b, side, `${attacker.name} бьёт ${target.side === "me" ? "вашего вождя" : "вражеского вождя"}: −${d}.`);
   } else {
     const t = target.unit;
-    const d = resolveHit(b, attacker, t, atkOf(b, attacker), side);
-    let counter = 0;
-    if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
-      const cb = atkOf(b, t);
-      if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
-    }
-    log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
-    if (has(attacker, "poison")) t.st.poison = (t.st.poison || 0) + 1;
-    if (has(attacker, "burn")) t.st.burn = (t.st.burn || 0) + 1;
-    if (has(attacker, "skirmish") && p.row === "front" && attacker.curHp > 0) {
-      const free = b[side].back.indexOf(null);
-      if (free >= 0) { b[side].front[p.i] = null; b[side].back[free] = attacker; log(b, side, `${attacker.name} отступает в тыл.`); }
+    const defenderSide = target.side;
+    // Засадный боец в авангарде уклоняется в тыл от ближнего боя ДО обмена ударами — урона не будет ни ему, ни атакующему.
+    const defenderDodges = !isRanged(attacker) && has(t, "skirmish") && target.row === "front" && b[defenderSide].back.indexOf(null) >= 0;
+    if (defenderDodges) {
+      const free = b[defenderSide].back.indexOf(null);
+      b[defenderSide].front[target.i] = null;
+      b[defenderSide].back[free] = t;
+      log(b, defenderSide, `«${t.name}» уклоняется в тыл от «${attacker.name}»: засада не принимает ближний бой.`);
+      hitLanded = false;
+    } else {
+      const d = resolveHit(b, attacker, t, atkOf(b, attacker), side);
+      let counter = 0;
+      if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
+        const cb = atkOf(b, t);
+        if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
+      }
+      log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
+      if (has(attacker, "poison")) t.st.poison = (t.st.poison || 0) + 1;
+      if (has(attacker, "burn")) t.st.burn = (t.st.burn || 0) + 1;
+      // После собственной атаки засадный боец тоже уходит в тыл и дальше бьёт как боец дальнего боя (см. strikesFromRear).
+      if (has(attacker, "skirmish") && p.row === "front" && attacker.curHp > 0) {
+        const freeBack = b[side].back.indexOf(null);
+        if (freeBack >= 0) { b[side].front[p.i] = null; b[side].back[freeBack] = attacker; log(b, side, `${attacker.name} отступает в тыл и продолжит бить из засады.`); }
+      }
     }
   }
   attacker.fresh = false;
   attacker.exhausted = true;
   adjustEnergy(b, side, -costOf(b, attacker));
-  if (attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : { kind: "unit", side: target.side, unit: target.unit });
+  if (hitLanded && attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : { kind: "unit", side: target.side, unit: target.unit });
   settle(b);
   return true;
 }

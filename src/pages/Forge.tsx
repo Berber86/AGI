@@ -19,7 +19,7 @@ function readAdvice(season: number, day: number): Advice[] | null {
 }
 
 export default function Forge() {
-  const { game, act, addCard, apiKey, model, toast, go } = useStore();
+  const { game, act, addCard, model, toast, go } = useStore();
   const p = game.player;
   const [advice, setAdvice] = useState<Advice[]>(() => readAdvice(game.season, game.day) ?? []);
   const [pick, setPick] = useState<string | null>(null);
@@ -44,13 +44,9 @@ export default function Forge() {
   const block: string | null = !selected ? "Выберите замысел карты." : dry.error || null;
 
   const askAdvisor = async () => {
-    if (!apiKey) {
-      toast("Нужен API-ключ: замыслы придумывает советник, готовых идей в игре нет.", "bad");
-      return;
-    }
     setAskLoading(true);
     try {
-      const list = await llmAdvice(apiKey, model, game);
+      const list = await llmAdvice(model, game);
       setAdvice(list);
       toast("Советник предложил новые замыслы.", "ok");
     } catch (e: any) {
@@ -74,9 +70,8 @@ export default function Forge() {
     setBusy(order.id);
     const started = Date.now();
     try {
-      if (!apiKey) throw new Error("нужен API-ключ");
       const snapshot = M.clone(game);
-      const card: Card = await llmCard(apiKey, order.modelId, selected, order.rarity as Rarity, snapshot);
+      const card: Card = await llmCard(order.modelId, selected, order.rarity as Rarity, snapshot);
       const wait = 1400 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       const done = act((s) => M.completeCardCraft(s, order.id, card), { silent: true });

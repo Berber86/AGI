@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, ArrowRight, X, Check, CircleAlert, Info, Flag, KeyRound, Trash2 } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, ArrowRight, X, Check, CircleAlert, Info, Flag, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { MODEL_GROUPS, currentGuideStep, useDerived, useStore, type Page } from "@/game/store";
@@ -39,7 +39,7 @@ function useAlerts(): Partial<Record<Page, number>> {
 }
 
 export function SideNav() {
-  const { game, page, go, openSettings, apiKey } = useStore();
+  const { game, page, go, openSettings, aiStatus } = useStore();
   const alerts = useAlerts();
   const guided = currentGuideStep(game);
   return (
@@ -75,7 +75,7 @@ export function SideNav() {
         <button onClick={() => openSettings(true)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-dim hover:bg-raised/60 hover:text-parch">
           <Settings size={18} className="text-faint" />
           <span className="flex-1 text-left">Настройки</span>
-          <span className={cn("h-2 w-2 rounded-full", apiKey ? "bg-ok" : "bg-bad")} title={apiKey ? "ИИ подключён" : "Нужен API-ключ"} />
+          <span className={cn("h-2 w-2 rounded-full", aiStatus.status === "bad" ? "bg-bad" : "bg-ok")} title={aiStatus.status === "bad" ? (aiStatus.message || "ИИ недоступен") : "ИИ подключён"} />
         </button>
       </div>
     </aside>
@@ -115,43 +115,12 @@ export function GuideBar() {
   );
 }
 
-/** Без ключа ИИ не может придумывать науки, постройки и карты — вход в игру закрыт. */
-export function KeyGate() {
-  const { game, apiKey, keyCheck, verifyKey } = useStore();
-  const [value, setValue] = useState(apiKey);
-  const [busy, setBusy] = useState(false);
-  const needed = !apiKey || keyCheck.status === "bad";
-  // Сохранённый ключ мог устареть: тихо проверяем его, чтобы не впускать с нерабочим.
-  useEffect(() => { if (apiKey && keyCheck.status === "unknown") void verifyKey(undefined, true); }, [apiKey, keyCheck.status, verifyKey]);
-  if (!game.player.onboardingComplete || !needed) return null;
-  const submit = async () => {
-    setBusy(true);
-    await verifyKey(value);
-    setBusy(false);
-  };
-  return (
-    <Modal open onClose={() => {}} title="Нужен API-ключ">
-      <Label>Обязательный шаг</Label>
-      <h2 className="font-display text-2xl font-semibold">Подключите ИИ</h2>
-      <p className="mt-2 text-sm leading-relaxed text-dim">
-        Науки, постройки и карты придумывает модель прямо во время игры — готовых вариантов в игре нет. Без ключа продолжить нельзя.
-      </p>
-      <label className="mt-5 block">
-        <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ</Label>
-        <input
-          type="password" value={value} autoFocus onChange={(e) => setValue(e.target.value)} autoComplete="off" placeholder="Ключ с dashboard.hydraai.ru"
-          className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none placeholder:text-faint focus:border-bronze"
-        />
-      </label>
-      {keyCheck.status === "bad" && keyCheck.message && <p className="mt-2 text-xs text-bad">{keyCheck.message}</p>}
-      {keyCheck.status === "ok" && <p className="mt-2 text-xs text-ok">{keyCheck.message}</p>}
-      <Btn variant="primary" size="lg" className="mt-5 w-full" disabled={busy || !value.trim()} onClick={submit}>
-        {busy ? "Проверяем ключ…" : "Проверить ключ и играть"}
-      </Btn>
-      <p className="mt-2 text-xs leading-relaxed text-faint">Ключ хранится только в этом браузере и отправляется напрямую на api.hydraai.ru.</p>
-    </Modal>
-  );
-}
+/**
+ * Раньше здесь был обязательный экран ввода ключа. Теперь ключ ИИ настраивается один раз
+ * на сервере (переменная окружения HYDRA_API_KEY на Vercel) — в игре его больше нигде
+ * вводить не нужно, поэтому блокирующий гейт убран. Если сервер всё же не настроен,
+ * об этом скажет статус «ИИ» в настройках и подсказки при попытке спросить советника.
+ */
 
 export function MobileNav() {
   const { game, page, go } = useStore();
@@ -277,28 +246,24 @@ export function Toasts() {
 }
 
 export function SettingsModal() {
-  const { settingsOpen, openSettings, apiKey, setApiKey, model, setModel, resetCampaign, keyCheck, verifyKey } = useStore();
+  const { settingsOpen, openSettings, model, setModel, resetCampaign, aiStatus, checkAi } = useStore();
   const [confirm, setConfirm] = useState(false);
   return (
     <Modal open={settingsOpen} onClose={() => { openSettings(false); setConfirm(false); }} title="Настройки">
       <h2 className="font-display text-xl font-semibold">Настройки</h2>
-      <p className="mt-1 text-sm text-dim">Ключ обязателен: науки, постройки и карты придумывает модель во время игры, готовых вариантов нет.</p>
+      <p className="mt-1 text-sm text-dim">Науки, постройки и карты придумывает модель во время игры, готовых вариантов нет. Ключ ИИ настроен на сервере заранее — вводить его в игре не нужно.</p>
       <div className="mt-5 space-y-4">
-        <label className="block">
-          <Label className="mb-1.5 flex items-center gap-1.5"><KeyRound size={12} />Hydra API-ключ (обязателен для игры)</Label>
-          <input
-            type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="off" placeholder="Ключ с dashboard.hydraai.ru"
-            className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none placeholder:text-faint focus:border-bronze"
-          />
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Btn size="sm" variant="secondary" onClick={() => verifyKey()} disabled={!apiKey || keyCheck.status === "checking"}>
-              {keyCheck.status === "checking" ? "Проверяем…" : "Проверить ключ"}
-            </Btn>
-            {keyCheck.status === "ok" && <span className="text-xs text-ok">{keyCheck.message}</span>}
-            {keyCheck.status === "bad" && keyCheck.message && <span className="text-xs text-bad">{keyCheck.message}</span>}
+        <div className="rounded-xl border border-line bg-ground/50 p-3.5">
+          <Label className="mb-1.5 flex items-center gap-1.5"><Sparkles size={12} />Связь с ИИ-советником</Label>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={cn("inline-flex items-center gap-1.5 text-sm font-medium", aiStatus.status === "bad" ? "text-bad" : aiStatus.status === "ok" ? "text-ok" : "text-faint")}>
+              <span className={cn("h-2 w-2 rounded-full", aiStatus.status === "bad" ? "bg-bad" : aiStatus.status === "ok" ? "bg-ok" : "bg-faint")} />
+              {aiStatus.status === "checking" ? "Проверяем…" : aiStatus.status === "ok" ? "ИИ подключён" : aiStatus.status === "bad" ? "ИИ недоступен" : "Статус неизвестен"}
+            </span>
+            <Btn size="sm" variant="secondary" onClick={() => void checkAi()} disabled={aiStatus.status === "checking"}>Проверить связь</Btn>
           </div>
-          <span className="mt-1.5 block text-xs text-faint">Ключ хранится только в этом браузере и отправляется напрямую на api.hydraai.ru. Не вводите его на чужом устройстве.</span>
-        </label>
+          {aiStatus.status === "bad" && aiStatus.message && <p className="mt-2 text-xs text-bad">{aiStatus.message}</p>}
+        </div>
         <label className="block">
           <Label className="mb-1.5">Модель для науки и советов</Label>
           <select value={model} onChange={(e) => setModel(e.target.value)} className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none focus:border-bronze">
