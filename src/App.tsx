@@ -30,6 +30,16 @@ function Root() {
       </>
     );
   }
+  // Бой — отдельный полноэкранный режим: страница под ним не рендерится,
+  // иначе на телефоне под оверлеем остаётся прокручиваемый экран армии.
+  if (match) {
+    return (
+      <>
+        <Battle />
+        <Toasts />
+      </>
+    );
+  }
   return (
     <div className="min-h-dvh lg:pl-[216px]">
       <SideNav />
@@ -45,7 +55,6 @@ function Root() {
       <MobileNav />
       <SettingsModal />
       <DayReportModal />
-      {match && <Battle />}
       <KeyGate />
       <Toasts />
     </div>

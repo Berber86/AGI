@@ -52,6 +52,8 @@ export interface Match {
   kind: "practice" | "expedition";
   opponentId: string; name: string; clan: string; era: number; leaderBattle: boolean;
   regionId?: string; regionName?: string; questBattle?: boolean;
+  /** Первый в жизни игрока бой: тренер подсказывает шаги, враг приходит без построек. */
+  tutorial?: boolean;
 }
 export interface Battle {
   me: Player; enemy: Player;

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, KeyRound, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { AVAILABLE_MODELS, useStore } from "@/game/store";
+import { MODEL_GROUPS, useStore } from "@/game/store";
 import { Btn, Chip, Label, ResIcon, RES, type ResKey } from "@/components/ui";
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
@@ -254,7 +254,11 @@ export default function Onboarding() {
               <label className="mt-5 block">
                 <Label className="mb-1.5">Модель для наук и советов</Label>
                 <select value={model} onChange={(e) => setModel(e.target.value)} className="h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-parch outline-none focus:border-bronze">
-                  {AVAILABLE_MODELS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  {MODEL_GROUPS.map((g) => (
+                    <optgroup key={g.id} label={`${g.label} — ${g.hint}`}>
+                      {g.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                    </optgroup>
+                  ))}
                 </select>
                 <span className="mt-1.5 block text-xs text-faint">Карты в кузнице модель выбирает сама по выпавшей редкости.</span>
               </label>

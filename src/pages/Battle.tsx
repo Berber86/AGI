@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass } from "lucide-react";
+import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass, CircleHelp, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { allCards, buildMilitia, describeEffect, type Card } from "@/game/cards";
+import { allCards, militiaFill, withoutStructures, describeEffect, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, canAct, cast, costOf, createBattle, deploy, endPlayerTurn, enemyAct,
   enemyDeckForEra, findTarget, spellHasTarget, unitsOf, type Battle, type Unit,
@@ -14,10 +14,11 @@ import art from "../../assets/infinite-forge-battlefield.jpg";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function EnergyPips({ energy, max, cap }: { energy: number; max: number; cap: number }) {
+function EnergyPips({ energy, max, cap, label }: { energy: number; max: number; cap: number; label?: string }) {
   return (
     <div className="flex items-center gap-1" title={`Энергия ${energy} из ${max} (предел ${cap})`}>
       <Zap size={15} className="mr-0.5 text-bronze" />
+      {label && <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wider text-faint">{label}</span>}
       {Array.from({ length: Math.max(max, 1) }).map((_, i) => (
         <span key={i} className={cn("h-3 w-3 rounded-full border transition-colors", i < energy ? "border-bronze bg-bronze shadow-[0_0_8px_rgba(217,164,69,0.7)]" : "border-line-strong bg-transparent")} />
       ))}
@@ -32,7 +33,7 @@ function Hero({ side, b, name, sub, targeted, onClick }: { side: "me" | "enemy";
   return (
     <div
       onClick={onClick}
-      className={cn("relative flex items-center gap-3 rounded-2xl border bg-surface/90 px-4 py-2.5 backdrop-blur transition-all", targeted ? "cursor-pointer border-bad ring-4 ring-bad/25" : "border-line", b.active === side && !b.over && "border-bronze/50")}
+      className={cn("relative flex items-center gap-2.5 rounded-2xl border bg-surface/90 px-3 py-2 backdrop-blur transition-all sm:gap-3 sm:px-4 sm:py-2.5", targeted ? "cursor-pointer border-bad ring-4 ring-bad/25" : "border-line", b.active === side && !b.over && "border-bronze/50")}
     >
       <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full border", side === "me" ? "border-bronze/50 bg-bronze/10 text-bronze" : "border-clay/50 bg-clay/10 text-clay")}>
         {side === "me" ? <Shield size={18} /> : <Skull size={18} />}
@@ -42,7 +43,7 @@ function Hero({ side, b, name, sub, targeted, onClick }: { side: "me" | "enemy";
           <div className="truncate text-sm font-semibold text-parch">{name}</div>
           <div className="text-sm font-bold tabular-nums text-parch"><Heart size={12} className="mr-1 inline text-bad" />{Math.max(0, p.hp)}<span className="font-medium text-faint">/{p.maxHp}</span></div>
         </div>
-        <div className="truncate text-[11px] text-faint">{sub}</div>
+        <div className="hidden truncate text-[11px] text-faint sm:block">{sub}</div>
         <Meter value={p.hp} max={p.maxHp} className="mt-1.5 h-2" color={pct > 50 ? "bg-ok" : pct > 25 ? "bg-bronze" : "bg-bad"} />
       </div>
       {p.hitSeq > 0 && <span key={p.hitSeq} className="pointer-events-none absolute right-6 top-0 animate-float-dmg text-xl font-black text-bad">−{p.lastDmg}</span>}
@@ -90,7 +91,7 @@ function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover }: 
 
 function Slot({ children, label, valid, onClick }: { children?: React.ReactNode; label?: string; valid?: boolean; onClick?: () => void }) {
   return (
-    <div className="h-[88px] sm:h-[100px] [@media(min-height:900px)]:sm:h-[114px]">
+    <div className="h-[74px] sm:h-[100px] [@media(min-height:900px)]:sm:h-[114px]">
       {children ?? (
         <button onClick={onClick} disabled={!valid} className={cn("grid h-full w-full place-items-center rounded-xl border border-dashed text-[10px] transition-all", valid ? "animate-pulse-soft border-bronze/70 bg-bronze/8 text-bronze-soft hover:bg-bronze/15" : "border-line/60 text-line-strong")}>
           {valid ? "+ выйти" : label}
@@ -101,22 +102,28 @@ function Slot({ children, label, valid, onClick }: { children?: React.ReactNode;
 }
 
 export default function BattleScreen() {
-  const { game, collection, match, markBattleStarted, finishBattle, closeBattle, go } = useStore();
+  const { game, collection, match, markBattleStarted, finishBattle, closeBattle, go, militiaPicks } = useStore();
   const m = match!;
   const cfg = useMemo(() => M.getBattleConfig(game), []); // eslint-disable-line react-hooks/exhaustive-deps
   const build = () => {
     const cards = new Map(allCards(collection).map((c) => [c.id, c]));
     const deck: Card[] = game.player.deckCardIds.map((id: string) => cards.get(id)).filter(Boolean).slice(0, cfg.deckLimit) as Card[];
     let used = 0;
-    for (const mi of buildMilitia()) {
+    // Ополчение идёт в порядке выбора игрока (экран армии), остальные — как запас.
+    for (const mi of militiaFill(militiaPicks, game.player.era)) {
       if (deck.length >= cfg.deckLimit) break;
       if (deck.some((c) => c.name === mi.name)) continue;
       deck.push({ ...mi, militia: true }); used++;
     }
     const ec = M.getOpponentBattleConfig(game, m.opponentId);
     const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
-    const enemyDeck = customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, ec.deckLimit);
-    return createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
+    const enemyPool = (customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, 12)) as Card[];
+    // В первом учебном бою враг приходит без построек: никто не бьёт новичка бесплатно из тыла.
+    const enemyDeck = (m.tutorial ? withoutStructures(enemyPool) : enemyPool).slice(0, ec.deckLimit);
+    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
+    // Первый ход новичка начинается с полного предела энергии: в руке карты за 2, а не 1.
+    if (m.tutorial) { battle.me.energyMax = battle.me.energyCap; battle.me.energy = battle.me.energyCap; }
+    return battle;
   };
   const bRef = useRef<Battle>(null as any);
   if (!bRef.current) bRef.current = build();
@@ -127,6 +134,7 @@ export default function BattleScreen() {
   const [result, setResult] = useState<{ won: boolean; msg: string } | null>(null);
   const [confirmRetreat, setConfirmRetreat] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const alive = useRef(true);
   const busy = useRef(false);
   const finished = useRef(false);
@@ -234,6 +242,25 @@ export default function BattleScreen() {
   const anyMove = unitsOf(b, "me").some((s) => canAct(b, "me", s.unit)) || hand.some((c) => c.drop_cost <= b.me.energy);
 
   const enemyName = `${m.name}`;
+  // Тренер ведёт первый бой по шагам: объясняет ровно то, что сейчас на экране.
+  const myUnits = unitsOf(b, "me").filter((s) => !s.unit.isStructure);
+  const anyReady = myUnits.some((s) => canAct(b, "me", s.unit));
+  const cheapestCard = hand.reduce((min, c) => Math.min(min, c.drop_cost), Infinity);
+  const coach = (() => {
+    if (b.over) return null;
+    if (!m.tutorial) return null;
+    if (b.active === "enemy") return "Сейчас ходит враг. Постройки бьют каждый свой ход бесплатно, отряды — за энергию.";
+    if (selCard && selCard.drop_cost > b.me.energy) return `Не хватает энергии: на вывод нужно ${selCard.drop_cost}, а запас идёт и на вывод, и на атаку.`;
+    if (selCard) return selCard.card_type === "spell" ? "Манёвр разыгрывается сразу и не занимает слот." : "Поставьте отряд в авангард (бьёт врага) или в тыл (безопаснее).";
+    if (selU && !target) return "Отсюда не достать: авангард бьёт авангард, а дальнобойные — из тыла.";
+    if (selU) return "Нажмите на врага или на «Атаковать». Атака тоже тратит энергию из общего запаса.";
+    if (myUnits.length === 0 && hand.length > 0) return "Шаг 1: выберите карту в руке и поставьте её на поле.";
+    if (myUnits.length > 0 && !anyReady && b.turn === 1) return "Отряд вышел в этом ходу и пока не атакует — так у всех. Нажмите «Конец хода».";
+    if (anyReady) return "Шаг 2: отряд с золотой рамкой готов — нажмите на него, затем на цель.";
+    if (hand.length && cheapestCard > b.me.energy) return "Карты пока дороже вашей энергии: завершите ход, энергии станет больше.";
+    return "Завершите ход — отряды восстановятся, а энергия вырастет.";
+  })();
+
   const hint = (() => {
     if (b.over) return { text: b.over === "win" ? "Победа!" : "Поражение…", actions: null as React.ReactNode };
     if (b.active === "enemy" || busy.current) return { text: "Ход врага…", actions: <Loader2 size={16} className="animate-spin text-dim" /> };
@@ -279,21 +306,38 @@ export default function BattleScreen() {
       <img src={art} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-[0.16]" />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-ground/70 via-transparent to-ground/90" />
 
-      <header className="relative z-10 flex items-center justify-between gap-3 px-3 py-2.5 sm:px-6">
+      <header className="relative z-10 flex items-center justify-between gap-2 px-3 py-2 sm:px-6 sm:py-2.5">
         <Btn variant="ghost" size="sm" onClick={() => (b.over ? undefined : setConfirmRetreat(true))} disabled={!!b.over}><Flag size={14} />Отступить</Btn>
-        <div className="text-center">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">{m.questBattle ? `Квестовый бой · ${m.regionName || m.name}` : m.kind === "expedition" ? `Экспедиция · ${m.regionName}` : "Тренировочный бой"}</div>
+        <div className="min-w-0 text-center">
+          <div className="truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint sm:text-[11px] sm:tracking-[0.16em]">
+            {m.tutorial ? "Учебный бой" : m.questBattle ? `Квестовый бой · ${m.regionName || m.name}` : m.kind === "expedition" ? `Экспедиция · ${m.regionName}` : "Тренировочный бой"}
+          </div>
           <div className={cn("text-sm font-semibold", b.active === "me" ? "text-bronze-soft" : "text-clay")}>{b.over ? "Бой окончен" : `Ход ${b.turn} · ${b.active === "me" ? "ваш" : "врага"}`}</div>
         </div>
-        <Btn variant="ghost" size="sm" className="lg:hidden" onClick={() => setLogOpen(true)}><ScrollText size={14} />Журнал</Btn>
-        <span className="hidden w-[100px] lg:block" />
+        <div className="flex shrink-0 items-center gap-1">
+          <Btn variant="ghost" size="sm" onClick={() => setRulesOpen(true)} title="Правила боя и значки"><CircleHelp size={14} /><span className="hidden sm:inline">Правила</span></Btn>
+          <Btn variant="ghost" size="sm" className="lg:hidden" onClick={() => setLogOpen(true)}><ScrollText size={14} /><span className="hidden sm:inline">Журнал</span></Btn>
+        </div>
       </header>
 
+      {(m.tutorial || coach) && (
+        <div className="relative z-10 mx-3 mb-1 shrink-0 rounded-xl border border-bronze/40 bg-bronze/10 px-3 py-2 sm:mx-6">
+          <div className="mx-auto flex max-w-[720px] items-start gap-2">
+            <Sparkles size={14} className="mt-0.5 shrink-0 text-bronze-soft" />
+            <div className="min-w-0 flex-1 text-[12px] leading-snug text-parch sm:text-[12.5px]">
+              {m.tutorial && <b className="mr-1 text-bronze-soft">Учебный бой.</b>}
+              {m.tutorial && !coach && "Ничего не тратится и границы не меняются — ошибайтесь спокойно. "}
+              {coach || "Подсказки будут меняться по ходу боя."}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 flex min-h-0 flex-1 gap-4 px-3 pb-2 sm:px-6">
-        <div className="mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-between gap-1.5 overflow-y-auto no-scrollbar">
+        <div className="no-scrollbar mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-between gap-1 overflow-y-auto overscroll-contain">
           <div>
             <Hero side="enemy" b={b} name={enemyName} sub={`${m.clan} · ${M.eraName(m.era)} · в руке ${b.enemy.hand.length}, в колоде ${b.enemy.deck.length}`} targeted={!!selU && target?.kind === "hero"} onClick={() => { if (selU && target?.kind === "hero") doAttack(); }} />
-            <div className="mt-1.5 flex justify-end"><EnergyPips energy={b.enemy.energy} max={b.enemy.energyMax} cap={b.enemy.energyCap} /></div>
+            <div className="mt-1.5 flex justify-end"><EnergyPips energy={b.enemy.energy} max={b.enemy.energyMax} cap={b.enemy.energyCap} label="враг" /></div>
           </div>
 
           <div className="space-y-1.5 sm:space-y-2.5">
@@ -304,7 +348,7 @@ export default function BattleScreen() {
 
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <EnergyPips energy={b.me.energy} max={b.me.energyMax} cap={b.me.energyCap} />
+              <EnergyPips energy={b.me.energy} max={b.me.energyMax} cap={b.me.energyCap} label="вы" />
               <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad" title="С 6-го хода каждая попытка добрать из пустой колоды бьёт вождя нарастающим уроном"> · усталость {b.me.fatigue}</span>}</span>
             </div>
             <Hero side="me" b={b} name={game.player.name} sub={`${game.player.clan} · ${M.eraName(game.player.era)}`} />
@@ -317,24 +361,25 @@ export default function BattleScreen() {
         </aside>
       </div>
 
-      <footer className="relative z-10 border-t border-line bg-surface/95 px-3 pb-3 pt-2 backdrop-blur sm:px-6">
+      <footer className="relative z-10 border-t border-line bg-surface/95 px-3 pb-2 pt-1.5 backdrop-blur sm:px-6 sm:pb-3 sm:pt-2">
         <div className="mx-auto max-w-[720px]">
-          <div className="mb-2 flex min-h-9 items-center justify-between gap-3">
-            <p className="text-[12.5px] leading-snug text-dim">{hint.text}</p>
-            <div className="flex shrink-0 items-center gap-2">{hint.actions}</div>
+          <div className="mb-1.5 flex min-h-8 items-center justify-between gap-2 sm:mb-2 sm:min-h-9 sm:gap-3">
+            <p className="text-[12px] leading-snug text-dim sm:text-[12.5px]">{hint.text}</p>
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">{hint.actions}</div>
           </div>
-          <div className="flex items-end gap-2 sm:gap-3">
+          <div className="flex items-end gap-1.5 sm:gap-3">
             <div className="no-scrollbar flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 pt-2">
-              {hand.length === 0 && <div className="grid h-[104px] flex-1 place-items-center rounded-xl border border-dashed border-line text-xs text-faint">Рука пуста</div>}
+              {hand.length === 0 && <div className="grid h-[90px] flex-1 place-items-center rounded-xl border border-dashed border-line text-xs text-faint sm:h-[116px]">Рука пуста</div>}
               {hand.map((c, i) => {
                 const afford = c.drop_cost <= b.me.energy;
                 return (
                   <button key={c.iid ?? i} onClick={() => clickHand(i)} disabled={!myTurn}
-                    className={cn("relative flex h-[104px] w-[82px] shrink-0 flex-col items-center justify-between rounded-xl border bg-surface px-1.5 pb-1.5 pt-1.5 text-center transition-all sm:h-[116px] sm:w-[94px]",
+                    className={cn("relative flex h-[90px] w-[76px] shrink-0 flex-col items-center justify-between rounded-xl border bg-surface px-1.5 pb-1.5 pt-1.5 text-center transition-all sm:h-[116px] sm:w-[94px]",
                       selHand === i ? "-translate-y-2 border-bronze ring-2 ring-bronze" : afford && myTurn ? "border-line-strong hover:-translate-y-1 hover:border-bronze/60" : "border-line opacity-55")}>
                     <span className="absolute left-1 top-1 grid h-5 min-w-5 place-items-center rounded-full border border-bronze/60 bg-ground px-1 text-[11px] font-bold text-bronze-soft">{c.drop_cost}</span>
                     <span className="mt-3 text-[26px] leading-none sm:text-[30px]">{c.emoji}</span>
                     <span className="line-clamp-2 text-[10.5px] font-semibold leading-tight">{c.name}</span>
+                    {c.militia && <span className="absolute bottom-[26px] right-1 rounded border border-line bg-ground/90 px-1 text-[8.5px] font-semibold uppercase tracking-wide text-bronze-soft max-sm:bottom-auto max-sm:top-1 max-sm:px-0.5 max-sm:text-[8px]">ополч.</span>}
                     {c.card_type === "spell" ? <span className="text-[10px] font-medium text-know">манёвр</span> : (
                       <span className="flex gap-2 text-[11.5px] font-bold tabular-nums">{c.card_type === "unit" && <span className="text-clay">{c.atk}</span>}<span className="text-ok">{c.hp}</span>{c.card_type === "structure" && <span className="text-mat">здан.</span>}</span>
                     )}
@@ -342,13 +387,18 @@ export default function BattleScreen() {
                 );
               })}
             </div>
-            <Btn variant="primary" size="lg" className="h-[104px] shrink-0 flex-col gap-1 px-4 sm:h-[116px] sm:px-6" onClick={endTurn} disabled={!myTurn}>
+            <Btn variant="primary" size="lg" className="h-[90px] shrink-0 flex-col gap-1 px-3 sm:h-[116px] sm:px-6" onClick={endTurn} disabled={!myTurn}>
               {b.active === "enemy" && !b.over ? <Hourglass size={20} /> : <Flag size={20} />}
               <span className="text-[13px] leading-tight">Конец<br />хода</span>
             </Btn>
           </div>
         </div>
       </footer>
+
+      <Modal open={rulesOpen} onClose={() => setRulesOpen(false)} title="Правила боя">
+        <h2 className="font-display mb-2 text-xl font-semibold">Как идёт бой</h2>
+        <BattleRules />
+      </Modal>
 
       <Modal open={logOpen} onClose={() => setLogOpen(false)} title="Журнал боя">
         <h2 className="font-display mb-3 text-xl font-semibold">Журнал боя</h2>
@@ -406,7 +456,40 @@ function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: B
   return (
     <div className="rounded-2xl border border-dashed border-line p-4 text-xs leading-relaxed text-faint">
       <div className="mb-1 font-semibold text-dim">Как играть</div>
-      Выведите отряд из руки в свободный слот. Отряды с золотой рамкой готовы атаковать: выберите такой отряд и подтвердите цель. Энергия тратится и на выход, и на атаку. Наведите курсор на отряд, чтобы увидеть его свойства.
+      Выведите отряд из руки в свободный слот. Отряды с золотой рамкой готовы атаковать: выберите такой отряд и подтвердите цель. Энергия тратится и на выход, и на атаку. Нажмите на отряд, чтобы увидеть его свойства.
+      <Legend className="mt-3" />
+    </div>
+  );
+}
+
+/** Легенда значков: одинаково объясняет рамки, «свежих» бойцов и стрельбу зданий. */
+export function Legend({ className }: { className?: string }) {
+  const rows: [React.ReactNode, string][] = [
+    [<span key="k" className="mx-auto block h-5 w-5 rounded-md border-2 border-bronze bg-bronze/10 shadow-[0_0_0_1px_rgba(217,164,69,0.4)]" />, "Золотая рамка — отряд готов действовать: нажмите его, затем цель."],
+    [<span key="k" className="mx-auto block h-5 w-5 rounded-md border border-line-strong bg-[#241f17]" />, "Тонкая полоса снизу — отряд вышел в этом ходу и атаковать ещё не может."],
+    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-mat/40 bg-[#2a2016] text-[9px] text-mat">зд</span>, "Постройки бьют каждый свой ход бесплатно — их лучше сносить первыми."],
+    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-line-strong text-[10px] font-bold text-bronze">2</span>, "Число на отряде — сколько энергии стоит его атака."],
+  ];
+  return (
+    <ul className={cn("space-y-1.5", className)}>
+      {rows.map(([icon, text], i) => (
+        <li key={i} className="flex items-start gap-2.5">
+          <span className="w-5 shrink-0 pt-0.5">{icon}</span>
+          <span className="leading-snug">{text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Правила боя: короткий текст для мобильного модального окна и подсказки в бою. */
+export function BattleRules({ className }: { className?: string }) {
+  return (
+    <div className={cn("text-[13px] leading-relaxed text-dim", className)}>
+      <p>Один запас энергии платит и за вывод карты, и за её атаку. Энергия растёт в начале каждого вашего хода.</p>
+      <p className="mt-2">Авангард бьёт вражеский авангард и получает ответный удар. Дальнобойные и «длинное оружие» бьют из тыла безнаказанно. Манёвры разыгрываются сразу и слот не занимают.</p>
+      <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
+      <Legend className="mt-3 text-faint" />
     </div>
   );
 }
