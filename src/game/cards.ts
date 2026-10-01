@@ -289,7 +289,21 @@ export function validateEffects(raw: any): any[] {
   });
 }
 
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[]): Card {
+// Бюджет силы карты от ИИ-Кузнеца. Раньше drop_cost/action_cost/hp/atk проверялись только независимо друг от
+// друга (int() проверяет лишь диапазон 0-99 для каждого поля отдельно) — ничто не мешало модели вернуть,
+// например, atk:99 и hp:99 при drop_cost:0, пройдя валидацию без единой ошибки. Системный промпт просит модель
+// соблюдать баланс сама, но это не гарантия: один "сорвавшийся" ответ создаёт карту вне всякого баланса.
+// Теперь суммарная сила (атака + здоровье + грубый вес ключевых слов) ограничена бюджетом от заявленной
+// стоимости розыгрыша/действия и редкости заказа; излишек урезается пропорционально, а не просто принимается
+// (баланс-ревизия).
+const RARITY_BUDGET_MULT: Record<string, number> = { ordinary: 1, uncommon: 1.3, rare: 1.7 };
+function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string): number {
+  const mult = RARITY_BUDGET_MULT[rarity] || 1;
+  const base = cardType === "structure" ? 2 * dropCost + 1 : 2 * dropCost + actionCost + 1;
+  return Math.max(2, Math.round(base * mult));
+}
+
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary"): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
@@ -307,6 +321,16 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
+  if (c.card_type !== "spell") {
+    const keywordWeight = c.keywords.length;
+    const power = c.atk + c.hp + keywordWeight;
+    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity);
+    if (power > budget) {
+      const scale = budget / power;
+      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
+      c.hp = Math.max(1, Math.round(c.hp * scale));
+    }
+  }
   c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
@@ -499,7 +523,7 @@ export async function llmCard(model: string, advice: Advice, rarity: Rarity, sta
     system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
     user: `Замысел: «${advice.title}». ${advice.pitch}\ncard_type="${advice.cardType}". ${directive}\n\nКонтекст цивилизации:\n${contextOf(state)}`,
   });
-  const card = validateCard(raw, advice.cardType, allowed);
+  const card = validateCard(raw, advice.cardType, allowed, rarity);
   card.rarity = rarity;
   card.id = "card-" + uid();
   return card;

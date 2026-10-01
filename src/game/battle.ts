@@ -391,8 +391,12 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
         if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
       }
       log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
-      if (has(attacker, "poison")) t.st.poison = (t.st.poison || 0) + 1;
-      if (has(attacker, "burn")) t.st.burn = (t.st.burn || 0) + 1;
+      // Яд/поджог от ключевого слова раньше никогда не истекали (в отличие от тех же статусов от заклинаний,
+      // которые получают явный срок через apply_status) — отряд, который бьют поджигающим/ядовитым атакующим
+      // несколько ходов подряд, копил бесконечно растущий урон за ход. Теперь каждый удар обновляет срок действия
+      // на 2 хода, как и у аналогичного эффекта заклинаний (баланс-ревизия).
+      if (has(attacker, "poison")) { t.st.poison = (t.st.poison || 0) + 1; t.st.poisonTurns = 2; }
+      if (has(attacker, "burn")) { t.st.burn = (t.st.burn || 0) + 1; t.st.burnTurns = 2; }
       // После собственной атаки засадный боец тоже уходит в тыл и дальше бьёт как боец дальнего боя (см. strikesFromRear).
       if (has(attacker, "skirmish") && p.row === "front" && attacker.curHp > 0) {
         const freeBack = b[side].back.indexOf(null);
@@ -673,11 +677,10 @@ function tickStatuses(b: Battle, side: Side) {
     if (u.st.burn > 0) {
       hurtUnit(u, u.st.burn);
       log(b, side, `«${u.name}» получает ${u.st.burn} урона от огня.`);
+      // Перекидывание огня на соседей — отдельная "фитча" очага огня, не зависит от того, истекает ли срок.
+      if (u.curHp > 0) [s.i - 1, s.i + 1].forEach((ni) => { const n = p[s.row][ni]; if (n && !n.st.burn && Math.random() < 0.35) { n.st.burn = 1; n.st.burnTurns = 2; log(b, side, `Огонь перекинулся на «${n.name}».`); } });
       if (u.st.burnTurns > 0) { if (--u.st.burnTurns <= 0) { delete u.st.burn; delete u.st.burnTurns; } }
-      else {
-        if (u.curHp > 0) [s.i - 1, s.i + 1].forEach((ni) => { const n = p[s.row][ni]; if (n && !n.st.burn && Math.random() < 0.35) { n.st.burn = 1; log(b, side, `Огонь перекинулся на «${n.name}».`); } });
-        u.st.burn--; if (u.st.burn <= 0) delete u.st.burn;
-      }
+      else { u.st.burn--; if (u.st.burn <= 0) delete u.st.burn; }
     }
     if (u.curHp > 0 && (u.fears || (has(u, "morale") && u.curHp / u.hp < 0.3))) {
       if (Math.random() < (u.fears ? 0.5 : 0.2)) {

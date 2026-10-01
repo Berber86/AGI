@@ -974,12 +974,15 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
   const initial = playableCampaign();
   const metalAccess = controlRegionsWithBuildings(initial, { copper: 'smelter', 'tin-route': 'caravan' });
   metalAccess.player.era = 2;
+  // Ковка теперь дорожает с эпохой (баланс-ревизия), поэтому для этого снимка выдаём заведомо достаточный запас —
+  // сам тест проверяет цену/редкость/маршрутизацию модели, а не способность экономики прокормить ковку на 2-й эпохе.
+  metalAccess.player.resources = { food: 20, materials: 20, knowledge: 20 };
   const rare = Campaign.beginCardCraftState(metalAccess, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Копейная линия');
   assert.equal(rare.error, null);
   assert.equal(rare.order.rarity, 'rare');
   assert.equal(rare.order.modelId, 'glm-5.2');
-  assert.deepEqual(rare.order.cost, { food: 4, materials: 8, knowledge: 3 });
-  assert.deepEqual(rare.state.player.resources, { food: 6, materials: 2, knowledge: 3 });
+  assert.deepEqual(rare.order.cost, { food: 8, materials: 15, knowledge: 6 });
+  assert.deepEqual(rare.state.player.resources, { food: 12, materials: 5, knowledge: 14 });
   assert.equal(rare.state.player.dailyOrders.craftUsed, true);
   assert.match(Campaign.beginCardCraftState(rare.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, /ковка уже заказана|AP/);
 

@@ -324,6 +324,7 @@
     ];
     const REGION_CAPTURE_COST = { food: 2, materials: 2, knowledge: 0 };
     const REGION_EXPEDITION_COST = { food: 4, materials: 2, knowledge: 0 };
+    const REGION_RETRY_COOLDOWN_DAYS = 2;
     const REGION_BUILDINGS = {
         food: { id: 'irrigation', name: 'Ирригация и запруды', cost: { materials: 4 }, yields: { food: 2, materials: 0, knowledge: 0 }, workerBonus: { food: 0.3 }, description: 'Запруды и канавы дают +2🌾 в день и помогают земледельцам.' },
         materials: { id: 'quarry', name: 'Каменный и древесный стан', cost: { materials: 4 }, yields: { food: 0, materials: 2, knowledge: 0 }, workerBonus: {}, description: 'Местное сырьё даёт +2🪵 в день.' },
@@ -611,7 +612,8 @@
                 ownerId,
                 capturedDay: ownerId === null ? null : clampInt(saved?.capturedDay || definition.initialOwner && 1, 1, SEASON_LENGTH, 1),
                 building,
-                buildingFlavor
+                buildingFlavor,
+                lastDefeatDay: ownerId === 'player' || !Number.isFinite(saved?.lastDefeatDay) ? null : clampInt(saved.lastDefeatDay, 1, SEASON_LENGTH, 1)
             };
         });
     }
@@ -737,6 +739,10 @@
         state.player.growthDebt = clampInt(state.player.growthDebt, 0, 999, 0);
         state.player.starvationDays = clampInt(state.player.starvationDays, 0, 999, 0);
         // Слот строя поднимают только капитальные проекты с эффектом active_building_slots (по одному на постройку).
+        // Бонус считается по факту постройки (не только "пока активно") — это намеренно "капитальный", разовый
+        // эффект, а не текущий бонус вроде дохода. Но именно поэтому такое здание нельзя выключать (см. toggleBuilding):
+        // иначе игрок мог бы "обналичить" слот навсегда и тут же освободившийся слот отдать под другое здание
+        // (баланс-ревизия).
         const slotProjects = Array.isArray(state.player.buildings) ? state.player.buildings.filter(b => Array.isArray(b.effects) && b.effects.some(e => e && e.type === 'active_building_slots')).length : 0;
         state.player.activeBuildingSlots = clampInt(4 + slotProjects, 4, 5, 4);
         state.player.practice = { ...base.player.practice, ...(state.player.practice || {}) };
@@ -1012,8 +1018,15 @@
     }
 
     function getActiveDecrees(state) {
+        // ВАЖНО: действует только уклад ТЕКУЩЕЙ эпохи, а не все когда-либо выбранные. state.player.decrees —
+        // это исторический журнал (на нём держится renderDecreeChoice/лор), но бонусы и штрафы прошлых эпох не
+        // должны продолжать копиться вечно поверх новых — иначе, например, дважды выбрав "военный уклад" в
+        // разных эпохах, игрок получал бы двойной бонус и дважды перемноженный штраф к потреблению еды
+        // (баланс-ревизия). Активен всегда только последний выбранный уклад (state.player.decree).
         const list = Array.isArray(state.player.decrees) ? state.player.decrees : [];
-        return list.map(d => DECREES[d.id]).filter(Boolean);
+        if (!list.length) return [];
+        const current = DECREES[state.player.decree] || DECREES[list[list.length - 1].id];
+        return current ? [current] : [];
     }
 
     function getFoodConsumption(input) {
@@ -1064,8 +1077,22 @@
                 bonusKnow += dec.bonuses.workerBonus.knowledge || 0;
             }
         }
+        // Домашний биом (BIOMES[x].yields) раньше был только текстом в описании племени и нигде не влиял на
+        // реальную добычу — производство считалось исключительно от WORKER_BASE_YIELD, то есть выбор биома при
+        // онбординге был декоративным. Теперь его yields действительно добавляются к добыче на рабочего
+        // (баланс-ревизия).
+        if (state.player.biome && state.player.biome.yields) {
+            bonusFood += state.player.biome.yields.food || 0;
+            bonusMat += state.player.biome.yields.materials || 0;
+            bonusKnow += state.player.biome.yields.knowledge || 0;
+        }
+
         const hasRegionalIrrigation = state.regions.some(region => region.ownerId === 'player' && region.building === 'irrigation');
-        if (hasRegionalIrrigation && bonusFood > 0) bonusFood += 0.3;
+        // Раньше бонус ирригации включался только если bonusFood уже был > 0 (то есть требовал чужого источника
+        // бонуса еды) — на биомах без него (степь/пустыня/болото без построек) постройка "ирригация" в регионе
+        // не делала вообще ничего, хотя игрок тратил на неё ресурсы. Бонус теперь применяется безусловно
+        // (баланс-ревизия).
+        if (hasRegionalIrrigation) bonusFood += 0.3;
 
         const workerProd = {
             food: workers.food * (WORKER_BASE_YIELD.food + bonusFood),
@@ -1088,10 +1115,13 @@
         // upkeep_reduction и defense/trade пока символически снижают upkeep
         upkeep = Math.max(0, upkeep - (totals.upkeep_reduction || 0) * 0.1);
         // Историческая культура и черта влияют на производство (ямники — еда/кони, аккадцы — материалы, египтяне — склад)
+        // Раньше бонус черты применялся вдвое против бонуса исторической культуры той же величины (например,
+        // "Крепкие телом" +0.3 материала давали реально +0.6, а культура с тем же +0.3 — только +0.3) без видимой
+        // причины и без разницы в показанных игроку числах (баланс-ревизия): теперь оба применяются одинаково.
         if (state.player.trait && state.player.trait.bonus) {
-            if (state.player.trait.bonus.food) workerProd.food += state.player.trait.bonus.food * 2;
-            if (state.player.trait.bonus.materials) workerProd.materials += state.player.trait.bonus.materials * 2;
-            if (state.player.trait.bonus.knowledge) workerProd.knowledge += state.player.trait.bonus.knowledge * 2;
+            if (state.player.trait.bonus.food) workerProd.food += state.player.trait.bonus.food;
+            if (state.player.trait.bonus.materials) workerProd.materials += state.player.trait.bonus.materials;
+            if (state.player.trait.bonus.knowledge) workerProd.knowledge += state.player.trait.bonus.knowledge;
         }
         if (state.player.historicalCulture && state.player.historicalCulture.bonus) {
             const hb = state.player.historicalCulture.bonus;
@@ -1140,7 +1170,10 @@
             energyMax: Math.min(8, 2 + effects.energy_cap + energyBonus),
             energyGrowth: Math.min(3, 1 + effects.energy_growth),
             fatigueDelay: Math.min(2, effects.fatigue_resist),
-            atkBonus: effects.unit_power || 0,
+            // Как и у остальных боевых полей выше, суммарный бонус атаки от построек не должен расти
+            // без предела — несколько разных "доктрин" с unit_power иначе дают неограниченный перманентный
+            // урон без контрмер со стороны соперника (баланс-ревизия).
+            atkBonus: Math.min(2, effects.unit_power || 0),
             effects,
             decrees: getActiveDecrees(state),
             historicalCulture: state.player.historicalCulture,
@@ -1155,14 +1188,20 @@
         const stage = barbarianStage(era);
         const profile = opponent && BARBARIAN_DECK_PROFILES[opponent.id];
         const deck = opponent && getBarbarianDeck(opponent.id, era);
+        // Колоды племён жёстко ограничены контентом до BARBARIAN_ERA_CAP (нет карт для поздних эпох), но их боевые
+        // параметры раньше были завязаны на тот же замороженный stage — к Ренессансу и дальше дозоры навсегда
+        // отставали от игрока (deckLimit/hp/energy у игрока продолжают расти, а у варваров — нет). Поэтому силу боя
+        // теперь считаем от реальной эпохи игрока (который и является мерилом текущей угрозы), а не от замороженной
+        // эпохи племени — контент остаётся старым, но сопротивление не становится тривиальным (баланс-ревизия).
+        const threatEra = Math.max(era, opponent ? state.player.era : era);
         return {
             era,
             deckLimit: deck ? deck.length : BARBARIAN_DECK_SIZES[stage],
             deckStyle: profile?.style || (opponent ? 'Соседнее племя' : 'Дозор окраин'),
             deckDescription: profile?.description || 'Смешанный отряд дозорных, лучников и защитников рубежа.',
-            hp: 5 + stage,
-            energyMax: 2 + stage,
-            energyGrowth: stage >= 2 ? 2 : 1
+            hp: Math.min(12, 5 + threatEra),
+            energyMax: Math.min(8, 2 + threatEra),
+            energyGrowth: Math.min(3, 1 + Math.floor(threatEra / 2))
         };
     }
 
@@ -1170,6 +1209,14 @@
         for (const key of Object.keys(cost)) if ((state.player.resources[key] || 0) < cost[key]) return false;
         for (const key of Object.keys(cost)) state.player.resources[key] -= cost[key];
         return true;
+    }
+    // Жреческий/научный уклад обещает "здания стоят +1🪵" (buildingCostExtra) — раньше это нигде не применялось
+    // к реальной стоимости построек (только +0.05 к символическому upkeep), так что заявленный минус на деле не
+    // работал (баланс-ревизия). Возвращает надбавку к стоимости материалов для любой постройки.
+    function getBuildingCostExtra(state) {
+        let extra = 0;
+        for (const dec of getActiveDecrees(state)) extra += dec.bonuses.buildingCostExtra || 0;
+        return extra;
     }
     function canOrder(state, type) {
         if (state.day >= SEASON_LENGTH) return 'Сезон завершён. Подведи итоги.';
@@ -1298,6 +1345,15 @@
                     : 'Для экспедиции нужны 4 провизии и 2 материала.';
             return { action, enabled: false, reason, cost: { ...cost } };
         }
+        // Раньше проигранный бой можно было пересдавать хоть каждый день за те же ресурсы (половина цены
+        // возвращается при поражении) — без пауз и усиления защитника это превращало штурм в бесплатный спам
+        // попыток до удачного броска. Теперь после поражения тот же участок недоступен несколько дней (баланс-ревизия).
+        if ((action === 'attack' || action === 'quest') && Number.isFinite(record.lastDefeatDay)) {
+            const daysLeft = REGION_RETRY_COOLDOWN_DAYS - (state.day - record.lastDefeatDay);
+            if (daysLeft > 0) {
+                return { action, enabled: false, reason: 'Отряд ещё не оправился после поражения здесь. Подожди ' + daysLeft + ' дн.', cost: { ...cost } };
+            }
+        }
         return { action, enabled: true, reason: '', cost: { ...cost } };
     }
     function settleRegion(input, regionId) {
@@ -1320,7 +1376,9 @@
         const definition = getWorldTile(state.world, regionId);
         const building = getRegionBuilding(definition);
         if (!building) return { state, error: 'Для этой области нет подходящей постройки.' };
-        if (!spend(state, building.cost)) return { state, error: 'Не хватает ресурсов.' };
+        const regionCostExtra = getBuildingCostExtra(state);
+        const regionCost = regionCostExtra ? { ...building.cost, materials: (building.cost.materials || 0) + regionCostExtra } : building.cost;
+        if (!spend(state, regionCost)) return { state, error: 'Не хватает ресурсов.' };
         const record = getRegionRecord(state, regionId);
         record.building = building.id;
         const seed = hashString(state.world.seed + ':' + state.player.name + state.player.clan + regionId + String(state.day));
@@ -1395,6 +1453,9 @@
             conquered.ownerId = 'player';
             conquered.capturedDay = state.day;
             conquered.building = null;
+            conquered.lastDefeatDay = null;
+        } else {
+            record.lastDefeatDay = state.day;
         }
         state.player.pendingExpedition = null;
         // При поражении отряд возвращается с половиной припасов — серия неудач не должна съедать доход недели.
@@ -1543,10 +1604,14 @@
         const odds = rareLocked
             ? { ordinary: baseOdds.ordinary, uncommon: baseOdds.uncommon + baseOdds.rare, rare: 0 }
             : { ...baseOdds };
+        // Стоимость ковки раньше была одинаковой константой во всех 7 эпохах, хотя доход игрока (рабочие,
+        // регионы, торговля) за это время растёт в разы — к поздним эпохам лучшая ковка переставала быть
+        // значимым решением. Надбавка по эпохе держит её ощутимой на протяжении всей партии (баланс-ревизия).
+        const eraCostMult = 1 + state.player.era * 0.4;
         const cost = {
-            food: material.cost.food + time.cost.food,
-            materials: material.cost.materials + time.cost.materials,
-            knowledge: material.cost.knowledge + time.cost.knowledge
+            food: Math.ceil((material.cost.food + time.cost.food) * eraCostMult),
+            materials: Math.ceil((material.cost.materials + time.cost.materials) * eraCostMult),
+            knowledge: Math.ceil((material.cost.knowledge + time.cost.knowledge) * eraCostMult)
         };
         const availableMaterialQualities = getAvailableMaterialQualities(state);
         const materialQualityUnlocked = availableMaterialQualities.includes(materialQuality);
@@ -1793,7 +1858,8 @@
             const eraResource = ERA_KEY_RESOURCE[state.player.era];
             return { state, error: 'Для воинской доктрины этой эпохи нужно сначала освоить ' + (eraResource ? eraResource.label : 'ключевой ресурс эпохи') + '.' };
         }
-        if (!spend(state, { materials: 3 })) return { state, error: 'Для строительства нужны 3 материала.' };
+        const blueprintCostExtra = getBuildingCostExtra(state);
+        if (!spend(state, { materials: 3 + blueprintCostExtra })) return { state, error: 'Для строительства нужны ' + (3 + blueprintCostExtra) + ' материала.' };
         const hasSlot = state.player.buildings.filter(building => building.active).length < state.player.activeBuildingSlots;
         state.player.buildings.push({
             id: 'building-' + blueprint.id, name: blueprint.buildingName, description: blueprint.buildingDescription,
@@ -1815,6 +1881,16 @@
         if (state.player.ap <= 0 && state.player.pendingDecreeChoice) {
             // choosing decree is free, does not cost AP, but we check
         }
+        // Как и в toggleBuilding: если смена уклада (например, на "земледельческий", deck_slots:-1) опустит лимит
+        // колоды ниже текущего числа выбранных карт, не обрезаем колоду молча — просим сначала убрать лишние карты
+        // (баланс-ревизия, тот же принцип, что и для зданий).
+        const trial = clone(state);
+        trial.player.decrees = [{ id: decreeId, era: trial.player.era, chosenDay: trial.day }];
+        trial.player.decree = decreeId;
+        const newLimit = getBattleConfig(trial).deckLimit;
+        if (state.player.deckCardIds.length > newLimit) {
+            return { state, error: 'Этот уклад уменьшит лимит колоды до ' + newLimit + ', а сейчас в колоде ' + state.player.deckCardIds.length + ' карт. Сначала убери лишние карты из колоды в разделе «Отряд».' };
+        }
         state.player.decrees.push({ id: decreeId, era: state.player.era, chosenDay: state.day });
         state.player.decree = decreeId;
         state.player.pendingDecreeChoice = false;
@@ -1827,7 +1903,11 @@
         const state = normalizeState(input);
         const building = state.player.buildings.find(item => item.id === id);
         if (!building) return { state, error: 'Здание не найдено.' };
+        const grantsSlot = Array.isArray(building.effects) && building.effects.some(e => e && e.type === 'active_building_slots');
         if (building.active) {
+            if (grantsSlot) {
+                return { state, error: 'Это капитальное здание навсегда подняло лимит активных построек — его нельзя отключить, иначе освободившийся слот достанется другому зданию задаром.' };
+            }
             building.active = false;
             const newLimit = getBattleConfig(state).deckLimit;
             // Не обрезаем колоду молча: если отключение здания опустит лимит ниже текущего
@@ -1900,9 +1980,11 @@
         }
 
         if (newMaterials < 0) {
-            const activeBuildings = state.player.buildings.filter(b => b.active);
-            if (activeBuildings.length > 0) {
-                const toDisable = activeBuildings[activeBuildings.length - 1];
+            // Капитальные здания (active_building_slots) нельзя отключать автоматически — они навсегда подняли
+            // лимит активных построек, и их отключение задаром освободило бы слот под другое здание (см. toggleBuilding).
+            const disableable = state.player.buildings.filter(b => b.active && !(Array.isArray(b.effects) && b.effects.some(e => e && e.type === 'active_building_slots')));
+            if (disableable.length > 0) {
+                const toDisable = disableable[disableable.length - 1];
                 toDisable.active = false;
                 state.player.campaignNotice = 'Не хватает 🪵 на upkeep. Здание «' + toDisable.name + '» отключено.';
                 newMaterials = Math.max(0, newMaterials);
