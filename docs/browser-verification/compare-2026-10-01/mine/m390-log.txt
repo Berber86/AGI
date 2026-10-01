@@ -24,7 +24,7 @@ ENERGY TEXT: ВЫ 2/2 колода 1 · сброс 0 Медный Ворон 5/5
 
 ENEMY STRUCTURE WORDS: 0
 
-HAND: [{"text":"1 🪨 Пращники из холмов 1 1","size":"76x90","badge":null,"overlap":null},{"text":"2 🔺 Племенные копейщики 2 2","size":"76x90","badge":null,"overlap":null},{"text":"2 🪓 Топорники племени ОПОЛЧ. 3 3","size":"76x90","badge":"ополч.","overlap":false},{"text":"2 🏹 Охотники с луками ОПОЛЧ. 2 1","size":"76x90","badge":"ополч.","overlap":false},{"text":"Конец хода","size":"71x90","badge":null,"overlap":null}]
+HAND: [{"text":"1 🪨 Пращники из холмов 1 1","size":"76x90","badge":null,"overlap":null},{"text":"2 🪓 Топорники племени ОПОЛЧ. 3 3","size":"76x90","badge":"ополч.","overlap":false},{"text":"2 🔺 Племенные копейщики 2 2","size":"76x90","badge":null,"overlap":null},{"text":"3 🐎 Разведчики на лошадях ОПОЛЧ. 3 2","size":"76x90","badge":"ополч.","overlap":false},{"text":"Конец хода","size":"71x90","badge":null,"overlap":null}]
 
 END TURN: {"w":71,"h":90,"bottom":836,"vh":844,"visible":true}
 
@@ -60,8 +60,8 @@ DELETE: clicked: Убрать проект из кодекса | bps: ["Обжи
 
 MAP OVERFLOW: {"sw":390,"cw":390}
 
-MAP: {"labels":["Настройки","Золотые протоки","Южные склоны","Светлые скалы","Серые кряжи","Дикие предгорья","Зимние склоны","Центральное поселение"],"accented":0,"clamp":13,"overflowTiles":[]}
+MAP: {"labels":["Настройки","Синие степи","Тихие топи","Ольховые холмы","Дикие горы","Солнечные луга","Медные дубравы","Центральное поселение"],"accented":0,"clamp":13,"overflowTiles":[]}
 
-SETTINGS: {"dialog":true,"groups":["Универсальные — Разнообразные науки и по","Сильные — Лучше следуют контексту народа","Быстрые и экономные — Дешевле и отвечают"],"options":["GPT-6 Luna · по умолчанию","GPT-6 Astra","GLM-5.2","GPT-6 Sol · сильная","Claude Sonnet 5","DeepSeek V4 Pro","DeepSeek V4 Flash · быстрая","Hydra GPT Mini · бесплатная","GLM-5.1","DeepSeek V3.2"],"selected":["gpt-6-luna"]}
+SETTINGS: {"dialog":true,"groups":["GPT-6 — Универсальные: Sol — самая сильн","GLM — Крепкие модели, хороши в описаниях","DeepSeek — Pro точнее, Flash отвечает бы","Claude — Сильные тексты и аккуратные пра","Hydra — Бесплатная модель для пробы"],"options":["GPT-6 Luna · по умолчанию","GPT-6 Sol · сильная","GPT-6 Astra · ровная","GLM-5.2 · новая","GLM-5.1 · прошлая","DeepSeek V4 Pro · сильная","DeepSeek V4 Flash · быстрая","DeepSeek V3.2 · прошлая","Claude Sonnet 5 · сильная","Hydra GPT Mini · бесплатная"],"selected":["gpt-6-luna"]}
 
 SETTINGS OVERFLOW: {"sw":390,"cw":390}
