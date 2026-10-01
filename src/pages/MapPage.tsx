@@ -15,6 +15,7 @@ const SITE_LABEL: Record<string, string> = {
   tin: "Оловянный путь",
   salt: "Соляное место",
   obsidian: "Обсидиановая жила",
+  iron: "Железная руда",
   settlement: "Поселение",
   home: "Стартовое поселение",
   water: "Вода",
@@ -26,6 +27,7 @@ const FEATURE_LABEL: Record<string, string> = {
   "tin-route": "Оловянный путь",
   "salt-deposit": "Соляное место",
   "obsidian-vein": "Обсидиановая жила",
+  "iron-vein": "Железная руда",
 };
 const TERRAIN_PAINT: Record<string, { color: string; image: string }> = {
   water: {
@@ -84,6 +86,7 @@ function tileMarker(tile: any, ownerId: string | null) {
   if (tile.feature === "tin-route") return "◇";
   if (tile.feature === "salt-deposit") return "✦";
   if (tile.feature === "obsidian-vein") return "▲";
+  if (tile.feature === "iron-vein") return "■";
   return ownerId === "player" ? "●" : "";
 }
 

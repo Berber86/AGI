@@ -17,6 +17,7 @@ function mapTileId(state, key) {
     || tiles.find(predicate)?.id || null;
   switch (key) {
     case 'obsidian': return find(tile => tile.feature === 'obsidian-vein');
+    case 'iron': return find(tile => tile.feature === 'iron-vein');
     case 'copper': return find(tile => tile.feature === 'copper-vein');
     case 'tin-route': return find(tile => tile.feature === 'tin-route');
     default: return null;
@@ -57,9 +58,15 @@ test('world generation places an obsidian vein alongside copper and tin, with no
   assert.equal(obsidian.minEra, 0, 'obsidian should be reachable from the start, unlike copper/tin (minEra 2)');
   assert.ok(world.tiles.some(tile => tile.feature === 'copper-vein'), 'copper must still be generated');
   assert.ok(world.tiles.some(tile => tile.feature === 'tin-route'), 'tin must still be generated');
+
+  const iron = world.tiles.find(tile => tile.feature === 'iron-vein');
+  assert.ok(iron, 'the generated map should contain an iron vein');
+  assert.equal(iron.siteType, 'iron');
+  assert.equal(iron.resource, 'iron');
+  assert.equal(iron.minEra, 3, 'iron should require reaching era 3, like copper/tin require era 2');
 });
 
-test('hasEraKeyResource gates era 0 on the obsidian workshop and era 2 on smelter+caravan, leaving other eras ungated', () => {
+test('hasEraKeyResource gates era 0 on the obsidian workshop, era 2 on smelter+caravan and era 3 on the ironworks, leaving other eras ungated', () => {
   let state = playableCampaign();
   assert.equal(state.player.era, 0);
   assert.equal(Campaign.hasEraKeyResource(state), false, 'era 0 without an obsidian workshop should be locked');
@@ -77,7 +84,14 @@ test('hasEraKeyResource gates era 0 on the obsidian workshop and era 2 on smelte
   const era2Both = controlRegionsWithBuildings(era2, { copper: 'smelter', 'tin-route': 'caravan' });
   assert.equal(Campaign.hasEraKeyResource(era2Both), true);
 
-  for (const era of [1, 3, 4, 5, 6]) {
+  const era3 = structuredClone(state);
+  era3.player.era = 3;
+  assert.equal(Campaign.hasEraKeyResource(era3), false, 'era 3 without an ironworks should be locked');
+
+  const era3Iron = controlRegionsWithBuildings(era3, { iron: 'ironworks' });
+  assert.equal(Campaign.hasEraKeyResource(era3Iron), true);
+
+  for (const era of [1, 4, 5, 6]) {
     const other = structuredClone(state);
     other.player.era = era;
     assert.equal(Campaign.hasEraKeyResource(other), true, `era ${era} is not in the pilot scope and must stay ungated`);
@@ -107,6 +121,20 @@ test('cardCraftQuote hard-locks the rare tier in era 2 unless both copper and ti
 
   const withBoth = controlRegionsWithBuildings(state, { copper: 'smelter', 'tin-route': 'caravan' });
   const unlocked = Campaign.cardCraftQuote(withBoth, { materialQuality: 'standard', effort: 'quick' });
+  assert.equal(unlocked.rareLocked, false);
+  assert.ok(unlocked.odds.rare > 0);
+});
+
+test('cardCraftQuote hard-locks the rare tier in era 3 without an ironworks', () => {
+  let state = playableCampaign();
+  state.player.era = 3;
+  const locked = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
+  assert.equal(locked.rareLocked, true);
+  assert.equal(locked.odds.rare, 0);
+  assert.match(locked.rareLockText, /железоплавильн/i);
+
+  const withIron = controlRegionsWithBuildings(state, { iron: 'ironworks' });
+  const unlocked = Campaign.cardCraftQuote(withIron, { materialQuality: 'standard', effort: 'quick' });
   assert.equal(unlocked.rareLocked, false);
   assert.ok(unlocked.odds.rare > 0);
 });
