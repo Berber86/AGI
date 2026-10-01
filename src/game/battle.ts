@@ -30,6 +30,8 @@ export interface Unit {
   fresh: boolean;
   hitThisTurn: boolean;
   fears: boolean;
+  /** "relentless" уже потратил свою вторую атаку в этом ходу. */
+  usedRelentless: boolean;
   isStructure: boolean;
   order: number;
   hitSeq: number;
@@ -178,9 +180,18 @@ export function atkOf(b: Battle, u: Unit): number {
   a += modTotal(b, u, "attack");
   const p = posOf(b, u);
   if (p) a += b[p.side].atkBonus || 0;
+  // Мародёр: чем больше карт противник уже потерял в бою (его сброс), тем злее добивают его остатки.
+  if (has(u, "scavenger") && p) a += Math.min(2, Math.floor(b[opp(p.side)].discard.length / 2));
+  // Последний рубеж: в одиночестве в своём ряду отряд дерётся отчаяннее и держится твёрже.
+  if (has(u, "laststand") && p && unitsOf(b, p.side).filter((s) => s.row === p.row).length === 1) a += 1;
   return Math.max(0, Math.min(99, a));
 }
-export const armorOf = (b: Battle, u: Unit) => Math.max(0, (u.st.armor || 0) + modTotal(b, u, "armor"));
+export function armorOf(b: Battle, u: Unit): number {
+  let ar = (u.st.armor || 0) + modTotal(b, u, "armor");
+  const p = posOf(b, u);
+  if (has(u, "laststand") && p && unitsOf(b, p.side).filter((s) => s.row === p.row).length === 1) ar += 1;
+  return Math.max(0, ar);
+}
 export const costOf = (b: Battle, u: Unit) => Math.max(0, u.action_cost + modTotal(b, u, "action_cost"));
 
 function adjustEnergy(b: Battle, side: Side, amount: number): number {
@@ -224,7 +235,7 @@ function makeUnit(b: Battle, card: Card): Unit {
     iid: uid(), card, name: card.name || "Безымянный", emoji: card.emoji || "⚒️", card_type: card.card_type, era: card.era || "ancient",
     atk, hp, curHp: hp, drop_cost: card.drop_cost || 0, action_cost: card.action_cost || 0,
     keywords: card.keywords || [], effects: card.effects || [], st: {}, mods: [],
-    exhausted: true, fresh: true, hitThisTurn: false, fears: false,
+    exhausted: true, fresh: true, hitThisTurn: false, fears: false, usedRelentless: false,
     isStructure: card.card_type === "structure", order: b.order++, hitSeq: 0, lastDmg: 0,
     rarity: card.rarity, description: card.description || "",
   };
@@ -355,7 +366,7 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attac
   if (has(target, "shieldwall") && neighborsOf(b, target).length >= 1) dmg = Math.max(1, dmg - 1);
   if (has(target, "sturdy") && !target.hitThisTurn) { dmg = Math.max(1, dmg - 1); target.hitThisTurn = true; }
   if (target.isStructure && has(attacker, "siege")) dmg *= 2;
-  if (has(attacker, "fear") && Math.random() < 0.25 && !(has(target, "holdground") && target.fresh)) target.fears = true;
+  if (has(attacker, "fear") && Math.random() < 0.25 && !(has(target, "holdground") && target.fresh) && !has(target, "unbreakable")) target.fears = true;
   dmg = Math.max(1, Math.floor(dmg));
   hurtUnit(b, target, dmg, attacker);
 
@@ -437,7 +448,13 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     }
   }
   attacker.fresh = false;
-  attacker.exhausted = true;
+  // "Неутомимый" получает одну дополнительную атаку за ход (не истощается после первой), если переживёт обмен
+  // ударами; дальше его ограничивает только запас энергии — третьей атаки не будет, usedRelentless уже true.
+  if (has(attacker, "relentless") && !attacker.usedRelentless && attacker.curHp > 0) {
+    attacker.usedRelentless = true;
+  } else {
+    attacker.exhausted = true;
+  }
   adjustEnergy(b, side, -costOf(b, attacker));
   if (hitLanded && attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : { kind: "unit", side: target.side, unit: target.unit });
   settle(b);
@@ -463,6 +480,7 @@ export function deploy(b: Battle, side: Side, handIdx: number, row: "front" | "b
   log(b, side, `${say(side, 'выводит', 'выводите')} «${u.name}».`);
   applyEnergyKeywordsOnPlay(b, side, u);
   runEffects(b, u, "enter_play", side, null);
+  notifyCardEnterPlay(b, side, u);
   settle(b);
   return true;
 }
@@ -477,6 +495,7 @@ export function cast(b: Battle, side: Side, handIdx: number): boolean {
   log(b, side, `${say(side, 'разыгрывает', 'разыгрываете')} манёвр «${card.name}».`);
   applyEnergyKeywordsOnPlay(b, side, card);
   runEffects(b, { name: card.name, effects: card.effects } as any, "enter_play", side, null);
+  notifyCardEnterPlay(b, side);
   settle(b);
   return true;
 }
@@ -591,6 +610,22 @@ export function runEffects(b: Battle, source: Unit | { name: string; effects: an
       }
     }
   } finally { depth--; }
+}
+
+// Реакция других отрядов на поле на розыгрыш ЛЮБОЙ карты (отряда/постройки/манёвра) — зеркало к card_death
+// (см. settle()), но на "вход", а не на "выход". exclude — сам только что выставленный отряд: он не реагирует
+// на собственное появление (у него для этого есть обычный enter_play).
+function notifyCardEnterPlay(b: Battle, side: Side, exclude?: Unit) {
+  for (const w of [...unitsOf(b, "me"), ...unitsOf(b, "enemy")]) {
+    if (w.unit === exclude || w.unit.curHp <= 0) continue;
+    for (const e of w.unit.effects || []) {
+      if (e.event !== "card_enter_play") continue;
+      const rel = side === w.side ? "friendly" : "enemy";
+      if (e.watch.side !== "all" && e.watch.side !== rel) continue;
+      const ctx: Ctx = { source: w.unit, owner: w.side, eventTarget: null, name: w.unit.name };
+      for (const t of resolveTargets(b, e, ctx)) if (condOk(b, e.condition, ctx, t)) execEffect(b, e, t, ctx);
+    }
+  }
 }
 
 function execEffect(b: Battle, e: any, t: Tgt, ctx: Ctx) {
@@ -722,7 +757,7 @@ function tickStatuses(b: Battle, side: Side) {
       if (u.st.burnTurns > 0) { if (--u.st.burnTurns <= 0) { delete u.st.burn; delete u.st.burnTurns; } }
       else { u.st.burn--; if (u.st.burn <= 0) delete u.st.burn; }
     }
-    if (u.curHp > 0 && (u.fears || (has(u, "morale") && u.curHp / u.hp < 0.3))) {
+    if (u.curHp > 0 && !has(u, "unbreakable") && (u.fears || (has(u, "morale") && u.curHp / u.hp < 0.3))) {
       if (Math.random() < (u.fears ? 0.5 : 0.2)) {
         if (p.hand.length < HAND_LIMIT) { p.hand.push(cardOfUnit(u)); log(b, side, `«${u.name}» бежит с поля и возвращается в руку.`); }
         else log(b, side, `«${u.name}» бежит с поля — отряд разбежался.`);
@@ -774,6 +809,7 @@ export function startTurn(b: Battle, side: Side) {
     // а не здесь: раньше это поле гасло ещё до того, как юнит вообще получал право
     // действовать, из-за чего бонус "charge" и защита "holdground" не успевали сработать.
     u.hitThisTurn = false;
+    u.usedRelentless = false;
     if (u.st.upkeep && !u.isStructure && neighborsOf(b, u).length === 0) { hurtUnit(b, u, 1); log(b, side, `«${u.name}» без поддержки соседей теряет 1 HP.`); }
   }
   settle(b);
