@@ -231,7 +231,7 @@ function makeUnit(b: Battle, card: Card): Unit {
   for (const raw of u.keywords) {
     const [kw, ns] = String(raw).toLowerCase().trim().split(":");
     const n = Math.max(1, parseInt(ns) || 1);
-    if (["armor", "pierce", "poison", "burn", "heal"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
+    if (["armor", "pierce", "poison", "burn", "heal", "cleave", "vengeance"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
     else u.st[kw] = true;
   }
   if (u.st.shieldwall || u.st.phalanx) u.st.armor = Math.max(u.st.armor || 0, 1);
@@ -244,8 +244,19 @@ function hurtHero(b: Battle, side: Side, amount: number) {
   const p = b[side];
   p.hp -= amount; p.hitSeq++; p.lastDmg = amount;
 }
-function hurtUnit(u: Unit, amount: number) {
+// source — кто нанёс урон (если известен): нужен только для события "damaged" у самой цели.
+// Срабатывает для любого источника урона (бой, заклинание, яд/поджог, обстрел постройки) —
+// единая точка, где curHp реально уменьшается.
+function hurtUnit(b: Battle, u: Unit, amount: number, source?: Unit | null) {
   u.curHp -= amount; u.hitSeq++; u.lastDmg = amount;
+  if (u.curHp > 0) {
+    const p = posOf(b, u);
+    if (p) {
+      const srcPos = source ? posOf(b, source) : null;
+      const eventTarget = srcPos ? ({ kind: "unit", side: srcPos.side, unit: source } as Tgt) : null;
+      runEffects(b, u, "damaged", p.side, eventTarget);
+    }
+  }
 }
 
 function drawOne(b: Battle, side: Side, silent = false): boolean {
@@ -346,7 +357,7 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attac
   if (target.isStructure && has(attacker, "siege")) dmg *= 2;
   if (has(attacker, "fear") && Math.random() < 0.25 && !(has(target, "holdground") && target.fresh)) target.fears = true;
   dmg = Math.max(1, Math.floor(dmg));
-  hurtUnit(target, dmg);
+  hurtUnit(b, target, dmg, attacker);
 
   const defenderSide = opp(attackerSide);
   if (has(attacker, "raider") && wasAlive && !target.isStructure && b[defenderSide].energy > 0) {
@@ -385,12 +396,33 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
       hitLanded = false;
     } else {
       const d = resolveHit(b, attacker, t, atkOf(b, attacker), side);
+      // Рассечение: сопутствующий удар по обоим соседям цели в её ряду (даже если сама цель от основного удара погибла) —
+      // отдельная "фитча" широкого замаха, не связана с исходом обмена ударами с основной целью.
+      if (has(attacker, "cleave")) {
+        for (const n of neighborsOf(b, t)) {
+          if (n.curHp <= 0) continue;
+          const cd = resolveHit(b, attacker, n, attacker.st.cleave, side);
+          log(b, side, `${attacker.name} рассекает ещё и «${n.name}»: −${cd}.`);
+        }
+      }
       let counter = 0;
       if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
         const cb = atkOf(b, t);
         if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
       }
       log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
+      // Месть: погибший в этом обмене ударами отряд наносит ответный удар своему убийце, если тот ещё жив.
+      // Пока охватывает только прямой ближний/дальний бой (resolveHit выше и ниже), а не урон от заклинаний/статусов.
+      if (t.curHp <= 0 && has(t, "vengeance") && attacker.curHp > 0) {
+        const v = t.st.vengeance;
+        hurtUnit(b, attacker, v, t);
+        log(b, side, `«${t.name}» наносит удар мести: −${v} по «${attacker.name}».`);
+      }
+      if (counter > 0 && attacker.curHp <= 0 && has(attacker, "vengeance") && t.curHp > 0) {
+        const v = attacker.st.vengeance;
+        hurtUnit(b, t, v, attacker);
+        log(b, opp(side), `«${attacker.name}» наносит удар мести: −${v} по «${t.name}».`);
+      }
       // Яд/поджог от ключевого слова раньше никогда не истекали (в отличие от тех же статусов от заклинаний,
       // которые получают явный срок через apply_status) — отряд, который бьют поджигающим/ядовитым атакующим
       // несколько ходов подряд, копил бесконечно растущий урон за ход. Теперь каждый удар обновляет срок действия
@@ -468,6 +500,9 @@ function resolveTargets(b: Battle, e: any, ctx: Ctx, all = false): Tgt[] {
   const owner = ctx.owner;
   const sideSel: Side | null = spec.side === "controller" || spec.side === "friendly" ? owner : spec.side === "opponent" || spec.side === "enemy" ? opp(owner) : null;
   let select = spec.select || "first";
+  // select:"all" просит движок не ограничивать список spec.count — то же, что и штатный параметр
+  // all (который существует для проверки "есть ли вообще хоть одна цель" у заклинаний, см. spellHasTarget).
+  if (select === "all") all = true;
   if (select === "attack_target" || spec.relation === "attack_target") {
     const t = ctx.eventTarget;
     if (!t) return [];
@@ -504,6 +539,7 @@ function resolveTargets(b: Battle, e: any, ctx: Ctx, all = false): Tgt[] {
   if (select === "lowest_hp") cands.sort((x, y) => x.unit.curHp - y.unit.curHp || x.i - y.i);
   else if (select === "lowest_hp_ratio") cands.sort((x, y) => x.unit.curHp / x.unit.hp - y.unit.curHp / y.unit.hp || x.i - y.i);
   else if (select === "highest_attack") cands.sort((x, y) => atkOf(b, y.unit) - atkOf(b, x.unit) || x.i - y.i);
+  else if (select === "random") cands = shuffle(cands);
   const out: Tgt[] = cands.map((s) => ({ kind: "unit", side: s.side, unit: s.unit, row: s.row, i: s.i }));
   return all ? out : out.slice(0, spec.count || 1);
 }
@@ -528,6 +564,10 @@ function condOk(b: Battle, c: any, ctx: Ctx, t: Tgt): boolean {
   if (c.type === "resource") {
     const s = c.side === "controller" ? ctx.owner : opp(ctx.owner);
     return CMP[c.op](b[s].energy, c.value);
+  }
+  if (c.type === "board_count") {
+    const s = c.side === "controller" ? ctx.owner : opp(ctx.owner);
+    return CMP[c.op](unitsOf(b, s).length, c.value);
   }
   return false;
 }
@@ -560,7 +600,7 @@ function execEffect(b: Battle, e: any, t: Tgt, ctx: Ctx) {
   const tname = t.kind === "player" ? (t.side === "me" ? "вашего вождя" : "вражеского вождя") : `«${t.unit.name}»`;
   switch (a.type) {
     case "damage":
-      if (t.kind === "player") hurtHero(b, t.side, a.amount); else hurtUnit(t.unit, a.amount);
+      if (t.kind === "player") hurtHero(b, t.side, a.amount); else hurtUnit(b, t.unit, a.amount, ctx.source || undefined);
       log(b, who, `${src}: ${a.amount} урона — ${tname}.`);
       break;
     case "heal":
@@ -658,7 +698,7 @@ function fireStructures(b: Battle, side: Side) {
     if (b.over) return;
     const es = opp(side);
     const front = b[es].front.find((u) => u && u.curHp > 0);
-    if (front) { hurtUnit(front, 1); log(b, side, `«${s.unit.name}» обстреливает «${front.name}»: −1.`); }
+    if (front) { hurtUnit(b, front, 1, s.unit); log(b, side, `«${s.unit.name}» обстреливает «${front.name}»: −1.`); }
     else { hurtHero(b, es, 1); log(b, side, `«${s.unit.name}» обстреливает ${es === "me" ? "вас" : "вражеского вождя"}: −1.`); }
     settle(b);
   }
@@ -669,13 +709,13 @@ function tickStatuses(b: Battle, side: Side) {
   for (const s of unitsOf(b, side)) {
     const u = s.unit;
     if (u.st.poison > 0) {
-      hurtUnit(u, u.st.poison);
+      hurtUnit(b, u, u.st.poison);
       log(b, side, `«${u.name}» получает ${u.st.poison} урона от яда.`);
       if (u.st.poisonTurns > 0 && --u.st.poisonTurns <= 0) { delete u.st.poison; delete u.st.poisonTurns; }
     }
     if (u.curHp <= 0) continue;
     if (u.st.burn > 0) {
-      hurtUnit(u, u.st.burn);
+      hurtUnit(b, u, u.st.burn);
       log(b, side, `«${u.name}» получает ${u.st.burn} урона от огня.`);
       // Перекидывание огня на соседей — отдельная "фитча" очага огня, не зависит от того, истекает ли срок.
       if (u.curHp > 0) [s.i - 1, s.i + 1].forEach((ni) => { const n = p[s.row][ni]; if (n && !n.st.burn && Math.random() < 0.35) { n.st.burn = 1; n.st.burnTurns = 2; log(b, side, `Огонь перекинулся на «${n.name}».`); } });
@@ -695,6 +735,12 @@ function tickStatuses(b: Battle, side: Side) {
 }
 
 export function startTurn(b: Battle, side: Side) {
+  // Ход только что закончился у противоположной стороны — здесь единственная надёжная точка стыка между
+  // ходами обеих сторон (у врага нет отдельного "endTurn", он просто перестаёт действовать, см. enemyAct).
+  const endedSide = opp(side);
+  for (const s of unitsOf(b, endedSide)) if (s.unit.curHp > 0) runEffects(b, s.unit, "turn_end", endedSide, null);
+  settle(b);
+  if (b.over) return;
   const p = b[side];
   b.counters[side]++;
   for (const s of unitsOf(b, side)) s.unit.mods = s.unit.mods.filter((m) => m.expires > b.counters[side]);
@@ -728,7 +774,7 @@ export function startTurn(b: Battle, side: Side) {
     // а не здесь: раньше это поле гасло ещё до того, как юнит вообще получал право
     // действовать, из-за чего бонус "charge" и защита "holdground" не успевали сработать.
     u.hitThisTurn = false;
-    if (u.st.upkeep && !u.isStructure && neighborsOf(b, u).length === 0) { hurtUnit(u, 1); log(b, side, `«${u.name}» без поддержки соседей теряет 1 HP.`); }
+    if (u.st.upkeep && !u.isStructure && neighborsOf(b, u).length === 0) { hurtUnit(b, u, 1); log(b, side, `«${u.name}» без поддержки соседей теряет 1 HP.`); }
   }
   settle(b);
   if (b.over) return;

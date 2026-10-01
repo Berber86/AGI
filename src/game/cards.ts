@@ -72,6 +72,8 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   raider: { name: "Налётчик", desc: "При попадании по отряду крадёт 1 энергию у противника и передаёт её вам." },
   harras: { name: "Набег", desc: "На следующий ход противника уменьшает прирост общей энергии на 1." },
   exhaustenemy: { name: "Изнурение", desc: "При розыгрыше отнимает 1 текущую энергию у противника." },
+  cleave: { name: "Рассечение", desc: "При атаке дополнительно наносит N урона всем соседям цели в её ряду." },
+  vengeance: { name: "Месть", desc: "При гибели в бою наносит N урона своему убийце, если тот ещё жив." },
 };
 
 const SUPPORTED_KEYWORDS = new Set(Object.keys(KEYWORD_INFO));
@@ -99,12 +101,18 @@ export function describeEffect(e: any): string {
     enter_play: "При выходе",
     attack: "После атаки",
     turn_start: "В начале хода",
+    turn_end: "В конце хода",
+    damaged: "При получении урона",
     death: "При гибели",
     card_death: `Когда гибнет ${e.watch?.side === "friendly" ? "свой" : e.watch?.side === "enemy" ? "вражеский" : "любой"} отряд`,
   };
   const a = e.action;
   const t = e.target || {};
-  const who = t.entity === "player" ? `${SIDE_TXT[t.side] ?? ""} вождя`.trim() : `${t.count > 1 ? t.count + " " : ""}${SIDE_TXT[t.side] ?? ""} ${t.entity === "structure" ? "постройку" : "отряд"}`;
+  const entityNoun =
+    t.select === "all" ? (t.entity === "structure" ? "все постройки" : "все отряды") :
+    t.select === "random" ? (t.entity === "structure" ? "случайную постройку" : "случайный отряд") :
+    `${t.count > 1 ? t.count + " " : ""}${t.entity === "structure" ? "постройку" : "отряд"}`;
+  const who = t.entity === "player" ? `${SIDE_TXT[t.side] ?? ""} вождя`.trim() : `${SIDE_TXT[t.side] ?? ""} ${entityNoun}`.trim();
   const rel = t.relation === "self" ? "себя" : t.relation === "adjacent" ? "соседей" : t.relation === "attack_target" ? "цель удара" : null;
   const target = rel ?? who;
   let act = "";
@@ -204,7 +212,7 @@ export function allCards(collection: Card[]): Card[] {
 
 /* ---------- Валидация карты (для ответа LLM) ---------- */
 
-const EVENTS = ["enter_play", "attack", "turn_start", "death", "card_death"];
+const EVENTS = ["enter_play", "attack", "turn_start", "turn_end", "death", "card_death", "damaged"];
 const ACTIONS = ["damage", "heal", "apply_status", "destroy", "modify_resource", "modify_stat", "modify_cost", "draw", "discard", "exchange", "scry"];
 const CMP = ["eq", "ne", "lt", "lte", "gt", "gte"];
 
@@ -225,6 +233,7 @@ function validateCondition(node: any, depth = 0): any {
   if (node.type === "target_status") { if (!["poison", "burn"].includes(node.status)) throw new Error("Неизвестный статус в условии."); return { type: "target_status", status: node.status }; }
   if (node.type === "target_stat") { if (!["hp", "attack", "armor"].includes(node.stat) || !CMP.includes(node.op)) throw new Error("Некорректное условие target_stat."); return { type: "target_stat", stat: node.stat, op: node.op, value: int(node.value, 0, 99, "value") }; }
   if (node.type === "resource") { if (!["controller", "opponent"].includes(node.side) || !["energy", "drop", "action"].includes(node.resource) || !CMP.includes(node.op)) throw new Error("Некорректное условие resource."); return { type: "resource", side: node.side, resource: "energy", op: node.op, value: int(node.value, 0, 99, "value") }; }
+  if (node.type === "board_count") { if (!["controller", "opponent"].includes(node.side) || !CMP.includes(node.op)) throw new Error("Некорректное условие board_count."); return { type: "board_count", side: node.side, op: node.op, value: int(node.value, 0, 8, "value") }; }
   throw new Error("Неизвестный тип условия.");
 }
 
@@ -274,7 +283,7 @@ export function validateEffects(raw: any): any[] {
     const target: any = { side: t.side, entity: t.entity };
     if (t.zone !== undefined) { if (!["front", "rear", "any"].includes(t.zone)) fail("zone неизвестна."); target.zone = t.zone; }
     if (t.relation !== undefined) { if (!["any", "self", "adjacent", "attack_target"].includes(t.relation)) fail("relation неизвестен."); target.relation = t.relation; }
-    if (t.select !== undefined) { if (!["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose"].includes(t.select)) fail("select неизвестен."); target.select = t.select; }
+    if (t.select !== undefined) { if (!["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose", "all", "random"].includes(t.select)) fail("select неизвестен."); target.select = t.select; }
     if ((target.select === "attack_target" || target.relation === "attack_target") && e.event !== "attack") fail("attack_target только для события attack.");
     if (target.relation === "adjacent" && target.entity === "player") fail("adjacent неприменим к игроку.");
     if (e.event === "death" && target.relation === "self") fail("погибший источник не может быть целью.");
@@ -502,14 +511,15 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
 
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Эпохи карт: "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
-Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep. Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
+Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
 description — 1–2 коротких предложения, один образ.
 effects[] — объекты {event, target, action, condition?, watch?}:
- event: enter_play | attack | turn_start | death | card_death (для card_death обязателен watch:{side:all|friendly|enemy}).
- target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|any, relation?: any|self|adjacent|attack_target, select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose, count?: 1-3}
+ event: enter_play | attack | turn_start | turn_end | damaged (это событие срабатывает у самого отряда, когда он получает урон в бою) | death | card_death (для card_death обязателен watch:{side:all|friendly|enemy}).
+ target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|any, relation?: any|self|adjacent|attack_target, select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random (all — абсолютно все подходящие цели сразу, игнорирует count; random — count случайных целей), count?: 1-3}
  action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn, amount 1-5, turns 1-3) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
+condition (необязательное поле эффекта) помимо target_wounded/target_status/target_stat/resource теперь поддерживает board_count: {type:"board_count", side: controller|opponent, op: eq|ne|lt|lte|gt|gte, value: 0-8} — количество живых отрядов на стороне.
 У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки atk=0, action_cost=0, hp≥1. У отряда hp≥1.
 Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
 {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":""}
