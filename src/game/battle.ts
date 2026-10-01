@@ -715,7 +715,9 @@ export function startTurn(b: Battle, side: Side) {
   for (const s of unitsOf(b, side)) {
     const u = s.unit;
     u.exhausted = u.isStructure;
-    u.fresh = false;
+    // "fresh" сбрасывается только в момент собственной первой атаки юнита (см. attackWith),
+    // а не здесь: раньше это поле гасло ещё до того, как юнит вообще получал право
+    // действовать, из-за чего бонус "charge" и защита "holdground" не успевали сработать.
     u.hitThisTurn = false;
     if (u.st.upkeep && !u.isStructure && neighborsOf(b, u).length === 0) { hurtUnit(u, 1); log(b, side, `«${u.name}» без поддержки соседей теряет 1 HP.`); }
   }
@@ -732,7 +734,9 @@ export function startTurn(b: Battle, side: Side) {
 
 export function endPlayerTurn(b: Battle) {
   b.active = "enemy";
-  for (const s of unitsOf(b, "me")) s.unit.fresh = false;
+  // Раньше здесь гасился "fresh" у всех своих юнитов сразу в конце хода высадки — то есть
+  // ещё до того, как они вообще могли атаковать или быть атакованными "свежими". Теперь
+  // флаг живёт до первой собственной атаки юнита (см. attackWith), как и задумано.
 }
 
 export function beginPlayerTurn(b: Battle) {

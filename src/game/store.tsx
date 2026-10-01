@@ -328,6 +328,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try { localStorage.removeItem("iforge_opening_draft"); } catch { /* пусто */ }
     setPendingOpening(null);
     commit(M.createState(), { silent: true });
+    // «Новая цивилизация» должна быть полным рестартом: без этого выкованные карты
+    // и набор ополчения из прошлой жизни оставались в localStorage и в памяти.
+    setCollection([]);
+    setMilitiaPicks([]);
+    try { localStorage.removeItem(COLL_KEY); } catch { /* пусто */ }
+    try { localStorage.removeItem(MILITIA_KEY); } catch { /* пусто */ }
     setMatch(null);
     setPage("home");
     selectRegion(null);

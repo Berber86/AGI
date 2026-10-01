@@ -1783,14 +1783,21 @@
         const state = normalizeState(input);
         const building = state.player.buildings.find(item => item.id === id);
         if (!building) return { state, error: 'Здание не найдено.' };
-        if (building.active) building.active = false;
-        else {
+        if (building.active) {
+            building.active = false;
+            const newLimit = getBattleConfig(state).deckLimit;
+            // Не обрезаем колоду молча: если отключение здания опустит лимит ниже текущего
+            // размера колоды, просим сначала вручную убрать лишние карты, иначе игрок
+            // без предупреждения терял бы последние добавленные карты.
+            if (state.player.deckCardIds.length > newLimit) {
+                building.active = true;
+                return { state, error: 'Отключение этого здания уменьшит лимит колоды до ' + newLimit + ', а сейчас в колоде ' + state.player.deckCardIds.length + ' карт. Сначала убери лишние карты из колоды в разделе «Отряд».' };
+            }
+        } else {
             const count = state.player.buildings.filter(item => item.active).length;
             if (count >= state.player.activeBuildingSlots) return { state, error: 'Доступно только ' + state.player.activeBuildingSlots + ' активных слота. Сначала отключи другое здание.' };
             building.active = true;
         }
-        const newLimit = getBattleConfig(state).deckLimit;
-        state.player.deckCardIds = state.player.deckCardIds.slice(0, newLimit);
         return { state, error: null };
     }
 
@@ -1817,7 +1824,7 @@
         return { state, error: null };
     }
 
-    function finishDay(input) {
+    function finishDay(input, growthRoll = Math.random()) {
         const state = normalizeState(input);
         if (state.day >= SEASON_LENGTH) return { state, error: 'Это последний день сезона. Подведи итоги.' };
         if (state.player.pendingExpedition) return { state, error: 'Заверши бой экспедиции до смены дня.' };
@@ -1887,9 +1894,12 @@
         } else {
             const netFood = foodGained - consumption;
             if (state.player.resources.food > 10 && state.player.population < POP_MAX && netFood > 2) {
-                const pseudoRandom = (state.day * 7 + state.player.population * 13 + state.season * 3) % 100;
+                // Раньше шанс роста населения считался по детерминированной формуле от дня/
+                // населения/сезона (без Math.random()), из-за чего результат был полностью
+                // предсказуем и игрок мог заранее вычислить, в какой день население вырастет.
+                const roll = Number.isFinite(growthRoll) ? Math.max(0, Math.min(0.999999999, growthRoll)) : Math.random();
                 const chance = state.player.growthDebt > 0 ? 15 : 35;
-                if (pseudoRandom < chance) {
+                if (roll * 100 < chance) {
                     state.player.population += 1;
                     state.player.workers.idle += 1;
                     state.player.growthProgress = 0;

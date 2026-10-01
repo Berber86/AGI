@@ -61,12 +61,15 @@ export default function Forge() {
   };
 
   const forge = async () => {
-    if (!selected || block) return;
+    if (!selected || block || busy) return;
     const invest = { materialQuality: material, effort };
-    const begin = M.beginCardCraft(M.clone(game), invest, Math.random(), `${CARD_TYPE_INFO[selected.cardType].label}: ${selected.title} — ${selected.pitch}`);
-    if (begin.error) { toast(begin.error, "bad"); return; }
+    const advisorOrder = `${CARD_TYPE_INFO[selected.cardType].label}: ${selected.title} — ${selected.pitch}`;
+    // Коммитим через act(), чтобы beginCardCraft проверял и писал в АКТУАЛЬНОЕ состояние
+    // (а не в замороженный снэпшот) — это не даёт двойному клику дважды списать ресурсы
+    // и затереть уже созданный заказ.
+    const begin = act((s) => M.beginCardCraft(s, invest, Math.random(), advisorOrder), { silent: true });
+    if (!begin) return; // act() уже показал тост с ошибкой
     const order = begin.order;
-    act(() => begin, { silent: true });
     setBusy(order.id);
     const started = Date.now();
     try {

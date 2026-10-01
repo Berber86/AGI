@@ -281,9 +281,12 @@ export function SettingsModal() {
       </a>
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-line pt-5">
         {confirm ? (
-          <div className="flex items-center gap-2">
-            <Btn variant="danger" size="sm" onClick={() => { resetCampaign(); openSettings(false); setConfirm(false); }}>Да, начать заново</Btn>
-            <Btn variant="ghost" size="sm" onClick={() => setConfirm(false)}>Отмена</Btn>
+          <div className="flex flex-col items-start gap-2">
+            <p className="text-xs text-bad">Это сотрёт кампанию целиком: прогресс, выкованные карты в коллекции и набор ополчения. Отменить нельзя.</p>
+            <div className="flex items-center gap-2">
+              <Btn variant="danger" size="sm" onClick={() => { resetCampaign(); openSettings(false); setConfirm(false); }}>Да, начать заново</Btn>
+              <Btn variant="ghost" size="sm" onClick={() => setConfirm(false)}>Отмена</Btn>
+            </div>
           </div>
         ) : (
           <Btn variant="ghost" size="sm" onClick={() => setConfirm(true)}><Trash2 size={14} />Новая цивилизация</Btn>
