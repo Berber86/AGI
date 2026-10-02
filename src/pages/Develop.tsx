@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight, Trash2 } from "lucide-react";
+import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight, Trash2, Scroll, Anvil } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { llmScienceOffers } from "@/game/cards";
@@ -137,9 +137,9 @@ function Science() {
 
         </Panel>
 
-        {p.pendingDecreeChoice && (
+        {(p.pendingDecreeChoice || p.pendingCultureChoice) && (
           <Panel className="border-bronze/40 bg-bronze/8 p-4">
-            <div className="flex items-center gap-3"><Landmark className="text-bronze" /><div className="flex-1 text-sm"><b>Новая эпоха!</b> Выберите уклад во вкладке «Уклады».</div></div>
+            <div className="flex items-center gap-3"><Landmark className="text-bronze" /><div className="flex-1 text-sm"><b>Новая эпоха «{M.eraName(p.era)}»!</b> Выберите уклад во вкладке «Уклады»{p.pendingCultureChoice ? " и наследие во вкладке «Наследие»" : ""}.</div></div>
           </Panel>
         )}
       </div>
@@ -294,7 +294,7 @@ function Decrees() {
   return (
     <div>
       {p.pendingDecreeChoice ? (
-        <Panel className="mb-4 border-bronze/40 bg-bronze/8 p-4"><div className="flex items-center gap-3 text-sm"><Landmark className="text-bronze" /><span><b>Эпоха «{M.eraName(p.era)}».</b> Выберите уклад — он определит производство, склад и размер армии.</span></div></Panel>
+        <Panel className="mb-4 border-bronze/40 bg-bronze/8 p-4"><div className="flex items-center gap-3 text-sm"><Landmark className="text-bronze" /><span><b>Эпоха «{M.eraName(p.era)}».</b> Выберите уклад — он определит производство, склад и размер армии.{p.pendingCultureChoice ? " Наследие эпохи выбирается отдельно на вкладке «Наследие»." : ""}</span></div></Panel>
       ) : (
         <p className="mb-4 text-sm text-dim">Уклад выбирается при переходе в новую эпоху. Следующий выбор откроется, когда вы изучите ещё несколько наук.</p>
       )}
@@ -317,14 +317,126 @@ function Decrees() {
   );
 }
 
+/* ---------- Наследие эпохи ---------- */
+
+const BONUS_LABEL: Record<string, (v: number) => string> = {
+  food: (v) => `${v > 0 ? "+" : ""}${v}🌾 с клана`,
+  materials: (v) => `${v > 0 ? "+" : ""}${v}🪵 с клана`,
+  knowledge: (v) => `${v > 0 ? "+" : ""}${v}📚 с клана`,
+  deck_slots: (v) => `${v > 0 ? "+" : ""}${v} слот колоды`,
+  storage: (v) => `${v > 0 ? "+" : ""}${v} к складу`,
+  max_hp: (v) => `${v > 0 ? "+" : ""}${v} здоровья`,
+};
+
+function bonusOf(culture: any): string {
+  const bonus = culture?.bonus || {};
+  const parts = Object.entries(bonus).map(([k, v]) => (BONUS_LABEL[k] ? BONUS_LABEL[k](v as number) : `${k} ${v}`));
+  return parts.length ? parts.join(", ") : "без бонусов";
+}
+
+/**
+ * Наследие и технологии эпохи. При переходе эпохи игрок сам решает, принять культуру новой эпохи
+ * или сохранить прежнее наследие; технологии эпохи (науки, ключевой ресурс, эпохи карт) доступны
+ * в обоих случаях — они зависят от player.era, а не от культуры.
+ */
+function Heritage({ onGoto }: { onGoto: (tab: "decrees") => void }) {
+  const { game, act, toast } = useStore();
+  const p = game.player;
+  const choice: any = M.getCultureChoice(game);
+  const eraRecord: any = M.ERA_HISTORICAL?.[p.era];
+  const lineage = (p.culturalLineage || []).map((id: string) => M.HISTORICAL_CULTURES.find((c: any) => c.id === id)).filter(Boolean);
+
+  const decide = (id: string) => {
+    const res = act((s) => M.chooseCulture(s, id), { silent: true });
+    if (res && !res.error) toast(id === "keep" ? `Наследие сохранено: ${p.historicalCulture?.name || "прежнее"}. Технологии эпохи уже ваши.` : `Принято наследие: ${M.HISTORICAL_CULTURES.find((c: any) => c.id === id)?.name}.`, "ok");
+  };
+
+  return (
+    <div className="space-y-4">
+      {p.pendingDecreeChoice && (
+        <Panel className="border-bronze/40 bg-bronze/8 p-4">
+          <div className="flex items-center gap-3 text-sm"><Landmark className="text-bronze" /><span className="flex-1">Уклад новой эпохи ещё не выбран.</span><Btn variant="secondary" size="sm" onClick={() => onGoto("decrees")}>К укладам</Btn></div>
+        </Panel>
+      )}
+
+      {choice ? (
+        <Panel className="border-bronze/40 p-5">
+          <Heading title={`Эпоха «${choice.eraLabel}»: выберите наследие`} eyebrow="Переход эпохи" className="[&_h2]:text-xl" />
+          <p className="mt-2 text-[13.5px] leading-relaxed text-dim">{choice.eraDescription}</p>
+          {choice.eraTechnologies.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">{choice.eraTechnologies.map((t: string) => <Chip key={t} tone="bronze"><Anvil size={11} />{t}</Chip>)}</div>
+          )}
+          <p className="mt-3 text-[13px] leading-relaxed text-dim">
+            Технологии эпохи уже доступны в любом случае: науки, ключевой ресурс эпохи и ковка карт зависят от эпохи, а не от наследия. Выбираете только то, чьи обычаи и бонусы несёт народ.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="flex flex-col rounded-xl border border-line-strong bg-raised/50 p-4">
+              <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-ground text-2xl">{p.historicalCulture?.icon || "🏺"}</span>
+                <div><h3 className="font-display text-lg font-semibold leading-tight">Сохранить прежнее наследие</h3><Chip tone="ok" className="mt-1">{p.historicalCulture?.name || "прежний народ"}</Chip></div></div>
+              <p className="mt-3 flex-1 text-[13.5px] leading-relaxed text-dim">{p.historicalCulture?.desc || "Народ остаётся при своих обычаях."}</p>
+              <div className="mt-2 text-xs text-faint">{bonusOf(p.historicalCulture)}</div>
+              <Btn className="mt-4" variant="primary" onClick={() => decide("keep")}>Оставить прошлое наследие</Btn>
+            </div>
+            {choice.candidates.map((c: any) => (
+              <div key={c.id} className="flex flex-col rounded-xl border border-line bg-raised/40 p-4">
+                <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-ground text-2xl">{c.icon}</span>
+                  <div><h3 className="font-display text-lg font-semibold leading-tight">{c.name}</h3><Chip tone="bronze" className="mt-1">наследие эпохи</Chip></div></div>
+                <p className="mt-3 flex-1 text-[13.5px] leading-relaxed text-dim">{c.desc}</p>
+                <div className="mt-2 text-xs text-faint">{bonusOf(c)}</div>
+                <Btn className="mt-4" variant="secondary" onClick={() => decide(c.id)}>Принять это наследие</Btn>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : (
+        <Panel className="p-5">
+          <Heading title="Наследие народа" eyebrow={`Эпоха «${M.eraName(p.era)}»`} className="[&_h2]:text-xl" />
+          <p className="mt-2 text-[13.5px] leading-relaxed text-dim">{eraRecord?.desc || ""}</p>
+          {eraRecord?.tech?.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">{eraRecord.tech.map((t: string) => <Chip key={t} tone="bronze"><Anvil size={11} />{t}</Chip>)}</div>
+          )}
+          {p.historicalCulture && (
+            <div className="mt-4 flex items-start gap-3 rounded-xl border border-line-strong bg-raised/50 p-4">
+              <span className="grid h-12 w-12 place-items-center rounded-xl bg-ground text-2xl">{p.historicalCulture.icon}</span>
+              <div className="min-w-0"><h3 className="font-display text-lg font-semibold leading-tight">{p.historicalCulture.name}</h3>
+                <p className="mt-1 text-[13px] leading-relaxed text-dim">{p.historicalCulture.desc}</p>
+                <div className="mt-2 text-xs text-faint">{bonusOf(p.historicalCulture)}</div></div>
+            </div>
+          )}
+          <p className="mt-4 text-sm text-dim">Выбор наследия откроется при переходе в новую эпоху: можно принять культуру того времени или сохранить прежнее наследие, переняв только технологии.</p>
+        </Panel>
+      )}
+
+      <Panel className="p-5">
+        <div className="flex items-center gap-2"><Scroll size={15} className="text-bronze" /><Label>Линия наследия</Label></div>
+        {lineage.length === 0 ? <p className="mt-3 text-sm text-dim">Линия пока пуста.</p> : (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {lineage.map((c: any, i: number) => (
+              <span key={c.id} className="flex items-center gap-2">
+                {i > 0 && <ChevronRight size={13} className="text-faint" />}
+                <span title={c.desc}><Chip tone={c.id === p.historicalCulture?.id ? "bronze" : undefined}>{c.icon} {c.name}</Chip></span>
+              </span>
+            ))}
+          </div>
+        )}
+        {eraRecord?.cultures?.length > 0 && (
+          <p className="mt-4 text-[13px] leading-relaxed text-faint">Культуры эпохи: {eraRecord.cultures.join(" · ")}</p>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
 export default function Develop() {
   const { game } = useStore();
-  const [tab, setTab] = useState<"science" | "buildings" | "decrees">(game.player.pendingDecreeChoice ? "decrees" : "science");
+  const [tab, setTab] = useState<"science" | "buildings" | "decrees" | "heritage">(
+    game.player.pendingDecreeChoice ? "decrees" : game.player.pendingCultureChoice ? "heritage" : "science",
+  );
   const p = game.player;
   const guide = M.getFirstSessionGuide(game);
   const guided = Boolean(guide && !guide.complete);
   // В первые шаги вкладок нет: одна задача на экране.
-  if (guided && !p.pendingDecreeChoice) {
+  if (guided && !p.pendingDecreeChoice && !p.pendingCultureChoice) {
     return (
       <PageFrame wide>
         <div className="mb-6">
@@ -347,11 +459,13 @@ export default function Develop() {
           { id: "science", label: "Наука" },
           { id: "buildings", label: "Здания" },
           { id: "decrees", label: "Уклады", badge: p.pendingDecreeChoice ? <span className="h-2 w-2 rounded-full bg-bronze" /> : undefined },
+          { id: "heritage", label: "Наследие", badge: p.pendingCultureChoice ? <span className="h-2 w-2 rounded-full bg-bronze" /> : undefined },
         ]} />
       </div>
       {tab === "science" && <Science />}
       {tab === "buildings" && <Buildings />}
       {tab === "decrees" && <Decrees />}
+      {tab === "heritage" && <Heritage onGoto={setTab} />}
     </PageFrame>
   );
 }

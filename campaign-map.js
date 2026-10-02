@@ -4,6 +4,19 @@
     const SIZE = 7;
     const CENTER = Object.freeze({ x: 3, y: 3 });
     const WORLD_VERSION = 2;
+    // minEra месторождений — индекс в CampaignMvp.ERAS (единая шкала эпох: 0 Каменный век,
+    // 1 Античный мир, 2 Средневековье, …). Эти числа обязаны совпадать с ERA_KEY_RESOURCE в
+    // campaign.js: обсидиан — ключевой ресурс эпохи 0, бронза (медь + олово) — эпохи 1,
+    // железо — эпохи 2. Раньше медь/олово стояли на эпохе 2, а железо на 3, потому что шкала
+    // карты была привязана к старой «исторической лестнице» (поздняя бронза, античность) и
+    // отставала от ERAS на ступень. Инвариант сверяется в tests/era-alignment.test.js.
+    const BRONZE_SITE_MIN_ERA = 1; // Античный мир — медь и олово
+    const IRON_SITE_MIN_ERA = 2;   // Средневековье — железо
+    // Дозоры нейтральных клеток: их боевой контент существует только до BARBARIAN_ERA_CAP
+    // (колоды племён — Каменный век / Античный мир / Средневековье, см. campaign.js), поэтому
+    // эпоха дозора не должна обгонять этот предел. Прежнее Math.min(4, …) давало стражам
+    // «Эпоху Пара и Стали» в подписи, хотя бой они вели колодой Средневековья.
+    const GUARD_ERA_CAP = 2;
     const DIRECTIONS = Object.freeze([
         { dx: 0, dy: -1 },
         { dx: 1, dy: 0 },
@@ -440,7 +453,7 @@
             copper.feature = 'copper-vein';
             copper.resource = 'copper';
             copper.resourceLabel = 'Медная руда';
-            copper.minEra = 2;
+            copper.minEra = BRONZE_SITE_MIN_ERA;
             occupiedForSpecialSites.add(copper.id);
         }
         const tin = metalCandidate(['plains', 'hills', 'coast'], true);
@@ -449,7 +462,7 @@
             tin.feature = 'tin-route';
             tin.resource = 'tin';
             tin.resourceLabel = 'Оловянная жила';
-            tin.minEra = 2;
+            tin.minEra = BRONZE_SITE_MIN_ERA;
             occupiedForSpecialSites.add(tin.id);
         }
         const salt = metalCandidate(['desert', 'coast', 'wetlands'], true);
@@ -459,7 +472,7 @@
             salt.resource = 'salt';
             salt.resourceLabel = 'Соляное место';
         }
-        // Обсидиан: ключевой ресурс Каменного века (эра 0), доступен с самого начала игры
+        // Обсидиан: ключевой ресурс Каменного века (эпоха 0), доступен с самого начала игры
         // (нет minEra) — месторождения лавового стекла ищут среди гор и холмов, как и медь.
         const obsidian = metalCandidate(['mountain', 'hills'], true);
         if (obsidian) {
@@ -468,15 +481,15 @@
             obsidian.resource = 'obsidian';
             obsidian.resourceLabel = 'Обсидиановая жила';
         }
-        // Железо: ключевой ресурс Античности (эра 3) — как медь/олово, доступно для освоения
-        // только с достижением этой эпохи (minEra: 3).
+        // Железо: ключевой ресурс Средневековья (эпоха 2) — как медь/олово, доступно для освоения
+        // только с достижением этой эпохи (minEra: 2).
         const iron = metalCandidate(['hills', 'mountain'], true);
         if (iron) {
             iron.siteType = 'iron';
             iron.feature = 'iron-vein';
             iron.resource = 'iron';
             iron.resourceLabel = 'Железная руда';
-            iron.minEra = 3;
+            iron.minEra = IRON_SITE_MIN_ERA;
         }
 
         const usedNames = new Set();
@@ -513,7 +526,7 @@
             const tileSeed = (worldSeed + (tile.y * SIZE + tile.x + 1) * 0x6d2b79f5) >>> 0;
             const guardRng = seededRandom(tileSeed);
             const distance = Math.abs(tile.x - CENTER.x) + Math.abs(tile.y - CENTER.y);
-            const era = Math.min(4, Math.max(tile.minEra, Math.floor(distance / 3)));
+            const era = Math.min(GUARD_ERA_CAP, Math.max(tile.minEra, Math.floor(distance / 3)));
             tile.guard = {
                 id: 'guard-' + tile.id,
                 name: pick(guardRng, GUARD_RANKS) + ' «' + tile.name + '»',
@@ -603,6 +616,11 @@
         SIZE,
         CENTER: { ...CENTER },
         WORLD_VERSION,
+        // Эпохи месторождений и дозоров экспортированы, чтобы tests/era-alignment.test.js мог
+        // сверить их с ERAS / ERA_KEY_RESOURCE / BARBARIAN_ERA_CAP из campaign.js.
+        BRONZE_SITE_MIN_ERA,
+        IRON_SITE_MIN_ERA,
+        GUARD_ERA_CAP,
         TERRAIN,
         createSeed,
         tileId,

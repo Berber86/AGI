@@ -486,21 +486,45 @@ async function hydraChat(opts: { model: string; system: string; user: string; te
   return JSON.parse(m[0]);
 }
 
+/** Исторический контекст эпохи: строка ERA_HISTORICAL, индекс которой совпадает с ERAS. */
+export function eraContextOf(state: any): { label: string; desc: string; cultures: string; tech: string } {
+  const record = M.ERA_HISTORICAL?.[state.player.era];
+  return {
+    label: M.eraName(state.player.era),
+    desc: record?.desc || "",
+    cultures: (record?.cultures || []).join(" · "),
+    tech: (record?.tech || []).join(", "),
+  };
+}
+
 export function contextOf(state: any): string {
   const p = state.player;
+  const era = eraContextOf(state);
   return [
     p.seedLine && `Затравка народа: «${p.seedLine}»`,
     p.biome && `Биом: ${p.biome.name} — ${p.biome.desc}`,
     p.geography && `География: ${p.geography.name}`,
     p.trait && `Черта: ${p.trait.name} — ${p.trait.desc}`,
-    p.historicalCulture && `Наследие: ${p.historicalCulture.name}`,
-    `Эпоха: ${M.eraName(p.era)}`,
+    p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
+    `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
+    era.cultures && `Культуры эпохи: ${era.cultures}`,
+    era.tech && `Технологии эпохи: ${era.tech}`,
     `Уклады: ${(p.decrees || []).map((d: any) => M.DECREES[d.id]?.label).join(", ") || "нет"}`,
   ].filter(Boolean).join("\n");
 }
 
+/**
+ * Боевых тегов эпох у карт два (ancient и bronze) — на них держится модификатор урона в бою.
+ * Порог открытия bronze берётся из модели (BRONZE_CARD_MIN_ERA = 1, «Античный мир»), а не
+ * хардкодом: раньше здесь стояло `era >= 3`, что по единой шкале ERAS означало «Ренессанс»,
+ * тогда как вражеские колоды получали бронзу уже с эпохи 1 (src/game/battle.ts).
+ */
+export function allowedCardErasOf(state: any): string[] {
+  return M.allowedCardEras(state.player.era) as string[];
+}
+
 export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
-  const era = state.player.era >= 3 ? "ancient и bronze" : "ancient";
+  const era = allowedCardErasOf(state).join(" и ");
   const data = await hydraChat({
     model, temperature: 1, maxTokens: 900,
     system: "Ты военный советник кузницы исторической карточной стратегии о становлении цивилизаций (древний мир и бронзовый век, без магии и фэнтези). Предложи ровно три замысла карты: один card_type=unit, один spell, один structure. Ответ — JSON: {\"choices\":[{\"card_type\":\"unit|spell|structure\",\"title\":\"короткое название\",\"pitch\":\"1 предложение, один образ\"}]}. Язык — русский.",
@@ -515,7 +539,8 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
 }
 
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Эпохи карт: "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
+Эпохи карт (боевой тег, их ровно две): "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
+Важно: боевой тег — это не дата в календаре кампании. В контексте указана эпоха кампании (например «Ренессанс» или «Эпоха Пара и Стали») вместе с её культурами и технологиями: образы, названия, описания и технологии карты должны соответствовать ИМЕННО этой эпохе (мушкеты и печатный стан для Ренессанса, пар и сталь для 1800-1910), а тег era при этом остаётся в разрешённом наборе ancient/bronze.
 Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
@@ -531,7 +556,7 @@ condition (необязательное поле эффекта) помимо ta
 Язык — русский.`;
 
 export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
-  const allowed = state.player.era >= 3 ? ["ancient", "bronze"] : ["ancient"];
+  const allowed = allowedCardErasOf(state);
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   const raw = await hydraChat({
     model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,

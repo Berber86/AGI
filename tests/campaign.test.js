@@ -348,8 +348,8 @@ test('the approved 30-day sandbox can progress through eras and unlock masterwor
   const development = report.scenarios.find(scenario => scenario.strategy.includes('исследовать и строить'));
   assert.ok(development);
   assert.equal(development.day, Campaign.SEASON_LENGTH);
-  // v3: with AP 2/day, reaching final era in 30 days is hard, but should reach at least Neolithic
-  assert.ok(Campaign.ERAS.indexOf(development.eraReached) >= 1, 'should reach at least Неолит, got ' + development.eraReached);
+  // v3: with AP 2/day, reaching final era in 30 days is hard, but should reach at least the second era
+  assert.ok(Campaign.ERAS.indexOf(development.eraReached) >= 1, 'should reach at least «' + Campaign.ERAS[1] + '», got ' + development.eraReached);
   assert.ok(development.researchOrders > 0);
 
   const refined = report.scenarios.find(scenario => scenario.strategy.includes('Отборное сырьё'));
@@ -973,16 +973,18 @@ test('card craft quote shows material, progression, effort and rarity odds befor
 test('card craft rolls rarity before generation, pays upfront and routes the model by rarity', () => {
   const initial = playableCampaign();
   const metalAccess = controlRegionsWithBuildings(initial, { copper: 'smelter', 'tin-route': 'caravan' });
-  metalAccess.player.era = 2;
+  // Бронза (медь + олово) — ключевой ресурс эпохи 1 «Античный мир»: именно там редкая ковка
+  // разблокируется. На эпохе 2 «Средневековье» ключевым ресурсом становится железо.
+  metalAccess.player.era = 1;
   // Ковка теперь дорожает с эпохой (баланс-ревизия), поэтому для этого снимка выдаём заведомо достаточный запас —
-  // сам тест проверяет цену/редкость/маршрутизацию модели, а не способность экономики прокормить ковку на 2-й эпохе.
+  // сам тест проверяет цену/редкость/маршрутизацию модели, а не способность экономики прокормить ковку.
   metalAccess.player.resources = { food: 20, materials: 20, knowledge: 20 };
   const rare = Campaign.beginCardCraftState(metalAccess, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Копейная линия');
   assert.equal(rare.error, null);
   assert.equal(rare.order.rarity, 'rare');
   assert.equal(rare.order.modelId, 'glm-5.2');
-  assert.deepEqual(rare.order.cost, { food: 8, materials: 15, knowledge: 6 });
-  assert.deepEqual(rare.state.player.resources, { food: 12, materials: 5, knowledge: 14 });
+  assert.deepEqual(rare.order.cost, { food: 6, materials: 12, knowledge: 5 });
+  assert.deepEqual(rare.state.player.resources, { food: 14, materials: 8, knowledge: 15 });
   assert.equal(rare.state.player.dailyOrders.craftUsed, 1);
   assert.match(Campaign.beginCardCraftState(rare.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, /ковка уже заказана|AP/);
 
@@ -997,7 +999,7 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
 
 test('crafted cards wait for invested days, become claimable and persist in the collection payload', () => {
   const copperAccess = controlRegionsWithBuildings(playableCampaign(), { copper: 'smelter' });
-  copperAccess.player.era = 2;
+  copperAccess.player.era = 1;
   const started = Campaign.beginCardCraftState(copperAccess, { materialQuality: 'refined', effort: 'focused' }, 0.8, 'Пращники из холмов');
   assert.equal(started.error, null);
   assert.equal(started.order.rarity, 'uncommon');
@@ -1027,7 +1029,7 @@ test('crafted cards wait for invested days, become claimable and persist in the 
 test('invalid generation refunds the upfront investment and frees a same-day order', () => {
   const initial = playableCampaign();
   const copperAccess = controlRegionsWithBuildings(initial, { copper: 'smelter' });
-  copperAccess.player.era = 2;
+  copperAccess.player.era = 1;
   const started = Campaign.beginCardCraftState(copperAccess, { materialQuality: 'refined', effort: 'focused' }, 0.2);
   const failed = Campaign.failCardCraftState(started.state, started.order.id, 'JSON schema mismatch');
   assert.equal(failed.error, null);
@@ -1039,10 +1041,33 @@ test('invalid generation refunds the upfront investment and frees a same-day ord
 });
 
 test('science advisor only offers fixed branches unlocked by the current era', () => {
-  assert.deepEqual(Campaign.scienceBranchesForEra(0).map(branch => branch.id), ['agriculture', 'stonecraft', 'seasonal', 'warfare']);
-  assert.ok(Campaign.scienceBranchesForEra(2).some(branch => branch.id === 'metallurgy'));
-  assert.ok(Campaign.scienceBranchesForEra(2).every(branch => branch.id !== 'bronze'));
-  assert.ok(Campaign.scienceBranchesForEra(3).some(branch => branch.id === 'bronze'));
+  // minEra ветвей — индекс в ERAS: Каменный век открывает только каменно-неолитический набор.
+  assert.deepEqual(Campaign.scienceBranchesForEra(0).map(branch => branch.id),
+    ['agriculture', 'stonecraft', 'seasonal', 'warfare', 'fortification', 'horse']);
+  assert.ok(Campaign.scienceBranchesForEra(0).every(branch => branch.id !== 'bronze'));
+
+  // Бронза, письмо и металлургия — технологии Античного мира (индекс 1), а не Средневековья и не Ренессанса.
+  const antiquity = Campaign.scienceBranchesForEra(1).map(branch => branch.id);
+  for (const id of ['writing', 'metallurgy', 'bronze', 'irrigation-empire', 'administration']) {
+    assert.ok(antiquity.includes(id), 'Античный мир должен открывать ветвь ' + id);
+  }
+  assert.ok(!antiquity.includes('guilds'), 'цеха — технология Средневековья');
+
+  assert.ok(Campaign.scienceBranchesForEra(2).some(branch => branch.id === 'guilds'));
+  assert.ok(Campaign.scienceBranchesForEra(2).every(branch => branch.id !== 'printing'));
+  assert.ok(Campaign.scienceBranchesForEra(3).some(branch => branch.id === 'printing'));
+  assert.ok(Campaign.scienceBranchesForEra(3).every(branch => branch.id !== 'steam'));
+  assert.ok(Campaign.scienceBranchesForEra(4).some(branch => branch.id === 'steam'));
+  assert.ok(Campaign.scienceBranchesForEra(5).some(branch => branch.id === 'aviation'));
+  assert.ok(Campaign.scienceBranchesForEra(6).some(branch => branch.id === 'computing'));
+
+  // Каждая следующая эпоха обязана открывать хотя бы одну новую ветвь: при переходе игрок получает
+  // новые технологии независимо от того, сохранил он прежнее наследие или принял культуру эпохи.
+  for (let era = 1; era < Campaign.ERAS.length; era++) {
+    const previous = new Set(Campaign.scienceBranchesForEra(era - 1).map(branch => branch.id));
+    const fresh = Campaign.scienceBranchesForEra(era).filter(branch => !previous.has(branch.id)).map(branch => branch.id);
+    assert.ok(fresh.length > 0, 'эпоха «' + Campaign.ERAS[era] + '» должна открывать новые ветви науки');
+  }
 });
 
 test('science advice uses current territory and reserves while exposing only one broad choice', async () => {

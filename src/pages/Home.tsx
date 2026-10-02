@@ -19,6 +19,7 @@ function useNext(): Next {
   const stepPage: Page | null = step?.id === "territory" ? "map" : step?.id === "battle" ? "army" : step ? "develop" : null;
   if (p.pendingExpedition) return { title: "Экспедиция ждёт вас", text: "Начатый поход нужно закончить, прежде чем продолжить день.", cta: { label: "К карте", page: "map" }, tone: "bronze" };
   if (p.pendingDecreeChoice) return { title: "Выберите уклад новой эпохи", text: "Народ вошёл в новую эпоху. Уклад определит производство и состав армии на много дней вперёд.", cta: { label: "Выбрать уклад", page: "develop" }, tone: "bronze" };
+  if (p.pendingCultureChoice) return { title: "Выберите наследие новой эпохи", text: "Принять культуру нового времени или сохранить прежнее наследие — технологии эпохи (науки, ключевой ресурс, ковка карт) доступны в обоих случаях.", cta: { label: "Выбрать наследие", page: "develop" }, tone: "bronze" };
   const daysFood = net.food < 0 ? p.resources.food / -net.food : Infinity;
   if (daysFood < 3) return { title: `Провизии хватит на ${Math.max(1, Math.floor(daysFood))} дн.`, text: "Народ съедает больше, чем приносят поля. Направьте рабочих на провизию или займите плодородные земли.", cta: null, tone: "bad" };
   // Первый маршрут важнее прочих напоминаний: в начале игры ведём за руку по одному шагу.
@@ -210,6 +211,7 @@ function Chronicle() {
   const { game } = useStore();
   const p = game.player;
   const lineage = (p.culturalLineage || []).map((id: string) => M.HISTORICAL_CULTURES.find((c: any) => c.id === id)).filter(Boolean);
+  const eraRecord: any = M.ERA_HISTORICAL?.[p.era];
   return (
     <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
       <Panel className="p-5">
@@ -227,12 +229,19 @@ function Chronicle() {
         )}
       </Panel>
       <div className="space-y-4">
-        <Panel className="p-5">
-          <Heading title="Линия культур" className="[&_h2]:text-lg" />
+        <Panel className={cn("p-5", p.pendingCultureChoice && "border-bronze/40 bg-bronze/8")}>
+          <Heading title="Линия культур" eyebrow={`Эпоха «${M.eraName(p.era)}»`} className="[&_h2]:text-lg" />
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {lineage.map((c: any, i: number) => (<span key={c.id} className="flex items-center gap-1.5"><Chip tone="bronze">{c.icon} {c.name}</Chip>{i < lineage.length - 1 && <ArrowRight size={12} className="text-faint" />}</span>))}
+            {lineage.map((c: any, i: number) => (<span key={c.id} className="flex items-center gap-1.5"><Chip tone={c.id === p.historicalCulture?.id ? "bronze" : "neutral"}>{c.icon} {c.name}</Chip>{i < lineage.length - 1 && <ArrowRight size={12} className="text-faint" />}</span>))}
           </div>
-          <p className="mt-3 text-xs text-faint">С каждой эпохой к культуре добавляется новое влияние.</p>
+          {eraRecord?.tech?.length > 0 && (
+            <p className="mt-3 text-[13px] leading-relaxed text-dim">Технологии эпохи: {eraRecord.tech.join(", ")}.</p>
+          )}
+          {p.pendingCultureChoice ? (
+            <p className="mt-3 text-[13px] leading-relaxed text-parch">Ждёт решения: принять культуру эпохи «{M.eraName(p.era)}» или сохранить прежнее наследие. Технологии уже ваши в любом случае.</p>
+          ) : (
+            <p className="mt-3 text-xs text-faint">При переходе эпохи вы сами решаете, принять культуру нового времени или сохранить прежнее наследие.</p>
+          )}
         </Panel>
         <Panel className="p-5">
           <Heading title="Медали сезонов" className="[&_h2]:text-lg" />

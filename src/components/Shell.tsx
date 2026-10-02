@@ -29,7 +29,7 @@ function useAlerts(): Partial<Record<Page, number>> {
   const { cfg } = useDerived();
   const p = game.player;
   const out: Partial<Record<Page, number>> = {};
-  if (p.pendingDecreeChoice) out.develop = 1;
+  if (p.pendingDecreeChoice || p.pendingCultureChoice) out.develop = 1;
   const ready = p.craftOrders.filter((o: any) => o.status === "ready").length;
   if (ready) out.forge = ready;
   const missing = Math.max(0, cfg.deckLimit - p.deckCardIds.length);

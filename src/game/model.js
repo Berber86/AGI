@@ -14,6 +14,7 @@ export const M = {
   finishRegionExpedition: Campaign.finishRegionExpeditionState,
   markExpeditionBattleStarted: Campaign.markExpeditionBattleStartedState,
   chooseDecree: Campaign.chooseDecreeState,
+  chooseCulture: Campaign.chooseCultureState,
   toggleBuilding: Campaign.toggleBuildingState,
   toggleDeckCard: Campaign.toggleDeckCardState,
   finishDay: Campaign.finishDayState,

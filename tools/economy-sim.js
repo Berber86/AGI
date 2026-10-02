@@ -257,8 +257,12 @@ function unlockMaterialSites(input, materialQuality) {
     stats.buildingOrders += stabilization.buildingOrders;
     stats.questBattles = stabilization.questBattles || 0;
 
+    // Бронза (медь + олово) — ключевой ресурс эпохи 1 «Античный мир», железо — эпохи 2
+    // «Средневековье» (ERA_KEY_RESOURCE / minEra месторождений в campaign-map.js). Редкая ковка
+    // хард-заперта без ключевого ресурса ТЕКУЩЕЙ эпохи, поэтому для мастерского сырья сценарий
+    // обязан дойти до железа: без железоплавильни «rare» не выпадет.
     state = ensureEra(state, 2, stats);
-    const features = materialQuality === 'masterwork' ? ['copper-vein', 'tin-route'] : ['copper-vein'];
+    const features = materialQuality === 'masterwork' ? ['copper-vein', 'tin-route', 'iron-vein'] : ['copper-vein'];
     const sites = [];
     for (const feature of features) {
         if (state.day >= Campaign.SEASON_LENGTH) break;
