@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { Sword, Heart, Zap } from "lucide-react";
+import { Sword, Heart, Zap, ScrollText } from "lucide-react";
 import { cn } from "@/utils/cn";
-import { CARD_TYPE_INFO, RARITY_INFO, describeEffect, kwName, type Card } from "@/game/cards";
+import { Accordion } from "@/components/ui";
+import { CARD_TYPE_INFO, RARITY_INFO, describeEffect, kwName, type Card, type CardHistory } from "@/game/cards";
 
 const TYPE_TINT: Record<string, string> = {
   unit: "from-clay/25 via-clay/5",
@@ -55,10 +56,32 @@ interface Props {
   detailed?: boolean;
   className?: string;
   dim?: boolean;
+  /** Историческая справка сразу раскрыта: так показываем только что выкованную карту. */
+  historyOpen?: boolean;
+}
+
+/** Историческая справка карты: эпоха кампании и наследие народа, под которые её написал кузнец. */
+export function HistoryNote({ history, defaultOpen }: { history: CardHistory; defaultOpen?: boolean }) {
+  return (
+    <Accordion
+      className="mt-2"
+      defaultOpen={defaultOpen}
+      icon={<ScrollText size={12} className="shrink-0 text-bronze" />}
+      title={history.title}
+    >
+      <p className="text-[11.5px] leading-relaxed text-dim">{history.text}</p>
+      {(history.era || history.culture) && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {history.era && <span className="rounded-md border border-line bg-ground/70 px-1.5 py-0.5 text-[10px] text-faint">Эпоха: {history.era}</span>}
+          {history.culture && <span className="rounded-md border border-line bg-ground/70 px-1.5 py-0.5 text-[10px] text-faint">Наследие: {history.culture}</span>}
+        </div>
+      )}
+    </Accordion>
+  );
 }
 
 /** Полноразмерная карта */
-export function CardFace({ card, onClick, selected, footer, badge, detailed, className, dim }: Props) {
+export function CardFace({ card, onClick, selected, footer, badge, detailed, className, dim, historyOpen }: Props) {
   const rarity = card.rarity ? RARITY_INFO[card.rarity] : null;
   const type = CARD_TYPE_INFO[card.card_type];
   const Wrapper: any = onClick ? "button" : "div";
@@ -102,6 +125,7 @@ export function CardFace({ card, onClick, selected, footer, badge, detailed, cla
           </ul>
         )}
         <p className="mt-auto text-center text-[12px] italic leading-snug text-dim">{card.description}</p>
+        {card.history && <HistoryNote history={card.history} defaultOpen={historyOpen} />}
         <div className="flex items-center justify-between border-t border-line pt-2">
           <StatPair card={card} />
           {card.card_type === "unit" && (

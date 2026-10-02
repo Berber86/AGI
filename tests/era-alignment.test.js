@@ -239,7 +239,13 @@ test('HISTORICAL_CULTURES покрывает все семь эпох и сог�
   const startPool = Campaign.HISTORICAL_CULTURES.filter(culture => culture.era === 0).map(culture => culture.id);
   assert.ok(startPool.includes('yamnaya'));
   assert.ok(!startPool.includes('assyria') && !startPool.includes('rome'));
-  assert.match(campaignSource, /HISTORICAL_CULTURES\.filter\(h => h\.era === 0\)/);
+  // Стартовый пул — экспортируемая функция модели: онбординг показывает все культуры эпохи 0,
+  // поэтому источник истины один и используется и моделью, и экраном создания народа.
+  assert.equal(typeof Campaign.startCulturePool, 'function');
+  assert.equal(Campaign.CULTURE_START_ERA, 0);
+  assert.deepEqual(Campaign.startCulturePool().map(culture => culture.id), startPool);
+  assert.match(campaignSource, /function startCulturePool\(\)/);
+  assert.match(campaignSource, /startCulturePool\(\)/, 'applyOriginSetup берёт стартовый пул из модели');
 });
 
 test('каждая культура эпохи находит карточки в локальных пулах кузнеца legacy.html', () => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight, Trash2, Scroll, Anvil } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
@@ -388,20 +388,9 @@ function Decrees() {
 
 /* ---------- Наследие эпохи ---------- */
 
-const BONUS_LABEL: Record<string, (v: number) => string> = {
-  food: (v) => `${v > 0 ? "+" : ""}${v}🌾 с клана`,
-  materials: (v) => `${v > 0 ? "+" : ""}${v}🪵 с клана`,
-  knowledge: (v) => `${v > 0 ? "+" : ""}${v}📚 с клана`,
-  faith: (v) => `${v > 0 ? "+" : ""}${v}🙏 с клана`,
-  deck_slots: (v) => `${v > 0 ? "+" : ""}${v} слот колоды`,
-  storage: (v) => `${v > 0 ? "+" : ""}${v} к складу`,
-  max_hp: (v) => `${v > 0 ? "+" : ""}${v} здоровья`,
-};
-
+/** Бонусы культур формулирует модель — одна формулировка на все экраны (онбординг, модалка перехода, вкладка). */
 function bonusOf(culture: any): string {
-  const bonus = culture?.bonus || {};
-  const parts = Object.entries(bonus).map(([k, v]) => (BONUS_LABEL[k] ? BONUS_LABEL[k](v as number) : `${k} ${v}`));
-  return parts.length ? parts.join(", ") : "без бонусов";
+  return M.describeCultureBonus(culture);
 }
 
 /**
@@ -538,6 +527,11 @@ export default function Develop() {
     game.player.pendingDecreeChoice ? "decrees" : game.player.pendingCultureChoice ? "heritage" : "science",
   );
   const p = game.player;
+  // Выбор мог открыться, пока игрок стоял на другой вкладке — переводим на него сразу.
+  useEffect(() => {
+    if (p.pendingDecreeChoice) setTab("decrees");
+    else if (p.pendingCultureChoice) setTab("heritage");
+  }, [p.pendingDecreeChoice, p.pendingCultureChoice]);
   const guide = M.getFirstSessionGuide(game);
   const guided = Boolean(guide && !guide.complete);
   // В первые шаги вкладок нет: одна задача на экране.

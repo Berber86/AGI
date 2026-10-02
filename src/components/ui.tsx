@@ -1,5 +1,5 @@
-import { useEffect, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Wheat, Pickaxe, ScrollText, Flame, X } from "lucide-react";
+import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { Wheat, Pickaxe, ScrollText, Flame, X, ChevronDown } from "lucide-react";
 import { cn } from "@/utils/cn";
 
 // 🙏 Духовность — четвёртый ресурс: жрецы, святилища и миссии (см. campaign.js ENLIGHTENMENT_WEIGHTS).
@@ -165,6 +165,30 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
 export function Dot({ tone = "bronze" }: { tone?: "bronze" | "bad" | "ok" }) {
   const c = { bronze: "bg-bronze", bad: "bg-bad", ok: "bg-ok" }[tone];
   return <span className={cn("inline-block h-2 w-2 rounded-full", c)} />;
+}
+
+/**
+ * Аккордеон для длинных пояснений внутри карточек: историческая справка карты, разбор эффекта.
+ * Свёрнут по умолчанию, чтобы карточная сетка не расползалась, но открывается одним кликом.
+ */
+export function Accordion({ title, icon, children, defaultOpen = false, className, badge }: { title: ReactNode; icon?: ReactNode; children: ReactNode; defaultOpen?: boolean; className?: string; badge?: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={cn("overflow-hidden rounded-xl border border-line bg-ground/50", className)}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 px-2.5 py-2 text-left transition-colors hover:bg-raised/60"
+      >
+        {icon}
+        <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold text-dim">{title}</span>
+        {badge}
+        <ChevronDown size={14} className={cn("shrink-0 text-faint transition-transform duration-200", open && "rotate-180")} />
+      </button>
+      {open && <div className="border-t border-line px-2.5 py-2.5">{children}</div>}
+    </div>
+  );
 }
 
 export function fmt(n: number, digits = 1) {

@@ -3,7 +3,7 @@ import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, A
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { MODEL_GROUPS, currentGuideStep, useDerived, useStore, type Page } from "@/game/store";
-import { Btn, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
+import { Btn, Chip, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
   return (
@@ -344,6 +344,99 @@ export function DayReportModal() {
       {r.readyCards.length > 0 && <div className="mt-3 rounded-xl border border-bronze/40 bg-bronze/10 px-4 py-3 text-sm text-bronze-soft">Кузница закончила работу: {r.readyCards.join(", ")}. Заберите карту в «Кузнице».</div>}
       {r.notice && !r.starvation && r.popAfter === r.popBefore && <div className="mt-3 text-sm text-dim">{r.notice}</div>}
       <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={closeDayReport}>Наступает день {r.day + 1}<ArrowRight size={18} /></Btn>
+    </Modal>
+  );
+}
+
+/**
+ * Выбор наследия при переходе эпохи — отдельным окном, а не только вкладкой «Наследие».
+ * Раньше выбор открывался тихо: значок на вкладке и строчка в отчёте дня, поэтому игрок
+ * доходил до следующей эпохи, так и не увидев, что культуру вообще предлагали. Теперь
+ * окно встаёт поверх игры сразу после отчёта дня и не закрывается, пока выбор не сделан
+ * (любой вариант — включая «оставить прежнее» — равноправен: технологии эпохи уже доступны).
+ */
+export function CultureChoiceModal() {
+  const { game, dayReport, act, toast, go } = useStore();
+  // Отложить выбор можно только если он физически не применяется (например, новая культура
+  // урезает лимит колоды): тогда игроку нужно дойти до «Отряда», а окно иначе мешает.
+  const [postponed, setPostponed] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const choice: any = M.getCultureChoice(game);
+  // Отчёт дня читается первым: иначе два окна встали бы друг на друга.
+  if (!choice || dayReport || postponed) return null;
+
+  const decide = (id: string) => {
+    const res = act((s) => M.chooseCulture(s, id), { silent: true });
+    if (!res) { setBlocked(true); return; } // act() сам показал ошибку (например, новый лимит колоды)
+    toast(
+      id === "keep"
+        ? `Наследие сохранено: ${game.player.historicalCulture?.name || "прежнее"}. Технологии эпохи уже ваши.`
+        : `Принято наследие: ${M.HISTORICAL_CULTURES.find((c: any) => c.id === id)?.name}.`,
+      "ok",
+    );
+    if (game.player.pendingDecreeChoice) {
+      go("develop");
+      toast("Осталось выбрать уклад новой эпохи — вкладка «Уклады».", "info");
+    }
+  };
+
+  return (
+    <Modal open onClose={() => {}} dismissable={false} wide title="Выбор наследия">
+      <Label>Переход эпохи</Label>
+      <h2 className="font-display text-2xl font-semibold sm:text-3xl">Эпоха «{choice.eraLabel}»: чьим наследием жить?</h2>
+      <p className="mt-2 text-[14px] leading-relaxed text-dim">{choice.eraDescription}</p>
+      {choice.eraTechnologies.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {choice.eraTechnologies.map((t: string) => <Chip key={t} tone="bronze"><Anvil size={11} />{t}</Chip>)}
+        </div>
+      )}
+      <p className="mt-3 text-[13.5px] leading-relaxed text-dim">
+        Технологии эпохи уже в работе — науки, ключевой ресурс и ковка карт идут от эпохи, а не от наследия.
+        Здесь решается только то, чьи обычаи и какие бонусы несёт дальше ваш народ.
+      </p>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="flex flex-col rounded-xl border border-line-strong bg-raised/50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ground text-2xl">{game.player.historicalCulture?.icon || "🏺"}</span>
+            <div className="min-w-0">
+              <h3 className="font-display text-lg font-semibold leading-tight">Оставить прежнее наследие</h3>
+              <Chip tone="ok" className="mt-1">{game.player.historicalCulture?.name || "прежний народ"}</Chip>
+            </div>
+          </div>
+          <p className="mt-3 flex-1 text-[13.5px] leading-relaxed text-dim">{game.player.historicalCulture?.desc || "Народ остаётся при своих обычаях."}</p>
+          <div className="mt-2 text-xs text-faint">{M.describeCultureBonus(game.player.historicalCulture)}</div>
+          <Btn className="mt-4" variant="primary" onClick={() => decide("keep")}>Оставить своё наследие</Btn>
+        </div>
+
+        {choice.candidates.map((c: any) => (
+          <div key={c.id} className="flex flex-col rounded-xl border border-line bg-raised/40 p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ground text-2xl">{c.icon}</span>
+              <div className="min-w-0">
+                <h3 className="font-display text-lg font-semibold leading-tight">{c.name}</h3>
+                <Chip tone="bronze" className="mt-1">наследие эпохи</Chip>
+              </div>
+            </div>
+            <p className="mt-3 flex-1 text-[13.5px] leading-relaxed text-dim">{c.desc}</p>
+            <div className="mt-2 text-xs text-faint">{M.describeCultureBonus(c)}</div>
+            <Btn className="mt-4" variant="secondary" onClick={() => decide(c.id)}>Принять «{c.name}»</Btn>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-4 text-[11.5px] leading-relaxed text-faint">
+        Выбор останется в летописи и в линии наследия; принятая культура попадёт в промпты советника — науки, постройки
+        и карты кузница будет придумывать под неё. Передумать можно будет при следующем переходе эпохи.
+      </p>
+      {blocked && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bad/40 bg-bad/10 px-3 py-2.5">
+          <span className="text-[12px] leading-relaxed text-dim">
+            Выбор не применился. Отложите окно, поправьте колоду в «Армии» и вернитесь во вкладку «Наследие» — выбор там ждёт.
+          </span>
+          <Btn size="sm" variant="ghost" onClick={() => setPostponed(true)}>Отложить</Btn>
+        </div>
+      )}
     </Modal>
   );
 }

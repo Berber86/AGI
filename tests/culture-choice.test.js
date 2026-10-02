@@ -243,3 +243,76 @@ test('обе оболочки читают выбор наследия из мо
   assert.match(campaignSource, /CampaignMvp\.chooseCulture\(/);
   assert.match(campaignSource, /Сохранить прежнее наследие/);
 });
+
+test('стартовое наследие выбирает игрок: культуры Каменного века видны при создании народа', () => {
+  const pool = Campaign.startCulturePool();
+  assert.equal(pool.length, Campaign.HISTORICAL_CULTURES.filter(culture => culture.era === 0).length);
+  assert.ok(pool.every(culture => culture.era === 0), 'в стартовом пуле только эпоха 0');
+  assert.ok(pool.length >= 3, 'выбор должен быть выбором, а не одной культурой');
+
+  for (const culture of pool) {
+    // Игрок видит культуру карточкой: иконка, даты, место, суть и бонусы.
+    assert.ok(culture.icon, `${culture.id}: без иконки`);
+    assert.ok(culture.name && culture.desc.length > 20, `${culture.id}: без описания`);
+    const bonus = Campaign.describeCultureBonus(culture);
+    assert.ok(bonus.length > 3 && bonus !== 'без бонусов', `${culture.id}: бонусы не подписаны`);
+    assert.match(bonus, /🌾|🪵|📚|🙏|слот|склад|здоровь/);
+  }
+  assert.equal(Campaign.describeCultureBonus(null), 'без бонусов');
+  assert.equal(Campaign.describeCultureBonus({}), 'без бонусов');
+  assert.equal(Campaign.describeCultureBonus(culture('egypt-old')), '+0.3🌾 с клана, +5 к складу');
+});
+
+test('выбранное при создании наследие попадает в народ, линию и летопись', () => {
+  const state = Campaign.createState(TEST_SEED);
+  const begun = Campaign.beginOnboardingState(state, { name: 'Дети Кургана', originId: 'steppe', seedId: 'herd', historicalCultureId: 'trypillia' });
+  assert.equal(begun.error, null);
+  assert.equal(begun.state.player.historicalCulture.id, 'trypillia', 'народ начинает выбранной культурой, а не случайной');
+  assert.deepEqual(begun.state.player.culturalLineage, ['trypillia'], 'линия наследия начинается с выбора игрока');
+  assert.match(begun.state.player.chronicle[0].text, /Триполье/, 'выбор остаётся в летописи');
+
+  // Советник читает наследие: оно лежит в состоянии, а не только в интерфейсе.
+  const restored = Campaign.normalizeState(JSON.parse(JSON.stringify(begun.state)));
+  assert.equal(restored.player.historicalCulture.id, 'trypillia');
+});
+
+test('чужое или битое стартовое наследие не ломает создание народа', () => {
+  for (const bad of ['sumer', 'rome', 'нет-такой-культуры', null, undefined, 42, {}]) {
+    const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), { name: 'Народ', originId: 'river', seedId: 'river', historicalCultureId: bad });
+    assert.equal(begun.error, null, `наследие ${JSON.stringify(bad)} не должно ломать старт`);
+    const culture = begun.state.player.historicalCulture;
+    assert.ok(culture && culture.era === 0, 'без явного выбора культура выпадает из стартового пула');
+    assert.deepEqual(begun.state.player.culturalLineage, [culture.id]);
+  }
+});
+
+test('создание народа и переход эпохи показывают выбор наследия на экране, а не в коде', () => {
+  const onboarding = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Onboarding.tsx'), 'utf8');
+  assert.match(onboarding, /["']Наследие["']/, 'в онбординге появился шаг «Наследие»');
+  assert.match(onboarding, /startCulturePool\(\)/, 'шаг показывает все культуры стартовой эпохи из модели');
+  assert.match(onboarding, /describeCultureBonus/, 'на карточке видны бонусы');
+  assert.match(onboarding, /historicalCultureId/, 'выбор игрока уходит в модель');
+  assert.match(onboarding, /Кем пришли в этот мир\?/);
+
+  const shell = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'Shell.tsx'), 'utf8');
+  assert.match(shell, /export function CultureChoiceModal/);
+  assert.match(shell, /M\.getCultureChoice\(game\)/);
+  assert.match(shell, /dismissable=\{false\}/, 'окно выбора наследия нельзя закрыть, не выбрав');
+  assert.match(shell, /!choice \|\| dayReport/, 'окно встаёт поверх игры после отчёта дня, а не вместе с ним');
+  assert.match(shell, /Оставить своё наследие/);
+  assert.match(shell, /Отложить/, 'если выбор не применяется (культура урезает лимит колоды), окно можно отложить — тупика нет');
+  assert.match(shell, /Принять «\{c\.name\}»/);
+  assert.match(shell, /describeCultureBonus/);
+
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'App.tsx'), 'utf8');
+  assert.match(app, /<CultureChoiceModal \/>/, 'окно смонтировано в корне приложения');
+
+  const store = fs.readFileSync(path.join(__dirname, '..', 'src', 'game', 'store.tsx'), 'utf8');
+  assert.match(store, /historicalCultureId\?: string \| null/, 'стор передаёт выбор в beginOnboardingState');
+  assert.match(store, /beginOnboardingState\(base, \{ name, originId, seedId, historicalCultureId \}\)/);
+
+  // Вкладка «Наследие» остаётся: если окно закрыто (игрок зашёл с сохранения), выбор доступен и там.
+  const develop = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Develop.tsx'), 'utf8');
+  assert.match(develop, /M\.describeCultureBonus/, 'формулировки бонусов не дублируются экранами');
+  assert.match(develop, /setTab\("heritage"\)/, 'вкладка сама открывается на неотвеченном выборе');
+});

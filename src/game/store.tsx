@@ -95,9 +95,9 @@ interface Store {
   model: string;
   setModel: (m: string) => void;
   /** Основание народа: имя, происхождение и затравка. Советник отвечает превью трёх направлений науки. */
-  askOpeningDirections: (input: { name: string; originId: string; seedId: string }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
+  askOpeningDirections: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
   /** Второе обращение к советнику: раскрывает выбранное направление в первое дело народа. */
-  foundCampaign: (input: { name: string; originId: string; seedId: string; direction?: any }) => Promise<{ ok: boolean; project?: any; error?: string }>;
+  foundCampaign: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any }) => Promise<{ ok: boolean; project?: any; error?: string }>;
   /** Игрок увидел созданное первое дело и начинает первый день. */
   startFirstDay: (project?: any) => boolean;
   /** Даёт постройке в земле уникальное имя от советника. */
@@ -237,7 +237,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * Шаг «о чём будет наука»: фиксируем свойства народа и спрашиваем советника о трёх направлениях.
    * Направления придумывает модель — заготовленных вариантов в игре нет.
    */
-  const askOpeningDirections = useCallback(async ({ name, originId, seedId }: { name: string; originId: string; seedId: string }) => {
+  const askOpeningDirections = useCallback(async ({ name, originId, seedId, historicalCultureId }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => {
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
@@ -249,7 +249,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       base.player.name = name.trim().slice(0, 24) || base.player.name;
       base = M.normalizeState(base);
     } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedId });
+      const begun = M.beginOnboardingState(base, { name, originId, seedId, historicalCultureId });
       if (begun.error) return { ok: false, error: begun.error };
       base = begun.state;
     }
@@ -267,7 +267,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [model, commit]);
 
   /** Второй шаг: советник раскрывает выбранное направление в первое дело народа. */
-  const foundCampaign = useCallback(async ({ name, originId, seedId, direction }: { name: string; originId: string; seedId: string; direction?: any }) => {
+  const foundCampaign = useCallback(async ({ name, originId, seedId, historicalCultureId, direction }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any }) => {
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
@@ -280,7 +280,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       base = M.normalizeState(base);
       commit(base, { silent: true });
     } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedId });
+      const begun = M.beginOnboardingState(base, { name, originId, seedId, historicalCultureId });
       if (begun.error) return { ok: false, error: begun.error };
       base = begun.state;
       commit(base, { silent: true });

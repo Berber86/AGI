@@ -541,6 +541,32 @@
         { id: 'ocean-cities', name: 'Океанские города-платформы', icon: '🌊', era: 6, desc: '2080-2140, плавучие мегаполисы экватора — приливные фермы, водород и волновые генераторы', bonus: { food: 0.4 } },
         { id: 'climate-engineers', name: 'Климатические инженеры', icon: '❄️', era: 6, desc: '2060-2120, Арктика — аэрозольные экраны, тундровые реакторы и возрождение мамонтовой степи', bonus: { food: 0.3, knowledge: 0.2 } }
     ];
+
+    // --- Стартовое наследие -------------------------------------------------------------
+    // Народ рождается в эпохе 0, поэтому и стартовых культур ровно столько, сколько в пуле
+    // эпохи 0: игрок видит их все и сам решает, кем ему начинать (шаг «Наследие» онбординга).
+    const CULTURE_START_ERA = 0;
+    function startCulturePool() {
+        return HISTORICAL_CULTURES.filter(culture => culture.era === CULTURE_START_ERA);
+    }
+
+    // Бонусы культур в понятных игроку словах. Одна формулировка на все экраны: онбординг,
+    // модальное окно перехода эпохи, вкладка «Наследие» и standalone-страница.
+    const CULTURE_BONUS_LABEL = {
+        food: v => `${v > 0 ? '+' : ''}${v}🌾 с клана`,
+        materials: v => `${v > 0 ? '+' : ''}${v}🪵 с клана`,
+        knowledge: v => `${v > 0 ? '+' : ''}${v}📚 с клана`,
+        faith: v => `${v > 0 ? '+' : ''}${v}🙏 с клана`,
+        deck_slots: v => `${v > 0 ? '+' : ''}${v} слот колоды`,
+        storage: v => `${v > 0 ? '+' : ''}${v} к складу`,
+        max_hp: v => `${v > 0 ? '+' : ''}${v} здоровья`,
+    };
+    function describeCultureBonus(culture) {
+        const bonus = culture?.bonus || {};
+        const parts = Object.entries(bonus).map(([key, value]) => (CULTURE_BONUS_LABEL[key] ? CULTURE_BONUS_LABEL[key](value) : `${key} ${value}`));
+        return parts.length ? parts.join(', ') : 'без бонусов';
+    }
+
     const OPENING_FOCUSES = [
         { id: 'food', title: 'Надёжные запасы', icon: '🌾', scienceName: 'Рыбные запруды', scienceDescription: 'Наблюдения за течением помогают удерживать рыбу у берега.', buildingName: 'Речная запруда', buildingDescription: 'Плетёные заграждения дают поселению устойчивый источник пищи.', category: 'economy', effect: 'income_food' },
         { id: 'materials', title: 'Каменное ремесло', icon: '🪨', scienceName: 'Обработка кремня', scienceDescription: 'Подбор формы и угла скола делает каменные орудия надёжнее.', buildingName: 'Каменная мастерская', buildingDescription: 'Общая мастерская ускоряет заготовку строительных материалов.', category: 'economy', effect: 'income_materials' },
@@ -1156,7 +1182,7 @@
     }
 
     // Общая настройка происхождения для старого и нового входа.
-    function applyOriginSetup(state, { name, originId, seedLine, seedChoiceId } = {}) {
+    function applyOriginSetup(state, { name, originId, seedLine, seedChoiceId, historicalCultureId } = {}) {
         const origin = ORIGINS.find(item => item.id === originId);
         if (!origin) return { error: 'Выберите происхождение народа.' };
         const cleanName = String(name || '').trim().slice(0, 24);
@@ -1176,12 +1202,17 @@
         state.player.geography = pickRandom(rng, GEOGRAPHY);
         state.player.trait = pickRandom(rng, TRAITS);
         state.player.nearby = pickRandom(rng, NEARBY);
-        // историческая культура по эпохе 0 + линия культур (эволюция).
+        // Историческая культура по эпохе 0 + линия культур (эволюция).
         // Берём строго эпоху 0: раньше фильтр был «era <= 1», потому что старая историческая
         // лестница считала эпоху 1 «ранней бронзой». По единой шкале ERAS эпоха 1 — это уже
         // «Античный мир», и стартовать в Каменном веке с Ассирией или Римом было бы рассинхроном.
-        const histPool = HISTORICAL_CULTURES.filter(h => h.era === 0);
-        state.player.historicalCulture = pickRandom(rng, histPool);
+        // Раньше культура выпадала сама и игрок узнавал о ней только из летописи: весь список
+        // культур Каменного века был загружен в игру, но нигде не показывался. Теперь стартовое
+        // наследие выбирает игрок (-react-онбординг, шаг «Наследие»); если выбора нет (старый вход
+        // со standalone-страницы или пустой id), культура выпадает случайно, как раньше.
+        const histPool = startCulturePool();
+        const requestedCulture = historicalCultureId ? histPool.find(item => item.id === historicalCultureId) : null;
+        state.player.historicalCulture = requestedCulture || pickRandom(rng, histPool);
         state.player.culturalLineage = [state.player.historicalCulture.id];
         // бонус от черты
         if (state.player.trait && state.player.trait.bonus) {
@@ -1234,7 +1265,7 @@
 
     // Новый вход React-версии: игрок задаёт имя, происхождение и затравку народа.
     // Готовых наук и построек здесь нет: первый проект создаёт ИИ по затравке.
-    function beginOnboardingState(input, { name, originId, seedId, seedLine } = {}) {
+    function beginOnboardingState(input, { name, originId, seedId, seedLine, historicalCultureId } = {}) {
         const state = normalizeState(input);
         if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
         const seedChoice = SEED_CHOICES.find(item => item.id === seedId)
@@ -1242,7 +1273,8 @@
             || null;
         if (!seedChoice && !seedLine) return { state, error: 'Выберите, чем живёт народ.' };
         const seedChoiceId = seedChoice ? seedChoice.id : null;
-        const setup = applyOriginSetup(state, { name, originId, seedLine, seedChoiceId });
+        // historicalCultureId — осознанный выбор стартового наследия (шаг «Наследие» онбординга).
+        const setup = applyOriginSetup(state, { name, originId, seedLine, seedChoiceId, historicalCultureId });
         if (setup.error) return { state, error: setup.error };
         state.player.openingFocusId = null;
         state.player.blueprints = state.player.blueprints.filter(item => !item.openingProject);
@@ -3421,6 +3453,7 @@
         SCIENCE_DIRECTION_THEMES, sanitizeScienceDirection, setScienceDirections, chooseScienceDirection,
         MISSION_WORD_BASE, MISSION_WORD_PER_ERA, MISSION_CONVERT_BASE, MISSION_CONVERT_PER_ERA, missionCost: (input, regionId) => missionCost(normalizeState(input), regionId), getMissionState, missionRegionState: missionRegion, WORKER_KEYS,
         getCultureChoice, chooseCultureState: chooseCulture, cultureCandidates: (input, era) => cultureCandidates(normalizeState(input), clampInt(era, 0, ERAS.length - 1, 0)), CULTURE_CHOICE_SIZE, BRONZE_CARD_MIN_ERA, allowedCardEras, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
+        CULTURE_START_ERA, startCulturePool, describeCultureBonus,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
         getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker, getActiveDecreesState: state => getActiveDecrees(normalizeState(state)), clone, hashString, seededRandom, pickRandom, eraName,
         quoteCardCraft: investment => cardCraftQuote(state, investment),
