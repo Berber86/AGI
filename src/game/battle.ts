@@ -107,6 +107,11 @@ const ENEMY_MILITIA_NAMES: Record<string, string> = {
   "Военный лагерь": "Стоянка грабителей",
 };
 
+/**
+ * era — индекс в ERAS (единая шкала эпох из campaign.js). Бронзовые карты появляются у дозоров
+ * с эпохи 1 «Античный мир»: тот же порог, что и у игрока (BRONZE_CARD_MIN_ERA / allowedCardEras
+ * в модели). Согласованность двух порогов держит tests/era-alignment.test.js.
+ */
 export function enemyDeckForEra(era: number, limit: number): Card[] {
   const all = buildMilitia();
   const ordered = era >= 1 ? [...all.filter((c) => c.era === "bronze"), ...all.filter((c) => c.era !== "bronze")] : all;

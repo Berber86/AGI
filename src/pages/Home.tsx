@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Telescope, Hammer, Compass, Anvil, Minus, Plus, Check, ArrowRight, Users, Lightbulb, Trophy, Scroll, Sparkles, Crown } from "lucide-react";
+import { Telescope, Hammer, Compass, Anvil, Minus, Plus, Check, ArrowRight, Users, Lightbulb, Trophy, Scroll, Sparkles, Crown, Flame } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { useDerived, useStore, type Page } from "@/game/store";
@@ -19,6 +19,7 @@ function useNext(): Next {
   const stepPage: Page | null = step?.id === "territory" ? "map" : step?.id === "battle" ? "army" : step ? "develop" : null;
   if (p.pendingExpedition) return { title: "Экспедиция ждёт вас", text: "Начатый поход нужно закончить, прежде чем продолжить день.", cta: { label: "К карте", page: "map" }, tone: "bronze" };
   if (p.pendingDecreeChoice) return { title: "Выберите уклад новой эпохи", text: "Народ вошёл в новую эпоху. Уклад определит производство и состав армии на много дней вперёд.", cta: { label: "Выбрать уклад", page: "develop" }, tone: "bronze" };
+  if (p.pendingCultureChoice) return { title: "Выберите наследие новой эпохи", text: "Принять культуру нового времени или сохранить прежнее наследие — технологии эпохи (науки, ключевой ресурс, ковка карт) доступны в обоих случаях.", cta: { label: "Выбрать наследие", page: "develop" }, tone: "bronze" };
   const daysFood = net.food < 0 ? p.resources.food / -net.food : Infinity;
   if (daysFood < 3) return { title: `Провизии хватит на ${Math.max(1, Math.floor(daysFood))} дн.`, text: "Народ съедает больше, чем приносят поля. Направьте рабочих на провизию или займите плодородные земли.", cta: null, tone: "bad" };
   // Первый маршрут важнее прочих напоминаний: в начале игры ведём за руку по одному шагу.
@@ -82,6 +83,8 @@ function Orders() {
     { key: "constructionUsed", count: p.dailyOrders.constructionUsed || 0, used: (p.dailyOrders.constructionUsed || 0) >= orderCap, label: "Строительство", hint: "Здание на карте или чертёж", Icon: Hammer, page: "develop" },
     { key: "frontierUsed", count: p.dailyOrders.frontierUsed || 0, used: (p.dailyOrders.frontierUsed || 0) >= orderCap, label: "Поход", hint: "Занять землю", Icon: Compass, page: "map" },
     { key: "craftUsed", count: p.dailyOrders.craftUsed || 0, used: (p.dailyOrders.craftUsed || 0) >= orderCap, label: "Ковка", hint: "Новая карта", Icon: Anvil, page: "forge" },
+    // Слово народа: земля присоединяется проповедью за 🙏, без требования соседства и без боя.
+    { key: "missionUsed", count: p.dailyOrders.missionUsed || 0, used: (p.dailyOrders.missionUsed || 0) >= orderCap, label: "Миссия", hint: "Присоединить землю словом", Icon: Flame, page: "map" },
   ];
   return (
     <Panel className="p-5">
@@ -89,8 +92,8 @@ function Orders() {
         <Heading title="Приказы дня" className="[&_h2]:text-lg" />
         <Chip tone={p.ap > 0 ? "bronze" : "neutral"}>{p.ap > 0 ? `Осталось ${p.ap} из ${p.apMax}` : "Приказы исчерпаны"}</Chip>
       </div>
-      <p className="mt-1 text-[13px] text-dim">Выберите любые {p.apMax} из четырёх — каждый тип можно выполнить {orderCap > 1 ? `до ${orderCap} раз` : "один раз"} в день.</p>
-      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+      <p className="mt-1 text-[13px] text-dim">Выберите любые {p.apMax} из пяти — каждый тип можно выполнить {orderCap > 1 ? `до ${orderCap} раз` : "один раз"} в день.</p>
+      <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-5">
         {items.map(({ key, count, used, label, hint, Icon, page }) => (
           <button key={key} onClick={() => go(page)} disabled={false}
             className={cn("group flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-colors", used ? "border-line bg-ground/40 text-faint" : p.ap > 0 ? "border-line-strong bg-raised hover:border-bronze/60" : "border-line bg-ground/40 text-faint")}>
@@ -113,7 +116,7 @@ function People() {
   const { game, act } = useStore();
   const { breakdown: b, cap, cfg } = useDerived();
   const p = game.player;
-  const rows: { k: ResKey; perWorker: number; workers: number; total: number }[] = (["food", "materials", "knowledge"] as ResKey[]).map((k) => ({
+  const rows: { k: ResKey; perWorker: number; workers: number; total: number }[] = (["food", "materials", "knowledge", "faith"] as ResKey[]).map((k) => ({
     k, workers: p.workers[k], perWorker: b.workerBase[k] + b.workerBonus[k], total: b.workerProduction[k],
   }));
   const move = (from: string, to: string) => act((s) => M.assignWorker(s, from, to), { silent: true });
@@ -188,11 +191,15 @@ function Identity() {
 function EraTrack() {
   const { game } = useStore();
   const p = game.player;
+  // Эпоха наступает сама в конце дня, когда просветление 2·📚 + 1·🙏 доходит до порога эпохи.
+  const prog: any = M.getEraProgress(game);
   return (
     <Panel className="p-5">
       <div className="flex items-center justify-between">
         <Heading title={M.eraName(p.era)} eyebrow="Эпоха" className="[&_h2]:text-xl" />
-        <Chip tone="bronze"><Telescope size={12} />Открытий до новой эпохи: {p.research}/2</Chip>
+        <Chip tone={prog.finalEra ? "neutral" : prog.ready ? "ok" : "bronze"}>
+          <Telescope size={12} />{prog.finalEra ? "Последняя эпоха открыта" : `Просветление ${Math.floor(prog.score)}/${prog.threshold}`}
+        </Chip>
       </div>
       <div className="mt-4 flex items-center gap-1">
         {M.ERAS.map((e: string, i: number) => (
@@ -202,6 +209,23 @@ function EraTrack() {
         ))}
       </div>
       <div className="mt-2 flex justify-between text-[11px] text-faint"><span>{M.ERAS[0]}</span><span>{M.ERAS[M.ERAS.length - 1].replace(/ 20.*/, "")}</span></div>
+      {!prog.finalEra && (
+        <div className="mt-4 rounded-xl border border-line bg-ground/50 p-3.5">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <Label>Просветление эпохи · {prog.formula}</Label>
+            <span className="tabular-nums text-dim">{fmt(prog.score, 1)} / {prog.threshold}</span>
+          </div>
+          <Meter value={prog.score} max={prog.threshold} className="mt-2" />
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-faint">
+            <span className="inline-flex items-center gap-1"><ResIcon k="knowledge" size={12} />{fmt(prog.knowledge, 1)} × 2 = {fmt(prog.knowledge * 2, 1)}</span>
+            <span className="inline-flex items-center gap-1"><ResIcon k="faith" size={12} />{fmt(prog.faith, 1)} × 1 = {fmt(prog.faith, 1)}</span>
+            <span>до «{prog.nextEraLabel}» не хватает {fmt(Math.max(0, prog.remaining), 1)}</span>
+          </div>
+          <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
+            Эпоха наступает сама в конце дня, когда 2·📚 + 1·🙏 доходит до {prog.threshold}. В переходе половина знаний и духовности сгорает — собор, перепись и обряды, — поэтому копить придётся заново.
+          </p>
+        </div>
+      )}
     </Panel>
   );
 }
@@ -210,6 +234,7 @@ function Chronicle() {
   const { game } = useStore();
   const p = game.player;
   const lineage = (p.culturalLineage || []).map((id: string) => M.HISTORICAL_CULTURES.find((c: any) => c.id === id)).filter(Boolean);
+  const eraRecord: any = M.ERA_HISTORICAL?.[p.era];
   return (
     <div className="grid gap-4 lg:grid-cols-[3fr_2fr]">
       <Panel className="p-5">
@@ -227,12 +252,19 @@ function Chronicle() {
         )}
       </Panel>
       <div className="space-y-4">
-        <Panel className="p-5">
-          <Heading title="Линия культур" className="[&_h2]:text-lg" />
+        <Panel className={cn("p-5", p.pendingCultureChoice && "border-bronze/40 bg-bronze/8")}>
+          <Heading title="Линия культур" eyebrow={`Эпоха «${M.eraName(p.era)}»`} className="[&_h2]:text-lg" />
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {lineage.map((c: any, i: number) => (<span key={c.id} className="flex items-center gap-1.5"><Chip tone="bronze">{c.icon} {c.name}</Chip>{i < lineage.length - 1 && <ArrowRight size={12} className="text-faint" />}</span>))}
+            {lineage.map((c: any, i: number) => (<span key={c.id} className="flex items-center gap-1.5"><Chip tone={c.id === p.historicalCulture?.id ? "bronze" : "neutral"}>{c.icon} {c.name}</Chip>{i < lineage.length - 1 && <ArrowRight size={12} className="text-faint" />}</span>))}
           </div>
-          <p className="mt-3 text-xs text-faint">С каждой эпохой к культуре добавляется новое влияние.</p>
+          {eraRecord?.tech?.length > 0 && (
+            <p className="mt-3 text-[13px] leading-relaxed text-dim">Технологии эпохи: {eraRecord.tech.join(", ")}.</p>
+          )}
+          {p.pendingCultureChoice ? (
+            <p className="mt-3 text-[13px] leading-relaxed text-parch">Ждёт решения: принять культуру эпохи «{M.eraName(p.era)}» или сохранить прежнее наследие. Технологии уже ваши в любом случае.</p>
+          ) : (
+            <p className="mt-3 text-xs text-faint">При переходе эпохи вы сами решаете, принять культуру нового времени или сохранить прежнее наследие.</p>
+          )}
         </Panel>
         <Panel className="p-5">
           <Heading title="Медали сезонов" className="[&_h2]:text-lg" />

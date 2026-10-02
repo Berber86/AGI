@@ -75,6 +75,7 @@ function snapRes(state) {
         food: state.player.resources.food,
         materials: state.player.resources.materials,
         knowledge: state.player.resources.knowledge,
+        faith: state.player.resources.faith,
         population: state.player.population,
         workers: { ...state.player.workers },
         ap: state.player.ap + '/' + state.player.apMax,
@@ -88,6 +89,7 @@ function prodSnap(state) {
             workerFood: Number(b.workerProduction.food.toFixed(2)),
             workerMat: Number(b.workerProduction.materials.toFixed(2)),
             workerKnow: Number(b.workerProduction.knowledge.toFixed(2)),
+            workerFaith: Number(b.workerProduction.faith.toFixed(2)),
             regional: b.regional,
             consumption: Number(b.consumption.toFixed(2)),
             upkeep: Number(b.upkeep.toFixed(2)),
@@ -124,37 +126,66 @@ function simulateNoOrders() {
     return summarize(state, { strategy: 'пропускать дни, не отдавая приказы (проверка голода)', starvationEvents });
 }
 
+/**
+ * Сколько дней симулятор честно живёт на каждую недостающую эпоху, добирая просветление производством,
+ * прежде чем добавить очки напрямую. Держим маленьким: сезон всего 30 дней, а сценарии тратят их на
+ * земли, постройки и ковку — всё, что не успело вырасти само, добавляется напрямую и помечается в отчёте.
+ */
+const ERA_PUSH_DAY_LIMIT = 2;
+
+/**
+ * Кланы переводятся на книги и молитвы: просветление эпохи считается как 2·📚 + 1·🙏, поэтому
+ * книжник вдвое полезнее жреца, но жрец нужен для миссий — делим остаток населения пополам.
+ */
+function pushEnlightenmentWorkers(input) {
+    const state = Campaign.normalizeState(input);
+    const pop = state.player.population;
+    const food = Math.min(2, pop);
+    const materials = Math.min(1, Math.max(0, pop - food));
+    const rest = Math.max(0, pop - food - materials);
+    const knowledge = Math.ceil(rest / 2);
+    return Campaign.normalizeState({
+        ...state,
+        player: { ...state.player, workers: { food, materials, knowledge, faith: rest - knowledge, idle: 0 } }
+    });
+}
+
+/**
+ * Эпоха больше не открывается числом изученных наук: её открывает просветление народа —
+ * 2·📚 + 1·🙏 против порога эпохи (16 + 8·era, см. campaign.js getEraProgress / advanceEra).
+ * Симулятор играет это честно: переводит кланы на книги и молитвы и прокручивает дни. Жить так весь
+ * сценарий нельзя — захват и отстройка места наблюдений съедают дни, нужные ковке, поэтому недостающие
+ * очки добавляются напрямую и помечаются в отчёте prerequisiteEnlightenmentTopUps: подарок не выдаётся
+ * за реальную экономику.
+ */
 function ensureEra(input, targetEra, stats = {}) {
     let state = input;
-    let draftIndex = 0;
+    if (state.player.era >= targetEra) return state;
+
+    state = pushEnlightenmentWorkers(state);
+
     let attempts = 0;
-    while (state.player.era < targetEra && state.day < Campaign.SEASON_LENGTH && attempts < 120) {
+    const dayBudget = ERA_PUSH_DAY_LIMIT * Math.max(1, targetEra - state.player.era);
+    while (state.player.era < targetEra && state.day < Campaign.SEASON_LENGTH - 1 && attempts < dayBudget) {
         attempts++;
-        if (state.player.ap <= 0 || state.player.dailyOrders.researchUsed) {
-            const next = advanceDay(state);
-            if (next === state) break;
-            state = next;
-            continue;
-        }
-        let project = state.player.blueprints.find(item => !item.researched);
-        if (!project) {
-            draftIndex++;
-            const added = Campaign.addBlueprint(state, {
-                scienceName: `Исследование фронтира ${draftIndex}`,
-                scienceDescription: 'Местные наблюдения для расширения поселения.',
-                buildingName: `Полевой чертёж ${draftIndex}`,
-                buildingDescription: 'Практический проект для поселения.',
-                category: 'science', effects: [{ type: 'income_knowledge', amount: 1 }]
-            }, 'both');
-            if (added.error) throw new Error(added.error);
-            state = added.state;
-            project = added.blueprint;
-        }
-        const researched = Campaign.researchBlueprint(state, project.id);
-        if (!researched.error) {
-            state = researched.state;
-            stats.researchOrders = (stats.researchOrders || 0) + 1;
-            continue;
+        const next = advanceDay(state);
+        if (next === state) break;
+        state = next;
+        stats.enlightenmentDays = (stats.enlightenmentDays || 0) + 1;
+    }
+    while (state.player.era < targetEra && state.day < Campaign.SEASON_LENGTH - 1 && attempts < dayBudget + 40) {
+        attempts++;
+        const progress = Campaign.getEraProgress(state);
+        if (!progress.ready) {
+            const missing = Math.ceil(progress.remaining / Campaign.ENLIGHTENMENT_WEIGHTS.knowledge);
+            state = Campaign.normalizeState({
+                ...state,
+                player: {
+                    ...state.player,
+                    resources: { ...state.player.resources, knowledge: state.player.resources.knowledge + missing }
+                }
+            });
+            stats.enlightenmentTopUps = (stats.enlightenmentTopUps || 0) + 1;
         }
         const next = advanceDay(state);
         if (next === state) break;
@@ -248,7 +279,7 @@ function tryStabilizeFood(input) {
 
 function unlockMaterialSites(input, materialQuality) {
     let state = input;
-    const stats = { researchOrders: 0, territoryOrders: 0, buildingOrders: 0 };
+    const stats = { researchOrders: 0, territoryOrders: 0, buildingOrders: 0, enlightenmentDays: 0, enlightenmentTopUps: 0 };
     if (materialQuality === 'standard') return { state, ...stats, sites: [] };
 
     const stabilization = tryStabilizeFood(state);
@@ -257,8 +288,12 @@ function unlockMaterialSites(input, materialQuality) {
     stats.buildingOrders += stabilization.buildingOrders;
     stats.questBattles = stabilization.questBattles || 0;
 
+    // Бронза (медь + олово) — ключевой ресурс эпохи 1 «Античный мир», железо — эпохи 2
+    // «Средневековье» (ERA_KEY_RESOURCE / minEra месторождений в campaign-map.js). Редкая ковка
+    // хард-заперта без ключевого ресурса ТЕКУЩЕЙ эпохи, поэтому для мастерского сырья сценарий
+    // обязан дойти до железа: без железоплавильни «rare» не выпадет.
     state = ensureEra(state, 2, stats);
-    const features = materialQuality === 'masterwork' ? ['copper-vein', 'tin-route'] : ['copper-vein'];
+    const features = materialQuality === 'masterwork' ? ['copper-vein', 'tin-route', 'iron-vein'] : ['copper-vein'];
     const sites = [];
     for (const feature of features) {
         if (state.day >= Campaign.SEASON_LENGTH) break;
@@ -317,7 +352,8 @@ function simulateCrafting(materialQuality, effort) {
         ordersStarted, cardsClaimed, resourceBlockedDays,
         craftLevelAtSeasonEnd: state.player.craftLevel + 1,
         craftXpTowardNextLevel: state.player.craftXp,
-        prerequisiteResearchOrders: access.researchOrders,
+        prerequisiteEnlightenmentDays: access.enlightenmentDays || 0,
+        prerequisiteEnlightenmentTopUps: access.enlightenmentTopUps || 0,
         territoryOrders: access.territoryOrders,
         questBattles: access.questBattles || 0,
         buildingOrders: access.buildingOrders,
@@ -378,7 +414,9 @@ function simulateFrontierToForge() {
         researchOrders: access.researchOrders,
         territoryOrders: access.territoryOrders,
         questBattles: access.questBattles || 0,
-        buildingOrders: access.buildingOrders
+        buildingOrders: access.buildingOrders,
+        enlightenmentDays: access.enlightenmentDays || 0,
+        enlightenmentTopUps: access.enlightenmentTopUps || 0
     };
     const settlement = findTile(state, tile => tile.kind === 'settlement' && tile.initialOwner === 'steppe');
     if (!settlement || state.day >= Campaign.SEASON_LENGTH) {
@@ -475,7 +513,8 @@ function simulateFrontierToForge() {
     return summarize(state, {
         strategy: 'освоить медь и олово → победить в экспедиции → выковать редкую карту',
         assumedBattleVictory: true,
-        prerequisiteResearchOrders: access.researchOrders,
+        prerequisiteEnlightenmentDays: access.enlightenmentDays || 0,
+        prerequisiteEnlightenmentTopUps: access.enlightenmentTopUps || 0,
         territoryOrders: stats.territoryOrders,
         questBattles: stats.questBattles,
         buildingOrders: stats.buildingOrders,

@@ -29,7 +29,7 @@ function useAlerts(): Partial<Record<Page, number>> {
   const { cfg } = useDerived();
   const p = game.player;
   const out: Partial<Record<Page, number>> = {};
-  if (p.pendingDecreeChoice) out.develop = 1;
+  if (p.pendingDecreeChoice || p.pendingCultureChoice) out.develop = 1;
   const ready = p.craftOrders.filter((o: any) => o.status === "ready").length;
   if (ready) out.forge = ready;
   const missing = Math.max(0, cfg.deckLimit - p.deckCardIds.length);
@@ -177,7 +177,7 @@ export function TopBar() {
           <div className="truncate text-[11px] text-faint">{M.eraName(p.era)} · {p.clan}</div>
         </div>
         <div className="no-scrollbar ml-1 flex flex-1 items-center gap-2 overflow-x-auto lg:ml-6">
-          {(["food", "materials", "knowledge"] as ResKey[]).map((k) => <ResChip key={k} k={k} />)}
+          {(["food", "materials", "knowledge", "faith"] as ResKey[]).map((k) => <ResChip key={k} k={k} />)}
           <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title="Население. Растёт на 1, когда провизии на складе больше 10 и дневной профицит еды больше 2; голод уносит людей.">
             <Users size={18} className="text-dim" />
             <div className="leading-none">
@@ -304,11 +304,19 @@ export function DayReportModal() {
     { k: "food", extra: `+${fmt(r.gained.food)} добыто, −${fmt(r.consumption)} съел народ` },
     { k: "materials", extra: `+${fmt(r.gained.materials)} добыто, −${fmt(r.upkeep)} на содержание` },
     { k: "knowledge", extra: `+${fmt(r.gained.knowledge)} накоплено` },
+    { k: "faith", extra: `+${fmt(r.gained.faith)} накоплено` },
   ];
   return (
     <Modal open onClose={closeDayReport} title="Итоги дня">
       <Label>Итоги</Label>
       <h2 className="font-display text-2xl font-semibold">День {r.day} завершён</h2>
+      {r.eraAdvanced && (
+        <div className="mt-4 rounded-xl border border-bronze/50 bg-bronze/10 p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-bronze">Просветление дошло до порога</div>
+          <div className="mt-1 font-display text-lg font-semibold text-parch">Наступила эпоха «{r.eraAdvanced.label}»</div>
+          <p className="mt-1 text-xs leading-relaxed text-dim">Половина накопленных 📚 и 🙏 сгорела в переходе: собор, перепись и обряды. Выберите уклад и наследие — технологии эпохи уже доступны.</p>
+        </div>
+      )}
       <div className="mt-5 space-y-2">
         {rows.map(({ k, extra }) => {
           const d = r.after[k] - r.before[k];

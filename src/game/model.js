@@ -9,11 +9,13 @@ export const M = {
   // The standalone UI exposes stateful click handlers under these names;
   // the React store needs the corresponding pure state transitions.
   settleRegion: Campaign.settleRegionState,
+  missionRegion: Campaign.missionRegionState,
   buildRegionBuilding: Campaign.buildRegionBuildingState,
   beginRegionExpedition: Campaign.beginRegionExpeditionState,
   finishRegionExpedition: Campaign.finishRegionExpeditionState,
   markExpeditionBattleStarted: Campaign.markExpeditionBattleStartedState,
   chooseDecree: Campaign.chooseDecreeState,
+  chooseCulture: Campaign.chooseCultureState,
   toggleBuilding: Campaign.toggleBuildingState,
   toggleDeckCard: Campaign.toggleDeckCardState,
   finishDay: Campaign.finishDayState,

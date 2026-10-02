@@ -55,7 +55,8 @@ test('world generation places an obsidian vein alongside copper and tin, with no
   assert.ok(obsidian, 'the generated map should contain an obsidian vein');
   assert.equal(obsidian.siteType, 'obsidian');
   assert.equal(obsidian.resource, 'obsidian');
-  assert.equal(obsidian.minEra, 0, 'obsidian should be reachable from the start, unlike copper/tin (minEra 2)');
+  assert.equal(obsidian.minEra, 0, 'obsidian should be reachable from the start, unlike copper/tin (minEra 1)');
+  assert.equal(CampaignMap.BRONZE_SITE_MIN_ERA, 1, 'бронза — ключевой ресурс эпохи 1 «Античный мир»');
   assert.ok(world.tiles.some(tile => tile.feature === 'copper-vein'), 'copper must still be generated');
   assert.ok(world.tiles.some(tile => tile.feature === 'tin-route'), 'tin must still be generated');
 
@@ -63,10 +64,11 @@ test('world generation places an obsidian vein alongside copper and tin, with no
   assert.ok(iron, 'the generated map should contain an iron vein');
   assert.equal(iron.siteType, 'iron');
   assert.equal(iron.resource, 'iron');
-  assert.equal(iron.minEra, 3, 'iron should require reaching era 3, like copper/tin require era 2');
+  assert.equal(iron.minEra, 2, 'iron should require reaching era 2 (Средневековье), like copper/tin require era 1');
+  assert.equal(CampaignMap.IRON_SITE_MIN_ERA, 2);
 });
 
-test('hasEraKeyResource gates era 0 on the obsidian workshop, era 2 on smelter+caravan and era 3 on the ironworks, leaving other eras ungated', () => {
+test('hasEraKeyResource gates era 0 on the obsidian workshop, era 1 on smelter+caravan and era 2 on the ironworks, leaving later eras ungated', () => {
   let state = playableCampaign();
   assert.equal(state.player.era, 0);
   assert.equal(Campaign.hasEraKeyResource(state), false, 'era 0 without an obsidian workshop should be locked');
@@ -74,24 +76,27 @@ test('hasEraKeyResource gates era 0 on the obsidian workshop, era 2 on smelter+c
   const withObsidian = controlRegionsWithBuildings(state, { obsidian: 'obsidian-workshop' });
   assert.equal(Campaign.hasEraKeyResource(withObsidian), true);
 
+  const era1 = structuredClone(state);
+  era1.player.era = 1;
+  assert.equal(Campaign.hasEraKeyResource(era1), false, 'era 1 (Античный мир) without copper+tin buildings should be locked');
+
+  const era1Copper = controlRegionsWithBuildings(era1, { copper: 'smelter' });
+  assert.equal(Campaign.hasEraKeyResource(era1Copper), false, 'copper alone is not enough in era 1');
+
+  const era1Both = controlRegionsWithBuildings(era1, { copper: 'smelter', 'tin-route': 'caravan' });
+  assert.equal(Campaign.hasEraKeyResource(era1Both), true);
+
   const era2 = structuredClone(state);
   era2.player.era = 2;
-  assert.equal(Campaign.hasEraKeyResource(era2), false, 'era 2 without copper+tin buildings should be locked');
+  assert.equal(Campaign.hasEraKeyResource(era2), false, 'era 2 (Средневековье) without an ironworks should be locked');
 
-  const era2Copper = controlRegionsWithBuildings(era2, { copper: 'smelter' });
-  assert.equal(Campaign.hasEraKeyResource(era2Copper), false, 'copper alone is not enough in era 2');
+  const era2BronzeOnly = controlRegionsWithBuildings(era2, { copper: 'smelter', 'tin-route': 'caravan' });
+  assert.equal(Campaign.hasEraKeyResource(era2BronzeOnly), false, 'бронза уже не ключевой ресурс эпохи 2 — нужно железо');
 
-  const era2Both = controlRegionsWithBuildings(era2, { copper: 'smelter', 'tin-route': 'caravan' });
-  assert.equal(Campaign.hasEraKeyResource(era2Both), true);
+  const era2Iron = controlRegionsWithBuildings(era2, { iron: 'ironworks' });
+  assert.equal(Campaign.hasEraKeyResource(era2Iron), true);
 
-  const era3 = structuredClone(state);
-  era3.player.era = 3;
-  assert.equal(Campaign.hasEraKeyResource(era3), false, 'era 3 without an ironworks should be locked');
-
-  const era3Iron = controlRegionsWithBuildings(era3, { iron: 'ironworks' });
-  assert.equal(Campaign.hasEraKeyResource(era3Iron), true);
-
-  for (const era of [1, 4, 5, 6]) {
+  for (const era of [3, 4, 5, 6]) {
     const other = structuredClone(state);
     other.player.era = era;
     assert.equal(Campaign.hasEraKeyResource(other), true, `era ${era} is not in the pilot scope and must stay ungated`);
@@ -112,12 +117,13 @@ test('cardCraftQuote hard-locks the rare tier in era 0 without obsidian, folding
   assert.ok(unlocked.odds.rare > 0);
 });
 
-test('cardCraftQuote hard-locks the rare tier in era 2 unless both copper and tin buildings are owned', () => {
+test('cardCraftQuote hard-locks the rare tier in era 1 unless both copper and tin buildings are owned', () => {
   let state = playableCampaign();
-  state.player.era = 2;
+  state.player.era = 1;
   const locked = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
   assert.equal(locked.rareLocked, true);
   assert.equal(locked.odds.rare, 0);
+  assert.match(locked.rareLockText, /медную плавильню/);
 
   const withBoth = controlRegionsWithBuildings(state, { copper: 'smelter', 'tin-route': 'caravan' });
   const unlocked = Campaign.cardCraftQuote(withBoth, { materialQuality: 'standard', effort: 'quick' });
@@ -125,9 +131,9 @@ test('cardCraftQuote hard-locks the rare tier in era 2 unless both copper and ti
   assert.ok(unlocked.odds.rare > 0);
 });
 
-test('cardCraftQuote hard-locks the rare tier in era 3 without an ironworks', () => {
+test('cardCraftQuote hard-locks the rare tier in era 2 without an ironworks', () => {
   let state = playableCampaign();
-  state.player.era = 3;
+  state.player.era = 2;
   const locked = Campaign.cardCraftQuote(state, { materialQuality: 'standard', effort: 'quick' });
   assert.equal(locked.rareLocked, true);
   assert.equal(locked.odds.rare, 0);

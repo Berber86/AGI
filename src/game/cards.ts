@@ -412,36 +412,79 @@ export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): an
   };
 }
 
-const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}],"rationale":"1 предложение: почему это следует из затравки"}`;
+const DIRECTION_SHAPE = `{"title":"до 60 знаков","summary":"2–3 предложения: о чём будет наука и почему она вырастает именно из этого народа","theme":"agriculture|production|military|religion|knowledge|society|mixed","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}],"icon":"один эмодзи","rationale":"1 предложение: почему этому народу нужно именно это"}`;
 
-/** Первый проект народа: единственная наука, выведенная из затравки игрока. */
-export async function llmOpeningProject(model: string, state: any): Promise<any> {
+/**
+ * Превью трёх научных направлений: советник читает свойства народа (происхождение, землю, черту,
+ * наследие, замысел, запасы, эпоху) и предлагает, О ЧЁМ может быть наука. Конкретные названия и
+ * содержание придумывает модель — заготовленных вариантов в игре нет. Игрок выбирает направление,
+ * и только второй вызов раскрывает его в науку и постройку.
+ */
+export async function llmDirectionPreviews(model: string, state: any): Promise<any[]> {
+  const sit = M.scienceAdvisorSituation(state);
+  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
+  const themes = (M.SCIENCE_DIRECTION_THEMES || []).map((t: any) => `${t.id} — ${t.label}`).join("; ");
+  const known = (state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет";
+  const data = await hydraChat({
+    model, temperature: 1, maxTokens: 900,
+    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
+Игрок основал народ и выбрал его свойства. Сейчас нужны НЕ готовые науки, а превью трёх РАЗНЫХ направлений — о чём вообще может быть наука этого народа. Игрок выберет одно направление, и только потом ты придумаешь конкретную науку и постройку внутри него.
+Придумай ровно 3 направления. Темы бери из словаря: ${themes}. Названия и содержание изобретай сам, никаких шаблонов и повторов с известными науками.
+Свойства народа влияют на подбор СИЛЬНО: замысел, происхождение, земля, черта и наследие должны читаться в каждом направлении — но решение за тобой, жёсткой схемы «один раз в каждую тему» нет. Военное, религиозное, научное, производственное и земледельческое направления равноправны, сочетания тем приветствуются; темы не должны повторяться.
+Ответ — строго JSON: {"directions":[${DIRECTION_SHAPE}, ${DIRECTION_SHAPE}, ${DIRECTION_SHAPE}]}. Допустимые type эффектов: ${effects}. Не более 2 эффектов на направление, amount 1. Язык — русский, без магии.`,
+    user: `Народ: ${state.player.name} (${state.player.clan}). ${sit.summary}
+Уже известные науки: ${known}${sit.direction ? `. Прошлое направление: «${sit.direction.title}» (${sit.direction.themeLabel}) — не повторяй его` : ""}.
+Предложи три направления, из которых игрок выберет одно.`,
+  });
+  const list = Array.isArray(data?.directions) ? data.directions : data?.title ? [data] : [];
+  const cleaned = list.map((raw: any) => M.sanitizeScienceDirection(raw)).filter(Boolean).slice(0, 3);
+  if (!cleaned.length) throw new Error("Советник не вернул ни одного направления в понятной форме.");
+  return cleaned;
+}
+
+const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}],"rationale":"1 предложение: почему это следует из затравки"}`;
+
+/** Строка с выбранным направлением: второй вызов модели обязан раскрыть именно его. */
+function directionBrief(direction: any): string {
+  if (!direction) return "";
+  const effects = (direction.effects || []).map((e: any) => `${M.EFFECTS?.[e.type]?.label ?? e.type} ×${e.amount}`).join(", ");
+  return `Выбранное направление: «${direction.title}» (${direction.themeLabel || direction.theme}). Суть: ${direction.summary}
+Обещанные эффекты направления: ${effects || "не заданы"}. Наука и постройка обязаны раскрывать ИМЕННО это направление — не подменяй его другим.`;
+}
+
+/** Первый проект народа: наука, выведенная из затравки игрока и выбранного им направления. */
+export async function llmOpeningProject(model: string, state: any, direction?: any): Promise<any> {
   const sit = M.scienceAdvisorSituation(state);
   const p = state.player;
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
+  const brief = directionBrief(direction);
   const data = await hydraChat({
     model, temperature: 1, maxTokens: 1200,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Игрок только что основал народ и выбрал его затравку — готовый замысел о том, чем этот народ живёт и куда смотрит.
-Придумай РОВНО ОДНО первое дело народа: науку и связанную с ней постройку. Оно должно прямо продолжать затравку и опираться на землю, черту и наследие народа. Никаких готовых шаблонов — придумай свой образ.
-Ответ — строго JSON: ${PROJECT_SHAPE}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1. Язык — русский, без магии.`,
-    user: `Затравка игрока: «${p.seedLine || "не задана — опирайся на происхождение и землю"}»\nПроисхождение: ${sit.origin?.name || p.originId || "неизвестно"} — ${sit.origin?.historical || ""}\nСитуация: ${sit.summary}`,
+Игрок только что основал народ, выбрал его затравку — готовый замысел о том, чем этот народ живёт, — и направление первой науки.
+Придумай РОВНО ОДНО первое дело народа: науку и связанную с ней постройку. Оно должно прямо продолжать затравку, раскрывать выбранное направление и опираться на землю, черту и наследие народа. Никаких готовых шаблонов — придумай свой образ.
+Ответ — строго JSON: ${PROJECT_SHAPE}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1${brief ? "; обещанный эффектом направления обязан остаться среди них" : ""}. Язык — русский, без магии.`,
+    user: `Затравка игрока: «${p.seedLine || "не задана — опирайся на происхождение и землю"}»\nПроисхождение: ${sit.origin?.name || p.originId || "неизвестно"} — ${sit.origin?.historical || ""}\n${brief}\nСитуация: ${sit.summary}`,
   });
   const project = sanitizeScienceProject(data);
   if (!project) throw new Error("Советник не вернул первый проект в понятной форме.");
   return project;
 }
 
-/** Три новых проекта по текущей ситуации и затравке; направление выбирает сам советник. */
-export async function llmScienceOffers(model: string, state: any): Promise<any[]> {
+/**
+ * Три проекта внутри выбранного направления. Если направления нет (старый путь или сбой советника),
+ * советник подбирает замыслы сам — по затравке, землям, запасам и эпохе.
+ */
+export async function llmScienceOffers(model: string, state: any, direction?: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
   const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
+  const brief = directionBrief(direction);
   const data = await hydraChat({
     model, temperature: 1, maxTokens: 1600,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Игрок не выбирает направление — ты сам читаешь затравку народа, земли, запасы и эпоху. Предложи ровно 3 РАЗНЫХ проекта (наука + связанная постройка): один отвечает на нехватку пропитания и хозяйство, один — на защиту и войну, один — на знания и устройство общества. Каждый проект должен опираться на конкретную ситуацию народа, а не на общий список наук.
-Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ...]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1. Язык — русский, без магии.`,
-    user: `Ситуация: ${sit.summary}\nУже известные науки: ${(state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет"}`,
+${brief ? `Игрок выбрал направление — придумай ровно 3 РАЗНЫХ проекта (наука + связанная постройка) ВНУТРИ него: три разных пути развития одной темы, с разным характером и trade-off, без повторов названий.` : `Направление игрок не выбирал — ты сам читаешь затравку народа, земли, запасы и эпоху. Предложи ровно 3 РАЗНЫХ проекта (наука + связанная постройка): один отвечает на нехватку пропитания и хозяйство, один — на защиту и войну, один — на знания, веру и устройство общества.`} Каждый проект должен опираться на конкретную ситуацию народа, а не на общий список наук.
+Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ...]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1${brief ? "; обещанный эффектом направления обязан остаться в каждом проекте" : ""}. Язык — русский, без магии.`,
+    user: `${brief}\nСитуация: ${sit.summary}\nУже известные науки: ${(state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет"}`,
   });
   const list = Array.isArray(data.projects) ? data.projects : data.scienceName ? [data] : [];
   const cleaned = list.map((raw: any) => sanitizeScienceProject(raw)).filter(Boolean).slice(0, 3);
@@ -486,21 +529,45 @@ async function hydraChat(opts: { model: string; system: string; user: string; te
   return JSON.parse(m[0]);
 }
 
+/** Исторический контекст эпохи: строка ERA_HISTORICAL, индекс которой совпадает с ERAS. */
+export function eraContextOf(state: any): { label: string; desc: string; cultures: string; tech: string } {
+  const record = M.ERA_HISTORICAL?.[state.player.era];
+  return {
+    label: M.eraName(state.player.era),
+    desc: record?.desc || "",
+    cultures: (record?.cultures || []).join(" · "),
+    tech: (record?.tech || []).join(", "),
+  };
+}
+
 export function contextOf(state: any): string {
   const p = state.player;
+  const era = eraContextOf(state);
   return [
     p.seedLine && `Затравка народа: «${p.seedLine}»`,
     p.biome && `Биом: ${p.biome.name} — ${p.biome.desc}`,
     p.geography && `География: ${p.geography.name}`,
     p.trait && `Черта: ${p.trait.name} — ${p.trait.desc}`,
-    p.historicalCulture && `Наследие: ${p.historicalCulture.name}`,
-    `Эпоха: ${M.eraName(p.era)}`,
+    p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
+    `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
+    era.cultures && `Культуры эпохи: ${era.cultures}`,
+    era.tech && `Технологии эпохи: ${era.tech}`,
     `Уклады: ${(p.decrees || []).map((d: any) => M.DECREES[d.id]?.label).join(", ") || "нет"}`,
   ].filter(Boolean).join("\n");
 }
 
+/**
+ * Боевых тегов эпох у карт два (ancient и bronze) — на них держится модификатор урона в бою.
+ * Порог открытия bronze берётся из модели (BRONZE_CARD_MIN_ERA = 1, «Античный мир»), а не
+ * хардкодом: раньше здесь стояло `era >= 3`, что по единой шкале ERAS означало «Ренессанс»,
+ * тогда как вражеские колоды получали бронзу уже с эпохи 1 (src/game/battle.ts).
+ */
+export function allowedCardErasOf(state: any): string[] {
+  return M.allowedCardEras(state.player.era) as string[];
+}
+
 export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
-  const era = state.player.era >= 3 ? "ancient и bronze" : "ancient";
+  const era = allowedCardErasOf(state).join(" и ");
   const data = await hydraChat({
     model, temperature: 1, maxTokens: 900,
     system: "Ты военный советник кузницы исторической карточной стратегии о становлении цивилизаций (древний мир и бронзовый век, без магии и фэнтези). Предложи ровно три замысла карты: один card_type=unit, один spell, один structure. Ответ — JSON: {\"choices\":[{\"card_type\":\"unit|spell|structure\",\"title\":\"короткое название\",\"pitch\":\"1 предложение, один образ\"}]}. Язык — русский.",
@@ -515,7 +582,8 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
 }
 
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Эпохи карт: "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
+Эпохи карт (боевой тег, их ровно две): "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
+Важно: боевой тег — это не дата в календаре кампании. В контексте указана эпоха кампании (например «Ренессанс» или «Эпоха Пара и Стали») вместе с её культурами и технологиями: образы, названия, описания и технологии карты должны соответствовать ИМЕННО этой эпохе (мушкеты и печатный стан для Ренессанса, пар и сталь для 1800-1910), а тег era при этом остаётся в разрешённом наборе ancient/bronze.
 Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
@@ -531,7 +599,7 @@ condition (необязательное поле эффекта) помимо ta
 Язык — русский.`;
 
 export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
-  const allowed = state.player.era >= 3 ? ["ancient", "bronze"] : ["ancient"];
+  const allowed = allowedCardErasOf(state);
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   const raw = await hydraChat({
     model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
@@ -544,13 +612,6 @@ export async function llmCard(model: string, advice: Advice, rarity: Rarity, sta
   return card;
 }
 
-export async function llmScience(model: string, state: any, branch: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1400,
-    system: `Ты научный советник исторической стратегии. Игрок выбрал широкую ветвь; придумай 3 РАЗНЫХ замысла (наука + здание). Ответ — JSON: {"projects":[{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic","effects":[{"type":"<из списка>","amount":1}]}]}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1. Язык — русский, без магии.`,
-    user: `Эпоха: ${M.eraName(state.player.era)}. Направление: «${branch.label}» — ${branch.prompt}. Ситуация: ${sit.summary}`,
-  });
-  return Array.isArray(data.projects) ? data.projects.slice(0, 3) : data.scienceName ? [data] : [];
-}
+// Ветвь из заготовленного списка SCIENCE_BRANCHES больше не предлагается игроку: направление науки
+// выбирает игрок из превью, которые придумывает модель (llmDirectionPreviews), а замыслы внутри него
+// раскрывает llmScienceOffers(model, state, direction). Ветви остались только как офлайн-пул legacy.
