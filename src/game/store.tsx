@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { M } from "./model";
-import { llmOpeningProject, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
+import { llmDirectionPreviews, llmOpeningProject, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
 
 import type { Match } from "./battle";
 
@@ -94,8 +94,10 @@ interface Store {
   checkAi: () => Promise<boolean>;
   model: string;
   setModel: (m: string) => void;
-  /** Основание народа: имя, происхождение и затравка; первый проект создаёт ИИ. */
-  foundCampaign: (input: { name: string; originId: string; seedId: string }) => Promise<{ ok: boolean; project?: any; error?: string }>;
+  /** Основание народа: имя, происхождение и затравка. Советник отвечает превью трёх направлений науки. */
+  askOpeningDirections: (input: { name: string; originId: string; seedId: string }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
+  /** Второе обращение к советнику: раскрывает выбранное направление в первое дело народа. */
+  foundCampaign: (input: { name: string; originId: string; seedId: string; direction?: any }) => Promise<{ ok: boolean; project?: any; error?: string }>;
   /** Игрок увидел созданное первое дело и начинает первый день. */
   startFirstDay: (project?: any) => boolean;
   /** Даёт постройке в земле уникальное имя от советника. */
@@ -231,8 +233,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Проверяем связь один раз при запуске — автоматически, без участия игрока.
   useEffect(() => { void checkAi(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
-  /** Полный старт: модель получает затравку и придумывает первое дело народа. */
-  const foundCampaign = useCallback(async ({ name, originId, seedId }: { name: string; originId: string; seedId: string }) => {
+  /**
+   * Шаг «о чём будет наука»: фиксируем свойства народа и спрашиваем советника о трёх направлениях.
+   * Направления придумывает модель — заготовленных вариантов в игре нет.
+   */
+  const askOpeningDirections = useCallback(async ({ name, originId, seedId }: { name: string; originId: string; seedId: string }) => {
+    const current = gameRef.current;
+    // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
+    const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
+    let base = M.clone(current);
+    if (resumable) {
+      const choice = (M.SEED_CHOICES || []).find((item: any) => item.id === seedId) || null;
+      base.player.seedChoiceId = choice ? choice.id : base.player.seedChoiceId;
+      base.player.seedLine = choice ? choice.line : base.player.seedLine;
+      base.player.name = name.trim().slice(0, 24) || base.player.name;
+      base = M.normalizeState(base);
+    } else {
+      const begun = M.beginOnboardingState(base, { name, originId, seedId });
+      if (begun.error) return { ok: false, error: begun.error };
+      base = begun.state;
+    }
+    try {
+      const directions = await llmDirectionPreviews(model, base);
+      const stored = M.setScienceDirections(M.clone(base), directions);
+      if (stored.error) return { ok: false, error: stored.error };
+      commit(stored.state, { silent: true });
+      // Черновик спасает уже оплаченную генерацию, если игрок закроет вкладку до первого дня.
+      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, directions })); } catch { /* переполнение хранилища не критично */ }
+      return { ok: true, directions };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "Советник недоступен." };
+    }
+  }, [model, commit]);
+
+  /** Второй шаг: советник раскрывает выбранное направление в первое дело народа. */
+  const foundCampaign = useCallback(async ({ name, originId, seedId, direction }: { name: string; originId: string; seedId: string; direction?: any }) => {
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
@@ -250,14 +285,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       base = begun.state;
       commit(base, { silent: true });
     }
+    // Выбор игрока сохраняем в состоянии: чертёж первого дела запомнит, из какого направления вырос.
+    if (direction) {
+      // Направление берём из сохранённых превью; если их уже нет (перезагрузка, повтор),
+      // фиксируем сам выбор — иначе советник не узнает, что раскрывать.
+      const index = (base.player.directionChoices?.directions || []).findIndex((item: any) => item.id === direction.id);
+      base = index >= 0
+        ? M.chooseScienceDirection(M.clone(base), index).state
+        : M.normalizeState({ ...base, player: { ...base.player, directionChoice: M.sanitizeScienceDirection(direction) } });
+      commit(base, { silent: true });
+    }
     try {
-      const project = await llmOpeningProject(model, base);
+      const project = await llmOpeningProject(model, base, direction);
       const applied = M.setOpeningProject(M.clone(base), project);
       if (applied.error) return { ok: false, error: applied.error };
       // Начало игры фиксируется только после того, как игрок увидел первый проект.
       setPendingOpening({ state: applied.state });
       // Черновик спасает уже оплаченную генерацию, если игрок закроет вкладку до первого дня.
-      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, project: applied.blueprint })); } catch { /* переполнение хранилища не критично */ }
+      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, direction, project: applied.blueprint })); } catch { /* переполнение хранилища не критично */ }
       return { ok: true, project: applied.blueprint };
     } catch (e: any) {
       return { ok: false, error: e?.message || "Советник недоступен." };
@@ -384,10 +429,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const closeBattle = useCallback(() => setMatch(null), []);
 
   const value = useMemo<Store>(() => ({
-    game, collection, aiStatus, checkAi, model, setModel, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
+    game, collection, aiStatus, checkAi, model, setModel, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
     endDay, dayReport, closeDayReport: () => setDayReport(null), resetCampaign, settingsOpen, openSettings,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, selectRegion, militiaPicks, toggleMilitiaPick,
-  }), [game, collection, aiStatus, checkAi, model, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
+  }), [game, collection, aiStatus, checkAi, model, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, militiaPicks, toggleMilitiaPick]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

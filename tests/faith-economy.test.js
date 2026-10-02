@@ -72,7 +72,8 @@ test('духовность — четвёртый ресурс клана: за�
 test('здания советника с income_faith усиливают кланы-жрецы, а святилища дают региональный доход', () => {
   const effect = Campaign.EFFECTS.income_faith;
   assert.ok(effect, 'эффект income_faith обязан существовать');
-  assert.equal(effect.category, 'civic');
+  // Категория religion: духовность — отдельный род занятий (обряд, жречество, книжность), а не «общественное» вообще.
+  assert.equal(effect.category, 'religion');
   assert.equal(effect.max, 2);
   assert.equal(Campaign.BUILDING_WORKER_BONUS.income_faith, 0.5);
 

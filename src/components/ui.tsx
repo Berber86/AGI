@@ -73,7 +73,9 @@ export function Label({ children, className }: { children: ReactNode; className?
   return <div className={cn("text-[11px] font-semibold uppercase tracking-[0.14em] text-faint", className)}>{children}</div>;
 }
 
-export function Chip({ children, tone = "neutral", className }: { children: ReactNode; tone?: "neutral" | "bronze" | "ok" | "bad" | "clay" | "know"; className?: string }) {
+export type ChipTone = "neutral" | "bronze" | "ok" | "bad" | "clay" | "know" | "faith";
+
+export function Chip({ children, tone = "neutral", className }: { children: ReactNode; tone?: ChipTone; className?: string }) {
   const tones = {
     neutral: "bg-raised text-dim border-line",
     bronze: "bg-bronze/12 text-bronze-soft border-bronze/30",
@@ -81,9 +83,19 @@ export function Chip({ children, tone = "neutral", className }: { children: Reac
     bad: "bg-bad/12 text-bad border-bad/30",
     clay: "bg-clay/12 text-clay border-clay/30",
     know: "bg-know/12 text-know border-know/30",
+    faith: "bg-faith/12 text-faith border-faith/30",
   };
   return <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium", tones[tone], className)}>{children}</span>;
 }
+
+/** Категории наук и построек: пятая — религиозное (обряд, жречество, книжность), она же цвет духовности. */
+export const CATEGORY_META: Record<string, { label: string; tone: ChipTone }> = {
+  military: { label: "Военное", tone: "bad" },
+  economy: { label: "Экономика", tone: "ok" },
+  science: { label: "Наука", tone: "know" },
+  civic: { label: "Общество", tone: "bronze" },
+  religion: { label: "Религия", tone: "faith" },
+};
 
 export function Meter({ value, max, className, color = "bg-bronze" }: { value: number; max: number; className?: string; color?: string }) {
   const pct = Math.max(0, Math.min(100, (value / Math.max(1, max)) * 100));

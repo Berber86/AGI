@@ -76,7 +76,7 @@ threshold(era) = 16 + 8 * era; // 16/24/32/40/48/56/64
 
 **Производство.** Три источника:
 1. кланы-жрецы — `0.6🙏` за клан;
-2. здания советника с эффектом `income_faith` (категория `civic`, `max: 2`) — `BUILDING_WORKER_BONUS.income_faith = 0.5`,
+2. здания советника с эффектом `income_faith` (на момент этой работы — категория `civic`, `max: 2`; позже, вместе с направлениями науки советника, эффект перенесён в новую категорию `religion` — см. `docs/SCIENCE_DIRECTIONS_RESULT.md`) — `BUILDING_WORKER_BONUS.income_faith = 0.5`,
    то есть `+0.5🙏` с каждого клана за пункт эффекта (2 пункта → `0.6 → 1.6` с жреца);
 3. региональные святилища — `REGION_BUILDINGS.knowledge` «Место наблюдений и святилище» `{knowledge:2, faith:1}`,
    `REGION_BUILDINGS.settlement` «Форпост и капище» `{food:1, materials:1, knowledge:1, faith:1}`.

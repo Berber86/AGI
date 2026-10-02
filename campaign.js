@@ -70,11 +70,13 @@
         { id: 'warfare', label: 'Военная организация', prompt: 'подготовка ополчения и согласованные действия отрядов. Ямная культура — повозки, дружина', minEra: 0, category: 'military', effect: 'deck_slots', building: 'площадка для сбора и обучения' },
         { id: 'fortification', label: 'Укрепления поселения', prompt: 'защита поселения, стен и проходов. Иерихонские стены, частокол Триполья', minEra: 0, category: 'military', effect: 'max_hp', building: 'частокол или укреплённые ворота' },
         { id: 'horse', label: 'Кони и повозки Ямной', prompt: 'приручение коня, повозки, курганы. Ямная культура 3300 до н.э. — первые всадники', minEra: 0, category: 'military', effect: 'trade_bonus', building: 'конный загон или мастерская повозок' },
+        { id: 'cult', label: 'Обряд и святилище', prompt: 'обряды, календарь праздников, жрецы-хранители и священное место; вера как способ объяснить разлив, сезоны и смерть и как способ сплотить общину. Шумерские зиккураты, святилища Мальты, курганные тризны', minEra: 0, category: 'religion', effect: 'income_faith', building: 'капище, священная роща или площадка обрядов' },
         { id: 'writing', label: 'Письмо и учёт', prompt: 'клинопись Шумера, иероглифы Египта, счёт и бюрократия. Урук 3400 до н.э.', minEra: 1, category: 'science', effect: 'income_knowledge', building: 'дом табличек или школа писцов' },
         { id: 'metallurgy', label: 'Медь и металлургия', prompt: 'добыча и плавка меди — от энеолита Балкан до литейных мастерских античности', minEra: 1, category: 'economy', effect: 'income_materials', building: 'рудник или литейная мастерская' },
         { id: 'bronze', label: 'Бронзовые сплавы', prompt: 'бронзовое литьё и снабжение инструментами. Аккад — бронзовое оружие Саргона', minEra: 1, category: 'economy', effect: 'income_materials', building: 'бронзовая литейная' },
         { id: 'irrigation-empire', label: 'Империя ирригации', prompt: 'государство каналов, как Аккад и Египет — централизация, налоги зерном, бюрократия', minEra: 1, category: 'civic', effect: 'storage_bonus', building: 'государственные закрома или домена фараона' },
         { id: 'administration', label: 'Управление и распорядок', prompt: 'учёт дневных дел общины, писцы-распорядители, которые помогают вождю успевать больше дел за день. Урук и ранние царства — табличка нарядов, староста общины', minEra: 1, category: 'civic', effect: 'ap_max', building: 'палата нарядов или дом распорядителя' },
+        { id: 'monastic', label: 'Храм и книжность', prompt: 'храмовые школы, скриптории и переписка книг, клирики-учёные и приюты для странников; вера копит знания и кормит грамотой. Несторианские школы, бенедиктинские монастыри, медресе Самарканда', minEra: 2, category: 'religion', effect: 'income_knowledge', building: 'скрипторий или школа при храме' },
         { id: 'guilds', label: 'Цеха и ремёсла', prompt: 'объединение мастеров в цеха и наставничество, которые позволяют повторить одно и то же дело дважды за день. Средневековые города — цеховые уставы, подмастерья и мастера', minEra: 2, category: 'civic', effect: 'order_capacity', building: 'дом цехов или зал мастеров' },
         // minEra у всех ветвей ниже — индекс в ERAS (единая шкала эпох). Ветви 3-6 эпох добавлены,
         // чтобы у советника появлялись genuinely новые технологии при каждом переходе: иначе в
@@ -86,6 +88,7 @@
         { id: 'railways', label: 'Железные дороги и телеграф', prompt: 'рельсовые магистрали, депо, телеграфные линии и расписание. Транссиб и Атлантический кабель', minEra: 4, category: 'civic', effect: 'order_capacity', building: 'вокзал с телеграфной станцией' },
         { id: 'electricity', label: 'Электричество и связь', prompt: 'динамо-машины, линии передач, телефон и радио. Ниагара и Берлин — станции, сети и диспетчерские', minEra: 5, category: 'economy', effect: 'income_knowledge', building: 'электростанция или телефонная станция' },
         { id: 'aviation', label: 'Авиация и двигатели', prompt: 'двигатель внутреннего сгорания, аэродромы, радары и реактивные машины. Китти-Хок и Жуковский', minEra: 5, category: 'military', effect: 'energy_growth', building: 'аэродром или моторный завод' },
+        { id: 'civic-faith', label: 'Гражданские культы и идеологии', prompt: 'светские религии Нового времени: культ разума и прогресса, массовые движения, памятники, публичные ритуалы и печать; чем народ скреплён, когда старых богов уже нет. Культ Разума во Франции, всемирные выставки, монументализм XX века', minEra: 5, category: 'religion', effect: 'income_faith', building: 'дворец съездов, публичная библиотека или пантеон' },
         { id: 'computing', label: 'Вычислительные машины и архивы', prompt: 'полупроводники, вычислительные центры, цифровые архивы и спутниковая связь. Кремниевая долина и Бангалор', minEra: 6, category: 'science', effect: 'income_knowledge', building: 'вычислительный центр или архив данных' },
         { id: 'autonomy', label: 'Рои дронов и автономная техника', prompt: 'модели-советники, роевая логистика, орбитальное производство и закрытые биомы. Лагранж-2 и Нео-Шумер', minEra: 6, category: 'military', effect: 'unit_power', building: 'роевой ангар или орбитальная верфь' }
     ];
@@ -187,7 +190,7 @@
         income_knowledge: { label: '+0.5 к знаниям с клана', category: 'science', max: 2 },
         // Капища, храмы, скриптории и календарные обряды: здание советника с этим эффектом
         // поднимает выход духовности с каждого клана-жреца (см. BUILDING_WORKER_BONUS).
-        income_faith: { label: '+0.5 к духовности с клана', category: 'civic', max: 2 },
+        income_faith: { label: '+0.5 к духовности с клана', category: 'religion', max: 2 },
         // hidden: ревизия показала, что механика эффекта не реализована (рост кланов задан константами, набегов нет);
         // ключи остаются в реестре ради старых сейвов, но генератор больше не предлагает их советнику.
         pop_growth: { label: '+15% шанс роста кланов', category: 'civic', max: 2, hidden: true },
@@ -225,6 +228,9 @@
             metallurgy: ['Медные жилы', 'Плавка', 'Тигля', 'Ковка', 'Литьё', 'Рудный поиск', 'Горновой мех'],
             bronze: ['Бронзовый сплав', 'Олово и медь', 'Литейные формы', 'Закалка', 'Инструменты', 'Бронзовый век'],
             horse: ['Приручение коня', 'Повозки', 'Курганы', 'Кони Ямной', 'Колесницы', 'Всадники степи', 'Табун'],
+            cult: ['Капище', 'Священная роща', 'Календарь обрядов', 'Тризна', 'Жреческий жребий', 'Огонь у кургана', 'Праздник разлива', 'Кость и знамение'],
+            monastic: ['Скрипторий', 'Часослов', 'Храмовая школа', 'Переписка книг', 'Келейный устав', 'Приют странников', 'Клирик-грамотей'],
+            'civic-faith': ['Культ разума', 'Дворец съездов', 'Публичный ритуал', 'Памятник и площадь', 'Пантеон героев', 'Газетная трибуна', 'Выставка достижений'],
             writing: ['Клинопись', 'Иероглифы', 'Счётные таблички', 'Дом табличек', 'Школа писцов', 'Учёт зерна', 'Печать'],
             'irrigation-empire': ['Каналы фараона', 'Закрома Аккада', 'Налоги зерном', 'Ирригационная империя', 'Домен', 'Государство'],
             administration: ['Табличка нарядов', 'Палата дел', 'Распорядок дня', 'Писцы-распорядители', 'Смотритель общины', 'Учёт нарядов'],
@@ -278,6 +284,9 @@
             warfare: ['дружина вернулась с добычей', 'сигнальные костры зажглись вовремя', 'враг не решился подойти'],
             fortification: ['частокол выдержал набег', 'ворота закрылись за миг до врага', 'ров наполнился водой'],
             horse: ['первый конь дал себя оседлать', 'повозка скрипит по степи', 'курган насыпан над вождём'],
+            cult: ['знамение в небе толковали всем поселением', 'обряд впервые провели без старейшины — и он прижился', 'жрец вёл счёт праздникам по зарубкам на жезле'],
+            monastic: ['книгу переписывали всю зиму и сберегли от огня', 'при храме открыли школу для детей общины', 'странник оставил клирикам чужой чертёж'],
+            'civic-faith': ['площадь собрала больше людей, чем рынок', 'публичный ритуал заменил старый праздник урожая', 'печатный листок прочли вслух на всю артель'],
             writing: ['первая табличка исписана', 'писец подсчитал зерно', 'печать оттиснута на глине'],
             metallurgy: ['медь потекла как воск', 'первый слиток блестит на солнце', 'горн загудел сильнее'],
             bronze: ['бронза звенит как колокол', 'новый сплав не гнётся', 'инструменты режут камень'],
@@ -365,8 +374,38 @@
             .replace('{event}', event);
     }
     const EFFECT_KEYS = Object.keys(EFFECTS);
-    const CATEGORIES = ['military', 'economy', 'science', 'civic'];
-    const CATEGORY_NAMES = { military: 'военное', economy: 'экономическое', science: 'научное', civic: 'общественное' };
+    // Категория 'religion' добавлена вместе с направлениями науки советника: обряд, святилище,
+    // жречество и книжность — отдельный род занятий, а не «общественное» вообще. На неё завязан
+    // эффект income_faith, то есть религиозная наука реально кормит просветление эпохи (2·📚 + 1·🙏).
+    const CATEGORIES = ['military', 'economy', 'science', 'civic', 'religion'];
+    const CATEGORY_NAMES = { military: 'военное', economy: 'экономическое', science: 'научное', civic: 'общественное', religion: 'религиозное' };
+
+    // Темы направлений науки. Это НЕ список готовых наук: конкретное направление, его название и
+    // содержание придумывает модель под свойства народа (происхождение, замысел, биом, черту,
+    // наследие, земли, запасы). Темы — общий словарь, чтобы ответ модели можно было показать
+    // игроку меткой и чтобы превью не сваливалось в одну и ту же колею.
+    const SCIENCE_DIRECTION_THEMES = [
+        { id: 'agriculture', label: 'Земледелие', icon: '🌾', effect: 'income_food', category: 'economy' },
+        { id: 'production', label: 'Производство и ремесло', icon: '🪵', effect: 'income_materials', category: 'economy' },
+        { id: 'military', label: 'Война и защита', icon: '⚔️', effect: 'unit_power', category: 'military' },
+        { id: 'religion', label: 'Вера и обряд', icon: '🙏', effect: 'income_faith', category: 'religion' },
+        { id: 'knowledge', label: 'Знание и счёт', icon: '📚', effect: 'income_knowledge', category: 'science' },
+        { id: 'society', label: 'Устройство общества', icon: '🏛', effect: 'ap_max', category: 'civic' },
+        { id: 'mixed', label: 'Смешанное', icon: '🧭', effect: 'trade_bonus', category: 'civic' }
+    ];
+    // Оффлайн-фолбэк legacy: пулы разнообразия ключуются по id ветви, поэтому каждой теме
+    // направления сопоставлена ближайшая по духу ветвь. Используется только без ключа LLM.
+    const DIRECTION_FALLBACK_BRANCH = {
+        agriculture: 'agriculture',
+        production: 'stonecraft',
+        military: 'warfare',
+        religion: 'cult',
+        knowledge: 'seasonal',
+        society: 'administration',
+        mixed: 'seasonal'
+    };
+
+    const directionTheme = id => SCIENCE_DIRECTION_THEMES.find(theme => theme.id === id) || SCIENCE_DIRECTION_THEMES[SCIENCE_DIRECTION_THEMES.length - 1];
     const ORIGINS = [
         { id: 'river', name: 'Народ Великой Реки', place: 'Плодородные речные берега', icon: '🌊', description: 'Разливы кормят поселение и облегчают первые запасы. Как Нил в Египте.', resource: 'food', bonus: 2, biome: 'river', historical: 'Египет Древнего царства — ирригация и закрома' },
         { id: 'highlands', name: 'Народ Каменных Холмов', place: 'Предгорья с кремнёвыми выходами', icon: '⛰️', description: 'Камень и кремень рядом — легче начать ремесло и строительство. Как Анатолия.', resource: 'materials', bonus: 2, biome: 'highlands', historical: 'Чатал-Хююк, обсидиановые пути' },
@@ -738,6 +777,10 @@
                 activeBuildingSlots: 4,
                 blueprints: [],
                 scienceChoices: null,
+                // directionChoices — три превью направлений от советника (игрок выбирает, о чём наука),
+                // directionChoice — выбранное направление; оно же попадает в чертёж как blueprint.direction.
+                directionChoices: null,
+                directionChoice: null,
                 chronicle: [],
                 deckCardIds: [],
                 practice: { wins: 0, losses: 0, leaderWins: 0, leaderLosses: 0 }
@@ -1019,7 +1062,8 @@
             builtDay: blueprint.builtDay ? clampInt(blueprint.builtDay, 1, SEASON_LENGTH, 1) : null,
             visibility: ['allies', 'neighbors', 'both'].includes(blueprint.visibility) ? blueprint.visibility : 'both',
             createdDay: clampInt(blueprint.createdDay, 1, SEASON_LENGTH, 1),
-            openingProject: Boolean(blueprint.openingProject)
+            openingProject: Boolean(blueprint.openingProject),
+            direction: normalizeScienceDirectionRef(blueprint.direction)
         })).filter(blueprint => blueprint.id && blueprint.scienceName && blueprint.buildingName) : [];
         if (state.player.blueprints.some(blueprint => blueprint.openingProject)) state.player.awaitingOpeningProject = false;
         // scienceChoices: 3 варианта на выбор от ИИ (как в кузнице)
@@ -1043,6 +1087,14 @@
                 } else state.player.scienceChoices = null;
             } else state.player.scienceChoices = null;
         } else state.player.scienceChoices = null;
+        // Превью направлений науки: переживают перезагрузку страницы, но хранятся только валидные.
+        if (value.player?.directionChoices && typeof value.player.directionChoices === 'object') {
+            const raw = value.player.directionChoices;
+            const list = Array.isArray(raw.directions) ? raw.directions : Array.isArray(raw) ? raw : [];
+            const directions = list.map(item => sanitizeScienceDirection(item)).filter(Boolean).slice(0, 3);
+            state.player.directionChoices = directions.length ? { day: clampInt(raw.day, 1, SEASON_LENGTH, 1), directions } : null;
+        } else state.player.directionChoices = null;
+        state.player.directionChoice = sanitizeScienceDirection(value.player?.directionChoice);
         // биомы и черты как в легаси — для разнообразия и историчности
         const findById = (pool, id) => pool.find(x => x.id === id) || null;
         const findByIdOrName = (pool, raw) => {
@@ -1809,6 +1861,26 @@
         return SCIENCE_BRANCHES.filter(branch => branch.minEra <= currentEra).map(branch => ({ ...branch }));
     }
 
+    /**
+     * Превью научного направления — короткий ответ советника, из которого игрок выбирает, О ЧЁМ
+     * будет наука. Полные имена науки и постройки придумывает второй вызов модели уже внутри
+     * выбранного направления. Здесь проверяется только форма: название и суть обязательны, а тему,
+     * категорию, эффекты и иконку приводим к словарю игры — иначе UI не сможет показать превью.
+     */
+    function sanitizeScienceDirection(raw) {
+        if (!raw || typeof raw !== 'object') return null;
+        const title = String(raw.title || raw.name || '').trim().slice(0, 60);
+        const summary = String(raw.summary || raw.description || '').trim().slice(0, 320);
+        if (!title || !summary) return null;
+        const requested = String(raw.theme || '').trim().toLowerCase();
+        const theme = directionTheme(SCIENCE_DIRECTION_THEMES.some(item => item.id === requested) ? requested : 'mixed');
+        const category = CATEGORIES.includes(raw.category) ? raw.category : theme.category;
+        const effects = cleanEffects(raw.effects) || [{ type: theme.effect, amount: 1 }];
+        const icon = typeof raw.icon === 'string' && raw.icon.trim() ? raw.icon.trim().slice(0, 4) : theme.icon;
+        const rationale = String(raw.rationale || '').trim().slice(0, 220);
+        return { id: 'direction-' + hashString(title + '|' + summary), title, summary, theme: theme.id, themeLabel: theme.label, category, effects, icon, rationale };
+    }
+
     function scienceAdvisorSituation(input) {
         const current = normalizeState(input);
         const player = current.player;
@@ -1846,8 +1918,23 @@
         const histInfo = player.historicalCulture ? player.historicalCulture.name + ' — ' + player.historicalCulture.desc : '';
         const origin = ORIGINS.find(o => o.id === player.originId);
         const originHist = origin ? origin.historical : '';
-        const summary = 'Замысел народа: «' + (player.seedLine || 'не задан') + '». Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + ' 🙏' + reserves.faith + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' 🙏' + breakdown.workerProduction.faith.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
-        return { regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary, seedLine: player.seedLine || '', breakdown, biome: player.biome, geography: player.geography, trait: player.trait, nearby: player.nearby, historicalCulture: player.historicalCulture, origin };
+        // Замысел народа — главный сигнал для советника: из него следует, какие направления науки
+        // этому народу близки (степнякам — конь и набег, рыбакам — вода и запасы). Подсказка замысла
+        // уходит модели целиком, но решает модель: жёсткой привязки «замысел → тема» в игре нет.
+        const seedChoice = SEED_CHOICES.find(choice => choice.id === player.seedChoiceId) || null;
+        const seedName = seedChoice ? seedChoice.name : '';
+        const seedHint = seedChoice ? seedChoice.hint : '';
+        const summary = 'Замысел народа: «' + (player.seedLine || 'не задан') + '»' + (seedChoice ? ' (' + seedChoice.name + ': ' + seedChoice.hint + ')' : '') + '». Биом: ' + biomeInfo + '. География: ' + geoInfo + '. Черта: ' + traitInfo + '. Рядом: ' + nearbyInfo + '. Наследие: ' + histInfo + ' | ' + originHist + '. Земли: ' + (regionNames.join(' · ') || 'поселение') + '. Население: ' + player.population + ' (кланов: ' + (player.population - player.workers.idle) + '). Запасы: 🌾' + reserves.food + ' 🪵' + reserves.materials + ' 📚' + reserves.knowledge + ' 🙏' + reserves.faith + '. Дефицит: ' + resourceLabels[reserveDays.key] + '. Доход: 🌾' + breakdown.workerProduction.food.toFixed(1) + ' 🪵' + breakdown.workerProduction.materials.toFixed(1) + ' 📚' + breakdown.workerProduction.knowledge.toFixed(1) + ' 🙏' + breakdown.workerProduction.faith.toFixed(1) + ' потребление ' + breakdown.consumption.toFixed(1) + '🌾. Эпоха: ' + eraName(player.era) + '.';
+        return {
+            regionNames, localContexts, reserves, dailyIncome, currentNeed: reserveDays.key, summary,
+            seedLine: player.seedLine || '', seedName, seedHint, breakdown, biome: player.biome,
+            geography: player.geography, trait: player.trait, nearby: player.nearby,
+            historicalCulture: player.historicalCulture, origin,
+            // Словарь тем для превью направлений: модель свободна в названиях и содержании,
+            // но ответ должен попадать в одну из тем, иначе UI не покажет метку.
+            themes: SCIENCE_DIRECTION_THEMES.map(theme => ({ id: theme.id, label: theme.label, icon: theme.icon })),
+            direction: sanitizeScienceDirection(player.directionChoice)
+        };
     }
 
     function getFirstSessionGuide(input) {
@@ -2046,8 +2133,16 @@
             built: false,
             builtDay: null,
             visibility: ['allies', 'neighbors', 'both'].includes(visibility) ? visibility : 'both',
-            createdDay: state.day
+            createdDay: state.day,
+            direction: normalizeScienceDirectionRef(raw.direction)
         };
+    }
+
+    /** Направление, из которого вырос чертёж: имя, тема и суть — этого хватает для кодекса и промптов. */
+    function normalizeScienceDirectionRef(raw) {
+        const direction = sanitizeScienceDirection(raw);
+        if (!direction) return null;
+        return { title: direction.title, theme: direction.theme, themeLabel: direction.themeLabel, summary: direction.summary, icon: direction.icon };
     }
 
     // Дубликаты в кодексе: советник не должен дважды продавать одну и ту же науку.
@@ -2072,6 +2167,35 @@
     }
 
     /**
+     * Советник предложил превью направлений: кладём их в состояние, чтобы игрок выбрал, о чём будет
+     * наука. Превью хранятся в сейве — оплаченную генерацию нельзя потерять при перезагрузке страницы.
+     */
+    function setScienceDirections(input, directions) {
+        const state = normalizeState(input);
+        const clean = (Array.isArray(directions) ? directions : [])
+            .map(item => sanitizeScienceDirection(item)).filter(Boolean).slice(0, 3);
+        if (!clean.length) return { state, error: 'Советник не предложил ни одного направления — попробуйте ещё раз.' };
+        // Новые превью заменяют прежний выбор: «сменить направление» всегда возвращает игрока к списку.
+        state.player.directionChoices = { day: state.day, directions: clean };
+        state.player.directionChoice = null;
+        return { state, directions: clean, error: null };
+    }
+
+    /**
+     * Выбор направления: с этого момента советник придумывает науку и постройку ВНУТРИ него.
+     * Приказ не тратится — тратится только на приёме конкретного замысла (acceptScienceProject).
+     */
+    function chooseScienceDirection(input, index) {
+        const state = normalizeState(input);
+        const choices = state.player.directionChoices;
+        const direction = choices && Array.isArray(choices.directions) ? choices.directions[index] : null;
+        if (!direction) return { state, error: 'Такого направления уже нет — спросите советника снова.' };
+        state.player.directionChoice = direction;
+        state.player.directionChoices = null;
+        return { state, direction, error: null };
+    }
+
+    /**
      * Приём замысла советника — это и есть дневной приказ «Исследование»:
      * придумал проект сегодня — изучать или принимать другой сегодня уже нельзя.
      */
@@ -2082,7 +2206,10 @@
         if (!project) return { state, error: 'Такого замысла уже нет — спросите советника снова.' };
         const orderError = canOrder(state, 'research');
         if (orderError) return { state, error: orderError };
-        const result = addBlueprint(state, project, 'both');
+        // Чертёж запоминает направление, которое выбрал игрок: «о чём эта наука» видно в кодексе,
+        // а советник читает это как уже пройденный след при следующих предложениях.
+        const withDirection = state.player.directionChoice ? { ...project, direction: state.player.directionChoice } : project;
+        const result = addBlueprint(state, withDirection, 'both');
         if (result.error) return result;
         markDailyOrderUsed(result.state, 'research');
         const entry = generateChronicleEntry(result.state, choices.branchId || 'advisor', project.scienceName);
@@ -2787,6 +2914,59 @@
         return '<nav class="campaign-daily-strip" aria-label="Дневные возможности"><div class="campaign-ap-display">AP: ' + ap + '/' + player.apMax + '</div>' + craft + slot('🔬', 'Наука', '#campaign-development', player.dailyOrders.researchUsed, !hasResearch, 'Исследование стоит 1 AP.') + slot('🏗️', 'Стройка', '#campaign-development', player.dailyOrders.constructionUsed, !hasConstruction, 'Построить изученный чертёж или здание в регионе. Стоит 1 AP.') + slot('🗺️', 'Фронтир', '#campaign-world', player.dailyOrders.frontierUsed, false, 'Одно заселение или экспедиция за день. Стоит 1 AP.') + slot('🙏', 'Миссия', '#campaign-world', player.dailyOrders.missionUsed, false, 'Слово народа: присоединить землю за духовность, без требования соседства. Стоит 1 AP.') + '</nav>';
     }
 
+    // Ветка советника в legacy: сначала ТРИ ПРЕВЬЮ НАПРАВЛЕНИЙ от модели (о чём будет наука),
+    // потом три замысла внутри выбранного. Готовый <select> из SCIENCE_BRANCHES остаётся только
+    // запасным путём — без ключа LLM или если советник не ответил (оффлайн-режим legacy-страницы).
+    function renderScienceAdvisor(advState, situation) {
+        const advPlayer = advState.player;
+        const previews = (advPlayer.directionChoices && advPlayer.directionChoices.directions) || [];
+        const chosenDirection = advPlayer.directionChoice;
+        const scienceChoices = advPlayer.scienceChoices;
+        const effectText = (effects) => (effects || []).map(e => EFFECTS[e.type] ? EFFECTS[e.type].label : String(e.type)).join(' · ');
+        const categoryText = (category) => CATEGORY_NAMES[category] || category;
+        let html = '<div class="campaign-science-choices"><b>НАУЧНЫЙ СОВЕТНИК · О ЧЁМ БУДЕТ НАУКА</b>'
+            + '<p class="campaign-fold-note">' + escapeHtml(situation.hint) + '</p>'
+            + '<p class="campaign-fold-note">Темы направлений: ' + SCIENCE_DIRECTION_THEMES.map(t => t.icon + ' ' + escapeHtml(t.label)).join(' · ') + '</p>';
+        if (!chosenDirection && previews.length) {
+            html += '<div class="campaign-science-grid">' + previews.map((d, i) =>
+                '<div class="campaign-science-card"><b>' + d.icon + ' ' + escapeHtml(d.title) + '</b>'
+                + '<small>' + escapeHtml(d.themeLabel) + ' · ' + escapeHtml(categoryText(d.category)) + '</small>'
+                + '<small>' + escapeHtml(d.summary) + '</small>'
+                + '<span class="campaign-science-effects">' + escapeHtml(effectText(d.effects)) + '</span>'
+                + (d.rationale ? '<small>' + escapeHtml(d.rationale) + '</small>' : '')
+                + '<button class="campaign-btn campaign-btn-gold" onclick="CampaignMvp.pickScienceDirection(' + i + ')">Выбрать это направление</button></div>').join('') + '</div>'
+                + '<div class="campaign-project-form campaign-project-form-compact"><button class="campaign-btn" onclick="CampaignMvp.requestScienceDirections()">🎲 Другие направления</button></div>';
+        } else if (chosenDirection) {
+            html += '<div class="campaign-science-card"><b>' + chosenDirection.icon + ' ' + escapeHtml(chosenDirection.title) + '</b>'
+                + '<small>' + escapeHtml(chosenDirection.themeLabel) + ' · ' + escapeHtml(categoryText(chosenDirection.category)) + '</small>'
+                + '<small>' + escapeHtml(chosenDirection.summary) + '</small>'
+                + '<span class="campaign-science-effects">' + escapeHtml(effectText(chosenDirection.effects)) + '</span></div>'
+                + '<form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)">'
+                + '<button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">✨ Замыслы в этом направлении</button></form>'
+                + '<div class="campaign-project-form campaign-project-form-compact"><button class="campaign-btn" onclick="CampaignMvp.requestScienceDirections()">Сменить направление</button></div>';
+        } else {
+            html += '<div class="campaign-project-form campaign-project-form-compact">'
+                + '<button class="campaign-btn campaign-btn-gold" onclick="CampaignMvp.requestScienceDirections()">✨ Спросить о направлениях</button></div>'
+                + '<details class="campaign-fold" data-campaign-key="advisor-branch"><summary>Без советника: ветвь вручную</summary>'
+                + '<form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)">'
+                + '<label><span>Новый проект</span><select id="campaign-project-branch" aria-label="Направление науки">'
+                + scienceBranchesForEra(advPlayer.era).map(branch => '<option value="' + branch.id + '">' + escapeHtml(branch.label) + '</option>').join('')
+                + '</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">+ Советник</button></form></details>';
+        }
+        if (scienceChoices && scienceChoices.projects.length) {
+            html += '<div class="campaign-science-grid">' + scienceChoices.projects.map((project, i) =>
+                '<div class="campaign-science-card"><b>' + escapeHtml(project.scienceName) + '</b>'
+                + '<small>' + escapeHtml(project.scienceDescription) + '</small>'
+                + '<span class="campaign-science-building">🔨 ' + escapeHtml(project.buildingName) + '</span>'
+                + '<small>' + escapeHtml(project.buildingDescription) + '</small>'
+                + '<span class="campaign-science-effects">' + escapeHtml(effectText(project.effects)) + '</span>'
+                + '<small>' + escapeHtml(categoryText(project.category)) + '</small>'
+                + '<button class="campaign-btn campaign-btn-gold" onclick="CampaignMvp.chooseScience(' + i + ')">Принять замысел</button></div>').join('') + '</div>'
+                + '<p class="campaign-fold-note">Остальные замыслы останутся на столе — их можно принять в следующие дни.</p>';
+        }
+        return html + '</div>';
+    }
+
     function renderBlueprintOrder(blueprint, player, readyToClose) {
         const actionType = blueprint.researched ? 'construction' : 'research';
         const cap = getOrderCapacity(player);
@@ -2798,7 +2978,7 @@
             : (used ? 'Готово сегодня' : 'Исследовать');
         const detail = blueprint.scienceDescription + ' ' + blueprint.buildingDescription;
         const effects = blueprint.effects.map(effect => EFFECTS[effect.type]?.label || effect.type).join(' · ');
-        return '<article class="campaign-order campaign-blueprint-order"><div class="campaign-order-icon">' + (blueprint.researched ? '📐' : '🔬') + '</div><div class="campaign-order-main"><b title="' + htmlAttr(detail) + '">' + escapeHtml(blueprint.scienceName) + ' → ' + escapeHtml(blueprint.buildingName) + '</b><small>' + escapeHtml(effects) + '</small></div><button class="campaign-btn ' + (blueprint.researched ? 'campaign-btn-secondary' : '') + '" ' + (disabled ? 'disabled' : '') + ' onclick="CampaignMvp.' + (blueprint.researched ? 'construct' : 'research') + '(\'' + htmlAttr(blueprint.id) + '\')">' + buttonText + '</button></article>';
+        return '<article class="campaign-order campaign-blueprint-order"><div class="campaign-order-icon">' + (blueprint.researched ? '📐' : '🔬') + '</div><div class="campaign-order-main"><b title="' + htmlAttr(detail) + '">' + escapeHtml(blueprint.scienceName) + ' → ' + escapeHtml(blueprint.buildingName) + '</b><small>' + escapeHtml(effects) + (blueprint.direction ? ' · из направления ' + blueprint.direction.icon + ' ' + escapeHtml(blueprint.direction.title) : '') + '</small></div><button class="campaign-btn ' + (blueprint.researched ? 'campaign-btn-secondary' : '') + '" ' + (disabled ? 'disabled' : '') + ' onclick="CampaignMvp.' + (blueprint.researched ? 'construct' : 'research') + '(\'' + htmlAttr(blueprint.id) + '\')">' + buttonText + '</button></article>';
     }
 
     function renderDecreeChoice(current) {
@@ -2901,7 +3081,7 @@
             return '<button type="button" class="campaign-project-card campaign-card-choice ' + (selected ? 'is-selected' : '') + '" onclick="CampaignMvp.toggleDeckCard(\'' + htmlAttr(card.id) + '\')"><span>' + (selected ? '✓ В колоде' : 'Добавить') + ' · ' + escapeHtml(card.card_type || 'карта') + '</span><b>' + escapeHtml(card.name || 'Без названия') + '</b><small>' + (Number(card.drop_cost) || 0) + ' энергии · атака ' + (Number(card.action_cost) || 0) + '</small></button>';
         }).join('') : '<div class="campaign-project-empty">Коллекция пока пуста. Для тренировки доступна стартовая колода.</div>';
 
-        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          ' + renderDecreeChoice(state) + '\n          ' + renderCultureChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="' + htmlAttr(eraProgressTitle) + '" aria-label="' + htmlAttr(eraProgressTitle) + '"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + Math.floor(p.resources.food) + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + Math.floor(p.resources.materials) + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + Math.floor(p.resources.knowledge) + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div><div><span>🙏 Духовность</span><b>' + Math.floor(p.resources.faith) + '</b><small>+' + breakdown.workerProduction.faith.toFixed(1) + '+' + regionalIncome.faith + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            <form class="campaign-project-form campaign-project-form-compact" onsubmit="CampaignMvp.generateProject(event)"><label><span>Новый проект</span><select id="campaign-project-branch" aria-label="Направление науки">' + scienceBranchesForEra(p.era).map(branch => '<option value="' + branch.id + '">' + escapeHtml(branch.label) + '</option>').join('') + '</select></label><button class="campaign-btn campaign-btn-gold" type="submit" id="campaign-project-submit">+ Советник</button></form>\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Выбирается только широкая ветвь; тему и местный контекст советник подбирает автоматически по эпохе, землям и запасам.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (eraProgressInfo.finalEra ? 'Последняя эпоха открыта' : 'Просветление: ' + Math.floor(eraProgressInfo.score) + '/' + eraProgressInfo.threshold + ' (2·📚 + 1·🙏)') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
+        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          ' + renderDecreeChoice(state) + '\n          ' + renderCultureChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="' + htmlAttr(eraProgressTitle) + '" aria-label="' + htmlAttr(eraProgressTitle) + '"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + Math.floor(p.resources.food) + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + Math.floor(p.resources.materials) + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + Math.floor(p.resources.knowledge) + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div><div><span>🙏 Духовность</span><b>' + Math.floor(p.resources.faith) + '</b><small>+' + breakdown.workerProduction.faith.toFixed(1) + '+' + regionalIncome.faith + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            ' + renderScienceAdvisor(state, scienceSituation) + '\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Сначала вы выбираете направление — советник придумывает его под замысел, происхождение, землю, черту, наследие и запасы народа, — а затем раскрывает его в три замысла науки и постройки.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (eraProgressInfo.finalEra ? 'Последняя эпоха открыта' : 'Просветление: ' + Math.floor(eraProgressInfo.score) + '/' + eraProgressInfo.threshold + ' (2·📚 + 1·🙏)') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
         for (const detail of host.querySelectorAll?.('details[data-campaign-key]') || []) detail.open = openDetails.has(detail.dataset.campaignKey);
     }
 
@@ -3022,71 +3202,150 @@
     }
 
 
-    async function generateProject(event) {
-        event.preventDefault();
+    // Запрос превью направлений у модели (legacy). Промпт зеркалит llmDirectionPreviews из src/game/cards.ts:
+    // три ТЕМЫ науки придумывает модель, опираясь на выбранные свойства народа.
+    async function requestScienceDirections() {
         const status = root.document.getElementById('campaign-project-status');
-        const button = root.document.getElementById('campaign-project-submit');
-        const branchId = root.document.getElementById('campaign-project-branch').value;
-        const branch = scienceBranchesForEra(state.player.era).find(item => item.id === branchId);
-        if (!branch) { status.textContent = 'Эта научная ветвь ещё не открыта.'; return; }
-
-        const situation = scienceAdvisorSituation(state);
-        const context = situation.localContexts[Math.floor(Math.random() * situation.localContexts.length)]
-            || { name: 'поселение', description: 'местная община и её повседневные нужды' };
-        button.disabled = true;
-        status.textContent = 'Советник готовит 3 замысла по «' + branch.label + '» с учётом земель и запасов…';
-        let projects = [];
-        let usedLlm = false;
-        try {
-            const key = typeof root.getApiKey === 'function' ? root.getApiKey() : '';
-            if (!key) throw new Error('no-key');
-            const response = await fetch('https://api.hydraai.ru/v1/chat/completions', {
-                method: 'POST', headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: typeof root.getSelectedModel === 'function' ? root.getSelectedModel() : 'gpt-6-luna',
-                    messages: [
-                        { role: 'system', content: 'Ты научный советник исторической стратегии. Игрок выбрал только широкую ветвь; ты должен придумать 3 РАЗНЫХ замысла науки+постройки в рамках этой ветви, с trade-off. Каждое — уникальное название и описание, без магии. Эффекты из списка: ' + JSON.stringify(EFFECTS) + '. Каждый проект: 1-2 эффекта, amount <= max. Обязательно разнообразие: один фокус на еду, другой на материалы/знания, третий на военные/гражданские бонусы. Верни JSON: {\"projects\":[{\"scienceName\":\"...\",\"scienceDescription\":\"...\",\"buildingName\":\"...\",\"buildingDescription\":\"...\",\"category\":\"military|economy|science|civic\",\"effects\":[{\"type\":\"...\",\"amount\":1}]} x3]}. Названия без повторов.' },
-                        { role: 'user', content: 'Эпоха: ' + eraName(state.player.era) + '. Направление: «' + branch.label + '» — ' + branch.prompt + '. Ситуация: ' + situation.summary + '. Ориентир: «' + context.name + '» — ' + context.description + '. Тип постройки: ' + branch.building + '. Клан: ' + state.player.clan + '. Придумай 3 разных замысла — у каждого свой путь развития, как в племени с разными укладами. Игрок выберет один.' }
-                    ],
-                    temperature: 1.0, max_tokens: 1400, response_format: { type: 'json_object' }
-                })
-            });
-            if (!response.ok) throw new Error('Hydra API: HTTP ' + response.status);
-            const data = await response.json();
-            const content = data.choices?.[0]?.message?.content || '';
-            const parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}');
-            if (Array.isArray(parsed.projects) && parsed.projects.length) projects = parsed.projects.slice(0, 3);
-            else if (parsed.scienceName) projects = [parsed];
-            usedLlm = true;
-        } catch (error) {
-            const seed = hashString(state.player.name + state.player.clan + branchId + String(state.day));
-            projects = generateLocalScienceVariants(branchId, seed, 3);
-            status.textContent = error.message === 'no-key'
-                ? 'API-ключ не задан: созданы 3 местных черновика с уникальными названиями из пулов — у каждого игрока они разные.'
-                : 'LLM недоступна (' + error.message + '); созданы 3 местных черновика из пулов разнообразия.';
-        } finally { button.disabled = false; }
-
-        const validProjects = [];
-        for (const raw of projects) {
-            const cleaned = {
-                scienceName: String(raw.scienceName || '').slice(0, 80),
-                scienceDescription: String(raw.scienceDescription || '').slice(0, 400),
-                buildingName: String(raw.buildingName || '').slice(0, 80),
-                buildingDescription: String(raw.buildingDescription || '').slice(0, 400),
-                category: CATEGORIES.includes(raw.category) ? raw.category : branch.category,
-                effects: cleanEffects(raw.effects) || [{ type: branch.effect, amount: 1 }]
-            };
-            if (cleaned.scienceName && cleaned.buildingName) validProjects.push(cleaned);
+        const apiKey = root.getApiKey ? root.getApiKey() : '';
+        const selectedModel = root.getSelectedModel ? root.getSelectedModel() : null;
+        if (!apiKey) {
+            if (status) status.textContent = '⚠️ Без ключа LLM превью направлений недоступны. Добавьте ключ на странице настроек или раскройте «Без советника: ветвь вручную».';
+            return;
         }
-        if (!validProjects.length) { status.textContent = 'Советник не смог придумать проекты — попробуй ещё раз.'; return; }
+        const model = selectedModel || { name: 'default', baseUrl: 'http://localhost:1234/v1' };
+        if (status) status.textContent = 'Советник придумывает три направления под ваш народ…';
+        try {
+            const situation = scienceAdvisorSituation(state);
+            const system = 'Ты научный советник исторической стратегии о реалистичном древнем мире: никакого фэнтези и магии. '
+                + 'Придумай ровно ТРИ ПРЕВЬЮ НАПРАВЛЕНИЙ науки — о ЧЁМ она будет у этого народа. '
+                + 'Направления изобретаешь ты, но они обязаны опираться на выбранные свойства народа. '
+                + 'Темы: ' + SCIENCE_DIRECTION_THEMES.map(t => t.id + ' (' + t.label + ')').join(', ') + ' — военное дело, религия и обряд, чистое знание, производство и ремесло, земледелие и скот, устройство общества, а также их сочетания; темы в трёх превью не должны повторяться. '
+                + 'Верни JSON: {"directions":[{"title":"...","summary":"...","theme":"agriculture|production|military|religion|knowledge|society|mixed","category":"military|economy|science|civic|religion","effects":[{"type":"...","amount":1}],"icon":"один эмодзи","rationale":"почему это подходит именно этому народу"} x3]}. '
+                + 'title <= 60 знаков, summary <= 220 знаков, rationale <= 160 знаков. effects: 1 эффект из списка с amount <= max.';
+            const user = 'Народ: «' + situation.seedName + '» — ' + situation.seedHint + '. '
+                + 'Эпоха: ' + eraName(state.player.era) + ' (' + ERAS[state.player.era].years + '). Ситуация: ' + situation.summary + '. '
+                + 'Придумай три разных направления — военное, религиозное, научное, производственное, сельскохозяйственное или смешанное в любых сочетаниях. Названия реалистичные для эпохи.';
+            const res = await fetch(model.baseUrl + '/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+                body: JSON.stringify({ model: model.name, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 1, max_tokens: 900, response_format: { type: 'json_object' } })
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const data = await res.json();
+            const raw = data.choices?.[0]?.message?.content || '{}';
+            let parsed = {};
+            try { parsed = JSON.parse(raw); } catch (e) {
+                const match = raw.match(/\{[\s\S]*\}/);
+                if (match) { try { parsed = JSON.parse(match[0]); } catch (e2) { parsed = {}; } }
+            }
+            const next = setScienceDirections(state, Array.isArray(parsed.directions) ? parsed.directions : []);
+            if (next.error) throw new Error(next.error);
+            state = next.state;
+            if (status) status.textContent = 'Три направления готовы — выберите, о чём будет ваша наука.';
+            save(state);
+        } catch (err) {
+            console.error(err);
+            if (status) status.textContent = '⚠️ Советник не ответил: ' + (err.message || err) + '. Можно выбрать ветвь вручную.';
+        } finally {
+            render();
+        }
+    }
 
-        state.player.scienceChoices = { branchId, day: state.day, projects: validProjects.slice(0, 3) };
+    // Выбор превью направления: приказ не тратится, он уйдёт на приём конкретного замысла.
+    function pickScienceDirection(index) {
+        const status = root.document.getElementById('campaign-project-status');
+        const result = chooseScienceDirection(state, Number(index));
+        if (result.error) {
+            if (status) status.textContent = result.error;
+            return;
+        }
+        state = result.state;
+        if (status) status.textContent = 'Направление «' + result.direction.title + '» выбрано — советник придумает замыслы внутри него.';
         save(state);
         render();
-        const refreshedStatus = root.document.getElementById('campaign-project-status');
-        if (refreshedStatus) refreshedStatus.textContent = usedLlm
-            ? 'Советник предложил 3 уникальных замысла — у каждого игрока они разные. Выбери один путь.'
-            : refreshedStatus.textContent || 'Выбери один из 3 черновиков — у каждого игрока названия разные.';
+    }
+
+    async function generateProject(event) {
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        const status = root.document.getElementById('campaign-project-status');
+        const direction = state.player.directionChoice || null;
+        const branchSelect = root.document.getElementById('campaign-project-branch');
+        const branchId = branchSelect ? branchSelect.value : null;
+        const branch = direction ? null : (SCIENCE_BRANCHES.find(b => b.id === branchId) || scienceBranchesForEra(state.player.era)[0]);
+        if (!direction && !branch) {
+            if (status) status.textContent = 'Сначала выберите направление у советника — или раскройте «Без советника: ветвь вручную».';
+            return;
+        }
+        const topicId = direction ? 'direction:' + direction.theme : branchId;
+        const apiKey = root.getApiKey ? root.getApiKey() : '';
+        const selectedModel = root.getSelectedModel ? root.getSelectedModel() : null;
+        // Без ключа LLM советник не может придумывать: как и раньше, собираем 3 местных черновика
+        // из пулов разнообразия. Для направления берём ближайшую по теме ветвь — пулы ключуются по её id.
+        if (!apiKey) {
+            const fallbackBranchId = branch ? branch.id : (DIRECTION_FALLBACK_BRANCH[direction.theme] || 'seasonal');
+            const localProjects = generateLocalScienceVariants(fallbackBranchId, hashString(state.player.name + state.day + topicId), 3);
+            state.player.scienceChoices = { branchId: topicId, day: state.day, projects: localProjects.slice(0, 3) };
+            if (status) status.textContent = 'API-ключ не задан: созданы 3 местных черновика с уникальными названиями из пулов — у каждого игрока они разные.';
+            save(state);
+            render();
+            return;
+        }
+        {
+            const model = selectedModel || { name: 'default', baseUrl: 'http://localhost:1234/v1' };
+            const submit = root.document.getElementById('campaign-project-submit');
+            if (submit) {
+                submit.disabled = true;
+                submit.textContent = direction ? 'Советник раскрывает направление…' : 'Советник думает…';
+            }
+            if (status) status.textContent = direction
+                ? 'Советник раскрывает «' + direction.title + '» в 3 замысла с учётом земель и запасов…'
+                : 'Советник готовит 3 замысла по «' + branch.label + '» с учётом земель и запасов…';
+            try {
+                const situation = scienceAdvisorSituation(state);
+                const system = direction
+                    ? 'Ты научный советник исторической стратегии о реалистичном древнем мире: никакого фэнтези и магии. Игрок выбрал направление «' + direction.title + '»: ' + direction.summary + ' Придумай 3 РАЗНЫХ замысла науки+постройки СТРОГО внутри этого направления, с trade-off. Обещанный эффект направления: ' + JSON.stringify(direction.effects) + ' — он должен остаться в проектах. Каждый проект: уникальные название и описание, 1-2 эффекта из списка ' + JSON.stringify(EFFECTS) + ', amount <= max. Верни JSON: {"projects":[{"scienceName":"...","scienceDescription":"...","buildingName":"...","buildingDescription":"...","category":"military|economy|science|civic|religion","effects":[{"type":"...","amount":1}]} x3]}.'
+                    : 'Ты научный советник исторической стратегии. Игрок выбрал только широкую ветвь; ты должен придумать 3 РАЗНЫХ замысла науки+постройки в рамках этой ветви, с trade-off. Каждое — уникальное название и описание, без магии. Эффекты из списка: ' + JSON.stringify(EFFECTS) + '. Каждый проект: 1-2 эффекта, amount <= max. Обязательно разнообразие: один фокус на еду, другой на материалы/знания, третий на военные/гражданские бонусы. Верни JSON: {"projects":[{"scienceName":"...","scienceDescription":"...","buildingName":"...","buildingDescription":"...","category":"military|economy|science|civic|religion","effects":[{"type":"...","amount":1}]} x3]}. Названия без повторов.';
+                const user = direction
+                    ? 'Эпоха: ' + eraName(state.player.era) + '. Ситуация: ' + situation.summary + '. Клан: ' + state.player.clan + '. Тип постройки подбери по смыслу направления. Придумай 3 разных замысла внутри направления «' + direction.title + '» — у каждого свой путь развития. Игрок выберет один.'
+                    : 'Эпоха: ' + eraName(state.player.era) + '. Направление: «' + branch.label + '» — ' + branch.prompt + '. Ситуация: ' + situation.summary + '. Ориентир: «' + situation.seedName + '» — ' + situation.seedHint + '. Тип постройки: ' + branch.building + '. Клан: ' + state.player.clan + '. Придумай 3 разных замысла — у каждого свой путь развития, как в племени с разными укладами. Игрок выберет один.';
+                const res = await fetch(model.baseUrl + '/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+                    body: JSON.stringify({ model: model.name, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0.95, max_tokens: 1400, response_format: { type: 'json_object' } })
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const raw = data.choices?.[0]?.message?.content || '{}';
+                let parsed = {};
+                try { parsed = JSON.parse(raw); } catch (e) {
+                    const match = raw.match(/\{[\s\S]*\}/);
+                    if (match) { try { parsed = JSON.parse(match[0]); } catch (e2) { parsed = {}; } }
+                }
+                const validProjects = (Array.isArray(parsed.projects) ? parsed.projects : [])
+                    .map(project => ({
+                        scienceName: project.scienceName,
+                        scienceDescription: project.scienceDescription,
+                        buildingName: project.buildingName,
+                        buildingDescription: project.buildingDescription,
+                        category: project.category,
+                        effects: project.effects
+                    }))
+                    .filter(project => project.scienceName && project.buildingName && project.effects && project.effects.length > 0)
+                    .slice(0, 3);
+                if (!validProjects.length) throw new Error('нет валидных проектов');
+                state.player.scienceChoices = { branchId: topicId, day: state.day, projects: validProjects };
+                if (status) status.textContent = direction
+                    ? 'Направление «' + direction.title + '»: три замысла — выбери один.'
+                    : 'Советник предложил 3 уникальных замысла — у каждого игрока они разные. Выбери один путь.';
+                save(state);
+            } catch (err) {
+                console.error(err);
+                if (status) status.textContent = '⚠️ Ошибка советника: ' + (err.message || err) + '. Можно выбрать ветвь вручную.';
+            } finally {
+                render();
+            }
+            return;
+        }
     }
 
     function chooseScience(index) {
@@ -3159,6 +3418,7 @@
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree,
         getEraProgress, eraEnlightenmentThreshold, ENLIGHTENMENT_WEIGHTS, ERA_ENLIGHTENMENT_BASE, ERA_ENLIGHTENMENT_STEP, ERA_ENLIGHTENMENT_SPEND,
+        SCIENCE_DIRECTION_THEMES, sanitizeScienceDirection, setScienceDirections, chooseScienceDirection,
         MISSION_WORD_BASE, MISSION_WORD_PER_ERA, MISSION_CONVERT_BASE, MISSION_CONVERT_PER_ERA, missionCost: (input, regionId) => missionCost(normalizeState(input), regionId), getMissionState, missionRegionState: missionRegion, WORKER_KEYS,
         getCultureChoice, chooseCultureState: chooseCulture, cultureCandidates: (input, era) => cultureCandidates(normalizeState(input), clampInt(era, 0, ERAS.length - 1, 0)), CULTURE_CHOICE_SIZE, BRONZE_CARD_MIN_ERA, allowedCardEras, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
@@ -3180,7 +3440,7 @@
         research, construct, toggleBuilding: toggleBuildingAction, toggleDeckCard: toggleDeckCardAction,
         finishDay: finishDayAction, completeSeason: completeSeasonAction, challenge, claimRegion: claimRegionAction, buildRegionBuilding: buildRegionBuildingAction, chooseDecree: chooseDecreeAction, chooseCulture: chooseCultureAction, missionRegion: missionRegionAction, attackRegion: attackRegionAction, resumeRegionExpedition: resumeRegionExpeditionAction, hasPendingMatch: () => Boolean(pendingMatch),
         getPendingMatch: () => pendingMatch ? { ...pendingMatch } : null,
-        consumePendingMatch, recordBattleResult, rematch, generateProject, chooseScience, dropScienceProject, acceptScienceProject, removeBlueprint, requestRegionFlavor, DIVERSITY_POOLS, generateLocalScienceVariants, generateLocalRegionFlavor, resetLocal,
+        consumePendingMatch, recordBattleResult, rematch, requestScienceDirections, pickScienceDirection, generateProject, chooseScience, dropScienceProject, acceptScienceProject, removeBlueprint, requestRegionFlavor, DIVERSITY_POOLS, generateLocalScienceVariants, generateLocalRegionFlavor, resetLocal,
         beginOnboarding, getStarterCards: () => clone(STARTER_CARDS), getBattleDeckIds: () => state.player.deckCardIds.slice(), getBattleConfigForCurrentPlayer: () => getBattleConfig(state),
         assignWorker: (from, to) => { const result = assignWorker(state, from, to); if (!result.error) commit(result.state); return result; },
         getState: () => clone(state)

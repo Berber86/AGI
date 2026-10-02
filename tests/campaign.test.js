@@ -1070,8 +1070,10 @@ test('invalid generation refunds the upfront investment and frees a same-day ord
 
 test('science advisor only offers fixed branches unlocked by the current era', () => {
   // minEra ветвей — индекс в ERAS: Каменный век открывает только каменно-неолитический набор.
+  // 'cult' — религиозная ветвь эпохи 0: духовность 🙏 и просветление существуют с Каменного века,
+  // поэтому обряд и святилище доступны сразу (категория religion появилась вместе с направлениями советника).
   assert.deepEqual(Campaign.scienceBranchesForEra(0).map(branch => branch.id),
-    ['agriculture', 'stonecraft', 'seasonal', 'warfare', 'fortification', 'horse']);
+    ['agriculture', 'stonecraft', 'seasonal', 'warfare', 'fortification', 'horse', 'cult']);
   assert.ok(Campaign.scienceBranchesForEra(0).every(branch => branch.id !== 'bronze'));
 
   // Бронза, письмо и металлургия — технологии Античного мира (индекс 1), а не Средневековья и не Ренессанса.
