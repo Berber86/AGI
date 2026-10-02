@@ -4,7 +4,7 @@ import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { llmScienceOffers } from "@/game/cards";
 import { useStore } from "@/game/store";
-import { Btn, Chip, Cost, Heading, Label, Panel, Tabs } from "@/components/ui";
+import { Btn, Chip, Cost, Heading, Label, Meter, Panel, ResIcon, Tabs, fmt } from "@/components/ui";
 import { PageFrame } from "@/components/Shell";
 
 const CAT: Record<string, { label: string; tone: "bad" | "ok" | "know" | "bronze" }> = {
@@ -110,12 +110,6 @@ function Science() {
       ? "AP на сегодня исчерпаны."
       : null;
 
-  const research = (id: string, onEra?: () => void) => {
-    const oldEra = p.era;
-    const res = act((s) => M.researchBlueprint(s, id));
-    if (res && res.state.player.era > oldEra) onEra?.();
-  };
-
   const bps: any[] = p.blueprints;
   const sorted = [...bps].sort((a, b) => stage(a) - stage(b));
 
@@ -201,7 +195,7 @@ function Science() {
                       <Step done={s >= 3} active={s === 2} icon={<Hammer size={14} />} label={b.buildingName} />
                       <div className="ml-auto flex items-center gap-2">
                         {s === 1 && (<><Cost cost={{ food: 1, knowledge: 1 }} have={p.resources} />
-                          <Btn size="sm" variant="primary" disabled={!!rErr} title={rErr || ""} onClick={() => research(b.id, () => toast("Новая эпоха! Выберите уклад.", "ok"))}>Изучить</Btn></>)}
+                          <Btn size="sm" variant="primary" disabled={!!rErr} title={rErr || ""} onClick={() => act((st) => M.researchBlueprint(st, b.id))}>Изучить</Btn></>)}
                         {s === 2 && (<><Cost cost={{ materials: 3 }} have={p.resources} />
                           <Btn size="sm" variant="primary" disabled={!!cErr} title={cErr || ""} onClick={() => act((st) => M.constructBlueprint(st, b.id))}>Построить</Btn></>)}
                         {s === 3 && <Chip tone="ok"><Check size={11} />Построено</Chip>}
@@ -323,6 +317,7 @@ const BONUS_LABEL: Record<string, (v: number) => string> = {
   food: (v) => `${v > 0 ? "+" : ""}${v}🌾 с клана`,
   materials: (v) => `${v > 0 ? "+" : ""}${v}🪵 с клана`,
   knowledge: (v) => `${v > 0 ? "+" : ""}${v}📚 с клана`,
+  faith: (v) => `${v > 0 ? "+" : ""}${v}🙏 с клана`,
   deck_slots: (v) => `${v > 0 ? "+" : ""}${v} слот колоды`,
   storage: (v) => `${v > 0 ? "+" : ""}${v} к складу`,
   max_hp: (v) => `${v > 0 ? "+" : ""}${v} здоровья`,
@@ -427,6 +422,41 @@ function Heritage({ onGoto }: { onGoto: (tab: "decrees") => void }) {
   );
 }
 
+/**
+ * Просветление эпохи: 2·📚 + 1·🙏 против порога эпохи (16 + 8·era). Показывается на всех вкладках
+ * развития, чтобы игрок видел, чего не хватает до следующей эпохи и почему науки её больше не двигают.
+ */
+function EraProgress() {
+  const { game } = useStore();
+  const prog: any = M.getEraProgress(game);
+  if (prog.finalEra) return null;
+  return (
+    <Panel className={cn("mb-5 p-4", prog.ready && "border-bronze/50 bg-bronze/8")}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-bronze/12 text-bronze"><Telescope size={17} /></span>
+          <div>
+            <Label>Просветление эпохи · {prog.formula}</Label>
+            <div className="text-sm font-semibold text-parch">
+              {fmt(prog.score, 1)} из {prog.threshold} до эпохи «{prog.nextEraLabel}»
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-[11.5px] text-faint">
+          <span className="inline-flex items-center gap-1"><ResIcon k="knowledge" size={13} />{fmt(prog.knowledge, 1)} × 2</span>
+          <span className="inline-flex items-center gap-1"><ResIcon k="faith" size={13} />{fmt(prog.faith, 1)} × 1</span>
+        </div>
+      </div>
+      <Meter value={prog.score} max={prog.threshold} className="mt-3" />
+      <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
+        {prog.ready
+          ? "Порог взят: эпоха сменится в конце этого дня. Половина 📚 и 🙏 сгорит в переходе — откроются уклад и выбор наследия."
+          : `Не хватает ${fmt(prog.remaining, 1)} очков: жрецы дают 🙏, книжники и святилища — 📚. Эпоха наступит сама в конце дня.`}
+      </p>
+    </Panel>
+  );
+}
+
 export default function Develop() {
   const { game } = useStore();
   const [tab, setTab] = useState<"science" | "buildings" | "decrees" | "heritage">(
@@ -453,7 +483,7 @@ export default function Develop() {
         <div>
           <Label>Развитие цивилизации</Label>
           <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Наука, здания, уклады</h1>
-          <p className="mt-1 max-w-xl text-sm text-dim">Каждые две науки открывают новую эпоху. Исследование и строительство — по одному приказу в день.</p>
+          <p className="mt-1 max-w-xl text-sm text-dim">Науки дают здания и эффекты; эпоху открывает просветление народа — 2·📚 + 1·🙏. Исследование, строительство, поход и миссия — по одному приказу в день.</p>
         </div>
         <Tabs value={tab} onChange={setTab} items={[
           { id: "science", label: "Наука" },
@@ -462,6 +492,7 @@ export default function Develop() {
           { id: "heritage", label: "Наследие", badge: p.pendingCultureChoice ? <span className="h-2 w-2 rounded-full bg-bronze" /> : undefined },
         ]} />
       </div>
+      <EraProgress />
       {tab === "science" && <Science />}
       {tab === "buildings" && <Buildings />}
       {tab === "decrees" && <Decrees />}

@@ -337,8 +337,10 @@ test('v3 economy: no orders leads to scarcity not abundance, and region without 
   const noOrders = report.scenarios.find(s => s.strategy.includes('пропускать дни'));
   assert.ok(noOrders);
   assert.equal(noOrders.day, Campaign.SEASON_LENGTH);
-  // v2 had 97 food, v3 should have much less
-  assert.ok(noOrders.resourcesAtSeasonEnd.food < 30, 'food should be scarce without orders, was ' + noOrders.resourcesAtSeasonEnd.food);
+  // v2 had 97 food, v3 should have much less. Потолок чуть выше прежних 30: эпоха теперь приходит
+  // сама (просветление копится пассивно), а склад растёт на +5 за эпоху — без приказов народ доходит
+  // до Средневековья с складом 25 и запасом ~32 🌾. Это всё ещё дефицит, а не изобилие версии 2.
+  assert.ok(noOrders.resourcesAtSeasonEnd.food < 40, 'food should be scarce without orders, was ' + noOrders.resourcesAtSeasonEnd.food);
   assert.equal(noOrders.regionalDailyIncome.food, 0, 'empty region gives 0');
   assert.equal(noOrders.regionsWithBuildings, 0);
 });
@@ -354,7 +356,12 @@ test('the approved 30-day sandbox can progress through eras and unlock masterwor
 
   const refined = report.scenarios.find(scenario => scenario.strategy.includes('Отборное сырьё'));
   assert.ok(refined);
-  assert.ok(refined.prerequisiteResearchOrders >= 2);
+  // Эпоха больше не открывается числом изученных наук: до эпохи 1 сценарий доходит просветлением
+  // народа (2·📚 + 1·🙏). Дни — настоящая игра кланами на книгах и молитвах, «top-ups» — очки, которые
+  // симулятор добавил напрямую, чтобы не съесть дневной бюджет ковки; их число держим маленьким.
+  assert.ok(refined.prerequisiteEnlightenmentDays >= 1, 'refined forging should be gated behind real enlightenment days');
+  assert.ok(refined.prerequisiteEnlightenmentTopUps <= 2, 'the sim should earn enlightenment mostly by playing, not by gifts');
+  assert.ok(Campaign.ERAS.indexOf(refined.eraReached) >= 1, 'refined forging needs at least the ancient era');
   assert.ok(refined.territoryOrders >= 2);
   assert.ok(refined.questBattles >= 1, 'economy paths should resolve the generated quest guards');
   assert.ok(refined.buildingOrders >= 1 || refined.regionsWithBuildings >= 1);
@@ -436,7 +443,8 @@ test('v3 territory is replaced while campaign progress and deck choices survive 
   assert.equal(restored.regions.length, 49);
   assert.equal(restored.player.name, 'Старое поселение');
   assert.equal(restored.player.era, 2);
-  assert.deepEqual(restored.player.resources, { food: 19, materials: 11, knowledge: 7 });
+  // В сохранении до появления духовности поля faith нет — нормализация подставляет стартовые 2🙏.
+  assert.deepEqual(restored.player.resources, { food: 19, materials: 11, knowledge: 7, faith: 2 });
   assert.deepEqual(restored.player.deckCardIds, ['owned-card-a', 'owned-card-b']);
   assert.equal(restored.player.craftLevel, 1);
   assert.equal(restored.regions.filter(region => region.ownerId === 'player').length, 1, 'old territories must not be transferred');
@@ -510,17 +518,17 @@ test('claiming an adjacent region spends AP and frontier slot, region without bu
 
   const nextDay = Campaign.finishDayState(claim.state);
   assert.equal(nextDay.error, null);
-  assert.deepEqual(nextDay.state.player.dailyOrders, { craftUsed: 0, researchUsed: 0, constructionUsed: 0, frontierUsed: 0, legacyBlocked: false });
+  assert.deepEqual(nextDay.state.player.dailyOrders, { craftUsed: 0, researchUsed: 0, constructionUsed: 0, frontierUsed: 0, missionUsed: 0, legacyBlocked: false });
   assert.equal(nextDay.state.player.ap, nextDay.state.player.apMax);
   // without building, regional income 0
-  assert.deepEqual(Campaign.getRegionalIncome(nextDay.state), { food: 0, materials: 0, knowledge: 0 });
+  assert.deepEqual(Campaign.getRegionalIncome(nextDay.state), { food: 0, materials: 0, knowledge: 0, faith: 0 });
   // but after building irrigation, should give 2 food
   const buildAction = Campaign.getRegionActionState(nextDay.state, foodTileId);
   assert.equal(buildAction.action, 'build');
   assert.equal(buildAction.enabled, true);
   const built = Campaign.buildRegionBuildingState(nextDay.state, foodTileId);
   assert.equal(built.error, null);
-  assert.deepEqual(Campaign.getRegionalIncome(built.state), { food: 2, materials: 0, knowledge: 0 });
+  assert.deepEqual(Campaign.getRegionalIncome(built.state), { food: 2, materials: 0, knowledge: 0, faith: 0 });
 });
 
 test('frontier claims require adjacency and an era gate, while ore unlocks craft grades via buildings', () => {
@@ -638,7 +646,7 @@ test('strategic expedition persists until battle, then a win transfers land with
   assert.equal(victory.state.player.pendingExpedition, null);
   assert.equal(victory.state.player.practice.leaderWins, 1);
   // after conquest, no income until outpost built
-  assert.deepEqual(Campaign.getRegionalIncome(victory.state), { food: 0, materials: 2, knowledge: 0 }); // only copper+tin
+  assert.deepEqual(Campaign.getRegionalIncome(victory.state), { food: 0, materials: 2, knowledge: 0, faith: 0 }); // only copper+tin
 
   const defeat = Campaign.finishRegionExpeditionState(launched.state, launched.match, false);
   assert.equal(defeat.error, null);
@@ -859,14 +867,26 @@ test('barbarian tribes have distinct, complete decks that upgrade with each earl
 });
 
 test('barbarians grow independently up to the Middle Ages, then stop', () => {
-  let state = Campaign.createState(TEST_SEED);
+  let state = Campaign.normalizeState(Campaign.createState(TEST_SEED));
   assert.deepEqual(state.opponents.map(opponent => opponent.era), [0, 0, 0]);
-  for (let day = 0; day < 14; day++) state = Campaign.finishDayState(state).state;
+  state.player.resources.knowledge = 0;
+  state.player.resources.faith = 0;
+  // Племена живут по собственному календарю (pace/offset), а не вслед за игроком. Эпоху игрока
+  // держим ниже порога просветления (обнуляем 📚 и 🙏 после каждого дня), чтобы проверить именно
+  // независимый рост племён и их потолок.
+  const holdEra = current => {
+    const next = Campaign.finishDayState(current).state;
+    next.player.resources.knowledge = 0;
+    next.player.resources.faith = 0;
+    return next;
+  };
+  for (let day = 0; day < 14; day++) state = holdEra(state);
   assert.ok(new Set(state.opponents.map(opponent => opponent.era)).size > 1);
-  assert.equal(state.player.era, 0);
+  assert.equal(state.player.era, 0, 'без просветления эпоха игрока не растёт');
   assert.ok(state.opponents.every(opponent => opponent.era <= Campaign.BARBARIAN_ERA_CAP));
 
-  for (let day = 14; day < 29; day++) state = Campaign.finishDayState(state).state;
+  for (let day = 14; day < 29; day++) state = holdEra(state);
+  assert.equal(state.player.era, 0, 'племена дошли до потолка без единого перехода эпохи у игрока');
   assert.equal(state.opponents.find(opponent => opponent.id === 'steppe').era, Campaign.BARBARIAN_ERA_CAP);
   assert.ok(state.opponents.every(opponent => opponent.era <= 2));
 });
@@ -874,25 +894,30 @@ test('barbarians grow independently up to the Middle Ages, then stop', () => {
 test('player era advances bring selected barbarian decks forward too', () => {
   let state = Campaign.createState(TEST_SEED);
   state.player.historicalCulture = Campaign.HISTORICAL_CULTURES[0];
-  const first = Campaign.addBlueprint(state, draft(), 'both');
+  state = Campaign.normalizeState(state);
+  // Эпоху открывает просветление 2·📚 + 1·🙏: на Каменном веке порог 30, набираем его знаниями.
+  state.player.resources.knowledge = 20;
+  state.player.resources.faith = 0;
+  const first = Campaign.finishDayState(state);
   assert.equal(first.error, null);
-  state = first.state;
-  state.player.research = 1;
-  const antiquity = Campaign.researchBlueprint(state, first.blueprint.id);
-  assert.equal(antiquity.error, null);
-  assert.equal(antiquity.state.player.era, 1);
-  assert.deepEqual(antiquity.state.opponents.map(opponent => opponent.era), [1, 0, 1]);
-  assert.match(antiquity.state.player.campaignNotice, /боевые колоды улучшены/);
-  assert.equal(Campaign.getOpponentBattleConfig(antiquity.state, 'reed').deckLimit, 6);
-  assert.equal(Campaign.getOpponentBattleConfig(antiquity.state, 'steppe').deckLimit, 4);
-  assert.equal(Campaign.getOpponentBattleConfig(antiquity.state, 'north').deckLimit, 6);
+  assert.ok(first.eraAdvanced, 'порог просветления обязан открыть эпоху в конце дня');
+  assert.equal(first.eraAdvanced.from, 0);
+  assert.equal(first.eraAdvanced.to, 1);
+  const antiquity = first.state;
+  assert.equal(antiquity.player.era, 1);
+  assert.deepEqual(antiquity.opponents.map(opponent => opponent.era), [1, 0, 1]);
+  assert.match(antiquity.player.campaignNotice, /боевые колоды улучшены/);
+  assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'reed').deckLimit, 6);
+  assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'steppe').deckLimit, 4);
+  assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'north').deckLimit, 6);
 
-  state = Campaign.finishDayState(antiquity.state).state;
-  const second = Campaign.addBlueprint(state, draft({ scienceName: 'Новая бронзовая наука', buildingName: 'Бронзовая мастерская' }), 'both');
-  assert.equal(second.error, null);
-  state = second.state;
-  state.player.research = 1;
-  const medieval = Campaign.researchBlueprint(state, second.blueprint.id);
+  // Вторая эпоха: порог 56, причём половина накопленного сгорела в переходе — копить пришлось заново.
+  const medievalState = Campaign.normalizeState(antiquity);
+  assert.ok(Campaign.getEraProgress(medievalState).score < Campaign.getEraProgress(medievalState).threshold,
+    'после перехода народ снова ниже порога');
+  medievalState.player.resources.knowledge = 28;
+  medievalState.player.resources.faith = 10;
+  const medieval = Campaign.finishDayState(medievalState);
   assert.equal(medieval.error, null);
   assert.equal(medieval.state.player.era, 2);
   assert.equal(medieval.state.opponents.find(opponent => opponent.id === 'steppe').era, 2);
@@ -978,13 +1003,13 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
   metalAccess.player.era = 1;
   // Ковка теперь дорожает с эпохой (баланс-ревизия), поэтому для этого снимка выдаём заведомо достаточный запас —
   // сам тест проверяет цену/редкость/маршрутизацию модели, а не способность экономики прокормить ковку.
-  metalAccess.player.resources = { food: 20, materials: 20, knowledge: 20 };
+  metalAccess.player.resources = { food: 20, materials: 20, knowledge: 20, faith: 0 };
   const rare = Campaign.beginCardCraftState(metalAccess, { materialQuality: 'masterwork', effort: 'painstaking' }, 0.999, 'Копейная линия');
   assert.equal(rare.error, null);
   assert.equal(rare.order.rarity, 'rare');
   assert.equal(rare.order.modelId, 'glm-5.2');
   assert.deepEqual(rare.order.cost, { food: 6, materials: 12, knowledge: 5 });
-  assert.deepEqual(rare.state.player.resources, { food: 14, materials: 8, knowledge: 15 });
+  assert.deepEqual(rare.state.player.resources, { food: 14, materials: 8, knowledge: 15, faith: 0 });
   assert.equal(rare.state.player.dailyOrders.craftUsed, 1);
   assert.match(Campaign.beginCardCraftState(rare.state, { materialQuality: 'standard', effort: 'quick' }, 0.1).error, /ковка уже заказана|AP/);
 
@@ -993,7 +1018,7 @@ test('card craft rolls rarity before generation, pays upfront and routes the mod
   assert.equal(ordinary.order.modelId, 'gpt-6-luna');
   assert.equal(ordinary.state.player.resources.food, initial.player.resources.food - 2);
 
-  const broke = Campaign.beginCardCraftState({ ...initial, player: { ...initial.player, resources: { food: 0, materials: 0, knowledge: 0 } } }, { materialQuality: 'standard', effort: 'quick' }, 0);
+  const broke = Campaign.beginCardCraftState({ ...initial, player: { ...initial.player, resources: { food: 0, materials: 0, knowledge: 0, faith: 0 } } }, { materialQuality: 'standard', effort: 'quick' }, 0);
   assert.match(broke.error, /Не хватает ресурсов/);
 });
 
@@ -1181,16 +1206,17 @@ test('reloading during model generation compensates the interrupted order', () =
 test('v3: workers and food consumption', () => {
   let state = playableCampaign();
   assert.equal(state.player.population, 5);
-  assert.deepEqual(state.player.workers, { food: 2, materials: 1, knowledge: 1, idle: 1 });
+  assert.deepEqual(state.player.workers, { food: 2, materials: 1, knowledge: 1, faith: 1, idle: 0 });
   assert.equal(Campaign.getFoodConsumption(state), 5 * 0.7);
   const breakdown = Campaign.getProductionBreakdown(state);
   assert.ok(breakdown.workerProduction.food > 0);
   assert.ok(breakdown.consumption > 0);
-  // assign worker
-  const moved = Campaign.assignWorkerState(state, 'idle', 'food');
+  // assign worker: свободных кланов на старте нет — четвёртым ремеслом работает жрец
+  const moved = Campaign.assignWorkerState(state, 'faith', 'food');
   assert.equal(moved.error, null);
   assert.equal(moved.state.player.workers.food, 3);
-  assert.equal(moved.state.player.workers.idle, 0);
+  assert.equal(moved.state.player.workers.faith, 0);
+  assert.equal(Campaign.assignWorkerState(state, 'idle', 'food').error, 'Нет свободных рабочих в idle.');
 });
 
 test('v3: starvation reduces population', () => {

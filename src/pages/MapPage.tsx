@@ -1,12 +1,12 @@
 import { useMemo } from "react";
-import { Lock, Swords, Hammer, Flag, Crown, Sprout, ArrowRight, Compass, Shield } from "lucide-react";
+import { Lock, Swords, Hammer, Flag, Crown, Sprout, ArrowRight, Compass, Shield, Flame } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { currentGuideStep, useStore } from "@/game/store";
 import { Btn, Chip, Cost, Label, Panel, ResIcon, type ResKey } from "@/components/ui";
 import { PageFrame } from "@/components/Shell";
 
-const YIELD_ORDER: ResKey[] = ["food", "materials", "knowledge"];
+const YIELD_ORDER: ResKey[] = ["food", "materials", "knowledge", "faith"];
 const SITE_LABEL: Record<string, string> = {
   food: "Пища и вода",
   materials: "Камень и древесина",
@@ -203,7 +203,10 @@ export default function MapPage() {
                 const rival = Boolean(owner && !mine);
                 const guarded = Boolean(tile.guard && !mine);
                 const reachable = tile.terrain !== "water" && !owner && tileInfo.connected && tileInfo.eraOk;
-                const locked = tile.terrain === "water" || (!mine && !rival && !reachable);
+                // Проповедь идёт дальше отрядов: неохраняемую клетку видно и эпоха подходит — значит её
+                // можно присоединить словом за 🙏, даже если она не касается ваших земель.
+                const wordReachable = tile.terrain !== "water" && !owner && !tileInfo.connected && tileInfo.eraOk && !tile.guard && tileInfo.action?.mission?.kind === "word";
+                const locked = tile.terrain === "water" || (!mine && !rival && !reachable && !wordReachable);
                 const isSelected = selectedRegion === tile.id;
                 const paint = TERRAIN_PAINT[tile.terrain] || TERRAIN_PAINT.plains;
                 const mark = tileMarker(tile, owner);
@@ -219,6 +222,7 @@ export default function MapPage() {
                       rival && "border-clay/90 shadow-[inset_0_0_0_2px_rgba(196,98,63,.32)]",
                       guarded && "border-bronze-soft/80 border-dashed shadow-[inset_0_0_0_1px_rgba(233,193,118,.35)]",
                       reachable && territoryStep && "z-30 ring-2 ring-bronze-soft/70",
+                      wordReachable && !reachable && "border-faith/50",
                       tile.kind === "home" && "z-20 border-bronze-soft ring-2 ring-bronze/65 shadow-[0_0_18px_rgba(217,164,69,.55)]",
                       isSelected && "z-30 ring-2 ring-parch shadow-[0_0_0_4px_rgba(240,230,208,.14)]",
                       locked && tile.terrain !== "water" && "saturate-75",
@@ -310,6 +314,7 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
   const { game } = useStore();
   const rb = M.REGION_BUILDINGS[def.siteType];
   const action = info.action;
+  const mission = action?.mission;
   const record = info.record;
   const mine = info.owner === "player";
   const have = game.player.resources;
@@ -328,6 +333,10 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
       if (res) { toast(`Здание построено в «${def.name}».`, "ok"); void nameRegionBuilding(def.id); }
     } else if (action.action === "attack" || action.action === "quest") startExpedition(def.id);
     else if (action.action === "resume" || action.action === "return") resumeExpedition();
+  };
+  const runMission = () => {
+    const res = act((s: any) => M.missionRegion(s, def.id), { silent: true });
+    if (res) toast(`«${def.name}» присоединена словом за ${mission.cost.faith} 🙏. Постройте здание региона, чтобы получать доход.`, "ok");
   };
   const label: Record<string, string> = {
     settle: "Заселить землю",
@@ -377,6 +386,20 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
         <div className="mt-4 space-y-1.5 text-xs text-dim">
           <div className={cn("flex items-center gap-2", info.eraOk ? "text-ok" : "text-faint")}>{info.eraOk ? "✓" : "○"} Эпоха «{M.eraName(def.minEra)}» {info.eraOk ? "открыта" : "ещё не наступила"}</div>
           <div className={cn("flex items-center gap-2", info.connected ? "text-ok" : "text-faint")}>{info.connected ? "✓" : "○"} Соприкасается с вашими землями по стороне</div>
+        </div>
+      )}
+
+      {mission && (
+        <div className={cn("mt-4 rounded-xl border p-3.5", mission.available ? "border-faith/40 bg-faith/8" : "border-line bg-ground/40")}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-parch"><Flame size={15} className="text-faith" />{mission.label}</div>
+            <Cost cost={mission.cost} have={have} />
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-dim">{mission.available ? mission.hint : mission.reason}</p>
+          <Btn variant="secondary" size="sm" className="mt-3 w-full" disabled={!mission.available} onClick={runMission}>
+            <Flame size={15} />{mission.available ? `${mission.label} · ${mission.cost.faith} 🙏` : mission.label}
+          </Btn>
+          {mission.available && <p className="mt-2 text-[11px] leading-relaxed text-faint">Приказ «Миссия» · 1 AP. Духовность идёт от жрецов, святилищ и зданий совета.</p>}
         </div>
       )}
 

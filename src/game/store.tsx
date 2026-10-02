@@ -72,9 +72,11 @@ export interface AiStatus { status: "unknown" | "checking" | "ok" | "bad"; messa
 
 export interface DayReport {
   day: number;
-  before: { food: number; materials: number; knowledge: number };
-  after: { food: number; materials: number; knowledge: number };
-  gained: { food: number; materials: number; knowledge: number };
+  before: { food: number; materials: number; knowledge: number; faith: number };
+  after: { food: number; materials: number; knowledge: number; faith: number };
+  gained: { food: number; materials: number; knowledge: number; faith: number };
+  /** Переход эпохи случился в конце дня: просветление 2·📚 + 1·🙏 дошло до порога. */
+  eraAdvanced: { from: number; to: number; label: string } | null;
   consumption: number;
   upkeep: number;
   popBefore: number;
@@ -312,7 +314,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         food: b.workerProduction.food + b.regional.food,
         materials: b.workerProduction.materials + b.regional.materials,
         knowledge: b.workerProduction.knowledge + b.regional.knowledge,
+        faith: b.workerProduction.faith + b.regional.faith,
       },
+      eraAdvanced: res.eraAdvanced ? { from: res.eraAdvanced.from, to: res.eraAdvanced.to, label: M.eraName(res.eraAdvanced.to) } : null,
       consumption: b.consumption,
       upkeep: b.upkeep,
       popBefore: before.player.population,
@@ -400,12 +404,13 @@ export function useDerived() {
       food: b.workerProduction.food + b.regional.food - b.consumption,
       materials: b.workerProduction.materials + b.regional.materials - b.upkeep,
       knowledge: b.workerProduction.knowledge + b.regional.knowledge,
+      faith: b.workerProduction.faith + b.regional.faith,
     };
     const cap = M.getStorageCap(game);
     const cfg = M.getBattleConfig(game);
     // *Used хранит счётчик (0,1,2...), а не true/false — order_capacity от построек советника
     // может поднять дневной лимит приказа с 1 до 2 (см. campaign.js getOrderCapacity).
-    const ordersUsed = (["craftUsed", "researchUsed", "constructionUsed", "frontierUsed"] as const)
+    const ordersUsed = (["craftUsed", "researchUsed", "constructionUsed", "frontierUsed", "missionUsed"] as const)
       .reduce((sum, key) => sum + (Number(p.dailyOrders[key]) || 0), 0);
     return { breakdown: b, net, cap, cfg, ordersUsed, ap: p.ap, apMax: p.apMax };
   }, [game]);

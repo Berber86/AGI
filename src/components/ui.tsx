@@ -1,13 +1,15 @@
 import { useEffect, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Wheat, Pickaxe, ScrollText, X } from "lucide-react";
+import { Wheat, Pickaxe, ScrollText, Flame, X } from "lucide-react";
 import { cn } from "@/utils/cn";
 
-export type ResKey = "food" | "materials" | "knowledge";
+// 🙏 Духовность — четвёртый ресурс: жрецы, святилища и миссии (см. campaign.js ENLIGHTENMENT_WEIGHTS).
+export type ResKey = "food" | "materials" | "knowledge" | "faith";
 
 export const RES: Record<ResKey, { label: string; short: string; color: string; bg: string; Icon: typeof Wheat }> = {
   food: { label: "Провизия", short: "Еда", color: "text-food", bg: "bg-food/12", Icon: Wheat },
   materials: { label: "Материалы", short: "Материалы", color: "text-mat", bg: "bg-mat/12", Icon: Pickaxe },
   knowledge: { label: "Знания", short: "Знания", color: "text-know", bg: "bg-know/12", Icon: ScrollText },
+  faith: { label: "Духовность", short: "Духовность", color: "text-faith", bg: "bg-faith/12", Icon: Flame },
 };
 
 export function ResIcon({ k, size = 16, className }: { k: ResKey; size?: number; className?: string }) {

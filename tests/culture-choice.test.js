@@ -7,19 +7,21 @@ const Campaign = require('../campaign.js');
 
 const TEST_SEED = 12345;
 
-let draftCounter = 0;
-
-function draft(overrides = {}) {
-  draftCounter += 1;
-  return {
-    scienceName: 'Переходная наука ' + draftCounter,
-    scienceDescription: 'Знание, которое открывает следующую эпоху.',
-    buildingName: 'Обсерватория перехода ' + draftCounter,
-    buildingDescription: 'Считает сезоны и готовит народ к новой эпохе.',
-    category: 'science',
-    effects: [{ type: 'income_knowledge', amount: 1 }],
-    ...overrides
-  };
+/**
+ * Переход в следующую эпоху: просветление 2·📚 + 1·🙏 доводится до порога эпохи, и эпоха наступает
+ * сама в конце дня (см. campaign.js advanceEra / getEraProgress). Науки для этого больше не нужны.
+ */
+function advanceEra(input) {
+  const threshold = Campaign.eraEnlightenmentThreshold(input.player.era);
+  const state = Campaign.normalizeState({
+    ...input,
+    player: { ...input.player, resources: { ...input.player.resources, knowledge: threshold, faith: 0 } }
+  });
+  const finished = Campaign.finishDayState(state);
+  assert.equal(finished.error, null);
+  assert.ok(finished.eraAdvanced, `порог ${threshold} очков просветления обязан открыть эпоху «${Campaign.ERAS[input.player.era + 1]}»`);
+  assert.equal(finished.state.player.era, input.player.era + 1);
+  return finished.state;
 }
 
 function culture(id) {
@@ -34,18 +36,6 @@ function startedCampaign() {
   state.player.historicalCulture = culture('yamnaya');
   state.player.culturalLineage = ['yamnaya'];
   return Campaign.normalizeState(state);
-}
-
-/** Переход в следующую эпоху: две изученные науки, как в реальной партии (приказ тратится раз в день). */
-function advanceEra(input) {
-  let state = Campaign.finishDayState(input).state;
-  const added = Campaign.addBlueprint(state, draft(), 'both');
-  assert.equal(added.error, null);
-  added.state.player.research = 1;
-  const researched = Campaign.researchBlueprint(added.state, added.blueprint.id);
-  assert.equal(researched.error, null);
-  assert.equal(researched.state.player.era, input.player.era + 1);
-  return researched.state;
 }
 
 test('переход эпохи больше не меняет наследие сам, а открывает игроку выбор', () => {
