@@ -337,10 +337,13 @@ test('v3 economy: no orders leads to scarcity not abundance, and region without 
   const noOrders = report.scenarios.find(s => s.strategy.includes('пропускать дни'));
   assert.ok(noOrders);
   assert.equal(noOrders.day, Campaign.SEASON_LENGTH);
-  // v2 had 97 food, v3 should have much less. Потолок чуть выше прежних 30: эпоха теперь приходит
-  // сама (просветление копится пассивно), а склад растёт на +5 за эпоху — без приказов народ доходит
-  // до Средневековья с складом 25 и запасом ~32 🌾. Это всё ещё дефицит, а не изобилие версии 2.
-  assert.ok(noOrders.resourcesAtSeasonEnd.food < 40, 'food should be scarce without orders, was ' + noOrders.resourcesAtSeasonEnd.food);
+  // v2 had 97 food, v3 should have much less. Сравниваем со складом, а не с магическим числом:
+  // эпоха теперь наступает сама от просветления (16 + 8·era) и добавляет +5 склада за эпоху, поэтому
+  // пассивный сезон заканчивается на «склад + дневной излишек» — мягкий кап не даёт накопить больше.
+  const cap = noOrders.resourcesAtSeasonEnd.storageCap;
+  assert.ok(noOrders.resourcesAtSeasonEnd.food < cap + 10,
+    'food should be scarce without orders, was ' + noOrders.resourcesAtSeasonEnd.food + ' при складе ' + cap);
+  assert.ok(noOrders.resourcesAtSeasonEnd.food < 60, 'без приказов не должно быть изобилия версии 2 (97 🌾)');
   assert.equal(noOrders.regionalDailyIncome.food, 0, 'empty region gives 0');
   assert.equal(noOrders.regionsWithBuildings, 0);
 });
@@ -895,7 +898,7 @@ test('player era advances bring selected barbarian decks forward too', () => {
   let state = Campaign.createState(TEST_SEED);
   state.player.historicalCulture = Campaign.HISTORICAL_CULTURES[0];
   state = Campaign.normalizeState(state);
-  // Эпоху открывает просветление 2·📚 + 1·🙏: на Каменном веке порог 30, набираем его знаниями.
+  // Эпоху открывает просветление 2·📚 + 1·🙏: на Каменном веке порог 16, набираем его знаниями.
   state.player.resources.knowledge = 20;
   state.player.resources.faith = 0;
   const first = Campaign.finishDayState(state);
@@ -911,7 +914,7 @@ test('player era advances bring selected barbarian decks forward too', () => {
   assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'steppe').deckLimit, 4);
   assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'north').deckLimit, 6);
 
-  // Вторая эпоха: порог 56, причём половина накопленного сгорела в переходе — копить пришлось заново.
+  // Вторая эпоха: порог 24, причём половина накопленного сгорела в переходе — копить пришлось заново.
   const medievalState = Campaign.normalizeState(antiquity);
   assert.ok(Campaign.getEraProgress(medievalState).score < Campaign.getEraProgress(medievalState).threshold,
     'после перехода народ снова ниже порога');
