@@ -238,9 +238,9 @@ export default function Onboarding() {
           </div>
           <div className="mt-4 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed text-dim">
             <div className="mb-1 font-semibold text-parch">Что дальше</div>
-            Каждый день у вас <b className="text-parch">2 приказа</b>. Наставник сверху будет вести по шагам: изучить первое дело → построить здание → занять соседнюю землю → сыграть тренировочный бой.
+            Каждый день у вас <b className="text-parch">2 приказа</b>: наука, стройка, поход, ковка или миссия. Что и в каком порядке делать — решаете вы: изучайте науки и стройте здания, занимайте соседние земли, куйте карты и выходите в бой.
           </div>
-          <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={() => { if (startFirstDay()) toast("Первый день начался. Наставник подскажет следующий шаг.", "ok"); }}>
+          <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={() => { if (startFirstDay()) toast("Первый день начался. Делайте что хотите: науки, земли, ковка и бои открыты сразу.", "ok"); }}>
             <Check size={18} />Начать первый день
           </Btn>
         </div>
@@ -411,7 +411,7 @@ export default function Onboarding() {
                 <div className="mb-1 font-semibold text-bronze-soft">Что произойдёт дальше</div>
                 Советник прочитает происхождение, наследие и замысел народа и предложит <b className="text-parch">три направления</b> — о чём может быть ваша первая наука:
                 земледелие, ремесло, война, вера, знание, устройство общества или их сочетание. Вы выберете одно, и советник раскроет его
-                в науку и постройку. После этого наставник поведёт по шагам.
+                в науку и постройку. А дальше вы сами: карта, кузница, армия и свои дела в любом порядке.
               </div>
             </div>
           )}

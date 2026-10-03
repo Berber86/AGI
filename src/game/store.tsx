@@ -7,20 +7,6 @@ import type { Match } from "./battle";
 export type Page = "home" | "map" | "develop" | "forge" | "army";
 export type Tone = "info" | "ok" | "bad";
 
-/** Шаг первого маршрута ведёт на конкретный экран — игрок не ищет, куда нажать. */
-export function guideStepPage(stepId: string): Page {
-  if (stepId === "territory") return "map";
-  if (stepId === "battle") return "army";
-  return "develop";
-}
-
-export function currentGuideStep(game: any): { step: any; guide: any; page: Page } | null {
-  const guide = M.getFirstSessionGuide(game);
-  if (!guide || guide.complete) return null;
-  const step = guide.steps.find((s: any) => !s.done);
-  if (!step) return null;
-  return { step, guide, page: guideStepPage(step.id) };
-}
 export interface Toast { id: number; text: string; tone: Tone }
 
 /**
@@ -393,7 +379,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (g.player.pendingExpedition) { toast("Сначала завершите начатую экспедицию.", "bad"); return; }
     const o = g.opponents.find((x: any) => x.id === opponentId);
     if (!o) return;
-    // Первый в жизни игрока бой ведёт наставник: подсказки, враг без построек, полная энергия на выходе.
+    // Первый в жизни игрока бой остаётся мягким входом: подсказки, враг без построек,
+    // полная энергия на выходе. Обязательного маршрута нет — тренироваться не обязательно.
     const practiceCount = (g.player.practice?.wins || 0) + (g.player.practice?.losses || 0);
     setMatch({ kind: "practice", opponentId, name: o.name, clan: o.clan, era: o.era, leaderBattle: !!o.leader, tutorial: practiceCount === 0 });
   }, [toast]);

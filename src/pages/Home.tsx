@@ -12,20 +12,11 @@ function useNext(): Next {
   const { game } = useStore();
   const { net } = useDerived();
   const p = game.player;
-  const guide = M.getFirstSessionGuide(game);
-  const guided = Boolean(guide && !guide.complete);
-  const step = guided ? guide!.steps.find((s: any) => !s.done) : null;
-  const stepIndex = step ? guide!.steps.findIndex((s: any) => s.id === step.id) + 1 : 0;
-  const stepPage: Page | null = step?.id === "territory" ? "map" : step?.id === "battle" ? "army" : step ? "develop" : null;
   if (p.pendingExpedition) return { title: "Экспедиция ждёт вас", text: "Начатый поход нужно закончить, прежде чем продолжить день.", cta: { label: "К карте", page: "map" }, tone: "bronze" };
   if (p.pendingDecreeChoice) return { title: "Выберите уклад новой эпохи", text: "Народ вошёл в новую эпоху. Уклад определит производство и состав армии на много дней вперёд.", cta: { label: "Выбрать уклад", page: "develop" }, tone: "bronze" };
   if (p.pendingCultureChoice) return { title: "Выберите наследие новой эпохи", text: "Принять культуру нового времени или сохранить прежнее наследие — технологии эпохи (науки, ключевой ресурс, ковка карт) доступны в обоих случаях.", cta: { label: "Выбрать наследие", page: "develop" }, tone: "bronze" };
   const daysFood = net.food < 0 ? p.resources.food / -net.food : Infinity;
   if (daysFood < 3) return { title: `Провизии хватит на ${Math.max(1, Math.floor(daysFood))} дн.`, text: "Народ съедает больше, чем приносят поля. Направьте рабочих на провизию или займите плодородные земли.", cta: null, tone: "bad" };
-  // Первый маршрут важнее прочих напоминаний: в начале игры ведём за руку по одному шагу.
-  if (step && stepPage) {
-    return { title: `Шаг ${stepIndex} из ${guide!.steps.length}: ${step.label}`, text: guide!.next, cta: { label: stepPage === "map" ? "Открыть карту" : stepPage === "army" ? "К армии" : "К развитию", page: stepPage }, tone: "bronze" };
-  }
   if (p.craftOrders.some((o: any) => o.status === "ready")) return { title: "В кузнице ждёт готовая карта", text: "Мастер закончил работу. Заберите карту, чтобы она попала в коллекцию.", cta: { label: "Забрать в кузнице", page: "forge" }, tone: "ok" };
   if (p.workers.idle > 0) return { title: `${p.workers.idle} без дела`, text: "Свободные люди не приносят ресурсов. Назначьте их на провизию, материалы или знания.", cta: null, tone: "bronze" };
   if (game.day >= M.SEASON_LENGTH) return { title: "Сезон подходит к концу", text: "Заберите готовые карты и подведите итоги — вы получите медаль и начнёте новый сезон.", cta: null, tone: "ok" };
@@ -41,9 +32,8 @@ function useNext(): Next {
 }
 
 function NextCard() {
-  const { game, go } = useStore();
+  const { go } = useStore();
   const next = useNext();
-  const guide = M.getFirstSessionGuide(game);
   return (
     <Panel className={cn("paper overflow-hidden p-5 sm:p-6", next.tone === "bad" && "border-bad/40")}>
       <div className="flex items-start gap-4">
@@ -55,19 +45,6 @@ function NextCard() {
           {next.cta && <Btn variant="primary" className="mt-4" onClick={() => go(next.cta!.page)}>{next.cta.label}<ArrowRight size={16} /></Btn>}
         </div>
       </div>
-      {guide && !guide.complete && (
-        <div className="mt-5 border-t border-line pt-4">
-          <div className="mb-2 flex items-center justify-between"><Label>Первые шаги</Label><span className="text-xs text-faint">{guide.completedCount} из {guide.steps.length}</span></div>
-          <ol className="grid gap-2 sm:grid-cols-2">
-            {guide.steps.map((s: any) => (
-              <li key={s.id} className={cn("flex items-center gap-2.5 rounded-lg border px-3 py-2 text-[13px]", s.done ? "border-ok/30 bg-ok/8 text-dim" : "border-line text-parch")}>
-                <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border", s.done ? "border-ok bg-ok text-ground" : "border-line-strong")}>{s.done && <Check size={12} strokeWidth={3} />}</span>
-                <span className={s.done ? "line-through decoration-faint" : ""}>{s.label}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
     </Panel>
   );
 }
@@ -316,32 +293,6 @@ export default function Home() {
   const { game } = useStore();
   const [tab, setTab] = useState<"overview" | "chronicle" | "rivals">("overview");
   const p = game.player;
-  const guide = M.getFirstSessionGuide(game);
-  const guided = Boolean(guide && !guide.complete);
-  // Первые шаги: один экран — одна задача. Никаких вкладок и второстепенных панелей.
-  if (guided) {
-    return (
-      <PageFrame>
-        <div className="mb-5">
-          <Label>Сезон {game.season} · день {game.day} · первые шаги</Label>
-          <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">{p.name}</h1>
-          <p className="mt-1 text-sm text-dim">{p.clan} · {M.eraName(p.era)} · наставник сверху подскажет, что делать</p>
-        </div>
-        <div className="mx-auto grid max-w-3xl gap-4">
-          <NextCard />
-          <People />
-          <Panel className="p-5">
-            <Heading title="Как устроен день" className="[&_h2]:text-lg" />
-            <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-dim">
-              <li>• <b className="text-parch">2 приказа</b> в день: наука, стройка, поход или ковка.</li>
-              <li>• Затем <b className="text-parch">«Завершить день»</b> — рабочие соберут ресурсы, народ съест провизию.</li>
-              <li>• Первое дело народа уже в кодексе: изучите его, а потом постройте здание по чертежу.</li>
-            </ul>
-          </Panel>
-        </div>
-      </PageFrame>
-    );
-  }
   return (
     <PageFrame>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
