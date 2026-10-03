@@ -411,6 +411,12 @@
 .campaign-map-action { width: 100%; min-height: 38px; font-size: 0.72rem; }
 .campaign-map-action-note { color: #a9a496; font-size: 0.66rem; line-height: 1.4; }
 .campaign-map-action-note.is-done { color: #8ed6a0; font-weight: 800; }
+.campaign-region-offers { display: grid; gap: 8px; }
+.campaign-region-offers > b { color: #e0c579; font-size: 0.72rem; }
+.campaign-region-offer { display: grid; gap: 4px; padding: 9px; border: 1px solid rgba(224, 197, 121, .22); border-radius: 9px; background: rgba(0, 0, 0, .16); }
+.campaign-region-offer > b { color: #f0e5c9; font-size: 0.75rem; }
+.campaign-region-offer > small { color: #aaa28f; font-size: 0.65rem; line-height: 1.4; }
+.campaign-region-offer .campaign-map-action { justify-self: start; }
 .campaign-world-footnote { display: block; position: relative; z-index: 1; padding: 0 20px 14px; color: #777b72; font-size: 0.57rem; letter-spacing: 0.04em; }
 
 /* Workers — clan cards */

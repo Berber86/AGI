@@ -490,7 +490,7 @@ function directionBrief(direction: any): string {
 Обещанные эффекты направления: ${effects || "не заданы"}. Наука и постройка обязаны раскрывать ИМЕННО это направление — не подменяй его другим.`;
 }
 
-/** Первый проект народа: наука, выведенная из затравки игрока и выбранного им направления. */
+/** Однопроектный вариант сохранён для совместимых вызовов; современный онбординг использует три предложения строителя. */
 export async function llmOpeningProject(model: string, state: any, direction?: any): Promise<any> {
   const sit = M.scienceAdvisorSituation(state);
   const p = state.player;
@@ -507,6 +507,52 @@ export async function llmOpeningProject(model: string, state: any, direction?: a
   const project = sanitizeScienceProject(data);
   if (!project) throw new Error("Советник не вернул первый проект в понятной форме.");
   return project;
+}
+
+/**
+ * Советник-строитель подбирает для нового народа три альтернативных первых чертежа.
+ * Они остаются только проектами: здание появится после выбора игрока, исследования и приказа на стройку.
+ */
+export async function llmOpeningBuildingOffers(model: string, state: any, direction?: any): Promise<any[]> {
+  const sit = M.scienceAdvisorSituation(state);
+  const openingEffectTypes = M.GENERATIVE_EFFECTS.filter((type: string) => type !== "unit_power");
+  const effects = openingEffectTypes.join(", ");
+  const openingBrief = direction ? (() => {
+    const available = (direction.effects || []).filter((effect: any) => effect?.type !== "unit_power")
+      .map((effect: any) => `${M.EFFECTS?.[effect.type]?.label ?? effect.type} ×${effect.amount}`).join(", ");
+    const delayed = (direction.effects || []).some((effect: any) => effect?.type === "unit_power");
+    return `Выбранное направление: «${direction.title}» (${direction.themeLabel || direction.theme}). Суть: ${direction.summary}
+${available ? `Доступные обещанные эффекты: ${available}.` : ""}${delayed ? " Воинская доктрина unit_power откроется только после освоения обсидиана: не включай её в стартовые чертежи, сохрани военную тему другими доступными эффектами." : ""}
+Все три проекта должны раскрывать именно эту тему.`;
+  })() : "Игрок выбрал направление первой науки — подбери варианты по ситуации народа.";
+  const data = await hydraChat({
+    model, temperature: 1, maxTokens: 2400,
+    system: `Ты — советник-строитель исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
+Новый народ сам выбрал тему первой науки. Предложи РОВНО 3 РАЗНЫХ варианта первого проекта: каждый объединяет собственную науку и связанную с ней постройку. Это альтернативные чертежи для выбора игрока, а не готовые постройки.
+Внимательно используй конкретную географию и биом, доступные материалы, соседние земли, происхождение и историческое культурное наследие из контекста. Эти признаки должны быть видны в названии, устройстве и назначении каждой постройки, а не только в объяснении. Сделай варианты действительно разными по форме, ремеслу и пользе, без повторов названий и общих шаблонов.
+Все варианты должны подходить для первых ходов в Каменном веке и использовать только поддерживаемые доступные эффекты. Сохраняй все доступные обещанные эффекты выбранного направления в каждом варианте. Не включай unit_power: для него сначала нужно освоить обсидиан, сохрани военную тему другими доступными эффектами. Каждый вариант должен быть посильным для обычного исследования и строительства за начальные ресурсы.
+Пока игрок не выбрал вариант, ничего не добавляй в поселение. После выбора проект попадёт в кодекс, а здание появится только по отдельному приказу игрока после изучения науки.
+Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ${PROJECT_SHAPE}, ${PROJECT_SHAPE}]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1. Язык — русский, без магии.`,
+    user: `${openingBrief}\nКонтекст народа — опирайся на него при каждом варианте: ${sit.summary}\nУже известных наук: ${(state.player.blueprints || []).map((blueprint: any) => blueprint.scienceName).join(", ") || "нет"}.`,
+  });
+  const list = Array.isArray(data?.projects) ? data.projects : [];
+  const cleaned: any[] = [];
+  const allowedEffects = new Set(openingEffectTypes);
+  const scienceNames = new Set<string>();
+  const buildingNames = new Set<string>();
+  for (const raw of list) {
+    const project = sanitizeScienceProject(raw);
+    if (!project || project.effects.some((effect: any) => !allowedEffects.has(effect.type))) continue;
+    const scienceKey = project.scienceName.toLowerCase().replace(/\s+/g, " ").trim();
+    const buildingKey = project.buildingName.toLowerCase().replace(/\s+/g, " ").trim();
+    if (scienceNames.has(scienceKey) || buildingNames.has(buildingKey)) continue;
+    scienceNames.add(scienceKey);
+    buildingNames.add(buildingKey);
+    cleaned.push(project);
+    if (cleaned.length === 3) break;
+  }
+  if (cleaned.length !== 3) throw new Error("Советник-строитель должен предложить три разных и доступных чертежа.");
+  return cleaned;
 }
 
 /**
@@ -531,6 +577,53 @@ ${brief ? `Игрок выбрал направление — придумай �
 }
 
 /** Имя и описание постройки в новой земле: уникальные для этого народа, а не из списка. */
+const REGION_BUILDING_OFFER_SHAPE = `{"buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"income_food|income_materials|income_knowledge|income_faith","amount":1}],"rationale":"почему постройка подходит этой земле"}`;
+
+/** Три новых, пригодных для эпохи и конкретного участка варианта региональной постройки. */
+export async function llmRegionBuildingOffers(model: string, state: any, tile: any): Promise<any[]> {
+  const sit = M.scienceAdvisorSituation(state);
+  const site = tile ? M.REGION_BUILDINGS?.[tile.siteType] : null;
+  if (!tile || !site) throw new Error("Для этой клетки нет регионального места под постройку.");
+  const ownedRegionIds = new Set((state.regions || []).filter((region: any) => region.ownerId === "player").map((region: any) => region.id));
+  const neighbors = (tile.neighbors || []).map((id: string) => {
+    const neighbor = (state.world?.tiles || []).find((candidate: any) => candidate.id === id);
+    return neighbor && ownedRegionIds.has(id) ? `${neighbor.name} (${neighbor.terrainLabel || neighbor.terrain})` : null;
+  }).filter(Boolean);
+  const existingRegionalBuildings = (state.regions || []).filter((region: any) => region.ownerId === "player" && region.building)
+    .map((region: any) => region.customBuilding?.name || M.REGION_BUILDINGS?.[(state.world?.tiles || []).find((candidate: any) => candidate.id === region.id)?.siteType]?.name)
+    .filter(Boolean);
+  const effects = (M.REGION_GENERATIVE_EFFECTS || []).join(", ");
+  const data = await hydraChat({
+    model, temperature: 1, maxTokens: 1800,
+    system: `Ты советник-строитель исторической стратегии "Infinite Forge". Сеттинг должен соответствовать выбранной эпохе и оставаться материальным и правдоподобным: никаких магии и фэнтези.
+Народ только что получил новую клетку и выбирает, какое ОДНО региональное здание здесь возвести. Придумай ровно 3 РАЗНЫХ варианта именно для этой клетки; выбранный вариант полностью заменит обычную региональную постройку этого места. Не повторяй стандартный каталог: придумай местные названия, устройство и назначение.
+Каждый вариант обязан явно учитывать тип местности, биом, природный ресурс, географию, культуру и текущую эпоху из контекста. Три варианта должны отличаться по назначению и пользе, но все быть возможными из материалов этой клетки и текущей эпохи. Учитывай цену стандартного здания этого места при выборе силы эффектов.
+Эффекты придумывай сам, но используй только рабочие типы из списка: ${effects}. Они означают ежедневный прямой доход региона (не бонус к рабочим). На вариант — 1 или 2 разных эффекта; amount — целое число 1 или 2, а сумма amount не выше 2. Не используй эффекты боя, AP, склада и другие типы. Не выдумывай новые механики.
+Верни строго JSON: {"buildings":[${REGION_BUILDING_OFFER_SHAPE}, ${REGION_BUILDING_OFFER_SHAPE}, ${REGION_BUILDING_OFFER_SHAPE}]}. Язык — русский.`,
+    user: `Народ: ${state.player.name} (${state.player.clan}). Ситуация, география и культурное наследие народа: ${sit.summary}
+Новая клетка: «${tile.name}», координаты ${Number(tile.x) + 1}:${Number(tile.y) + 1}. Местность: ${tile.terrainLabel || tile.terrain}; биом: ${tile.terrain}; особенность: ${tile.feature || "нет"}; ресурс: ${tile.resourceLabel || "не отмечен"}. Описание: ${tile.description || "нет"}.
+Соседние освоенные земли: ${neighbors.join("; ") || "не указаны"}. Эпоха народа сейчас: ${M.eraName(state.player.era)}. Эта местность доступна с эпохи: ${M.eraName(tile.minEra || 0)}. Тип местного участка: ${tile.siteType}; стандартное региональное здание и цена-ориентир: ${site.name}, ${JSON.stringify(site.cost)}.
+Уже построенные региональные здания народа: ${existingRegionalBuildings.join(", ") || "нет"}. Избегай повторов и придумай три самостоятельных варианта для «${tile.name}».`,
+  });
+  const list = Array.isArray(data?.buildings) ? data.buildings : Array.isArray(data?.offers) ? data.offers : [];
+  const cleaned: any[] = [];
+  const names = new Set<string>();
+  const effectSets = new Set<string>();
+  for (const raw of list) {
+    const offer = M.sanitizeRegionBuildingOffer(raw);
+    if (!offer) continue;
+    const nameKey = offer.name.toLowerCase().replace(/\s+/g, " ").trim();
+    const effectKey = offer.effects.map((effect: any) => `${effect.type}:${effect.amount}`).sort().join("|");
+    if (names.has(nameKey) || effectSets.has(effectKey)) continue;
+    names.add(nameKey);
+    effectSets.add(effectKey);
+    cleaned.push(offer);
+    if (cleaned.length === 3) break;
+  }
+  if (cleaned.length !== 3) throw new Error("Советник должен предложить три разных региональных чертежа с рабочими эффектами.");
+  return cleaned;
+}
+
 export async function llmRegionBuildingName(model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
   const p = state.player;
   const data = await hydraChat({
@@ -608,22 +701,43 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   const era = allowedCardErasOf(state).join(" и ");
   const data = await hydraChat({
     model, temperature: 1, maxTokens: 900,
-    system: "Ты военный советник кузницы исторической карточной стратегии о становлении цивилизаций (древний мир и бронзовый век, без магии и фэнтези). Предложи ровно три замысла карты: один card_type=unit, один spell, один structure. Ответ — JSON: {\"choices\":[{\"card_type\":\"unit|spell|structure\",\"title\":\"короткое название\",\"pitch\":\"1 предложение, один образ\"}]}. Язык — русский.",
-    user: `Контекст цивилизации:\n${contextOf(state)}\nРазрешённые эпохи карт: ${era}.`,
+    system: `Ты военный советник кузницы исторической карточной стратегии "Infinite Forge". Ты придумываешь замыслы именно для боевой колоды: каждая идея должна быть полезна в одном текущем сражении, а не описывать развитие народа между боями. Используй историю, географию, материалы и обычаи народа как источник образа и боевой тактики, но не как повод рассказывать о мирном хозяйстве.
+В бою есть авангард и тыл, а вывод карты и атака расходуют общий запас энергии.
+Предложи ровно три разных замысла, строго по одному каждого типа:
+- unit — боец или воинское подразделение, которое выходит на поле и атакует; в pitch назови его тактическую роль: натиск, удержание линии, защита союзника, стрельба из тыла, засада или осада.
+- spell — разовый манёвр, который немедленно меняет ход боя: удар, ловушка, поджог/яд, лечение, усиление бойца или воздействие на энергию/руку. Никакого урожая, ремесленного производства или подготовки к будущему походу.
+- structure — именно боевая постройка/орудие в тылу, а не гражданское здание. В этой игре постройка остаётся в тылу и каждый ход обстреливает вражеский авангард или вождя; её замысел должен усиливать эту постоянную боевую роль или поддерживать войска.
+В каждом pitch — одно короткое предложение с конкретным боевым действием и его целью/результатом. Не ограничивайся предысторией, бытом или тем, что народ «готовится», «сеет», «строит на будущее» или «собирается в путь»: сразу объясни, что карта делает на поле боя. Не предлагай сельское хозяйство, доход поселения, торговлю, погребения, дальнюю дорогу и долгосрочное развитие как самостоятельный эффект карты. Контекст народа — вдохновение для тактики, не задача карты.
+Ответ — строго JSON: {"choices":[{"card_type":"unit|spell|structure","title":"короткое название","pitch":"одно предложение о тактической роли в бою"}]}. Язык — русский, исторический сеттинг без магии и фэнтези.`,
+    user: `Нужны три боевые идеи для колоды — по одному unit, spell и structure. Преврати особенности народа в тактику одного сражения: контекст ниже нужен для исторического образа, а не для проектов хозяйства или долгой жизни поселения.
+Контекст цивилизации:
+${contextOf(state)}
+Разрешённые эпохи карт: ${era}.`,
   });
   const list = data.choices;
   if (!Array.isArray(list) || list.length !== 3) throw new Error("Советник должен вернуть три замысла.");
+
+  const cardTypes: CardType[] = ["unit", "spell", "structure"];
+  const seen = new Set<CardType>();
   return list.map((c: any, i: number) => {
-    const cardType = ["unit", "spell", "structure"].includes(c.card_type) ? c.card_type : (["unit", "spell", "structure"] as const)[i];
-    return { id: `${cardType}-${i}-${Date.now()}`, cardType, title: String(c.title).slice(0, 60), pitch: String(c.pitch).slice(0, 190) };
+    if (!c || typeof c !== "object" || Array.isArray(c) || !cardTypes.includes(c.card_type)) {
+      throw new Error("Советник должен предложить по одному замыслу каждого типа карты.");
+    }
+    const cardType = c.card_type as CardType;
+    if (seen.has(cardType)) throw new Error("Советник должен предложить по одному замыслу каждого типа карты.");
+    seen.add(cardType);
+    const title = typeof c.title === "string" ? c.title.trim().slice(0, 60) : "";
+    const pitch = typeof c.pitch === "string" ? c.pitch.trim().slice(0, 190) : "";
+    if (!title || !pitch) throw new Error("В каждом боевом замысле нужны название и описание тактической роли.");
+    return { id: `${cardType}-${i}-${Date.now()}`, cardType, title, pitch };
   });
 }
-
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Эпохи карт (боевой тег, их ровно две): "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
 Важно: боевой тег — это не дата в календаре кампании. В контексте указана эпоха кампании (например «Ренессанс» или «Эпоха Пара и Стали») вместе с её культурами и технологиями: образы, названия, описания и технологии карты должны соответствовать ИМЕННО этой эпохе (мушкеты и печатный стан для Ренессанса, пар и сталь для 1800-1910), а тег era при этом остаётся в разрешённом наборе ancient/bronze.
 Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
+Замысел от военного советника — только исторический образ: преврати его в тактическую карту, полезную в текущем сражении. Описание и эффекты должны показывать боевую роль отряда, немедленный результат манёвра или постоянную роль постройки в тылу. Не делай из карты сельское хозяйство, ремесленное производство, доход поселения или подготовку к будущему походу.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
 description — 1–2 коротких предложения, один образ.
 effects[] — объекты {event, target, action, condition?, watch?}:
@@ -650,7 +764,16 @@ export async function llmCard(model: string, advice: Advice, rarity: Rarity, sta
   const raw = await hydraChat({
     model, maxTokens: 3000, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
     system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
-    user: `Замысел: «${advice.title}». ${advice.pitch}\ncard_type="${advice.cardType}". ${directive}\n\nКонтекст цивилизации:\n${contextOf(state)}\n\nЭпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.\n\nИсторическая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`,
+    user: `Боевой замысел: «${advice.title}». ${advice.pitch}
+Тип карты: ${advice.cardType}. ${directive}
+Воплоти этот образ в боевую роль в текущем матче: не превращай ремесло, урожай, быт или дальний путь в долгосрочный эффект. Сами описание и effects должны объяснять, что происходит с бойцами, строем, энергией или полем боя.
+
+Контекст цивилизации:
+${contextOf(state)}
+
+Эпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.
+
+Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`,
   });
   const card = validateCard(raw, advice.cardType, allowed, rarity);
   card.rarity = rarity;

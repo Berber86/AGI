@@ -108,6 +108,26 @@ function researchAndBuild(state, definition) {
   return built.state;
 }
 
+test('new campaigns start without a built building and old free granaries are migrated away', () => {
+  const fresh = Campaign.createState(TEST_SEED);
+  assert.deepEqual(fresh.player.buildings, [], 'the starting settlement has no free building');
+
+  const missingList = Campaign.normalizeState({ ...fresh, player: { ...fresh.player, buildings: undefined } });
+  assert.deepEqual(missingList.player.buildings, [], 'a missing building list stays empty instead of gaining a granary');
+
+  const oldSave = Campaign.normalizeState({
+    ...fresh,
+    player: {
+      ...fresh.player,
+      buildings: [
+        { id: 'starter-granary', name: 'Общий амбар', category: 'economy', effects: [{ type: 'income_food', amount: 1 }], active: true },
+        { id: 'player-workshop', name: 'Старый стан', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }], active: true },
+      ],
+    },
+  });
+  assert.deepEqual(oldSave.player.buildings.map(building => building.id), ['player-workshop'], 'migration removes only the old automatic building');
+});
+
 test('procedural world generation is reproducible, rectangular and connected by four-way neighbors', () => {
   const opponents = Campaign.createState(TEST_SEED).opponents;
   const world = CampaignMap.generateWorld(TEST_SEED, opponents);
@@ -289,6 +309,52 @@ test('the legacy campaign screen renders the map, orders and panels without a tu
   deckDisclosure.open = true;
   fakeWindow.CampaignMvp.render();
   assert.equal(deckDisclosure.open, true, 'an open disclosure should survive a full campaign redraw');
+});
+
+test('the legacy map shows saved regional plans and builds the selected plan instead of the site default', async () => {
+  let state = playableCampaign();
+  const home = state.world.tiles.find(tile => tile.kind === 'home');
+  const tile = home.neighbors
+    .map(id => state.world.tiles.find(candidate => candidate.id === id))
+    .find(candidate => candidate && candidate.terrain !== 'water' && !candidate.guard);
+  assert.ok(tile, 'need a peaceful adjacent region');
+  state.player.resources = { ...state.player.resources, food: 50, materials: 50, knowledge: 50, faith: 50 };
+  const claimed = Campaign.settleRegionState(state, tile.id);
+  assert.equal(claimed.error, null);
+  const offers = [
+    { name: 'План для еды', description: 'Собирает пищу у берега.', category: 'economy', effects: [{ type: 'income_food', amount: 2 }] },
+    { name: 'План для знаний', description: 'Сохраняет наблюдения о земле.', category: 'science', effects: [{ type: 'income_knowledge', amount: 1 }] },
+    { name: 'План для веры', description: 'Поддерживает местные обряды.', category: 'religion', effects: [{ type: 'income_faith', amount: 2 }] },
+  ];
+  const stored = Campaign.setRegionBuildingOffersState(claimed.state, tile.id, offers);
+  assert.equal(stored.error, null);
+
+  let persisted = JSON.stringify(stored.state);
+  const host = { innerHTML: '', querySelectorAll: () => [] };
+  const fakeWindow = {
+    CampaignMap,
+    localStorage: {
+      getItem: key => key === Campaign.STORAGE_KEY ? persisted : null,
+      setItem: (key, value) => { if (key === Campaign.STORAGE_KEY) persisted = value; },
+    },
+    document: { getElementById: id => id === 'campaign-root' ? host : null },
+    alert: message => { throw new Error(message); },
+  };
+  const sandbox = { window: fakeWindow, console, Date, Math, JSON, Number, String, Object, Array, Set };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8'), sandbox);
+  const api = fakeWindow.CampaignMvp;
+  api.render();
+  api.selectMapTile(tile.id);
+  assert.match(host.innerHTML, /Выберите чертёж для этой клетки/);
+  assert.match(host.innerHTML, /CampaignMvp\.buildRegionBuildingOffer\(1\)/);
+
+  await api.buildRegionBuildingOffer(1);
+  const built = api.getState();
+  const region = built.regions.find(candidate => candidate.id === tile.id);
+  assert.equal(region.customBuilding.name, 'План для знаний');
+  assert.notEqual(region.building, Campaign.REGION_BUILDINGS[tile.siteType].id);
+  assert.equal(Campaign.getRegionalIncome(built).knowledge, 1);
+  assert.equal(Campaign.getRegionalIncome(built).food, 0, 'the fixed site income is replaced');
 });
 
 test('v3 economy: no orders leads to scarcity not abundance, and region without building gives 0', () => {
@@ -707,7 +773,7 @@ test('research and construction have independent limits via AP and can chain on 
   assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).built, true);
   assert.equal(built.state.player.blueprints.find(item => item.id === first.blueprint.id).builtDay, state.day);
   assert.equal(built.state.player.dailyOrders.constructionUsed, 1);
-  assert.equal(built.state.player.buildings.length, 2);
+  assert.equal(built.state.player.buildings.length, 1, 'only the blueprint the player built is present');
 
   const readySecond = structuredClone(built.state);
   readySecond.player.blueprints.find(item => item.id === second.blueprint.id).researched = true;
@@ -747,17 +813,18 @@ test('only active buildings change combat limits and economic buildings give wor
   state = Campaign.researchBlueprint(added.state, added.blueprint.id).state;
   state = Campaign.finishDayState(state).state;
   state = Campaign.constructBlueprint(state, added.blueprint.id).state;
-  assert.equal(state.player.buildings[1].active, true);
+  assert.equal(state.player.buildings[0].active, true);
   assert.equal(Campaign.getBattleConfig(state).deckLimit, 5);
   assert.equal(Campaign.getBattleConfig(state).hp, 6);
-  const toggled = Campaign.toggleBuildingState(state, state.player.buildings[1].id);
+  const toggled = Campaign.toggleBuildingState(state, state.player.buildings[0].id);
   assert.equal(toggled.error, null);
-  assert.equal(toggled.state.player.buildings[1].active, false);
+  assert.equal(toggled.state.player.buildings[0].active, false);
   assert.equal(Campaign.getBattleConfig(toggled.state).deckLimit, 4);
-  assert.equal(Campaign.getBattleConfig(toggled.state).effects.income_food, 1); // remains from the starter granary
-  // check worker bonus
-  const breakdown = Campaign.getProductionBreakdown(state);
-  assert.ok(breakdown.workerBonus.food > 0);
+  assert.equal(Campaign.getBattleConfig(toggled.state).effects.income_food, 0, 'there is no automatic food-building bonus');
+  const foodState = researchAndBuild(Campaign.createState(TEST_SEED), draft({
+    category: 'economy', effects: [{ type: 'income_food', amount: 1 }]
+  }));
+  assert.ok(Campaign.getProductionBreakdown(foodState).workerBonus.food > 0, 'the player-built food structure gives its worker bonus');
 });
 
 test('previous local prototypes migrate their building loadout to four slots', () => {
@@ -794,7 +861,7 @@ test('active LLM buildings modify one energy pool and its per-turn growth', () =
   const state = Campaign.constructBlueprint(Campaign.finishDayState(researched.state).state, added.blueprint.id).state;
   assert.equal(Campaign.getBattleConfig(state).energyMax, 3);
   assert.equal(Campaign.getBattleConfig(state).energyGrowth, 2);
-  const disabled = Campaign.toggleBuildingState(state, state.player.buildings[1].id).state;
+  const disabled = Campaign.toggleBuildingState(state, state.player.buildings[0].id).state;
   assert.equal(Campaign.getBattleConfig(disabled).energyMax, 2);
   assert.equal(Campaign.getBattleConfig(disabled).energyGrowth, 1);
 });

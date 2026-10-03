@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { M } from "./model";
-import { llmDirectionPreviews, llmOpeningProject, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
+import { llmDirectionPreviews, llmOpeningBuildingOffers, llmRegionBuildingOffers, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
 
 import type { Match } from "./battle";
 
@@ -82,12 +82,14 @@ interface Store {
   setModel: (m: string) => void;
   /** Основание народа: имя, происхождение и затравка. Советник отвечает превью трёх направлений науки. */
   askOpeningDirections: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
-  /** Второе обращение к советнику: раскрывает выбранное направление в первое дело народа. */
-  foundCampaign: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any }) => Promise<{ ok: boolean; project?: any; error?: string }>;
-  /** Игрок увидел созданное первое дело и начинает первый день. */
+  /** Второе обращение: советник-строитель предлагает три первых чертежа внутри выбранного направления. */
+  foundCampaign: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any; directions?: any[] }) => Promise<{ ok: boolean; projects?: any[]; error?: string }>;
+  /** Игрок выбирает один чертёж; само здание строится позже отдельным приказом. */
   startFirstDay: (project?: any) => boolean;
-  /** Даёт постройке в земле уникальное имя от советника. */
+  /** Даёт постройке в земле уникальное имя от советника (совместимость со старой страницей). */
   nameRegionBuilding: (regionId: string) => void;
+  /** Для каждой освоенной пустой клетки сохраняет три контекстных чертежа советника. */
+  requestRegionBuildingOffers: (regionId: string) => Promise<{ ok: boolean; offers?: any[]; error?: string }>;
   page: Page;
   go: (p: Page) => void;
   toasts: Toast[];
@@ -154,9 +156,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [dayReport, setDayReport] = useState<DayReport | null>(null);
   const [settingsOpen, openSettings] = useState(false);
   const [match, setMatch] = useState<Match | null>(null);
-  const [pendingOpening, setPendingOpening] = useState<{ state: any } | null>(null);
   const [selectedRegion, selectRegion] = useState<string | null>(null);
   const toastId = useRef(0);
+  const regionOfferRequests = useRef(new Map<string, Promise<{ ok: boolean; offers?: any[]; error?: string }>>());
 
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const toast = useCallback((text: string, tone: Tone = "info") => {
@@ -252,8 +254,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [model, commit]);
 
-  /** Второй шаг: советник раскрывает выбранное направление в первое дело народа. */
-  const foundCampaign = useCallback(async ({ name, originId, seedId, historicalCultureId, direction }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any }) => {
+  /** Второй шаг: советник-строитель предлагает три чертежа внутри выбранного направления. */
+  const foundCampaign = useCallback(async ({ name, originId, seedId, historicalCultureId, direction, directions }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any; directions?: any[] }) => {
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
@@ -282,32 +284,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       commit(base, { silent: true });
     }
     try {
-      const project = await llmOpeningProject(model, base, direction);
-      const applied = M.setOpeningProject(M.clone(base), project);
-      if (applied.error) return { ok: false, error: applied.error };
-      // Начало игры фиксируется только после того, как игрок увидел первый проект.
-      setPendingOpening({ state: applied.state });
-      // Черновик спасает уже оплаченную генерацию, если игрок закроет вкладку до первого дня.
-      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, direction, project: applied.blueprint })); } catch { /* переполнение хранилища не критично */ }
-      return { ok: true, project: applied.blueprint };
+      const projects = await llmOpeningBuildingOffers(model, base, direction);
+      const directionRef = direction ? M.sanitizeScienceDirection(direction) : null;
+      const offers = projects.map((project: any) => ({ ...project, direction: directionRef }));
+      // Сохраняем только варианты: ни одно здание не появляется до выбора, исследования и стройки игроком.
+      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, directions: directions || base.player.directionChoices?.directions || [], direction, projects: offers })); } catch { /* переполнение хранилища не критично */ }
+      return { ok: true, projects: offers };
     } catch (e: any) {
       return { ok: false, error: e?.message || "Советник недоступен." };
     }
   }, [model, commit]);
 
   const startFirstDay = useCallback((project?: any) => {
-    let prepared = pendingOpening?.state ?? null;
-    if (!prepared && project) {
-      const applied = M.setOpeningProject(M.clone(gameRef.current), project);
-      if (applied.error) return false;
-      prepared = applied.state;
-    }
-    if (!prepared) return false;
-    commit(prepared, { silent: true });
-    setPendingOpening(null);
+    if (!project) return false;
+    const applied = M.setOpeningProject(M.clone(gameRef.current), project);
+    if (applied.error) return false;
+    commit(applied.state, { silent: true });
     try { localStorage.removeItem("iforge_opening_draft"); } catch { /* пусто */ }
     return true;
-  }, [pendingOpening, commit]);
+  }, [commit]);
   /** Постройка в новой земле получает своё имя от советника; при сбое остаётся местное. */
   const nameRegionBuilding = useCallback(async (regionId: string) => {
     const tile = (gameRef.current.world?.tiles || []).find((t: any) => t.id === regionId);
@@ -324,6 +319,34 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toast(`Постройка в «${tile.name}» получила имя: ${flavor.name}.`, "ok");
     } catch { /* местное имя остаётся, стройка уже оплачена */ }
   }, [model, commit, toast]);
+
+  const requestRegionBuildingOffers = useCallback((regionId: string): Promise<{ ok: boolean; offers?: any[]; error?: string }> => {
+    const inFlight = regionOfferRequests.current.get(regionId);
+    if (inFlight) return inFlight;
+    const current = gameRef.current;
+    const tile = (current.world?.tiles || []).find((item: any) => item.id === regionId);
+    const record = current.regions.find((item: any) => item.id === regionId);
+    if (!tile || !record || record.ownerId !== "player" || record.building) {
+      return Promise.resolve({ ok: false, error: "Сначала освойте пустую клетку, чтобы советник подготовил для неё постройки." });
+    }
+    if (record.buildingOffers?.length === 3) return Promise.resolve({ ok: true, offers: record.buildingOffers });
+
+    const request = (async () => {
+      try {
+        const offers = await llmRegionBuildingOffers(model, current, tile);
+        const stored = M.setRegionBuildingOffersState(M.clone(gameRef.current), regionId, offers);
+        if (stored.error) return { ok: false, error: stored.error };
+        commit(stored.state, { silent: true });
+        return { ok: true, offers: stored.offers || offers };
+      } catch (e: any) {
+        return { ok: false, error: e?.message || "Советник не смог придумать постройки для этой клетки." };
+      } finally {
+        regionOfferRequests.current.delete(regionId);
+      }
+    })();
+    regionOfferRequests.current.set(regionId, request);
+    return request;
+  }, [model, commit]);
 
   const setModel = (m: string) => { setModelState(m); localStorage.setItem("iforge_model", m); };
 
@@ -361,7 +384,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const resetCampaign = useCallback(() => {
     try { localStorage.removeItem("iforge_opening_draft"); } catch { /* пусто */ }
-    setPendingOpening(null);
     commit(M.createState(), { silent: true });
     // «Новая цивилизация» должна быть полным рестартом: без этого выкованные карты
     // и набор ополчения из прошлой жизни оставались в localStorage и в памяти.
@@ -416,10 +438,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const closeBattle = useCallback(() => setMatch(null), []);
 
   const value = useMemo<Store>(() => ({
-    game, collection, aiStatus, checkAi, model, setModel, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
+    game, collection, aiStatus, checkAi, model, setModel, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, requestRegionBuildingOffers, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
     endDay, dayReport, closeDayReport: () => setDayReport(null), resetCampaign, settingsOpen, openSettings,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, selectRegion, militiaPicks, toggleMilitiaPick,
-  }), [game, collection, aiStatus, checkAi, model, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
+  }), [game, collection, aiStatus, checkAi, model, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, requestRegionBuildingOffers, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, militiaPicks, toggleMilitiaPick]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

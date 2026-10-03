@@ -68,6 +68,36 @@ test('world generation places an obsidian vein alongside copper and tin, with no
   assert.equal(CampaignMap.IRON_SITE_MIN_ERA, 2);
 });
 
+test('AI regional buildings preserve cell-resource unlocks while replacing fixed structures', () => {
+  const attachCustomBuilding = (state, siteType) => {
+    const tile = state.world.tiles.find(candidate => candidate.siteType === siteType);
+    assert.ok(tile, `the generated map should contain a ${siteType} site`);
+    const record = state.regions.find(region => region.id === tile.id);
+    record.ownerId = 'player';
+    record.building = `custom-${siteType}`;
+    record.customBuilding = {
+      id: record.building,
+      name: `Новая постройка ${siteType}`,
+      description: 'Модель придумывает местную постройку.',
+      category: 'economy',
+      effects: [{ type: 'income_materials', amount: 1 }],
+    };
+  };
+
+  let stoneAge = playableCampaign();
+  attachCustomBuilding(stoneAge, 'obsidian');
+  stoneAge = Campaign.normalizeState(stoneAge);
+  assert.equal(Campaign.hasEraKeyResource(stoneAge), true, 'a custom obsidian-region building still unlocks the Stone Age key resource');
+
+  let bronzeAge = playableCampaign();
+  bronzeAge.player.era = 1;
+  attachCustomBuilding(bronzeAge, 'copper');
+  attachCustomBuilding(bronzeAge, 'tin');
+  bronzeAge = Campaign.normalizeState(bronzeAge);
+  assert.equal(Campaign.hasEraKeyResource(bronzeAge), true, 'custom copper and tin buildings unlock the Bronze Age key resource');
+  assert.deepEqual(Campaign.getAvailableMaterialQualities(bronzeAge), ['standard', 'refined', 'masterwork']);
+});
+
 test('hasEraKeyResource gates era 0 on the obsidian workshop, era 1 on smelter+caravan and era 2 on the ironworks, leaving later eras ungated', () => {
   let state = playableCampaign();
   assert.equal(state.player.era, 0);

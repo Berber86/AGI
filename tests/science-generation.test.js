@@ -37,6 +37,9 @@ function loadCards(fetchImpl) {
             CATEGORIES: Campaign.CATEGORIES,
             EFFECTS: Campaign.EFFECTS,
             GENERATIVE_EFFECTS: Campaign.GENERATIVE_EFFECTS,
+            REGION_GENERATIVE_EFFECTS: Campaign.REGION_GENERATIVE_EFFECTS,
+            REGION_BUILDINGS: Campaign.REGION_BUILDINGS,
+            sanitizeRegionBuildingOffer: Campaign.sanitizeRegionBuildingOffer,
             SCIENCE_DIRECTION_THEMES: Campaign.SCIENCE_DIRECTION_THEMES,
             sanitizeScienceDirection: Campaign.sanitizeScienceDirection,
             DECREES: Campaign.DECREES,
@@ -95,6 +98,56 @@ test('the first science is generated from the player seed, not from a local cata
   }
 });
 
+test('the opening builder returns three distinct, geography- and culture-aware buildable plans', async () => {
+  const requests = [];
+  const projects = [
+    { scienceName: 'Счёт речных заливов', scienceDescription: 'Рыбаки отмечают заводи для сезонного улова.', buildingName: 'Ивовая запруда', buildingDescription: 'Плетёный затвор у речной старицы удерживает рыбу.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
+    { scienceName: 'Сухая стружка', scienceDescription: 'Мастера сушат ветви над очагом перед работой.', buildingName: 'Навес из речного тростника', buildingDescription: 'Под навесом хранят дерево сухим и готовым к обработке.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
+    { scienceName: 'Знаки на глине', scienceDescription: 'Старейшины сохраняют наблюдения на обожжённых табличках.', buildingName: 'Дом глиняных меток', buildingDescription: 'Низкое святилище хранит записи о разливах и обрядах.', category: 'science', effects: [{ type: 'income_knowledge', amount: 1 }] },
+  ];
+  const api = loadCards(async (url, init) => {
+    requests.push({ url, body: JSON.parse(init.body) });
+    return modelReply({ projects });
+  });
+  const direction = {
+    title: 'Защита речных переправ', summary: 'Как удерживать брод и защищать лодки.',
+    theme: 'military', themeLabel: 'Война и защита',
+    effects: [{ type: 'unit_power', amount: 1 }],
+  };
+  const offers = await api.llmOpeningBuildingOffers('gpt-6-luna', readyState(), direction);
+
+  assert.equal(offers.length, 3);
+  assert.equal(new Set(offers.map(item => item.scienceName)).size, 3);
+  assert.equal(new Set(offers.map(item => item.buildingName)).size, 3);
+  assert.ok(offers.every(item => !item.effects.some(effect => effect.type === 'unit_power')), 'locked unit power cannot strand the first building');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/hydra');
+  const [system, user] = requests[0].body.messages.map(message => message.content);
+  assert.ok(system.includes('советник-строитель'));
+  assert.ok(system.includes('РОВНО 3 РАЗНЫХ'));
+  assert.ok(system.includes('Не включай unit_power'));
+  assert.ok(system.includes('ничего не добавляй в поселение'));
+  assert.ok(user.includes(direction.title), 'the chosen direction shapes the three plans');
+  assert.ok(user.includes('География:'), 'the people’s geography reaches the builder prompt');
+  assert.ok(user.includes('Наследие:'), 'the people’s culture reaches the builder prompt');
+  assert.ok(user.includes(SEED_LINE), 'the chosen people’s seed also shapes the plans');
+});
+
+test('the opening builder refuses fewer than three unique usable plans', async () => {
+  const tooFew = loadCards(async () => modelReply({ projects: [
+    { scienceName: 'Первая наука', scienceDescription: 'Описание.', buildingName: 'Первая постройка', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
+    { scienceName: 'Вторая наука', scienceDescription: 'Описание.', buildingName: 'Вторая постройка', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
+  ] }));
+  await assert.rejects(() => tooFew.llmOpeningBuildingOffers('gpt-6-luna', readyState()), /три разных и доступных чертежа/);
+
+  const lockedEffect = loadCards(async () => modelReply({ projects: [
+    { scienceName: 'Знание 1', scienceDescription: 'Описание.', buildingName: 'Здание 1', buildingDescription: 'Описание.', category: 'military', effects: [{ type: 'unit_power', amount: 1 }] },
+    { scienceName: 'Знание 2', scienceDescription: 'Описание.', buildingName: 'Здание 2', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
+    { scienceName: 'Знание 3', scienceDescription: 'Описание.', buildingName: 'Здание 3', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
+  ] }));
+  await assert.rejects(() => lockedEffect.llmOpeningBuildingOffers('gpt-6-luna', readyState()), /три разных и доступных чертежа/);
+});
+
 test('an invalid first project is rejected instead of being replaced by a local template', async () => {
   const api = loadCards(async () => modelReply({
     scienceName: 'Странная наука',
@@ -128,6 +181,55 @@ test('later offers also come only from the model', async () => {
   const offers = await api.llmScienceOffers('glm-5.2', readyState());
   assert.equal(offers.length, 2);
   assert.deepEqual(offers.map(offer => offer.scienceName), ['Счёт паводков', 'Щиты из ивы']);
+});
+
+test('the regional builder returns three unique cell-specific plans whose daily effects come from the model', async () => {
+  const requests = [];
+  const buildings = [
+    { buildingName: 'Затвор Тихой Ивы', buildingDescription: 'Плетни держат рыбу в старице.', category: 'economy', effects: [{ type: 'income_food', amount: 2 }], rationale: 'Речной затон даёт улов.' },
+    { buildingName: 'Навес сухой древесины', buildingDescription: 'Тростник укрывает древесину от разлива.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }, { type: 'income_knowledge', amount: 1 }], rationale: 'Мастера берегут запас для работы.' },
+    { buildingName: 'Камень счёта приливов', buildingDescription: 'Зарубки отмечают сезонные подъемы воды.', category: 'science', effects: [{ type: 'income_faith', amount: 1 }, { type: 'income_knowledge', amount: 1 }], rationale: 'Обряды следуют за ритмом реки.' },
+  ];
+  const api = loadCards(async (url, init) => {
+    requests.push({ url, body: JSON.parse(init.body) });
+    return modelReply({ buildings });
+  });
+  const state = readyState();
+  const tile = state.world.tiles.find(candidate => candidate.siteType === 'food');
+  assert.ok(tile, 'the generated map has a food region to use as context');
+  const offers = await api.llmRegionBuildingOffers('gpt-6-luna', state, tile);
+
+  assert.equal(offers.length, 3);
+  assert.equal(new Set(offers.map(item => item.name)).size, 3);
+  assert.equal(new Set(offers.map(item => item.effects.map(effect => `${effect.type}:${effect.amount}`).sort().join('|'))).size, 3);
+  assert.ok(offers.every(item => item.effects.every(effect => Campaign.REGION_GENERATIVE_EFFECTS.includes(effect.type))));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/hydra');
+  const [system, user] = requests[0].body.messages.map(message => message.content);
+  assert.ok(system.includes('ровно 3 РАЗНЫХ'));
+  assert.ok(system.includes('Эффекты придумывай сам'));
+  assert.ok(system.includes('прямой доход региона'));
+  assert.ok(user.includes(tile.name));
+  assert.ok(user.includes(tile.terrain));
+  assert.ok(user.includes('География:'));
+  assert.ok(user.includes('Наследие:'));
+  assert.ok(user.includes('Эпоха народа сейчас:'));
+  assert.ok(user.includes('стандартное региональное здание и цена-ориентир'));
+});
+
+test('the regional builder rejects an incomplete set and non-regional effects', async () => {
+  const offers = [
+    { buildingName: 'Постройка 1', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
+    { buildingName: 'Постройка 2', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
+    { buildingName: 'Постройка 3', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'unit_power', amount: 1 }] },
+  ];
+  const state = readyState();
+  const tile = state.world.tiles.find(candidate => candidate.siteType === 'food');
+  const invalidEffectApi = loadCards(async () => modelReply({ buildings: offers }));
+  await assert.rejects(() => invalidEffectApi.llmRegionBuildingOffers('gpt-6-luna', state, tile), /три разных региональных чертежа/);
+
+  const incompleteApi = loadCards(async () => modelReply({ buildings: offers.slice(0, 2) }));
+  await assert.rejects(() => incompleteApi.llmRegionBuildingOffers('gpt-6-luna', state, tile), /три разных региональных чертежа/);
 });
 
 test('a building in a new land is named by the model for this community', async () => {

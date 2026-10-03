@@ -138,6 +138,44 @@ test('region construction: at most one building per region tile, ever', () => {
     assert.equal(state.regions.find(r => r.id === foodNeighborId).building, state.regions.find(r => r.id === foodNeighborId).building, 'building slot is a single scalar, never a list');
 });
 
+test('a new region stores three advisor plans and only the selected custom plan replaces its old regional building', () => {
+    let state = playableCampaign();
+    const home = state.world.tiles.find(tile => tile.kind === 'home');
+    const tile = home.neighbors
+        .map(id => state.world.tiles.find(candidate => candidate.id === id))
+        .find(candidate => candidate && candidate.siteType === 'food' && candidate.terrain !== 'water' && !candidate.guard);
+    assert.ok(tile, 'need an adjacent, peaceful food region');
+
+    const claimed = Campaign.settleRegionState(state, tile.id);
+    assert.equal(claimed.error, null);
+    state = claimed.state;
+    const offers = [
+        { name: 'Ивовый затвор', description: 'Плетни держат рыбу у берега.', category: 'economy', effects: [{ type: 'income_food', amount: 2 }] },
+        { name: 'Навес сухих ветвей', description: 'Навес бережёт дерево для плотников.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }, { type: 'income_knowledge', amount: 1 }] },
+        { name: 'Камень речного счёта', description: 'Зарубки отмечают разлив и время сева.', category: 'science', effects: [{ type: 'income_faith', amount: 1 }, { type: 'income_knowledge', amount: 1 }] },
+    ];
+    const stored = Campaign.setRegionBuildingOffersState(state, tile.id, offers);
+    assert.equal(stored.error, null);
+    assert.equal(stored.offers.length, 3);
+    assert.equal(Campaign.normalizeState(stored.state).regions.find(region => region.id === tile.id).buildingOffers.length, 3, 'the three options survive a save/reload normalization');
+
+    const skippedChoice = Campaign.buildRegionBuildingState(stored.state, tile.id);
+    assert.match(skippedChoice.error, /Выберите один из трёх чертежей/);
+    const selected = stored.offers[1];
+    const built = Campaign.buildRegionBuildingState(stored.state, tile.id, selected.id);
+    assert.equal(built.error, null);
+    const region = built.state.regions.find(candidate => candidate.id === tile.id);
+    assert.equal(region.building, selected.id);
+    assert.equal(region.customBuilding.name, selected.name);
+    assert.notEqual(region.building, Campaign.REGION_BUILDINGS.food.id, 'the AI plan replaces the fixed irrigation building');
+    assert.deepEqual(Campaign.getRegionalIncome(built.state), { food: 0, materials: 1, knowledge: 1, faith: 0 });
+    assert.equal(built.state.player.dailyOrders.constructionUsed, 1);
+
+    const reloaded = Campaign.normalizeState(built.state);
+    assert.equal(reloaded.regions.find(candidate => candidate.id === tile.id).customBuilding.name, selected.name);
+    assert.deepEqual(Campaign.getRegionalIncome(reloaded), { food: 0, materials: 1, knowledge: 1, faith: 0 }, 'the model-invented daily effects survive normalization');
+});
+
 test('EFFECTS registry documents the two new daily-tempo effects and offers them to the generator', () => {
     assert.ok(Campaign.EFFECTS.ap_max, 'ap_max effect exists');
     assert.ok(Campaign.EFFECTS.order_capacity, 'order_capacity effect exists');
