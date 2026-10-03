@@ -446,133 +446,81 @@ export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): an
     buildingDescription,
     category: M.CATEGORIES.includes(raw.category) ? raw.category : fallbackCategory,
     effects,
-    rationale: String(raw.rationale || "").trim().slice(0, 300),
   };
 }
 
-const DIRECTION_SHAPE = `{"title":"до 60 знаков","summary":"2–3 предложения: о чём будет наука и почему она вырастает именно из этого народа","theme":"agriculture|production|military|religion|knowledge|society|mixed","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}],"icon":"один эмодзи","rationale":"1 предложение: почему этому народу нужно именно это"}`;
+const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}]}`;
 
 /**
- * Превью трёх научных направлений: советник читает свойства народа (происхождение, землю, черту,
- * наследие, замысел, запасы, эпоху) и предлагает, О ЧЁМ может быть наука. Конкретные названия и
- * содержание придумывает модель — заготовленных вариантов в игре нет. Игрок выбирает направление,
- * и только второй вызов раскрывает его в науку и постройку.
+ * Эффекты, которые советник вправе обещать прямо сейчас. Воинская доктрина (`unit_power`)
+ * не строится, пока народ не освоил ключевой ресурс эпохи (campaign.js → constructBlueprint),
+ * поэтому до тех пор она исключена из списка: советник не должен предлагать здание, которое
+ * игрок физически не сможет возвести.
  */
-export async function llmDirectionPreviews(model: string, state: any): Promise<any[]> {
+const ERA_LOCKED_EFFECTS = ["unit_power"];
+
+export function scienceEffectTypes(state: any): { allowed: string[]; locked: string[] } {
+  const all = (M.GENERATIVE_EFFECTS || []) as string[]; // мёртвые эффекты (hidden) генератору не предлагаем
+  const unlocked = M.hasEraKeyResource ? Boolean(M.hasEraKeyResource(state)) : true;
+  const locked = unlocked ? [] : all.filter((type) => ERA_LOCKED_EFFECTS.includes(type));
+  return { allowed: all.filter((type) => !locked.includes(type)), locked };
+}
+
+/** Подпись набора свойств: по ней видно, что два «разных» здания на самом деле одинаковы. */
+function effectSignature(effects: any[]): string {
+  return (effects || []).map((effect: any) => `${effect.type}:${effect.amount}`).sort().join("|");
+}
+
+/**
+ * Научный советник: ОДИН вызов — три разные науки, у каждой своё здание и свои свойства.
+ * Раньше здесь было два шага (превью направлений, затем советник-строитель), и второй шаг
+ * возвращал три здания с одинаковыми свойствами: содержательную работу делал первый вызов,
+ * а второй лишь переименовывал его результат. Теперь шаг один, а различие вариантов
+ * проверяется по наборам эффектов, а не только по названиям.
+ */
+export async function llmScienceOffers(model: string, state: any): Promise<any[]> {
   const sit = M.scienceAdvisorSituation(state);
-  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
-  const themes = (M.SCIENCE_DIRECTION_THEMES || []).map((t: any) => `${t.id} — ${t.label}`).join("; ");
+  const { allowed, locked } = scienceEffectTypes(state);
   const known = (state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет";
+  const lockNote = locked.length
+    ? ` Не используй ${locked.join(", ")}: воинская доктрина откроется, только когда народ освоит ${M.ERA_KEY_RESOURCE?.[state.player.era]?.label || "ключевой ресурс эпохи"} — военную тему раскрой другими эффектами.`
+    : "";
   const data = await hydraChat({
-    model, temperature: 1, maxTokens: 900,
+    model, temperature: 1, maxTokens: 1800,
     system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Игрок основал народ и выбрал его свойства. Сейчас нужны НЕ готовые науки, а превью трёх РАЗНЫХ направлений — о чём вообще может быть наука этого народа. Игрок выберет одно направление, и только потом ты придумаешь конкретную науку и постройку внутри него.
-Придумай ровно 3 направления. Темы бери из словаря: ${themes}. Названия и содержание изобретай сам, никаких шаблонов и повторов с известными науками.
-Свойства народа влияют на подбор СИЛЬНО: замысел, происхождение, земля, черта и наследие должны читаться в каждом направлении — но решение за тобой, жёсткой схемы «один раз в каждую тему» нет. Военное, религиозное, научное, производственное и земледельческое направления равноправны, сочетания тем приветствуются; темы не должны повторяться.
-Ответ — строго JSON: {"directions":[${DIRECTION_SHAPE}, ${DIRECTION_SHAPE}, ${DIRECTION_SHAPE}]}. Допустимые type эффектов: ${effects}. Не более 2 эффектов на направление, amount 1. Язык — русский, без магии.`,
-    user: `Народ: ${state.player.name} (${state.player.clan}). ${sit.summary}
-Уже известные науки: ${known}${sit.direction ? `. Прошлое направление: «${sit.direction.title}» (${sit.direction.themeLabel}) — не повторяй его` : ""}.
-Предложи три направления, из которых игрок выберет одно.`,
+Придумай РОВНО 3 РАЗНЫЕ науки для этого народа. Каждая наука — самостоятельное открытие со своим зданием и СВОИМИ свойствами: это три разных пути развития, а не три названия одного и того же.
+Требования к каждому из трёх вариантов:
+— своя тема: земледелие, производство и ремесло, война и защита, вера и обряд, знание и счёт, устройство общества или их сочетание; темы не должны повторяться;
+— своё здание: другое по устройству, материалу и назначению, а не другая вывеска на том же амбаре;
+— свой набор свойств (effects): наборы у трёх вариантов ОБЯЗАНЫ различаться — именно они отличают одно здание от другого в игре, поэтому три одинаковых набора делают выбор бессмысленным;
+— опора на конкретную географию, биом, доступные материалы и историческое наследие народа из контекста: это читается в названии и устройстве здания, а не только в описании.
+Без повторов названий и общих шаблонов. Каждую науку посильно изучить и построить за обычные ресурсы текущего дня.${lockNote}
+Пока игрок не выбрал вариант, ничего не добавляй в поселение: выбранная наука попадёт в кодекс, а здание появится только по отдельному приказу после исследования.
+Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ${PROJECT_SHAPE}, ${PROJECT_SHAPE}]}. Допустимые type эффектов: ${allowed.join(", ")}. Не более 2 эффектов на науку, amount 1. Язык — русский, без магии.`,
+    user: `Народ: ${state.player.name} (${state.player.clan}). Контекст — опирайся на него в каждом варианте: ${sit.summary}
+Уже известные науки: ${known}. Предложи три разные науки с тремя разными зданиями и тремя разными наборами свойств.`,
   });
-  const list = Array.isArray(data?.directions) ? data.directions : data?.title ? [data] : [];
-  const cleaned = list.map((raw: any) => M.sanitizeScienceDirection(raw)).filter(Boolean).slice(0, 3);
-  if (!cleaned.length) throw new Error("Советник не вернул ни одного направления в понятной форме.");
-  return cleaned;
-}
-
-const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}],"rationale":"1 предложение: почему это следует из затравки"}`;
-
-/** Строка с выбранным направлением: второй вызов модели обязан раскрыть именно его. */
-function directionBrief(direction: any): string {
-  if (!direction) return "";
-  const effects = (direction.effects || []).map((e: any) => `${M.EFFECTS?.[e.type]?.label ?? e.type} ×${e.amount}`).join(", ");
-  return `Выбранное направление: «${direction.title}» (${direction.themeLabel || direction.theme}). Суть: ${direction.summary}
-Обещанные эффекты направления: ${effects || "не заданы"}. Наука и постройка обязаны раскрывать ИМЕННО это направление — не подменяй его другим.`;
-}
-
-/** Однопроектный вариант сохранён для совместимых вызовов; современный онбординг использует три предложения строителя. */
-export async function llmOpeningProject(model: string, state: any, direction?: any): Promise<any> {
-  const sit = M.scienceAdvisorSituation(state);
-  const p = state.player;
-  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
-  const brief = directionBrief(direction);
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1200,
-    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Игрок только что основал народ, выбрал его затравку — готовый замысел о том, чем этот народ живёт, — и направление первой науки.
-Придумай РОВНО ОДНО первое дело народа: науку и связанную с ней постройку. Оно должно прямо продолжать затравку, раскрывать выбранное направление и опираться на землю, черту и наследие народа. Никаких готовых шаблонов — придумай свой образ.
-Ответ — строго JSON: ${PROJECT_SHAPE}. Допустимые type: ${effects}. Не более 2 эффектов, amount 1${brief ? "; обещанный эффектом направления обязан остаться среди них" : ""}. Язык — русский, без магии.`,
-    user: `Затравка игрока: «${p.seedLine || "не задана — опирайся на происхождение и землю"}»\nПроисхождение: ${sit.origin?.name || p.originId || "неизвестно"} — ${sit.origin?.historical || ""}\n${brief}\nСитуация: ${sit.summary}`,
-  });
-  const project = sanitizeScienceProject(data);
-  if (!project) throw new Error("Советник не вернул первый проект в понятной форме.");
-  return project;
-}
-
-/**
- * Советник-строитель подбирает для нового народа три альтернативных первых чертежа.
- * Они остаются только проектами: здание появится после выбора игрока, исследования и приказа на стройку.
- */
-export async function llmOpeningBuildingOffers(model: string, state: any, direction?: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const openingEffectTypes = M.GENERATIVE_EFFECTS.filter((type: string) => type !== "unit_power");
-  const effects = openingEffectTypes.join(", ");
-  const openingBrief = direction ? (() => {
-    const available = (direction.effects || []).filter((effect: any) => effect?.type !== "unit_power")
-      .map((effect: any) => `${M.EFFECTS?.[effect.type]?.label ?? effect.type} ×${effect.amount}`).join(", ");
-    const delayed = (direction.effects || []).some((effect: any) => effect?.type === "unit_power");
-    return `Выбранное направление: «${direction.title}» (${direction.themeLabel || direction.theme}). Суть: ${direction.summary}
-${available ? `Доступные обещанные эффекты: ${available}.` : ""}${delayed ? " Воинская доктрина unit_power откроется только после освоения обсидиана: не включай её в стартовые чертежи, сохрани военную тему другими доступными эффектами." : ""}
-Все три проекта должны раскрывать именно эту тему.`;
-  })() : "Игрок выбрал направление первой науки — подбери варианты по ситуации народа.";
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 2400,
-    system: `Ты — советник-строитель исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Новый народ сам выбрал тему первой науки. Предложи РОВНО 3 РАЗНЫХ варианта первого проекта: каждый объединяет собственную науку и связанную с ней постройку. Это альтернативные чертежи для выбора игрока, а не готовые постройки.
-Внимательно используй конкретную географию и биом, доступные материалы, соседние земли, происхождение и историческое культурное наследие из контекста. Эти признаки должны быть видны в названии, устройстве и назначении каждой постройки, а не только в объяснении. Сделай варианты действительно разными по форме, ремеслу и пользе, без повторов названий и общих шаблонов.
-Все варианты должны подходить для первых ходов в Каменном веке и использовать только поддерживаемые доступные эффекты. Сохраняй все доступные обещанные эффекты выбранного направления в каждом варианте. Не включай unit_power: для него сначала нужно освоить обсидиан, сохрани военную тему другими доступными эффектами. Каждый вариант должен быть посильным для обычного исследования и строительства за начальные ресурсы.
-Пока игрок не выбрал вариант, ничего не добавляй в поселение. После выбора проект попадёт в кодекс, а здание появится только по отдельному приказу игрока после изучения науки.
-Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ${PROJECT_SHAPE}, ${PROJECT_SHAPE}]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1. Язык — русский, без магии.`,
-    user: `${openingBrief}\nКонтекст народа — опирайся на него при каждом варианте: ${sit.summary}\nУже известных наук: ${(state.player.blueprints || []).map((blueprint: any) => blueprint.scienceName).join(", ") || "нет"}.`,
-  });
-  const list = Array.isArray(data?.projects) ? data.projects : [];
+  const list = Array.isArray(data?.projects) ? data.projects : data?.scienceName ? [data] : [];
+  const allowedTypes = new Set(allowed);
   const cleaned: any[] = [];
-  const allowedEffects = new Set(openingEffectTypes);
   const scienceNames = new Set<string>();
   const buildingNames = new Set<string>();
+  const signatures = new Set<string>();
   for (const raw of list) {
     const project = sanitizeScienceProject(raw);
-    if (!project || project.effects.some((effect: any) => !allowedEffects.has(effect.type))) continue;
+    if (!project || project.effects.some((effect: any) => !allowedTypes.has(effect.type))) continue;
     const scienceKey = project.scienceName.toLowerCase().replace(/\s+/g, " ").trim();
     const buildingKey = project.buildingName.toLowerCase().replace(/\s+/g, " ").trim();
-    if (scienceNames.has(scienceKey) || buildingNames.has(buildingKey)) continue;
+    const signature = effectSignature(project.effects);
+    // Вариант с уже занятым названием или с тем же набором свойств — не вариант, а повтор.
+    if (scienceNames.has(scienceKey) || buildingNames.has(buildingKey) || signatures.has(signature)) continue;
     scienceNames.add(scienceKey);
     buildingNames.add(buildingKey);
+    signatures.add(signature);
     cleaned.push(project);
     if (cleaned.length === 3) break;
   }
-  if (cleaned.length !== 3) throw new Error("Советник-строитель должен предложить три разных и доступных чертежа.");
-  return cleaned;
-}
-
-/**
- * Три проекта внутри выбранного направления. Если направления нет (старый путь или сбой советника),
- * советник подбирает замыслы сам — по затравке, землям, запасам и эпохе.
- */
-export async function llmScienceOffers(model: string, state: any, direction?: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const effects = M.GENERATIVE_EFFECTS.join(", "); // мёртвые эффекты (hidden) генератору не предлагаем
-  const brief = directionBrief(direction);
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1600,
-    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-${brief ? `Игрок выбрал направление — придумай ровно 3 РАЗНЫХ проекта (наука + связанная постройка) ВНУТРИ него: три разных пути развития одной темы, с разным характером и trade-off, без повторов названий.` : `Направление игрок не выбирал — ты сам читаешь затравку народа, земли, запасы и эпоху. Предложи ровно 3 РАЗНЫХ проекта (наука + связанная постройка): один отвечает на нехватку пропитания и хозяйство, один — на защиту и войну, один — на знания, веру и устройство общества.`} Каждый проект должен опираться на конкретную ситуацию народа, а не на общий список наук.
-Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ...]}. Допустимые type: ${effects}. Не более 2 эффектов на проект, amount 1${brief ? "; обещанный эффектом направления обязан остаться в каждом проекте" : ""}. Язык — русский, без магии.`,
-    user: `${brief}\nСитуация: ${sit.summary}\nУже известные науки: ${(state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет"}`,
-  });
-  const list = Array.isArray(data.projects) ? data.projects : data.scienceName ? [data] : [];
-  const cleaned = list.map((raw: any) => sanitizeScienceProject(raw)).filter(Boolean).slice(0, 3);
-  if (!cleaned.length) throw new Error("Советник не предложил ни одного проекта.");
+  if (cleaned.length !== 3) throw new Error("Советник должен предложить три разные науки с разными зданиями и разными свойствами.");
   return cleaned;
 }
 
@@ -783,6 +731,8 @@ ${contextOf(state)}
   return card;
 }
 
-// Ветвь из заготовленного списка SCIENCE_BRANCHES больше не предлагается игроку: направление науки
-// выбирает игрок из превью, которые придумывает модель (llmDirectionPreviews), а замыслы внутри него
-// раскрывает llmScienceOffers(model, state, direction). Ветви остались только как офлайн-пул legacy.
+// Ни готовых ветвей SCIENCE_BRANCHES, ни промежуточных «превью направлений» игроку больше не
+// предлагается: один вызов llmScienceOffers(model, state) возвращает три разные науки, у каждой
+// своё здание и свой набор свойств, и игрок выбирает одну из них. Двухшаговый путь (превью →
+// советник-строитель) удалён: второй шаг возвращал три одинаковых по свойствам здания.
+// Ветви и словарь тем остались только как офлайн-пул standalone-страницы (legacy.html).

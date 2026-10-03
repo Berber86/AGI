@@ -8,6 +8,7 @@ export const M = {
   ...Campaign,
   // The standalone UI exposes stateful click handlers under these names;
   // the React store needs the corresponding pure state transitions.
+  foundCampaign: Campaign.foundCampaignState,
   settleRegion: Campaign.settleRegionState,
   missionRegion: Campaign.missionRegionState,
   buildRegionBuilding: Campaign.buildRegionBuildingState,

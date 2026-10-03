@@ -413,16 +413,22 @@
     };
 
     const directionTheme = id => SCIENCE_DIRECTION_THEMES.find(theme => theme.id === id) || SCIENCE_DIRECTION_THEMES[SCIENCE_DIRECTION_THEMES.length - 1];
+    // Происхождение народа. Шесть вариантов вместо восьми: каждый — реальная земля с датировкой и
+    // археологическим прототипом, в одном тоне с наследием (HISTORICAL_CULTURES). Поле `people` —
+    // имя народа: отдельного экрана «придумайте имя» больше нет, имя происходит из выбранной земли,
+    // поэтому оно всегда согласовано с происхождением и звучит так же серьёзно, как и наследие.
     const ORIGINS = [
-        { id: 'river', name: 'Народ Великой Реки', place: 'Плодородные речные берега', icon: '🌊', description: 'Разливы кормят поселение и облегчают первые запасы. Как Нил в Египте.', resource: 'food', bonus: 2, biome: 'river', historical: 'Египет Древнего царства — ирригация и закрома' },
-        { id: 'highlands', name: 'Народ Каменных Холмов', place: 'Предгорья с кремнёвыми выходами', icon: '⛰️', description: 'Камень и кремень рядом — легче начать ремесло и строительство. Как Анатолия.', resource: 'materials', bonus: 2, biome: 'highlands', historical: 'Чатал-Хююк, обсидиановые пути' },
-        { id: 'woodland', name: 'Народ Лесных Троп', place: 'Лесная опушка и сезонные пастбища', icon: '🌲', description: 'Знания о растениях, животных и временах года помогают учиться.', resource: 'knowledge', bonus: 2, biome: 'forest', historical: 'Триполье-Кукутень, лесные земледельцы' },
-        { id: 'steppe', name: 'Дети Ямной Степи', place: 'Понтийско-Каспийская степь, курганы', icon: '🐎', description: 'Ямная культура — ямы-катакомбы, кони, повозки. Подвижность и скотоводство.', resource: 'food', bonus: 1, biome: 'steppe', historical: 'Ямная культура 3300-2600 до н.э., предки индоевропейцев' },
-        { id: 'desert', name: 'Люди Чёрной Земли', place: 'Кемет — чёрная земля Нила и пустыня', icon: '🏜️', description: 'Аккад и Шумер — первые города, клинопись, ирригация в пустыне.', resource: 'knowledge', bonus: 1, biome: 'desert', historical: 'Аккад Саргона, Шумер, первые империи' },
-        { id: 'coast', name: 'Береговые Рыбаки', place: 'Морское побережье и лиманы', icon: '⚓', description: 'Рыба, соль, ракушки — торговля по воде. Как Эгейские культуры.', resource: 'food', bonus: 2, biome: 'coast', historical: 'Эгейский мир, Минойцы, торговля обсидианом' },
-        { id: 'oasis', name: 'Оазисные Садовники', place: 'Оазис в сухой степи', icon: '🌴', description: 'Финиковые пальмы, колодцы, караванные пути. Как Набатея в зачатке.', resource: 'materials', bonus: 1, biome: 'oasis', historical: 'Оазисы Аравии, пути ладана' },
-        { id: 'marsh', name: 'Болотные Строители', place: 'Болотистые топи и плавни', icon: '🐊', description: 'Свайные поселения, как в Альпах. Защита водой и изобилие рыбы.', resource: 'food', bonus: 2, biome: 'marsh', historical: 'Свайные поселения Альп, Варна — золото' }
+        { id: 'river', name: 'Великая Река', people: 'Люди Великой Реки', place: 'Пойма и дельта большой реки', icon: '🌊', description: 'Разлив приходит каждый год и оставляет ил: поля родят без пара, вода приносит рыбу и тростник. Излишек зерна нужно учесть, сохранить и защитить — отсюда первый счёт и первая власть.', resource: 'food', bonus: 2, biome: 'river', historical: 'Нил Древнего царства и юг Месопотамии, IV–III тыс. до н.э. — ирригация, закрома, первые писцы' },
+        { id: 'highlands', name: 'Каменные Предгорья', people: 'Каменщики Предгорий', place: 'Предгорья с выходами кремня и обсидиана', icon: '⛰️', description: 'Камень здесь под ногами: кремень колется на орудия, обсидиан уходит в обмен, рудная жила обещает медь. Ремесло рождается раньше пашни, и мастерская становится сердцем селения.', resource: 'materials', bonus: 2, biome: 'highlands', historical: 'Чатал-Хююк и Анатолийское нагорье, 7500–5700 до н.э. — обсидиановые мастерские, первые плавильные тигли' },
+        { id: 'woodland', name: 'Лесные Тропы', people: 'Лесные Земледельцы', place: 'Лесная опушка и сезонные пастбища', icon: '🌲', description: 'Лес учит счёту времён: когда цветёт липа, когда гонит зверя, когда жечь подсеку. Знание примет и обряда — такой же промысел, как топор и соха.', resource: 'knowledge', bonus: 2, biome: 'forest', historical: 'Триполье-Кукутени, 5400–2750 до н.э. — протогорода на сотни домов, расписная керамика' },
+        { id: 'steppe', name: 'Ямная Степь', people: 'Дети Ямной Степи', place: 'Понтийско-Каспийская степь, курганы', icon: '🐎', description: 'Открытый горизонт, стада и колёсные повозки: богатство уходит с кочёвкой, а мёртвых хоронят под курганом с оружием. Сила здесь — в подвижности и в верности роду.', resource: 'food', bonus: 1, biome: 'steppe', historical: 'Ямная культура, 3300–2600 до н.э. — ямные погребения под курганами, кони и повозки' },
+        { id: 'coast', name: 'Морской Берег', people: 'Береговые Мореходы', place: 'Побережье, лиманы и острова', icon: '⚓', description: 'Море даёт рыбу, соль и раковину, а прибрежный путь — первая торговая дорога: лодка идёт от селения к селению быстрее вьюка по суше. Чужие вести и чужой товар приходят сюда первыми.', resource: 'food', bonus: 2, biome: 'coast', historical: 'Эгейский мир и Минойский Крит, 2700–1450 до н.э. — морская торговля обсидианом и металлом' },
+        { id: 'desert', name: 'Сухие Земли', people: 'Хранители Колодцев', place: 'Каменистая пустыня, оазисы и сухие русла', icon: '🏜️', description: 'Вода здесь — редкость и собственность: колодец, караванная тропа и учёт запасов важнее поля. Пустыня учит счёту, договору и дальнему пути.', resource: 'knowledge', bonus: 1, biome: 'desert', historical: 'Высыхающая Сахара и Тассилин-Аджер, VI–III тыс. до н.э. — колодцы, караванные тропы, наскальные росписи' }
     ];
+    // Имя народа берётся из происхождения: игрок его не придумывает и не перебрасывает.
+    function originPeopleName(origin) {
+        return origin ? (origin.people || origin.name) : '';
+    }
 
     // Исторические биомы и черты — ближе к легаси POOLS, но с историчностью
     const BIOMES = [
@@ -579,14 +585,15 @@
         { id: 'materials', title: 'Каменное ремесло', icon: '🪨', scienceName: 'Обработка кремня', scienceDescription: 'Подбор формы и угла скола делает каменные орудия надёжнее.', buildingName: 'Каменная мастерская', buildingDescription: 'Общая мастерская ускоряет заготовку строительных материалов.', category: 'economy', effect: 'income_materials' },
         { id: 'knowledge', title: 'Сезонные наблюдения', icon: '📚', scienceName: 'Круг времён года', scienceDescription: 'Повторяющиеся знаки природы помогают заранее готовиться к сезонам.', buildingName: 'Календарный круг', buildingDescription: 'Место наблюдений поддерживает передачу знаний между поколениями.', category: 'science', effect: 'income_knowledge' }
     ];
-    // Затравка народа: игрок только выбирает, чем живёт народ, — ничего не пишет.
+    // Замысел народа — его менталитет: чем он живёт и во что верит. Пять вариантов вместо шести,
+    // каждый с реальным историческим прототипом (`note`), чтобы тон совпадал с наследием: не
+    // «мы торговцы соли», а мировоззрение народа, из которого советник выведёт его науки.
     const SEED_CHOICES = [
-        { id: 'river', icon: '🐟', name: 'Река и рыба', line: 'Мы живём рыбой и тростником, верим в разливы реки', hint: 'Вода, рыболовство, запасы на сухой сезон' },
-        { id: 'forge', icon: '⚒️', name: 'Горн и ремесло', line: 'Мы кузнецы: ищем камень, медь и огонь для горна', hint: 'Камень, медь, оружие и строительство' },
-        { id: 'sky', icon: '⭐', name: 'Звёзды и счёт', line: 'Мы считаем звёзды, чтобы знать время сева и паводков', hint: 'Наблюдения, счёт времени, знания' },
-        { id: 'herd', icon: '🐎', name: 'Кони и воля', line: 'Мы пастухи коней, нам нужны воля и быстрый налёт', hint: 'Скот, движение, набег и защита' },
-        { id: 'trade', icon: '🧂', name: 'Соль и обмен', line: 'Мы торговцы соли и обсидиана, живём обменом', hint: 'Обмен, дороги, редкости и договоры' },
-        { id: 'field', icon: '🌾', name: 'Земля и хлеб', line: 'Мы пахари: земля кормит нас, если её слушать', hint: 'Земледелие, ирригация, урожай' }
+        { id: 'river', icon: '🐟', name: 'Река и разлив', line: 'Наш год делит река: разлив приносит ил и рыбу, засуха — счёт запасам', hint: 'Вода, рыболовство, запасы на сухой сезон', note: 'Жнецы Натуфа и рыбаки дельты Нила: хозяйственный календарь от разлива' },
+        { id: 'forge', icon: '⚒️', name: 'Камень и горн', line: 'Мы ищем камень и руду, а огонь делает из них орудия и оружие', hint: 'Кремень, обсидиан, медь, орудия и строительство', note: 'Мастерские Чатал-Хююка и Анатолийских предгорий: ремесло раньше пашни' },
+        { id: 'sky', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера' },
+        { id: 'herd', icon: '🐎', name: 'Стадо и воля', line: 'Наше богатство уходит с кочёвкой: стадо, конь и верность роду', hint: 'Скот, движение, набег и защита', note: 'Ямная культура: курганы, кони и повозки, власть рода над местом' },
+        { id: 'field', icon: '🌾', name: 'Пашня и зерно', line: 'Земля кормит нас, если её слушать: зерно — первое богатство народа', hint: 'Земледелие, ирригация, урожай, закрома', note: 'Триполье и Левант: зерно, которое нужно вырастить, сохранить и разделить' }
     ];
     const REGION_CAPTURE_COST = { food: 2, materials: 2, knowledge: 0 };
     const REGION_EXPEDITION_COST = { food: 4, materials: 2, knowledge: 0 };
@@ -1279,8 +1286,11 @@
     function applyOriginSetup(state, { name, originId, seedLine, seedChoiceId, historicalCultureId } = {}) {
         const origin = ORIGINS.find(item => item.id === originId);
         if (!origin) return { error: 'Выберите происхождение народа.' };
+        // Имя народа игрок не придумывает: оно происходит из выбранной земли (origin.people),
+        // поэтому отдельного шага «Имя» в онбординге больше нет. Явно переданное имя
+        // (старые сохранения и standalone-страница) по-прежнему имеет приоритет.
         const cleanName = String(name || '').trim().slice(0, 24);
-        state.player.name = cleanName || origin.name;
+        state.player.name = cleanName || originPeopleName(origin);
         state.player.originId = origin.id;
         const seedChoice = SEED_CHOICES.find(item => item.id === seedChoiceId) || null;
         state.player.seedChoiceId = seedChoice ? seedChoice.id : null;
@@ -1357,11 +1367,13 @@
         return { state, error: null };
     }
 
-    // Новый вход React-версии: игрок задаёт имя, происхождение и затравку народа.
-    // Готовых наук и построек здесь нет: первый проект создаёт ИИ по затравке.
+    // Шаг подготовки народа (происхождение, наследие, замысел). Сам по себе он игру не начинает:
+    // начало завершает foundCampaignState. Функция сохранена для standalone-страницы и старых
+    // сохранений, которые остановились на середине онбординга.
     function beginOnboardingState(input, { name, originId, seedId, seedLine, historicalCultureId } = {}) {
         const state = normalizeState(input);
-        if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
+        if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' }
+
         const seedChoice = SEED_CHOICES.find(item => item.id === seedId)
             || SEED_CHOICES.find(item => item.line === seedLine)
             || null;
@@ -1377,7 +1389,32 @@
         return { state, error: null };
     }
 
-    // Готовый первый проект от ИИ: единственный путь завершить начало игры в React-версии.
+    /**
+     * Основание народа в React-версии: три выбора (происхождение, наследие, замысел) — и игрок
+     * сразу в поселении. Экрана «первая наука и здание» на старте больше нет: советник предложит
+     * три разные науки с тремя разными зданиями позже и только когда игрок сам откроет вкладку
+     * «Наука» (см. src/game/cards.ts → llmScienceOffers). Кодекс и поселение начинаются пустыми,
+     * ни одно здание не выдаётся даром.
+     */
+    function foundCampaignState(input, options = {}) {
+        let state = normalizeState(input);
+        if (state.player.onboardingComplete) return { state, error: 'Народ уже основан.' };
+        // Сохранение могло остановиться на середине старого онбординга (народ подготовлен, но не
+        // основан). Заново применять происхождение нельзя: иначе стартовый бонус выдастся дважды.
+        const resumable = state.player.awaitingOpeningProject && state.player.originId
+            && (!options.originId || options.originId === state.player.originId);
+        if (!resumable) {
+            const begun = beginOnboardingState(state, options);
+            if (begun.error) return begun;
+            state = begun.state;
+        }
+        state.player.awaitingOpeningProject = false;
+        state.player.onboardingComplete = true;
+        return { state, error: null };
+    }
+
+    // Готовый первый проект от ИИ: путь завершения онбординга для старых сохранений и
+    // standalone-страницы. Современный вход (foundCampaignState) проект на старте не выдаёт.
     function setOpeningProject(input, raw) {
         const state = normalizeState(input);
         if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
@@ -3218,7 +3255,7 @@
     function renderOnboarding(host) {
         const originCards = ORIGINS.map((origin, index) => '\n          <label class="campaign-onboarding-choice"><input type="radio" name="campaign-origin" value="' + origin.id + '" ' + (index === 0 ? 'checked' : '') + '><span class="campaign-choice-icon">' + origin.icon + '</span><span><b>' + escapeHtml(origin.name) + '</b><small>' + escapeHtml(origin.place) + ' · +' + origin.bonus + ' ' + (origin.resource === 'food' ? 'провизии' : origin.resource === 'materials' ? 'материала' : 'знания') + '</small><span class="campaign-choice-description">' + escapeHtml(origin.description) + '</span></span></label>').join('');
         const focusCards = OPENING_FOCUSES.map((focus, index) => '\n          <label class="campaign-onboarding-choice"><input type="radio" name="campaign-focus" value="' + focus.id + '" ' + (index === 0 ? 'checked' : '') + '><span class="campaign-choice-icon">' + focus.icon + '</span><span><b>' + escapeHtml(focus.title) + '</b><small>' + escapeHtml(focus.scienceName) + ' → ' + escapeHtml(focus.buildingName) + '</small><span class="campaign-choice-description">' + escapeHtml(focus.buildingDescription) + ' Эффект здания: ' + escapeHtml(EFFECTS[focus.effect].label) + '.</span></span></label>').join('');
-        host.innerHTML = '\n          <section class="campaign-onboarding-hero"><span class="campaign-kicker">INFINITE FORGE · НАЧАЛО СЕЗОНА</span><h2>Рождение народа</h2><p>Твоя столица появится в центре сгенерированного мира 7×7. Выбери происхождение общины и первое дело — они зададут стартовый ресурс и научный проект.</p></section>\n          <form class="campaign-onboarding-form" onsubmit="CampaignMvp.beginOnboarding(event)">\n            <section class="campaign-panel campaign-onboarding-section"><h3>1 · Кто вы?</h3><label class="campaign-onboarding-name">Имя народа<input id="campaign-start-name" maxlength="24" placeholder="Например, Дети Великой Реки" autocomplete="off"></label><div class="campaign-onboarding-options">' + originCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-section"><h3>2 · На что направите силы?</h3><p class="campaign-small">Старый экран: первый проект берётся из локального списка. В новом интерфейсе науки и постройки придумывает ИИ по затравке народа.</p><div class="campaign-onboarding-options">' + focusCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-deck"><h3>3 · Уже есть чем защищаться</h3><p class="campaign-small">Стартовая колода из двух карт доступна сразу — без ковки, API-ключа и предварительной сборки.</p><div class="campaign-starter-preview">' + STARTER_CARDS.map(card => '<article><span>' + card.emoji + '</span><div><b>' + escapeHtml(card.name) + '</b><small>' + card.atk + '/' + card.hp + ' · ' + card.drop_cost + ' энергии на вывод</small><p>' + escapeHtml(card.description) + '</p></div></article>').join('') + '</div><p class="campaign-small">Позже колоду можно менять картами из коллекции. Тренировочные бои против ИИ не дают ресурсов, медалей или рейтинга.</p></section>\n            <button class="campaign-btn campaign-btn-gold campaign-onboarding-submit" type="submit">Начать путь цивилизации →</button>\n          </form>';
+        host.innerHTML = '\n          <section class="campaign-onboarding-hero"><span class="campaign-kicker">INFINITE FORGE · НАЧАЛО СЕЗОНА</span><h2>Рождение народа</h2><p>Твоя столица появится в центре сгенерированного мира 7×7. Выбери происхождение общины и первое дело — они зададут стартовый ресурс и научный проект.</p></section>\n          <form class="campaign-onboarding-form" onsubmit="CampaignMvp.beginOnboarding(event)">\n            <section class="campaign-panel campaign-onboarding-section"><h3>1 · Откуда вы пришли?</h3><p class="campaign-small">Имя народа происходит из выбранной земли — придумывать и перебрасывать его не нужно.</p><div class="campaign-onboarding-options">' + originCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-section"><h3>2 · На что направите силы?</h3><p class="campaign-small">Старый экран: первый проект берётся из локального списка. В новом интерфейсе науки и постройки придумывает ИИ по затравке народа.</p><div class="campaign-onboarding-options">' + focusCards + '</div></section>\n            <section class="campaign-panel campaign-onboarding-deck"><h3>3 · Уже есть чем защищаться</h3><p class="campaign-small">Стартовая колода из двух карт доступна сразу — без ковки, API-ключа и предварительной сборки.</p><div class="campaign-starter-preview">' + STARTER_CARDS.map(card => '<article><span>' + card.emoji + '</span><div><b>' + escapeHtml(card.name) + '</b><small>' + card.atk + '/' + card.hp + ' · ' + card.drop_cost + ' энергии на вывод</small><p>' + escapeHtml(card.description) + '</p></div></article>').join('') + '</div><p class="campaign-small">Позже колоду можно менять картами из коллекции. Тренировочные бои против ИИ не дают ресурсов, медалей или рейтинга.</p></section>\n            <button class="campaign-btn campaign-btn-gold campaign-onboarding-submit" type="submit">Начать путь цивилизации →</button>\n          </form>';
     }
 
     function beginOnboarding(event) {
@@ -3550,7 +3587,7 @@
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
-        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, cleanEffects, effectTotals, getOrderCapacity, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
+        createState, normalizeState, completeOnboarding, beginOnboardingState, foundCampaignState, setOpeningProject, originPeopleName, cleanEffects, effectTotals, getOrderCapacity, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         getRegionalIncome, getAvailableMaterialQualities, hasEraKeyResource, ERA_KEY_RESOURCE, getVisibleRegionIds, getRegionActionState, getRegionBuilding, getRegionBuildingForRecord, regionBuildingYields, cleanRegionBuildingEffects, sanitizeRegionBuildingOffer, setRegionBuildingOffersState, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree,

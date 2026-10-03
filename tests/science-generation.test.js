@@ -42,6 +42,8 @@ function loadCards(fetchImpl) {
             sanitizeRegionBuildingOffer: Campaign.sanitizeRegionBuildingOffer,
             SCIENCE_DIRECTION_THEMES: Campaign.SCIENCE_DIRECTION_THEMES,
             sanitizeScienceDirection: Campaign.sanitizeScienceDirection,
+            hasEraKeyResource: Campaign.hasEraKeyResource,
+            ERA_KEY_RESOURCE: Campaign.ERA_KEY_RESOURCE,
             DECREES: Campaign.DECREES,
             eraName: Campaign.eraName,
             scienceAdvisorSituation: Campaign.scienceAdvisorSituation,
@@ -68,99 +70,126 @@ function readyState() {
   return Campaign.beginOnboardingState(Campaign.createState(4242), { name: 'Тест', originId: 'river', seedId: 'forge' }).state;
 }
 
-test('the first science is generated from the player seed, not from a local catalogue', async () => {
-  const requests = [];
-  const project = {
+/** Три РАЗНЫЕ науки: свои названия, свои здания и свои наборы свойств. */
+const PROJECTS = [
+  {
     scienceName: 'Горновая тяга',
-    scienceDescription: 'Мехи из кожи поднимают жар в горне и плавят малахит ровнее.',
+    scienceDescription: 'Мехи из кожи поднимают жар в горне, и малахит плавится ровнее.',
     buildingName: 'Кузнечный двор у жилы',
     buildingDescription: 'Общий двор с горнами и запасом руды у медной жилы.',
     category: 'economy',
     effects: [{ type: 'income_materials', amount: 1 }],
-    rationale: 'Народ живёт кузнечным делом, значит первая наука — про горн.',
-  };
+  },
+  {
+    scienceName: 'Счёт паводков',
+    scienceDescription: 'Наблюдатели ведут счёт воды по зарубкам на камне.',
+    buildingName: 'Водомерный камень',
+    buildingDescription: 'Камень с зарубками у берега подсказывает время сева.',
+    category: 'science',
+    effects: [{ type: 'income_knowledge', amount: 1 }],
+  },
+  {
+    scienceName: 'Обряд первого снопа',
+    scienceDescription: 'Жрецы отмечают начало жатвы и хранят зерно общины.',
+    buildingName: 'Плетнёвое святилище',
+    buildingDescription: 'Святилище из плетня у берега, где хранят обрядовый сноп.',
+    category: 'religion',
+    effects: [{ type: 'income_faith', amount: 1 }],
+  },
+];
+
+test('три науки придумывает модель под свойства народа, а не локальный каталог', async () => {
+  const requests = [];
   const api = loadCards(async (url, init) => {
     requests.push({ url, body: JSON.parse(init.body) });
-    return modelReply(project);
+    return modelReply({ projects: PROJECTS });
   });
-  const result = await api.llmOpeningProject('gpt-6-luna', readyState());
+  const offers = await api.llmScienceOffers('gpt-6-luna', readyState());
 
-  assert.equal(result.scienceName, 'Горновая тяга');
-  assert.deepEqual(result.effects, [{ type: 'income_materials', amount: 1 }]);
-  assert.equal(requests.length, 1);
+  assert.equal(offers.length, 3);
+  // Массив приходит из песочницы vm (другой realm), поэтому сравниваем строкой, а не deepEqual.
+  assert.equal(offers.map(offer => offer.scienceName).join(' | '), PROJECTS.map(project => project.scienceName).join(' | '));
+  assert.equal(requests.length, 1, 'науки предлагаются одним вызовом: шага «превью направлений» больше нет');
   assert.equal(requests[0].url, '/api/hydra');
+  assert.equal(requests[0].body.temperature, 1, 'названия и суть изобретаются свободно');
+
   const [system, user] = requests[0].body.messages.map(message => message.content);
-  assert.ok(user.includes(SEED_LINE), 'the seed line is sent to the model');
-  assert.ok(user.includes('Затравка игрока'), 'the prompt names the seed explicitly');
-  assert.ok(system.includes('БЕЗ магии'), 'the historical setting is kept');
+  assert.ok(user.includes(SEED_LINE), 'замысел народа уходит модели — он сильнее всего влияет на подбор');
+  assert.ok(user.includes('География:'), 'география народа доходит до советника');
+  assert.ok(user.includes('Наследие:'), 'выбранное наследие доходит до советника');
+  assert.ok(system.includes('БЕЗ магии'), 'исторический сеттинг сохранён');
+  assert.ok(system.includes('РОВНО 3 РАЗНЫЕ науки'), 'запрашиваются три разные науки за один вызов');
+  assert.ok(!system.includes('rationale'), 'объяснение «почему вашему народу» больше не запрашивается');
   for (const old of ['Рыбные запуды', 'Рыбные запруды', 'Каменная мастерская', 'Календарный круг', 'Надёжные запасы']) {
-    assert.equal(system.includes(old), false, `the prompt must not offer the pre-written variant ${old}`);
+    assert.equal(system.includes(old), false, `в промпте не должно быть заготовки ${old}`);
   }
 });
 
-test('the opening builder returns three distinct, geography- and culture-aware buildable plans', async () => {
-  const requests = [];
-  const projects = [
-    { scienceName: 'Счёт речных заливов', scienceDescription: 'Рыбаки отмечают заводи для сезонного улова.', buildingName: 'Ивовая запруда', buildingDescription: 'Плетёный затвор у речной старицы удерживает рыбу.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
-    { scienceName: 'Сухая стружка', scienceDescription: 'Мастера сушат ветви над очагом перед работой.', buildingName: 'Навес из речного тростника', buildingDescription: 'Под навесом хранят дерево сухим и готовым к обработке.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
-    { scienceName: 'Знаки на глине', scienceDescription: 'Старейшины сохраняют наблюдения на обожжённых табличках.', buildingName: 'Дом глиняных меток', buildingDescription: 'Низкое святилище хранит записи о разливах и обрядах.', category: 'science', effects: [{ type: 'income_knowledge', amount: 1 }] },
-  ];
-  const api = loadCards(async (url, init) => {
-    requests.push({ url, body: JSON.parse(init.body) });
-    return modelReply({ projects });
-  });
-  const direction = {
-    title: 'Защита речных переправ', summary: 'Как удерживать брод и защищать лодки.',
-    theme: 'military', themeLabel: 'Война и защита',
-    effects: [{ type: 'unit_power', amount: 1 }],
-  };
-  const offers = await api.llmOpeningBuildingOffers('gpt-6-luna', readyState(), direction);
-
-  assert.equal(offers.length, 3);
+test('три варианта обязаны различаться и наукой, и зданием, и свойствами', async () => {
+  const api = loadCards(async () => modelReply({ projects: PROJECTS }));
+  const offers = await api.llmScienceOffers('gpt-6-luna', readyState());
   assert.equal(new Set(offers.map(item => item.scienceName)).size, 3);
   assert.equal(new Set(offers.map(item => item.buildingName)).size, 3);
-  assert.ok(offers.every(item => !item.effects.some(effect => effect.type === 'unit_power')), 'locked unit power cannot strand the first building');
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, '/api/hydra');
-  const [system, user] = requests[0].body.messages.map(message => message.content);
-  assert.ok(system.includes('советник-строитель'));
-  assert.ok(system.includes('РОВНО 3 РАЗНЫХ'));
-  assert.ok(system.includes('Не включай unit_power'));
-  assert.ok(system.includes('ничего не добавляй в поселение'));
-  assert.ok(user.includes(direction.title), 'the chosen direction shapes the three plans');
-  assert.ok(user.includes('География:'), 'the people’s geography reaches the builder prompt');
-  assert.ok(user.includes('Наследие:'), 'the people’s culture reaches the builder prompt');
-  assert.ok(user.includes(SEED_LINE), 'the chosen people’s seed also shapes the plans');
+  assert.equal(new Set(offers.map(item => item.effects.map(effect => `${effect.type}:${effect.amount}`).sort().join('|'))).size, 3,
+    'наборы свойств различаются: именно они отличают одно здание от другого');
+
+  // Одинаковый набор свойств при разных вывесках — это не три варианта, а один. Раньше
+  // советник-строитель вторым вызовом возвращал именно такое: три неотличимых здания.
+  const sameEffects = loadCards(async () => modelReply({ projects: PROJECTS.map((project, index) => ({
+    ...project, scienceName: `Наука ${index}`, buildingName: `Здание ${index}`, effects: [{ type: 'income_food', amount: 1 }]
+  })) }));
+  await assert.rejects(() => sameEffects.llmScienceOffers('gpt-6-luna', readyState()), /три разные науки/);
 });
 
-test('the opening builder refuses fewer than three unique usable plans', async () => {
-  const tooFew = loadCards(async () => modelReply({ projects: [
-    { scienceName: 'Первая наука', scienceDescription: 'Описание.', buildingName: 'Первая постройка', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
-    { scienceName: 'Вторая наука', scienceDescription: 'Описание.', buildingName: 'Вторая постройка', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
+test('неполный набор, повторы названий и недоступные эффекты отбраковываются', async () => {
+  const tooFew = loadCards(async () => modelReply({ projects: PROJECTS.slice(0, 2) }));
+  await assert.rejects(() => tooFew.llmScienceOffers('gpt-6-luna', readyState()), /три разные науки/);
+
+  const duplicates = loadCards(async () => modelReply({ projects: [PROJECTS[0], PROJECTS[0], PROJECTS[1]] }));
+  await assert.rejects(() => duplicates.llmScienceOffers('gpt-6-luna', readyState()), /три разные науки/);
+
+  // Воинская доктрина не строится, пока народ не освоил ключевой ресурс эпохи (обсидиан в Каменном
+  // веке), поэтому советник не вправе её обещать: здание оказалось бы изученным, но непостроенным.
+  const locked = loadCards(async () => modelReply({ projects: [
+    PROJECTS[0],
+    PROJECTS[1],
+    { scienceName: 'Военная доктрина', scienceDescription: 'Вожди ведут отряд в набег.', buildingName: 'Площадка для строя', buildingDescription: 'Утоптанная площадка для боевого порядка.', category: 'military', effects: [{ type: 'unit_power', amount: 1 }] },
   ] }));
-  await assert.rejects(() => tooFew.llmOpeningBuildingOffers('gpt-6-luna', readyState()), /три разных и доступных чертежа/);
+  await assert.rejects(() => locked.llmScienceOffers('gpt-6-luna', readyState()), /три разные науки/);
 
-  const lockedEffect = loadCards(async () => modelReply({ projects: [
-    { scienceName: 'Знание 1', scienceDescription: 'Описание.', buildingName: 'Здание 1', buildingDescription: 'Описание.', category: 'military', effects: [{ type: 'unit_power', amount: 1 }] },
-    { scienceName: 'Знание 2', scienceDescription: 'Описание.', buildingName: 'Здание 2', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_food', amount: 1 }] },
-    { scienceName: 'Знание 3', scienceDescription: 'Описание.', buildingName: 'Здание 3', buildingDescription: 'Описание.', category: 'economy', effects: [{ type: 'income_materials', amount: 1 }] },
+  // Мусор и неизвестные эффекты не подменяются локальным шаблоном.
+  const garbage = loadCards(async () => modelReply({ projects: [
+    { scienceName: '', scienceDescription: '', buildingName: '', buildingDescription: '' },
+    { ...PROJECTS[1], effects: [{ type: 'not_an_effect', amount: 1 }] },
+    PROJECTS[2],
   ] }));
-  await assert.rejects(() => lockedEffect.llmOpeningBuildingOffers('gpt-6-luna', readyState()), /три разных и доступных чертежа/);
+  await assert.rejects(() => garbage.llmScienceOffers('gpt-6-luna', readyState()), /три разные науки/);
 });
 
-test('an invalid first project is rejected instead of being replaced by a local template', async () => {
-  const api = loadCards(async () => modelReply({
-    scienceName: 'Странная наука',
-    scienceDescription: 'Описание.',
-    buildingName: 'Странная постройка',
-    buildingDescription: 'Описание.',
-    category: 'economy',
-    effects: [{ type: 'not_an_effect', amount: 1 }],
-  }));
-  await assert.rejects(() => api.llmOpeningProject('gpt-6-luna', readyState()));
+test('воинская доктрина блокируется только до освоения ключевого ресурса эпохи', async () => {
+  const prompts = [];
+  const ask = async (state) => {
+    const api = loadCards(async (url, init) => {
+      prompts.push(JSON.parse(init.body));
+      return modelReply({ projects: PROJECTS });
+    });
+    await api.llmScienceOffers('gpt-6-luna', state);
+    return prompts[prompts.length - 1].messages[0].content;
+  };
+
+  const stoneAge = readyState();
+  assert.equal(Campaign.hasEraKeyResource(stoneAge), false, 'в Каменном веке обсидиановая мастерская ещё не построена');
+  assert.match(await ask(stoneAge), /Не используй unit_power/, 'заблокированный эффект назван модели явно');
+
+  const laterEra = readyState();
+  laterEra.player.era = 3; // Ренессанс: ERA_KEY_RESOURCE не задан — блокировки нет
+  assert.equal(Campaign.hasEraKeyResource(laterEra), true);
+  const system = await ask(laterEra);
+  assert.equal(system.includes('Не используй unit_power'), false, 'без ключевой постройки эпохи доктрина не блокируется');
+  assert.ok(system.includes('unit_power'), 'эффект снова предложен модели');
 });
 
-test('later offers also come only from the model', async () => {
+test('науки приходят только от модели: неполный ответ не дополняется заготовкой', async () => {
   const api = loadCards(async () => modelReply({
     projects: [{
       scienceName: 'Счёт паводков',
@@ -178,9 +207,11 @@ test('later offers also come only from the model', async () => {
       effects: [{ type: 'defense_bonus', amount: 1 }],
     }],
   }));
-  const offers = await api.llmScienceOffers('glm-5.2', readyState());
-  assert.equal(offers.length, 2);
-  assert.deepEqual(offers.map(offer => offer.scienceName), ['Счёт паводков', 'Щиты из ивы']);
+  await assert.rejects(() => api.llmScienceOffers('glm-5.2', readyState()), /три разные науки/,
+    'два проекта — не три: игрок не получает выбор из одинакового');
+
+  const empty = loadCards(async () => modelReply({}));
+  await assert.rejects(() => empty.llmScienceOffers('gpt-6-luna', readyState()), /три разные науки/);
 });
 
 test('the regional builder returns three unique cell-specific plans whose daily effects come from the model', async () => {
@@ -262,118 +293,4 @@ test('the AI connection is probed through the server proxy, never with a key fro
 
   const badApi = loadCards(async () => fakeResponse({ error: { message: 'Сервер не настроен: переменная окружения HYDRA_API_KEY не задана на Vercel.' } }, false, 500));
   await assert.rejects(() => badApi.probeApiKey('gpt-6-luna'), /HYDRA_API_KEY/);
-});
-
-const DIRECTION_FIXTURE = [
-  {
-    title: 'Запруды у Тихой Ивы',
-    summary: 'Плетни и канавы держат воду на разливе, чтобы сеять раньше.',
-    theme: 'agriculture', category: 'economy',
-    effects: [{ type: 'income_food', amount: 1 }], icon: '🌾',
-    rationale: 'Народ живёт на разливе: еда — первое узкое место.'
-  },
-  {
-    title: 'Обряд первого снопа',
-    summary: 'Жрецы ведут счёт сезонов и хранят зерно общины.',
-    theme: 'religion', category: 'religion',
-    effects: [{ type: 'income_faith', amount: 1 }], icon: '🙏',
-    rationale: 'Духовность кормит просветление эпохи.'
-  },
-  {
-    title: 'Плетёные щиты',
-    summary: 'Ивовые щиты на кожаной основе держат удар лучше досок.',
-    theme: 'military', category: 'military',
-    effects: [{ type: 'unit_power', amount: 1 }], icon: '⚔️',
-    rationale: 'Соседи приходят за зерном.'
-  }
-];
-
-test('direction previews are invented by the model and steered by the people’s chosen properties', async () => {
-  const requests = [];
-  const api = loadCards(async (url, init) => {
-    requests.push({ url, body: JSON.parse(init.body) });
-    return modelReply({ directions: DIRECTION_FIXTURE });
-  });
-  const previews = await api.llmDirectionPreviews('gpt-6-luna', readyState());
-
-  assert.equal(previews.length, 3);
-  assert.deepEqual(previews.map(item => item.theme), ['agriculture', 'religion', 'military']);
-  assert.ok(previews.every(item => item.id.startsWith('direction-')), 'устойчивые id для ключей списка');
-  assert.equal(requests[0].url, '/api/hydra', 'превью идут через серверный прокси, без ключа в браузере');
-  assert.equal(requests[0].body.temperature, 1, 'направления придумываются свободно');
-
-  const [system, user] = requests[0].body.messages.map(message => message.content);
-  assert.ok(user.includes(SEED_LINE), 'замысел народа уходит модели — он сильнее всего влияет на подбор');
-  assert.ok(user.includes('Народ: Тест'), 'имя народа названо');
-  assert.ok(system.includes('agriculture — Земледелие'), 'модель получает словарь тем');
-  assert.ok(system.includes('religion — Вера и обряд'), 'религия — равноправная тема');
-  assert.ok(system.includes('military — Война и защита'), 'военная тема разрешена');
-  assert.ok(system.includes('превью трёх'), 'запрашиваются именно превью, а не готовые науки');
-  assert.ok(system.includes('БЕЗ магии'), 'исторический сеттинг сохранён');
-  for (const old of ['Рыбные запуды', 'Рыбные запруды', 'Каменная мастерская', 'Календарный круг', 'Надёжные запасы']) {
-    assert.equal(system.includes(old), false, `в превью не должно быть заготовки ${old}`);
-  }
-});
-
-test('garbage previews are dropped instead of being replaced by a local catalogue', async () => {
-  const partial = loadCards(async () => modelReply({
-    directions: [{ title: '', summary: '' }, { title: 'Обряд разлива', summary: 'Жрецы отмечают разлив.', theme: 'religion' }, null]
-  }));
-  const previews = await partial.llmDirectionPreviews('gpt-6-luna', readyState());
-  assert.equal(previews.length, 1, 'пустое превью и null отброшены, а не подменены шаблоном');
-  assert.equal(previews[0].title, 'Обряд разлива');
-  assert.equal(previews[0].theme, 'religion');
-  assert.deepEqual(previews[0].effects, [{ type: 'income_faith', amount: 1 }], 'эффект подтянут из темы');
-
-  const empty = loadCards(async () => modelReply({ directions: [] }));
-  await assert.rejects(() => empty.llmDirectionPreviews('gpt-6-luna', readyState()), /ни одного направления/);
-});
-
-test('the second call expands the chosen direction into the first deed and into three offers', async () => {
-  const requests = [];
-  const api = loadCards(async (url, init) => {
-    requests.push(JSON.parse(init.body));
-    return modelReply({
-      scienceName: 'Счёт паводков',
-      scienceDescription: 'Наблюдатели ведут счёт воды по зарубкам на камне.',
-      buildingName: 'Водомерный камень',
-      buildingDescription: 'Камень с зарубками у берега подсказывает время сева.',
-      category: 'religion',
-      effects: [{ type: 'income_faith', amount: 1 }],
-      projects: [{
-        scienceName: 'Обряд разлива',
-        scienceDescription: 'Жрецы отмечают разлив и хранят зерно общины.',
-        buildingName: 'Плетнёвое святилище',
-        buildingDescription: 'Святилище из плетня у берега.',
-        category: 'religion',
-        effects: [{ type: 'income_faith', amount: 1 }]
-      }]
-    });
-  });
-
-  // Направление выбирает игрок: то же состояние, что после chooseScienceDirection в игре.
-  const stored = Campaign.setScienceDirections(readyState(), DIRECTION_FIXTURE);
-  const picked = Campaign.chooseScienceDirection(stored.state, 1);
-  assert.equal(picked.direction.theme, 'religion');
-
-  const opening = await api.llmOpeningProject('gpt-6-luna', picked.state, picked.direction);
-  assert.equal(opening.scienceName, 'Счёт паводков');
-  const [openingSystem, openingUser] = requests[0].messages.map(message => message.content);
-  assert.ok(openingUser.includes('Обряд первого снопа'), 'название направления доходит до модели');
-  assert.ok(openingUser.includes('духовности'), 'обещанный эффект направления назван в промпте');
-  assert.ok(openingUser.includes('Жрецы ведут счёт сезонов'), 'суть направления передана дословно');
-  assert.ok(openingSystem.includes('раскрывать выбранное направление'), 'модель обязана остаться внутри направления');
-
-  const offers = await api.llmScienceOffers('gpt-6-luna', picked.state, picked.direction);
-  assert.equal(offers.length, 1);
-  const [offersSystem, offersUser] = requests[1].messages.map(message => message.content);
-  assert.ok(offersSystem.includes('ВНУТРИ него'), 'три замысла — внутри выбранного направления');
-  assert.ok(offersUser.includes('Обряд первого снопа'));
-
-  // Без направления советник по-прежнему решает сам — старый путь не сломан.
-  const free = await api.llmScienceOffers('gpt-6-luna', readyState());
-  assert.ok(free.length >= 1);
-  const [freeSystem] = requests[2].messages.map(message => message.content);
-  assert.ok(freeSystem.includes('Направление игрок не выбирал'), 'без направления модель выбирает темы сама');
-  assert.equal(freeSystem.includes('Обряд первого снопа'), false);
 });

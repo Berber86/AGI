@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight, Trash2, Scroll, Anvil } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { llmDirectionPreviews, llmScienceOffers } from "@/game/cards";
+import { llmScienceOffers } from "@/game/cards";
 import { useStore } from "@/game/store";
 import { Btn, CATEGORY_META, Chip, Cost, Heading, Label, Meter, Panel, ResIcon, Tabs, fmt } from "@/components/ui";
 import { PageFrame } from "@/components/Shell";
@@ -23,42 +23,26 @@ function Science() {
   const choices = p.scienceChoices;
   // Стадия чертежа: 1 — не изучен, 2 — изучен, но не построен, 3 — построен.
   const stage = (b: any) => (b.built ? 3 : b.researched ? 2 : 1);
-  // Превью направлений и выбранное направление живут в состоянии: они переживают перезагрузку.
-  const dirs: any[] = p.directionChoices?.directions || [];
-  const chosenDirection: any = p.directionChoice || null;
 
-  /** Шаг 1: советник придумывает, О ЧЁМ может быть наука этого народа. */
-  const askDirections = async () => {
-    setLoading(true);
-    try {
-      const previews = await llmDirectionPreviews(model, game);
-      const next = M.setScienceDirections(M.clone(game), previews);
-      if (next.error) throw new Error(next.error);
-      commit(next.state, { silent: true });
-      toast("Советник предложил три направления — выберите, о чём будет наука.", "ok");
-    } catch (e: any) {
-      toast(`Советник недоступен: ${e?.message}. Заготовок нет — попробуйте ещё раз.`, "bad");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /** Шаг 2: направление выбрано — приказ не тратится, он уйдёт на приём конкретного замысла. */
-  const pickDirection = (index: number) => {
-    const res = act((s: any) => M.chooseScienceDirection(s, index), { silent: true });
-    if (res?.direction) toast(`Направление «${res.direction.title}» выбрано. Теперь советник придумает замыслы внутри него.`, "ok");
-  };
-
-  /** Шаг 3: три замысла внутри выбранного направления. */
+  /**
+   * Один вопрос советнику — три разные науки. Шага «о чём будет наука» больше нет: раньше
+   * превью направлений придумывал один вызов, а советник-строитель вторым вызовом возвращал
+   * три здания с одинаковыми свойствами. Теперь модель сразу предлагает три науки, у каждой
+   * своё здание и свой набор свойств (llmScienceOffers проверяет и названия, и эффекты).
+   */
   const generate = async () => {
     setLoading(true);
     try {
-      const projects = await llmScienceOffers(model, game, chosenDirection || undefined);
+      const projects = await llmScienceOffers(model, game);
       if (!projects.length) throw new Error("не пришло ни одного проекта");
       const next = M.clone(game);
-      next.player.scienceChoices = { branchId: chosenDirection ? `direction:${chosenDirection.theme}` : "advisor", day: game.day, projects };
+      next.player.scienceChoices = { branchId: "advisor", day: game.day, projects };
+      // Двухшагового пути больше нет: старое сохранение могло остаться с выбранным направлением,
+      // и оно молча приписывалось бы каждому новому чертежу. Сбрасываем — наука выбирается целиком.
+      next.player.directionChoices = null;
+      next.player.directionChoice = null;
       commit(next, { silent: true });
-      toast(chosenDirection ? `Три замысла внутри «${chosenDirection.title}».` : "Советник предложил три замысла под вашу ситуацию.", "ok");
+      toast("Советник предложил три разные науки — выберите одну.", "ok");
     } catch (e: any) {
       toast(`Советник недоступен: ${e?.message}. Заготовок нет — попробуйте ещё раз.`, "bad");
     } finally {
@@ -90,63 +74,24 @@ function Science() {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
       <div className="space-y-4">
         <Panel className="p-5">
-          <Heading title="Научный советник" eyebrow="О чём будет наука" className="[&_h2]:text-lg" />
+          <Heading title="Научный советник" eyebrow="Три разные науки" className="[&_h2]:text-lg" />
           <p className="mt-1 text-[13px] leading-relaxed text-dim">
-            Сначала вы выбираете направление: советник читает замысел народа, происхождение, землю, черту, наследие, запасы и эпоху и придумывает три превью — земледелие, ремесло, война, вера, знание, устройство общества и их сочетания. Готовых наук и ветвей в игре нет.
+            Советник читает замысел народа, происхождение, землю, черту, наследие, запасы и эпоху и предлагает
+            <b className="text-parch"> три разные науки</b>: у каждой своё здание и свои свойства. Готовых наук и ветвей в игре нет —
+            вы выбираете одну из придуманных, и она ложится в кодекс чертежом.
           </p>
           <div className="mt-3 flex flex-wrap gap-1.5">
             {(M.SCIENCE_DIRECTION_THEMES || []).map((t: any) => <Chip key={t.id}>{t.icon} {t.label}</Chip>)}
           </div>
-          {dirs.length === 0 && !chosenDirection && (
-            <Btn variant="primary" className="mt-4 w-full" size="lg" onClick={askDirections} disabled={loading || bps.length >= 30}>
-              {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={16} />}
-              {loading ? "Советник думает…" : "Спросить о направлениях"}
-            </Btn>
-          )}
-          {dirs.length > 0 && !chosenDirection && (
-            <div className="mt-4 space-y-2.5">
-              {dirs.map((d: any, i: number) => (
-                <div key={d.id} className="rounded-xl border border-line bg-raised/50 p-3.5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-lg leading-none">{d.icon}</span>
-                        <span className="font-display text-[15px] font-semibold">{d.title}</span>
-                        <Chip tone={CAT[d.category]?.tone}>{CAT[d.category]?.label ?? d.category}</Chip>
-                        <Chip>{d.themeLabel}</Chip>
-                      </div>
-                      <p className="mt-1.5 text-[13px] leading-snug text-dim">{d.summary}</p>
-                      <div className="mt-2"><EffectChips effects={d.effects} /></div>
-                      {d.rationale && <p className="mt-1.5 text-xs italic leading-relaxed text-faint">{d.rationale}</p>}
-                    </div>
-                    <Btn size="sm" variant="primary" className="shrink-0" disabled={loading} onClick={() => pickDirection(i)}>Выбрать</Btn>
-                  </div>
-                </div>
-              ))}
-              <Btn variant="secondary" className="w-full" onClick={askDirections} disabled={loading}>
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}Другие направления
-              </Btn>
-            </div>
-          )}
-          {chosenDirection && (
-            <div className="mt-4 space-y-3">
-              <div className="rounded-xl border border-faith/40 bg-faith/8 p-3.5">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-lg leading-none">{chosenDirection.icon}</span>
-                  <span className="font-display text-[15px] font-semibold">{chosenDirection.title}</span>
-                  <Chip tone={CAT[chosenDirection.category]?.tone}>{CAT[chosenDirection.category]?.label ?? chosenDirection.category}</Chip>
-                  <Chip>{chosenDirection.themeLabel}</Chip>
-                </div>
-                <p className="mt-1.5 text-[13px] leading-snug text-dim">{chosenDirection.summary}</p>
-              </div>
-              <Btn variant="primary" className="w-full" size="lg" onClick={generate} disabled={loading || bps.length >= 30}>
-                {loading ? <Loader2 size={18} className="animate-spin" /> : choices ? <RefreshCw size={16} /> : <Sparkles size={16} />}
-                {loading ? "Советник думает…" : choices ? "Другие замыслы в этом направлении" : "Придумать замыслы в этом направлении"}
-              </Btn>
-              <Btn variant="ghost" className="w-full" onClick={askDirections} disabled={loading}>
-                <RefreshCw size={16} />Сменить направление
-              </Btn>
-            </div>
+          <Btn variant="primary" className="mt-4 w-full" size="lg" onClick={generate} disabled={loading || bps.length >= 30}>
+            {loading ? <Loader2 size={18} className="animate-spin" /> : choices ? <RefreshCw size={16} /> : <Sparkles size={16} />}
+            {loading ? "Советник думает…" : choices ? "Другие три науки" : "Спросить советника"}
+          </Btn>
+          {bps.length === 0 && (
+            <p className="mt-3 text-[12.5px] leading-relaxed text-faint">
+              Кодекс пуст: на старте у народа нет ни наук, ни построек. Первая наука появится здесь —
+              по вашему клику, а не сама собой.
+            </p>
           )}
         </Panel>
 
@@ -160,8 +105,9 @@ function Science() {
       <div className="space-y-4">
         {choices && (
           <Panel className="animate-rise border-bronze/30 p-5">
-            <Heading title="Выберите один путь" eyebrow="Советник прочитал вашу ситуацию" className="[&_h2]:text-lg" />
+            <Heading title="Выберите одну науку" eyebrow="Советник прочитал вашу ситуацию" className="[&_h2]:text-lg" />
             <p className="mt-2 text-[12.5px] leading-relaxed text-dim">
+              Три варианта различаются не только названиями: у каждого своё здание и свой набор свойств.
               Приём замысла — это дневной приказ «Исследование»: он тратит 1 приказ и AP. Остальные замыслы останутся здесь и на следующие дни.
             </p>
             <div className="mt-4 grid gap-3">
@@ -169,11 +115,13 @@ function Science() {
                 <div key={i} className="rounded-xl border border-line bg-raised/50 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-display text-base font-semibold">{pr.scienceName}</div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-display text-base font-semibold">{pr.scienceName}</span>
+                        <Chip tone={CAT[pr.category]?.tone}>{CAT[pr.category]?.label ?? pr.category}</Chip>
+                      </div>
                       <p className="mt-1 text-[13px] leading-snug text-dim">{pr.scienceDescription}</p>
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-faint"><Hammer size={12} />Здание: <span className="text-parch">{pr.buildingName}</span></div>
+                      <div className="mt-2 flex items-start gap-1.5 text-xs text-faint"><Hammer size={12} className="mt-0.5 shrink-0" /><span>Здание: <span className="text-parch">{pr.buildingName}</span> — {pr.buildingDescription}</span></div>
                       <div className="mt-2"><EffectChips effects={pr.effects} /></div>
-                      {pr.rationale && <p className="mt-2 text-xs italic leading-relaxed text-faint">{pr.rationale}</p>}
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">
                       <Btn size="sm" variant="primary" disabled={!!orderBlock} title={orderBlock || ""} onClick={() => choose(i)}>Выбрать</Btn>
@@ -189,7 +137,7 @@ function Science() {
         <Panel className="p-5">
           <Heading title="Кодекс проектов" eyebrow={`${bps.length} из 30`} className="[&_h2]:text-lg" />
           {sorted.length === 0 ? (
-            <p className="mt-4 text-sm text-dim">Кодекс пуст. Спросите советника слева — он придумает проекты под вашу затравку.</p>
+            <p className="mt-4 text-sm text-dim">Кодекс пуст. Спросите советника слева — он придумает три разные науки под ваш народ.</p>
           ) : (
             <ul className="mt-4 space-y-3">
               {sorted.map((b) => {
@@ -205,7 +153,7 @@ function Science() {
                           {b.openingProject && <Chip tone="bronze">Первое дело</Chip>}
                         </div>
                         <p className="mt-1 text-[13px] leading-snug text-dim">{b.scienceDescription}</p>
-                        {/* Направление, из которого вырос замысел: видно, что наука продолжает выбор игрока. */}
+                        {/* Направление из старых сохранений: чертежи, полученные до слияния шагов, помнят его. */}
                         {b.direction && (
                           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11.5px] text-faint">
                             <span>{b.direction.icon}</span><span>Из направления «{b.direction.title}»</span>
