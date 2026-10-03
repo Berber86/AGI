@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Lock, Swords, Hammer, Flag, Crown, Sprout, ArrowRight, Compass, Shield, Flame } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Lock, Swords, Hammer, Flag, Crown, Sprout, ArrowRight, Compass, Shield, Flame, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { useStore } from "@/game/store";
@@ -19,6 +19,9 @@ const SITE_LABEL: Record<string, string> = {
   settlement: "Поселение",
   home: "Стартовое поселение",
   water: "Вода",
+};
+const REGION_CATEGORY_LABEL: Record<string, string> = {
+  military: "Оборона", economy: "Хозяйство", science: "Знания", civic: "Общество", religion: "Вера",
 };
 const FEATURE_LABEL: Record<string, string> = {
   river: "Река",
@@ -78,6 +81,29 @@ function Yields({ y }: { y: Record<string, number> }) {
   );
 }
 
+function regionYields(building: any): Record<string, number> {
+  if (building?.yields) return building.yields;
+  const yields: Record<string, number> = { food: 0, materials: 0, knowledge: 0, faith: 0 };
+  for (const effect of building?.effects || []) {
+    const resource = String(effect.type || "").replace(/^income_/, "");
+    if (Object.prototype.hasOwnProperty.call(yields, resource)) yields[resource] += Number(effect.amount) || 0;
+  }
+  return yields;
+}
+
+function RegionEffects({ effects }: { effects: any[] }) {
+  const labels: Record<string, ResKey> = {
+    income_food: "food", income_materials: "materials", income_knowledge: "knowledge", income_faith: "faith",
+  };
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {(effects || []).map((effect, index) => labels[effect.type] ? (
+        <Chip key={`${effect.type}-${index}`} tone="bronze"><ResIcon k={labels[effect.type]} size={12} />+{effect.amount} в день</Chip>
+      ) : null)}
+    </div>
+  );
+}
+
 function tileMarker(tile: any, ownerId: string | null) {
   if (tile.kind === "home") return "⌂";
   if (tile.kind === "settlement") return "⚑";
@@ -91,7 +117,17 @@ function tileMarker(tile: any, ownerId: string | null) {
 }
 
 export default function MapPage() {
-  const { game, selectedRegion, selectRegion, act, toast, startExpedition, resumeExpedition, nameRegionBuilding } = useStore();
+  const { game, selectedRegion, selectRegion, act, toast, startExpedition, resumeExpedition, requestRegionBuildingOffers } = useStore();
+  const [regionOfferState, setRegionOfferState] = useState<Record<string, { loading: boolean; error: string }>>({});
+  const requestOffersForTile = useCallback(async (regionId: string) => {
+    setRegionOfferState((current) => ({ ...current, [regionId]: { loading: true, error: "" } }));
+    const result = await requestRegionBuildingOffers(regionId);
+    setRegionOfferState((current) => ({
+      ...current,
+      [regionId]: { loading: false, error: result.ok ? "" : result.error || "Советник недоступен." },
+    }));
+    return result;
+  }, [requestRegionBuildingOffers]);
   const definitions: any[] = game.world?.tiles || [];
   const visibleIds = useMemo(() => new Set<string>(M.getVisibleRegionIds(game)), [game]);
   const records = useMemo(() => new Map<string, any>(game.regions.map((r: any): [string, any] => [r.id, r])), [game.regions]);
@@ -132,6 +168,11 @@ export default function MapPage() {
   }, [definitionById, game.world?.rivers, visibleIds]);
 
   const selected = selectedRegion && visibleIds.has(selectedRegion) ? definitionById.get(selectedRegion) : null;
+  const selectedRecord = selected ? info[selected.id]?.record : null;
+  useEffect(() => {
+    if (!selected || selected.kind === "home" || selectedRecord?.ownerId !== "player" || selectedRecord.building || selectedRecord.buildingOffers?.length === 3) return;
+    void requestOffersForTile(selected.id);
+  }, [selected?.id, selected?.kind, selectedRecord?.ownerId, selectedRecord?.building, selectedRecord?.buildingOffers?.length, requestOffersForTile]);
   const ownerOf = (id: string) => info[id]?.owner ?? null;
   const ownerName = (id: string | null) => {
     if (!id) return null;
@@ -264,7 +305,8 @@ export default function MapPage() {
               toast={toast}
               startExpedition={startExpedition}
               resumeExpedition={resumeExpedition}
-              nameRegionBuilding={nameRegionBuilding}
+              regionOfferState={regionOfferState[selected.id] || { loading: false, error: "" }}
+              requestRegionBuildingOffers={requestOffersForTile}
             />
           ) : (
             <Panel className="p-5">
@@ -272,15 +314,16 @@ export default function MapPage() {
               <div className="mt-3 space-y-2">
                 {owned.length ? owned.map((tile: any) => {
                   const record = info[tile.id].record;
-                  const building = M.REGION_BUILDINGS[tile.siteType];
+                  const siteBuilding = M.REGION_BUILDINGS[tile.siteType];
+                  const shownBuilding = record?.customBuilding || (record?.building ? siteBuilding : null);
                   return (
                     <button key={tile.id} onClick={() => selectRegion(tile.id)} className="flex w-full items-center gap-3 rounded-xl border border-line bg-raised/50 px-3 py-2.5 text-left hover:bg-raised">
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ground/70 text-xl">{tile.icon}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-parch">{tile.name}</span>
-                        <span className="block truncate text-xs text-faint">{tile.kind === "home" ? "Центральное поселение" : record?.building ? record.buildingFlavor?.name || building?.name : building ? `Можно построить: ${building.name}` : "Без регионального здания"}</span>
+                        <span className="block truncate text-xs text-faint">{tile.kind === "home" ? "Центральное поселение" : record?.building ? shownBuilding?.name || record.buildingFlavor?.name || siteBuilding?.name : record?.buildingOffers?.length === 3 ? "Три чертежа готовы к выбору" : siteBuilding ? "Советник подготовит 3 варианта" : "Без регионального здания"}</span>
                       </span>
-                      {record?.building && building && <Yields y={building.yields} />}
+                      {record?.building && shownBuilding && <Yields y={regionYields(shownBuilding)} />}
                     </button>
                   );
                 }) : <p className="text-sm text-dim">Пока освоено только центральное поселение.</p>}
@@ -298,7 +341,7 @@ export default function MapPage() {
   );
 }
 
-function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resumeExpedition, nameRegionBuilding }: any) {
+function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resumeExpedition, regionOfferState, requestRegionBuildingOffers }: any) {
   const { game } = useStore();
   const rb = M.REGION_BUILDINGS[def.siteType];
   const action = info.action;
@@ -306,6 +349,8 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
   const record = info.record;
   const mine = info.owner === "player";
   const have = game.player.resources;
+  const offers: any[] = Array.isArray(record?.buildingOffers) ? record.buildingOffers : [];
+  const currentBuilding = record?.customBuilding || (record?.building ? rb : null);
   const featureLabel = FEATURE_LABEL[def.feature] || SITE_LABEL[def.siteType] || "Местность";
   // Разведка стражи: честная грубая оценка сил перед платным квестовым боем.
   const questEst = action.action === "quest" && def.guard ? M.getOpponentBattleConfig(game, def.guard.id) : null;
@@ -315,26 +360,26 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
 
   const run = () => {
     if (action.action === "settle") {
-      if (act((s: any) => M.settleRegion(s, def.id), { silent: true })) toast(`«${def.name}» теперь ваша земля. Постройте здание, чтобы получать доход.`, "ok");
-    } else if (action.action === "build") {
-      const res = act((s: any) => M.buildRegionBuilding(s, def.id), { silent: true });
-      if (res) { toast(`Здание построено в «${def.name}».`, "ok"); void nameRegionBuilding(def.id); }
+      if (act((s: any) => M.settleRegion(s, def.id), { silent: true })) toast(`«${def.name}» теперь ваша земля. Советник предложит три постройки для этой клетки.`, "ok");
     } else if (action.action === "attack" || action.action === "quest") startExpedition(def.id);
     else if (action.action === "resume" || action.action === "return") resumeExpedition();
   };
+  const buildOffer = (offer: any) => {
+    const res = act((s: any) => M.buildRegionBuilding(s, def.id, offer.id), { silent: true });
+    if (res) toast(`«${offer.name}» построено в «${def.name}».`, "ok");
+  };
   const runMission = () => {
     const res = act((s: any) => M.missionRegion(s, def.id), { silent: true });
-    if (res) toast(`«${def.name}» присоединена словом за ${mission.cost.faith} 🙏. Постройте здание региона, чтобы получать доход.`, "ok");
+    if (res) toast(`«${def.name}» присоединена словом за ${mission.cost.faith} 🙏. Советник предложит три постройки для этой клетки.`, "ok");
   };
   const label: Record<string, string> = {
     settle: "Заселить землю",
-    build: `Построить: ${rb?.name ?? "региональное здание"}`,
     attack: "Начать экспедицию",
     quest: "Сразиться со стражей",
     resume: "Продолжить экспедицию",
     return: "Вернуться к бою",
   };
-  const orderName = action.action === "settle" || action.action === "attack" || action.action === "quest" ? "Использует приказ «Поход»." : action.action === "build" ? "Использует приказ «Строительство»." : "";
+  const orderName = action.action === "settle" || action.action === "attack" || action.action === "quest" ? "Использует приказ «Поход»." : "";
 
   return (
     <Panel className="animate-rise p-5">
@@ -357,16 +402,60 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
         {def.resourceLabel && <div className="col-span-2"><div className="text-[10px] uppercase tracking-wider text-faint">Ресурс</div><div className="mt-0.5 font-medium text-parch">{def.resourceLabel}</div></div>}
       </div>
 
-      {rb && def.kind !== "home" && def.terrain !== "water" && (
+      {rb && def.kind !== "home" && def.terrain !== "water" && mine && (
         <div className="mt-4 rounded-xl border border-line bg-ground/50 p-3.5">
-          <div className="flex items-center justify-between gap-2">
-            <div><Label>Здание региона</Label><div className="mt-0.5 text-sm font-semibold text-parch">{record?.building ? (record.buildingFlavor?.name || rb.name) : rb.name}</div></div>
-            <Yields y={rb.yields} />
-          </div>
-          <p className="mt-1.5 text-xs leading-relaxed text-faint">{rb.description}</p>
-          {rb.unlocks && <p className="mt-2 flex items-center gap-1.5 text-xs text-know"><Sprout size={12} />{rb.unlocks.includes("masterwork") ? "Вместе с плавильней открывает мастерское сырьё для ковки" : "Открывает отборное сырьё для ковки"}</p>}
-          {!record?.building && <div className="mt-2 flex items-center gap-2 text-xs text-dim">Стоимость: <Cost cost={rb.cost} have={have} /></div>}
-          {record?.building && <div className="mt-2 text-xs font-medium text-ok">Построено · приносит доход каждый день</div>}
+          {record?.building ? (
+            <>
+              <div className="flex items-center justify-between gap-2">
+                <div><Label>{record.customBuilding ? "Постройка советника" : "Региональное здание"}</Label><div className="mt-0.5 text-sm font-semibold text-parch">{currentBuilding?.name || record.buildingFlavor?.name || rb.name}</div></div>
+                <Yields y={regionYields(currentBuilding)} />
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-faint">{currentBuilding?.description || record.buildingFlavor?.description || rb.description}</p>
+              {rb.unlocks && <p className="mt-2 flex items-center gap-1.5 text-xs text-know"><Sprout size={12} />{rb.unlocks.includes("masterwork") ? "Вместе с медным месторождением открывает мастерское сырьё для ковки" : "Месторождение открывает отборное сырьё для ковки"}</p>}
+              <div className="mt-2 text-xs font-medium text-ok">Построено · приносит доход каждый день</div>
+            </>
+          ) : (
+            <>
+              <Label>Три чертежа для этой клетки</Label>
+              <p className="mt-1.5 text-xs leading-relaxed text-faint">Советник учитывает местность, ресурс, географию, наследие народа и текущую эпоху. Выбранная постройка заменит обычное здание этого региона; её эффекты дают прямой доход клетке.</p>
+              {offers.length === 3 ? (
+                <div className="mt-3 space-y-2.5">
+                  {offers.map((offer, index) => (
+                    <div key={offer.id} className="rounded-xl border border-line-strong bg-raised/60 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5"><Chip tone="bronze">Вариант {index + 1}</Chip><Chip>{REGION_CATEGORY_LABEL[offer.category] || "Регион"}</Chip></div>
+                          <h3 className="font-display mt-2 text-base font-semibold text-parch">{offer.name}</h3>
+                        </div>
+                      </div>
+                      <p className="mt-1.5 text-xs leading-relaxed text-dim">{offer.description}</p>
+                      <RegionEffects effects={offer.effects} />
+                      {offer.rationale && <p className="mt-2 text-[11px] italic leading-relaxed text-faint">Почему подходит: {offer.rationale}</p>}
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5">
+                        <div className="flex items-center gap-2 text-xs text-dim"><span>Цена</span><Cost cost={action.cost || rb.cost} have={have} /></div>
+                        <Btn size="sm" variant="primary" disabled={!action.enabled} title={action.reason || ""} onClick={() => buildOffer(offer)}><Hammer size={14} />Построить этот вариант</Btn>
+                      </div>
+                    </div>
+                  ))}
+                  {!action.enabled && action.reason && <p className="text-xs leading-relaxed text-bad/90">{action.reason}</p>}
+                  <p className="flex items-center gap-1.5 text-[11px] text-faint"><Hammer size={12} />Каждый вариант использует приказ «Строительство».</p>
+                </div>
+              ) : regionOfferState?.error ? (
+                <div className="mt-3 rounded-lg border border-bad/30 bg-bad/5 p-3">
+                  <p className="text-xs leading-relaxed text-bad">Советник не подготовил чертежи: {regionOfferState.error}</p>
+                  <Btn size="sm" variant="secondary" className="mt-2" disabled={regionOfferState.loading} onClick={() => void requestRegionBuildingOffers(def.id)}><Sparkles size={14} />Повторить запрос</Btn>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2 rounded-lg bg-raised/50 p-3 text-xs text-dim"><Loader2 size={14} className="animate-spin text-bronze" />Советник придумывает три варианта именно для этой земли…</div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {rb && def.kind !== "home" && def.terrain !== "water" && !mine && (
+        <div className="mt-4 rounded-xl border border-line bg-ground/50 p-3.5">
+          <Label>Постройка после освоения</Label>
+          <p className="mt-1.5 text-xs leading-relaxed text-faint">Когда клетка перейдёт под ваш контроль, советник создаст три варианта с учётом её географии, ресурса, культурного наследия и эпохи. Вы выберете один вместо обычного регионального здания.</p>
         </div>
       )}
 
@@ -391,7 +480,7 @@ function RegionPanel({ def, info, ownerName, act, toast, startExpedition, resume
         </div>
       )}
 
-      {label[action.action] ? (
+      {action.action === "build" ? null : label[action.action] ? (
         <div className="mt-5">
           {action.cost && <div className="mb-2 flex items-center justify-between text-xs text-dim"><span>Цена {action.action === "attack" ? "экспедиции" : action.action === "quest" ? "квестового боя" : action.action === "settle" ? "заселения" : "здания"}</span><Cost cost={action.cost} have={have} /></div>}
           <Btn variant="primary" size="lg" className="w-full" disabled={!action.enabled} onClick={run}>

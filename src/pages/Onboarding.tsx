@@ -39,18 +39,19 @@ function generateTribeName(exclude?: string): string {
 }
 
 /** Черновик обращений к советнику: генерацию уже оплатили, терять её нельзя. */
-function readOpeningDraft(seedLine: string): { directions: any[]; direction: any | null; project: any | null } {
+function readOpeningDraft(seedLine: string): { directions: any[]; direction: any | null; projects: any[]; selectedProject: any | null } {
   try {
     const raw = JSON.parse(localStorage.getItem("iforge_opening_draft") || "null");
     if (raw && raw.seedLine === seedLine) {
       return {
         directions: Array.isArray(raw.directions) ? raw.directions : [],
         direction: raw.direction || null,
-        project: raw.project || null,
+        projects: Array.isArray(raw.projects) ? raw.projects : [],
+        selectedProject: raw.selectedProject || null,
       };
     }
   } catch { /* пусто */ }
-  return { directions: [], direction: null, project: null };
+  return { directions: [], direction: null, projects: [], selectedProject: null };
 }
 
 export default function Onboarding() {
@@ -74,14 +75,15 @@ export default function Onboarding() {
     || null);
   const seedChoice = (M.SEED_CHOICES || []).find((c: any) => c.id === seedId) || null;
   const seedLine = seedChoice?.line || p.seedLine || "";
-  const draft = p.awaitingOpeningProject ? readOpeningDraft(seedLine) : { directions: [], direction: null, project: null };
-  // Превью направлений придумывает модель: игрок выбирает, о чём будет первая наука, и только потом
-  // советник раскрывает направление в науку и постройку (второй вызов).
-  const [phase, setPhase] = useState<"form" | "asking" | "directions" | "generating" | "reveal" | "error">(
-    draft.project ? "reveal" : draft.directions.length ? "directions" : "form");
+  const draft = p.awaitingOpeningProject ? readOpeningDraft(seedLine) : { directions: [], direction: null, projects: [], selectedProject: null };
+  // Модель предлагает научные направления, затем советник-строитель создаёт три первых чертежа.
+  // Игрок выбирает один из них; ни одно здание не ставится автоматически.
+  const [phase, setPhase] = useState<"form" | "asking" | "directions" | "generating" | "offers" | "error">(
+    draft.projects.length ? "offers" : draft.directions.length ? "directions" : "form");
   const [directions, setDirections] = useState<any[]>(draft.directions);
   const [direction, setDirection] = useState<any>(draft.direction);
-  const [project, setProject] = useState<any>(draft.project);
+  const [projects, setProjects] = useState<any[]>(draft.projects);
+  const [selectedProject, setSelectedProject] = useState<any>(draft.selectedProject);
   const [error, setError] = useState("");
 
   const origin = M.ORIGINS.find((o: any) => o.id === originId);
@@ -108,24 +110,32 @@ export default function Onboarding() {
     setPhase("directions");
   };
 
-  /** Второй вопрос: раскрыть выбранное направление в первое дело народа. */
+  /** Второй вопрос: советник-строитель подбирает три первых чертежа в выбранном направлении. */
   const found = async () => {
     if (!originId || !seedId || !direction) return;
     setPhase("generating");
     setError("");
-    const res = await foundCampaign({ name: name.trim() || (origin?.name ?? ""), originId, seedId, historicalCultureId: cultureId, direction });
+    const res = await foundCampaign({ name: name.trim() || (origin?.name ?? ""), originId, seedId, historicalCultureId: cultureId, direction, directions });
     if (!res.ok) {
       setPhase("error");
       setError(res.error || "Советник недоступен.");
       return;
     }
-    setProject(res.project);
-    setPhase("reveal");
+    setProjects(res.projects || []);
+    setSelectedProject(null);
+    setPhase("offers");
   };
 
   const pickDirection = (item: any) => {
     setDirection(item);
+    setProjects([]);
+    setSelectedProject(null);
     try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: seedId, seedLine, directions, direction: item })); } catch { /* переполнение хранилища не критично */ }
+  };
+
+  const pickProject = (item: any) => {
+    setSelectedProject(item);
+    try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: seedId, seedLine, directions, direction, projects, selectedProject: item })); } catch { /* переполнение хранилища не критично */ }
   };
 
   // Пока советник думает — только ожидание и выбранный замысел, никаких кнопок.
@@ -135,7 +145,7 @@ export default function Onboarding() {
         <div className="max-w-lg text-center">
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl border border-bronze/40 bg-bronze/10"><Loader2 className="animate-spin text-bronze" size={28} /></span>
           <h1 className="font-display mt-6 text-3xl font-semibold">
-            {phase === "asking" ? "Советник читает ваш народ" : `Советник раскрывает «${direction?.title ?? "выбранное"}»`}
+            {phase === "asking" ? "Советник читает ваш народ" : `Советник-строитель подбирает чертежи для «${direction?.title ?? "выбранного направления"}»`}
           </h1>
           <p className="mt-3 text-[15px] leading-relaxed text-dim">
             «{seedLine.trim()}»
@@ -143,7 +153,7 @@ export default function Onboarding() {
           <p className="mt-4 text-sm leading-relaxed text-faint">
             {phase === "asking"
               ? "Он придумает три направления науки — о чём она может быть у народа с вашей землёй, чертой, наследием и замыслом. Готовых вариантов в игре нет."
-              : "Из этого направления родится первое дело народа: своя наука и своя постройка. Проект создаётся только для вас."}
+              : "Он сопоставляет географию, доступные материалы и культурное наследие, чтобы предложить три разных чертежа. Пока вы не выбрали проект, в поселении нет построек."}
           </p>
         </div>
       </div>
@@ -156,7 +166,7 @@ export default function Onboarding() {
         <div className="max-w-lg text-center">
           <h1 className="font-display text-3xl font-semibold">Советник не ответил</h1>
           <p className="mt-3 text-sm leading-relaxed text-bad">{error}</p>
-          <p className="mt-3 text-sm leading-relaxed text-dim">Начало игры не сохранится без первого дела: попробуйте снова или выберите другой замысел.</p>
+          <p className="mt-3 text-sm leading-relaxed text-dim">Начало игры не завершится без выбранного чертежа: попробуйте снова или выберите другое направление.</p>
           <div className="mt-6 flex justify-center gap-3">
             <Btn variant="primary" size="lg" onClick={directions.length && direction ? found : askDirections}>Повторить<ArrowRight size={18} /></Btn>
             <Btn variant="ghost" size="lg" onClick={() => { setPhase("form"); setStep(3); }}>Сменить замысел</Btn>
@@ -174,7 +184,7 @@ export default function Onboarding() {
           <h1 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">Советник принёс три направления</h1>
           <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-dim">
             Направления придуманы под ваш народ{origin ? ` — ${origin.name}, земля «${origin.place}»` : ""}{culture ? `, наследие «${culture.name}»` : ""}{seedChoice ? `, замысел «${seedChoice.name}»` : ""}.
-            Выберите одно: советник раскроет его в науку и постройку. Готовых наук в игре нет.
+            Выберите одно: советник-строитель предложит три непохожие науки и постройки внутри этой темы. Вы сами решите, какой чертёж исследовать и построить.
           </p>
           <div className="mt-6 grid gap-3">
             {directions.map((d) => (
@@ -204,7 +214,7 @@ export default function Onboarding() {
               <Dices size={18} />Другие направления
             </Btn>
             <Btn variant="primary" size="lg" className="sm:flex-[2]" disabled={!direction} onClick={found}>
-              <Sparkles size={18} />{direction ? `Раскрыть «${direction.title}»` : "Выберите направление"}
+              <Sparkles size={18} />{direction ? `Получить три чертежа · «${direction.title}»` : "Выберите направление"}
             </Btn>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-faint">
@@ -216,33 +226,63 @@ export default function Onboarding() {
     );
   }
 
-  if (phase === "reveal" && project) {
+  if (phase === "offers" && projects.length) {
     return (
       <div className="grid min-h-dvh place-items-center px-6 py-10">
-        <div className="w-full max-w-2xl">
-          <Label>Первый день · ваш народ основан</Label>
-          <h1 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">{name.trim() || origin?.name} начинают путь</h1>
-          <div className="mt-6 rounded-2xl border border-bronze/40 bg-bronze/8 p-5">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft"><Sparkles size={13} />Первое дело народа</div>
-            <h2 className="font-display mt-2 text-2xl font-semibold">{project.scienceName}</h2>
-            <p className="mt-2 text-[14px] leading-relaxed text-dim">{project.scienceDescription}</p>
-            <div className="mt-4 rounded-xl border border-line bg-ground/60 p-3.5">
-              <div className="text-[11px] uppercase tracking-wider text-faint">Постройка по этому чертежу</div>
-              <div className="mt-0.5 font-display text-lg font-semibold">{project.buildingName}</div>
-              <p className="mt-1 text-[13px] leading-relaxed text-dim">{project.buildingDescription}</p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {(project.effects || []).map((e: any, i: number) => <Chip key={i} tone="bronze">{M.EFFECTS[e.type]?.label ?? e.type}</Chip>)}
-              </div>
-            </div>
-            {project.rationale && <p className="mt-3 text-[13px] italic leading-relaxed text-faint">Почему так: {project.rationale}</p>}
+        <div className="w-full max-w-3xl">
+          <Label>Советник-строитель · первые чертежи</Label>
+          <h1 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">Выберите, что построить первым</h1>
+          <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-dim">
+            Три варианта придуманы для направления «{direction?.title || "вашего народа"}» с учётом географии, земли и наследия.
+            Построек пока нет: выбранный проект попадёт в кодекс, а само здание появится только после исследования и вашего приказа на стройку.
+          </p>
+          <div className="mt-6 grid gap-3">
+            {projects.map((item, index) => {
+              const selected = selectedProject?.buildingName === item.buildingName;
+              return (
+                <button key={`${item.buildingName}-${index}`} type="button" aria-pressed={selected} onClick={() => pickProject(item)}
+                  className={cn("rounded-2xl border p-4 text-left transition-all", selected ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Chip tone="bronze">Вариант {index + 1}</Chip>
+                        <Chip tone={CATEGORY_META[item.category]?.tone}>{CATEGORY_META[item.category]?.label ?? item.category}</Chip>
+                      </div>
+                      <h2 className="font-display mt-2 text-xl font-semibold text-parch">{item.buildingName}</h2>
+                      <p className="mt-1 text-[13.5px] leading-relaxed text-dim">{item.buildingDescription}</p>
+                    </div>
+                    {selected ? <Check size={19} className="mt-1 shrink-0 text-bronze" /> : null}
+                  </div>
+                  <div className="mt-3 rounded-xl border border-line bg-ground/60 p-3">
+                    <div className="text-[11px] uppercase tracking-wider text-faint">Наука для чертежа</div>
+                    <div className="mt-0.5 font-display text-base font-semibold">{item.scienceName}</div>
+                    <p className="mt-1 text-[13px] leading-relaxed text-dim">{item.scienceDescription}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(item.effects || []).map((effect: any, effectIndex: number) => <Chip key={effectIndex} tone="bronze">{M.EFFECTS[effect.type]?.label ?? effect.type}</Chip>)}
+                    </div>
+                  </div>
+                  {item.rationale && <p className="mt-3 text-[13px] italic leading-relaxed text-faint">Почему подходит народу: {item.rationale}</p>}
+                </button>
+              );
+            })}
           </div>
           <div className="mt-4 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed text-dim">
-            <div className="mb-1 font-semibold text-parch">Что дальше</div>
-            Каждый день у вас <b className="text-parch">2 приказа</b>: наука, стройка, поход, ковка или миссия. Что и в каком порядке делать — решаете вы: изучайте науки и стройте здания, занимайте соседние земли, куйте карты и выходите в бой.
+            <div className="mb-1 font-semibold text-parch">Строить будете вы</div>
+            На первом дне у вас <b className="text-parch">2 приказа</b>: выберите науку, изучите её за 1🌾 и 1📚, затем отдайте приказ на постройку за 3🪵. Можно начать с этого чертежа или заняться чем-то другим.
           </div>
-          <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={() => { if (startFirstDay()) toast("Первый день начался. Делайте что хотите: науки, земли, ковка и бои открыты сразу.", "ok"); }}>
-            <Check size={18} />Начать первый день
-          </Btn>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <Btn variant="ghost" size="lg" className="sm:flex-1" disabled={!directions.length} onClick={() => setPhase("directions")}>
+              <ArrowLeft size={18} />К направлениям
+            </Btn>
+            <Btn variant="secondary" size="lg" className="sm:flex-1" onClick={found}>
+              <Dices size={18} />Другие чертежи
+            </Btn>
+            <Btn variant="primary" size="lg" className="sm:flex-[2]" disabled={!selectedProject} onClick={() => {
+              if (startFirstDay(selectedProject)) toast("Первый день начался. Чертёж выбран; постройку вы возведёте сами.", "ok");
+            }}>
+              <Check size={18} />{selectedProject ? `Начать с «${selectedProject.buildingName}»` : "Выберите чертёж"}
+            </Btn>
+          </div>
         </div>
       </div>
     );
@@ -409,9 +449,8 @@ export default function Onboarding() {
               </div>
               <div className="mt-6 rounded-2xl border border-bronze/30 bg-bronze/8 p-4 text-sm leading-relaxed text-dim">
                 <div className="mb-1 font-semibold text-bronze-soft">Что произойдёт дальше</div>
-                Советник прочитает происхождение, наследие и замысел народа и предложит <b className="text-parch">три направления</b> — о чём может быть ваша первая наука:
-                земледелие, ремесло, война, вера, знание, устройство общества или их сочетание. Вы выберете одно, и советник раскроет его
-                в науку и постройку. А дальше вы сами: карта, кузница, армия и свои дела в любом порядке.
+                Советник прочитает происхождение, географию, наследие и замысел народа, предложит <b className="text-parch">три направления науки</b>, а затем — три разных первых чертежа внутри выбранной темы.
+                Построенного здания на старте нет: вы сами выберете науку и возведёте постройку в первые ходы. Карта, кузница, армия и остальные дела открыты сразу.
               </div>
             </div>
           )}

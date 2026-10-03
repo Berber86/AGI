@@ -1,0 +1,138 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+const Campaign = require('../campaign.js');
+
+const root = path.join(__dirname, '..');
+
+function loadCards(fetchImpl) {
+  const file = path.join(root, 'src', 'game', 'cards.ts');
+  const javascript = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: file,
+  }).outputText;
+  const mod = { exports: {} };
+  const sandbox = {
+    module: mod,
+    exports: mod.exports,
+    require(name) {
+      if (name === './model') {
+        return {
+          M: {
+            ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
+            eraName: Campaign.eraName,
+            allowedCardEras: Campaign.allowedCardEras,
+            DECREES: Campaign.DECREES,
+          },
+        };
+      }
+      throw new Error(`Unexpected import ${name}`);
+    },
+    fetch: fetchImpl,
+    console,
+    Date,
+    Math,
+    JSON,
+    Promise,
+  };
+  vm.runInNewContext(javascript, sandbox, { filename: file, timeout: 5000 });
+  return mod.exports;
+}
+
+function modelReply(payload) {
+  return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify(payload) } }] }) };
+}
+
+function readyState() {
+  return Campaign.beginOnboardingState(Campaign.createState(3102026), {
+    name: 'Люди Дельты', originId: 'river', seedId: 'forge',
+  }).state;
+}
+
+const BATTLE_CHOICES = [
+  { card_type: 'unit', title: 'Стражи переправы', pitch: 'Копейщики удерживают авангард врага, пока лучники бьют из тыла.' },
+  { card_type: 'spell', title: 'Засада в камышах', pitch: 'Скрытый залп поджигает вражеский авангард прямо сейчас.' },
+  { card_type: 'structure', title: 'Частокол с бойницами', pitch: 'Каждый ход частокол обстреливает первого врага в строю.' },
+];
+
+test('военный советник получает строгую боевую задачу и возвращает по одной идее каждого типа', async () => {
+  const requests = [];
+  const api = loadCards(async (url, init) => {
+    requests.push({ url, body: JSON.parse(init.body) });
+    return modelReply({ choices: BATTLE_CHOICES });
+  });
+  const state = readyState();
+  const advice = await api.llmAdvice('gpt-6-luna', state);
+
+  assert.deepEqual(advice.map((item) => item.cardType), ['unit', 'spell', 'structure']);
+  assert.ok(advice.every((item) => item.title && item.pitch));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/api/hydra');
+  assert.equal(requests[0].body.response_format.type, 'json_object');
+  const [system, user] = requests[0].body.messages.map((message) => message.content);
+  assert.match(system, /боевой колоды/iu);
+  assert.match(system, /в одном текущем сражении/iu);
+  assert.match(system, /авангард и тыл.*общий запас энергии/iu);
+  assert.match(system, /строго по одному каждого типа/iu);
+  assert.match(system, /unit — боец/iu);
+  assert.match(system, /spell — разовый манёвр/iu);
+  assert.match(system, /structure — именно боевая постройка/iu);
+  assert.match(system, /каждый ход обстреливает/iu);
+  assert.match(system, /Не ограничивайся предысторией, бытом/iu);
+  assert.match(system, /не задача карты/iu);
+  assert.match(user, /Нужны три боевые идеи для колоды/iu);
+  assert.match(user, /Контекст цивилизации/iu);
+  assert.ok(user.includes(state.player.seedLine), 'история народа по-прежнему идёт модели как источник образа');
+});
+
+test('советник не пропускает дубли карточных типов или пустые замыслы', async () => {
+  const duplicates = loadCards(async () => modelReply({ choices: [
+    BATTLE_CHOICES[0],
+    { ...BATTLE_CHOICES[1], card_type: 'unit' },
+    BATTLE_CHOICES[2],
+  ] }));
+  await assert.rejects(() => duplicates.llmAdvice('gpt-6-luna', readyState()), /по одному замыслу каждого типа/iu);
+
+  const emptyPitch = loadCards(async () => modelReply({ choices: [
+    BATTLE_CHOICES[0],
+    { ...BATTLE_CHOICES[1], pitch: '   ' },
+    BATTLE_CHOICES[2],
+  ] }));
+  await assert.rejects(() => emptyPitch.llmAdvice('gpt-6-luna', readyState()), /название и описание тактической роли/iu);
+});
+
+test('кузнец превращает исторический замысел в эффект текущего боя, а не в долгосрочное хозяйство', async () => {
+  const requests = [];
+  const api = loadCards(async (url, init) => {
+    requests.push(JSON.parse(init.body));
+    return modelReply({
+      name: 'Копейщики у брода', card_type: 'unit', era: 'ancient', emoji: '🛡️',
+      drop_cost: 2, action_cost: 1, hp: 4, atk: 2,
+      description: 'Держат переправу и не дают противнику прорваться к лучникам.',
+      tags: [], abilities: [], keywords: ['phalanx'], effects: [], monkey_paw: '',
+    });
+  });
+
+  await api.llmCard('gpt-6-luna', {
+    id: 'unit-0', cardType: 'unit', title: 'Камнерез дельты',
+    pitch: 'Острые обсидиановые наконечники помогают копейщикам пробить вражеский строй.',
+  }, 'ordinary', readyState());
+
+  const [system, user] = requests[0].messages.map((message) => message.content);
+  assert.match(system, /Замысел от военного советника — только исторический образ/iu);
+  assert.match(system, /полезную в текущем сражении/iu);
+  assert.match(user, /Боевой замысел:/iu);
+  assert.match(user, /Воплоти этот образ в боевую роль в текущем матче/iu);
+  assert.match(user, /не превращай ремесло, урожай, быт или дальний путь/iu);
+});
+
+test('экран кузницы объясняет боевое назначение и не читает старые замыслы из прежнего кэша', () => {
+  const forge = fs.readFileSync(path.join(root, 'src', 'pages', 'Forge.tsx'), 'utf8');
+  assert.match(forge, /iforge_advice_v3/);
+  assert.doesNotMatch(forge, /iforge_advice_v2/);
+  assert.match(forge, /Все идеи — для одного сражения/iu);
+  assert.match(forge, /Что поможет победить в одном бою/iu);
+});

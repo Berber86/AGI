@@ -8,7 +8,7 @@ import { Btn, Chip, Cost, Heading, Label, Meter, Modal, Panel } from "@/componen
 import { CardFace } from "@/components/CardView";
 import { PageFrame } from "@/components/Shell";
 
-const ADV_KEY = "iforge_advice_v2";
+const ADV_KEY = "iforge_advice_v3";
 
 function readAdvice(season: number, day: number): Advice[] | null {
   try {
@@ -48,7 +48,7 @@ export default function Forge() {
     try {
       const list = await llmAdvice(model, game);
       setAdvice(list);
-      toast("Советник предложил новые замыслы.", "ok");
+      toast("Советник предложил три боевых замысла.", "ok");
     } catch (e: any) {
       toast(`Советник недоступен: ${e?.message}. Попробуйте ещё раз — заготовок нет.`, "bad");
     }
@@ -132,13 +132,14 @@ export default function Forge() {
         <div className="space-y-4">
           <Panel className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <StepTitle n={1} title="Замысел" hint="Что нужно вашему народу? Советник предлагает три идеи." />
+              <StepTitle n={1} title="Замысел" hint="Что поможет победить в одном бою?" />
               <Btn size="sm" onClick={askAdvisor} disabled={askLoading}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{advice.length ? "Другие замыслы" : "Спросить ИИ-советника"}</Btn>
             </div>
+            <p className="mt-3 text-xs leading-relaxed text-dim">Все идеи — для одного сражения: боец, немедленный манёвр или боевая постройка в тылу. История народа даёт образ и тактику, а не план мирного хозяйства.</p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {advice.length === 0 && (
                 <p className="rounded-xl border border-dashed border-line-strong p-4 text-sm leading-relaxed text-dim md:col-span-3">
-                  Замыслов пока нет: их придумывает советник по вашей ситуации. Нажмите «Спросить ИИ-советника».
+                  Боевых замыслов пока нет: советник предложит бойца, разовый манёвр и постройку для боя. Нажмите «Спросить ИИ-советника».
                 </p>
               )}
               {advice.map((a) => (
