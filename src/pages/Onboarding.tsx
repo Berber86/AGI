@@ -7,7 +7,7 @@ import { Btn, CATEGORY_META, Chip, Label, ResIcon, RES, type ResKey } from "@/co
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
-const STEPS = ["Имя", "Происхождение", "Замысел", "Советник", "Направление"];
+const STEPS = ["Имя", "Происхождение", "Наследие", "Замысел", "Советник", "Направление"];
 
 /* ---------- генератор имени народа (с перебросами, без ручного выбора из списка) ---------- */
 
@@ -56,10 +56,18 @@ function readOpeningDraft(seedLine: string): { directions: any[]; direction: any
 export default function Onboarding() {
   const { game, model, setModel, askOpeningDirections, foundCampaign, startFirstDay, toast } = useStore();
   const p = game.player;
-  const [step, setStep] = useState(() => (p.awaitingOpeningProject && p.originId ? 4 : 0));
+  const [step, setStep] = useState(() => (p.awaitingOpeningProject && p.originId ? 5 : 0));
   // Имя народа никто не выбирает руками — его придумывает генератор; переброс даёт другой вариант.
   const [name, setName] = useState(() => (p.originId ? p.name : generateTribeName()));
   const [originId, setOriginId] = useState<string | null>(p.originId || null);
+  // Наследие: стартовые культуры (эпоха 0) лежат в игре целиком, и игрок выбирает одну сам —
+  // раньше культура выпадала случайно и всплывала только строчкой в летописи.
+  const startCultures: any[] = (M.startCulturePool ? M.startCulturePool() : M.HISTORICAL_CULTURES.filter((c: any) => c.era === 0));
+  const [cultureId, setCultureId] = useState<string | null>(() => {
+    const saved = p.historicalCulture?.id;
+    return saved && startCultures.some((c: any) => c.id === saved) ? saved : null;
+  });
+  const culture = startCultures.find((c: any) => c.id === cultureId) || null;
   // Старое сохранение могло хранить затравку текстом: узнаём её среди готовых замыслов.
   const [seedId, setSeedId] = useState<string | null>(() => p.seedChoiceId
     || (M.SEED_CHOICES || []).find((c: any) => c.line === p.seedLine)?.id
@@ -80,15 +88,16 @@ export default function Onboarding() {
 
   const canNext = step === 0 ? true
     : step === 1 ? !!originId
-      : step === 2 ? !!seedId
-        : true;
+      : step === 2 ? !!cultureId
+        : step === 3 ? !!seedId
+          : true;
 
   /** Первый вопрос советнику: о чём вообще может быть наука этого народа. */
   const askDirections = async () => {
     if (!originId || !seedId) return;
     setPhase("asking");
     setError("");
-    const res = await askOpeningDirections({ name: name.trim() || (origin?.name ?? ""), originId, seedId });
+    const res = await askOpeningDirections({ name: name.trim() || (origin?.name ?? ""), originId, seedId, historicalCultureId: cultureId });
     if (!res.ok) {
       setPhase("error");
       setError(res.error || "Советник недоступен.");
@@ -104,7 +113,7 @@ export default function Onboarding() {
     if (!originId || !seedId || !direction) return;
     setPhase("generating");
     setError("");
-    const res = await foundCampaign({ name: name.trim() || (origin?.name ?? ""), originId, seedId, direction });
+    const res = await foundCampaign({ name: name.trim() || (origin?.name ?? ""), originId, seedId, historicalCultureId: cultureId, direction });
     if (!res.ok) {
       setPhase("error");
       setError(res.error || "Советник недоступен.");
@@ -150,7 +159,7 @@ export default function Onboarding() {
           <p className="mt-3 text-sm leading-relaxed text-dim">Начало игры не сохранится без первого дела: попробуйте снова или выберите другой замысел.</p>
           <div className="mt-6 flex justify-center gap-3">
             <Btn variant="primary" size="lg" onClick={directions.length && direction ? found : askDirections}>Повторить<ArrowRight size={18} /></Btn>
-            <Btn variant="ghost" size="lg" onClick={() => { setPhase("form"); setStep(2); }}>Сменить замысел</Btn>
+            <Btn variant="ghost" size="lg" onClick={() => { setPhase("form"); setStep(3); }}>Сменить замысел</Btn>
           </div>
         </div>
       </div>
@@ -164,7 +173,7 @@ export default function Onboarding() {
           <Label>Первое дело · о чём будет наука</Label>
           <h1 className="font-display mt-2 text-3xl font-semibold sm:text-4xl">Советник принёс три направления</h1>
           <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-dim">
-            Направления придуманы под ваш народ{origin ? ` — ${origin.name}, земля «${origin.place}»` : ""}{seedChoice ? `, замысел «${seedChoice.name}»` : ""}.
+            Направления придуманы под ваш народ{origin ? ` — ${origin.name}, земля «${origin.place}»` : ""}{culture ? `, наследие «${culture.name}»` : ""}{seedChoice ? `, замысел «${seedChoice.name}»` : ""}.
             Выберите одно: советник раскроет его в науку и постройку. Готовых наук в игре нет.
           </p>
           <div className="mt-6 grid gap-3">
@@ -229,9 +238,9 @@ export default function Onboarding() {
           </div>
           <div className="mt-4 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed text-dim">
             <div className="mb-1 font-semibold text-parch">Что дальше</div>
-            Каждый день у вас <b className="text-parch">2 приказа</b>. Наставник сверху будет вести по шагам: изучить первое дело → построить здание → занять соседнюю землю → сыграть тренировочный бой.
+            Каждый день у вас <b className="text-parch">2 приказа</b>: наука, стройка, поход, ковка или миссия. Что и в каком порядке делать — решаете вы: изучайте науки и стройте здания, занимайте соседние земли, куйте карты и выходите в бой.
           </div>
-          <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={() => { if (startFirstDay()) toast("Первый день начался. Наставник подскажет следующий шаг.", "ok"); }}>
+          <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={() => { if (startFirstDay()) toast("Первый день начался. Делайте что хотите: науки, земли, ковка и бои открыты сразу.", "ok"); }}>
             <Check size={18} />Начать первый день
           </Btn>
         </div>
@@ -302,11 +311,48 @@ export default function Onboarding() {
 
           {step === 2 && (
             <div className="max-w-3xl">
+              <h2 className="font-display text-3xl font-semibold">Кем пришли в этот мир?</h2>
+              <p className="mt-2 text-dim">
+                Это наследие народа — древняя культура, чьи обычаи он несёт. Советник читает его в каждом проекте,
+                а бонусы работают с первого дня. Сменить наследие можно будет при переходе в новую эпоху.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {startCultures.map((c: any) => (
+                  <button key={c.id} onClick={() => setCultureId(c.id)}
+                    className={cn("flex flex-col items-start rounded-2xl border p-4 text-left transition-all", cultureId === c.id ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
+                    <div className="flex w-full items-start justify-between gap-2">
+                      <span className="text-3xl">{c.icon}</span>
+                      {cultureId === c.id ? <Check size={16} className="mt-1 text-bronze" /> : null}
+                    </div>
+                    <div className="font-display mt-2 text-lg font-semibold">{c.name}</div>
+                    <p className="mt-1.5 text-[13px] leading-snug text-parch/90">{c.desc}</p>
+                    <div className="mt-2 text-[11.5px] leading-snug text-bronze-soft">{M.describeCultureBonus(c)}</div>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-faint">
+                Все шесть культур Каменного века настоящие: даты, места и находки — из археологии. Наследие попадёт в летопись
+                и в промпты советника: науки, постройки и карты кузница будет придумывать именно под него.
+              </p>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Чем живёт ваш народ?</h2>
               <p className="mt-2 text-dim">Выберите один замысел — писать ничего не нужно. Из него советник выведет ваши науки и постройки: это ваша цивилизация, а не чужой шаблон.</p>
-              {origin && (
-                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-dim">
-                  <span className="text-base">{origin.icon}</span>{origin.name} · {origin.place}
+              {(origin || culture) && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {origin && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-xs text-dim">
+                      <span className="text-base">{origin.icon}</span>{origin.name} · {origin.place}
+                    </div>
+                  )}
+                  {culture && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-bronze/40 bg-bronze/10 px-3 py-1.5 text-xs text-parch">
+                      <span className="text-base">{culture.icon}</span>{culture.name} · {M.describeCultureBonus(culture)}
+                    </div>
+                  )}
                 </div>
               )}
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -327,7 +373,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="max-w-xl">
               <h2 className="font-display text-3xl font-semibold">Ваш советник</h2>
               <p className="mt-2 text-dim">
@@ -347,11 +393,15 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 4 && origin && (
+          {step === 5 && origin && (
             <div className="max-w-xl">
               <h2 className="font-display text-3xl font-semibold">{name.trim() || origin.name} готовы к первому дню</h2>
               <div className="mt-6 space-y-3">
                 <div className="flex items-center gap-4 rounded-2xl border border-line bg-surface p-4"><span className="text-3xl">{origin.icon}</span><div><Label>Происхождение</Label><div className="font-medium">{origin.name}</div><div className="text-xs text-dim">Стартовый бонус: +{origin.bonus} {RES[origin.resource as ResKey].label.toLowerCase()}</div></div></div>
+                <div className="flex items-start gap-4 rounded-2xl border border-line bg-surface p-4">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-ground text-2xl">{culture?.icon ?? "🏺"}</span>
+                  <div className="min-w-0"><Label>Наследие</Label><div className="font-medium">{culture?.name || "Древняя культура"}</div><div className="text-[13.5px] leading-relaxed text-dim">{culture?.desc || ""}</div><div className="mt-1 text-xs text-bronze-soft">{culture ? M.describeCultureBonus(culture) : ""}</div></div>
+                </div>
                 <div className="flex items-start gap-4 rounded-2xl border border-line bg-surface p-4">
                   <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-ground text-2xl">{seedChoice?.icon ?? "🧭"}</span>
                   <div><Label>Замысел народа</Label><div className="font-medium">{seedChoice?.name || "Выбранный замысел"}</div><div className="text-[14px] leading-relaxed text-dim">«{seedLine}»</div></div>
@@ -359,9 +409,9 @@ export default function Onboarding() {
               </div>
               <div className="mt-6 rounded-2xl border border-bronze/30 bg-bronze/8 p-4 text-sm leading-relaxed text-dim">
                 <div className="mb-1 font-semibold text-bronze-soft">Что произойдёт дальше</div>
-                Советник прочитает свойства народа и предложит <b className="text-parch">три направления</b> — о чём может быть ваша первая наука:
+                Советник прочитает происхождение, наследие и замысел народа и предложит <b className="text-parch">три направления</b> — о чём может быть ваша первая наука:
                 земледелие, ремесло, война, вера, знание, устройство общества или их сочетание. Вы выберете одно, и советник раскроет его
-                в науку и постройку. После этого наставник поведёт по шагам.
+                в науку и постройку. А дальше вы сами: карта, кузница, армия и свои дела в любом порядке.
               </div>
             </div>
           )}
@@ -369,7 +419,7 @@ export default function Onboarding() {
 
         <div className="mt-8 flex items-center justify-between gap-3">
           <Btn variant="ghost" onClick={() => setStep(step - 1)} disabled={step === 0}><ArrowLeft size={16} />Назад</Btn>
-          {step < 4 ? (
+          {step < 5 ? (
             <Btn variant="primary" size="lg" disabled={!canNext} onClick={() => setStep(step + 1)}>Далее<ArrowRight size={18} /></Btn>
           ) : directions.length ? (
             <Btn variant="primary" size="lg" onClick={() => setPhase("directions")}><Sparkles size={18} />К направлениям</Btn>

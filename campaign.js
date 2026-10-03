@@ -22,13 +22,20 @@
     // половина накопленных 📚 и 🙏 сгорает (собор, перепись, обряды) — поэтому каждая следующая
     // эпоха требует нового рывка, а не одного вечного запаса.
     const ENLIGHTENMENT_WEIGHTS = { knowledge: 2, faith: 1 };
-    // Быстрые эпохи — осознанный выбор дизайна (игрок подтвердил его после замеров симулятора):
-    // сезон в 30 дней проходит через несколько эпох, а «Будущее 2050-2150» достаётся активной игре.
-    // Плата видна в отчёте: пассивное накопление 2 очков в день само по себе поднимает эпоху, поэтому
-    // цена ковки (eraCostMult = 1 + 0.4·era) и состав колод соперников растут по ходу сезона, а
-    // удержать эпоху можно только расходом 📚 и 🙏 — на науки, постройки, ковку и миссии.
-    const ERA_ENLIGHTENMENT_BASE = 16;
+    // Порог Каменного века — 36, а не 16: стартовый запас любого народа даёт лишь 14–20 очков
+    // (6–9 📚 и 2 🙏), а весь народ, посаженный на книги при лучшей черте и наследии, набирает
+    // к концу первого дня около 33. При пороге 16 пять происхождений из восьми открывали
+    // Античный мир в конце первого же дня, ничего для этого не сделав: эпоху выдавал стартовый
+    // запас, а не работа кланов. Теперь эпоху берёт только накопленное трудом, а самый ранний
+    // переход — конец второго дня, и то у народа, который с первого хода живёт книгами.
+    // Дальше порог растёт на ERA_ENLIGHTENMENT_STEP: каждая эпоха требует нового рывка, а не одного
+    // вечного запаса (в переходе половина 📚 и 🙏 сгорает).
+    const ERA_ENLIGHTENMENT_BASE = 36;
     const ERA_ENLIGHTENMENT_STEP = 8;
+    // Первый день эпоху не открывает ни при каких обстоятельствах: народ должен его прожить, и
+    // самый ранний переход — в конце второго дня. Даже если в первый же день построен дом писцов
+    // и все кланы посажены за книги, день основания народ проводит в своей эпохе.
+    const ERA_ENLIGHTENMENT_MIN_DAY = 2;
     const ERA_ENLIGHTENMENT_SPEND = 0.5;
     // Письменность, архивы и храмовые склады: каждая эпоха добавляет места на складе, иначе поздние
     // пороги просветления (📚 60+) упирались бы в базовый склад 15 и были бы недостижимы физически —
@@ -541,6 +548,32 @@
         { id: 'ocean-cities', name: 'Океанские города-платформы', icon: '🌊', era: 6, desc: '2080-2140, плавучие мегаполисы экватора — приливные фермы, водород и волновые генераторы', bonus: { food: 0.4 } },
         { id: 'climate-engineers', name: 'Климатические инженеры', icon: '❄️', era: 6, desc: '2060-2120, Арктика — аэрозольные экраны, тундровые реакторы и возрождение мамонтовой степи', bonus: { food: 0.3, knowledge: 0.2 } }
     ];
+
+    // --- Стартовое наследие -------------------------------------------------------------
+    // Народ рождается в эпохе 0, поэтому и стартовых культур ровно столько, сколько в пуле
+    // эпохи 0: игрок видит их все и сам решает, кем ему начинать (шаг «Наследие» онбординга).
+    const CULTURE_START_ERA = 0;
+    function startCulturePool() {
+        return HISTORICAL_CULTURES.filter(culture => culture.era === CULTURE_START_ERA);
+    }
+
+    // Бонусы культур в понятных игроку словах. Одна формулировка на все экраны: онбординг,
+    // модальное окно перехода эпохи, вкладка «Наследие» и standalone-страница.
+    const CULTURE_BONUS_LABEL = {
+        food: v => `${v > 0 ? '+' : ''}${v}🌾 с клана`,
+        materials: v => `${v > 0 ? '+' : ''}${v}🪵 с клана`,
+        knowledge: v => `${v > 0 ? '+' : ''}${v}📚 с клана`,
+        faith: v => `${v > 0 ? '+' : ''}${v}🙏 с клана`,
+        deck_slots: v => `${v > 0 ? '+' : ''}${v} слот колоды`,
+        storage: v => `${v > 0 ? '+' : ''}${v} к складу`,
+        max_hp: v => `${v > 0 ? '+' : ''}${v} здоровья`,
+    };
+    function describeCultureBonus(culture) {
+        const bonus = culture?.bonus || {};
+        const parts = Object.entries(bonus).map(([key, value]) => (CULTURE_BONUS_LABEL[key] ? CULTURE_BONUS_LABEL[key](value) : `${key} ${value}`));
+        return parts.length ? parts.join(', ') : 'без бонусов';
+    }
+
     const OPENING_FOCUSES = [
         { id: 'food', title: 'Надёжные запасы', icon: '🌾', scienceName: 'Рыбные запруды', scienceDescription: 'Наблюдения за течением помогают удерживать рыбу у берега.', buildingName: 'Речная запруда', buildingDescription: 'Плетёные заграждения дают поселению устойчивый источник пищи.', category: 'economy', effect: 'income_food' },
         { id: 'materials', title: 'Каменное ремесло', icon: '🪨', scienceName: 'Обработка кремня', scienceDescription: 'Подбор формы и угла скола делает каменные орудия надёжнее.', buildingName: 'Каменная мастерская', buildingDescription: 'Общая мастерская ускоряет заготовку строительных материалов.', category: 'economy', effect: 'income_materials' },
@@ -756,7 +789,7 @@
             medals: [],
             player: {
                 name: 'Твоё поселение', clan: 'Медный Ворон', era: 0, research: 0,
-                onboardingComplete: false, originId: null, openingFocusId: null, seedLine: '', seedChoiceId: null, awaitingOpeningProject: false, guideDismissed: false,
+                onboardingComplete: false, originId: null, openingFocusId: null, seedLine: '', seedChoiceId: null, awaitingOpeningProject: false,
                 biome: null, geography: null, trait: null, nearby: null, historicalCulture: null, culturalLineage: [],
                 resources: { food: 10, materials: 10, knowledge: 6, faith: 2 },
                 population: POP_START,
@@ -967,7 +1000,6 @@
         state.player.openingFocusId = OPENING_FOCUSES.some(item => item.id === state.player.openingFocusId) ? state.player.openingFocusId : null;
         state.player.seedLine = String(state.player.seedLine || '').slice(0, 240);
         state.player.seedChoiceId = SEED_CHOICES.some(item => item.id === state.player.seedChoiceId) ? state.player.seedChoiceId : null;
-        state.player.guideDismissed = Boolean(state.player.guideDismissed);
         state.player.awaitingOpeningProject = Boolean(state.player.awaitingOpeningProject);
         state.player.research = clampInt(state.player.research, 0, 1, 0);
         state.player.campaignNotice = String(state.player.campaignNotice || '').slice(0, 240);
@@ -1156,7 +1188,7 @@
     }
 
     // Общая настройка происхождения для старого и нового входа.
-    function applyOriginSetup(state, { name, originId, seedLine, seedChoiceId } = {}) {
+    function applyOriginSetup(state, { name, originId, seedLine, seedChoiceId, historicalCultureId } = {}) {
         const origin = ORIGINS.find(item => item.id === originId);
         if (!origin) return { error: 'Выберите происхождение народа.' };
         const cleanName = String(name || '').trim().slice(0, 24);
@@ -1176,12 +1208,17 @@
         state.player.geography = pickRandom(rng, GEOGRAPHY);
         state.player.trait = pickRandom(rng, TRAITS);
         state.player.nearby = pickRandom(rng, NEARBY);
-        // историческая культура по эпохе 0 + линия культур (эволюция).
+        // Историческая культура по эпохе 0 + линия культур (эволюция).
         // Берём строго эпоху 0: раньше фильтр был «era <= 1», потому что старая историческая
         // лестница считала эпоху 1 «ранней бронзой». По единой шкале ERAS эпоха 1 — это уже
         // «Античный мир», и стартовать в Каменном веке с Ассирией или Римом было бы рассинхроном.
-        const histPool = HISTORICAL_CULTURES.filter(h => h.era === 0);
-        state.player.historicalCulture = pickRandom(rng, histPool);
+        // Раньше культура выпадала сама и игрок узнавал о ней только из летописи: весь список
+        // культур Каменного века был загружен в игру, но нигде не показывался. Теперь стартовое
+        // наследие выбирает игрок (-react-онбординг, шаг «Наследие»); если выбора нет (старый вход
+        // со standalone-страницы или пустой id), культура выпадает случайно, как раньше.
+        const histPool = startCulturePool();
+        const requestedCulture = historicalCultureId ? histPool.find(item => item.id === historicalCultureId) : null;
+        state.player.historicalCulture = requestedCulture || pickRandom(rng, histPool);
         state.player.culturalLineage = [state.player.historicalCulture.id];
         // бонус от черты
         if (state.player.trait && state.player.trait.bonus) {
@@ -1234,7 +1271,7 @@
 
     // Новый вход React-версии: игрок задаёт имя, происхождение и затравку народа.
     // Готовых наук и построек здесь нет: первый проект создаёт ИИ по затравке.
-    function beginOnboardingState(input, { name, originId, seedId, seedLine } = {}) {
+    function beginOnboardingState(input, { name, originId, seedId, seedLine, historicalCultureId } = {}) {
         const state = normalizeState(input);
         if (state.player.onboardingComplete) return { state, error: 'Начало игры уже пройдено.' };
         const seedChoice = SEED_CHOICES.find(item => item.id === seedId)
@@ -1242,7 +1279,8 @@
             || null;
         if (!seedChoice && !seedLine) return { state, error: 'Выберите, чем живёт народ.' };
         const seedChoiceId = seedChoice ? seedChoice.id : null;
-        const setup = applyOriginSetup(state, { name, originId, seedLine, seedChoiceId });
+        // historicalCultureId — осознанный выбор стартового наследия (шаг «Наследие» онбординга).
+        const setup = applyOriginSetup(state, { name, originId, seedLine, seedChoiceId, historicalCultureId });
         if (setup.error) return { state, error: setup.error };
         state.player.openingFocusId = null;
         state.player.blueprints = state.player.blueprints.filter(item => !item.openingProject);
@@ -1270,12 +1308,6 @@
             text: 'Первое дело народа — «' + blueprint.scienceName + '»: ' + blueprint.scienceDescription + ' Постройка: «' + blueprint.buildingName + '» — ' + blueprint.buildingDescription
         }].slice(-20);
         return { state, blueprint, error: null };
-    }
-
-    function skipGuide(input) {
-        const state = normalizeState(input);
-        state.player.guideDismissed = true;
-        return { state, error: null };
     }
 
     function effectTotals(state) {
@@ -1937,61 +1969,8 @@
         };
     }
 
-    function getFirstSessionGuide(input) {
-        const current = normalizeState(input);
-        const player = current.player;
-        if (!player.onboardingComplete) return null;
-        if (player.guideDismissed) {
-            return { steps: [], completedCount: 0, complete: true, dismissed: true, next: 'Обучение пропущено — развивайтесь свободно.' };
-        }
-        const openingProject = player.blueprints.find(project => project.openingProject);
-        if (!openingProject) return null;
-
-        const practiceCount = (player.practice.wins || 0) + (player.practice.losses || 0);
-        const ownedLandCount = current.regions.filter(region => region.ownerId === 'player'
-            && getWorldTile(current.world, region.id)?.terrain !== 'water').length;
-        const steps = [
-            { id: 'research', label: 'Исследовать «' + openingProject.scienceName + '»', done: Boolean(openingProject.researched) },
-            { id: 'build', label: 'Построить «' + openingProject.buildingName + '»', done: Boolean(openingProject.built) },
-            { id: 'territory', label: 'Занять соседнюю область', done: ownedLandCount > 1 },
-            { id: 'battle', label: 'Сыграть тренировочный бой с ИИ', done: practiceCount > 0 }
-        ];
-        const completedCount = steps.filter(step => step.done).length;
-        const complete = completedCount === steps.length;
-        let next;
-        if (complete) {
-            next = 'Первый маршрут пройден. Дальше можно свободно развивать поселение, заказывать карты в кузнице или продолжать тренировочные бои.';
-        } else if (current.day >= SEASON_LENGTH) {
-            next = 'Сезон подошёл к концу, а вступительный маршрут ещё не пройден. Подведите итоги сезона, чтобы продолжить кампанию.';
-        } else if (!openingProject.researched) {
-            // причина блокировки считается по-настоящему: AP, дневной приказ или нехватка ресурсов
-            const blocked = canOrder(current, 'research');
-            const short = player.resources.food < 1 || player.resources.knowledge < 1
-                ? ' Сейчас не хватает: есть ' + Math.floor(player.resources.food) + ' 🌾 и ' + Math.floor(player.resources.knowledge) + ' 📚 из нужных 1 🌾 + 1 📚.'
-                : '';
-            next = blocked
-                ? blocked + ' Затем изучите «' + openingProject.scienceName + '» — это стоит 1 провизию и 1 знание.'
-                : 'Изучите «' + openingProject.scienceName + '» в разделе развития — это стоит 1 провизию и 1 знание.' + short;
-        } else if (!openingProject.built) {
-            const blocked = canOrder(current, 'construction');
-            const short = player.resources.materials < 3
-                ? ' Сейчас не хватает материалов: есть ' + Math.floor(player.resources.materials) + ' 🪵 из 3.'
-                : '';
-            next = blocked
-                ? blocked + ' Затем постройте «' + openingProject.buildingName + '» за 3 материала.'
-                : 'Постройте «' + openingProject.buildingName + '» за 3 материала — чертёж уже исследован.' + short;
-        } else if (ownedLandCount <= 1) {
-            const blocked = canOrder(current, 'frontier');
-            next = blocked
-                ? blocked + ' После ночи выберите на карте соседнюю нейтральную область.'
-                : 'Откройте карту и выберите соседнюю нейтральную область: свободную можно освоить за 2 провизии и 2 материала, а охраняемую сначала освобождает квестовый бой (при поражении отряд вернёт половину припасов).';
-        } else {
-            next = 'Сыграйте тренировочный бой с любым ИИ-соседом в разделе армии. Победа не обязательна, а кампанийные ресурсы тренировка не расходует.';
-        }
-
-        return { steps, completedCount, complete, next };
-    }
-
+    // Обучение-маршрут (наставник, «первые шаги») удалено: игрок основывает народ и сам решает,
+    // что делать. Никаких обязательных шагов, полос и подсветок в интерфейсе больше нет.
     function cardCraftQuote(input, investment = {}) {
         const state = normalizeState(input);
         const materialQuality = Object.hasOwn(CARD_CRAFT_MATERIALS, investment.materialQuality) ? investment.materialQuality : 'standard';
@@ -2319,6 +2298,9 @@
     /**
      * Прогресс эпохи: книга весит вдвое молитвы (2·📚 + 1·🙏). Считается по текущему запасу ресурсов,
      * поэтому копить приходится одновременно знания и духовность — одним книжником эпоху не взять.
+     * Порог (36 + 8·era) лежит выше любого стартового запаса: эпоху даёт накопленное трудом, а не
+     * подаренное происхождением. Первый день закрыт для перехода (ERA_ENLIGHTENMENT_MIN_DAY): чтобы
+     * шагнуть в Античный мир, народ должен прожить день основания и хотя бы один рабочий день.
      */
     function getEraProgress(input) {
         const state = normalizeState(input);
@@ -2328,12 +2310,15 @@
         const knowledge = state.player.resources.knowledge || 0;
         const faith = state.player.resources.faith || 0;
         const score = ENLIGHTENMENT_WEIGHTS.knowledge * knowledge + ENLIGHTENMENT_WEIGHTS.faith * faith;
+        // Номер дня считается до смены дня: конец первого дня — это ещё state.day === 1.
+        const dayBlocked = !finalEra && state.day < ERA_ENLIGHTENMENT_MIN_DAY;
         return {
             era, eraLabel: eraName(era), nextEraLabel: finalEra ? null : eraName(era + 1), finalEra,
             knowledge, faith, weights: { ...ENLIGHTENMENT_WEIGHTS }, formula: '2·📚 + 1·🙏',
             threshold, score, remaining: Math.max(0, threshold - score),
             ratio: finalEra ? 1 : Math.max(0, Math.min(1, score / threshold)),
-            ready: !finalEra && score >= threshold,
+            day: state.day, minDay: ERA_ENLIGHTENMENT_MIN_DAY, dayBlocked,
+            ready: !finalEra && !dayBlocked && score >= threshold,
             spendRatio: ERA_ENLIGHTENMENT_SPEND
         };
     }
@@ -2647,6 +2632,8 @@
         }
         // Эпоха наступает в конце дня, когда просветление (2·📚 + 1·🙏) дошло до порога. За один день
         // можно шагнуть только на одну эпоху: половина запаса сгорает, а остаток копится уже для следующей.
+        // Первый день закрыт (ERA_ENLIGHTENMENT_MIN_DAY): переход возможен с конца второго дня, и только
+        // у народа, который действительно копил знания и духовность, а не положился на стартовый запас.
         const eraAdvanced = getEraProgress(state).ready ? advanceEra(state) : null;
 
         for (const opponent of state.opponents) {
@@ -3055,14 +3042,12 @@
         const generatingCraft = p.craftOrders.some(order => order.status === 'generating');
         const craftBlocksSeason = activeCraftOrders.length > 0 || Boolean(p.pendingExpedition);
         const readyToClose = state.day >= SEASON_LENGTH;
-        const guide = getFirstSessionGuide(state);
-        const firstSessionGuide = guide && !guide.complete ? guide : null;
         // Эпоха наступает от просветления (2·📚 + 1·🙏), а не от числа изученных наук.
         const eraProgressInfo = getEraProgress(state);
         const eraProgress = Math.round(eraProgressInfo.ratio * 100);
         const eraProgressTitle = eraProgressInfo.finalEra
             ? 'Последняя эпоха открыта'
-            : 'Просветление эпохи: 2·📚 ' + Math.floor(eraProgressInfo.knowledge) + ' + 1·🙏 ' + Math.floor(eraProgressInfo.faith) + ' = ' + Math.floor(eraProgressInfo.score) + ' из ' + eraProgressInfo.threshold + ' для эпохи «' + eraProgressInfo.nextEraLabel + '». В переходе половина 📚 и 🙏 сгорает.';
+            : 'Просветление эпохи: 2·📚 ' + Math.floor(eraProgressInfo.knowledge) + ' + 1·🙏 ' + Math.floor(eraProgressInfo.faith) + ' = ' + Math.floor(eraProgressInfo.score) + ' из ' + eraProgressInfo.threshold + ' для эпохи «' + eraProgressInfo.nextEraLabel + '». В переходе половина 📚 и 🙏 сгорает.' + (eraProgressInfo.dayBlocked ? ' Эпоха не откроется раньше конца ' + eraProgressInfo.minDay + '-го дня.' : '');
         const dayBlockReason = p.pendingExpedition ? 'Сначала заверши экспедицию.' : generatingCraft ? 'Дождись ответа кузницы.' : readyToClose && activeCraftOrders.length ? 'Заверши ковку и забери готовые карты.' : '';
         const developmentButton = readyToClose
             ? '<button class="campaign-btn campaign-btn-gold" ' + (craftBlocksSeason ? 'disabled' : '') + ' title="' + htmlAttr(dayBlockReason) + '" onclick="if (window.confirm(&quot;Новый сезон — новая жизнь: мир, земли, науки и запасы начнутся с чистого листа. Сохранятся медаль, мастерство кузнеца, численность и коллекция карт. Завершить сезон?&quot;)) CampaignMvp.completeSeason()">Подвести итоги</button>'
@@ -3081,7 +3066,7 @@
             return '<button type="button" class="campaign-project-card campaign-card-choice ' + (selected ? 'is-selected' : '') + '" onclick="CampaignMvp.toggleDeckCard(\'' + htmlAttr(card.id) + '\')"><span>' + (selected ? '✓ В колоде' : 'Добавить') + ' · ' + escapeHtml(card.card_type || 'карта') + '</span><b>' + escapeHtml(card.name || 'Без названия') + '</b><small>' + (Number(card.drop_cost) || 0) + ' энергии · атака ' + (Number(card.action_cost) || 0) + '</small></button>';
         }).join('') : '<div class="campaign-project-empty">Коллекция пока пуста. Для тренировки доступна стартовая колода.</div>';
 
-        host.innerHTML = '\n          ' + (firstSessionGuide ? '<details class="campaign-first-session" data-campaign-key="first-steps"><summary><span>Первые шаги</span><b>' + firstSessionGuide.completedCount + '/' + firstSessionGuide.steps.length + '</b></summary><div class="campaign-first-session-body"><ol>' + firstSessionGuide.steps.map((step, index) => '<li class="' + (step.done ? 'is-done' : index === firstSessionGuide.completedCount ? 'is-current' : '') + '"><span>' + (step.done ? '✓' : index + 1) + '</span><b>' + escapeHtml(step.label) + '</b></li>').join('') + '</ol><div class="campaign-first-session-next"><small>ДАЛЬШЕ</small><b>' + escapeHtml(firstSessionGuide.next) + '</b></div></div></details>' : '') + '\n          ' + renderDecreeChoice(state) + '\n          ' + renderCultureChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="' + htmlAttr(eraProgressTitle) + '" aria-label="' + htmlAttr(eraProgressTitle) + '"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + Math.floor(p.resources.food) + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + Math.floor(p.resources.materials) + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + Math.floor(p.resources.knowledge) + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div><div><span>🙏 Духовность</span><b>' + Math.floor(p.resources.faith) + '</b><small>+' + breakdown.workerProduction.faith.toFixed(1) + '+' + regionalIncome.faith + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            ' + renderScienceAdvisor(state, scienceSituation) + '\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Сначала вы выбираете направление — советник придумывает его под замысел, происхождение, землю, черту, наследие и запасы народа, — а затем раскрывает его в три замысла науки и постройки.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (eraProgressInfo.finalEra ? 'Последняя эпоха открыта' : 'Просветление: ' + Math.floor(eraProgressInfo.score) + '/' + eraProgressInfo.threshold + ' (2·📚 + 1·🙏)') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
+        host.innerHTML = '\n          ' + renderDecreeChoice(state) + '\n          ' + renderCultureChoice(state) + '\n          <section class="campaign-seasonbar campaign-seasonbar-compact"><div class="campaign-seasonbar-copy"><span class="campaign-kicker">СЕЗОН ' + state.season + ' · ДЕНЬ ' + state.day + '/' + SEASON_LENGTH + '</span><div class="campaign-seasonbar-name"><b>' + escapeHtml(p.name) + '</b><span>· ' + escapeHtml(eraName(p.era)) + '</span></div><div class="campaign-mini-progress" title="' + htmlAttr(eraProgressTitle) + '" aria-label="' + htmlAttr(eraProgressTitle) + '"><span style="width:' + eraProgress + '%"></span></div>' + (dayBlockReason ? '<small class="campaign-day-blocker" role="status">⏳ ' + escapeHtml(dayBlockReason) + '</small>' : '') + '</div><div class="campaign-season-actions">' + developmentButton + '<details class="campaign-season-more" data-campaign-key="season-menu"><summary aria-label="Дополнительные действия">···</summary><div><span>🏅 Медалей: ' + state.medals.length + '</span><button class="campaign-btn campaign-btn-quiet" onclick="CampaignMvp.resetLocal()">Сбросить кампанию</button></div></details></div></section>\n          ' + renderDailyOrdersPanel(state) + '\n          ' + renderRegionMap() + '\n          ' + renderWorkersPanel(state) + '\n\n          <section id="campaign-development" class="campaign-panel campaign-development-panel"><div class="campaign-panel-heading"><div><span class="campaign-kicker">РАЗВИТИЕ</span><h2>Ресурсы и проекты</h2></div><span class="campaign-muted">' + activeBlueprints.length + ' активных · склад ' + p.storageCap + '</span></div>\n            <div class="campaign-resources"><div><span>🌾 Провизия</span><b>' + Math.floor(p.resources.food) + '</b><small>+' + breakdown.workerProduction.food.toFixed(1) + '+' + regionalIncome.food + ' -' + breakdown.consumption.toFixed(1) + '/д</small></div><div><span>🪵 Материалы</span><b>' + Math.floor(p.resources.materials) + '</b><small>+' + breakdown.workerProduction.materials.toFixed(1) + '+' + regionalIncome.materials + ' -' + breakdown.upkeep.toFixed(1) + '/д</small></div><div><span>📚 Знания</span><b>' + Math.floor(p.resources.knowledge) + '</b><small>+' + breakdown.workerProduction.knowledge.toFixed(1) + '+' + regionalIncome.knowledge + '/д</small></div><div><span>🙏 Духовность</span><b>' + Math.floor(p.resources.faith) + '</b><small>+' + breakdown.workerProduction.faith.toFixed(1) + '+' + regionalIncome.faith + '/д</small></div></div>\n            <div class="campaign-orders">' + (activeBlueprints.length ? activeBlueprints.map(blueprint => renderBlueprintOrder(blueprint, p, readyToClose)).join('') : '<div class="campaign-project-empty">Нет активного проекта. Создай следующий у советника.</div>') + '</div>\n            ' + renderScienceAdvisor(state, scienceSituation) + '\n            <details class="campaign-advisor-context" data-campaign-key="advisor-context"><summary>Как советует наука</summary><p>Сначала вы выбираете направление — советник придумывает его под замысел, происхождение, землю, черту, наследие и запасы народа, — а затем раскрывает его в три замысла науки и постройки.</p><div class="campaign-advisor-situation"><b>Контекст</b><span>' + escapeHtml(scienceSituation.summary) + '</span></div></details>\n            <div id="campaign-project-status" class="campaign-project-status" role="status" aria-live="polite"></div>\n            <details class="campaign-fold campaign-buildings-fold" data-campaign-key="buildings"><summary><b>Здания · ' + p.buildings.length + '</b><small>Активно ' + activeBuildings.length + '/' + p.activeBuildingSlots + ' · upkeep ' + breakdown.upkeep.toFixed(1) + '🪵/д</small></summary><div class="campaign-fold-content campaign-orders">' + buildingRows + '</div></details>\n          </section>\n\n          ' + renderCraftQueue(activeCraftOrders) + '\n\n          <div class="campaign-secondary-grid">\n            <details class="campaign-panel campaign-fold campaign-civilization" data-campaign-key="civilization"><summary><b>📜 Эпохи и бой</b><small>' + (p.era + 1) + '/7 · колода ' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><div class="campaign-era-rail">' + ERAS.map((era, i) => '<div class="campaign-era-step ' + (i < p.era ? 'is-done' : '') + ' ' + (i === p.era ? 'is-current' : '') + '"><span>' + (i < p.era ? '✓' : i + 1) + '</span><small>' + escapeHtml(era) + '</small></div>').join('') + '</div><div class="campaign-practice-summary"><b>' + escapeHtml(p.name) + ' · ' + escapeHtml(p.clan) + '</b><span>' + (eraProgressInfo.finalEra ? 'Последняя эпоха открыта' : 'Просветление: ' + Math.floor(eraProgressInfo.score) + '/' + eraProgressInfo.threshold + ' (2·📚 + 1·🙏)') + '</span><span>Здоровье ' + config.hp + ' · энергия ' + config.energyMax + ' (+' + config.energyGrowth + '/ход)</span><span>Активные здания ' + activeBuildings.length + '/' + p.activeBuildingSlots + '</span><span>Население ' + p.population + ' · рост ' + p.growthProgress + ' · голод ' + p.starvationDays + 'д</span></div></div></details>\n            <details class="campaign-panel campaign-fold campaign-opponents" data-campaign-key="opponents"><summary><b>⚔️ Тренировка с ИИ</b><small>' + state.opponents.length + ' соперника · без наград</small></summary><div class="campaign-fold-content"><div class="campaign-opponent-list">' + opponentRows + '</div></div></details>\n            <details class="campaign-panel campaign-fold campaign-codex" data-campaign-key="deck"><summary><b>🎴 Колода кампании</b><small>' + p.deckCardIds.length + '/' + config.deckLimit + '</small></summary><div class="campaign-fold-content"><p class="campaign-fold-note">Активные военные здания увеличивают лимит колоды.</p><div class="campaign-project-list">' + deckCards + '</div><p class="campaign-fold-note">Сейчас выбрано: ' + (selectedCards.map(card => escapeHtml(card.name)).join(' · ') || 'стартовая колода') + '</p></div></details>\n          </div>';
         for (const detail of host.querySelectorAll?.('details[data-campaign-key]') || []) detail.open = openDetails.has(detail.dataset.campaignKey);
     }
 
@@ -3413,14 +3398,15 @@
         WORLD_MAP_SIZE: CampaignMap.SIZE, WORLD_MAP_CENTER: { ...CampaignMap.CENTER }, WORLD_MAP_VERSION: CampaignMap.WORLD_VERSION,
         POP_START, POP_MAX, POP_MIN, FOOD_CONSUMPTION_PER_POP, WORKER_BASE_YIELD, STORAGE_BASE, AP_MAX, BUILDING_WORKER_BONUS,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES,
-        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, skipGuide, getFirstSessionGuide, cleanEffects, effectTotals, getOrderCapacity, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
+        createState, normalizeState, completeOnboarding, beginOnboardingState, setOpeningProject, cleanEffects, effectTotals, getOrderCapacity, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         getRegionalIncome, getAvailableMaterialQualities, hasEraKeyResource, ERA_KEY_RESOURCE, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree,
-        getEraProgress, eraEnlightenmentThreshold, ENLIGHTENMENT_WEIGHTS, ERA_ENLIGHTENMENT_BASE, ERA_ENLIGHTENMENT_STEP, ERA_ENLIGHTENMENT_SPEND,
+        getEraProgress, eraEnlightenmentThreshold, ENLIGHTENMENT_WEIGHTS, ERA_ENLIGHTENMENT_BASE, ERA_ENLIGHTENMENT_STEP, ERA_ENLIGHTENMENT_MIN_DAY, ERA_ENLIGHTENMENT_SPEND,
         SCIENCE_DIRECTION_THEMES, sanitizeScienceDirection, setScienceDirections, chooseScienceDirection,
         MISSION_WORD_BASE, MISSION_WORD_PER_ERA, MISSION_CONVERT_BASE, MISSION_CONVERT_PER_ERA, missionCost: (input, regionId) => missionCost(normalizeState(input), regionId), getMissionState, missionRegionState: missionRegion, WORKER_KEYS,
         getCultureChoice, chooseCultureState: chooseCulture, cultureCandidates: (input, era) => cultureCandidates(normalizeState(input), clampInt(era, 0, ERAS.length - 1, 0)), CULTURE_CHOICE_SIZE, BRONZE_CARD_MIN_ERA, allowedCardEras, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
+        CULTURE_START_ERA, startCulturePool, describeCultureBonus,
         cardCraftQuote, beginCardCraftState: beginCardCraft, completeCardCraftState: completeCardCraft, failCardCraftState: failCardCraft, claimCardCraftState: claimCardCraft, scienceBranchesForEra, scienceAdvisorSituation, recoverInterruptedCardCrafts,
         getFoodConsumption, getStorageCap, getProductionBreakdown, assignWorkerState: assignWorker, getActiveDecreesState: state => getActiveDecrees(normalizeState(state)), clone, hashString, seededRandom, pickRandom, eraName,
         quoteCardCraft: investment => cardCraftQuote(state, investment),

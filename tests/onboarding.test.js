@@ -60,22 +60,6 @@ test('setOpeningProject completes the start only with a valid AI project', () =>
   assert.ok(player.chronicle.some(entry => entry.text.includes('Учёт разливов')), 'the first project is written into the chronicle');
 });
 
-test('the first session guide leads from the generated project and can be dismissed', () => {
-  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
-  assert.equal(Campaign.getFirstSessionGuide(begun), null, 'no guide before the first project exists');
-
-  const started = Campaign.setOpeningProject(begun, project()).state;
-  const guide = Campaign.getFirstSessionGuide(started);
-  assert.equal(guide.complete, false);
-  assert.deepEqual(guide.steps.map(step => step.id), ['research', 'build', 'territory', 'battle']);
-  assert.equal(guide.completedCount, 0);
-
-  const dismissed = Campaign.skipGuide(Campaign.clone(started)).state;
-  const afterSkip = Campaign.getFirstSessionGuide(dismissed);
-  assert.equal(afterSkip.complete, true);
-  assert.equal(afterSkip.dismissed, true);
-});
-
 test('the science advisor situation carries the player seed line', () => {
   const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
   const situation = Campaign.scienceAdvisorSituation(begun);
@@ -125,7 +109,7 @@ test('the redesigned interface has no pre-written sciences, buildings or card id
   assert.ok(onboarding.includes('MODEL_GROUPS'), 'the player still picks which model family answers, just not a key');
 });
 
-test('the hand-held route can be finished: research, build, take land and train', () => {
+test('the first project is affordable on day one: research, build and take land in any order', () => {
   const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
   const started = Campaign.setOpeningProject(begun, project()).state;
   const blueprintId = started.player.blueprints[0].id;
@@ -142,11 +126,34 @@ test('the hand-held route can be finished: research, build, take land and train'
   const taken = Campaign.settleRegionState(Campaign.clone(nextDay), tile.id);
   assert.equal(taken.error, null);
 
-  const guide = Campaign.getFirstSessionGuide(taken.state);
-  assert.deepEqual(guide.steps.map(step => step.id), ['research', 'build', 'territory', 'battle']);
-  assert.deepEqual(guide.steps.map(step => step.done), [true, true, true, false]);
-  assert.equal(guide.completedCount, 3);
-  assert.ok(guide.next.includes('тренировочный бой'), 'the last step points to a practice battle');
+  // Никакого обязательного маршрута: игрок сам решает, что делать, и ничего его не ведёт.
+  assert.equal(taken.state.player.blueprints[0].built, true, 'первое дело построено — но это не шаг обучения, а обычный чертёж');
+  assert.ok(Campaign.getRegionActionState(taken.state, tile.id).enabled !== undefined, 'карта остаётся доступной в любом порядке');
+});
+
+test('обучающего маршрута нет: в модели, в интерфейсе и в standalone-экране', () => {
+  const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), seedInput()).state;
+  const started = Campaign.setOpeningProject(begun, project()).state;
+  // Игрок волен делать что хочет: ни функция маршрута, ни флаг «обучение пропущено» не нужны.
+  assert.equal(typeof Campaign.getFirstSessionGuide, 'undefined', 'маршрут наставника удалён из модели');
+  assert.equal(typeof Campaign.skipGuide, 'undefined');
+  assert.equal('guideDismissed' in started.player, false, 'состояние больше не хранит флаг обучения');
+  assert.equal(started.player.onboardingComplete, true, 'начало игры завершается первым делом, как и раньше');
+  assert.equal(started.player.blueprints.length, 1);
+
+  const sources = ['src/App.tsx', 'src/components/Shell.tsx', 'src/game/store.tsx', 'src/pages/Home.tsx', 'src/pages/Develop.tsx', 'src/pages/MapPage.tsx', 'src/pages/Army.tsx']
+    .map(file => ({ file, text: fs.readFileSync(path.join(__dirname, '..', file), 'utf8') }));
+  for (const { file, text } of sources) {
+    assert.doesNotMatch(text, /getFirstSessionGuide|skipGuide|currentGuideStep|GuideBar/, `${file}: обучающий маршрут удалён`);
+    assert.doesNotMatch(text, /[Нн]аставник|Первые шаги|Шаг \$\{/, `${file}: в интерфейсе нет шагов обучения`);
+  }
+  assert.match(sources.find(item => item.file === 'src/App.tsx').text, /page === "home" && <Home \/>/,
+    'после создания народа игрок остаётся в поселении');
+
+  const campaign = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
+  assert.doesNotMatch(campaign, /getFirstSessionGuide|skipGuide|campaign-first-session/);
+  const css = fs.readFileSync(path.join(__dirname, '..', 'campaign.css'), 'utf8');
+  assert.doesNotMatch(css, /campaign-first-session/);
 });
 
 test('the legacy standalone page still starts through the old fixed-focus path', () => {

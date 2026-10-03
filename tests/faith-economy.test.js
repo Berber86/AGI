@@ -1,6 +1,8 @@
 // Духовность (🙏, ключ faith) — четвёртый ресурс наряду с книгами (📚) и топливо двух механик:
 //  1) просветление народа: эпоху открывает не число изученных наук, а сумма 2·📚 + 1·🙏 против
-//     порога эпохи (16 + 8·era), проверяемая в конце дня; на переходе половина запасов сгорает;
+//     порога эпохи (36 + 8·era), проверяемая в конце дня; на переходе половина запасов сгорает.
+//     Порог лежит выше любого стартового запаса (14-20 очков), а первый день закрыт для перехода:
+//     эпоху даёт накопленное трудом, а не подаренное происхождением;
 //  2) миссия «слово народа»: мирное присоединение клетки за духовность — без соседства и без боя,
 //     а охраняемая клетка обращается дороже и тоже без сражения.
 // Расход у духовности ровно один (миссии) — ковка, захват, экспедиция и указы её не стоят.
@@ -118,70 +120,162 @@ test('склад растёт с эпохой, иначе поздние пор�
   assert.ok(next.state.player.resources.faith < capEra0 + 40, 'мягкий склад обязан срезать излишек духовности');
 });
 
-test('порог просветления эпохи: 16 + 8·era и формула 2·📚 + 1·🙏', () => {
+test('порог просветления эпохи: 36 + 8·era и формула 2·📚 + 1·🙏', () => {
   assert.equal(Campaign.ENLIGHTENMENT_WEIGHTS.knowledge, 2);
   assert.equal(Campaign.ENLIGHTENMENT_WEIGHTS.faith, 1);
   assert.equal(Campaign.ERA_ENLIGHTENMENT_SPEND, 0.5);
-  assert.deepEqual(Campaign.ERAS.map((name, era) => Campaign.eraEnlightenmentThreshold(era)), [16, 24, 32, 40, 48, 56, 64]);
+  assert.deepEqual(Campaign.ERAS.map((name, era) => Campaign.eraEnlightenmentThreshold(era)), [36, 44, 52, 60, 68, 76, 84]);
 
   const state = playable();
   const progress = Campaign.getEraProgress({ ...state, player: { ...state.player, resources: { ...state.player.resources, knowledge: 4, faith: 4 } } });
   assert.equal(progress.formula, '2·📚 + 1·🙏');
-  assert.equal(progress.threshold, 16);
+  assert.equal(progress.threshold, 36);
   assert.equal(progress.score, 12);
-  assert.equal(progress.remaining, 4);
-  assert.equal(progress.ratio, 12 / 16);
+  assert.equal(progress.remaining, 24);
+  assert.equal(progress.ratio, 12 / 36);
   assert.equal(progress.ready, false);
   assert.equal(progress.finalEra, false);
   assert.equal(progress.nextEraLabel, Campaign.ERAS[1]);
+  // Первый день закрыт для перехода: народ должен прожить день основания.
+  assert.equal(progress.day, 1);
+  assert.equal(progress.minDay, Campaign.ERA_ENLIGHTENMENT_MIN_DAY);
+  assert.equal(progress.dayBlocked, true);
+});
+
+test('стартового запаса не хватает ни у одного народа: эпоху нельзя получить в день основания', () => {
+  // Раньше порог был 16, а стартовый запас давал 14-20 очков: пять происхождений из восьми
+  // открывали Античный мир в конце первого дня, ничего для этого не сделав.
+  const threshold = Campaign.eraEnlightenmentThreshold(0);
+  let best = 0;
+  let bestBuild = null;
+  let advances = 0;
+  for (const origin of Campaign.ORIGINS) {
+    for (const culture of Campaign.HISTORICAL_CULTURES.filter(item => item.era === 0)) {
+      for (const trait of Campaign.TRAITS) {
+        const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), {
+          name: 'Народ', originId: origin.id, seedId: Campaign.SEED_CHOICES[0].id, historicalCultureId: culture.id
+        }).state;
+        begun.player.trait = trait; // черту онбординг выбирает сам — проверяем и лучшую
+        const population = begun.player.population;
+        // Предельный случай: все кланы посажены за книги (голод и потерю людей здесь не считаем).
+        const finished = Campaign.finishDayState({
+          ...begun,
+          player: { ...begun.player, workers: { food: 0, materials: 0, knowledge: population, faith: 0, idle: 0 } }
+        });
+        assert.equal(finished.error, null);
+        if (finished.eraAdvanced) advances++;
+        const score = Campaign.getEraProgress(finished.state).score;
+        if (score > best) { best = score; bestBuild = origin.id + '/' + culture.id + '/' + trait.id; }
+      }
+    }
+  }
+  assert.equal(advances, 0, 'в первый день эпоха не открывается ни у одной цивилизации');
+  assert.ok(best < threshold, 'даже предельная отдача даёт ' + best.toFixed(1) + ' очков — меньше порога ' + threshold + ' (' + bestBuild + ')');
+  assert.ok(best > 0, 'проверка считает реальные очки, а не ноль');
+});
+
+test('эпоху даёт труд: полная отдача берёт её к концу второго дня, обычная игра — существенно позже', () => {
+  const allOnBooks = started => Campaign.finishDayState({
+    ...started, player: { ...started.player, workers: { food: 0, materials: 0, knowledge: started.player.population, faith: 0, idle: 0 } }
+  });
+  // Лучшая «знаниевая» сборка: происхождение лесных троп (+2 📚), наследие Гёбекли-Тепе (+0.4 📚 с клана),
+  // черта «Ночные наблюдатели» (+0.3 📚 с клана) и все кланы на книгах.
+  const build = () => {
+    const begun = Campaign.beginOnboardingState(Campaign.createState(TEST_SEED), {
+      name: 'Книжники', originId: 'woodland', seedId: Campaign.SEED_CHOICES[0].id, historicalCultureId: 'gobekli'
+    }).state;
+    begun.player.trait = Campaign.TRAITS.find(trait => trait.id === 'night-watch');
+    return begun;
+  };
+  let studious = build();
+  assert.equal(allOnBooks(studious).eraAdvanced, null, 'первый день закрыт');
+  const second = allOnBooks(allOnBooks(studious).state);
+  assert.ok(second.eraAdvanced, 'книжники берут эпоху в конце второго дня');
+  assert.equal(second.eraAdvanced.from, 0);
+  assert.equal(second.eraAdvanced.to, 1);
+
+  // Обычная игра (2 🌾, 1 🪵, 1 📚, 1 🙏) до той же эпохи копит больше недели: сравнение честное,
+  // стартовые запасы у сборок одинаковые по происхождению.
+  let calm = build();
+  let day = 0;
+  while (day < 30 && calm.player.era === 0) {
+    calm = Campaign.finishDayState({ ...calm, player: { ...calm.player, workers: { food: 2, materials: 1, knowledge: 1, faith: 1, idle: 0 } } }).state;
+    day++;
+  }
+  assert.equal(calm.player.era, 1);
+  assert.ok(day > 2 * 2, 'без полной отдачи эпоха приходит заметно позже: ' + day + ' дней против двух');
+});
+
+test('первый день не открывает эпоху даже при готовом пороге', () => {
+  const state = playable();
+  const rich = Campaign.getEraProgress({ ...state, player: { ...state.player, resources: { ...state.player.resources, knowledge: 60, faith: 40 } } });
+  assert.ok(rich.score >= rich.threshold, 'запаса хватает с избытком');
+  assert.equal(rich.dayBlocked, true);
+  assert.equal(rich.ready, false, 'пока не прожит день основания, перехода не будет');
+  const finished = Campaign.finishDayState({ ...state, player: { ...state.player, resources: { ...state.player.resources, knowledge: 60, faith: 40 } } });
+  assert.equal(finished.eraAdvanced, null);
+  assert.equal(finished.state.player.era, 0);
+  // Со второго дня тот же запас открывает эпоху.
+  const nextDay = Campaign.finishDayState(finished.state);
+  assert.ok(nextDay.eraAdvanced, 'второй день снимает запрет');
+  assert.equal(nextDay.state.player.era, 1);
 });
 
 test('вес книг двукратен: эпоху открывают 2·📚 + 1·🙏, а не сумма ресурсов', () => {
   // Кланы отправлены в простой, чтобы дневной доход не подмешивался в арифметику порога:
-  // тогда очки в конце дня — это ровно 2·📚 + 1·🙏 от заданного запаса.
+  // тогда очки в конце дня — это ровно 2·📚 + 1·🙏 от заданного запаса. День основания закрыт
+  // для перехода, поэтому запасы проверяются на втором дне.
+  const idle = state => ({ food: 0, materials: 0, knowledge: 0, faith: 0, idle: state.player.population });
   const at = (knowledge, faith) => {
-    const state = playable();
+    let state = playable();
+    state = Campaign.finishDayState({
+      ...state,
+      player: { ...state.player, resources: { ...state.player.resources, knowledge: 0, faith: 0 }, workers: idle(state) }
+    }).state;
     return Campaign.finishDayState({
       ...state,
-      player: {
-        ...state.player,
-        resources: { ...state.player.resources, knowledge, faith },
-        workers: { food: 0, materials: 0, knowledge: 0, faith: 0, idle: state.player.population }
-      }
+      player: { ...state.player, resources: { ...state.player.resources, knowledge, faith }, workers: idle(state) }
     });
   };
-  // 8 книг без единой молитвы = 16 очков = порог Каменного века; 7 книг = 14 очков, не хватает
-  const booksOnly = at(8, 0);
-  assert.ok(booksOnly.eraAdvanced, '8 📚 обязаны открыть Античный мир');
+  // 18 книг без единой молитвы = 36 очков = порог Каменного века; 17 книг = 34 очка, не хватает
+  const booksOnly = at(18, 0);
+  assert.ok(booksOnly.eraAdvanced, '18 📚 обязаны открыть Античный мир');
   assert.equal(booksOnly.eraAdvanced.to, 1);
-  // 15 молитв без книг = 15 очков: той же эпохи духовностью приходится ждать вдвое дольше
-  assert.equal(at(0, 15).eraAdvanced, null, '15 🙏 дают лишь 15 очков из 16');
-  assert.ok(at(0, 16).eraAdvanced, '16 🙏 дают ровно порог: на ту же эпоху молитв нужно вдвое больше, чем книг');
-  assert.equal(at(7, 0).eraAdvanced, null, '7 📚 = 14 очков из 16');
-  // смешанный запас: 5 📚 + 6 🙏 = 16 проходит, а 3 📚 + 6 🙏 = 12 нет
-  assert.ok(at(5, 6).eraAdvanced, '5 📚 + 6 🙏 = 16 очков');
-  assert.equal(at(3, 6).eraAdvanced, null, '3 📚 + 6 🙏 = 12 очков');
+  assert.equal(at(17, 0).eraAdvanced, null, '17 📚 = 34 очка из 36');
+  // Смешанный запас: книга весит вдвое молитвы — 12 📚 + 12 🙏 = 36 проходит, 11 📚 + 13 🙏 = 35 нет
+  assert.ok(at(12, 12).eraAdvanced, '12 📚 + 12 🙏 = 36 очков');
+  assert.equal(at(11, 13).eraAdvanced, null, '11 📚 + 13 🙏 = 35 очков');
+  assert.ok(at(10, 16).eraAdvanced, '10 📚 + 16 🙏 = 36 очков');
+  assert.equal(at(9, 17).eraAdvanced, null, '9 📚 + 17 🙏 = 35 очков');
+  // Одной духовностью эпоху не взять: мягкий склад держит 🙏 около «склад + дневной доход»,
+  // поэтому без книг потолок просветления остаётся ниже порога (книга весит вдвое).
+  assert.equal(at(0, 40).eraAdvanced, null, 'молитвы без книг не открывают эпоху');
 });
 
 test('переход эпохи сжигает половину запасов и случается не чаще раза в день', () => {
   const state = playable();
   // Запас берём ниже склада (20 на Каменном веке): иначе его сперва срежет мягкий склад,
-  // и половина будет считаться уже не от накопленного. 15 📚 + 4 🙏 = 34 очка — с запасом выше порога 16.
-  const rich = Campaign.finishDayState({ ...state, player: { ...state.player, resources: { ...state.player.resources, knowledge: 15, faith: 4 } } });
+  // и половина будет считаться уже не от накопленного. 18 📚 + 4 🙏 = 40 очков — с запасом выше порога 36.
+  const rich = Campaign.finishDayState({ ...state, player: { ...state.player, resources: { ...state.player.resources, knowledge: 18, faith: 4 } } });
   assert.equal(rich.error, null);
-  assert.ok(rich.eraAdvanced, 'огромный запас обязан открыть эпоху');
-  assert.equal(rich.eraAdvanced.from, 0);
-  assert.equal(rich.eraAdvanced.to, 1);
-  assert.equal(Campaign.eraName(rich.eraAdvanced.to), Campaign.ERAS[1]);
-  assert.ok(Array.isArray(rich.eraAdvanced.advancedRivals), 'отчёт о переходе рассказывает и о соперниках');
-  assert.equal(rich.state.player.era, 1, 'за один день берётся ровно одна эпоха');
+  assert.equal(rich.eraAdvanced, null, 'но в первый день эпоха не открывается даже с таким запасом');
+  const before = rich.state.player.resources.knowledge;
+  const beforeFaith = rich.state.player.resources.faith;
+  const secondDay = Campaign.finishDayState(rich.state);
+  assert.ok(secondDay.eraAdvanced, 'со второго дня огромный запас обязан открыть эпоху');
+  const era = secondDay;
+  assert.equal(era.eraAdvanced.from, 0);
+  assert.equal(era.eraAdvanced.to, 1);
+  assert.equal(Campaign.eraName(era.eraAdvanced.to), Campaign.ERAS[1]);
+  assert.ok(Array.isArray(era.eraAdvanced.advancedRivals), 'отчёт о переходе рассказывает и о соперниках');
+  assert.equal(era.state.player.era, 1, 'за один день берётся ровно одна эпоха');
   // Половина накопленного ушла на собор и жертву: запас вместе с дневным доходом делится пополам.
-  const expectedKnowledge = (15 + rich.gained.knowledge) * Campaign.ERA_ENLIGHTENMENT_SPEND;
-  const expectedFaith = (4 + rich.gained.faith) * Campaign.ERA_ENLIGHTENMENT_SPEND;
-  assert.ok(Math.abs(rich.state.player.resources.knowledge - expectedKnowledge) < 0.01,
-    'ожидали ' + expectedKnowledge.toFixed(2) + ' 📚, получено ' + rich.state.player.resources.knowledge.toFixed(2));
-  assert.ok(Math.abs(rich.state.player.resources.faith - expectedFaith) < 0.01);
-  assert.ok(Campaign.getEraProgress(rich.state).score < Campaign.getEraProgress(rich.state).threshold,
+  const expectedKnowledge = (before + era.gained.knowledge) * Campaign.ERA_ENLIGHTENMENT_SPEND;
+  const expectedFaith = (beforeFaith + era.gained.faith) * Campaign.ERA_ENLIGHTENMENT_SPEND;
+  assert.ok(Math.abs(era.state.player.resources.knowledge - expectedKnowledge) < 0.01,
+    'ожидали ' + expectedKnowledge.toFixed(2) + ' 📚, получено ' + era.state.player.resources.knowledge.toFixed(2));
+  assert.ok(Math.abs(era.state.player.resources.faith - expectedFaith) < 0.01);
+  assert.ok(Campaign.getEraProgress(era.state).score < Campaign.getEraProgress(era.state).threshold,
     'после перехода народ снова ниже порога следующей эпохи');
 });
 
@@ -387,8 +481,9 @@ test('legacy-экран показывает духовность, шкалу п
   assert.match(html, /<span>🙏<\/span><b>Миссия<\/b><small>Доступно<\/small>/);
   assert.match(html, /Слово народа: присоединить землю за духовность/);
   // просветление эпохи вместо счётчика наук
-  assert.match(html, /Просветление: 32\/16 \(2·📚 \+ 1·🙏\)/);
-  assert.match(html, /Просветление эпохи: 2·📚 6 \+ 1·🙏 20 = 32 из 16 для эпохи «Античный мир»/);
+  assert.match(html, /Просветление: 32\/36 \(2·📚 \+ 1·🙏\)/);
+  assert.match(html, /Просветление эпохи: 2·📚 6 \+ 1·🙏 20 = 32 из 36 для эпохи «Античный мир»/);
+  assert.match(html, /Эпоха не откроется раньше конца 2-го дня/);
   assert.doesNotMatch(html, /Наука изучена: 1 из 2/);
 
   // Клетка вне соседства: слово народа доступно, обычное заселение — нет.

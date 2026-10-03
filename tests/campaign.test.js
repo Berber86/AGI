@@ -245,52 +245,13 @@ test('new campaign starts with onboarding; choosing origins and priorities creat
   assert.equal(Campaign.researchBlueprint(result.state, 'opening-materials').error, null);
 });
 
-test('optional first-session guide advances through research, construction, expansion and a practice battle', () => {
-  const started = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), {
-    name: 'Народ Реки', originId: 'river', openingFocusId: 'food'
-  });
-  let state = started.state;
-  let guide = Campaign.getFirstSessionGuide(state);
-  assert.equal(guide.complete, false);
-  assert.equal(guide.completedCount, 0);
-  assert.match(guide.next, /Изучите «Рыбные запруды»/);
-
-  state = Campaign.researchBlueprint(state, 'opening-food').state;
-  guide = Campaign.getFirstSessionGuide(state);
-  assert.equal(guide.steps[0].done, true);
-  assert.match(guide.next, /Постройте «Речная запруда»/);
-
-  // need AP for second action, finish day if needed
-  if (state.player.ap <= 0) state = Campaign.finishDayState(state).state;
-  state = Campaign.constructBlueprint(state, 'opening-food').state;
-  guide = Campaign.getFirstSessionGuide(state);
-  assert.equal(guide.steps[1].done, true);
-  assert.equal(guide.steps[2].done, false);
-  // after two actions AP is 0, so the guide mentions the frontier limit
-  assert.match(guide.next, /соседнюю нейтральную область/);
-
-  if (state.player.ap <= 0 || state.player.dailyOrders.frontierUsed) state = Campaign.finishDayState(state).state;
-  const foodTileId = mapTileId(state, 'floodplain');
-  const expansion = claimNeutralRegion(state, foodTileId);
-  assert.equal(expansion.error, null);
-  state = expansion.state;
-  guide = Campaign.getFirstSessionGuide(state);
-  assert.equal(guide.steps[2].done, true);
-  assert.match(guide.next, /тренировочный бой/);
-
-  state = Campaign.recordPractice(state, 'reed', false, false).state;
-  guide = Campaign.getFirstSessionGuide(state);
-  assert.equal(guide.complete, true);
-  assert.equal(guide.completedCount, 4);
-});
-
-test('first-session guide is rendered on the live campaign screen', () => {
+test('the legacy campaign screen renders the map, orders and panels without a tutorial block', () => {
   const state = Campaign.completeOnboarding(Campaign.createState(TEST_SEED), {
     name: 'Тестовый народ', originId: 'river', openingFocusId: 'food'
   }).state;
   const host = {
     _html: '',
-    details: ['first-steps', 'season-menu', 'advisor-context', 'buildings', 'civilization', 'opponents', 'deck'].map(campaignKey => ({ dataset: { campaignKey }, open: false })),
+    details: ['season-menu', 'advisor-context', 'buildings', 'civilization', 'opponents', 'deck'].map(campaignKey => ({ dataset: { campaignKey }, open: false })),
     get innerHTML() { return this._html; },
     set innerHTML(value) { this._html = value; this.details.forEach(detail => { detail.open = false; }); },
     querySelectorAll(selector) {
@@ -312,10 +273,8 @@ test('first-session guide is rendered on the live campaign screen', () => {
   const campaignSource = fs.readFileSync(path.join(__dirname, '..', 'campaign.js'), 'utf8');
   vm.runInNewContext(campaignSource, sandbox);
   fakeWindow.CampaignMvp.render();
-  assert.match(host.innerHTML, /class=\"campaign-first-session\"/);
-  assert.doesNotMatch(host.innerHTML, /campaign-first-session\" open/);
-  assert.match(host.innerHTML, /Исследовать «Рыбные запруды»/);
-  assert.match(host.innerHTML, /ДАЛЬШЕ/);
+  assert.doesNotMatch(host.innerHTML, /campaign-first-session/, 'обучающего блока «первые шаги» на экране больше нет');
+  assert.doesNotMatch(host.innerHTML, /ДАЛЬШЕ/);
   assert.match(host.innerHTML, /aria-label=\"Дневные возможности\"/);
   assert.match(host.innerHTML, /campaign-day-action/);
   assert.match(host.innerHTML, /Завершить день/);
@@ -338,7 +297,7 @@ test('v3 economy: no orders leads to scarcity not abundance, and region without 
   assert.ok(noOrders);
   assert.equal(noOrders.day, Campaign.SEASON_LENGTH);
   // v2 had 97 food, v3 should have much less. Сравниваем со складом, а не с магическим числом:
-  // эпоха теперь наступает сама от просветления (16 + 8·era) и добавляет +5 склада за эпоху, поэтому
+  // эпоха теперь наступает сама от просветления (36 + 8·era, но не раньше конца 2-го дня) и добавляет +5 склада за эпоху, поэтому
   // пассивный сезон заканчивается на «склад + дневной излишек» — мягкий кап не даёт накопить больше.
   const cap = noOrders.resourcesAtSeasonEnd.storageCap;
   assert.ok(noOrders.resourcesAtSeasonEnd.food < cap + 10,
@@ -898,7 +857,14 @@ test('player era advances bring selected barbarian decks forward too', () => {
   let state = Campaign.createState(TEST_SEED);
   state.player.historicalCulture = Campaign.HISTORICAL_CULTURES[0];
   state = Campaign.normalizeState(state);
-  // Эпоху открывает просветление 2·📚 + 1·🙏: на Каменном веке порог 16, набираем его знаниями.
+  // Эпоху открывает просветление 2·📚 + 1·🙏: на Каменном веке порог 36. Первый день для перехода
+  // закрыт (ERA_ENLIGHTENMENT_MIN_DAY), поэтому эпоху берём на второй: день основания народ живёт
+  // в Каменном веке, даже если запасов хватает с избытком.
+  const foundingDay = Campaign.finishDayState({ ...state, player: { ...state.player, resources: { ...state.player.resources, knowledge: 20, faith: 0 } } });
+  assert.equal(foundingDay.error, null);
+  assert.equal(foundingDay.eraAdvanced, null, 'в первый день эпоха не открывается ни при каком запасе');
+  assert.equal(foundingDay.state.player.era, 0);
+  state = foundingDay.state;
   state.player.resources.knowledge = 20;
   state.player.resources.faith = 0;
   const first = Campaign.finishDayState(state);
@@ -914,7 +880,7 @@ test('player era advances bring selected barbarian decks forward too', () => {
   assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'steppe').deckLimit, 4);
   assert.equal(Campaign.getOpponentBattleConfig(antiquity, 'north').deckLimit, 6);
 
-  // Вторая эпоха: порог 24, причём половина накопленного сгорела в переходе — копить пришлось заново.
+  // Вторая эпоха: порог 44, причём половина накопленного сгорела в переходе — копить пришлось заново.
   const medievalState = Campaign.normalizeState(antiquity);
   assert.ok(Campaign.getEraProgress(medievalState).score < Campaign.getEraProgress(medievalState).threshold,
     'после перехода народ снова ниже порога');

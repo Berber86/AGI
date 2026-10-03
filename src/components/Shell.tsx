@@ -2,8 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, ArrowRight, X, Check, CircleAlert, Info, Flag, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { MODEL_GROUPS, currentGuideStep, useDerived, useStore, type Page } from "@/game/store";
-import { Btn, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
+import { MODEL_GROUPS, useDerived, useStore, type Page } from "@/game/store";
+import { Btn, Chip, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
   return (
@@ -39,9 +39,8 @@ function useAlerts(): Partial<Record<Page, number>> {
 }
 
 export function SideNav() {
-  const { game, page, go, openSettings, aiStatus } = useStore();
+  const { page, go, openSettings, aiStatus } = useStore();
   const alerts = useAlerts();
-  const guided = currentGuideStep(game);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[216px] flex-col border-r border-line bg-surface/80 px-3 py-5 backdrop-blur lg:flex">
       <div className="mb-8 flex items-center gap-3 px-2">
@@ -65,8 +64,6 @@ export function SideNav() {
             <span className="flex-1 text-left">{label}</span>
             {alerts[id] ? (
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-bronze px-1 text-[11px] font-bold text-ground">{alerts[id]}</span>
-            ) : guided?.page === id ? (
-              <span className="h-2 w-2 rounded-full bg-bronze-soft" title="Следующий шаг наставника" />
             ) : null}
           </button>
         ))}
@@ -82,39 +79,6 @@ export function SideNav() {
   );
 }
 
-const GUIDE_CTA: Record<string, string> = { develop: "К развитию", map: "К карте", army: "В бой" };
-
-/** Наставник первого маршрута: один следующий шаг и одна кнопка на всех экранах. */
-export function GuideBar() {
-  const { game, page: currentPage, go, act, toast } = useStore();
-  const guided = currentGuideStep(game);
-  if (!guided) return null;
-  const { step, guide, page } = guided;
-  const index = guide.steps.findIndex((s: any) => s.id === step.id) + 1;
-  return (
-    <div className="sticky top-[57px] z-20 border-b border-bronze/30 bg-bronze/10 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 lg:px-8">
-        <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft">
-          <Flag size={13} />Наставник · шаг {index} из {guide.steps.length}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-parch">{step.label}</div>
-          <div className="truncate text-xs text-dim">{guide.next}</div>
-        </div>
-        {currentPage === page
-          ? <span className="rounded-full border border-line-strong px-2.5 py-1 text-[11px] text-dim">Вы на месте</span>
-          : <Btn variant="primary" size="sm" onClick={() => go(page)}>{GUIDE_CTA[page] ?? "Дальше"}<ArrowRight size={15} /></Btn>}
-        <button
-          onClick={() => { if (act((s) => M.skipGuide(s), { silent: true })) toast("Обучение скрыто. Все экраны открыты.", "info"); }}
-          className="text-[11px] font-medium text-faint hover:text-parch"
-        >
-          Пропустить
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /**
  * Раньше здесь был обязательный экран ввода ключа. Теперь ключ ИИ настраивается один раз
  * на сервере (переменная окружения HYDRA_API_KEY на Vercel) — в игре его больше нигде
@@ -123,9 +87,8 @@ export function GuideBar() {
  */
 
 export function MobileNav() {
-  const { game, page, go } = useStore();
+  const { page, go } = useStore();
   const alerts = useAlerts();
-  const guided = currentGuideStep(game);
   return (
     <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-5">
@@ -133,8 +96,7 @@ export function MobileNav() {
           <button key={id} onClick={() => go(id)} className={cn("relative flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-medium", page === id ? "text-bronze" : "text-faint")}>
             <Icon size={20} />
             {label}
-            {alerts[id] ? <span className="absolute right-[26%] top-1.5 h-2 w-2 rounded-full bg-bronze" />
-              : guided?.page === id ? <span className="absolute right-[34%] top-1.5 h-2 w-2 rounded-full bg-bronze-soft" /> : null}
+            {alerts[id] ? <span className="absolute right-[26%] top-1.5 h-2 w-2 rounded-full bg-bronze" /> : null}
           </button>
         ))}
       </div>
@@ -344,6 +306,99 @@ export function DayReportModal() {
       {r.readyCards.length > 0 && <div className="mt-3 rounded-xl border border-bronze/40 bg-bronze/10 px-4 py-3 text-sm text-bronze-soft">Кузница закончила работу: {r.readyCards.join(", ")}. Заберите карту в «Кузнице».</div>}
       {r.notice && !r.starvation && r.popAfter === r.popBefore && <div className="mt-3 text-sm text-dim">{r.notice}</div>}
       <Btn variant="primary" size="lg" className="mt-6 w-full" onClick={closeDayReport}>Наступает день {r.day + 1}<ArrowRight size={18} /></Btn>
+    </Modal>
+  );
+}
+
+/**
+ * Выбор наследия при переходе эпохи — отдельным окном, а не только вкладкой «Наследие».
+ * Раньше выбор открывался тихо: значок на вкладке и строчка в отчёте дня, поэтому игрок
+ * доходил до следующей эпохи, так и не увидев, что культуру вообще предлагали. Теперь
+ * окно встаёт поверх игры сразу после отчёта дня и не закрывается, пока выбор не сделан
+ * (любой вариант — включая «оставить прежнее» — равноправен: технологии эпохи уже доступны).
+ */
+export function CultureChoiceModal() {
+  const { game, dayReport, act, toast, go } = useStore();
+  // Отложить выбор можно только если он физически не применяется (например, новая культура
+  // урезает лимит колоды): тогда игроку нужно дойти до «Отряда», а окно иначе мешает.
+  const [postponed, setPostponed] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const choice: any = M.getCultureChoice(game);
+  // Отчёт дня читается первым: иначе два окна встали бы друг на друга.
+  if (!choice || dayReport || postponed) return null;
+
+  const decide = (id: string) => {
+    const res = act((s) => M.chooseCulture(s, id), { silent: true });
+    if (!res) { setBlocked(true); return; } // act() сам показал ошибку (например, новый лимит колоды)
+    toast(
+      id === "keep"
+        ? `Наследие сохранено: ${game.player.historicalCulture?.name || "прежнее"}. Технологии эпохи уже ваши.`
+        : `Принято наследие: ${M.HISTORICAL_CULTURES.find((c: any) => c.id === id)?.name}.`,
+      "ok",
+    );
+    if (game.player.pendingDecreeChoice) {
+      go("develop");
+      toast("Осталось выбрать уклад новой эпохи — вкладка «Уклады».", "info");
+    }
+  };
+
+  return (
+    <Modal open onClose={() => {}} dismissable={false} wide title="Выбор наследия">
+      <Label>Переход эпохи</Label>
+      <h2 className="font-display text-2xl font-semibold sm:text-3xl">Эпоха «{choice.eraLabel}»: чьим наследием жить?</h2>
+      <p className="mt-2 text-[14px] leading-relaxed text-dim">{choice.eraDescription}</p>
+      {choice.eraTechnologies.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {choice.eraTechnologies.map((t: string) => <Chip key={t} tone="bronze"><Anvil size={11} />{t}</Chip>)}
+        </div>
+      )}
+      <p className="mt-3 text-[13.5px] leading-relaxed text-dim">
+        Технологии эпохи уже в работе — науки, ключевой ресурс и ковка карт идут от эпохи, а не от наследия.
+        Здесь решается только то, чьи обычаи и какие бонусы несёт дальше ваш народ.
+      </p>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="flex flex-col rounded-xl border border-line-strong bg-raised/50 p-4">
+          <div className="flex items-start gap-3">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ground text-2xl">{game.player.historicalCulture?.icon || "🏺"}</span>
+            <div className="min-w-0">
+              <h3 className="font-display text-lg font-semibold leading-tight">Оставить прежнее наследие</h3>
+              <Chip tone="ok" className="mt-1">{game.player.historicalCulture?.name || "прежний народ"}</Chip>
+            </div>
+          </div>
+          <p className="mt-3 flex-1 text-[13.5px] leading-relaxed text-dim">{game.player.historicalCulture?.desc || "Народ остаётся при своих обычаях."}</p>
+          <div className="mt-2 text-xs text-faint">{M.describeCultureBonus(game.player.historicalCulture)}</div>
+          <Btn className="mt-4" variant="primary" onClick={() => decide("keep")}>Оставить своё наследие</Btn>
+        </div>
+
+        {choice.candidates.map((c: any) => (
+          <div key={c.id} className="flex flex-col rounded-xl border border-line bg-raised/40 p-4">
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-ground text-2xl">{c.icon}</span>
+              <div className="min-w-0">
+                <h3 className="font-display text-lg font-semibold leading-tight">{c.name}</h3>
+                <Chip tone="bronze" className="mt-1">наследие эпохи</Chip>
+              </div>
+            </div>
+            <p className="mt-3 flex-1 text-[13.5px] leading-relaxed text-dim">{c.desc}</p>
+            <div className="mt-2 text-xs text-faint">{M.describeCultureBonus(c)}</div>
+            <Btn className="mt-4" variant="secondary" onClick={() => decide(c.id)}>Принять «{c.name}»</Btn>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-4 text-[11.5px] leading-relaxed text-faint">
+        Выбор останется в летописи и в линии наследия; принятая культура попадёт в промпты советника — науки, постройки
+        и карты кузница будет придумывать под неё. Передумать можно будет при следующем переходе эпохи.
+      </p>
+      {blocked && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bad/40 bg-bad/10 px-3 py-2.5">
+          <span className="text-[12px] leading-relaxed text-dim">
+            Выбор не применился. Отложите окно, поправьте колоду в «Армии» и вернитесь во вкладку «Наследие» — выбор там ждёт.
+          </span>
+          <Btn size="sm" variant="ghost" onClick={() => setPostponed(true)}>Отложить</Btn>
+        </div>
+      )}
     </Modal>
   );
 }

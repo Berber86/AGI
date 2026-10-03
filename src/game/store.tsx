@@ -7,20 +7,6 @@ import type { Match } from "./battle";
 export type Page = "home" | "map" | "develop" | "forge" | "army";
 export type Tone = "info" | "ok" | "bad";
 
-/** Шаг первого маршрута ведёт на конкретный экран — игрок не ищет, куда нажать. */
-export function guideStepPage(stepId: string): Page {
-  if (stepId === "territory") return "map";
-  if (stepId === "battle") return "army";
-  return "develop";
-}
-
-export function currentGuideStep(game: any): { step: any; guide: any; page: Page } | null {
-  const guide = M.getFirstSessionGuide(game);
-  if (!guide || guide.complete) return null;
-  const step = guide.steps.find((s: any) => !s.done);
-  if (!step) return null;
-  return { step, guide, page: guideStepPage(step.id) };
-}
 export interface Toast { id: number; text: string; tone: Tone }
 
 /**
@@ -95,9 +81,9 @@ interface Store {
   model: string;
   setModel: (m: string) => void;
   /** Основание народа: имя, происхождение и затравка. Советник отвечает превью трёх направлений науки. */
-  askOpeningDirections: (input: { name: string; originId: string; seedId: string }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
+  askOpeningDirections: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
   /** Второе обращение к советнику: раскрывает выбранное направление в первое дело народа. */
-  foundCampaign: (input: { name: string; originId: string; seedId: string; direction?: any }) => Promise<{ ok: boolean; project?: any; error?: string }>;
+  foundCampaign: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any }) => Promise<{ ok: boolean; project?: any; error?: string }>;
   /** Игрок увидел созданное первое дело и начинает первый день. */
   startFirstDay: (project?: any) => boolean;
   /** Даёт постройке в земле уникальное имя от советника. */
@@ -237,7 +223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
    * Шаг «о чём будет наука»: фиксируем свойства народа и спрашиваем советника о трёх направлениях.
    * Направления придумывает модель — заготовленных вариантов в игре нет.
    */
-  const askOpeningDirections = useCallback(async ({ name, originId, seedId }: { name: string; originId: string; seedId: string }) => {
+  const askOpeningDirections = useCallback(async ({ name, originId, seedId, historicalCultureId }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => {
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
@@ -249,7 +235,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       base.player.name = name.trim().slice(0, 24) || base.player.name;
       base = M.normalizeState(base);
     } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedId });
+      const begun = M.beginOnboardingState(base, { name, originId, seedId, historicalCultureId });
       if (begun.error) return { ok: false, error: begun.error };
       base = begun.state;
     }
@@ -267,7 +253,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [model, commit]);
 
   /** Второй шаг: советник раскрывает выбранное направление в первое дело народа. */
-  const foundCampaign = useCallback(async ({ name, originId, seedId, direction }: { name: string; originId: string; seedId: string; direction?: any }) => {
+  const foundCampaign = useCallback(async ({ name, originId, seedId, historicalCultureId, direction }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any }) => {
     const current = gameRef.current;
     // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
     const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
@@ -280,7 +266,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       base = M.normalizeState(base);
       commit(base, { silent: true });
     } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedId });
+      const begun = M.beginOnboardingState(base, { name, originId, seedId, historicalCultureId });
       if (begun.error) return { ok: false, error: begun.error };
       base = begun.state;
       commit(base, { silent: true });
@@ -393,7 +379,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (g.player.pendingExpedition) { toast("Сначала завершите начатую экспедицию.", "bad"); return; }
     const o = g.opponents.find((x: any) => x.id === opponentId);
     if (!o) return;
-    // Первый в жизни игрока бой ведёт наставник: подсказки, враг без построек, полная энергия на выходе.
+    // Первый в жизни игрока бой остаётся мягким входом: подсказки, враг без построек,
+    // полная энергия на выходе. Обязательного маршрута нет — тренироваться не обязательно.
     const practiceCount = (g.player.practice?.wins || 0) + (g.player.practice?.losses || 0);
     setMatch({ kind: "practice", opponentId, name: o.name, clan: o.clan, era: o.era, leaderBattle: !!o.leader, tutorial: practiceCount === 0 });
   }, [toast]);

@@ -721,16 +721,6 @@
 .campaign-choice-description { color: var(--text-dim); font-size: 0.68rem; line-height: 1.5; }
 .campaign-choice-icon { font-size: 1.5rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
 
-/* First session guide */
-.campaign-first-session {
-  border: 1.5px solid rgba(240,184,107,0.32);
-  border-radius: 16px;
-  background: linear-gradient(125deg, rgba(48,32,40,0.92), rgba(20,14,24,0.96));
-  overflow: hidden;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.35);
-}
-.campaign-first-session>summary { padding: 14px 18px; }
-
 /* Opponent deck identity */
 .campaign-opponent-deck { display: block; margin: 4px 0 8px 52px; color: var(--text-dim2); font-size: 0.72rem; }
 

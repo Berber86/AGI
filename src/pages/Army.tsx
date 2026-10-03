@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Swords, Sword, Search, Plus, Minus, Trash2, Heart, Zap, Layers, Crown, Shield, Info } from "lucide-react";
 import { M } from "@/game/model";
 import { cn } from "@/utils/cn";
 import { allCards, militiaFill, militiaPool, type Card, type CardType } from "@/game/cards";
-import { currentGuideStep, useDerived, useStore } from "@/game/store";
+import { useDerived, useStore } from "@/game/store";
 import { Btn, Chip, Empty, Label, Modal, Panel, Tabs } from "@/components/ui";
 import { CardFace, CardTile } from "@/components/CardView";
 import { PageFrame } from "@/components/Shell";
@@ -12,15 +12,8 @@ export default function Army() {
   const { game, collection, act, removeCard, startPractice, go, militiaPicks, toggleMilitiaPick } = useStore();
   const { cfg } = useDerived();
   const p = game.player;
-  const guided = currentGuideStep(game);
-  const battleStep = guided?.step.id === "battle" ? guided : null;
-  const stepNumber = battleStep ? battleStep.guide.steps.findIndex((s: any) => s.id === "battle") + 1 : 0;
   const [picker, setPicker] = useState(false);
 
-  // На шаге «тренировочный бой» сразу предлагаем выбрать соперника — без лишних нажатий.
-  useEffect(() => {
-    if (battleStep) setPicker(true);
-  }, [battleStep]);
   const cards = useMemo(() => allCards(collection), [collection]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const deck: Card[] = p.deckCardIds.map((id: string) => byId.get(id)).filter(Boolean) as Card[];
@@ -52,18 +45,6 @@ export default function Army() {
         </div>
         <Btn variant="primary" size="lg" onClick={() => setPicker(true)}><Swords size={18} />В бой</Btn>
       </div>
-
-      {battleStep && (
-        <Panel className="mb-6 border-bronze/40 bg-bronze/8 p-4">
-          <div className="flex items-start gap-3">
-            <Shield size={18} className="mt-0.5 shrink-0 text-bronze-soft" />
-            <div className="min-w-0">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-bronze-soft">Шаг {stepNumber} из {battleStep.guide.steps.length}: тренировочный бой</div>
-              <p className="mt-1 text-[13px] leading-relaxed text-dim">{battleStep.guide.next} Выберите любого соседа — тренировка не тратит ресурсы и не меняет границы.</p>
-            </div>
-          </div>
-        </Panel>
-      )}
 
       <Panel className="paper mb-6 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

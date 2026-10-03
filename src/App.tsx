@@ -1,6 +1,5 @@
-import { useEffect, useRef } from "react";
-import { StoreProvider, currentGuideStep, useStore } from "@/game/store";
-import { DayReportModal, GuideBar, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
+import { StoreProvider, useStore } from "@/game/store";
+import { CultureChoiceModal, DayReportModal, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
 import Onboarding from "@/pages/Onboarding";
 import Home from "@/pages/Home";
 import MapPage from "@/pages/MapPage";
@@ -10,17 +9,10 @@ import Army from "@/pages/Army";
 import Battle from "@/pages/Battle";
 
 function Root() {
-  const { game, page, match, go } = useStore();
-  const routed = useRef(false);
+  const { game, page, match } = useStore();
+  // Никакого обязательного маршрута: после создания народа игрок остаётся в поселении
+  // и сам выбирает, куда идти — развитие, карта, кузница или армия.
   const onboarded = game.player.onboardingComplete;
-
-  // Первый маршрут ведёт сам: игрок попадает на тот экран, где находится следующий шаг.
-  useEffect(() => {
-    if (!onboarded || routed.current) return;
-    routed.current = true;
-    const guided = currentGuideStep(game);
-    if (guided && guided.page !== page) go(guided.page);
-  }, [game, onboarded, page, go]);
 
   if (!onboarded) {
     return (
@@ -44,7 +36,6 @@ function Root() {
     <div className="min-h-dvh lg:pl-[216px]">
       <SideNav />
       <TopBar />
-      <GuideBar />
       <main>
         {page === "home" && <Home />}
         {page === "map" && <MapPage />}
@@ -55,6 +46,7 @@ function Root() {
       <MobileNav />
       <SettingsModal />
       <DayReportModal />
+      <CultureChoiceModal />
       <Toasts />
     </div>
   );

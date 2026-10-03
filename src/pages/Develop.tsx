@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Telescope, Hammer, Check, Lock, Sparkles, RefreshCw, Loader2, Landmark, ChevronRight, Trash2, Scroll, Anvil } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
@@ -21,57 +21,8 @@ function Science() {
   const p = game.player;
   const [loading, setLoading] = useState(false);
   const choices = p.scienceChoices;
-  const opening = p.blueprints.find((b: any) => b.openingProject);
-  const guide = M.getFirstSessionGuide(game);
-  const guided = Boolean(guide && !guide.complete);
+  // Стадия чертежа: 1 — не изучен, 2 — изучен, но не построен, 3 — построен.
   const stage = (b: any) => (b.built ? 3 : b.researched ? 2 : 1);
-  const stepIndex = guided ? guide!.steps.findIndex((s: any) => s.id === "research") + 1 : 0;
-
-  // Пока первое дело не сделано, ведём за руку: один проект и одно действие.
-  if (guided && opening && !opening.built) {
-    const s = stage(opening);
-    return (
-      <div className="mx-auto max-w-3xl">
-        <Panel className="border-bronze/40 p-5 sm:p-6">
-          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-bronze-soft">
-            <Sparkles size={13} />Первое дело народа · шаг {stepIndex} из {guide!.steps.length}
-          </div>
-          <h2 className="font-display mt-2 text-2xl font-semibold">{opening.scienceName}</h2>
-          <p className="mt-2 text-[14px] leading-relaxed text-dim">{opening.scienceDescription}</p>
-          <div className="mt-3"><EffectChips effects={opening.effects} /></div>
-          <div className="mt-5 rounded-xl border border-line bg-ground/50 p-4">
-            <Label>Постройка по чертежу</Label>
-            <div className="mt-0.5 font-display text-lg font-semibold">{opening.buildingName}</div>
-            <p className="mt-1 text-[13px] leading-relaxed text-dim">{opening.buildingDescription}</p>
-          </div>
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            {s === 1 && (
-              <>
-                <Cost cost={{ food: 1, knowledge: 1 }} have={p.resources} />
-                <Btn variant="primary" size="lg" onClick={() => { act((st: any) => M.researchBlueprint(st, opening.id)); }}>
-                  <Telescope size={18} />Изучить науку
-                </Btn>
-              </>
-            )}
-            {s === 2 && (
-              <>
-                <Cost cost={{ materials: 3 }} have={p.resources} />
-                <Btn variant="primary" size="lg" onClick={() => { act((st: any) => M.constructBlueprint(st, opening.id)); }}>
-                  <Hammer size={18} />Построить здание
-                </Btn>
-              </>
-            )}
-            {s === 3 && <Chip tone="ok"><Check size={12} />Первое дело сделано</Chip>}
-          </div>
-          <p className="mt-4 text-xs leading-relaxed text-faint">{guide!.next}</p>
-        </Panel>
-        <Panel className="mt-4 p-5">
-          <div className="flex items-center gap-2 text-sm text-dim"><Lock size={14} className="text-bronze" />Новые замыслы откроются, когда первое дело будет построено.</div>
-        </Panel>
-      </div>
-    );
-  }
-
   // Превью направлений и выбранное направление живут в состоянии: они переживают перезагрузку.
   const dirs: any[] = p.directionChoices?.directions || [];
   const chosenDirection: any = p.directionChoice || null;
@@ -388,20 +339,9 @@ function Decrees() {
 
 /* ---------- Наследие эпохи ---------- */
 
-const BONUS_LABEL: Record<string, (v: number) => string> = {
-  food: (v) => `${v > 0 ? "+" : ""}${v}🌾 с клана`,
-  materials: (v) => `${v > 0 ? "+" : ""}${v}🪵 с клана`,
-  knowledge: (v) => `${v > 0 ? "+" : ""}${v}📚 с клана`,
-  faith: (v) => `${v > 0 ? "+" : ""}${v}🙏 с клана`,
-  deck_slots: (v) => `${v > 0 ? "+" : ""}${v} слот колоды`,
-  storage: (v) => `${v > 0 ? "+" : ""}${v} к складу`,
-  max_hp: (v) => `${v > 0 ? "+" : ""}${v} здоровья`,
-};
-
+/** Бонусы культур формулирует модель — одна формулировка на все экраны (онбординг, модалка перехода, вкладка). */
 function bonusOf(culture: any): string {
-  const bonus = culture?.bonus || {};
-  const parts = Object.entries(bonus).map(([k, v]) => (BONUS_LABEL[k] ? BONUS_LABEL[k](v as number) : `${k} ${v}`));
-  return parts.length ? parts.join(", ") : "без бонусов";
+  return M.describeCultureBonus(culture);
 }
 
 /**
@@ -498,8 +438,9 @@ function Heritage({ onGoto }: { onGoto: (tab: "decrees") => void }) {
 }
 
 /**
- * Просветление эпохи: 2·📚 + 1·🙏 против порога эпохи (16 + 8·era). Показывается на всех вкладках
+ * Просветление эпохи: 2·📚 + 1·🙏 против порога эпохи (36 + 8·era). Показывается на всех вкладках
  * развития, чтобы игрок видел, чего не хватает до следующей эпохи и почему науки её больше не двигают.
+ * Порог лежит выше любого стартового запаса, а первый день закрыт: эпоху даёт накопленное трудом.
  */
 function EraProgress() {
   const { game } = useStore();
@@ -526,7 +467,9 @@ function EraProgress() {
       <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
         {prog.ready
           ? "Порог взят: эпоха сменится в конце этого дня. Половина 📚 и 🙏 сгорит в переходе — откроются уклад и выбор наследия."
-          : `Не хватает ${fmt(prog.remaining, 1)} очков: жрецы дают 🙏, книжники и святилища — 📚. Эпоха наступит сама в конце дня.`}
+          : prog.dayBlocked
+            ? `День основания: эпоха не открывается в первый день ни при каком запасе. Самый ранний переход — конец ${prog.minDay}-го дня: сажайте кланы на книги и молитвы.`
+            : `Не хватает ${fmt(prog.remaining, 1)} очков: жрецы дают 🙏, книжники и святилища — 📚. Эпоха наступит сама в конце дня.`}
       </p>
     </Panel>
   );
@@ -538,20 +481,11 @@ export default function Develop() {
     game.player.pendingDecreeChoice ? "decrees" : game.player.pendingCultureChoice ? "heritage" : "science",
   );
   const p = game.player;
-  const guide = M.getFirstSessionGuide(game);
-  const guided = Boolean(guide && !guide.complete);
-  // В первые шаги вкладок нет: одна задача на экране.
-  if (guided && !p.pendingDecreeChoice && !p.pendingCultureChoice) {
-    return (
-      <PageFrame wide>
-        <div className="mb-6">
-          <Label>Первые шаги · развитие</Label>
-          <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Первое дело народа</h1>
-        </div>
-        <Science />
-      </PageFrame>
-    );
-  }
+  // Выбор мог открыться, пока игрок стоял на другой вкладке — переводим на него сразу.
+  useEffect(() => {
+    if (p.pendingDecreeChoice) setTab("decrees");
+    else if (p.pendingCultureChoice) setTab("heritage");
+  }, [p.pendingDecreeChoice, p.pendingCultureChoice]);
   return (
     <PageFrame wide>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">

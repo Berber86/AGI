@@ -3,6 +3,24 @@ import { M } from "./model";
 export type CardType = "unit" | "spell" | "structure";
 export type Rarity = "ordinary" | "uncommon" | "rare";
 
+/**
+ * Историческая справка карты: к какой реалии эпохи она отсылает и почему бьётся именно так.
+ * Пишется ИИ-кузнецом в тот же вызов, что и сама карта, — по эпохе кампании и наследию народа,
+ * поэтому «древний мир» и «античность» (как и Ренессанс с Будущим) звучат по-разному даже у
+ * одинаковых по цифрам карт. Если модель справку не вернула — поля у карты нет и аккордеон
+ * не рисуется: локальных заготовок намеренно не делаем, иначе текст снова станет одинаковым.
+ */
+export interface CardHistory {
+  /** Реальный прототип: находка, место, обычай или звание эпохи. */
+  title: string;
+  /** 2–4 предложения: технологии эпохи, быт и связь с цифрами и ключевыми словами карты. */
+  text: string;
+  /** Эпоха кампании, под которую написана справка. */
+  era: string;
+  /** Наследие народа, под которое написана справка. */
+  culture: string;
+}
+
 export interface Card {
   id: string;
   name: string;
@@ -20,6 +38,8 @@ export interface Card {
   effects: any[];
   monkey_paw?: string;
   rarity?: Rarity;
+  /** Историческая справка (аккордеон на карте); заполняется только из ответа модели. */
+  history?: CardHistory;
   campaignStarter?: boolean;
   militia?: boolean;
   generationModel?: string;
@@ -317,6 +337,23 @@ function cardPowerBudget(dropCost: number, actionCost: number, cardType: string,
   return Math.max(2, Math.round(base * mult));
 }
 
+/**
+ * Справка живёт только если модель её написала: без title или text блока у карты не будет
+ * (локального фолбэка сознательно нет — заготовочный текст снова стёр бы разницу эпох).
+ */
+export function sanitizeHistory(raw: any, era = "", culture = ""): CardHistory | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const title = String(raw.title || "").trim().slice(0, 90);
+  const text = String(raw.text || "").trim().slice(0, 700);
+  if (!title || !text) return undefined;
+  return {
+    title,
+    text,
+    era: String(raw.era || era || "").slice(0, 60),
+    culture: String(raw.culture || culture || "").slice(0, 80),
+  };
+}
+
 export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary"): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
@@ -355,6 +392,7 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   c.abilities = [];
   c.emoji = typeof c.emoji === "string" && c.emoji.trim() ? c.emoji.slice(0, 8) : "⚒️";
   c.monkey_paw = typeof c.monkey_paw === "string" ? c.monkey_paw.slice(0, 200) : "";
+  c.history = sanitizeHistory(c.history);
   c.id = c.id || "card-" + uid();
   return c as Card;
 }
@@ -594,21 +632,31 @@ effects[] — объекты {event, target, action, condition?, watch?}:
  action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn, amount 1-5, turns 1-3) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
 condition (необязательное поле эффекта) помимо target_wounded/target_status/target_stat/resource теперь поддерживает board_count: {type:"board_count", side: controller|opponent, op: eq|ne|lt|lte|gt|gte, value: 0-8} — количество живых отрядов на стороне.
 У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки atk=0, action_cost=0, hp≥1. У отряда hp≥1.
+Про историческую справку (поле history — ОБЯЗАТЕЛЬНО, пиши его последним): {"title":"","text":""}.
+ title (до 70 знаков) — настоящий прототип карты: конкретная находка, место, обычай, род войск или звание ЭПОХИ КАМПАНИИ и НАСЛЕДИЯ НАРОДА из контекста («Курганные погребения ямной культуры», «Бронзовый кинжал из Арслантепе», «Янычарская мушкетная шеренга»).
+ text (2–4 предложения, до 480 знаков) — зачем эта вещь или обычай существовали именно в эту эпоху у этого народа: из чего и какими технологиями эпохи её делали, кем были эти люди, чем она была в быту и почему на поле боя карта ведёт себя так, как у неё записано (её числа, ключевые слова, эффекты).
+ Только реальная история: ни магии, ни фэнтези, ни вымышленных цивилизаций и пророчеств. Не пересказывай description и не повторяй название карты целиком. Если точного прототипа нет — возьми самое близкое явление этой эпохи, но не выдумывай народы.
 Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
-{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":""}
+{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"","history":{"title":"","text":""}}
 Язык — русский.`;
 
 export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
   const allowed = allowedCardErasOf(state);
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
+  // Справка пишется под ЭПОХУ КАМПАНИИ и НАСЛЕДИЕ НАРОДА (не под боевой тег ancient/bronze):
+  // иначе карты «древнего мира» и «античности» звучали бы одинаково при разных технологиях.
+  const era = eraContextOf(state);
+  const cultureName = state.player?.historicalCulture?.name || "";
   const raw = await hydraChat({
-    model, maxTokens: 2600, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
+    model, maxTokens: 3000, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
     system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
-    user: `Замысел: «${advice.title}». ${advice.pitch}\ncard_type="${advice.cardType}". ${directive}\n\nКонтекст цивилизации:\n${contextOf(state)}`,
+    user: `Замысел: «${advice.title}». ${advice.pitch}\ncard_type="${advice.cardType}". ${directive}\n\nКонтекст цивилизации:\n${contextOf(state)}\n\nЭпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.\n\nИсторическая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`,
   });
   const card = validateCard(raw, advice.cardType, allowed, rarity);
   card.rarity = rarity;
   card.id = "card-" + uid();
+  // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.
+  if (card.history) card.history = { ...card.history, era: era.label, culture: cultureName };
   return card;
 }
 

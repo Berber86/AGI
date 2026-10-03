@@ -203,12 +203,18 @@ export default function Forge() {
               <div className="flex items-center justify-between"><dt className="text-dim">Срок</dt><dd className="font-medium">{quote.effortDays ? `${quote.effortDays} дн.` : "сразу"}</dd></div>
               <div className="flex items-center justify-between"><dt className="text-dim">Мастерство кузнеца</dt><dd className="font-medium">ур. {p.craftLevel}{p.craftLevel < 2 ? ` · ${p.craftXp}/3` : " · макс."}</dd></div>
               <div className="flex items-center justify-between"><dt className="text-dim">Мастер</dt><dd className="text-xs text-dim">ИИ-кузнец</dd></div>
+              <div className="flex items-center justify-between gap-3"><dt className="text-dim">Историческая основа</dt><dd className="text-right text-xs text-dim">{M.eraName(p.era)}{p.historicalCulture ? ` · ${p.historicalCulture.icon} ${p.historicalCulture.name}` : ""}</dd></div>
             </dl>
             <Btn variant="primary" size="lg" className="mt-5 w-full" disabled={!!block || !!busy} onClick={forge}>
               {busy ? <><Loader2 size={18} className="animate-spin" />Кузнец за работой…</> : <><Anvil size={18} />Ковать карту</>}
             </Btn>
             {block && !busy && <p className="mt-2.5 text-xs leading-relaxed text-dim">{block}</p>}
-            <p className="mt-3 text-[11.5px] leading-relaxed text-faint">Редкость выпадает до ковки, оплата списывается сразу. Если ответ мастера некорректен — ресурсы возвращаются.</p>
+            <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
+              Редкость выпадает до ковки, оплата списывается сразу. Если ответ мастера некорректен — ресурсы возвращаются.
+            </p>
+            <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
+              Кузнец пишет карту под эпоху «{M.eraName(p.era)}»{p.historicalCulture ? ` и наследие «${p.historicalCulture.name}»` : ""}: это видно в описании, технологиях и в исторической справке карты.
+            </p>
           </Panel>
         </aside>
       </div>
@@ -218,7 +224,12 @@ export default function Forge() {
           <div className="flex flex-col items-center">
             <Label className="mb-1">Новая карта в коллекции</Label>
             <h2 className="font-display mb-4 text-2xl font-semibold">{RARITY_INFO[reveal.rarity ?? "ordinary"].label} карта выкована</h2>
-            <div className="w-[270px]"><CardFace card={reveal} detailed /></div>
+            <div className="w-[270px]"><CardFace card={reveal} detailed historyOpen /></div>
+            {reveal.history && (
+              <p className="mt-4 max-w-[330px] text-center text-[12px] leading-relaxed text-faint">
+                Справка привязана к эпохе «{reveal.history.era}»{reveal.history.culture ? ` и наследию «${reveal.history.culture}»` : ""} — она останется с картой в коллекции.
+              </p>
+            )}
             <div className="mt-6 flex w-full gap-3">
               <Btn className="flex-1" onClick={() => setReveal(null)}>Продолжить</Btn>
               <Btn variant="primary" className="flex-1" onClick={() => { setReveal(null); go("army"); }}>В армию</Btn>
