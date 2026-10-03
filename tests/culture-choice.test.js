@@ -13,11 +13,22 @@ const TEST_SEED = 12345;
  */
 function advanceEra(input) {
   const threshold = Campaign.eraEnlightenmentThreshold(input.player.era);
-  const state = Campaign.normalizeState({
-    ...input,
-    player: { ...input.player, resources: { ...input.player.resources, knowledge: threshold, faith: 0 } }
+  let state = Campaign.normalizeState({ ...input });
+  // Первый день эпоху не открывает (ERA_ENLIGHTENMENT_MIN_DAY): сначала народ проживает день
+  // основания, и только следующим дном просветление может поднять его в новую эпоху.
+  while (state.day < Campaign.ERA_ENLIGHTENMENT_MIN_DAY) {
+    const idle = Campaign.finishDayState({
+      ...state,
+      player: { ...state.player, resources: { ...state.player.resources, knowledge: 0, faith: 0 } }
+    });
+    assert.equal(idle.error, null);
+    assert.equal(idle.eraAdvanced, null, 'в первый день эпоха не открывается');
+    state = idle.state;
+  }
+  const finished = Campaign.finishDayState({
+    ...state,
+    player: { ...state.player, resources: { ...state.player.resources, knowledge: threshold, faith: 0 } }
   });
-  const finished = Campaign.finishDayState(state);
   assert.equal(finished.error, null);
   assert.ok(finished.eraAdvanced, `порог ${threshold} очков просветления обязан открыть эпоху «${Campaign.ERAS[input.player.era + 1]}»`);
   assert.equal(finished.state.player.era, input.player.era + 1);

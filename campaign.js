@@ -22,13 +22,20 @@
     // половина накопленных 📚 и 🙏 сгорает (собор, перепись, обряды) — поэтому каждая следующая
     // эпоха требует нового рывка, а не одного вечного запаса.
     const ENLIGHTENMENT_WEIGHTS = { knowledge: 2, faith: 1 };
-    // Быстрые эпохи — осознанный выбор дизайна (игрок подтвердил его после замеров симулятора):
-    // сезон в 30 дней проходит через несколько эпох, а «Будущее 2050-2150» достаётся активной игре.
-    // Плата видна в отчёте: пассивное накопление 2 очков в день само по себе поднимает эпоху, поэтому
-    // цена ковки (eraCostMult = 1 + 0.4·era) и состав колод соперников растут по ходу сезона, а
-    // удержать эпоху можно только расходом 📚 и 🙏 — на науки, постройки, ковку и миссии.
-    const ERA_ENLIGHTENMENT_BASE = 16;
+    // Порог Каменного века — 36, а не 16: стартовый запас любого народа даёт лишь 14–20 очков
+    // (6–9 📚 и 2 🙏), а весь народ, посаженный на книги при лучшей черте и наследии, набирает
+    // к концу первого дня около 33. При пороге 16 пять происхождений из восьми открывали
+    // Античный мир в конце первого же дня, ничего для этого не сделав: эпоху выдавал стартовый
+    // запас, а не работа кланов. Теперь эпоху берёт только накопленное трудом, а самый ранний
+    // переход — конец второго дня, и то у народа, который с первого хода живёт книгами.
+    // Дальше порог растёт на ERA_ENLIGHTENMENT_STEP: каждая эпоха требует нового рывка, а не одного
+    // вечного запаса (в переходе половина 📚 и 🙏 сгорает).
+    const ERA_ENLIGHTENMENT_BASE = 36;
     const ERA_ENLIGHTENMENT_STEP = 8;
+    // Первый день эпоху не открывает ни при каких обстоятельствах: народ должен его прожить, и
+    // самый ранний переход — в конце второго дня. Даже если в первый же день построен дом писцов
+    // и все кланы посажены за книги, день основания народ проводит в своей эпохе.
+    const ERA_ENLIGHTENMENT_MIN_DAY = 2;
     const ERA_ENLIGHTENMENT_SPEND = 0.5;
     // Письменность, архивы и храмовые склады: каждая эпоха добавляет места на складе, иначе поздние
     // пороги просветления (📚 60+) упирались бы в базовый склад 15 и были бы недостижимы физически —
@@ -2291,6 +2298,9 @@
     /**
      * Прогресс эпохи: книга весит вдвое молитвы (2·📚 + 1·🙏). Считается по текущему запасу ресурсов,
      * поэтому копить приходится одновременно знания и духовность — одним книжником эпоху не взять.
+     * Порог (36 + 8·era) лежит выше любого стартового запаса: эпоху даёт накопленное трудом, а не
+     * подаренное происхождением. Первый день закрыт для перехода (ERA_ENLIGHTENMENT_MIN_DAY): чтобы
+     * шагнуть в Античный мир, народ должен прожить день основания и хотя бы один рабочий день.
      */
     function getEraProgress(input) {
         const state = normalizeState(input);
@@ -2300,12 +2310,15 @@
         const knowledge = state.player.resources.knowledge || 0;
         const faith = state.player.resources.faith || 0;
         const score = ENLIGHTENMENT_WEIGHTS.knowledge * knowledge + ENLIGHTENMENT_WEIGHTS.faith * faith;
+        // Номер дня считается до смены дня: конец первого дня — это ещё state.day === 1.
+        const dayBlocked = !finalEra && state.day < ERA_ENLIGHTENMENT_MIN_DAY;
         return {
             era, eraLabel: eraName(era), nextEraLabel: finalEra ? null : eraName(era + 1), finalEra,
             knowledge, faith, weights: { ...ENLIGHTENMENT_WEIGHTS }, formula: '2·📚 + 1·🙏',
             threshold, score, remaining: Math.max(0, threshold - score),
             ratio: finalEra ? 1 : Math.max(0, Math.min(1, score / threshold)),
-            ready: !finalEra && score >= threshold,
+            day: state.day, minDay: ERA_ENLIGHTENMENT_MIN_DAY, dayBlocked,
+            ready: !finalEra && !dayBlocked && score >= threshold,
             spendRatio: ERA_ENLIGHTENMENT_SPEND
         };
     }
@@ -2619,6 +2632,8 @@
         }
         // Эпоха наступает в конце дня, когда просветление (2·📚 + 1·🙏) дошло до порога. За один день
         // можно шагнуть только на одну эпоху: половина запаса сгорает, а остаток копится уже для следующей.
+        // Первый день закрыт (ERA_ENLIGHTENMENT_MIN_DAY): переход возможен с конца второго дня, и только
+        // у народа, который действительно копил знания и духовность, а не положился на стартовый запас.
         const eraAdvanced = getEraProgress(state).ready ? advanceEra(state) : null;
 
         for (const opponent of state.opponents) {
@@ -3032,7 +3047,7 @@
         const eraProgress = Math.round(eraProgressInfo.ratio * 100);
         const eraProgressTitle = eraProgressInfo.finalEra
             ? 'Последняя эпоха открыта'
-            : 'Просветление эпохи: 2·📚 ' + Math.floor(eraProgressInfo.knowledge) + ' + 1·🙏 ' + Math.floor(eraProgressInfo.faith) + ' = ' + Math.floor(eraProgressInfo.score) + ' из ' + eraProgressInfo.threshold + ' для эпохи «' + eraProgressInfo.nextEraLabel + '». В переходе половина 📚 и 🙏 сгорает.';
+            : 'Просветление эпохи: 2·📚 ' + Math.floor(eraProgressInfo.knowledge) + ' + 1·🙏 ' + Math.floor(eraProgressInfo.faith) + ' = ' + Math.floor(eraProgressInfo.score) + ' из ' + eraProgressInfo.threshold + ' для эпохи «' + eraProgressInfo.nextEraLabel + '». В переходе половина 📚 и 🙏 сгорает.' + (eraProgressInfo.dayBlocked ? ' Эпоха не откроется раньше конца ' + eraProgressInfo.minDay + '-го дня.' : '');
         const dayBlockReason = p.pendingExpedition ? 'Сначала заверши экспедицию.' : generatingCraft ? 'Дождись ответа кузницы.' : readyToClose && activeCraftOrders.length ? 'Заверши ковку и забери готовые карты.' : '';
         const developmentButton = readyToClose
             ? '<button class="campaign-btn campaign-btn-gold" ' + (craftBlocksSeason ? 'disabled' : '') + ' title="' + htmlAttr(dayBlockReason) + '" onclick="if (window.confirm(&quot;Новый сезон — новая жизнь: мир, земли, науки и запасы начнутся с чистого листа. Сохранятся медаль, мастерство кузнеца, численность и коллекция карт. Завершить сезон?&quot;)) CampaignMvp.completeSeason()">Подвести итоги</button>'
@@ -3387,7 +3402,7 @@
         getRegionalIncome, getAvailableMaterialQualities, hasEraKeyResource, ERA_KEY_RESOURCE, getVisibleRegionIds, getRegionActionState, getRegionBuilding, settleRegionState: settleRegion, buildRegionBuildingState: buildRegionBuilding, beginRegionExpeditionState: beginRegionExpedition, finishRegionExpeditionState: finishRegionExpedition,
         markExpeditionBattleStartedState: markExpeditionBattleStarted, recoverInterruptedExpeditionState: recoverInterruptedExpedition, makeExpeditionMatch,
         addBlueprint, researchBlueprint, constructBlueprint, generateChronicleEntry, chooseDecreeState: chooseDecree,
-        getEraProgress, eraEnlightenmentThreshold, ENLIGHTENMENT_WEIGHTS, ERA_ENLIGHTENMENT_BASE, ERA_ENLIGHTENMENT_STEP, ERA_ENLIGHTENMENT_SPEND,
+        getEraProgress, eraEnlightenmentThreshold, ENLIGHTENMENT_WEIGHTS, ERA_ENLIGHTENMENT_BASE, ERA_ENLIGHTENMENT_STEP, ERA_ENLIGHTENMENT_MIN_DAY, ERA_ENLIGHTENMENT_SPEND,
         SCIENCE_DIRECTION_THEMES, sanitizeScienceDirection, setScienceDirections, chooseScienceDirection,
         MISSION_WORD_BASE, MISSION_WORD_PER_ERA, MISSION_CONVERT_BASE, MISSION_CONVERT_PER_ERA, missionCost: (input, regionId) => missionCost(normalizeState(input), regionId), getMissionState, missionRegionState: missionRegion, WORKER_KEYS,
         getCultureChoice, chooseCultureState: chooseCulture, cultureCandidates: (input, era) => cultureCandidates(normalizeState(input), clampInt(era, 0, ERAS.length - 1, 0)), CULTURE_CHOICE_SIZE, BRONZE_CARD_MIN_ERA, allowedCardEras, toggleBuildingState: toggleBuilding, toggleDeckCardState: toggleDeckCard, finishDayState: finishDay,
