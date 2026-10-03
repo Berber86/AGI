@@ -27,6 +27,8 @@ function useNext(): Next {
   const orderCap = M.getOrderCapacity(game);
   if (p.ap > 0 && (p.dailyOrders.constructionUsed || 0) < orderCap && build) return { title: `Постройте «${build.buildingName}»`, text: "Чертёж изучен — здание даст постоянный бонус.", cta: { label: "К развитию", page: "develop" }, tone: "bronze" };
   if (p.ap > 0 && (p.dailyOrders.researchUsed || 0) < orderCap && research) return { title: `Изучите «${research.scienceName}»`, text: "Новая наука приближает следующую эпоху.", cta: { label: "К развитию", page: "develop" }, tone: "bronze" };
+  // Кодекс пуст (народ только что основан): наука не выдаётся на старте, её нужно спросить у советника.
+  if (p.ap > 0 && !p.blueprints.length && !p.scienceChoices) return { title: "Народ пока ничему не учится", text: "Кодекс пуст. Спросите советника — он придумает три разные науки, у каждой своё здание и свои свойства, а вы выберете одну.", cta: { label: "Спросить советника", page: "develop" }, tone: "bronze" };
   if (p.ap > 0) return { title: "У вас остались приказы", text: "Придумайте новое исследование, займите землю или откуйте карту. Или завершите день.", cta: { label: "К карте", page: "map" }, tone: "bronze" };
   return { title: "Приказы на сегодня исчерпаны", text: "Нажмите «Завершить день» — народ соберёт ресурсы, и завтра будут новые приказы.", cta: null, tone: "ok" };
 }

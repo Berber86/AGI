@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Home, Map as MapIcon, Telescope, Anvil, Swords, Settings, Users, Sun, ArrowRight, X, Check, CircleAlert, Info, Flag, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { MODEL_GROUPS, useDerived, useStore, type Page } from "@/game/store";
+import { useDerived, useStore, type Page } from "@/game/store";
 import { Btn, Chip, Meter, Modal, ResIcon, RES, fmt, signed, type ResKey, Label } from "./ui";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
@@ -208,7 +208,7 @@ export function Toasts() {
 }
 
 export function SettingsModal() {
-  const { settingsOpen, openSettings, model, setModel, resetCampaign, aiStatus, checkAi } = useStore();
+  const { settingsOpen, openSettings, resetCampaign, aiStatus, checkAi } = useStore();
   const [confirm, setConfirm] = useState(false);
   return (
     <Modal open={settingsOpen} onClose={() => { openSettings(false); setConfirm(false); }} title="Настройки">
@@ -226,17 +226,13 @@ export function SettingsModal() {
           </div>
           {aiStatus.status === "bad" && aiStatus.message && <p className="mt-2 text-xs text-bad">{aiStatus.message}</p>}
         </div>
-        <label className="block">
-          <Label className="mb-1.5">Модель для науки и советов</Label>
-          <select value={model} onChange={(e) => setModel(e.target.value)} className="h-10 w-full rounded-lg border border-line-strong bg-ground px-3 text-sm text-parch outline-none focus:border-bronze">
-            {MODEL_GROUPS.map((g) => (
-              <optgroup key={g.id} label={`${g.label} — ${g.hint}`}>
-                {g.models.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-              </optgroup>
-            ))}
-          </select>
-          <span className="mt-1.5 block text-xs text-faint">Модели сгруппированы по семействам — школе, к которой они относятся; на правила и баланс выбор не влияет. Карты в кузнице модель выбирает сама по редкости.</span>
-        </label>
+        <div className="rounded-xl border border-line bg-ground/50 p-3.5">
+          <Label className="mb-1.5">Модель советника</Label>
+          <p className="text-sm leading-relaxed text-dim">
+            Модель выбирает игра, а не игрок: науки, советы и обычные карты делает <span className="text-parch">GPT-6 Luna</span>,
+            а необычные и редкие карты кузница отдаёт <span className="text-parch">GLM-5.2</span>.
+          </p>
+        </div>
       </div>
       <a href="/legacy.html" target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-bronze hover:text-bronze-soft hover:underline">
         Открыть прежний интерфейс (локальные заготовки, без ИИ) <ArrowRight size={13} />

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { M } from "./model";
-import { llmDirectionPreviews, llmOpeningBuildingOffers, llmRegionBuildingOffers, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
+import { llmRegionBuildingOffers, llmRegionBuildingName, probeApiKey, type Card } from "./cards";
 
 import type { Match } from "./battle";
 
@@ -10,48 +10,12 @@ export type Tone = "info" | "ok" | "bad";
 export interface Toast { id: number; text: string; tone: Tone }
 
 /**
- * Модели сгруппированы по семействам: бренд остаётся на месте, а рядом пометка,
- * чем модель отличается, — выбор не превращается в угадывание названий.
+ * Модель выбирает игра, а не игрок: выбор модели из интерфейса убран целиком.
+ * `gpt-6-luna` отвечает за науки, советы, названия построек и обычные карты; кузница сама
+ * меняет её на `glm-5.2` для необычных и редких карт (campaign.js → cardCraftQuote.modelByRarity).
+ * Ключ по-прежнему живёт только на сервере (HYDRA_API_KEY), браузер его не видит.
  */
-export const MODEL_GROUPS: { id: string; label: string; hint: string; models: { id: string; label: string }[] }[] = [
-  {
-    id: "gpt", label: "GPT-6", hint: "Универсальные: Sol — самая сильная, Luna — быстрая и аккуратная",
-    models: [
-      { id: "gpt-6-luna", label: "GPT-6 Luna · по умолчанию" },
-      { id: "gpt-6-sol", label: "GPT-6 Sol · сильная" },
-      { id: "gpt-6-astra", label: "GPT-6 Astra · ровная" },
-    ],
-  },
-  {
-    id: "glm", label: "GLM", hint: "Крепкие модели, хороши в описаниях и названиях",
-    models: [
-      { id: "glm-5.2", label: "GLM-5.2 · новая" },
-      { id: "glm-5.1", label: "GLM-5.1 · прошлая" },
-    ],
-  },
-  {
-    id: "deepseek", label: "DeepSeek", hint: "Pro точнее, Flash отвечает быстрее",
-    models: [
-      { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro · сильная" },
-      { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash · быстрая" },
-      { id: "deepseek-v3.2", label: "DeepSeek V3.2 · прошлая" },
-    ],
-  },
-  {
-    id: "claude", label: "Claude", hint: "Сильные тексты и аккуратные правила",
-    models: [
-      { id: "claude-sonnet-5", label: "Claude Sonnet 5 · сильная" },
-    ],
-  },
-  {
-    id: "hydra", label: "Hydra", hint: "Бесплатная модель для пробы",
-    models: [
-      { id: "hydra-gpt-mini", label: "Hydra GPT Mini · бесплатная" },
-    ],
-  },
-];
-
-export const AVAILABLE_MODELS = MODEL_GROUPS.flatMap((g) => g.models);
+export const ADVISOR_MODEL = "gpt-6-luna";
 
 /** Статус диагностики ИИ: ключ больше не вводится игроком — он настроен один раз на сервере (env HYDRA_API_KEY). */
 export interface AiStatus { status: "unknown" | "checking" | "ok" | "bad"; message: string }
@@ -78,14 +42,14 @@ interface Store {
   /** Диагностика ИИ-советника: ключ настроен один раз на сервере, тут только статус связи. */
   aiStatus: AiStatus;
   checkAi: () => Promise<boolean>;
+  /** Модель советника задана игрой (ADVISOR_MODEL) — игрок её больше не выбирает. */
   model: string;
-  setModel: (m: string) => void;
-  /** Основание народа: имя, происхождение и затравка. Советник отвечает превью трёх направлений науки. */
-  askOpeningDirections: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => Promise<{ ok: boolean; directions?: any[]; error?: string }>;
-  /** Второе обращение: советник-строитель предлагает три первых чертежа внутри выбранного направления. */
-  foundCampaign: (input: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any; directions?: any[] }) => Promise<{ ok: boolean; projects?: any[]; error?: string }>;
-  /** Игрок выбирает один чертёж; само здание строится позже отдельным приказом. */
-  startFirstDay: (project?: any) => boolean;
+  /**
+   * Основание народа: происхождение, наследие и замысел. Ни первой науки, ни первого здания
+   * на старте не выдаётся — советник предложит три разные науки позже, когда игрок сам откроет
+   * вкладку «Наука» (см. Develop.tsx).
+   */
+  foundPeople: (input: { originId: string; seedId: string; historicalCultureId?: string | null }) => { ok: boolean; error?: string };
   /** Даёт постройке в земле уникальное имя от советника (совместимость со старой страницей). */
   nameRegionBuilding: (regionId: string) => void;
   /** Для каждой освоенной пустой клетки сохраняет три контекстных чертежа советника. */
@@ -150,7 +114,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [collection, setCollection] = useState<Card[]>(loadCollection);
   const [militiaPicks, setMilitiaPicks] = useState<string[]>(loadMilitiaPicks);
   const [aiStatus, setAiStatus] = useState<AiStatus>({ status: "unknown", message: "" });
-  const [model, setModelState] = useState(() => localStorage.getItem("iforge_model") || "gpt-6-luna");
+  // Модель одна и задана игрой: выбор модели из интерфейса убран, старая запись в localStorage стирается.
+  const model = ADVISOR_MODEL;
   const [page, setPage] = useState<Page>("home");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [dayReport, setDayReport] = useState<DayReport | null>(null);
@@ -219,89 +184,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [model]);
 
   // Проверяем связь один раз при запуске — автоматически, без участия игрока.
-  useEffect(() => { void checkAi(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  // Заодно стираем ключ прежнего выбора модели: модель теперь одна и задана игрой.
+  useEffect(() => {
+    try { localStorage.removeItem("iforge_model"); } catch { /* пусто */ }
+    void checkAi(); /* eslint-disable-line react-hooks/exhaustive-deps */
+  }, []);
 
   /**
-   * Шаг «о чём будет наука»: фиксируем свойства народа и спрашиваем советника о трёх направлениях.
-   * Направления придумывает модель — заготовленных вариантов в игре нет.
+   * Основание народа: происхождение, наследие и замысел. Игрок сразу попадает в поселение —
+   * ни первой науки, ни первого здания на старте нет (экран советника открывается только
+   * по клику игрока во вкладке «Наука»). Черновик прежнего двухшагового онбординга стирается.
    */
-  const askOpeningDirections = useCallback(async ({ name, originId, seedId, historicalCultureId }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null }) => {
-    const current = gameRef.current;
-    // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
-    const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
-    let base = M.clone(current);
-    if (resumable) {
-      const choice = (M.SEED_CHOICES || []).find((item: any) => item.id === seedId) || null;
-      base.player.seedChoiceId = choice ? choice.id : base.player.seedChoiceId;
-      base.player.seedLine = choice ? choice.line : base.player.seedLine;
-      base.player.name = name.trim().slice(0, 24) || base.player.name;
-      base = M.normalizeState(base);
-    } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedId, historicalCultureId });
-      if (begun.error) return { ok: false, error: begun.error };
-      base = begun.state;
-    }
-    try {
-      const directions = await llmDirectionPreviews(model, base);
-      const stored = M.setScienceDirections(M.clone(base), directions);
-      if (stored.error) return { ok: false, error: stored.error };
-      commit(stored.state, { silent: true });
-      // Черновик спасает уже оплаченную генерацию, если игрок закроет вкладку до первого дня.
-      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, directions })); } catch { /* переполнение хранилища не критично */ }
-      return { ok: true, directions };
-    } catch (e: any) {
-      return { ok: false, error: e?.message || "Советник недоступен." };
-    }
-  }, [model, commit]);
-
-  /** Второй шаг: советник-строитель предлагает три чертежа внутри выбранного направления. */
-  const foundCampaign = useCallback(async ({ name, originId, seedId, historicalCultureId, direction, directions }: { name: string; originId: string; seedId: string; historicalCultureId?: string | null; direction?: any; directions?: any[] }) => {
-    const current = gameRef.current;
-    // Повтор после ошибки не должен второй раз выдавать стартовый бонус происхождения.
-    const resumable = current.player.awaitingOpeningProject && current.player.originId === originId;
-    let base = M.clone(current);
-    if (resumable) {
-      const choice = (M.SEED_CHOICES || []).find((item: any) => item.id === seedId) || null;
-      base.player.seedChoiceId = choice ? choice.id : base.player.seedChoiceId;
-      base.player.seedLine = choice ? choice.line : base.player.seedLine;
-      base.player.name = name.trim().slice(0, 24) || base.player.name;
-      base = M.normalizeState(base);
-      commit(base, { silent: true });
-    } else {
-      const begun = M.beginOnboardingState(base, { name, originId, seedId, historicalCultureId });
-      if (begun.error) return { ok: false, error: begun.error };
-      base = begun.state;
-      commit(base, { silent: true });
-    }
-    // Выбор игрока сохраняем в состоянии: чертёж первого дела запомнит, из какого направления вырос.
-    if (direction) {
-      // Направление берём из сохранённых превью; если их уже нет (перезагрузка, повтор),
-      // фиксируем сам выбор — иначе советник не узнает, что раскрывать.
-      const index = (base.player.directionChoices?.directions || []).findIndex((item: any) => item.id === direction.id);
-      base = index >= 0
-        ? M.chooseScienceDirection(M.clone(base), index).state
-        : M.normalizeState({ ...base, player: { ...base.player, directionChoice: M.sanitizeScienceDirection(direction) } });
-      commit(base, { silent: true });
-    }
-    try {
-      const projects = await llmOpeningBuildingOffers(model, base, direction);
-      const directionRef = direction ? M.sanitizeScienceDirection(direction) : null;
-      const offers = projects.map((project: any) => ({ ...project, direction: directionRef }));
-      // Сохраняем только варианты: ни одно здание не появляется до выбора, исследования и стройки игроком.
-      try { localStorage.setItem("iforge_opening_draft", JSON.stringify({ seedChoiceId: base.player.seedChoiceId, seedLine: base.player.seedLine, directions: directions || base.player.directionChoices?.directions || [], direction, projects: offers })); } catch { /* переполнение хранилища не критично */ }
-      return { ok: true, projects: offers };
-    } catch (e: any) {
-      return { ok: false, error: e?.message || "Советник недоступен." };
-    }
-  }, [model, commit]);
-
-  const startFirstDay = useCallback((project?: any) => {
-    if (!project) return false;
-    const applied = M.setOpeningProject(M.clone(gameRef.current), project);
-    if (applied.error) return false;
-    commit(applied.state, { silent: true });
+  const foundPeople = useCallback(({ originId, seedId, historicalCultureId }: { originId: string; seedId: string; historicalCultureId?: string | null }) => {
+    const founded = M.foundCampaign(M.clone(gameRef.current), { originId, seedId, historicalCultureId });
+    if (founded.error) return { ok: false, error: founded.error as string };
+    commit(founded.state, { silent: true });
     try { localStorage.removeItem("iforge_opening_draft"); } catch { /* пусто */ }
-    return true;
+    return { ok: true };
   }, [commit]);
   /** Постройка в новой земле получает своё имя от советника; при сбое остаётся местное. */
   const nameRegionBuilding = useCallback(async (regionId: string) => {
@@ -347,8 +246,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     regionOfferRequests.current.set(regionId, request);
     return request;
   }, [model, commit]);
-
-  const setModel = (m: string) => { setModelState(m); localStorage.setItem("iforge_model", m); };
 
   const go = useCallback((p: Page) => { setPage(p); window.scrollTo({ top: 0 }); }, []);
 
@@ -438,10 +335,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const closeBattle = useCallback(() => setMatch(null), []);
 
   const value = useMemo<Store>(() => ({
-    game, collection, aiStatus, checkAi, model, setModel, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, requestRegionBuildingOffers, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
+    game, collection, aiStatus, checkAi, model, foundPeople, nameRegionBuilding, requestRegionBuildingOffers, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard,
     endDay, dayReport, closeDayReport: () => setDayReport(null), resetCampaign, settingsOpen, openSettings,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, selectRegion, militiaPicks, toggleMilitiaPick,
-  }), [game, collection, aiStatus, checkAi, model, askOpeningDirections, foundCampaign, startFirstDay, nameRegionBuilding, requestRegionBuildingOffers, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
+  }), [game, collection, aiStatus, checkAi, model, foundPeople, nameRegionBuilding, requestRegionBuildingOffers, page, go, toasts, toast, dismissToast, act, commit, addCard, removeCard, endDay, dayReport, resetCampaign, settingsOpen,
     match, startPractice, startExpedition, resumeExpedition, markBattleStarted, finishBattle, closeBattle, selectedRegion, militiaPicks, toggleMilitiaPick]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

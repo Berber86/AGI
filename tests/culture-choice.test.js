@@ -319,8 +319,9 @@ test('создание народа и переход эпохи показыв�
   assert.match(app, /<CultureChoiceModal \/>/, 'окно смонтировано в корне приложения');
 
   const store = fs.readFileSync(path.join(__dirname, '..', 'src', 'game', 'store.tsx'), 'utf8');
-  assert.match(store, /historicalCultureId\?: string \| null/, 'стор передаёт выбор в beginOnboardingState');
-  assert.match(store, /beginOnboardingState\(base, \{ name, originId, seedId, historicalCultureId \}\)/);
+  assert.match(store, /historicalCultureId\?: string \| null/, 'стор передаёт выбор наследия в модель');
+  assert.match(store, /foundCampaign\(M\.clone\(gameRef\.current\), \{ originId, seedId, historicalCultureId \}\)/,
+    'стор основывает народ одним вызовом модели — без стартовой науки и без стартового здания');
 
   // Вкладка «Наследие» остаётся: если окно закрыто (игрок зашёл с сохранения), выбор доступен и там.
   const develop = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'Develop.tsx'), 'utf8');
