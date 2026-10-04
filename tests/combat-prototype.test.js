@@ -26,7 +26,7 @@ test('файлы вырезанных механик удалены из дер�
 
 test('точка входа не тянет карту кампании и старую разметку', () => {
   const html = read('index.html');
-  assert.match(html, /src="\/campaign\.js"/);
+  assert.match(html, /<script type="module" src="\/src\/main\.tsx"><\/script>/);
   assert.ok(!html.includes('campaign-map.js'), 'index.html не должен подключать карту кампании');
   assert.ok(!html.includes('legacy.html'), 'index.html не должен подключать старую разметку');
   assert.ok(!html.includes('campaign.css'), 'index.html не должен подключать старый css');
@@ -104,12 +104,18 @@ test('боевой движок не знает о населении и опо�
   assert.match(store, /startBattle/, 'бой начинается из лагеря');
 });
 
-test('модель объявлена для TypeScript и совпадает с campaign.js', () => {
+test('модель объявлена для TypeScript и попадает в бандл вместе с campaign.js', () => {
   const decl = read('src', 'game', 'model.d.ts');
   const impl = read('src', 'game', 'model.js');
   assert.match(decl, /export const M: any/);
-  assert.match(impl, /campaign\.js/);
-  assert.match(read('index.html'), /<script src="\/campaign\.js"><\/script>/);
+  // campaign.js подключается импортом из модели: сборка не зависит от копирования файла в dist,
+  // а порядок выполнения гарантирован до тела model.js (иначе M был бы пустым).
+  assert.match(impl, /import "\.\.\/\.\.\/campaign\.js";/);
+  assert.ok(impl.indexOf('import "../../campaign.js"') < impl.indexOf('globalThis.CampaignMvp'),
+    'импорт campaign.js должен идти до чтения CampaignMvp');
+  assert.match(impl, /CampaignMvp/);
+  // в index.html не осталось обычных скриптов из корня: в production-сборке их просто не было бы
+  assert.doesNotMatch(read('index.html'), /<script src="\/[a-z-]+\.js"><\/script>/);
 });
 
 test('документация объясняет срез прототипа', () => {

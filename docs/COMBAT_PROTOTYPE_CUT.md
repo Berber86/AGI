@@ -46,7 +46,9 @@ campaign.css              tools/economy-sim.js      tools/copy-legacy.mjs   (к�
 ```
 
 `campaign.js` уменьшен с 3625 до ~1000 строк. Сборка больше не копирует legacy-артефакты
-(`build = vite build`), `index.html` подключает только `campaign.js`.
+(`build = vite build`, каталог `tools/` удалён), поэтому `campaign.js` подключается не тегом в
+`index.html`, а side-effect импортом из `src/game/model.js` — так модель гарантированно попадает в
+бандл и в dev, и в production-сборке.
 
 17 тестовых файлов, проверявших удалённые механики, удалены вместе с ними; вместо них написаны
 тесты боевого контура (см. ниже).

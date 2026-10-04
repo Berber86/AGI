@@ -1,8 +1,12 @@
 // @ts-nocheck
 // Единственная модель игры: React-слой обращается к campaign.js через этот адаптер.
-// index.html подключает campaign.js до модульной точки входа.
+// campaign.js подключается side-effect импортом, а не тегом в index.html: так он гарантированно
+// выполняется раньше тела этого модуля и попадает в бандл — и в dev, и в production-сборке
+// (копию в dist больше не нужно делать отдельным скриптом, и /campaign.js не может «потеряться»).
+import "../../campaign.js";
+
 const Campaign = globalThis.CampaignMvp;
-if (!Campaign) throw new Error("Load campaign.js before the campaign model.");
+if (!Campaign) throw new Error("campaign.js did not register CampaignMvp.");
 
 export const M = {
   ...Campaign,

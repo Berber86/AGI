@@ -114,9 +114,9 @@ npm run build
 ## Устройство проекта
 
 ```text
-index.html                  точка входа: подключает campaign.js и React-приложение
+index.html                  точка входа React-приложения
 campaign.js                 модель боевого прототипа (состояние, слава, лагерь, ковка, наследие)
-src/game/model.js           адаптер модели для React (M.*)
+src/game/model.js           адаптер модели для React (M.*); он же подключает campaign.js импортом
 src/game/store.tsx          стор: сохранение, страницы, бой, покупки
 src/game/battle.ts          тактический движок боя
 src/game/cards.ts           карты, стартовый набор, валидация эффектов, ИИ-кузнец
