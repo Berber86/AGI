@@ -1,49 +1,58 @@
-import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Compass } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Heart, Layers, Swords, Zap } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { useStore } from "@/game/store";
-import { Btn, Label, ResIcon, type ResKey } from "@/components/ui";
+import { Btn, Chip, Label } from "@/components/ui";
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
-// Три осознанных выбора — и народ основан. Шага «Имя» больше нет: имя народа происходит из
-// выбранной земли (ORIGINS.people), поэтому оно всегда согласовано с происхождением и звучит
-// в том же серьёзном тоне, что и наследие. Шага «Советник» тоже нет: модель выбирает игра.
+// Три осознанных выбора — и народ основан. Все три дают боевые бонусы (campaign.js → combatPerks):
+// экономика, постройки и науки из прототипа убраны, поэтому выбор сразу видно в параметрах вождя.
+// Шага «Имя» нет: имя народа происходит из выбранной земли (ORIGINS.people).
 const STEPS = ["Происхождение", "Наследие", "Замысел"];
+
+/** Боевые бонусы выбора одной строкой: «+1 здоровье вождя». */
+function perksOf(bonus: any): string[] {
+  return M.describePerks(bonus || {}) as string[];
+}
 
 export default function Onboarding() {
   const { game, foundPeople, go, toast } = useStore();
   const p = game.player;
   const [step, setStep] = useState(0);
   const [originId, setOriginId] = useState<string | null>(p.originId || null);
-  // Наследие: стартовые культуры (эпоха 0) лежат в игре целиком, и игрок выбирает одну сам.
-  const startCultures: any[] = (M.startCulturePool ? M.startCulturePool() : M.HISTORICAL_CULTURES.filter((c: any) => c.era === 0));
+  // Наследие: культуры Каменного века лежат в игре целиком, и игрок выбирает одну сам.
+  const startCultures: any[] = M.HISTORICAL_CULTURES.filter((c: any) => c.era === 0);
   const [cultureId, setCultureId] = useState<string | null>(() => {
     const saved = p.historicalCulture?.id;
     return saved && startCultures.some((c: any) => c.id === saved) ? saved : null;
   });
-  // Старое сохранение могло хранить замысел текстом: узнаём его среди готовых вариантов.
-  const [seedId, setSeedId] = useState<string | null>(() => p.seedChoiceId
-    || (M.SEED_CHOICES || []).find((c: any) => c.line === p.seedLine)?.id
-    || null);
+  const [seedId, setSeedId] = useState<string | null>(p.seedChoiceId || null);
   const [error, setError] = useState("");
 
   const origin = M.ORIGINS.find((o: any) => o.id === originId) || null;
   const culture = startCultures.find((c: any) => c.id === cultureId) || null;
-  // Имя народа не придумывается и не перебрасывается — оно следует из происхождения.
   const people = origin ? M.originPeopleName(origin) : "";
   const last = step === STEPS.length - 1;
   const canNext = step === 0 ? !!originId : step === 1 ? !!cultureId : !!seedId;
 
-  /** Народ основан: игрок сразу в поселении, без стартовой науки и без стартового здания. */
+  // Живая сводка вождя: считается на настоящем состоянии, поэтому игрок видит итог трёх выборов
+  // до основания народа — ровно те числа, с которыми он выйдет в первый бой.
+  const preview = useMemo(() => {
+    if (!originId || !cultureId || !seedId) return null;
+    const trial = M.foundCampaign(M.createState(), { originId, seedId, historicalCultureId: cultureId });
+    return trial.error ? null : M.getBattleConfig(trial.state);
+  }, [originId, cultureId, seedId]);
+
+  /** Народ основан: игрок сразу в лагере, где военный стол и улучшения за славу. */
   const found = () => {
-    if (!originId || !seedId) return;
+    if (!originId || !seedId || !cultureId) return;
     const res = foundPeople({ originId, seedId, historicalCultureId: cultureId });
     if (!res.ok) { setError(res.error || "Не удалось основать народ."); return; }
     setError("");
-    go("home");
-    toast(`${people} выходят на свою землю. Первый день начался.`, "ok");
+    go("camp");
+    toast(`${people} разбивают лагерь. Выберите соперника и выйдите в первый бой.`, "ok");
   };
 
   return (
@@ -54,10 +63,10 @@ export default function Onboarding() {
         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-ground" />
         <div className="absolute bottom-10 left-10 right-16">
           <LogoMark size={44} />
-          <h1 className="font-display mt-4 text-4xl font-semibold leading-tight text-parch">Основать цивилизацию</h1>
+          <h1 className="font-display mt-4 text-4xl font-semibold leading-tight text-parch">Основать народ и выйти в бой</h1>
           <p className="mt-3 max-w-md text-[15px] leading-relaxed text-dim">
-            Тридцать дней сезона. Земля, знания и ремесло. Три выбора — происхождение, наследие и замысел;
-            науки и постройки советник придумает позже, когда вы сами его спросите.
+            Три выбора — происхождение, наследие и замысел. Каждый меняет вождя в бою: здоровье,
+            энергию, размер колоды и силу отрядов. Дальше — военный стол, лагерь и кузница карт.
           </p>
         </div>
       </div>
@@ -78,8 +87,8 @@ export default function Onboarding() {
             <div>
               <h2 className="font-display text-3xl font-semibold">Откуда пришёл ваш народ?</h2>
               <p className="mt-2 max-w-2xl text-dim">
-                Земля задаёт стартовый запас, биом и ремесло, с которого народ начнёт. Из неё же происходит имя народа —
-                придумывать его не нужно.
+                Земля задаёт характер войны: где-то держат строй за камнем, где-то живут налётом с седла.
+                Из неё же происходит имя народа — придумывать его не нужно.
               </p>
               <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 {M.ORIGINS.map((o: any) => (
@@ -87,19 +96,20 @@ export default function Onboarding() {
                     className={cn("rounded-2xl border p-4 text-left transition-all", originId === o.id ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-3xl">{o.icon}</span>
-                      <span className="inline-flex items-center gap-1 rounded-md bg-ground px-2 py-0.5 text-xs font-semibold text-parch"><ResIcon k={o.resource as ResKey} size={13} />+{o.bonus}</span>
+                      <span className="flex flex-wrap justify-end gap-1">{perksOf(o.combat).map((perk: string) => <Chip key={perk} tone="bronze">{perk}</Chip>)}</span>
                     </div>
                     <div className="font-display mt-2 text-lg font-semibold">{o.name}</div>
                     <div className="text-xs text-faint">{o.place}</div>
                     <p className="mt-2 text-[13px] leading-snug text-dim">{o.description}</p>
                     <div className="mt-2 text-[11.5px] leading-snug text-bronze-soft">{o.historical}</div>
+                    <div className="mt-2 text-[11.5px] leading-snug text-faint">{o.combatNote}</div>
                     <div className="mt-2 text-[11.5px] text-faint">Имя народа: <span className="text-parch">{M.originPeopleName(o)}</span></div>
                   </button>
                 ))}
               </div>
               <p className="mt-4 text-xs leading-relaxed text-faint">
                 Все шесть земель настоящие: датировки и прототипы — из археологии. Происхождение попадёт в летопись
-                и в промпты советника вместе с наследием и замыслом.
+                и в промпты кузнеца вместе с наследием и замыслом.
               </p>
             </div>
           )}
@@ -108,8 +118,8 @@ export default function Onboarding() {
             <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Кем пришли в этот мир?</h2>
               <p className="mt-2 text-dim">
-                Это наследие народа — древняя культура, чьи обычаи он несёт. Советник читает его в каждом проекте,
-                а бонусы работают с первого дня. Сменить наследие можно будет при переходе в новую эпоху.
+                Это наследие народа — древняя культура, чьи обычаи он несёт. Кузнец читает её в каждой карте,
+                а боевой бонус действует с первого боя. Сменить наследие можно при переходе в новую эпоху.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {startCultures.map((c: any) => (
@@ -121,13 +131,13 @@ export default function Onboarding() {
                     </div>
                     <div className="font-display mt-2 text-lg font-semibold">{c.name}</div>
                     <p className="mt-1.5 text-[13px] leading-snug text-parch/90">{c.desc}</p>
-                    <div className="mt-2 text-[11.5px] leading-snug text-bronze-soft">{M.describeCultureBonus(c)}</div>
+                    <div className="mt-2 flex flex-wrap gap-1">{perksOf(M.cultureCombatBonus(c)).map((perk: string) => <Chip key={perk} tone="bronze">{perk}</Chip>)}</div>
                   </button>
                 ))}
               </div>
               <p className="mt-4 text-xs text-faint">
-                Все шесть культур Каменного века настоящие: даты, места и находки — из археологии. Наследие попадёт в летопись
-                и в промпты советника: науки, постройки и карты кузница будет придумывать именно под него.
+                Все шесть культур Каменного века настоящие: даты, места и находки — из археологии. Боевой бонус
+                выводится из того, чем культура жила: камень и металл идут в оружие, избыток еды — в выносливость вождя.
               </p>
             </div>
           )}
@@ -136,8 +146,8 @@ export default function Onboarding() {
             <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Чем живёт ваш народ?</h2>
               <p className="mt-2 text-dim">
-                Замысел — это менталитет народа: что он считает богатством, во что верит и чего боится.
-                Писать ничего не нужно: из выбранного замысла советник выведет ваши науки и постройки.
+                Замысел — это менталитет народа: что он считает богатством, во что верит и как воюет.
+                Он попадает в промпты кузнеца и даёт свой боевой бонус.
               </p>
 
               <div className="mt-5 rounded-2xl border border-bronze/30 bg-bronze/8 p-4">
@@ -151,10 +161,19 @@ export default function Onboarding() {
                   )}
                   {culture && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-bronze/40 bg-bronze/10 px-3 py-1.5 text-parch">
-                      <span className="text-base">{culture.icon}</span>{culture.name} · {M.describeCultureBonus(culture)}
+                      <span className="text-base">{culture.icon}</span>{culture.name}
                     </span>
                   )}
                 </div>
+                {preview && (
+                  <div className="mt-3 flex flex-wrap gap-2 border-t border-bronze/25 pt-3">
+                    <Chip tone="ok"><Heart size={12} />вождь {preview.hp} HP</Chip>
+                    <Chip tone="know"><Layers size={12} />колода {preview.deckLimit}</Chip>
+                    <Chip tone="bronze"><Zap size={12} />энергия до {preview.energyMax}, +{preview.energyGrowth}/ход</Chip>
+                    {preview.atkBonus > 0 && <Chip tone="clay"><Swords size={12} />атака +{preview.atkBonus}</Chip>}
+                    {preview.fatigueDelay > 0 && <Chip tone="ok">усталость позже на {preview.fatigueDelay}</Chip>}
+                  </div>
+                )}
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -163,20 +182,24 @@ export default function Onboarding() {
                     className={cn("flex flex-col items-start rounded-2xl border p-4 text-left transition-all", seedId === c.id ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
                     <div className="flex w-full items-start justify-between gap-2">
                       <span className="text-3xl">{c.icon}</span>
-                      {seedId === c.id ? <Check size={16} className="mt-1 text-bronze" /> : null}
+                      <span className="flex flex-wrap items-center justify-end gap-1">
+                        {perksOf(c.combat).map((perk: string) => <Chip key={perk} tone={seedId === c.id ? "bronze" : "neutral"}>{perk}</Chip>)}
+                        {seedId === c.id && <Check size={16} className="text-bronze" />}
+                      </span>
                     </div>
                     <div className="font-display mt-2 text-lg font-semibold">{c.name}</div>
                     <p className="mt-1.5 text-[13px] leading-snug text-parch/90">«{c.line}»</p>
                     <div className="mt-2 text-[11.5px] leading-snug text-faint">{c.note || c.hint}</div>
+                    <div className="mt-2 text-[11.5px] leading-snug text-bronze-soft">{c.combatNote}</div>
                   </button>
                 ))}
               </div>
 
               <div className="mt-5 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed text-dim">
-                <div className="mb-1 flex items-center gap-2 font-semibold text-parch"><Compass size={15} className="text-bronze" />Что произойдёт дальше</div>
-                Вы окажетесь в поселении первого дня: карта, кузница, армия и развитие открыты сразу.
-                Построек и наук пока нет — когда будете готовы, откройте вкладку <b className="text-parch">«Развитие» → «Наука»</b> и спросите советника:
-                он придумает <b className="text-parch">три разные науки</b>, у каждой своё здание и свои свойства, а вы выберете одну.
+                <div className="mb-1 flex items-center gap-2 font-semibold text-parch"><Swords size={15} className="text-bronze" />Что произойдёт дальше</div>
+                Вы окажетесь в лагере: на военном столе три племени, победа даёт славу. За славу покупают постоянные
+                улучшения лагеря (здоровье вождя, энергия, слоты колоды, атака) и куют новые карты у ИИ-кузнеца.
+                В колоде уже {M.STARTER_DECK_IDS.length} карты из {M.STARTER_CARDS.length} стартовых — состав можно собрать под себя во вкладке <b className="text-parch">«Армия»</b>.
               </div>
               {error && <p className="mt-3 text-sm text-bad">{error}</p>}
             </div>

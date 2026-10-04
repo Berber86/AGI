@@ -196,37 +196,9 @@ export function buildMilitia(): Card[] {
   ];
 }
 
-/* ---------- Ополчение: пул по эпохе и выбор игрока ---------- */
-
-/**
- * Пул ополчения, которое бесплатно добивает пустые слоты колоды игрока.
- * Намеренно ограничен двумя самыми простыми бойцами — копейщиком и пращником:
- * остальные бойцы племени (топорники, конные разведчики, дружина, постройки и т.д.)
- * больше не выдаются даром, а становятся доступны только когда игрок выковывает
- * собственные карты в кузнице.
- */
-export function militiaPool(_era = 0): Card[] {
-  return buildMilitia().slice(0, 2);
-}
-
-export function militiaById(id: string, era = 0): Card | null {
-  return militiaPool(era).find((c) => c.id === id) ?? null;
-}
-
 /** Учебный бой: враг приходит без построек, чтобы новичка не били бесплатно из тыла. */
 export function withoutStructures(pool: Card[]): Card[] {
   return pool.filter((c) => c.card_type !== "structure");
-}
-
-/**
- * Порядок ополчения: сначала выбранные игроком карты (в его порядке), затем остальные из пула —
- * если колода выросла или выбор не сделан, пустые слоты всё равно добьются ополченцами.
- */
-export function militiaFill(picks: string[] = [], era = 0): Card[] {
-  const pool = militiaPool(era);
-  const chosen = picks.map((id) => pool.find((c) => c.id === id)).filter(Boolean) as Card[];
-  const rest = pool.filter((c) => !chosen.some((x) => x.id === c.id));
-  return [...chosen, ...rest];
 }
 
 /* ---------- Карты игрока: стартовые + коллекция ---------- */
@@ -429,162 +401,9 @@ export async function probeApiKey(model: string): Promise<void> {
   if (data?.error) throw new Error(data.error.message || "ИИ недоступен.");
 }
 
-/** Приводит проект совета к схеме кампании; null — если проект невалиден. */
-export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): any | null {
-  if (!raw || typeof raw !== "object") return null;
-  const scienceName = String(raw.scienceName || "").trim().slice(0, 80);
-  const buildingName = String(raw.buildingName || "").trim().slice(0, 80);
-  const scienceDescription = String(raw.scienceDescription || "").trim().slice(0, 400);
-  const buildingDescription = String(raw.buildingDescription || "").trim().slice(0, 400);
-  if (!scienceName || !buildingName || !scienceDescription || !buildingDescription) return null;
-  const effects = M.cleanEffects(raw.effects);
-  if (!effects) return null;
-  return {
-    scienceName,
-    scienceDescription,
-    buildingName,
-    buildingDescription,
-    category: M.CATEGORIES.includes(raw.category) ? raw.category : fallbackCategory,
-    effects,
-  };
-}
-
-const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}]}`;
-
-/**
- * Эффекты, которые советник вправе обещать прямо сейчас. Воинская доктрина (`unit_power`)
- * не строится, пока народ не освоил ключевой ресурс эпохи (campaign.js → constructBlueprint),
- * поэтому до тех пор она исключена из списка: советник не должен предлагать здание, которое
- * игрок физически не сможет возвести.
- */
-const ERA_LOCKED_EFFECTS = ["unit_power"];
-
-export function scienceEffectTypes(state: any): { allowed: string[]; locked: string[] } {
-  const all = (M.GENERATIVE_EFFECTS || []) as string[]; // мёртвые эффекты (hidden) генератору не предлагаем
-  const unlocked = M.hasEraKeyResource ? Boolean(M.hasEraKeyResource(state)) : true;
-  const locked = unlocked ? [] : all.filter((type) => ERA_LOCKED_EFFECTS.includes(type));
-  return { allowed: all.filter((type) => !locked.includes(type)), locked };
-}
-
-/** Подпись набора свойств: по ней видно, что два «разных» здания на самом деле одинаковы. */
-function effectSignature(effects: any[]): string {
-  return (effects || []).map((effect: any) => `${effect.type}:${effect.amount}`).sort().join("|");
-}
-
-/**
- * Научный советник: ОДИН вызов — три разные науки, у каждой своё здание и свои свойства.
- * Раньше здесь было два шага (превью направлений, затем советник-строитель), и второй шаг
- * возвращал три здания с одинаковыми свойствами: содержательную работу делал первый вызов,
- * а второй лишь переименовывал его результат. Теперь шаг один, а различие вариантов
- * проверяется по наборам эффектов, а не только по названиям.
- */
-export async function llmScienceOffers(model: string, state: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const { allowed, locked } = scienceEffectTypes(state);
-  const known = (state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет";
-  const lockNote = locked.length
-    ? ` Не используй ${locked.join(", ")}: воинская доктрина откроется, только когда народ освоит ${M.ERA_KEY_RESOURCE?.[state.player.era]?.label || "ключевой ресурс эпохи"} — военную тему раскрой другими эффектами.`
-    : "";
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1800,
-    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Придумай РОВНО 3 РАЗНЫЕ науки для этого народа. Каждая наука — самостоятельное открытие со своим зданием и СВОИМИ свойствами: это три разных пути развития, а не три названия одного и того же.
-Требования к каждому из трёх вариантов:
-— своя тема: земледелие, производство и ремесло, война и защита, вера и обряд, знание и счёт, устройство общества или их сочетание; темы не должны повторяться;
-— своё здание: другое по устройству, материалу и назначению, а не другая вывеска на том же амбаре;
-— свой набор свойств (effects): наборы у трёх вариантов ОБЯЗАНЫ различаться — именно они отличают одно здание от другого в игре, поэтому три одинаковых набора делают выбор бессмысленным;
-— опора на конкретную географию, биом, доступные материалы и историческое наследие народа из контекста: это читается в названии и устройстве здания, а не только в описании.
-Без повторов названий и общих шаблонов. Каждую науку посильно изучить и построить за обычные ресурсы текущего дня.${lockNote}
-Пока игрок не выбрал вариант, ничего не добавляй в поселение: выбранная наука попадёт в кодекс, а здание появится только по отдельному приказу после исследования.
-Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ${PROJECT_SHAPE}, ${PROJECT_SHAPE}]}. Допустимые type эффектов: ${allowed.join(", ")}. Не более 2 эффектов на науку, amount 1. Язык — русский, без магии.`,
-    user: `Народ: ${state.player.name} (${state.player.clan}). Контекст — опирайся на него в каждом варианте: ${sit.summary}
-Уже известные науки: ${known}. Предложи три разные науки с тремя разными зданиями и тремя разными наборами свойств.`,
-  });
-  const list = Array.isArray(data?.projects) ? data.projects : data?.scienceName ? [data] : [];
-  const allowedTypes = new Set(allowed);
-  const cleaned: any[] = [];
-  const scienceNames = new Set<string>();
-  const buildingNames = new Set<string>();
-  const signatures = new Set<string>();
-  for (const raw of list) {
-    const project = sanitizeScienceProject(raw);
-    if (!project || project.effects.some((effect: any) => !allowedTypes.has(effect.type))) continue;
-    const scienceKey = project.scienceName.toLowerCase().replace(/\s+/g, " ").trim();
-    const buildingKey = project.buildingName.toLowerCase().replace(/\s+/g, " ").trim();
-    const signature = effectSignature(project.effects);
-    // Вариант с уже занятым названием или с тем же набором свойств — не вариант, а повтор.
-    if (scienceNames.has(scienceKey) || buildingNames.has(buildingKey) || signatures.has(signature)) continue;
-    scienceNames.add(scienceKey);
-    buildingNames.add(buildingKey);
-    signatures.add(signature);
-    cleaned.push(project);
-    if (cleaned.length === 3) break;
-  }
-  if (cleaned.length !== 3) throw new Error("Советник должен предложить три разные науки с разными зданиями и разными свойствами.");
-  return cleaned;
-}
-
-/** Имя и описание постройки в новой земле: уникальные для этого народа, а не из списка. */
-const REGION_BUILDING_OFFER_SHAPE = `{"buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"income_food|income_materials|income_knowledge|income_faith","amount":1}],"rationale":"почему постройка подходит этой земле"}`;
-
-/** Три новых, пригодных для эпохи и конкретного участка варианта региональной постройки. */
-export async function llmRegionBuildingOffers(model: string, state: any, tile: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const site = tile ? M.REGION_BUILDINGS?.[tile.siteType] : null;
-  if (!tile || !site) throw new Error("Для этой клетки нет регионального места под постройку.");
-  const ownedRegionIds = new Set((state.regions || []).filter((region: any) => region.ownerId === "player").map((region: any) => region.id));
-  const neighbors = (tile.neighbors || []).map((id: string) => {
-    const neighbor = (state.world?.tiles || []).find((candidate: any) => candidate.id === id);
-    return neighbor && ownedRegionIds.has(id) ? `${neighbor.name} (${neighbor.terrainLabel || neighbor.terrain})` : null;
-  }).filter(Boolean);
-  const existingRegionalBuildings = (state.regions || []).filter((region: any) => region.ownerId === "player" && region.building)
-    .map((region: any) => region.customBuilding?.name || M.REGION_BUILDINGS?.[(state.world?.tiles || []).find((candidate: any) => candidate.id === region.id)?.siteType]?.name)
-    .filter(Boolean);
-  const effects = (M.REGION_GENERATIVE_EFFECTS || []).join(", ");
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1800,
-    system: `Ты советник-строитель исторической стратегии "Infinite Forge". Сеттинг должен соответствовать выбранной эпохе и оставаться материальным и правдоподобным: никаких магии и фэнтези.
-Народ только что получил новую клетку и выбирает, какое ОДНО региональное здание здесь возвести. Придумай ровно 3 РАЗНЫХ варианта именно для этой клетки; выбранный вариант полностью заменит обычную региональную постройку этого места. Не повторяй стандартный каталог: придумай местные названия, устройство и назначение.
-Каждый вариант обязан явно учитывать тип местности, биом, природный ресурс, географию, культуру и текущую эпоху из контекста. Три варианта должны отличаться по назначению и пользе, но все быть возможными из материалов этой клетки и текущей эпохи. Учитывай цену стандартного здания этого места при выборе силы эффектов.
-Эффекты придумывай сам, но используй только рабочие типы из списка: ${effects}. Они означают ежедневный прямой доход региона (не бонус к рабочим). На вариант — 1 или 2 разных эффекта; amount — целое число 1 или 2, а сумма amount не выше 2. Не используй эффекты боя, AP, склада и другие типы. Не выдумывай новые механики.
-Верни строго JSON: {"buildings":[${REGION_BUILDING_OFFER_SHAPE}, ${REGION_BUILDING_OFFER_SHAPE}, ${REGION_BUILDING_OFFER_SHAPE}]}. Язык — русский.`,
-    user: `Народ: ${state.player.name} (${state.player.clan}). Ситуация, география и культурное наследие народа: ${sit.summary}
-Новая клетка: «${tile.name}», координаты ${Number(tile.x) + 1}:${Number(tile.y) + 1}. Местность: ${tile.terrainLabel || tile.terrain}; биом: ${tile.terrain}; особенность: ${tile.feature || "нет"}; ресурс: ${tile.resourceLabel || "не отмечен"}. Описание: ${tile.description || "нет"}.
-Соседние освоенные земли: ${neighbors.join("; ") || "не указаны"}. Эпоха народа сейчас: ${M.eraName(state.player.era)}. Эта местность доступна с эпохи: ${M.eraName(tile.minEra || 0)}. Тип местного участка: ${tile.siteType}; стандартное региональное здание и цена-ориентир: ${site.name}, ${JSON.stringify(site.cost)}.
-Уже построенные региональные здания народа: ${existingRegionalBuildings.join(", ") || "нет"}. Избегай повторов и придумай три самостоятельных варианта для «${tile.name}».`,
-  });
-  const list = Array.isArray(data?.buildings) ? data.buildings : Array.isArray(data?.offers) ? data.offers : [];
-  const cleaned: any[] = [];
-  const names = new Set<string>();
-  const effectSets = new Set<string>();
-  for (const raw of list) {
-    const offer = M.sanitizeRegionBuildingOffer(raw);
-    if (!offer) continue;
-    const nameKey = offer.name.toLowerCase().replace(/\s+/g, " ").trim();
-    const effectKey = offer.effects.map((effect: any) => `${effect.type}:${effect.amount}`).sort().join("|");
-    if (names.has(nameKey) || effectSets.has(effectKey)) continue;
-    names.add(nameKey);
-    effectSets.add(effectKey);
-    cleaned.push(offer);
-    if (cleaned.length === 3) break;
-  }
-  if (cleaned.length !== 3) throw new Error("Советник должен предложить три разных региональных чертежа с рабочими эффектами.");
-  return cleaned;
-}
-
-export async function llmRegionBuildingName(model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
-  const p = state.player;
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 300,
-    system: `Ты — летописец исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Народ обустроил новую землю и возводит там постройку. Придумай ИМЕННО ЭТОЙ общине своё имя постройки и короткое описание — не шаблонное, связанное с местом и затравкой народа.
-Ответ — строго JSON: {"name":"до 40 знаков","description":"одно предложение до 160 знаков"}. Язык — русский.`,
-    user: `Народ: ${p.name} (${p.clan}). Затравка: «${p.seedLine || "не задана"}». Земля: ${tile.name} — ${tile.description}. Постройка по назначению: ${building.name} — ${building.description}. Эпоха: ${M.eraName(p.era)}. Земли народа: ${(state.regions || []).filter((r: any) => r.ownerId === "player").map((r: any) => (state.world?.tiles || []).find((t: any) => t.id === r.id)?.name).filter(Boolean).join(", ") || "поселение"}.`,
-  });
-  const name = String(data?.name || "").trim().slice(0, 60);
-  if (!name) return null;
-  return { name, description: String(data?.description || "").trim().slice(0, 180) };
-}
+/* Научный советник (три науки → чертёж → здание), советник-строитель и региональные постройки
+   удалены вместе с экономикой, стройкой и картой: прототип сосредоточен на боевой системе
+   (docs/COMBAT_PROTOTYPE_CUT.md). ИИ здесь отвечает только за кузницу — боевые замыслы и карты. */
 
 async function hydraChat(opts: { model: string; system: string; user: string; temperature: number; maxTokens: number }) {
   const resp = await fetch(HYDRA_PROXY_URL, {
@@ -622,16 +441,18 @@ export function eraContextOf(state: any): { label: string; desc: string; culture
 export function contextOf(state: any): string {
   const p = state.player;
   const era = eraContextOf(state);
+  const origin = (M.ORIGINS as any[]).find((o) => o.id === p.originId) || null;
+  const seed = (M.SEED_CHOICES as any[]).find((s) => s.id === p.seedChoiceId) || null;
+  const perks = M.describePerks(M.combatPerks(state)) as string[];
   return [
-    p.seedLine && `Затравка народа: «${p.seedLine}»`,
-    p.biome && `Биом: ${p.biome.name} — ${p.biome.desc}`,
-    p.geography && `География: ${p.geography.name}`,
-    p.trait && `Черта: ${p.trait.name} — ${p.trait.desc}`,
+    `Народ: ${p.name} (${p.clan})`,
+    origin && `Земля: ${origin.name} — ${origin.place}.${origin.historical ? " " + origin.historical : ""}`,
+    seed && `Замысел народа: «${seed.line || seed.name}»`,
     p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
     `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
     era.cultures && `Культуры эпохи: ${era.cultures}`,
     era.tech && `Технологии эпохи: ${era.tech}`,
-    `Уклады: ${(p.decrees || []).map((d: any) => M.DECREES[d.id]?.label).join(", ") || "нет"}`,
+    perks.length && `Боевой набор народа: ${perks.join(", ")}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -730,9 +551,3 @@ ${contextOf(state)}
   if (card.history) card.history = { ...card.history, era: era.label, culture: cultureName };
   return card;
 }
-
-// Ни готовых ветвей SCIENCE_BRANCHES, ни промежуточных «превью направлений» игроку больше не
-// предлагается: один вызов llmScienceOffers(model, state) возвращает три разные науки, у каждой
-// своё здание и свой набор свойств, и игрок выбирает одну из них. Двухшаговый путь (превью →
-// советник-строитель) удалён: второй шаг возвращал три одинаковых по свойствам здания.
-// Ветви и словарь тем остались только как офлайн-пул standalone-страницы (legacy.html).

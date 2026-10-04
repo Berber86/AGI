@@ -6,7 +6,6 @@ const vm = require('node:vm');
 const ts = require('typescript');
 
 const root = path.join(__dirname, '..');
-const legacyHtml = fs.readFileSync(path.join(root, 'legacy.html'), 'utf8');
 
 function loadTypeScriptModule(relativePath, dependencies = {}) {
   const file = path.join(root, relativePath);
@@ -74,12 +73,6 @@ function newBattle(api, playerCards = [], enemyCards = []) {
     0,
   );
 }
-
-test('the legacy battle displays one shared energy pool per side and has no split-pool state', () => {
-  assert.match(legacyHtml, /id="energy-pips"/);
-  assert.match(legacyHtml, /id="enemy-energy-pips"/);
-  assert.doesNotMatch(legacyHtml, /dropMana|actionMana|drop-mana-pips|action-mana-pips/);
-});
 
 test('the barbarian era decks pass the same card schema as crafted cards', () => {
   const Campaign = require('../campaign.js');

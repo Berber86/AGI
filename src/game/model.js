@@ -1,29 +1,18 @@
 // @ts-nocheck
-// React and the standalone legacy screen share one campaign model and one save format.
-// index.html loads campaign-map.js and campaign.js before the React module entry.
+// Единственная модель игры: React-слой обращается к campaign.js через этот адаптер.
+// index.html подключает campaign.js до модульной точки входа.
 const Campaign = globalThis.CampaignMvp;
-if (!Campaign) throw new Error("Load campaign-map.js and campaign.js before the campaign model.");
+if (!Campaign) throw new Error("Load campaign.js before the campaign model.");
 
 export const M = {
   ...Campaign,
-  // The standalone UI exposes stateful click handlers under these names;
-  // the React store needs the corresponding pure state transitions.
+  // Чистые переходы состояния: стор вызывает их с клоном и коммитит результат.
   foundCampaign: Campaign.foundCampaignState,
-  settleRegion: Campaign.settleRegionState,
-  missionRegion: Campaign.missionRegionState,
-  buildRegionBuilding: Campaign.buildRegionBuildingState,
-  beginRegionExpedition: Campaign.beginRegionExpeditionState,
-  finishRegionExpedition: Campaign.finishRegionExpeditionState,
-  markExpeditionBattleStarted: Campaign.markExpeditionBattleStartedState,
-  chooseDecree: Campaign.chooseDecreeState,
-  chooseCulture: Campaign.chooseCultureState,
-  toggleBuilding: Campaign.toggleBuildingState,
+  recordBattle: Campaign.recordBattleState,
+  buyUpgrade: Campaign.buyUpgradeState,
   toggleDeckCard: Campaign.toggleDeckCardState,
-  finishDay: Campaign.finishDayState,
-  completeSeason: Campaign.completeSeasonState,
-  assignWorker: Campaign.assignWorkerState,
-  beginCardCraft: Campaign.beginCardCraftState,
-  completeCardCraft: Campaign.completeCardCraftState,
-  failCardCraft: Campaign.failCardCraftState,
-  claimCardCraft: Campaign.claimCardCraftState,
+  chooseCulture: Campaign.chooseCultureState,
+  beginCraft: Campaign.beginCraftState,
+  completeCraft: Campaign.completeCraftState,
+  failCraft: Campaign.failCraftState,
 };

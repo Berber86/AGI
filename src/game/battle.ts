@@ -52,10 +52,10 @@ export interface Player {
   atkBonus: number;
 }
 export interface LogEntry { id: number; side: Side | "system"; text: string }
+/** Бой в прототипе один: тренировка с племенем-соперником. Экспедиций и карты больше нет. */
 export interface Match {
-  kind: "practice" | "expedition";
+  kind: "practice";
   opponentId: string; name: string; clan: string; era: number; leaderBattle: boolean;
-  regionId?: string; regionName?: string; questBattle?: boolean;
   /** Первый в жизни игрока бой: тренер подсказывает шаги, враг приходит без построек. */
   tutorial?: boolean;
 }
@@ -66,7 +66,6 @@ export interface Battle {
   log: LogEntry[]; seq: number; order: number;
   over: null | "win" | "lose";
   match: Match;
-  usedMilitia: number;
 }
 
 // fatigueDelay — сколько дополнительных кругов сторона выдерживает без усталости (эффект построек fatigue_resist)
@@ -118,11 +117,11 @@ export function enemyDeckForEra(era: number, limit: number): Card[] {
   return ordered.slice(0, limit).map((c) => ({ ...c, name: ENEMY_MILITIA_NAMES[c.name] ?? c.name }));
 }
 
-export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[], enemyCfg: SideConfig, match: Match, usedMilitia: number): Battle {
+export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[], enemyCfg: SideConfig, match: Match): Battle {
   const b: Battle = {
     me: newPlayer(myDeck, myCfg), enemy: newPlayer(enemyDeck, enemyCfg),
     turn: 1, active: "me", counters: { me: 1, enemy: 0 },
-    log: [], seq: 0, order: 0, over: null, match, usedMilitia,
+    log: [], seq: 0, order: 0, over: null, match,
   };
   const n = Math.min(START_HAND, myDeck.length);
   for (let i = 0; i < n; i++) { drawOne(b, "me", true); }
@@ -343,6 +342,13 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
     for (let off = 1; off < FRONT; off++) for (const dir of [-1, 1]) {
       const idx = p.i + dir * off;
       if (idx >= 0 && idx < FRONT && E.front[idx]) return { kind: "unit", side: es, row: "front", i: idx, unit: E.front[idx]! };
+    }
+    // Осадное орудие достаёт тыл: когда вражеский передний ряд пуст, siege бьёт по постройке,
+    // а не по вождю. Без этого ключевого слова осада просто не могла бы нанести урон — постройки
+    // стоят только в тылу, а обычный удар по тылу не проходит.
+    if (has(attacker, "siege")) {
+      const i = E.back.findIndex((u) => u && u.curHp > 0 && u.isStructure);
+      if (i >= 0) return { kind: "unit", side: es, row: "back", i, unit: E.back[i]! };
     }
     return { kind: "hero", side: es };
   }

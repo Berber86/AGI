@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass, CircleHelp, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { allCards, militiaFill, withoutStructures, describeEffect, type Card } from "@/game/cards";
+import { allCards, withoutStructures, describeEffect, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, canAct, cast, costOf, createBattle, deploy, endPlayerTurn, enemyAct,
   enemyDeckForEra, findTarget, spellHasTarget, unitsOf, type Battle, type Unit,
@@ -123,25 +123,19 @@ function Slot({ children, label, valid, onClick }: { children?: React.ReactNode;
 }
 
 export default function BattleScreen() {
-  const { game, collection, match, markBattleStarted, finishBattle, closeBattle, go, militiaPicks } = useStore();
+  const { game, collection, match, finishBattle, closeBattle, go } = useStore();
   const m = match!;
   const cfg = useMemo(() => M.getBattleConfig(game), []); // eslint-disable-line react-hooks/exhaustive-deps
   const build = () => {
     const cards = new Map(allCards(collection).map((c) => [c.id, c]));
+    // Колода = выбранные игроком карты (экран «Армия»); пустые слоты никто не заполняет.
     const deck: Card[] = game.player.deckCardIds.map((id: string) => cards.get(id)).filter(Boolean).slice(0, cfg.deckLimit) as Card[];
-    let used = 0;
-    // Ополчение идёт в порядке выбора игрока (экран армии), остальные — как запас.
-    for (const mi of militiaFill(militiaPicks, game.player.era)) {
-      if (deck.length >= cfg.deckLimit) break;
-      if (deck.some((c) => c.name === mi.name)) continue;
-      deck.push({ ...mi, militia: true }); used++;
-    }
     const ec = M.getOpponentBattleConfig(game, m.opponentId);
     const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
     const enemyPool = (customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, 12)) as Card[];
     // В первом учебном бою враг приходит без построек: никто не бьёт новичка бесплатно из тыла.
     const enemyDeck = (m.tutorial ? withoutStructures(enemyPool) : enemyPool).slice(0, ec.deckLimit);
-    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m, used);
+    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m);
     // Первый ход новичка начинается с энергии 2 (а не 1), чтобы в руке можно было сыграть карту за 2.
     // Берём фиксированное значение 2, а не текущий предел игрока: иначе бонусы эпохи/черты
     // характера (например, «Владыки Коней») поднимали бы старт сразу до 3 энергии.
@@ -162,10 +156,8 @@ export default function BattleScreen() {
   const alive = useRef(true);
   const busy = useRef(false);
   const finished = useRef(false);
-  const started = useRef(false);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
-  useEffect(() => { if (!started.current) { started.current = true; markBattleStarted(); } }, [markBattleStarted]);
 
   const mutate = (fn: (nb: Battle) => void) => {
     const nb = structuredClone(bRef.current);
@@ -252,7 +244,6 @@ export default function BattleScreen() {
 
   const retreat = () => {
     setConfirmRetreat(false);
-    if (m.kind === "practice") { closeBattle(); go("army"); return; }
     mutate((nb) => { nb.over = "lose"; nb.log.push({ id: ++nb.seq, side: "system", text: "Вы отступили." }); });
   };
 
@@ -335,7 +326,7 @@ export default function BattleScreen() {
         <Btn variant="ghost" size="sm" onClick={() => (b.over ? undefined : setConfirmRetreat(true))} disabled={!!b.over}><Flag size={14} />Отступить</Btn>
         <div className="min-w-0 text-center">
           <div className="truncate text-[10.5px] font-semibold uppercase tracking-[0.14em] text-faint sm:text-[11px] sm:tracking-[0.16em]">
-            {m.tutorial ? "Учебный бой" : m.questBattle ? `Квестовый бой · ${m.regionName || m.name}` : m.kind === "expedition" ? `Экспедиция · ${m.regionName}` : "Тренировочный бой"}
+            {m.tutorial ? "Учебный бой" : m.leaderBattle ? "Бой с вождём племени" : "Бой с племенем"}
           </div>
           <div className={cn("text-sm font-semibold", b.active === "me" ? "text-bronze-soft" : "text-clay")}>{b.over ? "Бой окончен" : `Ход ${b.turn} · ${b.active === "me" ? "ваш" : "врага"}`}</div>
         </div>
@@ -351,7 +342,7 @@ export default function BattleScreen() {
             <Sparkles size={14} className="mt-0.5 shrink-0 text-bronze-soft" />
             <div className="min-w-0 flex-1 text-[12px] leading-snug text-parch sm:text-[12.5px]">
               {m.tutorial && <b className="mr-1 text-bronze-soft">Учебный бой.</b>}
-              {m.tutorial && !coach && "Ничего не тратится и границы не меняются — ошибайтесь спокойно. "}
+              {m.tutorial && !coach && "Ошибайтесь спокойно: первый бой объясняет правила по шагам. "}
               {coach || "Подсказки будут меняться по ходу боя."}
             </div>
           </div>
@@ -404,7 +395,6 @@ export default function BattleScreen() {
                     <span className="absolute left-1 top-1 grid h-5 min-w-5 place-items-center rounded-full border border-bronze/60 bg-ground px-1 text-[11px] font-bold text-bronze-soft">{c.drop_cost}</span>
                     <span className="mt-3 text-[26px] leading-none sm:text-[30px]">{c.emoji}</span>
                     <span className="line-clamp-2 text-[10.5px] font-semibold leading-tight">{c.name}</span>
-                    {c.militia && <span className="absolute bottom-[26px] right-1 rounded border border-line bg-ground/90 px-1 text-[8.5px] font-semibold uppercase tracking-wide text-bronze-soft max-sm:bottom-auto max-sm:top-1 max-sm:px-0.5 max-sm:text-[8px]">ополч.</span>}
                     {c.card_type === "spell" ? <span className="text-[10px] font-medium text-know">манёвр</span> : (
                       <span className="flex gap-2 text-[11.5px] font-bold tabular-nums">{c.card_type === "unit" && <span className="text-clay">{c.atk}</span>}<span className="text-ok">{c.hp}</span>{c.card_type === "structure" && <span className="text-mat">здан.</span>}</span>
                     )}
@@ -436,7 +426,7 @@ export default function BattleScreen() {
 
       <Modal open={confirmRetreat} onClose={() => setConfirmRetreat(false)} title="Отступить">
         <h2 className="font-display text-xl font-semibold">Отступить с поля боя?</h2>
-        <p className="mt-2 text-sm text-dim">{m.kind === "expedition" ? m.questBattle ? "Квестовый бой будет засчитан как поражение: припасы и приказ уже потрачены, участок останется нейтральным." : "Экспедиция будет засчитана как поражение: припасы и приказ уже потрачены, регион останется у соперника." : "Тренировка прервётся без последствий для кампании."}</p>
+        <p className="mt-2 text-sm text-dim">Отступление засчитывается как поражение: серия побед прервётся, а славы достанется меньше.</p>
         <div className="mt-6 flex justify-end gap-3"><Btn variant="ghost" onClick={() => setConfirmRetreat(false)}>Продолжить бой</Btn><Btn variant="danger" onClick={retreat}>Отступить</Btn></div>
       </Modal>
 
@@ -446,16 +436,11 @@ export default function BattleScreen() {
             <div className={cn("mx-auto grid h-16 w-16 place-items-center rounded-full", result.won ? "bg-bronze/15 text-bronze" : "bg-bad/15 text-bad")}>{result.won ? <Trophy size={30} /> : <X size={30} />}</div>
             <h2 className="font-display mt-4 text-3xl font-semibold">{result.won ? "Победа" : "Поражение"}</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-dim">{result.msg}</p>
-            <p className="mt-1 text-xs text-faint">Ходов: {b.turn}{b.usedMilitia > 0 ? ` · ополчение подкрепило колоду (${b.usedMilitia})` : ""}</p>
+            <p className="mt-1 text-xs text-faint">Ходов: {b.turn} · в колоде было {b.me.deck.length + b.me.discard.length + b.me.hand.length} карт</p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-              {m.kind === "expedition" ? (
-                <Btn variant="primary" size="lg" className="flex-1" onClick={() => { closeBattle(); go("map"); }}>Вернуться к карте</Btn>
-              ) : (
-                <>
-                  <Btn size="lg" className="flex-1" onClick={() => { closeBattle(); go("army"); }}>К армии</Btn>
-                  <Btn variant="primary" size="lg" className="flex-1" onClick={rematch}>Реванш</Btn>
-                </>
-              )}
+              <Btn size="lg" className="flex-1" onClick={() => { closeBattle(); go("camp"); }}>В лагерь</Btn>
+              <Btn variant="secondary" size="lg" className="flex-1" onClick={() => { closeBattle(); go("army"); }}>К составу</Btn>
+              <Btn variant="primary" size="lg" className="flex-1" onClick={rematch}>Реванш</Btn>
             </div>
           </div>
         )}

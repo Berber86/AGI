@@ -1,0 +1,414 @@
+/**
+ * Боевой движок (src/game/battle.ts): расчёт урона, выбор цели, постройки, усталость и победа.
+ * Эти проверки заменяют часть покрытия удалённого legacy-движка (tests/effects.test.js,
+ * tests/battle-turn.test.js): вторая реализация боя из legacy.html больше не существует,
+ * поэтому всё проверяется на том движке, которым реально играет React-слой.
+ */
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+const ts = require('typescript');
+
+const Campaign = require('../campaign.js');
+const root = path.join(__dirname, '..');
+
+function loadTypeScriptModule(relativePath, dependencies = {}) {
+  const file = path.join(root, relativePath);
+  const javascript = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
+    fileName: file,
+  }).outputText;
+  const mod = { exports: {} };
+  let ids = 0;
+  if (relativePath === 'src/game/battle.ts') {
+    dependencies = { './cards': { buildMilitia: () => [], uid: () => `u${++ids}` }, ...dependencies };
+  }
+  if (relativePath === 'src/game/cards.ts') {
+    dependencies = {
+      './model': {
+        M: {
+          ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
+          HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
+          ORIGINS: Campaign.ORIGINS,
+          SEED_CHOICES: Campaign.SEED_CHOICES,
+          eraName: Campaign.eraName,
+          allowedCardEras: Campaign.allowedCardEras,
+          combatPerks: Campaign.combatPerks,
+          describePerks: Campaign.describePerks,
+        },
+      },
+      ...dependencies,
+    };
+  }
+  const sandbox = {
+    module: mod, exports: mod.exports, console, setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number,
+    require: (name) => {
+      if (Object.prototype.hasOwnProperty.call(dependencies, name)) return dependencies[name];
+      throw new Error(`Unexpected import ${name} from ${relativePath}`);
+    },
+  };
+  vm.runInNewContext(javascript, sandbox, { filename: relativePath, timeout: 5000 });
+  return mod.exports;
+}
+
+const api = loadTypeScriptModule('src/game/battle.ts');
+
+function card(name, options = {}) {
+  return {
+    id: name.toLowerCase().replaceAll(' ', '-'), name, card_type: 'unit', era: 'ancient', emoji: '⚔️',
+    drop_cost: 1, action_cost: 1, hp: 5, atk: 2, description: 'Тестовая карта.',
+    tags: [], abilities: [], keywords: [], effects: [], monkey_paw: '', ...options,
+  };
+}
+
+const match = () => ({ kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, leaderBattle: false, tutorial: false });
+
+function battle(myCards, enemyCards, cfg = {}) {
+  const config = { hp: 20, energyMax: 10, energyGrowth: 1, fatigueDelay: 0, atkBonus: 0, ...cfg };
+  return api.createBattle(myCards, config, enemyCards, { ...config }, match());
+}
+
+/** Ставит карту из руки на поле, временно передавая ход нужной стороне. */
+function place(b, side, cardName, row = 'front', slot = 0) {
+  const idx = b[side].hand.findIndex((c) => c.name === cardName);
+  assert.ok(idx >= 0, `«${cardName}» должна быть в руке стороны ${side}`);
+  const active = b.active;
+  b.active = side;
+  b[side].energy = 10;
+  const ok = api.deploy(b, side, idx, row, slot);
+  b.active = active;
+  return ok;
+}
+
+function unitAt(b, side, row, slot) {
+  const u = b[side][row][slot];
+  assert.ok(u, `в ${side}.${row}[${slot}] должен стоять отряд`);
+  return u;
+}
+
+/** Снимает усталость со всех отрядов: высадка оставляет отряд истощённым до следующего хода. */
+function refresh(b) {
+  for (const side of ['me', 'enemy']) for (const s of api.unitsOf(b, side)) s.unit.exhausted = false;
+}
+
+function attack(b, side, row = 'front', slot = 0) {
+  const u = unitAt(b, side, row, slot);
+  const active = b.active;
+  b.active = side;
+  b[side].energy = 10;
+  const ok = api.attackWith(b, side, u.iid);
+  b.active = active;
+  return ok;
+}
+
+/** Столкновение двух отрядов в передних рядах: удобно мерить ровно один удар. */
+function clash(myCard, enemyCard, cfg) {
+  const b = battle([myCard], [enemyCard], cfg);
+  assert.equal(place(b, 'me', myCard.name), true);
+  assert.equal(place(b, 'enemy', enemyCard.name), true);
+  refresh(b);
+  return b;
+}
+
+test('бронзовый отряд бьёт древнего сильнее, а древний по бронзе — слабее', () => {
+  const forward = clash(card('Бронзовые мечники', { era: 'bronze', atk: 2, hp: 4 }), card('Древние копейщики', { era: 'ancient', hp: 6 }));
+  attack(forward, 'me');
+  assert.equal(unitAt(forward, 'enemy', 'front', 0).curHp, 6 - 3, 'бронза по древним: 2 + 1');
+
+  const backward = clash(card('Древние копейщики', { era: 'ancient', atk: 2, hp: 4 }), card('Бронзовые мечники', { era: 'bronze', hp: 6 }));
+  attack(backward, 'me');
+  assert.equal(unitAt(backward, 'enemy', 'front', 0).curHp, 6 - 1, 'древние по бронзе: максимум(1, 2 − 1)');
+
+  // одна и та же эпоха — без поправки
+  const equal = clash(card('Древние копейщики', { era: 'ancient', atk: 2 }), card('Древние пращники', { era: 'ancient', hp: 6 }));
+  attack(equal, 'me');
+  assert.equal(unitAt(equal, 'enemy', 'front', 0).curHp, 4);
+});
+
+test('броня гасит урон, пробой её игнорирует, а урон не бывает нулевым', () => {
+  const armored = clash(card('Древние копейщики', { atk: 3 }), card('Щитоносцы', { hp: 8, keywords: ['armor:2'] }));
+  attack(armored, 'me');
+  assert.equal(unitAt(armored, 'enemy', 'front', 0).curHp, 8 - 1);
+
+  const pierced = clash(card('Древние копейщики', { atk: 3, keywords: ['pierce:2'] }), card('Щитоносцы', { hp: 8, keywords: ['armor:2'] }));
+  attack(pierced, 'me');
+  assert.equal(unitAt(pierced, 'enemy', 'front', 0).curHp, 8 - 3, 'пробой снимает броню');
+
+  const wall = clash(card('Древние копейщики', { atk: 1 }), card('Частокол', { hp: 8, keywords: ['armor:5'] }));
+  attack(wall, 'me');
+  assert.equal(unitAt(wall, 'enemy', 'front', 0).curHp, 7, 'минимум 1 урона');
+});
+
+test('щитовой строй, стойкость и последний рубеж уменьшают входящий урон', () => {
+  // shieldwall работает только с соседом в ряду
+  const b = battle([card('Древние копейщики', { atk: 4 })], [card('Щитоносцы', { hp: 9, keywords: ['shieldwall'] }), card('Пращники', { hp: 3 })]);
+  place(b, 'me', 'Древние копейщики');
+  place(b, 'enemy', 'Щитоносцы', 'front', 0);
+  place(b, 'enemy', 'Пращники', 'front', 1);
+  refresh(b);
+  attack(b, 'me');
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 9 - 2, 'shieldwall: броня 1 и ещё −1 при соседе');
+
+  // стойкий отряд гасит только первый удар за ход
+  const sturdy = clash(card('Древние копейщики', { atk: 3, keywords: ['relentless'] }), card('Стойкий страж', { hp: 9, keywords: ['sturdy'] }));
+  attack(sturdy, 'me');
+  assert.equal(unitAt(sturdy, 'enemy', 'front', 0).curHp, 7, 'первый удар гасится стойкостью');
+  // relentless не истощает отряд: вторая атака за тот же ход проходит уже полностью
+  assert.equal(unitAt(sturdy, 'me', 'front', 0).exhausted, false);
+  attack(sturdy, 'me');
+  assert.equal(unitAt(sturdy, 'enemy', 'front', 0).curHp, 4, 'вторая атака без скидки');
+  assert.equal(unitAt(sturdy, 'me', 'front', 0).exhausted, true, 'третьей атаки за ход нет');
+
+  // последний живой в ряду получает +1 брони
+  const last = clash(card('Древние копейщики', { atk: 3 }), card('Одинокий страж', { hp: 9, keywords: ['laststand'] }));
+  attack(last, 'me');
+  assert.equal(unitAt(last, 'enemy', 'front', 0).curHp, 9 - 2, 'laststand: +1 броня, когда в ряду больше никого');
+});
+
+test('постройка стоит в тылу, не атакует и каждый ход обстреливает врага', () => {
+  const tower = card('Частокол с бойницами', { card_type: 'structure', atk: 0, action_cost: 0, hp: 4 });
+  const b = battle([tower, card('Древние копейщики')], [card('Древние копейщики', { hp: 6 })]);
+  assert.equal(place(b, 'me', tower.name, 'front', 0), false, 'постройку нельзя поставить в передний ряд');
+  assert.equal(place(b, 'me', tower.name, 'back', 0), true);
+  assert.equal(api.canAct(b, 'me', unitAt(b, 'me', 'back', 0)), false, 'постройка не атакует');
+
+  // чужой отряд на поле — обстрел идёт по нему
+  place(b, 'enemy', 'Древние копейщики', 'front', 0);
+  api.beginEnemyTurn(b);
+  api.beginPlayerTurn(b);
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 5, 'обстрел снял 1 HP');
+
+  // поле пустое — обстрел идёт по вождю
+  unitAt(b, 'enemy', 'front', 0).curHp = 0;
+  api.settle(b);
+  const hpBefore = b.enemy.hp;
+  api.beginEnemyTurn(b);
+  api.beginPlayerTurn(b);
+  assert.equal(b.enemy.hp, hpBefore - 1);
+});
+
+test('осада достаёт тыл и удваивает урон по постройкам', () => {
+  const ram = card('Таран', { atk: 2, keywords: ['siege'] });
+  const camp = card('Лагерь', { card_type: 'structure', atk: 0, action_cost: 0, hp: 8 });
+
+  // передний ряд врага пуст: таран бьёт по постройке в тылу и наносит двойной урон
+  const b = battle([ram], [camp]);
+  place(b, 'me', ram.name, 'front', 0);
+  place(b, 'enemy', camp.name, 'back', 0);
+  refresh(b);
+  const target = api.findTarget(b, unitAt(b, 'me', 'front', 0), 'me');
+  assert.equal(target.kind, 'unit');
+  assert.equal(target.unit.name, camp.name);
+  attack(b, 'me');
+  assert.equal(unitAt(b, 'enemy', 'back', 0).curHp, 8 - 4, 'осада: 2 × 2 по постройке');
+
+  // без осады тыл недоступен — удар уходит вождю
+  const plain = battle([card('Древние копейщики', { atk: 2 })], [camp]);
+  place(plain, 'me', 'Древние копейщики', 'front', 0);
+  place(plain, 'enemy', camp.name, 'back', 0);
+  refresh(plain);
+  assert.equal(api.findTarget(plain, unitAt(plain, 'me', 'front', 0), 'me').kind, 'hero');
+  const heroBefore = plain.enemy.hp;
+  attack(plain, 'me');
+  assert.equal(plain.enemy.hp, heroBefore - 2);
+  assert.equal(unitAt(plain, 'enemy', 'back', 0).curHp, 8);
+
+  // пока вражеский передний ряд держится, таран бьёт по нему без удвоения
+  const covered = battle([ram], [camp, card('Древние копейщики', { hp: 6 })]);
+  place(covered, 'me', ram.name, 'front', 0);
+  place(covered, 'enemy', camp.name, 'back', 0);
+  place(covered, 'enemy', 'Древние копейщики', 'front', 0);
+  refresh(covered);
+  assert.equal(api.findTarget(covered, unitAt(covered, 'me', 'front', 0), 'me').row, 'front');
+  attack(covered, 'me');
+  assert.equal(unitAt(covered, 'enemy', 'front', 0).curHp, 4);
+  assert.equal(unitAt(covered, 'enemy', 'back', 0).curHp, 8);
+});
+
+test('цель удара: насмешка, зеркальный слот, ближайший отряд, вождь', () => {
+  // насмешка перехватывает удар даже из соседнего слота
+  const b = battle([card('Древние копейщики', { atk: 2 })], [card('Пращники', { hp: 5 }), card('Забияка', { hp: 5, keywords: ['taunt'] })]);
+  place(b, 'me', 'Древние копейщики', 'front', 0);
+  place(b, 'enemy', 'Пращники', 'front', 0);
+  place(b, 'enemy', 'Забияка', 'front', 1);
+  refresh(b);
+  const target = api.findTarget(b, unitAt(b, 'me', 'front', 0), 'me');
+  assert.equal(target.unit.name, 'Забияка');
+  attack(b, 'me');
+  assert.equal(unitAt(b, 'enemy', 'front', 1).curHp, 3);
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 5);
+
+  // зеркальный слот пуст — удар уходит к ближайшему, а при пустом поле к вождю
+  const empty = battle([card('Древние копейщики', { atk: 2 })], [card('Древние копейщики', { hp: 5 })]);
+  place(empty, 'me', 'Древние копейщики', 'front', 2);
+  place(empty, 'enemy', 'Древние копейщики', 'front', 0);
+  refresh(empty);
+  assert.equal(api.findTarget(empty, unitAt(empty, 'me', 'front', 2), 'me').i, 0);
+  unitAt(empty, 'enemy', 'front', 0).curHp = 0;
+  api.settle(empty);
+  assert.equal(api.findTarget(empty, unitAt(empty, 'me', 'front', 2), 'me').kind, 'hero');
+});
+
+test('из тыла бьют только дальний бой, засада и досягаемость', () => {
+  // обычный отряд в тылу не дотягивается: удар тратится впустую
+  const melee = battle([card('Древние копейщики', { atk: 2 })], [card('Древние копейщики', { hp: 6 })]);
+  place(melee, 'me', 'Древние копейщики', 'back', 0);
+  place(melee, 'enemy', 'Древние копейщики', 'front', 0);
+  refresh(melee);
+  assert.equal(api.findTarget(melee, unitAt(melee, 'me', 'back', 0), 'me'), null);
+  assert.equal(attack(melee, 'me', 'back', 0), true);
+  assert.equal(unitAt(melee, 'enemy', 'front', 0).curHp, 6, 'урона нет');
+  assert.equal(unitAt(melee, 'me', 'back', 0).exhausted, true, 'отряд потратил действие');
+
+  // стрелок из тыла бьёт передний ряд
+  const ranged = battle([card('Пращники', { atk: 2, keywords: ['ranged'] })], [card('Древние копейщики', { hp: 6 })]);
+  place(ranged, 'me', 'Пращники', 'back', 0);
+  place(ranged, 'enemy', 'Древние копейщики', 'front', 0);
+  refresh(ranged);
+  attack(ranged, 'me', 'back', 0);
+  assert.equal(unitAt(ranged, 'enemy', 'front', 0).curHp, 4);
+
+  // досягаемость работает только против зеркального слота переднего ряда
+  const reach = battle([card('Копьеносцы', { atk: 2, keywords: ['reach'] })], [card('Древние копейщики', { hp: 6 })]);
+  place(reach, 'me', 'Копьеносцы', 'back', 1);
+  place(reach, 'enemy', 'Древние копейщики', 'front', 1);
+  refresh(reach);
+  attack(reach, 'me', 'back', 1);
+  assert.equal(unitAt(reach, 'enemy', 'front', 1).curHp, 4);
+});
+
+test('свидетели гибели реагируют только на свою сторону (watch)', () => {
+  const witness = (watch) => card(`Свидетель ${watch}`, {
+    hp: 5,
+    effects: [{
+      event: 'card_death', watch: { side: watch },
+      target: { side: 'friendly', entity: 'player' },
+      action: { type: 'heal', amount: 2 },
+    }],
+  });
+  const run = (watch, killSide) => {
+    const b = battle([witness(watch), card('Древние копейщики')], [card('Древние копейщики')]);
+    place(b, 'me', `Свидетель ${watch}`, 'front', 0);
+    place(b, 'me', 'Древние копейщики', 'front', 1);
+    place(b, 'enemy', 'Древние копейщики', 'front', 0);
+    b.me.hp = 10;
+    const victim = killSide === 'me' ? unitAt(b, 'me', 'front', 1) : unitAt(b, 'enemy', 'front', 0);
+    victim.curHp = 0;
+    api.settle(b);
+    return b.me.hp;
+  };
+  assert.equal(run('friendly', 'me'), 12, 'свидетель своих погибших лечит вождя');
+  assert.equal(run('friendly', 'enemy'), 10, 'на гибель врага он не реагирует');
+  assert.equal(run('enemy', 'enemy'), 12, 'свидетель вражеских погибших реагирует на них');
+  assert.equal(run('enemy', 'me'), 10);
+  assert.equal(run('all', 'me'), 12);
+  assert.equal(run('all', 'enemy'), 12);
+});
+
+test('зеркальное событие card_enter_play срабатывает на любую выведенную карту', () => {
+  const watcher = card('Хранитель строя', {
+    hp: 5,
+    effects: [{
+      event: 'card_enter_play', watch: { side: 'all' },
+      target: { side: 'friendly', entity: 'player' },
+      action: { type: 'heal', amount: 1 },
+    }],
+  });
+  const b = battle([watcher, card('Древние копейщики')], [card('Древние копейщики')]);
+  place(b, 'me', 'Хранитель строя', 'front', 0);
+  b.me.hp = 10;
+  // собственный выход хранителя не должен лечить его вождя дважды
+  place(b, 'me', 'Древние копейщики', 'front', 1);
+  assert.equal(b.me.hp, 11, 'выход чужого отряда даёт 1 HP вождю');
+  place(b, 'enemy', 'Древние копейщики', 'front', 0);
+  assert.equal(b.me.hp, 12, 'выход вражеского отряда тоже виден свидетелю');
+});
+
+test('цепочка срабатываний обрывается, а не зацикливается', () => {
+  // три отряда, каждый из которых бьёт своего при любой гибели: классический бесконечный пинг-понг
+  const avenger = (name) => card(name, {
+    hp: 4,
+    effects: [{
+      event: 'card_death', watch: { side: 'all' },
+      target: { side: 'friendly', entity: 'unit', select: 'first', count: 1 },
+      action: { type: 'damage', amount: 5 },
+    }],
+  });
+  const b = battle([avenger('Первый'), avenger('Второй'), avenger('Третий')], [card('Древние копейщики')]);
+  place(b, 'me', 'Первый', 'front', 0);
+  place(b, 'me', 'Второй', 'front', 1);
+  place(b, 'me', 'Третий', 'front', 2);
+  unitAt(b, 'me', 'front', 0).curHp = 0;
+  api.settle(b);
+  assert.equal(b.me.front.filter((u) => u && u.curHp > 0).length, 0, 'цепочка добивает всех и завершается');
+  assert.ok(b.me.discard.length >= 3);
+});
+
+test('усталость начинается после шестого круга и растёт, а задержка отодвигает её', () => {
+  const cycle = (b) => { api.beginEnemyTurn(b); api.beginPlayerTurn(b); };
+
+  const plain = battle([card('Древние копейщики')], [card('Древние копейщики')]);
+  assert.equal(plain.me.fatigueStart, 6);
+  const withDelay = battle([card('Древние копейщики')], [card('Древние копейщики')], { fatigueDelay: 2 });
+  assert.equal(withDelay.me.fatigueStart, 8, 'обоз и припасы дают два круга запаса');
+
+  // микро-колода: единственная карта сразу в руке, колода пуста
+  const b = battle([card('Древние копейщики')], [card('Древние копейщики')]);
+  assert.equal(b.me.deck.length, 0);
+  for (let turn = 0; turn < 4; turn++) cycle(b);
+  assert.equal(b.turn, 5);
+  assert.equal(b.me.fatigue, 0, 'до шестого круга усталости нет — микро-колода не умирает сама');
+  cycle(b);
+  assert.equal(b.turn, 6);
+  assert.equal(b.me.fatigue, 1, 'на шестом круге усталость только началась');
+  const hpBefore = b.me.hp;
+  cycle(b);
+  cycle(b);
+  assert.equal(b.me.fatigue, 3, 'усталость растёт каждый круг');
+  assert.equal(b.me.hp, hpBefore - 2 - 3, 'урон усталости накапливается');
+
+  // та же микро-колода с задержкой: к шестому кругу ещё цела
+  for (let turn = 0; turn < 5; turn++) cycle(withDelay);
+  assert.equal(withDelay.turn, 6);
+  assert.equal(withDelay.me.fatigue, 0, 'задержка усталости сдвигает первый урон');
+});
+
+test('бой заканчивается, когда падает вождь, и стартовая рука ограничена', () => {
+  const b = battle([card('Древние копейщики')], [card('Древние копейщики')], { hp: 3 });
+  assert.equal(b.me.hand.length, 1);
+  b.enemy.hp = 0;
+  api.settle(b);
+  assert.equal(b.over, 'win');
+  assert.match(b.log.at(-1).text, /Вражеский вождь повержен/u);
+
+  const loss = battle([card('Древние копейщики')], [card('Древние копейщики')], { hp: 3 });
+  loss.me.hp = 0;
+  api.settle(loss);
+  assert.equal(loss.over, 'lose');
+  assert.match(loss.log.at(-1).text, /Ваш вождь пал/u);
+
+  // рука не переполняется: лимит 7, старт 4
+  const deck = Array.from({ length: 12 }, (_, i) => card(`Боец ${i}`));
+  const wide = battle(deck, deck);
+  assert.equal(wide.me.hand.length, 4);
+  assert.equal(api.HAND_LIMIT, 7);
+  for (let i = 0; i < 6; i++) { api.beginEnemyTurn(b); api.beginPlayerTurn(b); }
+  assert.ok(wide.me.hand.length <= api.HAND_LIMIT, `рука ${wide.me.hand.length}`);
+});
+
+test('движок получает только проверенные эффекты: битые карты не пускает валидатор', () => {
+  const cards = loadTypeScriptModule('src/game/cards.ts');
+  const good = card('Древние копейщики');
+  assert.doesNotThrow(() => cards.validateCard(good, 'unit', ['ancient']));
+
+  const noWatch = card('Свидетель', { effects: [{ event: 'card_death', target: { side: 'friendly', entity: 'player' }, action: { type: 'heal', amount: 1 } }] });
+  assert.throws(() => cards.validateCard(noWatch, 'unit', ['ancient']), /watch/iu, 'card_death без watch отклоняется');
+
+  const badAction = card('Свидетель', { effects: [{ event: 'death', target: { side: 'friendly', entity: 'player' }, action: { type: 'выиграть бой' } }] });
+  assert.throws(() => cards.validateCard(badAction, 'unit', ['ancient']), /тип эффекта|действие|неизвестн/iu);
+
+  const noTarget = card('Свидетель', { effects: [{ event: 'death', action: { type: 'damage', amount: 1 } }] });
+  assert.throws(() => cards.validateCard(noTarget, 'unit', ['ancient']), /target|цел/iu);
+});
