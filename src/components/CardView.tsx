@@ -125,6 +125,12 @@ export function CardFace({ card, onClick, selected, footer, badge, detailed, cla
           </ul>
         )}
         <p className="mt-auto text-center text-[12px] italic leading-snug text-dim">{card.description}</p>
+        {card.monkey_paw && (
+          <div className="rounded-xl border border-bad/30 bg-bad/12 px-2.5 py-2">
+            <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-bad">🐾 Лапа обезьяны</div>
+            <div className="text-[12px] leading-snug text-parch/90">{card.monkey_paw}</div>
+          </div>
+        )}
         {card.history && <HistoryNote history={card.history} defaultOpen={historyOpen} />}
         <div className="flex items-center justify-between border-t border-line pt-2">
           <StatPair card={card} />
@@ -163,6 +169,7 @@ export function CardTile({ card, onClick, selected, right, dim, className }: { c
         <span className="flex items-center gap-2 text-[11px] text-faint">
           {CARD_TYPE_INFO[card.card_type].label}
           {rarity && <span className={rarity.color}>· {rarity.label}</span>}
+          {card.monkey_paw && <span className="text-bad" title={card.monkey_paw}>· 🐾 плата</span>}
         </span>
       </span>
       <StatPair card={card} className="shrink-0 text-[13px]" />

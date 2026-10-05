@@ -303,10 +303,14 @@ export function validateEffects(raw: any): any[] {
 // стоимости розыгрыша/действия и редкости заказа; излишек урезается пропорционально, а не просто принимается
 // (баланс-ревизия).
 const RARITY_BUDGET_MULT: Record<string, number> = { ordinary: 1, uncommon: 1.3, rare: 1.7 };
-function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string): number {
+/**
+ * pawWeight — надбавка за плату: каждый пункт веса лапы обезьяны даёт карте +1 к бюджету силы.
+ * Без этого карта с платой была бы строго хуже чистой, а жребий — чистым наказанием.
+ */
+function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string, pawWeight = 0): number {
   const mult = RARITY_BUDGET_MULT[rarity] || 1;
   const base = cardType === "structure" ? 2 * dropCost + 1 : 2 * dropCost + actionCost + 1;
-  return Math.max(2, Math.round(base * mult));
+  return Math.max(2, Math.round(base * mult)) + Math.max(0, Math.floor(pawWeight));
 }
 
 /**
@@ -326,7 +330,90 @@ export function sanitizeHistory(raw: any, era = "", culture = ""): CardHistory |
   };
 }
 
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary"): Card {
+/* ---------- лапа обезьяны ----------
+ * Механика из самой первой версии игры: выкованная карта может прийти с платой. Жребий бросает
+ * модель кампании (campaign.js → rollPawTier: треть чистых, треть с небольшой платой, треть с
+ * жёсткой) и до раскрытия карты он игроку не показывается. Плату пишет модель, а игра проверяет,
+ * что она выражена настоящей механикой: текстовый «штраф» без эффекта движок не исполнит.
+ */
+export type PawTier = "none" | "minor" | "harsh";
+
+export const PAW_LABELS: Record<PawTier, string> = {
+  none: "Чистая карта",
+  minor: "Небольшая плата",
+  harsh: "Жёсткая плата",
+};
+
+/** Небольшая плата — вес 1…3, жёсткая — от 4. */
+export const PAW_MINOR_MAX = 3;
+
+const isOwnSide = (side: string) => side === "friendly" || side === "controller";
+const isFoeSide = (side: string) => side === "enemy" || side === "opponent";
+
+/**
+ * Настоящие минусы карты: эффекты против своей стороны и своего вождя, усиление врага,
+ * а также ключевые слова-обременения. Возвращает и человекочитаемое описание, и вес.
+ */
+export function pawMarkers(c: Pick<Card, "keywords" | "effects">, paw: PawTier = "none"): { text: string; weight: number }[] {
+  const out: { text: string; weight: number }[] = [];
+  for (const raw of c.keywords || []) {
+    const key = String(raw).split(":")[0];
+    // upkeep — чистое обременение, он считается всегда. morale на обычных картах — часть
+    // словаря («Дружина вождя» несёт её вместе со стеной щитов), поэтому в плату она идёт,
+    // только если плата заказана.
+    if (key === "upkeep") out.push({ text: "содержание: без соседей теряет 1 HP за ход", weight: 2 });
+    else if (key === "morale" && paw !== "none") out.push({ text: "мораль: при ранах может бежать с поля", weight: 2 });
+  }
+  for (const e of c.effects || []) {
+    const t = e?.target, a = e?.action;
+    if (!t || !a) continue;
+    const own = isOwnSide(t.side), foe = isFoeSide(t.side);
+    const amount = Math.abs(Number(a.amount) || 0);
+    const who = own ? "своим" : "врагу";
+    if (own && a.type === "damage") out.push({ text: `${amount} урона ${who}`, weight: amount });
+    else if (own && a.type === "apply_status") out.push({ text: `${a.status === "burn" ? "огонь" : "яд"} на ${who} (${a.turns || 2} хода)`, weight: amount + Math.max(0, (a.turns || 2) - 1) });
+    else if (own && a.type === "destroy") out.push({ text: "уничтожает собственный отряд", weight: 4 });
+    else if (own && a.type === "modify_stat" && Number(a.amount) < 0) out.push({ text: `${a.amount} к «${a.stat}» ${who}`, weight: amount + (a.turns ? 0 : 1) });
+    else if (own && a.type === "modify_cost" && Number(a.amount) > 0) out.push({ text: `+${amount} к цене атаки ${who}`, weight: amount });
+    else if (own && a.type === "modify_resource" && Number(a.amount) < 0) out.push({ text: `${a.amount} энергии у вождя`, weight: amount });
+    else if (own && (a.type === "discard" || a.type === "exchange")) out.push({ text: `${a.type === "discard" ? "сброс" : "обмен"} ${amount} карт из руки`, weight: 2 * amount });
+    else if (foe && a.type === "heal") out.push({ text: `лечит врага на ${amount}`, weight: amount });
+    else if (foe && a.type === "modify_stat" && Number(a.amount) > 0) out.push({ text: `+${amount} к «${a.stat}» врага`, weight: amount });
+    else if (foe && a.type === "modify_resource" && Number(a.amount) > 0) out.push({ text: `+${amount} энергии врагу`, weight: amount });
+    else if (foe && a.type === "draw") out.push({ text: `враг добирает ${amount} карт`, weight: amount });
+  }
+  return out;
+}
+
+/** Суммарный вес платы: им измеряют и силу платы, и надбавку к бюджету карты. */
+export const pawSeverity = (c: Pick<Card, "keywords" | "effects">, paw: PawTier = "none"): number =>
+  pawMarkers(c, paw).reduce((sum, m) => sum + m.weight, 0);
+
+/** Таблица весов для промпта: модель обязана попасть в заказанный диапазон, а не угадать его. */
+const PAW_WEIGHT_TABLE = `Вес платы движок считает по карте сам:
+- damage по своим (side friendly|controller) — вес = amount;
+- apply_status poison|burn по своим — вес = amount + (turns − 1);
+- destroy своего отряда — вес 4;
+- modify_stat с отрицательным amount по своим — вес = |amount|, и ещё +1 если без turns (навсегда);
+- modify_cost с положительным amount по своим — вес = amount;
+- modify_resource energy с отрицательным amount по своим — вес = |amount|;
+- discard или exchange своих карт — вес = 2 × amount;
+- heal, modify_stat с плюсом, modify_resource с плюсом и draw по врагу (side enemy|opponent) — вес = amount;
+- ключевое слово upkeep — вес 2; ключевое слово morale — вес 2.`;
+
+function pawDirective(paw: PawTier): string {
+  if (paw === "none") {
+    return `ЛАПА ОБЕЗЬЯНЫ — НА ЭТОТ РАЗ ЧИСТО. Кузнец не берёт платы: monkey_paw = "", никаких эффектов против своей стороны и своего вождя, никакого лечения и усиления врага, ключевых слов upkeep и morale нет. Суммарный вес платы обязан быть 0.`;
+  }
+  const band = paw === "minor" ? `НЕБОЛЬШАЯ ПЛАТА: суммарный вес от 1 до ${PAW_MINOR_MAX} — один скромный минус.` : `ЖЁСТКАЯ ПЛАТА: суммарный вес от ${PAW_MINOR_MAX + 1} и выше — карта сильная, но рискованная; плата заметно дороже мелкой.`;
+  return `ЛАПА ОБЕЗЬЯНЫ ОБЯЗАТЕЛЬНА. ${band}
+Плату придумываешь ты, но выражена она должна быть НАСТОЯЩЕЙ МЕХАНИКОЙ из разрешённого словаря: эффектами в effects[] против своей стороны/своего вождя (урон, яд, огонь, ухудшение характеристики, удорожание атаки, потеря энергии, сброс карт, уничтожение своего отряда) либо усилением врага, и/или ключевыми словами upkeep, morale. Текст в monkey_paw (до 200 знаков) называет плату по-человечески и точно совпадает с механикой — никаких штрафов, которых нет в effects[] и keywords[].
+${PAW_WEIGHT_TABLE}
+Плату платит владелец карты: цель таких эффектов — side friendly или controller (для вражеской выгоды — enemy/opponent). Плата не должна делать карту бесполезной: она мешает, но не отменяет боевую роль.
+ОПИСАНИЕ И СПРАВКА ОБЪЯСНЯЮТ ПЛАТУ: description показывает, чем отряд расплачивается в бою, а history.text — откуда эта цена взялась у народа (обычай, долг обряда, скверное оружие, голод, клятва, болезнь, плата жрецам). Карта, у которой плата не обоснована текстом, не принимается.`;
+}
+
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none"): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
@@ -344,16 +431,6 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
-  if (c.card_type !== "spell") {
-    const keywordWeight = c.keywords.length;
-    const power = c.atk + c.hp + keywordWeight;
-    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity);
-    if (power > budget) {
-      const scale = budget / power;
-      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
-      c.hp = Math.max(1, Math.round(c.hp * scale));
-    }
-  }
   c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
@@ -363,8 +440,36 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   c.tags = Array.isArray(c.tags) ? c.tags.slice(0, 3).map((t: any) => String(t).slice(0, 40)) : [];
   c.abilities = [];
   c.emoji = typeof c.emoji === "string" && c.emoji.trim() ? c.emoji.slice(0, 8) : "⚒️";
-  c.monkey_paw = typeof c.monkey_paw === "string" ? c.monkey_paw.slice(0, 200) : "";
+  c.monkey_paw = typeof c.monkey_paw === "string" ? c.monkey_paw.trim().slice(0, 200) : "";
   c.history = sanitizeHistory(c.history);
+
+  // Лапа обезьяны: жребий, выпавший при заказе, обязателен к исполнению, а размер платы измеряется
+  // настоящей механикой карты — текстовый штраф без эффекта движок исполнить не сможет.
+  const markers = pawMarkers(c as Card, paw);
+  const severity = markers.reduce((sum, m) => sum + m.weight, 0);
+  const markerText = markers.map((m) => `${m.text} (вес ${m.weight})`).join("; ");
+  if (paw === "none") {
+    if (severity > 0) throw new Error(`Заказана чистая карта, но кузнец добавил плату: ${markerText}.`);
+    if (c.monkey_paw) throw new Error("У чистой карты не должно быть текста платы (monkey_paw).");
+  } else {
+    if (severity < 1) throw new Error(`Лапа обезьяны (${PAW_LABELS[paw]}) требует настоящую плату: эффект против своей стороны или ключевого слова, а не только текст.`);
+    if (paw === "minor" && severity > PAW_MINOR_MAX) throw new Error(`Небольшая плата — это вес 1…${PAW_MINOR_MAX}, а кузнец дал ${severity}: ${markerText}.`);
+    if (paw === "harsh" && severity <= PAW_MINOR_MAX) throw new Error(`Жёсткая плата — это вес от ${PAW_MINOR_MAX + 1}, а кузнец дал ${severity}: ${markerText}.`);
+    if (c.monkey_paw.length < 20) throw new Error("Текст платы (monkey_paw) слишком короткий: назовите её по-человечески и точно как в механике.");
+    if (!c.history || (c.history.text || "").length < 60) throw new Error("Справка карты обязана объяснять, откуда народ платит эту цену (history.text).");
+  }
+
+  if (c.card_type !== "spell") {
+    const keywordWeight = c.keywords.length;
+    const power = c.atk + c.hp + keywordWeight;
+    // Плата оплачивает силу: каждый пункт веса лапы даёт карте +1 к бюджету.
+    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity, severity);
+    if (power > budget) {
+      const scale = budget / power;
+      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
+      c.hp = Math.max(1, Math.round(c.hp * scale));
+    }
+  }
   c.id = c.id || "card-" + uid();
   return c as Card;
 }
@@ -521,20 +626,17 @@ condition (необязательное поле эффекта) помимо ta
  text (2–4 предложения, до 480 знаков) — зачем эта вещь или обычай существовали именно в эту эпоху у этого народа: из чего и какими технологиями эпохи её делали, кем были эти люди, чем она была в быту и почему на поле боя карта ведёт себя так, как у неё записано (её числа, ключевые слова, эффекты).
  Только реальная история: ни магии, ни фэнтези, ни вымышленных цивилизаций и пророчеств. Не пересказывай description и не повторяй название карты целиком. Если точного прототипа нет — возьми самое близкое явление этой эпохи, но не выдумывай народы.
 Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
-{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"","history":{"title":"","text":""}}
+{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"текст платы лапы обезьяны, если она заказана, иначе пустая строка","history":{"title":"","text":""}}
 Язык — русский.`;
 
-export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
+export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any, paw: PawTier = "none"): Promise<Card> {
   const allowed = allowedCardErasOf(state);
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   // Справка пишется под ЭПОХУ КАМПАНИИ и НАСЛЕДИЕ НАРОДА (не под боевой тег ancient/bronze):
   // иначе карты «древнего мира» и «античности» звучали бы одинаково при разных технологиях.
   const era = eraContextOf(state);
   const cultureName = state.player?.historicalCulture?.name || "";
-  const raw = await hydraChat({
-    model, maxTokens: 3000, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
-    system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
-    user: `Боевой замысел: «${advice.title}». ${advice.pitch}
+  const brief = `Боевой замысел: «${advice.title}». ${advice.pitch}
 Тип карты: ${advice.cardType}. ${directive}
 Воплоти этот образ в боевую роль в текущем матче: не превращай ремесло, урожай, быт или дальний путь в долгосрочный эффект. Сами описание и effects должны объяснять, что происходит с бойцами, строем, энергией или полем боя.
 
@@ -543,12 +645,30 @@ ${contextOf(state)}
 
 Эпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.
 
-Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`,
-  });
-  const card = validateCard(raw, advice.cardType, allowed, rarity);
-  card.rarity = rarity;
-  card.id = "card-" + uid();
-  // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.
-  if (card.history) card.history = { ...card.history, era: era.label, culture: cultureName };
-  return card;
+Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`;
+  const system = CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`;
+  const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
+
+  // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
+  // Одна повторная попытка — чтобы брак модели не стоил игроку похода в кузницу; если и она
+  // не прошла проверку, ковка падает, а Forge возвращает славу через M.failCraft.
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const retry = lastError ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message} Исправь ровно это и верни ПОЛНЫЙ JSON карты заново.` : "";
+    const raw = await hydraChat({
+      model, maxTokens: 3000, temperature, system,
+      user: `${brief}\n\n${pawDirective(paw)}${retry}`,
+    });
+    try {
+      const card = validateCard(raw, advice.cardType, allowed, rarity, paw);
+      card.rarity = rarity;
+      card.id = "card-" + uid();
+      // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.
+      if (card.history) card.history = { ...card.history, era: era.label, culture: cultureName };
+      return card;
+    } catch (e: any) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  throw lastError ?? new Error("Кузнец не смог выковать карту.");
 }

@@ -244,6 +244,32 @@
 
     // Качество ковки = grade сырья (0..2) + мастерство кузнеца (0..CRAFT_LEVEL_MAX) → диапазон 0..5.
     // Границы подобраны так, чтобы последняя строка была достижима: редкое сырьё и третий уровень мастерства.
+    /* ============ лапа обезьяны ============
+     * Возвращение механики из самой первой версии игры: выкованная карта может прийти с платой.
+     * Жребий не зависит от редкости — одинаковые шансы на чистую карту, небольшую плату и жёсткую.
+     * Саму плату пишет модель (см. промпт лапы в src/game/cards.ts), а игра только проверяет,
+     * что она выражена настоящей механикой и соответствует выпавшему жребию.
+     */
+    const PAW_TIERS = ['none', 'minor', 'harsh'];
+    const PAW_TIER_LABELS = {
+        none: 'Чистая карта',
+        minor: 'Небольшая плата',
+        harsh: 'Жёсткая плата'
+    };
+    const PAW_TIER_NOTES = {
+        none: 'Кузнец не взял платы: у карты нет скрытых минусов.',
+        minor: 'Кузнец взял небольшую плату: у карты есть скромный минус.',
+        harsh: 'Кузнец взял жёсткую плату: карта сильная, но рискованная.'
+    };
+
+    /** Жребий лапы: три равные трети, независимо от редкости и от сырья. */
+    function rollPawTier(roll) {
+        const value = clampNum(roll, 0, 0.999999, 0.5);
+        if (value < 1 / 3) return 'none';
+        if (value < 2 / 3) return 'minor';
+        return 'harsh';
+    }
+
     const CARD_RARITY_ODDS = [
         { maxScore: 1, odds: { ordinary: 70, uncommon: 25, rare: 5 } },
         { maxScore: 2, odds: { ordinary: 50, uncommon: 38, rare: 12 } },
@@ -766,16 +792,21 @@
         return 'ordinary';
     }
 
-    /** Списывает славу и возвращает редкость с моделью: карта куётся сразу, очередей и дней нет. */
-    function beginCraft(input, investment = {}, roll = Math.random()) {
+    /**
+     * Списывает славу и возвращает редкость с моделью: карта куётся сразу, очередей и дней нет.
+     * Здесь же бросается жребий лапы обезьяны (pawRoll) — он не зависит от редкости и до раскрытия
+     * карты игроку не показывается: плата становится сюрпризом уже на готовой карте.
+     */
+    function beginCraft(input, investment = {}, roll = Math.random(), pawRoll = Math.random()) {
         const state = normalizeState(input);
         const quote = cardCraftQuote(state, investment);
         if (!quote.materialQualityUnlocked) return { state, error: quote.unlockText || 'Это сырьё ещё недоступно.' };
         if (state.player.glory < quote.cost) return { state, error: 'Нужно ' + quote.cost + ' славы, а сейчас ' + Math.floor(state.player.glory) + '.' };
         const rarity = rollRarity(quote.odds, roll);
+        const paw = rollPawTier(pawRoll);
         state.player.glory -= quote.cost;
         return {
-            state, rarity, cost: quote.cost, modelId: quote.modelByRarity[rarity],
+            state, rarity, paw, pawLabel: PAW_TIER_LABELS[paw], cost: quote.cost, modelId: quote.modelByRarity[rarity],
             materialQuality: quote.materialQuality, error: null
         };
     }
@@ -793,7 +824,10 @@
             }
         }
         const cardName = info.name ? '«' + String(info.name).slice(0, 60) + '»' : 'карта';
-        chroniclePush(state, 'Кузница: в боевой состав народа вошла ' + cardName + ' (' + (info.rarity || 'ordinary') + ').');
+        // Плата попадает в летопись: через пару эпох видно, чем народ заплатил за сильные карты.
+        const pawText = typeof info.monkeyPaw === 'string' ? info.monkeyPaw.trim().slice(0, 160) : '';
+        chroniclePush(state, 'Кузница: в боевой состав народа вошла ' + cardName + ' (' + (info.rarity || 'ordinary') + ').'
+            + (pawText ? ' Лапа обезьяны взяла плату: ' + pawText : ''));
         state.player.campaignNotice = leveledUp
             ? 'Кузнец поднял мастерство до уровня ' + state.player.craftLevel + ': шанс редкой карты вырос.'
             : '';
@@ -1021,6 +1055,7 @@
         getCultureChoice, chooseCultureState: chooseCulture,
         // кузница
         getAvailableMaterialQualities, cardCraftQuote, beginCraftState: beginCraft, completeCraftState: completeCraft, failCraftState: failCraft,
+        PAW_TIERS, PAW_TIER_LABELS, PAW_TIER_NOTES, rollPawTier,
         getStarterCards: () => clone(STARTER_CARDS)
     };
     root.CampaignMvp = api;

@@ -68,11 +68,12 @@ export default function Forge() {
     const started = Date.now();
     try {
       const snapshot = M.clone(game);
-      const card: Card = await llmCard(begin.modelId, selected, begin.rarity as Rarity, snapshot);
+      // begin.paw — жребий лапы обезьяны: он уходит в промпт кузнеца, но игроку до раскрытия не показывается.
+      const card: Card = await llmCard(begin.modelId, selected, begin.rarity as Rarity, snapshot, begin.paw);
       const wait = 1200 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       addCard(card);
-      const done = act((s) => M.completeCraft(s, { name: card.name, rarity: card.rarity || begin.rarity }), { silent: true });
+      const done = act((s) => M.completeCraft(s, { name: card.name, rarity: card.rarity || begin.rarity, monkeyPaw: card.monkey_paw }), { silent: true });
       toast(`${advisorOrder} → карта «${card.name}» в коллекции.`, "ok");
       if (done?.leveledUp) toast(`Кузнец поднял мастерство до уровня ${done.craftLevel}: шанс редкой карты вырос.`, "ok");
       setReveal(card);
@@ -156,6 +157,11 @@ export default function Forge() {
                 </div>
               ))}
               {quote.rareLocked && quote.rareLockText && <p className="text-[11.5px] leading-relaxed text-dim">🔒 {quote.rareLockText}</p>}
+              <p className="text-[11.5px] leading-relaxed text-dim">
+                🐾 <b className="text-parch">Лапа обезьяны.</b> Кузнец кует наудачу: треть карт приходит чистой,
+                треть — с небольшой платой, треть — с жёсткой. Плата настоящая (эффект против своих или обременение),
+                и она оплачивает силу карты. Какая выпала — видно только на готовой карте.
+              </p>
             </div>
             <dl className="mt-5 space-y-2 border-t border-line pt-4 text-sm">
               <div className="flex items-center justify-between"><dt className="text-dim">Цена</dt><dd><GloryCost cost={quote.cost} have={glory} /></dd></div>
@@ -181,7 +187,12 @@ export default function Forge() {
         {reveal && (
           <div className="flex flex-col items-center">
             <Label className="mb-1">Новая карта в коллекции</Label>
-            <h2 className="font-display mb-4 text-2xl font-semibold">{RARITY_INFO[reveal.rarity ?? "ordinary"].label} карта выкована</h2>
+            <h2 className="font-display mb-2 text-2xl font-semibold">{RARITY_INFO[reveal.rarity ?? "ordinary"].label} карта выкована</h2>
+            <p className="mb-4 max-w-[330px] text-center text-[12.5px] leading-relaxed text-dim">
+              {reveal.monkey_paw
+                ? <>🐾 <b className="text-bad">Лапа обезьяны сработала.</b> Кузнец взял плату — и она же сделала карту сильнее.</>
+                : "Кузнец не взял платы: карта пришла чистой."}
+            </p>
             <div className="w-[270px]"><CardFace card={reveal} detailed historyOpen /></div>
             {reveal.history && (
               <p className="mt-4 max-w-[330px] text-center text-[12px] leading-relaxed text-faint">
