@@ -330,34 +330,71 @@ function discardFrom(b: Battle, side: Side, n: number, choice: string, src: stri
 
 export type AttackTarget = { kind: "hero"; side: Side } | { kind: "unit"; side: Side; row: "front" | "back"; i: number; unit: Unit };
 
+/**
+ * Ближайший к слоту i живой отряд вражеского тыла: сначала зеркальный слот, затем соседи.
+ * structures=true ищет постройки (их достаёт только осада), false — обычные отряды.
+ */
+function nearestInBack(b: Battle, es: Side, i: number, structures: boolean): AttackTarget | null {
+  const row = b[es].back;
+  const fits = (u: Unit | null) => !!u && u.curHp > 0 && (structures ? u.isStructure : !u.isStructure);
+  if (fits(row[i])) return { kind: "unit", side: es, row: "back", i, unit: row[i]! };
+  for (let off = 1; off < BACK; off++) for (const dir of [-1, 1]) {
+    const idx = i + dir * off;
+    if (idx >= 0 && idx < BACK && fits(row[idx])) return { kind: "unit", side: es, row: "back", i: idx, unit: row[idx]! };
+  }
+  return null;
+}
+
+/**
+ * Цель дальнего боя: стрелки (ranged, skirmish) бьют через вражеский авангард — он защищает
+ * только от ближнего боя. Провокация перехватывает выстрел, иначе целью становится самый опасный
+ * отряд на поле (по атаке с учётом модификаторов и бонуса вождя), при равенстве — стоящий в тылу.
+ * Постройки не цели для стрелков: их разбирает осада. Если отрядов нет — бьём вождя.
+ */
+function rangedTarget(b: Battle, es: Side): AttackTarget {
+  const E = b[es];
+  type Cand = { u: Unit; i: number; row: "front" | "back" };
+  const alive = (["front", "back"] as const).flatMap((row) =>
+    E[row].map((u, i) => ({ u, i, row })).filter((x): x is Cand => !!x.u && x.u.curHp > 0 && !x.u.isStructure),
+  );
+  if (!alive.length) return { kind: "hero", side: es };
+  const taunted = alive.find((x) => has(x.u, "taunt"));
+  const best = taunted || alive.reduce((a, x) => {
+    const aa = atkOf(b, a.u), xa = atkOf(b, x.u);
+    if (xa !== aa) return xa > aa ? x : a;
+    if ((x.row === "back") !== (a.row === "back")) return x.row === "back" ? x : a;
+    return x.i < a.i ? x : a;
+  });
+  return { kind: "unit", side: es, row: best.row, i: best.i, unit: best.u };
+}
+
 export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget | null {
   const p = posOf(b, attacker);
   if (!p) return null;
   const es = opp(side);
   const E = b[es];
-  const isFront = p.row === "front";
-  if (isFront) {
-    for (let i = 0; i < FRONT; i++) { const u = E.front[i]; if (u && has(u, "taunt")) return { kind: "unit", side: es, row: "front", i, unit: u }; }
-    if (E.front[p.i]) return { kind: "unit", side: es, row: "front", i: p.i, unit: E.front[p.i]! };
-    for (let off = 1; off < FRONT; off++) for (const dir of [-1, 1]) {
-      const idx = p.i + dir * off;
-      if (idx >= 0 && idx < FRONT && E.front[idx]) return { kind: "unit", side: es, row: "front", i: idx, unit: E.front[idx]! };
-    }
-    // Осадное орудие достаёт тыл: когда вражеский передний ряд пуст, siege бьёт по постройке,
-    // а не по вождю. Без этого ключевого слова осада просто не могла бы нанести урон — постройки
-    // стоят только в тылу, а обычный удар по тылу не проходит.
-    if (has(attacker, "siege")) {
-      const i = E.back.findIndex((u) => u && u.curHp > 0 && u.isStructure);
-      if (i >= 0) return { kind: "unit", side: es, row: "back", i, unit: E.back[i]! };
-    }
-    return { kind: "hero", side: es };
+  // Дальний бой работает из любого ряда: авангард врага его не закрывает.
+  if (strikesFromRear(attacker)) return rangedTarget(b, es);
+  if (p.row !== "front") {
+    // Из тыла без дальнего боя дотягивается только длинное оружие — и лишь по врагу напротив.
+    if (has(attacker, "reach") && E.front[p.i]) return { kind: "unit", side: es, row: "front", i: p.i, unit: E.front[p.i]! };
+    return null;
   }
-  if (strikesFromRear(attacker)) {
-    for (let i = 0; i < FRONT; i++) if (E.front[i]) return { kind: "unit", side: es, row: "front", i, unit: E.front[i]! };
-    return { kind: "hero", side: es };
+  for (let i = 0; i < FRONT; i++) { const u = E.front[i]; if (u && has(u, "taunt")) return { kind: "unit", side: es, row: "front", i, unit: u }; }
+  if (E.front[p.i]) return { kind: "unit", side: es, row: "front", i: p.i, unit: E.front[p.i]! };
+  for (let off = 1; off < FRONT; off++) for (const dir of [-1, 1]) {
+    const idx = p.i + dir * off;
+    if (idx >= 0 && idx < FRONT && E.front[idx]) return { kind: "unit", side: es, row: "front", i: idx, unit: E.front[idx]! };
   }
-  if (has(attacker, "reach") && E.front[p.i]) return { kind: "unit", side: es, row: "front", i: p.i, unit: E.front[p.i]! };
-  return null;
+  // Авангард врага пуст — ближний бой доходит до тыла. Осадное орудие ищет постройки,
+  // остальные берут ближайший отряд, и только при полностью пустом поле бьют вождя.
+  if (has(attacker, "siege")) {
+    const structure = nearestInBack(b, es, p.i, true);
+    if (structure) return structure;
+  }
+  const back = nearestInBack(b, es, p.i, false);
+  if (back) return back;
+  return { kind: "hero", side: es };
 }
 
 export function canAct(b: Battle, side: Side, u: Unit): boolean {
@@ -432,7 +469,10 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
         const cb = atkOf(b, t);
         if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
       }
-      log(b, side, `${attacker.name} атакует «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
+      // Выстрел через живой авангард — это отдельная ситуация: иначе непонятно, почему стрелок
+      // из тыла бьёт не тех, кто стоит напротив.
+      const overFront = isRanged(attacker) && target.row === "back" && !!b[defenderSide].front.find((u) => u && u.curHp > 0);
+      log(b, side, `${attacker.name} ${overFront ? "стреляет через строй по" : "атакует"} «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
       // Месть: погибший в этом обмене ударами отряд наносит ответный удар своему убийце, если тот ещё жив.
       // Пока охватывает только прямой ближний/дальний бой (resolveHit выше и ниже), а не урон от заклинаний/статусов.
       if (t.curHp <= 0 && has(t, "vengeance") && attacker.curHp > 0) {

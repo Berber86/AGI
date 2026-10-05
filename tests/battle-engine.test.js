@@ -412,3 +412,137 @@ test('движок получает только проверенные эффе
   const noTarget = card('Свидетель', { effects: [{ event: 'death', action: { type: 'damage', amount: 1 } }] });
   assert.throws(() => cards.validateCard(noTarget, 'unit', ['ancient']), /target|цел/iu);
 });
+
+test('ближний бой при пустом авангарде доходит до тыла, а вождя бьёт только при пустом поле', () => {
+  const sword = card('Древние копейщики', { atk: 3 });
+  const archer = card('Пращники', { hp: 4, keywords: ['ranged'] });
+
+  // авангард врага пуст, в тылу стрелок: удар уходит ему, а не вождю
+  const b = battle([sword], [archer]);
+  place(b, 'me', sword.name, 'front', 1);
+  place(b, 'enemy', archer.name, 'back', 2);
+  refresh(b);
+  const target = api.findTarget(b, unitAt(b, 'me', 'front', 1), 'me');
+  assert.equal(target.kind, 'unit');
+  assert.equal(target.row, 'back');
+  assert.equal(target.i, 2, 'зеркальный слот тыла');
+  const heroBefore = b.enemy.hp;
+  attack(b, 'me', 'front', 1);
+  assert.equal(unitAt(b, 'enemy', 'back', 2).curHp, 1);
+  assert.equal(b.enemy.hp, heroBefore, 'вождь не пострадал, пока на поле есть отряды');
+
+  // тыл пустого авангарда берётся ближайшим отрядом, а не строго напротив
+  const offset = battle([sword], [archer]);
+  place(offset, 'me', sword.name, 'front', 0);
+  place(offset, 'enemy', archer.name, 'back', 3);
+  refresh(offset);
+  assert.equal(api.findTarget(offset, unitAt(offset, 'me', 'front', 0), 'me').i, 3);
+
+  // поле противника пусто — удар вождю
+  unitAt(offset, 'enemy', 'back', 3).curHp = 0;
+  api.settle(offset);
+  assert.equal(api.findTarget(offset, unitAt(offset, 'me', 'front', 0), 'me').kind, 'hero');
+  attack(offset, 'me');
+  assert.equal(offset.enemy.hp, offset.enemy.maxHp - 3);
+});
+
+test('постройку в тылу разбирает только осада: ближний бой проходит мимо неё к отряду', () => {
+  const camp = card('Лагерь', { card_type: 'structure', atk: 0, action_cost: 0, hp: 6 });
+  const guard = card('Страж лагеря', { hp: 5 });
+  const sword = card('Древние копейщики', { atk: 3 });
+
+  // в тылу постройка и отряд: обычный ближний бой бьёт отряд (постройки — цель осады)
+  const b = battle([sword], [camp, guard]);
+  place(b, 'me', sword.name, 'front', 0);
+  place(b, 'enemy', camp.name, 'back', 0);
+  place(b, 'enemy', guard.name, 'back', 1);
+  refresh(b);
+  assert.equal(api.findTarget(b, unitAt(b, 'me', 'front', 0), 'me').unit.name, guard.name);
+  attack(b, 'me');
+  assert.equal(unitAt(b, 'enemy', 'back', 1).curHp, 2);
+  assert.equal(unitAt(b, 'enemy', 'back', 0).curHp, 6, 'постройка цела');
+
+  // осада при том же поле идёт в постройку и удваивает урон
+  const ram = battle([card('Таран', { atk: 2, keywords: ['siege'] })], [camp, guard]);
+  place(ram, 'me', 'Таран', 'front', 0);
+  place(ram, 'enemy', camp.name, 'back', 0);
+  place(ram, 'enemy', guard.name, 'back', 1);
+  refresh(ram);
+  assert.equal(api.findTarget(ram, unitAt(ram, 'me', 'front', 0), 'me').unit.name, camp.name);
+  attack(ram, 'me');
+  assert.equal(unitAt(ram, 'enemy', 'back', 0).curHp, 6 - 4);
+});
+
+test('стрелки бьют через авангард по самой опасной цели, а провокация перехватывает выстрел', () => {
+  const bow = card('Охотники с луками', { atk: 2, hp: 1, keywords: ['ranged'] });
+
+  // авангард врага занят «стеной», но в тылу стоит более опасный отряд — стрела летит в него
+  const b = battle([bow], [card('Щитоносцы', { hp: 8, atk: 1, keywords: ['armor:2'] }), card('Топорники', { hp: 5, atk: 4 })]);
+  place(b, 'me', bow.name, 'back', 0);
+  place(b, 'enemy', 'Щитоносцы', 'front', 0);
+  place(b, 'enemy', 'Топорники', 'back', 0);
+  refresh(b);
+  const target = api.findTarget(b, unitAt(b, 'me', 'back', 0), 'me');
+  assert.equal(target.unit.name, 'Топорники', 'цель — самый опасный отряд, а не тот, что напротив');
+  assert.equal(target.row, 'back');
+  const before = unitAt(b, 'enemy', 'back', 0).curHp;
+  attack(b, 'me', 'back', 0);
+  assert.equal(unitAt(b, 'enemy', 'back', 0).curHp, before - 2);
+  assert.match(b.log.at(-1).text, /стреляет через строй по «Топорники»/u, 'в журнале видно, что выстрел прошёл через авангард');
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 8, 'авангард не задет');
+
+  // при равной атаке стрелки выбирают отряд в тылу: его иначе не достать
+  const tie = battle([bow], [card('Копейщики', { hp: 5, atk: 2 }), card('Пращники врага', { hp: 3, atk: 2 })]);
+  place(tie, 'me', bow.name, 'back', 0);
+  place(tie, 'enemy', 'Копейщики', 'front', 1);
+  place(tie, 'enemy', 'Пращники врага', 'back', 1);
+  refresh(tie);
+  assert.equal(api.findTarget(tie, unitAt(tie, 'me', 'back', 0), 'me').unit.name, 'Пращники врага');
+
+  // провокация перехватывает выстрел, даже если за ней стоит более опасный отряд
+  const taunted = battle([bow], [card('Забияка', { hp: 6, atk: 1, keywords: ['taunt'] }), card('Топорники', { hp: 5, atk: 5 })]);
+  place(taunted, 'me', bow.name, 'back', 0);
+  place(taunted, 'enemy', 'Забияка', 'front', 0);
+  place(taunted, 'enemy', 'Топорники', 'back', 0);
+  refresh(taunted);
+  assert.equal(api.findTarget(taunted, unitAt(taunted, 'me', 'back', 0), 'me').unit.name, 'Забияка');
+
+  // отрядов не осталось — стрелки бьют вождя
+  const hero = battle([bow], [card('Копейщики', { hp: 5, atk: 2 })]);
+  place(hero, 'me', bow.name, 'back', 0);
+  place(hero, 'enemy', 'Копейщики', 'front', 0);
+  refresh(hero);
+  unitAt(hero, 'enemy', 'front', 0).curHp = 0;
+  api.settle(hero);
+  assert.equal(api.findTarget(hero, unitAt(hero, 'me', 'back', 0), 'me').kind, 'hero');
+
+  // стрелок в переднем ряду тоже бьёт через вражеский строй: дальний бой не зависит от своего ряда
+  const frontBow = battle([bow], [card('Щитоносцы', { hp: 8, atk: 1 }), card('Топорники', { hp: 5, atk: 4 })]);
+  place(frontBow, 'me', bow.name, 'front', 0);
+  place(frontBow, 'enemy', 'Щитоносцы', 'front', 0);
+  place(frontBow, 'enemy', 'Топорники', 'back', 2);
+  refresh(frontBow);
+  assert.equal(api.findTarget(frontBow, unitAt(frontBow, 'me', 'front', 0), 'me').unit.name, 'Топорники');
+});
+
+test('засадный боец, уклонившись в тыл, больше не недосягаем для ближнего боя', () => {
+  const skirmisher = card('Пращники из холмов', { hp: 3, atk: 1, keywords: ['ranged', 'skirmish'] });
+  const sword = card('Древние копейщики', { atk: 3 });
+
+  // уклонение работает, пока у врага есть авангард
+  const b = battle([sword], [skirmisher, card('Щитоносцы', { hp: 6, atk: 1 })]);
+  place(b, 'me', sword.name, 'front', 0);
+  place(b, 'enemy', skirmisher.name, 'front', 0);
+  place(b, 'enemy', 'Щитоносцы', 'front', 1);
+  refresh(b);
+  attack(b, 'me');
+  assert.equal(b.enemy.front[0], null, 'засада уклонилась в тыл');
+  assert.ok(b.enemy.back.some((u) => u && u.name === skirmisher.name));
+
+  // авангард выбит — следующий удар ближнего боя достаёт уклонившегося в тылу
+  b.enemy.front[1].curHp = 0;
+  api.settle(b);
+  refresh(b);
+  unitAt(b, 'me', 'front', 0).exhausted = false;
+  assert.equal(api.findTarget(b, unitAt(b, 'me', 'front', 0), 'me').unit.name, skirmisher.name);
+});
