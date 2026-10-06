@@ -253,7 +253,7 @@ test('осада достаёт тыл и удваивает урон по по�
   assert.equal(unitAt(covered, 'enemy', 'back', 0).curHp, 8);
 });
 
-test('цель удара: насмешка, зеркальный слот, ближайший отряд, вождь', () => {
+test('цель удара: насмешка, зеркальный слот, ближайший отряд, глубина столбца, брешь и вождь', () => {
   // насмешка перехватывает удар даже из соседнего слота
   const b = battle([card('Древние копейщики', { atk: 2 })], [card('Пращники', { hp: 5 }), card('Забияка', { hp: 5, keywords: ['taunt'] })]);
   place(b, 'me', 'Древние копейщики', 'front', 0);
@@ -266,15 +266,61 @@ test('цель удара: насмешка, зеркальный слот, бл
   assert.equal(unitAt(b, 'enemy', 'front', 1).curHp, 3);
   assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 5);
 
-  // зеркальный слот пуст — удар уходит к ближайшему, а при пустом поле к вождю
-  const empty = battle([card('Древние копейщики', { atk: 2 })], [card('Древние копейщики', { hp: 5 })]);
+  // зеркальный слот пуст, но столбец держится отрядом в глубине — удар уходит к ближайшему в ряду
+  const empty = battle([card('Древние копейщики', { atk: 2 })], [card('Древние копейщики', { hp: 5 }), card('Тыловой', { hp: 5 })]);
   place(empty, 'me', 'Древние копейщики', 'front', 2);
   place(empty, 'enemy', 'Древние копейщики', 'front', 0);
+  putUnit(empty, 'enemy', 'Тыловой', 'back', 2);
   refresh(empty);
-  assert.equal(api.findTarget(empty, unitAt(empty, 'me', 'front', 2), 'me').i, 0);
+  assert.equal(api.findTarget(empty, unitAt(empty, 'me', 'front', 2), 'me').i, 0, 'ближайший в ряду, пока столбец держится');
+  assert.equal(api.hasGapAt(empty, 'enemy', 2), false, 'в столбце есть живой отряд — бреши нет');
+
+  // авангард выбит — удар идёт вглубь своего столбца
   unitAt(empty, 'enemy', 'front', 0).curHp = 0;
   api.settle(empty);
+  assert.equal(api.findTarget(empty, unitAt(empty, 'me', 'front', 2), 'me').unit.name, 'Тыловой');
+
+  // и только пустой столбец открывает вождя
+  unitAt(empty, 'enemy', 'back', 2).curHp = 0;
+  api.settle(empty);
+  assert.equal(api.hasGapAt(empty, 'enemy', 2), true);
   assert.equal(api.findTarget(empty, unitAt(empty, 'me', 'front', 2), 'me').kind, 'hero');
+});
+
+test('брешь в обороне открывает вождя: это правило по умолчанию, а не ключевое слово', () => {
+  const sword = card('Древние копейщики', { atk: 3 });
+  // враг стоит только в первом столбце, мой отряд — во втором: во втором столбце у врага брешь
+  const b = battle([sword], [card('Заслон', { hp: 6 })]);
+  place(b, 'me', sword.name, 'front', 1);
+  place(b, 'enemy', 'Заслон', 'front', 0);
+  refresh(b);
+
+  assert.deepEqual(api.gapsOf(b, 'enemy').slice(1).length > 0, true, 'движок отдаёт список брешей');
+  assert.equal(api.hasGapAt(b, 'enemy', 1), true);
+  assert.equal(api.hasGapAt(b, 'enemy', 0), false);
+  assert.equal(api.findTarget(b, unitAt(b, 'me', 'front', 1), 'me').kind, 'hero', 'чужой строй в соседнем столбце удар не останавливает');
+
+  const heroBefore = b.enemy.hp;
+  attack(b, 'me', 'front', 1);
+  assert.equal(b.enemy.hp, heroBefore - 3, 'вождь получил урон через брешь');
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 6, 'отряд в другом столбце не задет');
+
+  // противник закрыл брешь — удар снова идёт по строю
+  const covered = battle([sword], [card('Заслон', { hp: 6 }), card('Дозор', { hp: 6 })]);
+  place(covered, 'me', sword.name, 'front', 1);
+  place(covered, 'enemy', 'Заслон', 'front', 0);
+  place(covered, 'enemy', 'Дозор', 'front', 1);
+  refresh(covered);
+  assert.equal(api.hasGapAt(covered, 'enemy', 1), false);
+  assert.equal(api.findTarget(covered, unitAt(covered, 'me', 'front', 1), 'me').unit.name, 'Дозор', 'зеркальный слот');
+
+  // провокация перехватывает удар даже при бреши в столбце
+  const taunted = battle([sword], [card('Забияка', { hp: 6, keywords: ['taunt'] })]);
+  place(taunted, 'me', sword.name, 'front', 2);
+  place(taunted, 'enemy', 'Забияка', 'front', 0);
+  refresh(taunted);
+  assert.equal(api.hasGapAt(taunted, 'enemy', 2), true);
+  assert.equal(api.findTarget(taunted, unitAt(taunted, 'me', 'front', 2), 'me').unit.name, 'Забияка');
 });
 
 test('из тыла бьют только дальний бой, засада и досягаемость', () => {
@@ -440,37 +486,31 @@ test('движок получает только проверенные эффе
   assert.throws(() => cards.validateCard(noTarget, 'unit', ['ancient']), /target|цел/iu);
 });
 
-test('ближний бой при пустом авангарде доходит до тыла, а вождя бьёт только при пустом поле', () => {
+test('ближний бой при пустом авангарде доходит до тыла своего столбца', () => {
   const sword = card('Древние копейщики', { atk: 3 });
   const archer = card('Пращники', { hp: 4, keywords: ['ranged'] });
 
-  // авангард врага пуст, в тылу стрелок: удар уходит ему, а не вождю
+  // авангард врага пуст, в тылу того же столбца стрелок: удар уходит ему, а не вождю
   const b = battle([sword], [archer]);
   place(b, 'me', sword.name, 'front', 1);
-  place(b, 'enemy', archer.name, 'back', 2);
+  place(b, 'enemy', archer.name, 'back', 1);
   refresh(b);
   const target = api.findTarget(b, unitAt(b, 'me', 'front', 1), 'me');
   assert.equal(target.kind, 'unit');
   assert.equal(target.row, 'back');
-  assert.equal(target.i, 2, 'зеркальный слот тыла');
+  assert.equal(target.i, 1, 'столбец атакующего держится стрелком в тылу');
   const heroBefore = b.enemy.hp;
   attack(b, 'me', 'front', 1);
-  assert.equal(unitAt(b, 'enemy', 'back', 2).curHp, 1);
-  assert.equal(b.enemy.hp, heroBefore, 'вождь не пострадал, пока на поле есть отряды');
+  assert.equal(unitAt(b, 'enemy', 'back', 1).curHp, 1);
+  assert.equal(b.enemy.hp, heroBefore, 'вождь не пострадал, пока столбец держится');
 
-  // тыл пустого авангарда берётся ближайшим отрядом, а не строго напротив
-  const offset = battle([sword], [archer]);
-  place(offset, 'me', sword.name, 'front', 0);
-  place(offset, 'enemy', archer.name, 'back', 3);
-  refresh(offset);
-  assert.equal(api.findTarget(offset, unitAt(offset, 'me', 'front', 0), 'me').i, 3);
-
-  // поле противника пусто — удар вождю
-  unitAt(offset, 'enemy', 'back', 3).curHp = 0;
-  api.settle(offset);
-  assert.equal(api.findTarget(offset, unitAt(offset, 'me', 'front', 0), 'me').kind, 'hero');
-  attack(offset, 'me');
-  assert.equal(offset.enemy.hp, offset.enemy.maxHp - 3);
+  // стрелка выбили — столбец опустел, и удар уходит вождю
+  unitAt(b, 'enemy', 'back', 1).curHp = 0;
+  api.settle(b);
+  refresh(b);
+  assert.equal(api.findTarget(b, unitAt(b, 'me', 'front', 1), 'me').kind, 'hero');
+  attack(b, 'me', 'front', 1);
+  assert.equal(b.enemy.hp, b.enemy.maxHp - 3);
 });
 
 test('постройку в тылу разбирает только осада: ближний бой проходит мимо неё к отряду', () => {
@@ -478,26 +518,34 @@ test('постройку в тылу разбирает только осада:
   const guard = card('Страж лагеря', { hp: 5 });
   const sword = card('Древние копейщики', { atk: 3 });
 
-  // в тылу постройка и отряд: обычный ближний бой бьёт отряд (постройки — цель осады)
+  // в тылу отряд того же столбца и постройка рядом: ближний бой бьёт отряд (постройки — цель осады)
   const b = battle([sword], [camp, guard]);
   place(b, 'me', sword.name, 'front', 0);
-  place(b, 'enemy', camp.name, 'back', 0);
-  putUnit(b, 'enemy', guard.name, 'back', 1);
+  putUnit(b, 'enemy', guard.name, 'back', 0);
+  place(b, 'enemy', camp.name, 'back', 1);
   refresh(b);
   assert.equal(api.findTarget(b, unitAt(b, 'me', 'front', 0), 'me').unit.name, guard.name);
   attack(b, 'me');
-  assert.equal(unitAt(b, 'enemy', 'back', 1).curHp, 2);
-  assert.equal(unitAt(b, 'enemy', 'back', 0).curHp, 6, 'постройка цела');
+  assert.equal(unitAt(b, 'enemy', 'back', 0).curHp, 2);
+  assert.equal(unitAt(b, 'enemy', 'back', 1).curHp, 6, 'постройка цела');
 
-  // осада при том же поле идёт в постройку и удваивает урон
+  // осада идёт в постройку, если в её столбце нет живых отрядов, и удваивает урон
   const ram = battle([card('Таран', { atk: 2, keywords: ['siege'] })], [camp, guard]);
   place(ram, 'me', 'Таран', 'front', 0);
   place(ram, 'enemy', camp.name, 'back', 0);
-  putUnit(ram, 'enemy', guard.name, 'back', 1);
+  putUnit(ram, 'enemy', guard.name, 'back', 2);
   refresh(ram);
   assert.equal(api.findTarget(ram, unitAt(ram, 'me', 'front', 0), 'me').unit.name, camp.name);
   attack(ram, 'me');
   assert.equal(unitAt(ram, 'enemy', 'back', 0).curHp, 6 - 4);
+
+  // постройка, прикрытая живым отрядом того же столбца, недоступна: сначала надо пройти отряд
+  const shielded = battle([card('Таран', { atk: 2, keywords: ['siege'] })], [camp, guard]);
+  place(shielded, 'me', 'Таран', 'front', 0);
+  putUnit(shielded, 'enemy', guard.name, 'front', 0);
+  place(shielded, 'enemy', camp.name, 'back', 0);
+  refresh(shielded);
+  assert.equal(api.findTarget(shielded, unitAt(shielded, 'me', 'front', 0), 'me').unit.name, guard.name);
 });
 
 test('стрелки бьют через авангард по самой опасной цели, а провокация перехватывает выстрел', () => {

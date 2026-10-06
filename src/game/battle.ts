@@ -60,6 +60,8 @@ export interface Unit {
   exhausted: boolean;
   fresh: boolean;
   hitThisTurn: boolean;
+  /** Отряд уже перестраивался в этот ход: второе перемещение за ход запрещено (см. moveUnit). */
+  movedThisTurn: boolean;
   fears: boolean;
   /** "relentless" уже потратил свою вторую атаку в этом ходу. */
   usedRelentless: boolean;
@@ -355,7 +357,7 @@ function makeUnit(b: Battle, card: Card): Unit {
     iid: uid(), card, name: card.name || "Безымянный", emoji: card.emoji || "⚒️", card_type: card.card_type, era: card.era || "ancient",
     atk, hp, curHp: hp, drop_cost: card.drop_cost || 0, action_cost: card.action_cost || 0,
     keywords: card.keywords || [], effects: card.effects || [], st: {}, mods: [],
-    exhausted: true, fresh: true, hitThisTurn: false, fears: false, usedRelentless: false,
+    exhausted: true, fresh: true, hitThisTurn: false, movedThisTurn: false, fears: false, usedRelentless: false,
     isStructure: card.card_type === "structure", order: b.order++, hitSeq: 0, lastDmg: 0,
     rarity: card.rarity, description: card.description || "",
   };
@@ -479,6 +481,30 @@ function nearestBehind(b: Battle, es: Side, fromRi: number, i: number, structure
   return null;
 }
 
+/* ---------- столбцы: брешь в обороне ----------
+   Терминология стола: РЯД — глубина (авангард, средние ряды, тыл), СТОЛБЕЦ — ширина (фланги и
+   центр), КЛЕТКА — слот на пересечении. Ряды защищают от ближнего боя, а столбцы определяют, куда
+   удар приходит: столбец, в котором у стороны не осталось живых отрядов, — это брешь. */
+
+/** Есть ли в столбце стороны живой отряд. Постройки строй не держат: их разбирает осада. */
+function laneHolds(b: Battle, side: Side, i: number): boolean {
+  for (let ri = 0; ri < rowCount(b[side]); ri++) {
+    const u = rowArray(b[side], ri)[i];
+    if (u && u.curHp > 0 && !u.isStructure) return true;
+  }
+  return false;
+}
+
+/** Брешь ли в этом столбце: правило общее для обеих сторон и для всех эпох. */
+export const hasGapAt = (b: Battle, side: Side, i: number): boolean => i >= 0 && i < slotCount(b[side]) && !laneHolds(b, side, i);
+
+/** Все столбцы стороны с брешами — для подсветки в интерфейсе и для выбора слота противником. */
+export function gapsOf(b: Battle, side: Side): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < slotCount(b[side]); i++) if (!laneHolds(b, side, i)) out.push(i);
+  return out;
+}
+
 /**
  * Цель дальнего боя: стрелки (ranged, skirmish) бьют через ВСЕ вражеские ряды — строй защищает
  * только от ближнего боя. Провокация перехватывает выстрел, иначе целью становится самый опасный
@@ -514,18 +540,66 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
   }
   const front = rowArray(b[es], 0);
   for (let i = 0; i < front.length; i++) { const u = front[i]; if (u && has(u, "taunt")) return targetAt(b, es, 0, i, u); }
+  // Осада проверяется раньше бреши: постройка строй не держит, но для осадного орудия она и есть
+  // цель — иначе таран шагал бы мимо частокола вождю. Прикрытая живым отрядом того же столбца
+  // постройка недоступна: сначала надо пройти тех, кто стоит ближе (общее правило рядов).
+  if (has(attacker, "siege") && !laneHolds(b, es, p.i)) {
+    const structure = nearestBehind(b, es, 0, p.i, true);
+    if (structure) return structure;
+  }
+  // БРЕШЬ — правило по умолчанию, а не особое ключевое слово: если в столбце атакующего у врага не
+  // осталось живых отрядов, удар проходит вождю, даже когда вражеский строй стоит в других столбцах.
+  // Держать надо всю линию, а не центр. Провокация перехватывает удар и здесь — она проверена выше.
+  if (!laneHolds(b, es, p.i)) return { kind: "hero", side: es };
   if (front[p.i]) return targetAt(b, es, 0, p.i, front[p.i]!);
   const beside = nearestInRow(b, es, 0, p.i, false);
   if (beside) return beside;
-  // Авангард врага пуст — ближний бой идёт вглубь, ряд за рядом. Осадное орудие ищет постройки
-  // (они стоят в тылу), остальные берут ближайший отряд, и только при пустом столе бьют вождя.
-  if (has(attacker, "siege")) {
-    const structure = nearestBehind(b, es, 1, p.i, true);
-    if (structure) return structure;
-  }
+  // Авангард врага пуст — ближний бой идёт вглубь, ряд за рядом (осадное орудие свои постройки
+  // уже проверило выше). Ближайший отряд в глубине важнее вождя: брешь в столбце — не повод
+  // проходить мимо чужого строя.
   const deep = nearestBehind(b, es, 1, p.i, false);
   if (deep) return deep;
   return { kind: "hero", side: es };
+}
+
+/* ---------- перестроение: манёвр по клеткам своей половины за энергию ----------
+   Отряд можно сдвинуть на одну соседнюю клетку (вбок по своему ряду или на ряд вперёд/назад, без
+   диагоналей) за MOVE_COST энергии, один раз за ход. Правила рядов действуют и здесь: ближний бой
+   без стрельбы не уходит вглубь, постройки не двигаются вовсе. Манёвр не истощает отряд — можно
+   перестроиться и ударить в тот же ход, если хватает энергии: так находятся бреши во вражеской
+   линии и закрываются свои. */
+export const MOVE_COST = 1;
+export interface MoveTarget { ri: number; i: number }
+
+export function moveTargets(b: Battle, side: Side, u: Unit): MoveTarget[] {
+  if (b.over || b.active !== side || u.isStructure || u.curHp <= 0 || u.movedThisTurn) return [];
+  if (b[side].energy < MOVE_COST) return [];
+  const p = posOf(b, u);
+  if (!p) return [];
+  const out: MoveTarget[] = [];
+  for (const [ri, i] of [[p.ri, p.i - 1], [p.ri, p.i + 1], [p.ri - 1, p.i], [p.ri + 1, p.i]] as [number, number][]) {
+    if (ri < 0 || ri >= rowCount(b[side]) || i < 0 || i >= slotCount(b[side])) continue;
+    if (rowArray(b[side], ri)[i]) continue;
+    if (!canStandInRow(u, b[side], ri)) continue;
+    out.push({ ri, i });
+  }
+  return out;
+}
+
+export function moveUnit(b: Battle, side: Side, iid: string, ri: number, i: number): boolean {
+  if (b.over || b.active !== side) return false;
+  const u = unitsOf(b, side).find((s) => s.unit.iid === iid)?.unit;
+  if (!u) return false;
+  const from = posOf(b, u);
+  if (!from) return false;
+  if (!moveTargets(b, side, u).some((t) => t.ri === ri && t.i === i)) return false;
+  rowArray(b[side], from.ri)[from.i] = null;
+  rowArray(b[side], ri)[i] = u;
+  u.movedThisTurn = true;
+  b[side].energy = Math.max(0, b[side].energy - MOVE_COST);
+  log(b, side, `«${u.name}» перестраивается: ${rowName(b[side], from.ri)}, столбец ${from.i + 1} → ${rowName(b[side], ri)}, столбец ${i + 1}. −${MOVE_COST} энергии.`);
+  settle(b);
+  return true;
 }
 
 export function canAct(b: Battle, side: Side, u: Unit): boolean {
@@ -1024,6 +1098,7 @@ export function startTurn(b: Battle, side: Side) {
     // а не здесь: раньше это поле гасло ещё до того, как юнит вообще получал право
     // действовать, из-за чего бонус "charge" и защита "holdground" не успевали сработать.
     u.hitThisTurn = false;
+    u.movedThisTurn = false;
     u.usedRelentless = false;
     if (u.st.upkeep && !u.isStructure && neighborsOf(b, u).length === 0) { hurtUnit(b, u, 1); log(b, side, `«${u.name}» без поддержки соседей теряет 1 HP.`); }
   }
@@ -1060,7 +1135,19 @@ export function beginEnemyTurn(b: Battle) {
 export function enemyAct(b: Battle): boolean {
   if (b.over || b.active !== "enemy") return false;
   const e = b.enemy;
-  const freeSlot = (ri: number) => rowArray(e, ri).indexOf(null);
+  /**
+   * Слот для высадки: сначала закрываем брешь — столбец, где у игрока стоит живой отряд, а у нас
+   * никого нет. Иначе игрок бьёт в этот столбец и проходит вождю (правило бреши в findTarget).
+   */
+  const freeSlot = (ri: number) => {
+    const row = rowArray(e, ri);
+    const free: number[] = [];
+    for (let i = 0; i < row.length; i++) if (!row[i]) free.push(i);
+    if (!free.length) return -1;
+    const theirs = new Set(unitsOf(b, "me").filter((s) => s.unit.curHp > 0).map((s) => s.i));
+    const gap = free.find((i) => theirs.has(i) && !laneHolds(b, "enemy", i));
+    return gap === undefined ? free[0] : gap;
+  };
   /** Порядок рядов для карты: постройки в тыл, стрелки и «длинное оружие» — как можно глубже, ближний бой — в авангард. */
   const rowOrder = (c: Card): number[] => {
     const all = Array.from({ length: rowCount(e) }, (_, ri) => ri);

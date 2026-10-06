@@ -356,6 +356,44 @@ test('инспектор боя объясняет ключевые слова �
   assert.match(rules, /нажмите на чип/u);
 });
 
+test('линия фронта помечает бреши, а правила объясняют прорыв и перестроение', () => {
+  const storage = makeStorage();
+  const app = makeApp(storage);
+  const game = foundedState({ glory: 40, era: 2 });
+  const { store, derived } = makeStore(app, game, { page: 'camp' });
+
+  const foot = {
+    id: 'foot', name: 'Пеший', card_type: 'unit', era: 'ancient', emoji: '🛡️', drop_cost: 1, action_cost: 1,
+    hp: 6, atk: 3, description: 'Держит строй.', tags: [], abilities: [], keywords: [], effects: [], monkey_paw: '',
+  };
+  const cfg = { hp: 20, energyMax: 10, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
+  const match = { kind: 'practice', opponentId: 'steppe', name: 'Тархан', clan: 'Степной Союз', era: 0, threatEra: 2, leaderBattle: false };
+  const b = app.battle.createBattle([foot, foot, foot], cfg, [foot, foot, foot], { ...cfg }, match);
+
+  // Пустое поле — начало боя, а не «брешь»: пометок нет.
+  const empty = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'GapStrip', { b, side: 'enemy', compact: false })).join(' ');
+  assert.doesNotMatch(empty, /брешь/u, 'на пустом поле пометок нет');
+
+  // Враг держит столбцы 1 и 3: третий столбец открыт, и это видно на линии фронта.
+  b.active = 'enemy';
+  b.enemy.energy = 10;
+  for (const slot of [0, 2]) assert.equal(app.battle.deploy(b, 'enemy', 0, 0, slot), true);
+  b.active = 'me';
+  assert.equal(app.battle.gapsOf(b, 'enemy').join(','), '1,3');
+  const held = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'GapStrip', { b, side: 'enemy', compact: false })).join(' ');
+  assert.equal(held.split('брешь').length - 1, 2, 'помечены ровно открытые столбцы');
+  assert.match(held, /·/u, 'закрытые столбцы остаются пустыми метками, чтобы полоса совпадала с сеткой');
+
+  // Правила и легенда объясняют новое: брешь как общее правило и манёвр за энергию.
+  const rules = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'BattleRules', {})).join(' ');
+  assert.match(rules, /Брешь в обороне/u, 'правило прорыва объяснено');
+  assert.match(rules, /проходит вождю/u);
+  assert.match(rules, /Перестроение/u, 'манёвр объяснён');
+  assert.match(rules, /за 1 энергию/u);
+  assert.match(rules, /не истощает/u);
+  assert.match(rules, /Постройки не двигаются/u);
+});
+
 test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {
   const storage = makeStorage();
   const app = makeApp(storage);
