@@ -29,12 +29,13 @@ function loadCards(fetchImpl) {
         return {
           M: {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
+            HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
+            ORIGINS: Campaign.ORIGINS,
+            SEED_CHOICES: Campaign.SEED_CHOICES,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
-            DECREES: Campaign.DECREES,
-            cleanEffects: Campaign.cleanEffects,
-            EFFECTS: Campaign.EFFECTS,
-            CATEGORIES: Campaign.CATEGORIES,
+            combatPerks: Campaign.combatPerks,
+            describePerks: Campaign.describePerks,
           },
         };
       }

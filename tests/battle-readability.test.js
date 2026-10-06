@@ -47,7 +47,7 @@ test('enemy militia deck is renamed, same size and card schema as friendly milit
 
 test('battle log addresses the player in second person and reports initiative', () => {
     const deck = militia.slice(0, 4);
-    const b = battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' }, 0);
+    const b = battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' });
     const lines = () => b.log.map(entry => String(entry.text));
     assert.ok(lines()[0].includes('Вы ходите первым'), 'initiative is announced');
     assert.ok(!lines().some(line => line.includes('Вы тянет ') || line.includes('Вы выводит')), 'no third-person verbs after «Вы»');
@@ -59,7 +59,7 @@ test('battle log addresses the player in second person and reports initiative', 
 
 test('fatigue waits until turn six instead of killing micro-decks at turn four', () => {
     const deck = militia.slice(0, 4);
-    const b = battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' }, 0);
+    const b = battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' });
     const hp = () => [b.me.hp, b.enemy.hp].join('|');
     for (let round = 0; round < 4 && !b.over; round++) { battle.beginEnemyTurn(b); battle.beginPlayerTurn(b); }
     assert.equal(hp(), '5|5', 'no fatigue damage through turn five');

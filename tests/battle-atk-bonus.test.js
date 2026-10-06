@@ -46,7 +46,7 @@ test('a military-doctrine atkBonus raises the attack of every friendly unit but 
   const b = api.createBattle(
     myCards, { hp: 20, energyMax: 10, energyGrowth: 1, atkBonus: 2 },
     enemyCards, { hp: 20, energyMax: 10, energyGrowth: 1 },
-    { kind: 'practice', opponentId: 'test', name: 'Test enemy', clan: 'Test', era: 0, leaderBattle: false },
+    { kind: 'practice', opponentId: 'test', name: 'Test enemy', clan: 'Test', era: 0, threatEra: 2, leaderBattle: false },
     0,
   );
   assert.equal(b.me.atkBonus, 2);
@@ -69,7 +69,7 @@ test('createBattle defaults atkBonus to 0 when the config omits it (backward com
   const b = api.createBattle(
     [card('Plain')], { hp: 20, energyMax: 10, energyGrowth: 1 },
     [card('Plain Enemy')], { hp: 20, energyMax: 10, energyGrowth: 1 },
-    { kind: 'practice', opponentId: 'test', name: 'Test enemy', clan: 'Test', era: 0, leaderBattle: false },
+    { kind: 'practice', opponentId: 'test', name: 'Test enemy', clan: 'Test', era: 0, threatEra: 2, leaderBattle: false },
     0,
   );
   assert.equal(b.me.atkBonus, 0);

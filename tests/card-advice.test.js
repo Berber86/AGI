@@ -23,9 +23,13 @@ function loadCards(fetchImpl) {
         return {
           M: {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
+            HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
+            ORIGINS: Campaign.ORIGINS,
+            SEED_CHOICES: Campaign.SEED_CHOICES,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
-            DECREES: Campaign.DECREES,
+            combatPerks: Campaign.combatPerks,
+            describePerks: Campaign.describePerks,
           },
         };
       }
@@ -47,8 +51,9 @@ function modelReply(payload) {
 }
 
 function readyState() {
-  return Campaign.beginOnboardingState(Campaign.createState(3102026), {
-    name: 'Люди Дельты', originId: 'river', seedId: 'forge',
+  // Онбординг прототипа: три выбора дают боевые бонусы, а замысел попадает в промпт кузнеца.
+  return Campaign.foundCampaignState(Campaign.createState(), {
+    originId: 'river', seedId: 'forge', historicalCultureId: 'natufian',
   }).state;
 }
 
@@ -129,10 +134,14 @@ test('кузнец превращает исторический замысел 
   assert.match(user, /не превращай ремесло, урожай, быт или дальний путь/iu);
 });
 
-test('экран кузницы объясняет боевое назначение и не читает старые замыслы из прежнего кэша', () => {
+test('экран кузницы держит замыслы в своём кэше и сбрасывает их со сменой эпохи', () => {
   const forge = fs.readFileSync(path.join(root, 'src', 'pages', 'Forge.tsx'), 'utf8');
-  assert.match(forge, /iforge_advice_v3/);
-  assert.doesNotMatch(forge, /iforge_advice_v2/);
+  assert.match(forge, /const ADV_KEY = "iforge_advice_combat";/);
+  assert.doesNotMatch(forge, /iforge_advice_v3|iforge_advice_v2/, 'старые кэши замыслов больше не читаются');
+  // кэш привязан к эпохе: чужая эпоха или обрезанный список не подхватываются
+  assert.match(forge, /raw\.era === era && Array\.isArray\(raw\.advice\) && raw\.advice\.length === 3/);
+  assert.match(forge, /localStorage\.setItem\(ADV_KEY, JSON\.stringify\(\{ era: p\.era, advice \}\)\)/);
+  assert.match(forge, /if \(era !== p\.era\) \{ setEra\(p\.era\); setAdvice\(\[\]\); setPick\(null\); setMaterial\("standard"\); \}/);
   assert.match(forge, /Все идеи — для одного сражения/iu);
   assert.match(forge, /Что поможет победить в одном бою/iu);
 });

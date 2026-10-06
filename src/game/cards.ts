@@ -68,13 +68,13 @@ export const RARITY_INFO: Record<Rarity, { label: string; color: string; ring: s
 export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   armor: { name: "Броня", desc: "Снижает входящий урон на N (не меньше 1)." },
   pierce: { name: "Пробитие", desc: "Игнорирует N брони цели." },
-  ranged: { name: "Дальний бой", desc: "Бьёт из тыла по авангарду и не получает ответный удар." },
-  reach: { name: "Длинное оружие", desc: "Из тыла достаёт врага напротив." },
+  ranged: { name: "Дальний бой", desc: "Бьёт через все ряды врага по самому опасному отряду на поле (провокация перехватывает выстрел) и не получает ответный удар." },
+  reach: { name: "Длинное оружие", desc: "Из глубины стола достаёт врага напротив в авангарде." },
   charge: { name: "Натиск", desc: "+2 к первой атаке после высадки." },
   shieldwall: { name: "Стена щитов", desc: "+1 брони; при соседях урон ниже ещё на 1." },
   wedge: { name: "Клин", desc: "+1 к атаке за каждого соседа (до +2)." },
   phalanx: { name: "Фаланга", desc: "+1 к атаке и +1 брони." },
-  skirmish: { name: "Засадный", desc: "После своей атаки уходит в тыл и дальше бьёт как дальний бой — по любой цели. Если его атакуют в ближнем бою, уклоняется в тыл до обмена ударами." },
+  skirmish: { name: "Засадный", desc: "После своей атаки отходит в последний ряд и дальше бьёт как дальний бой — по любой цели. Если его атакуют в ближнем бою, уклоняется вглубь стола до обмена ударами." },
   taunt: { name: "Провокация", desc: "Враг обязан атаковать этот отряд первым." },
   poison: { name: "Яд", desc: "Отравляет цель при атаке: N урона в начале её хода." },
   burn: { name: "Поджог", desc: "Поджигает цель при атаке; огонь может перекинуться." },
@@ -82,7 +82,7 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   rally: { name: "Поддержка", desc: "Соседи получают +1 к атаке." },
   fear: { name: "Устрашение", desc: "Шанс обратить цель в бегство при ударе." },
   morale: { name: "Мораль", desc: "Ниже 30% здоровья может бежать с поля." },
-  siege: { name: "Осада", desc: "Двойной урон по постройкам." },
+  siege: { name: "Осада", desc: "Двойной урон по постройкам; когда ряды перед ней пусты, достаёт постройки врага в последнем ряду." },
   sturdy: { name: "Стойкий", desc: "Первый удар за ход наносит на 1 меньше урона." },
   holdground: { name: "Удержание", desc: "В первый ход не боится страха и натиска." },
   upkeep: { name: "Содержание", desc: "Без соседей в ряду теряет 1 HP за ход." },
@@ -196,37 +196,9 @@ export function buildMilitia(): Card[] {
   ];
 }
 
-/* ---------- Ополчение: пул по эпохе и выбор игрока ---------- */
-
-/**
- * Пул ополчения, которое бесплатно добивает пустые слоты колоды игрока.
- * Намеренно ограничен двумя самыми простыми бойцами — копейщиком и пращником:
- * остальные бойцы племени (топорники, конные разведчики, дружина, постройки и т.д.)
- * больше не выдаются даром, а становятся доступны только когда игрок выковывает
- * собственные карты в кузнице.
- */
-export function militiaPool(_era = 0): Card[] {
-  return buildMilitia().slice(0, 2);
-}
-
-export function militiaById(id: string, era = 0): Card | null {
-  return militiaPool(era).find((c) => c.id === id) ?? null;
-}
-
 /** Учебный бой: враг приходит без построек, чтобы новичка не били бесплатно из тыла. */
 export function withoutStructures(pool: Card[]): Card[] {
   return pool.filter((c) => c.card_type !== "structure");
-}
-
-/**
- * Порядок ополчения: сначала выбранные игроком карты (в его порядке), затем остальные из пула —
- * если колода выросла или выбор не сделан, пустые слоты всё равно добьются ополченцами.
- */
-export function militiaFill(picks: string[] = [], era = 0): Card[] {
-  const pool = militiaPool(era);
-  const chosen = picks.map((id) => pool.find((c) => c.id === id)).filter(Boolean) as Card[];
-  const rest = pool.filter((c) => !chosen.some((x) => x.id === c.id));
-  return [...chosen, ...rest];
 }
 
 /* ---------- Карты игрока: стартовые + коллекция ---------- */
@@ -331,10 +303,14 @@ export function validateEffects(raw: any): any[] {
 // стоимости розыгрыша/действия и редкости заказа; излишек урезается пропорционально, а не просто принимается
 // (баланс-ревизия).
 const RARITY_BUDGET_MULT: Record<string, number> = { ordinary: 1, uncommon: 1.3, rare: 1.7 };
-function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string): number {
+/**
+ * pawWeight — надбавка за плату: каждый пункт веса лапы обезьяны даёт карте +1 к бюджету силы.
+ * Без этого карта с платой была бы строго хуже чистой, а жребий — чистым наказанием.
+ */
+function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string, pawWeight = 0): number {
   const mult = RARITY_BUDGET_MULT[rarity] || 1;
   const base = cardType === "structure" ? 2 * dropCost + 1 : 2 * dropCost + actionCost + 1;
-  return Math.max(2, Math.round(base * mult));
+  return Math.max(2, Math.round(base * mult)) + Math.max(0, Math.floor(pawWeight));
 }
 
 /**
@@ -354,7 +330,113 @@ export function sanitizeHistory(raw: any, era = "", culture = ""): CardHistory |
   };
 }
 
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary"): Card {
+/* ---------- лапа обезьяны ----------
+ * Механика из самой первой версии игры: выкованная карта может прийти с платой. Жребий бросает
+ * модель кампании (campaign.js → rollPawTier: треть чистых, треть с небольшой платой, треть с
+ * жёсткой) и до раскрытия карты он игроку не показывается. Плату пишет модель, а игра проверяет,
+ * что она выражена настоящей механикой: текстовый «штраф» без эффекта движок не исполнит.
+ */
+export type PawTier = "none" | "minor" | "harsh";
+
+export const PAW_LABELS: Record<PawTier, string> = {
+  none: "Чистая карта",
+  minor: "Небольшая плата",
+  harsh: "Жёсткая плата",
+};
+
+/** Небольшая плата — вес 1…3, жёсткая — от 4. */
+export const PAW_MINOR_MAX = 3;
+
+const isOwnSide = (side: string) => side === "friendly" || side === "controller";
+const isFoeSide = (side: string) => side === "enemy" || side === "opponent";
+
+/**
+ * Настоящие минусы карты: эффекты против своей стороны и своего вождя, усиление врага,
+ * а также ключевые слова-обременения. Возвращает и человекочитаемое описание, и вес.
+ */
+export function pawMarkers(c: Pick<Card, "keywords" | "effects">, paw: PawTier = "none"): { text: string; weight: number }[] {
+  const out: { text: string; weight: number }[] = [];
+  for (const raw of c.keywords || []) {
+    const key = String(raw).split(":")[0];
+    // upkeep — чистое обременение, он считается всегда. morale на обычных картах — часть
+    // словаря («Дружина вождя» несёт её вместе со стеной щитов), поэтому в плату она идёт,
+    // только если плата заказана.
+    if (key === "upkeep") out.push({ text: "содержание: без соседей теряет 1 HP за ход", weight: 2 });
+    else if (key === "morale" && paw !== "none") out.push({ text: "мораль: при ранах может бежать с поля", weight: 2 });
+  }
+  for (const e of c.effects || []) {
+    const t = e?.target, a = e?.action;
+    if (!t || !a) continue;
+    const own = isOwnSide(t.side), foe = isFoeSide(t.side);
+    const amount = Math.abs(Number(a.amount) || 0);
+    const who = own ? "своим" : "врагу";
+    if (own && a.type === "damage") out.push({ text: `${amount} урона ${who}`, weight: amount });
+    else if (own && a.type === "apply_status") out.push({ text: `${a.status === "burn" ? "огонь" : "яд"} на ${who} (${a.turns || 2} хода)`, weight: amount + Math.max(0, (a.turns || 2) - 1) });
+    else if (own && a.type === "destroy") out.push({ text: "уничтожает собственный отряд", weight: 4 });
+    else if (own && a.type === "modify_stat" && Number(a.amount) < 0) out.push({ text: `${a.amount} к «${a.stat}» ${who}`, weight: amount + (a.turns ? 0 : 1) });
+    else if (own && a.type === "modify_cost" && Number(a.amount) > 0) out.push({ text: `+${amount} к цене атаки ${who}`, weight: amount });
+    else if (own && a.type === "modify_resource" && Number(a.amount) < 0) out.push({ text: `${a.amount} энергии у вождя`, weight: amount });
+    else if (own && (a.type === "discard" || a.type === "exchange")) out.push({ text: `${a.type === "discard" ? "сброс" : "обмен"} ${amount} карт из руки`, weight: 2 * amount });
+    else if (foe && a.type === "heal") out.push({ text: `лечит врага на ${amount}`, weight: amount });
+    else if (foe && a.type === "modify_stat" && Number(a.amount) > 0) out.push({ text: `+${amount} к «${a.stat}» врага`, weight: amount });
+    else if (foe && a.type === "modify_resource" && Number(a.amount) > 0) out.push({ text: `+${amount} энергии врагу`, weight: amount });
+    else if (foe && a.type === "draw") out.push({ text: `враг добирает ${amount} карт`, weight: amount });
+  }
+  return out;
+}
+
+/** Суммарный вес платы: им измеряют и силу платы, и надбавку к бюджету карты. */
+export const pawSeverity = (c: Pick<Card, "keywords" | "effects">, paw: PawTier = "none"): number =>
+  pawMarkers(c, paw).reduce((sum, m) => sum + m.weight, 0);
+
+/** Таблица весов для промпта: модель обязана попасть в заказанный диапазон, а не угадать его. */
+const PAW_WEIGHT_TABLE = `Вес платы движок считает по карте сам:
+- damage по своим (side friendly|controller) — вес = amount;
+- apply_status poison|burn по своим — вес = amount + (turns − 1);
+- destroy своего отряда — вес 4;
+- modify_stat с отрицательным amount по своим — вес = |amount|, и ещё +1 если без turns (навсегда);
+- modify_cost с положительным amount по своим — вес = amount;
+- modify_resource energy с отрицательным amount по своим — вес = |amount|;
+- discard или exchange своих карт — вес = 2 × amount;
+- heal, modify_stat с плюсом, modify_resource с плюсом и draw по врагу (side enemy|opponent) — вес = amount;
+- ключевое слово upkeep — вес 2; ключевое слово morale — вес 2.`;
+
+function pawDirective(paw: PawTier): string {
+  if (paw === "none") {
+    return `ЛАПА ОБЕЗЬЯНЫ — НА ЭТОТ РАЗ ЧИСТО. Кузнец не берёт платы: monkey_paw = "", никаких эффектов против своей стороны и своего вождя, никакого лечения и усиления врага, ключевых слов upkeep и morale нет. Суммарный вес платы обязан быть 0.`;
+  }
+  const band = paw === "minor"
+    ? `НЕБОЛЬШАЯ ПЛАТА: суммарный вес от 1 до ${PAW_MINOR_MAX} — один скромный минус.`
+    : `ЖЁСТКАЯ ПЛАТА: суммарный вес от ${PAW_MINOR_MAX + 1} и выше — карта сильная, но рискованная; плата заметно дороже мелкой.`;
+  const examples = paw === "minor"
+    ? `Готовые примеры небольшой платы:
+- вес 1: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-1}} — вождь платит энергией за выход отряда;
+- вес 2: ключевое слово upkeep — без соседей отряд теряет 1 HP за ход;
+- вес 2: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"adjacent"},"action":{"type":"damage","amount":2}} — отряд толкает своих же;
+- вес 3: {"event":"turn_start","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"modify_stat","stat":"attack","amount":-1}} — постоянное ухудшение своей атаки.`
+    : `Готовые примеры жёсткой платы:
+- вес 4: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"discard","amount":2,"choice":"highest_cost"}} — вождь сбрасывает две лучшие карты;
+- вес 4: {"event":"death","target":{"side":"friendly","entity":"unit","select":"all"},"action":{"type":"damage","amount":2}} — гибель отряда бьёт по своим;
+- вес 4: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"apply_status","status":"burn","amount":2,"turns":3}} — отряд поджигает сам себя;
+- вес 6: {"event":"turn_start","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-2}} вместе с ключевым словом upkeep.`;
+  return `ЛАПА ОБЕЗЬЯНЫ ОБЯЗАТЕЛЬНА. ${band}
+Плату придумываешь ты, но выражена она должна быть НАСТОЯЩЕЙ МЕХАНИКОЙ из разрешённого словаря: эффектами в effects[] против своей стороны/своего вождя (урон, яд, огонь, ухудшение характеристики, удорожание атаки, потеря энергии, сброс карт, уничтожение своего отряда) либо усилением врага, и/или ключевыми словами upkeep, morale. Текст в monkey_paw (до 200 знаков) называет плату по-человечески и точно совпадает с механикой — никаких штрафов, которых нет в effects[] и keywords[].
+${PAW_WEIGHT_TABLE}
+${examples}
+Перед ответом сложи веса своих минусов и попади в полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1} и выше`}: если выходит тяжелее — убери часть эффектов, легче — добавь.
+Плату платит владелец карты: цель таких эффектов — side friendly или controller (для вражеской выгоды — enemy/opponent). Плата не должна делать карту бесполезной: она мешает, но не отменяет боевую роль.
+ОПИСАНИЕ И СПРАВКА ОБЪЯСНЯЮТ ПЛАТУ: description показывает, чем отряд расплачивается в бою, а history.text — откуда эта цена взялась у народа (обычай, долг обряда, скверное оружие, голод, клятва, болезнь, плата жрецам). Карта, у которой плата не обоснована текстом, не принимается.`;
+}
+
+/** Ошибка браковки платы: движок помечает её, чтобы UI не показывал игроку сам жребий. */
+const pawError = (message: string) => Object.assign(new Error(message), { pawRejected: true });
+
+/**
+ * opts.relaxBand — последняя попытка ковки: плата обязана быть настоящей (вес ≥ 1, текст и справка
+ * на месте), но её величину движок уже не бракует. Лучше карта с платой не той силы, чем отменённая
+ * ковка: жребий задаёт ЗАКАЗ модели, а не повод вернуть игроку славу.
+ */
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none", opts: { relaxBand?: boolean } = {}): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
@@ -372,16 +454,6 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
-  if (c.card_type !== "spell") {
-    const keywordWeight = c.keywords.length;
-    const power = c.atk + c.hp + keywordWeight;
-    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity);
-    if (power > budget) {
-      const scale = budget / power;
-      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
-      c.hp = Math.max(1, Math.round(c.hp * scale));
-    }
-  }
   c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
@@ -391,8 +463,38 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   c.tags = Array.isArray(c.tags) ? c.tags.slice(0, 3).map((t: any) => String(t).slice(0, 40)) : [];
   c.abilities = [];
   c.emoji = typeof c.emoji === "string" && c.emoji.trim() ? c.emoji.slice(0, 8) : "⚒️";
-  c.monkey_paw = typeof c.monkey_paw === "string" ? c.monkey_paw.slice(0, 200) : "";
+  c.monkey_paw = typeof c.monkey_paw === "string" ? c.monkey_paw.trim().slice(0, 200) : "";
   c.history = sanitizeHistory(c.history);
+
+  // Лапа обезьяны: жребий, выпавший при заказе, обязателен к исполнению, а размер платы измеряется
+  // настоящей механикой карты — текстовый штраф без эффекта движок исполнить не сможет.
+  const markers = pawMarkers(c as Card, paw);
+  const severity = markers.reduce((sum, m) => sum + m.weight, 0);
+  const markerText = markers.map((m) => `${m.text} (вес ${m.weight})`).join("; ");
+  if (paw === "none") {
+    if (severity > 0) throw pawError(`Заказана чистая карта, но кузнец добавил плату: ${markerText}.`);
+    if (c.monkey_paw) throw pawError("У чистой карты не должно быть текста платы (monkey_paw).");
+  } else {
+    if (severity < 1) throw pawError(`Лапа обезьяны (${PAW_LABELS[paw]}) требует настоящую плату: эффект против своей стороны или ключевого слова, а не только текст.`);
+    if (!opts.relaxBand) {
+      if (paw === "minor" && severity > PAW_MINOR_MAX) throw pawError(`Небольшая плата — это вес 1…${PAW_MINOR_MAX}, а кузнец дал ${severity}: ${markerText}.`);
+      if (paw === "harsh" && severity <= PAW_MINOR_MAX) throw pawError(`Жёсткая плата — это вес от ${PAW_MINOR_MAX + 1}, а кузнец дал ${severity}: ${markerText}.`);
+    }
+    if (c.monkey_paw.length < 20) throw pawError("Текст платы (monkey_paw) слишком короткий: назовите её по-человечески и точно как в механике.");
+    if (!c.history || (c.history.text || "").length < 40) throw pawError("Справка карты обязана объяснять, откуда народ платит эту цену (history.text).");
+  }
+
+  if (c.card_type !== "spell") {
+    const keywordWeight = c.keywords.length;
+    const power = c.atk + c.hp + keywordWeight;
+    // Плата оплачивает силу: каждый пункт веса лапы даёт карте +1 к бюджету.
+    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity, severity);
+    if (power > budget) {
+      const scale = budget / power;
+      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
+      c.hp = Math.max(1, Math.round(c.hp * scale));
+    }
+  }
   c.id = c.id || "card-" + uid();
   return c as Card;
 }
@@ -429,162 +531,9 @@ export async function probeApiKey(model: string): Promise<void> {
   if (data?.error) throw new Error(data.error.message || "ИИ недоступен.");
 }
 
-/** Приводит проект совета к схеме кампании; null — если проект невалиден. */
-export function sanitizeScienceProject(raw: any, fallbackCategory = "civic"): any | null {
-  if (!raw || typeof raw !== "object") return null;
-  const scienceName = String(raw.scienceName || "").trim().slice(0, 80);
-  const buildingName = String(raw.buildingName || "").trim().slice(0, 80);
-  const scienceDescription = String(raw.scienceDescription || "").trim().slice(0, 400);
-  const buildingDescription = String(raw.buildingDescription || "").trim().slice(0, 400);
-  if (!scienceName || !buildingName || !scienceDescription || !buildingDescription) return null;
-  const effects = M.cleanEffects(raw.effects);
-  if (!effects) return null;
-  return {
-    scienceName,
-    scienceDescription,
-    buildingName,
-    buildingDescription,
-    category: M.CATEGORIES.includes(raw.category) ? raw.category : fallbackCategory,
-    effects,
-  };
-}
-
-const PROJECT_SHAPE = `{"scienceName":"","scienceDescription":"1–2 предложения","buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"<из списка>","amount":1}]}`;
-
-/**
- * Эффекты, которые советник вправе обещать прямо сейчас. Воинская доктрина (`unit_power`)
- * не строится, пока народ не освоил ключевой ресурс эпохи (campaign.js → constructBlueprint),
- * поэтому до тех пор она исключена из списка: советник не должен предлагать здание, которое
- * игрок физически не сможет возвести.
- */
-const ERA_LOCKED_EFFECTS = ["unit_power"];
-
-export function scienceEffectTypes(state: any): { allowed: string[]; locked: string[] } {
-  const all = (M.GENERATIVE_EFFECTS || []) as string[]; // мёртвые эффекты (hidden) генератору не предлагаем
-  const unlocked = M.hasEraKeyResource ? Boolean(M.hasEraKeyResource(state)) : true;
-  const locked = unlocked ? [] : all.filter((type) => ERA_LOCKED_EFFECTS.includes(type));
-  return { allowed: all.filter((type) => !locked.includes(type)), locked };
-}
-
-/** Подпись набора свойств: по ней видно, что два «разных» здания на самом деле одинаковы. */
-function effectSignature(effects: any[]): string {
-  return (effects || []).map((effect: any) => `${effect.type}:${effect.amount}`).sort().join("|");
-}
-
-/**
- * Научный советник: ОДИН вызов — три разные науки, у каждой своё здание и свои свойства.
- * Раньше здесь было два шага (превью направлений, затем советник-строитель), и второй шаг
- * возвращал три здания с одинаковыми свойствами: содержательную работу делал первый вызов,
- * а второй лишь переименовывал его результат. Теперь шаг один, а различие вариантов
- * проверяется по наборам эффектов, а не только по названиям.
- */
-export async function llmScienceOffers(model: string, state: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const { allowed, locked } = scienceEffectTypes(state);
-  const known = (state.player.blueprints || []).map((b: any) => b.scienceName).join(", ") || "нет";
-  const lockNote = locked.length
-    ? ` Не используй ${locked.join(", ")}: воинская доктрина откроется, только когда народ освоит ${M.ERA_KEY_RESOURCE?.[state.player.era]?.label || "ключевой ресурс эпохи"} — военную тему раскрой другими эффектами.`
-    : "";
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1800,
-    system: `Ты научный советник исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Придумай РОВНО 3 РАЗНЫЕ науки для этого народа. Каждая наука — самостоятельное открытие со своим зданием и СВОИМИ свойствами: это три разных пути развития, а не три названия одного и того же.
-Требования к каждому из трёх вариантов:
-— своя тема: земледелие, производство и ремесло, война и защита, вера и обряд, знание и счёт, устройство общества или их сочетание; темы не должны повторяться;
-— своё здание: другое по устройству, материалу и назначению, а не другая вывеска на том же амбаре;
-— свой набор свойств (effects): наборы у трёх вариантов ОБЯЗАНЫ различаться — именно они отличают одно здание от другого в игре, поэтому три одинаковых набора делают выбор бессмысленным;
-— опора на конкретную географию, биом, доступные материалы и историческое наследие народа из контекста: это читается в названии и устройстве здания, а не только в описании.
-Без повторов названий и общих шаблонов. Каждую науку посильно изучить и построить за обычные ресурсы текущего дня.${lockNote}
-Пока игрок не выбрал вариант, ничего не добавляй в поселение: выбранная наука попадёт в кодекс, а здание появится только по отдельному приказу после исследования.
-Ответ — строго JSON: {"projects":[${PROJECT_SHAPE}, ${PROJECT_SHAPE}, ${PROJECT_SHAPE}]}. Допустимые type эффектов: ${allowed.join(", ")}. Не более 2 эффектов на науку, amount 1. Язык — русский, без магии.`,
-    user: `Народ: ${state.player.name} (${state.player.clan}). Контекст — опирайся на него в каждом варианте: ${sit.summary}
-Уже известные науки: ${known}. Предложи три разные науки с тремя разными зданиями и тремя разными наборами свойств.`,
-  });
-  const list = Array.isArray(data?.projects) ? data.projects : data?.scienceName ? [data] : [];
-  const allowedTypes = new Set(allowed);
-  const cleaned: any[] = [];
-  const scienceNames = new Set<string>();
-  const buildingNames = new Set<string>();
-  const signatures = new Set<string>();
-  for (const raw of list) {
-    const project = sanitizeScienceProject(raw);
-    if (!project || project.effects.some((effect: any) => !allowedTypes.has(effect.type))) continue;
-    const scienceKey = project.scienceName.toLowerCase().replace(/\s+/g, " ").trim();
-    const buildingKey = project.buildingName.toLowerCase().replace(/\s+/g, " ").trim();
-    const signature = effectSignature(project.effects);
-    // Вариант с уже занятым названием или с тем же набором свойств — не вариант, а повтор.
-    if (scienceNames.has(scienceKey) || buildingNames.has(buildingKey) || signatures.has(signature)) continue;
-    scienceNames.add(scienceKey);
-    buildingNames.add(buildingKey);
-    signatures.add(signature);
-    cleaned.push(project);
-    if (cleaned.length === 3) break;
-  }
-  if (cleaned.length !== 3) throw new Error("Советник должен предложить три разные науки с разными зданиями и разными свойствами.");
-  return cleaned;
-}
-
-/** Имя и описание постройки в новой земле: уникальные для этого народа, а не из списка. */
-const REGION_BUILDING_OFFER_SHAPE = `{"buildingName":"","buildingDescription":"1–2 предложения","category":"military|economy|science|civic|religion","effects":[{"type":"income_food|income_materials|income_knowledge|income_faith","amount":1}],"rationale":"почему постройка подходит этой земле"}`;
-
-/** Три новых, пригодных для эпохи и конкретного участка варианта региональной постройки. */
-export async function llmRegionBuildingOffers(model: string, state: any, tile: any): Promise<any[]> {
-  const sit = M.scienceAdvisorSituation(state);
-  const site = tile ? M.REGION_BUILDINGS?.[tile.siteType] : null;
-  if (!tile || !site) throw new Error("Для этой клетки нет регионального места под постройку.");
-  const ownedRegionIds = new Set((state.regions || []).filter((region: any) => region.ownerId === "player").map((region: any) => region.id));
-  const neighbors = (tile.neighbors || []).map((id: string) => {
-    const neighbor = (state.world?.tiles || []).find((candidate: any) => candidate.id === id);
-    return neighbor && ownedRegionIds.has(id) ? `${neighbor.name} (${neighbor.terrainLabel || neighbor.terrain})` : null;
-  }).filter(Boolean);
-  const existingRegionalBuildings = (state.regions || []).filter((region: any) => region.ownerId === "player" && region.building)
-    .map((region: any) => region.customBuilding?.name || M.REGION_BUILDINGS?.[(state.world?.tiles || []).find((candidate: any) => candidate.id === region.id)?.siteType]?.name)
-    .filter(Boolean);
-  const effects = (M.REGION_GENERATIVE_EFFECTS || []).join(", ");
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 1800,
-    system: `Ты советник-строитель исторической стратегии "Infinite Forge". Сеттинг должен соответствовать выбранной эпохе и оставаться материальным и правдоподобным: никаких магии и фэнтези.
-Народ только что получил новую клетку и выбирает, какое ОДНО региональное здание здесь возвести. Придумай ровно 3 РАЗНЫХ варианта именно для этой клетки; выбранный вариант полностью заменит обычную региональную постройку этого места. Не повторяй стандартный каталог: придумай местные названия, устройство и назначение.
-Каждый вариант обязан явно учитывать тип местности, биом, природный ресурс, географию, культуру и текущую эпоху из контекста. Три варианта должны отличаться по назначению и пользе, но все быть возможными из материалов этой клетки и текущей эпохи. Учитывай цену стандартного здания этого места при выборе силы эффектов.
-Эффекты придумывай сам, но используй только рабочие типы из списка: ${effects}. Они означают ежедневный прямой доход региона (не бонус к рабочим). На вариант — 1 или 2 разных эффекта; amount — целое число 1 или 2, а сумма amount не выше 2. Не используй эффекты боя, AP, склада и другие типы. Не выдумывай новые механики.
-Верни строго JSON: {"buildings":[${REGION_BUILDING_OFFER_SHAPE}, ${REGION_BUILDING_OFFER_SHAPE}, ${REGION_BUILDING_OFFER_SHAPE}]}. Язык — русский.`,
-    user: `Народ: ${state.player.name} (${state.player.clan}). Ситуация, география и культурное наследие народа: ${sit.summary}
-Новая клетка: «${tile.name}», координаты ${Number(tile.x) + 1}:${Number(tile.y) + 1}. Местность: ${tile.terrainLabel || tile.terrain}; биом: ${tile.terrain}; особенность: ${tile.feature || "нет"}; ресурс: ${tile.resourceLabel || "не отмечен"}. Описание: ${tile.description || "нет"}.
-Соседние освоенные земли: ${neighbors.join("; ") || "не указаны"}. Эпоха народа сейчас: ${M.eraName(state.player.era)}. Эта местность доступна с эпохи: ${M.eraName(tile.minEra || 0)}. Тип местного участка: ${tile.siteType}; стандартное региональное здание и цена-ориентир: ${site.name}, ${JSON.stringify(site.cost)}.
-Уже построенные региональные здания народа: ${existingRegionalBuildings.join(", ") || "нет"}. Избегай повторов и придумай три самостоятельных варианта для «${tile.name}».`,
-  });
-  const list = Array.isArray(data?.buildings) ? data.buildings : Array.isArray(data?.offers) ? data.offers : [];
-  const cleaned: any[] = [];
-  const names = new Set<string>();
-  const effectSets = new Set<string>();
-  for (const raw of list) {
-    const offer = M.sanitizeRegionBuildingOffer(raw);
-    if (!offer) continue;
-    const nameKey = offer.name.toLowerCase().replace(/\s+/g, " ").trim();
-    const effectKey = offer.effects.map((effect: any) => `${effect.type}:${effect.amount}`).sort().join("|");
-    if (names.has(nameKey) || effectSets.has(effectKey)) continue;
-    names.add(nameKey);
-    effectSets.add(effectKey);
-    cleaned.push(offer);
-    if (cleaned.length === 3) break;
-  }
-  if (cleaned.length !== 3) throw new Error("Советник должен предложить три разных региональных чертежа с рабочими эффектами.");
-  return cleaned;
-}
-
-export async function llmRegionBuildingName(model: string, state: any, tile: any, building: any): Promise<{ name: string; description: string } | null> {
-  const p = state.player;
-  const data = await hydraChat({
-    model, temperature: 1, maxTokens: 300,
-    system: `Ты — летописец исторической стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Народ обустроил новую землю и возводит там постройку. Придумай ИМЕННО ЭТОЙ общине своё имя постройки и короткое описание — не шаблонное, связанное с местом и затравкой народа.
-Ответ — строго JSON: {"name":"до 40 знаков","description":"одно предложение до 160 знаков"}. Язык — русский.`,
-    user: `Народ: ${p.name} (${p.clan}). Затравка: «${p.seedLine || "не задана"}». Земля: ${tile.name} — ${tile.description}. Постройка по назначению: ${building.name} — ${building.description}. Эпоха: ${M.eraName(p.era)}. Земли народа: ${(state.regions || []).filter((r: any) => r.ownerId === "player").map((r: any) => (state.world?.tiles || []).find((t: any) => t.id === r.id)?.name).filter(Boolean).join(", ") || "поселение"}.`,
-  });
-  const name = String(data?.name || "").trim().slice(0, 60);
-  if (!name) return null;
-  return { name, description: String(data?.description || "").trim().slice(0, 180) };
-}
+/* Научный советник (три науки → чертёж → здание), советник-строитель и региональные постройки
+   удалены вместе с экономикой, стройкой и картой: прототип сосредоточен на боевой системе
+   (docs/COMBAT_PROTOTYPE_CUT.md). ИИ здесь отвечает только за кузницу — боевые замыслы и карты. */
 
 async function hydraChat(opts: { model: string; system: string; user: string; temperature: number; maxTokens: number }) {
   const resp = await fetch(HYDRA_PROXY_URL, {
@@ -622,16 +571,18 @@ export function eraContextOf(state: any): { label: string; desc: string; culture
 export function contextOf(state: any): string {
   const p = state.player;
   const era = eraContextOf(state);
+  const origin = (M.ORIGINS as any[]).find((o) => o.id === p.originId) || null;
+  const seed = (M.SEED_CHOICES as any[]).find((s) => s.id === p.seedChoiceId) || null;
+  const perks = M.describePerks(M.combatPerks(state)) as string[];
   return [
-    p.seedLine && `Затравка народа: «${p.seedLine}»`,
-    p.biome && `Биом: ${p.biome.name} — ${p.biome.desc}`,
-    p.geography && `География: ${p.geography.name}`,
-    p.trait && `Черта: ${p.trait.name} — ${p.trait.desc}`,
+    `Народ: ${p.name} (${p.clan})`,
+    origin && `Земля: ${origin.name} — ${origin.place}.${origin.historical ? " " + origin.historical : ""}`,
+    seed && `Замысел народа: «${seed.line || seed.name}»`,
     p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
     `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
     era.cultures && `Культуры эпохи: ${era.cultures}`,
     era.tech && `Технологии эпохи: ${era.tech}`,
-    `Уклады: ${(p.decrees || []).map((d: any) => M.DECREES[d.id]?.label).join(", ") || "нет"}`,
+    perks.length && `Боевой набор народа: ${perks.join(", ")}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -684,6 +635,7 @@ const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической кар�
 Эпохи карт (боевой тег, их ровно две): "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
 Важно: боевой тег — это не дата в календаре кампании. В контексте указана эпоха кампании (например «Ренессанс» или «Эпоха Пара и Стали») вместе с её культурами и технологиями: образы, названия, описания и технологии карты должны соответствовать ИМЕННО этой эпохе (мушкеты и печатный стан для Ренессанса, пар и сталь для 1800-1910), а тег era при этом остаётся в разрешённом наборе ancient/bronze.
 Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
+Выбор цели в бою решает движок, в карте он не задаётся — но описание и образ должны ему соответствовать. Стол растёт по эпохам: от одной линии в три клетки в Каменном веке до пяти рядов по пять в Будущем (авангард, средние ряды, тыл). Ближний бой из авангарда бьёт отряд напротив, затем ближайшего; отряд с taunt перехватывает удар первым. Когда ряд перед атакующим пуст, ближний бой продвигается вглубь ряд за рядом, а siege берётся за постройки в последнем ряду; по вождю удар уходит только при полностью пустом столе. Дальний бой (ranged, skirmish) бьёт через ВСЕ ряды врага по самому опасному отряду на поле и не получает ответного удара, taunt перехватывает и выстрел. reach из глубины достаёт только врага напротив в авангарде. Постройки встают лишь в последний ряд, ближний бой без стрельбы — лишь в авангард, а стрелки и «длинное оружие» — в любой ряд: поэтому zone front означает авангард, zone rear — все ряды за ним. Глубина стола защищает от ближнего боя, но не от стрел: этим объясняются и плотный строй щитов, и засады, и ценность провокации.
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Замысел от военного советника — только исторический образ: преврати его в тактическую карту, полезную в текущем сражении. Описание и эффекты должны показывать боевую роль отряда, немедленный результат манёвра или постоянную роль постройки в тылу. Не делай из карты сельское хозяйство, ремесленное производство, доход поселения или подготовку к будущему походу.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
@@ -699,20 +651,17 @@ condition (необязательное поле эффекта) помимо ta
  text (2–4 предложения, до 480 знаков) — зачем эта вещь или обычай существовали именно в эту эпоху у этого народа: из чего и какими технологиями эпохи её делали, кем были эти люди, чем она была в быту и почему на поле боя карта ведёт себя так, как у неё записано (её числа, ключевые слова, эффекты).
  Только реальная история: ни магии, ни фэнтези, ни вымышленных цивилизаций и пророчеств. Не пересказывай description и не повторяй название карты целиком. Если точного прототипа нет — возьми самое близкое явление этой эпохи, но не выдумывай народы.
 Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
-{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"","history":{"title":"","text":""}}
+{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"текст платы лапы обезьяны, если она заказана, иначе пустая строка","history":{"title":"","text":""}}
 Язык — русский.`;
 
-export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any): Promise<Card> {
+export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any, paw: PawTier = "none"): Promise<Card> {
   const allowed = allowedCardErasOf(state);
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   // Справка пишется под ЭПОХУ КАМПАНИИ и НАСЛЕДИЕ НАРОДА (не под боевой тег ancient/bronze):
   // иначе карты «древнего мира» и «античности» звучали бы одинаково при разных технологиях.
   const era = eraContextOf(state);
   const cultureName = state.player?.historicalCulture?.name || "";
-  const raw = await hydraChat({
-    model, maxTokens: 3000, temperature: rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75,
-    system: CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`,
-    user: `Боевой замысел: «${advice.title}». ${advice.pitch}
+  const brief = `Боевой замысел: «${advice.title}». ${advice.pitch}
 Тип карты: ${advice.cardType}. ${directive}
 Воплоти этот образ в боевую роль в текущем матче: не превращай ремесло, урожай, быт или дальний путь в долгосрочный эффект. Сами описание и effects должны объяснять, что происходит с бойцами, строем, энергией или полем боя.
 
@@ -721,18 +670,45 @@ ${contextOf(state)}
 
 Эпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.
 
-Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`,
-  });
-  const card = validateCard(raw, advice.cardType, allowed, rarity);
-  card.rarity = rarity;
-  card.id = "card-" + uid();
-  // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.
-  if (card.history) card.history = { ...card.history, era: era.label, culture: cultureName };
-  return card;
+Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`;
+  const system = CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`;
+  const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
+
+  // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
+  // Две переделки — чтобы брак модели не стоил игроку похода в кузницу: каждая следующая попытка
+  // получает точный текст ошибки с посчитанными весами. Если и третья не прошла проверку, ковка
+  // падает, а Forge возвращает славу через M.failCraft.
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const retry = lastError
+      ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы по таблице выше и попади в полосу${paw === "minor" ? ` 1…${PAW_MINOR_MAX}` : ` от ${PAW_MINOR_MAX + 1}`}` : ""} и верни ПОЛНЫЙ JSON карты заново.`
+      : "";
+    // Третья попытка принимает плату любой силы: величина — заказ модели, а не повод отменять ковку.
+    const relaxBand = attempt === 2 && paw !== "none";
+    const raw = await hydraChat({
+      model, maxTokens: 3000, temperature, system,
+      user: `${brief}\n\n${pawDirective(paw)}${retry}`,
+    });
+    try {
+      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { relaxBand });
+      card.rarity = rarity;
+      card.id = "card-" + uid();
+      // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.
+      if (card.history) card.history = { ...card.history, era: era.label, culture: cultureName };
+      return card;
+    } catch (e: any) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  throw lastError ?? new Error("Кузнец не смог выковать карту.");
 }
 
-// Ни готовых ветвей SCIENCE_BRANCHES, ни промежуточных «превью направлений» игроку больше не
-// предлагается: один вызов llmScienceOffers(model, state) возвращает три разные науки, у каждой
-// своё здание и свой набор свойств, и игрок выбирает одну из них. Двухшаговый путь (превью →
-// советник-строитель) удалён: второй шаг возвращал три одинаковых по свойствам здания.
-// Ветви и словарь тем остались только как офлайн-пул standalone-страницы (legacy.html).
+/**
+ * Что показывать игроку, когда ковка не удалась. Текст браковки платы пересказывает жребий
+ * («жёсткая плата — это вес от 4»), а жребий до раскрытия карты — сюрприз, поэтому наружу
+ * уходит нейтральная формулировка; технические детали остаются в консоли разработчика.
+ */
+export const CRAFT_REJECTED_TEXT = "Кузнец не совладал с заказом: карта не прошла проверку игры.";
+export function craftErrorMessage(e: any): string {
+  return e?.pawRejected ? CRAFT_REJECTED_TEXT : String(e?.message || "Кузнец не справился.");
+}

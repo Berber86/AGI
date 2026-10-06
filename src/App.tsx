@@ -1,17 +1,15 @@
 import { StoreProvider, useStore } from "@/game/store";
-import { CultureChoiceModal, DayReportModal, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
+import { CultureChoiceModal, MobileNav, SettingsModal, SideNav, Toasts, TopBar } from "@/components/Shell";
 import Onboarding from "@/pages/Onboarding";
-import Home from "@/pages/Home";
-import MapPage from "@/pages/MapPage";
-import Develop from "@/pages/Develop";
+import Camp from "@/pages/Camp";
 import Forge from "@/pages/Forge";
 import Army from "@/pages/Army";
 import Battle from "@/pages/Battle";
 
 function Root() {
   const { game, page, match } = useStore();
-  // Никакого обязательного маршрута: после создания народа игрок остаётся в поселении
-  // и сам выбирает, куда идти — развитие, карта, кузница или армия.
+  // Три экрана: лагерь (соперники и улучшения), армия (колода) и кузница (новые карты).
+  // Обязательного маршрута нет: после основания народа игрок сам выбирает, куда идти.
   const onboarded = game.player.onboardingComplete;
 
   if (!onboarded) {
@@ -23,7 +21,7 @@ function Root() {
     );
   }
   // Бой — отдельный полноэкранный режим: страница под ним не рендерится,
-  // иначе на телефоне под оверлеем остаётся прокручиваемый экран армии.
+  // иначе на телефоне под оверлеем остаётся прокручиваемый экран лагеря.
   if (match) {
     return (
       <>
@@ -37,15 +35,12 @@ function Root() {
       <SideNav />
       <TopBar />
       <main>
-        {page === "home" && <Home />}
-        {page === "map" && <MapPage />}
-        {page === "develop" && <Develop />}
-        {page === "forge" && <Forge />}
+        {page === "camp" && <Camp />}
         {page === "army" && <Army />}
+        {page === "forge" && <Forge />}
       </main>
       <MobileNav />
       <SettingsModal />
-      <DayReportModal />
       <CultureChoiceModal />
       <Toasts />
     </div>

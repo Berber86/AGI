@@ -1,37 +1,22 @@
 import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Wheat, Pickaxe, ScrollText, Flame, X, ChevronDown } from "lucide-react";
+import { Trophy, X, ChevronDown } from "lucide-react";
 import { cn } from "@/utils/cn";
 
-// 🙏 Духовность — четвёртый ресурс: жрецы, святилища и миссии (см. campaign.js ENLIGHTENMENT_WEIGHTS).
-export type ResKey = "food" | "materials" | "knowledge" | "faith";
+/**
+ * Слава — единственная валюта боевого прототипа: добывается победами, уходит на постоянные
+ * улучшения лагеря и на ковку карт. Прежних четырёх ресурсов (провизия, материалы, знания,
+ * духовность) вместе с экономикой поселения в игре больше нет.
+ */
+export const GLORY_ICON = Trophy;
+export const GLORY_LABEL = "Слава";
 
-export const RES: Record<ResKey, { label: string; short: string; color: string; bg: string; Icon: typeof Wheat }> = {
-  food: { label: "Провизия", short: "Еда", color: "text-food", bg: "bg-food/12", Icon: Wheat },
-  materials: { label: "Материалы", short: "Материалы", color: "text-mat", bg: "bg-mat/12", Icon: Pickaxe },
-  knowledge: { label: "Знания", short: "Знания", color: "text-know", bg: "bg-know/12", Icon: ScrollText },
-  faith: { label: "Духовность", short: "Духовность", color: "text-faith", bg: "bg-faith/12", Icon: Flame },
-};
-
-export function ResIcon({ k, size = 16, className }: { k: ResKey; size?: number; className?: string }) {
-  const { Icon, color } = RES[k];
-  return <Icon size={size} className={cn(color, className)} strokeWidth={2} />;
-}
-
-/** Компактная запись стоимости: «2 🌾 · 3 🪵», красным — если не хватает */
-export function Cost({ cost, have, className }: { cost: Partial<Record<ResKey, number>>; have?: Record<ResKey, number>; className?: string }) {
-  const entries = (Object.keys(cost) as ResKey[]).filter((k) => (cost[k] || 0) > 0);
-  if (!entries.length) return <span className={cn("text-xs text-faint", className)}>бесплатно</span>;
+/** Компактная запись цены в славе; красным — если не хватает. */
+export function GloryCost({ cost, have, className }: { cost: number; have?: number; className?: string }) {
+  const short = have !== undefined && have < cost;
   return (
-    <span className={cn("inline-flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm", className)}>
-      {entries.map((k) => {
-        const short = have && have[k] < (cost[k] as number);
-        return (
-          <span key={k} className={cn("inline-flex items-center gap-1 font-medium tabular-nums", short ? "text-bad" : "text-parch")} title={RES[k].label}>
-            <ResIcon k={k} size={14} />
-            {cost[k]}
-          </span>
-        );
-      })}
+    <span className={cn("inline-flex items-center gap-1 text-sm font-medium tabular-nums", short ? "text-bad" : "text-bronze-soft", className)} title={GLORY_LABEL}>
+      <Trophy size={14} className={short ? "text-bad" : "text-bronze"} />
+      {cost}
     </span>
   );
 }
@@ -87,15 +72,6 @@ export function Chip({ children, tone = "neutral", className }: { children: Reac
   };
   return <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium", tones[tone], className)}>{children}</span>;
 }
-
-/** Категории наук и построек: пятая — религиозное (обряд, жречество, книжность), она же цвет духовности. */
-export const CATEGORY_META: Record<string, { label: string; tone: ChipTone }> = {
-  military: { label: "Военное", tone: "bad" },
-  economy: { label: "Экономика", tone: "ok" },
-  science: { label: "Наука", tone: "know" },
-  civic: { label: "Общество", tone: "bronze" },
-  religion: { label: "Религия", tone: "faith" },
-};
 
 export function Meter({ value, max, className, color = "bg-bronze" }: { value: number; max: number; className?: string; color?: string }) {
   const pct = Math.max(0, Math.min(100, (value / Math.max(1, max)) * 100));
