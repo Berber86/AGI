@@ -266,18 +266,53 @@ test('кузница рендерится и без замыслов, и с тр
   assert.ok(stale.getItem('iforge_advice_combat').includes('"era":3'));
 });
 
+/** Собирает весь текст из дерева элементов, которое строит заглушка React. */
+function textOf(node, out = []) {
+  if (node === null || node === undefined || typeof node === 'boolean') return out;
+  if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return out; }
+  if (Array.isArray(node)) { for (const child of node) textOf(child, out); return out; }
+  if (node.props) textOf(node.props.children, out);
+  return out;
+}
+
 test('бой рендерится на живом матче против племени', () => {
   const storage = makeStorage();
   const app = makeApp(storage);
   const game = foundedState({ glory: 30, era: 1 });
   const opponentId = 'steppe';
   const opponent = game.opponents.find((o) => o.id === opponentId);
+  const cfg = app.M.getOpponentBattleConfig(game, opponentId);
   const match = {
     kind: 'practice', opponentId, name: opponent.name, clan: opponent.clan,
-    era: app.M.getOpponentBattleConfig(game, opponentId).era, leaderBattle: !!opponent.leader, tutorial: true,
+    era: cfg.era, threatEra: cfg.threatEra, leaderBattle: !!opponent.leader, tutorial: true,
   };
   const { store, derived } = makeStore(app, game, { page: 'camp', match });
   assert.doesNotThrow(() => render(app, storage, 'src/pages/Battle.tsx', store, derived));
+});
+
+test('экран боя рисуется на столе любой эпохи: от линии Каменного века до пяти рядов Будущего', () => {
+  for (const threatEra of [0, 1, 3, 6]) {
+    const storage = makeStorage();
+    const app = makeApp(storage);
+    const game = foundedState({ glory: 40, era: threatEra });
+    const opponent = game.opponents.find((o) => o.id === 'steppe') || game.opponents[0];
+    const match = {
+      kind: 'practice', opponentId: opponent.id, name: opponent.name, clan: opponent.clan,
+      era: opponent.era || 0, threatEra, leaderBattle: !!opponent.leader, tutorial: false,
+    };
+    const { store, derived } = makeStore(app, game, { page: 'camp', match });
+    let tree = null;
+    assert.doesNotThrow(() => { tree = render(app, storage, 'src/pages/Battle.tsx', store, derived); }, `эпоха угрозы ${threatEra}`);
+
+    const text = textOf(tree).join(' ');
+    const shape = app.battle.boardShape(threatEra);
+    assert.ok(text.includes(app.battle.boardLabel(shape)), `размер стола ${app.battle.boardLabel(shape)} виден игроку (эпоха ${threatEra})`);
+    // Подписи рядов берём у движка на игроке той же формы: в Каменном веке back === front (один ряд).
+    const front = [];
+    const shapePlayer = { front, middle: Array(Math.max(0, shape.rows - 2)).fill(0).map(() => []), back: shape.rows > 1 ? [] : front };
+    const labels = Array.from({ length: shape.rows }, (_, ri) => app.battle.rowName(shapePlayer, ri));
+    for (const label of new Set(labels)) assert.ok(text.includes(label), `ряд «${label}» подписан (эпоха ${threatEra})`);
+  }
 });
 
 test('оболочка и настройки рендерятся в любом состоянии', () => {
