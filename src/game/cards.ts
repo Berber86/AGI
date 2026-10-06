@@ -405,15 +405,38 @@ function pawDirective(paw: PawTier): string {
   if (paw === "none") {
     return `ЛАПА ОБЕЗЬЯНЫ — НА ЭТОТ РАЗ ЧИСТО. Кузнец не берёт платы: monkey_paw = "", никаких эффектов против своей стороны и своего вождя, никакого лечения и усиления врага, ключевых слов upkeep и morale нет. Суммарный вес платы обязан быть 0.`;
   }
-  const band = paw === "minor" ? `НЕБОЛЬШАЯ ПЛАТА: суммарный вес от 1 до ${PAW_MINOR_MAX} — один скромный минус.` : `ЖЁСТКАЯ ПЛАТА: суммарный вес от ${PAW_MINOR_MAX + 1} и выше — карта сильная, но рискованная; плата заметно дороже мелкой.`;
+  const band = paw === "minor"
+    ? `НЕБОЛЬШАЯ ПЛАТА: суммарный вес от 1 до ${PAW_MINOR_MAX} — один скромный минус.`
+    : `ЖЁСТКАЯ ПЛАТА: суммарный вес от ${PAW_MINOR_MAX + 1} и выше — карта сильная, но рискованная; плата заметно дороже мелкой.`;
+  const examples = paw === "minor"
+    ? `Готовые примеры небольшой платы:
+- вес 1: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-1}} — вождь платит энергией за выход отряда;
+- вес 2: ключевое слово upkeep — без соседей отряд теряет 1 HP за ход;
+- вес 2: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"adjacent"},"action":{"type":"damage","amount":2}} — отряд толкает своих же;
+- вес 3: {"event":"turn_start","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"modify_stat","stat":"attack","amount":-1}} — постоянное ухудшение своей атаки.`
+    : `Готовые примеры жёсткой платы:
+- вес 4: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"discard","amount":2,"choice":"highest_cost"}} — вождь сбрасывает две лучшие карты;
+- вес 4: {"event":"death","target":{"side":"friendly","entity":"unit","select":"all"},"action":{"type":"damage","amount":2}} — гибель отряда бьёт по своим;
+- вес 4: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"apply_status","status":"burn","amount":2,"turns":3}} — отряд поджигает сам себя;
+- вес 6: {"event":"turn_start","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-2}} вместе с ключевым словом upkeep.`;
   return `ЛАПА ОБЕЗЬЯНЫ ОБЯЗАТЕЛЬНА. ${band}
 Плату придумываешь ты, но выражена она должна быть НАСТОЯЩЕЙ МЕХАНИКОЙ из разрешённого словаря: эффектами в effects[] против своей стороны/своего вождя (урон, яд, огонь, ухудшение характеристики, удорожание атаки, потеря энергии, сброс карт, уничтожение своего отряда) либо усилением врага, и/или ключевыми словами upkeep, morale. Текст в monkey_paw (до 200 знаков) называет плату по-человечески и точно совпадает с механикой — никаких штрафов, которых нет в effects[] и keywords[].
 ${PAW_WEIGHT_TABLE}
+${examples}
+Перед ответом сложи веса своих минусов и попади в полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1} и выше`}: если выходит тяжелее — убери часть эффектов, легче — добавь.
 Плату платит владелец карты: цель таких эффектов — side friendly или controller (для вражеской выгоды — enemy/opponent). Плата не должна делать карту бесполезной: она мешает, но не отменяет боевую роль.
 ОПИСАНИЕ И СПРАВКА ОБЪЯСНЯЮТ ПЛАТУ: description показывает, чем отряд расплачивается в бою, а history.text — откуда эта цена взялась у народа (обычай, долг обряда, скверное оружие, голод, клятва, болезнь, плата жрецам). Карта, у которой плата не обоснована текстом, не принимается.`;
 }
 
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none"): Card {
+/** Ошибка браковки платы: движок помечает её, чтобы UI не показывал игроку сам жребий. */
+const pawError = (message: string) => Object.assign(new Error(message), { pawRejected: true });
+
+/**
+ * opts.relaxBand — последняя попытка ковки: плата обязана быть настоящей (вес ≥ 1, текст и справка
+ * на месте), но её величину движок уже не бракует. Лучше карта с платой не той силы, чем отменённая
+ * ковка: жребий задаёт ЗАКАЗ модели, а не повод вернуть игроку славу.
+ */
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none", opts: { relaxBand?: boolean } = {}): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
@@ -449,14 +472,16 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   const severity = markers.reduce((sum, m) => sum + m.weight, 0);
   const markerText = markers.map((m) => `${m.text} (вес ${m.weight})`).join("; ");
   if (paw === "none") {
-    if (severity > 0) throw new Error(`Заказана чистая карта, но кузнец добавил плату: ${markerText}.`);
-    if (c.monkey_paw) throw new Error("У чистой карты не должно быть текста платы (monkey_paw).");
+    if (severity > 0) throw pawError(`Заказана чистая карта, но кузнец добавил плату: ${markerText}.`);
+    if (c.monkey_paw) throw pawError("У чистой карты не должно быть текста платы (monkey_paw).");
   } else {
-    if (severity < 1) throw new Error(`Лапа обезьяны (${PAW_LABELS[paw]}) требует настоящую плату: эффект против своей стороны или ключевого слова, а не только текст.`);
-    if (paw === "minor" && severity > PAW_MINOR_MAX) throw new Error(`Небольшая плата — это вес 1…${PAW_MINOR_MAX}, а кузнец дал ${severity}: ${markerText}.`);
-    if (paw === "harsh" && severity <= PAW_MINOR_MAX) throw new Error(`Жёсткая плата — это вес от ${PAW_MINOR_MAX + 1}, а кузнец дал ${severity}: ${markerText}.`);
-    if (c.monkey_paw.length < 20) throw new Error("Текст платы (monkey_paw) слишком короткий: назовите её по-человечески и точно как в механике.");
-    if (!c.history || (c.history.text || "").length < 60) throw new Error("Справка карты обязана объяснять, откуда народ платит эту цену (history.text).");
+    if (severity < 1) throw pawError(`Лапа обезьяны (${PAW_LABELS[paw]}) требует настоящую плату: эффект против своей стороны или ключевого слова, а не только текст.`);
+    if (!opts.relaxBand) {
+      if (paw === "minor" && severity > PAW_MINOR_MAX) throw pawError(`Небольшая плата — это вес 1…${PAW_MINOR_MAX}, а кузнец дал ${severity}: ${markerText}.`);
+      if (paw === "harsh" && severity <= PAW_MINOR_MAX) throw pawError(`Жёсткая плата — это вес от ${PAW_MINOR_MAX + 1}, а кузнец дал ${severity}: ${markerText}.`);
+    }
+    if (c.monkey_paw.length < 20) throw pawError("Текст платы (monkey_paw) слишком короткий: назовите её по-человечески и точно как в механике.");
+    if (!c.history || (c.history.text || "").length < 40) throw pawError("Справка карты обязана объяснять, откуда народ платит эту цену (history.text).");
   }
 
   if (c.card_type !== "spell") {
@@ -650,17 +675,22 @@ ${contextOf(state)}
   const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
 
   // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
-  // Одна повторная попытка — чтобы брак модели не стоил игроку похода в кузницу; если и она
-  // не прошла проверку, ковка падает, а Forge возвращает славу через M.failCraft.
+  // Две переделки — чтобы брак модели не стоил игроку похода в кузницу: каждая следующая попытка
+  // получает точный текст ошибки с посчитанными весами. Если и третья не прошла проверку, ковка
+  // падает, а Forge возвращает славу через M.failCraft.
   let lastError: Error | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const retry = lastError ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message} Исправь ровно это и верни ПОЛНЫЙ JSON карты заново.` : "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const retry = lastError
+      ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы по таблице выше и попади в полосу${paw === "minor" ? ` 1…${PAW_MINOR_MAX}` : ` от ${PAW_MINOR_MAX + 1}`}` : ""} и верни ПОЛНЫЙ JSON карты заново.`
+      : "";
+    // Третья попытка принимает плату любой силы: величина — заказ модели, а не повод отменять ковку.
+    const relaxBand = attempt === 2 && paw !== "none";
     const raw = await hydraChat({
       model, maxTokens: 3000, temperature, system,
       user: `${brief}\n\n${pawDirective(paw)}${retry}`,
     });
     try {
-      const card = validateCard(raw, advice.cardType, allowed, rarity, paw);
+      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { relaxBand });
       card.rarity = rarity;
       card.id = "card-" + uid();
       // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.
@@ -671,4 +701,14 @@ ${contextOf(state)}
     }
   }
   throw lastError ?? new Error("Кузнец не смог выковать карту.");
+}
+
+/**
+ * Что показывать игроку, когда ковка не удалась. Текст браковки платы пересказывает жребий
+ * («жёсткая плата — это вес от 4»), а жребий до раскрытия карты — сюрприз, поэтому наружу
+ * уходит нейтральная формулировка; технические детали остаются в консоли разработчика.
+ */
+export const CRAFT_REJECTED_TEXT = "Кузнец не совладал с заказом: карта не прошла проверку игры.";
+export function craftErrorMessage(e: any): string {
+  return e?.pawRejected ? CRAFT_REJECTED_TEXT : String(e?.message || "Кузнец не справился.");
 }

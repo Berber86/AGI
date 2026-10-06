@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Anvil, Sparkles, Loader2, Lock, Check, Trophy } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { CARD_TYPE_INFO, RARITY_INFO, llmAdvice, llmCard, type Advice, type Card, type Rarity } from "@/game/cards";
+import { CARD_TYPE_INFO, RARITY_INFO, craftErrorMessage, llmAdvice, llmCard, type Advice, type Card, type Rarity } from "@/game/cards";
 import { useDerived, useStore } from "@/game/store";
 import { Btn, Chip, GloryCost, Heading, Label, Meter, Modal, Panel } from "@/components/ui";
 import { CardFace } from "@/components/CardView";
@@ -79,8 +79,11 @@ export default function Forge() {
       setReveal(card);
       setPick(null);
     } catch (e: any) {
-      act((s) => M.failCraft(s, begin.cost, e?.message || "Кузнец не справился."), { silent: true });
-      toast(`Ковка не удалась: ${e?.message}. Слава возвращена.`, "bad");
+      // craftErrorMessage прячет текст браковки лапы: жребий до раскрытия карты остаётся сюрпризом.
+      const reason = craftErrorMessage(e);
+      if (e?.pawRejected) console.warn("[forge] карта не прошла проверку лапы обезьяны:", e.message);
+      act((s) => M.failCraft(s, begin.cost, reason), { silent: true });
+      toast(`Ковка не удалась: ${reason} Слава возвращена (${begin.cost}).`, "bad");
     } finally { setBusy(false); }
   };
 

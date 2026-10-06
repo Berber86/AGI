@@ -262,6 +262,32 @@ test('плата обязана быть механикой и объяснен�
   );
 });
 
+test('последняя переделка принимает плату любой силы: ковка не падает из-за полосы', async () => {
+  const api = loadCards(async () => modelReply(minorPaw()));
+  const eras = ['ancient', 'bronze'];
+
+  // Та же карта с мелкой платой: в строгом режиме для жёсткой трети это брак…
+  assert.throws(() => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'harsh'), /Жёсткая плата — это вес от 4/iu);
+  // …а с relaxBand плата остаётся настоящей, просто не той силы — карта принимается.
+  const relaxed = api.validateCard(minorPaw(), 'unit', eras, 'rare', 'harsh', { relaxBand: true });
+  assert.equal(api.pawSeverity(relaxed, 'harsh'), 1);
+  assert.equal(relaxed.monkey_paw, PAW_TEXT.slice(0, 200));
+
+  // Плата обязана быть механикой и в мягком режиме, а чистый заказ послаблений не получает.
+  assert.throws(() => api.validateCard(cleanCard({ monkey_paw: PAW_TEXT }), 'unit', eras, 'rare', 'harsh', { relaxBand: true }), /требует настоящую плату/iu);
+  assert.throws(() => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'none', { relaxBand: true }), /чистая карта, но кузнец добавил плату/iu);
+
+  // В кузнеце третья попытка идёт уже с послаблением: модель два раза дала мелкую плату — карта всё равно выкована.
+  const requests = [];
+  const smith = loadCards(async (url, init) => {
+    requests.push(JSON.parse(init.body));
+    return modelReply(minorPaw());
+  });
+  const card = await smith.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh');
+  assert.equal(requests.length, 3, 'две строгие переделки, затем ковка принимается');
+  assert.ok(card.monkey_paw, 'игрок получил карту с настоящей платой, а не возврат славы');
+});
+
 test('плата оплачивает силу: карта с жёсткой платой получает больший бюджет', () => {
   const api = loadCards(async () => modelReply(cleanCard()));
   const eras = ['ancient', 'bronze'];
@@ -301,18 +327,23 @@ test('промпт кузнеца объявляет жребий и табли�
   assert.match(prompts[2], /ЖЁСТКАЯ ПЛАТА: суммарный вес от 4/iu);
   assert.match(prompts[2], /карта сильная, но рискованная/iu);
   assert.notEqual(prompts[1], prompts[2], 'трети различаются в промпте');
+  assert.match(prompts[1], /Готовые примеры небольшой платы/iu, 'у каждой трети свои рабочие примеры');
+  assert.match(prompts[2], /Готовые примеры жёсткой платы/iu);
+  assert.match(prompts[1], /сложи веса своих минусов и попади в полосу 1…3/iu);
+  assert.match(prompts[2], /сложи веса своих минусов и попади в полосу 4 и выше/iu);
 });
 
-test('брак модели исправляется один раз, а второй брак отменяет ковку', async () => {
+test('брак модели перековывается дважды, а третий брак отменяет ковку', async () => {
   const requests = [];
   const api = loadCards(async (url, init) => {
     requests.push(JSON.parse(init.body));
-    return modelReply(requests.length === 1 ? minorPaw() : harshPaw());
+    return modelReply(requests.length < 3 ? minorPaw() : harshPaw());
   });
 
   const card = await api.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh');
-  assert.equal(requests.length, 2, 'первый ответ без платы не прошёл проверку — кузнец перековал');
+  assert.equal(requests.length, 3, 'мелкая плата не прошла проверку жёсткой трети — кузнец перековал дважды');
   assert.match(requests[1].messages[1].content, /Предыдущий ответ не прошёл проверку игры: Жёсткая плата/iu);
+  assert.match(requests[2].messages[1].content, /пересчитай суммарный вес платы по таблице выше и попади в полосу от 4/iu, 'в переделку уходит точная инструкция');
   assert.equal(card.monkey_paw, PAW_TEXT.slice(0, 200));
   assert.equal(card.rarity, 'rare');
   assert.equal(card.history.era, Campaign.ERAS[1], 'справку по-прежнему подписывает эпоха кампании');
@@ -322,12 +353,14 @@ test('брак модели исправляется один раз, а вто�
     stubborn.push(JSON.parse(init.body));
     return modelReply(cleanCard());
   });
-  await assert.rejects(
-    () => strict.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh'),
-    /Жёсткая плата/iu,
-    'без настоящей платы карты нет: Forge вернёт славу через M.failCraft',
-  );
-  assert.equal(stubborn.length, 2, 'переделка ровно одна — ковка не зависает на бесконечных попытках');
+  const error = await strict.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh').then(() => null, (e) => e);
+  assert.ok(error, 'без настоящей платы карты нет даже на третьей попытке: Forge вернёт славу через M.failCraft');
+  assert.match(error.message, /требует настоящую плату/iu);
+  assert.equal(error.pawRejected, true, 'ошибка помечена — UI покажет нейтральный текст вместо жребия');
+  assert.equal(api.craftErrorMessage(error), api.CRAFT_REJECTED_TEXT);
+  assert.doesNotMatch(api.craftErrorMessage(error), /плата|вес|Лапа/iu, 'игрок не узнаёт, какая треть выпала');
+  assert.equal(api.craftErrorMessage(new Error('HTTP 500')), 'HTTP 500', 'прочие ошибки проходят как есть');
+  assert.equal(stubborn.length, 3, 'переделок ровно две — ковка не зависает на бесконечных попытках');
 });
 
 test('чистая карта куётся за один запрос, а жребий лапы экспортирован игрой', async () => {
@@ -360,6 +393,8 @@ test('🐾 видна на готовой карте: блок на лице и 
   const forge = fs.readFileSync(path.join(root, 'src', 'pages', 'Forge.tsx'), 'utf8');
   assert.match(forge, /llmCard\(begin\.modelId, selected, begin\.rarity as Rarity, snapshot, begin\.paw\)/, 'жребий уходит кузнецу');
   assert.match(forge, /monkeyPaw: card\.monkey_paw/, 'и записывается в хронику');
+  assert.match(forge, /craftErrorMessage\(e\)/, 'текст браковки жребия не уходит игроку');
+  assert.doesNotMatch(forge.slice(forge.indexOf('} catch (e: any) {')), /failCraft\(s, begin\.cost, e\?\.message/, 'в хронику и тост идёт нейтральная причина');
   assert.match(forge, /Лапа обезьяны сработала/, 'раскрытие сообщает о плате');
   assert.match(forge, /карта пришла чистой/iu);
   const quote = forge.slice(forge.indexOf('Смета ковки'), forge.indexOf('Ковать карту за'));

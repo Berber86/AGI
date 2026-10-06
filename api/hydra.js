@@ -15,9 +15,16 @@ export default async function handler(req, res) {
 
   const key = process.env.HYDRA_API_KEY;
   if (!key || !key.trim()) {
+    // Ключ на Vercel включается для каждого окружения отдельно: он может быть задан для
+    // Production и отсутствовать на Preview/Deployment Protection — тогда превью pull request'а
+    // падает с этой ошибкой, хотя «в настройках ключ есть». Называем окружение явно.
+    const env = process.env.VERCEL_ENV || "локальная сборка";
     res.status(500).json({
       error: {
-        message: "Сервер не настроен: переменная окружения HYDRA_API_KEY не задана на Vercel.",
+        message:
+          `Сервер не настроен: HYDRA_API_KEY не задана для окружения «${env}». ` +
+          "На Vercel: Project → Settings → Environment Variables → HYDRA_API_KEY → " +
+          "отметить Production, Preview и Development, затем Redeploy.",
       },
     });
     return;
