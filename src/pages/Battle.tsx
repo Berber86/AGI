@@ -4,8 +4,8 @@ import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { allCards, withoutStructures, describeEffect, type Card } from "@/game/cards";
 import {
-  atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, canAct, cast, costOf, createBattle, deploy, endPlayerTurn, enemyAct,
-  enemyDeckForEra, findTarget, spellHasTarget, unitsOf, type Battle, type Unit,
+  atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
+  endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, rowsOf, rowName, spellHasTarget, unitsOf, type Battle, type Unit,
 } from "@/game/battle";
 import { useStore } from "@/game/store";
 import { Btn, Meter, Modal } from "@/components/ui";
@@ -110,12 +110,12 @@ function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover, on
   );
 }
 
-function Slot({ children, label, valid, onClick }: { children?: React.ReactNode; label?: string; valid?: boolean; onClick?: () => void }) {
+function Slot({ children, valid, onClick, compact }: { children?: React.ReactNode; valid?: boolean; onClick?: () => void; compact?: boolean }) {
   return (
-    <div className="h-[74px] sm:h-[100px] [@media(min-height:900px)]:sm:h-[114px]">
+    <div className={cn(compact ? "h-[56px] sm:h-[74px] [@media(min-height:900px)]:sm:h-[86px]" : "h-[74px] sm:h-[100px] [@media(min-height:900px)]:sm:h-[114px]")}>
       {children ?? (
         <button onClick={onClick} disabled={!valid} className={cn("grid h-full w-full place-items-center rounded-xl border border-dashed text-[10px] transition-all", valid ? "animate-pulse-soft border-bronze/70 bg-bronze/8 text-bronze-soft hover:bg-bronze/15" : "border-line/60 text-line-strong")}>
-          {valid ? "+ выйти" : label}
+          {valid ? "+ выйти" : ""}
         </button>
       )}
     </div>
@@ -134,7 +134,8 @@ export default function BattleScreen() {
     const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
     const enemyPool = (customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, 12)) as Card[];
     // В первом учебном бою враг приходит без построек: никто не бьёт новичка бесплатно из тыла.
-    const enemyDeck = (m.tutorial ? withoutStructures(enemyPool) : enemyPool).slice(0, ec.deckLimit);
+    // Колода племени добирается до лимита эпохи повторением состава: стол растёт, контент племён — нет.
+    const enemyDeck = fillDeck(m.tutorial ? withoutStructures(enemyPool) : enemyPool, ec.deckLimit);
     const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m);
     // Первый ход новичка начинается с энергии 2 (а не 1), чтобы в руке можно было сыграть карту за 2.
     // Берём фиксированное значение 2, а не текущий предел игрока: иначе бонусы эпохи/черты
@@ -221,9 +222,9 @@ export default function BattleScreen() {
   };
 
   const doCast = () => { if (selHand === null) return; mutate((nb) => { cast(nb, "me", selHand); }); setSelHand(null); };
-  const doDeploy = (row: "front" | "back", slot: number) => {
+  const doDeploy = (ri: number, slot: number) => {
     if (selHand === null || !selCard || selCard.card_type === "spell") return;
-    mutate((nb) => { deploy(nb, "me", selHand, row, slot); });
+    mutate((nb) => { deploy(nb, "me", selHand, ri, slot); });
     setSelHand(null);
   };
   const doAttack = () => {
@@ -251,7 +252,10 @@ export default function BattleScreen() {
     bRef.current = build(); setB(bRef.current); setResult(null); finished.current = false; busy.current = false; setSelHand(null); setSelUnit(null); setInspectUnit(null);
   };
 
-  const validSlot = (row: "front" | "back", i: number) => !!selCard && selCard.card_type !== "spell" && selCard.drop_cost <= b.me.energy && !b.me[row][i] && !(selCard.card_type === "structure" && row === "front");
+  // Слот подсвечивается, только если карта вообще может стоять в этом ряду: постройки — в тылу,
+  // ближний бой без стрельбы — в авангарде (см. canStandInRow в движке).
+  const validSlot = (ri: number, i: number) => !!selCard && selCard.card_type !== "spell" && selCard.drop_cost <= b.me.energy
+    && !rowsOf(b.me)[ri][i] && canStandInRow(selCard, b.me, ri);
 
   const inspect: { unit?: Unit; card?: Card } = hover ? { unit: hover } : selU ? { unit: selU } : selCard ? { card: selCard } : {};
   const anyMove = unitsOf(b, "me").some((s) => canAct(b, "me", s.unit)) || hand.some((c) => c.drop_cost <= b.me.energy);
@@ -266,8 +270,8 @@ export default function BattleScreen() {
     if (!m.tutorial) return null;
     if (b.active === "enemy") return "Сейчас ходит враг. Постройки бьют каждый свой ход бесплатно, отряды — за энергию.";
     if (selCard && selCard.drop_cost > b.me.energy) return `Не хватает энергии: на вывод нужно ${selCard.drop_cost}, а запас идёт и на вывод, и на атаку.`;
-    if (selCard) return selCard.card_type === "spell" ? "Манёвр разыгрывается сразу и не занимает слот." : "Поставьте отряд в авангард (бьёт врага и держит удар) или в тыл — туда ближний бой не дотянется, пока цел авангард.";
-    if (selU && !target) return "Отсюда не достать: из тыла бьют только дальнобойные (через весь строй врага) и «длинное оружие» — по врагу напротив.";
+    if (selCard) return selCard.card_type === "spell" ? "Манёвр разыгрывается сразу и не занимает слот." : "Поставьте отряд в авангард (бьёт врага и держит удар) или вглубь стола — туда ближний бой не дотянется, пока цел авангард.";
+    if (selU && !target) return "Отсюда не достать: из глубины стола бьют только дальнобойные (через все ряды врага) и «длинное оружие» — по врагу напротив.";
     if (selU) return "Нажмите на врага или на «Атаковать». Атака тоже тратит энергию из общего запаса.";
     if (myUnits.length === 0 && hand.length > 0) return "Шаг 1: выберите карту в руке и поставьте её на поле.";
     if (myUnits.length > 0 && !anyReady && b.turn === 1) return "Отряд вышел в этом ходу и пока не атакует — так у всех. Нажмите «Конец хода».";
@@ -289,17 +293,23 @@ export default function BattleScreen() {
         const ok = spellHasTarget(b, "me", selCard);
         return { text: `Манёвр «${selCard.name}»: ${(selCard.effects || []).map(describeEffect).join("; ")}${ok ? "" : " — целей сейчас нет"}`, actions: <><Btn size="sm" variant="primary" onClick={doCast}><ScrollText size={14} />Разыграть</Btn><Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn></> };
       }
-      return { text: selCard.card_type === "structure" ? `Постройка «${selCard.name}»: выберите слот в тылу.` : `«${selCard.name}»: выберите слот. Авангард бьёт врага, тыл безопаснее.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
+      return { text: selCard.card_type === "structure" ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).` : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард, стрелки и «длинное оружие» — в любой ряд.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
     }
     return { text: anyMove ? "Ваш ход. Выберите карту в руке или готовый отряд на поле." : "Действий не осталось — завершите ход.", actions: null };
   })();
 
   const rowsFor = (side: "me" | "enemy") => {
-    const order: ("back" | "front")[] = side === "enemy" ? ["back", "front"] : ["front", "back"];
-    return order.map((row) => (
-      <div key={row} className="grid grid-cols-4 gap-1.5 sm:gap-2.5">
-        {b[side][row].map((u, i) => (
-          <Slot key={i} label={row === "front" ? "авангард" : "тыл"} valid={side === "me" && validSlot(row, i)} onClick={() => doDeploy(row, i)}>
+    const rows = rowsOf(b[side]);
+    // Ряды врага идут сверху от его тыла к линии фронта, наши — от линии фронта вглубь.
+    const order = rows.map((_, ri) => ri);
+    if (side === "enemy") order.reverse();
+    const compact = b.shape.rows >= 4 || b.shape.slots >= 5;
+    return order.map((ri) => (
+      <div key={ri} className="flex items-stretch gap-1 sm:gap-1.5">
+        <div className={cn("grid shrink-0 place-items-center text-center text-[8.5px] font-semibold uppercase leading-tight tracking-[0.06em] text-faint sm:text-[9.5px]", compact ? "w-8 sm:w-10" : "w-10 sm:w-12")}>{rowName(b[side], ri)}</div>
+        <div className="grid min-w-0 flex-1 gap-1.5 sm:gap-2.5" style={{ gridTemplateColumns: `repeat(${rows[ri].length}, minmax(0, 1fr))` }}>
+        {rows[ri].map((u, i) => (
+          <Slot key={i} compact={compact} valid={side === "me" && validSlot(ri, i)} onClick={() => doDeploy(ri, i)}>
             {u ? (
               <UnitToken
                 b={b} u={u} mine={side === "me"}
@@ -313,6 +323,7 @@ export default function BattleScreen() {
             ) : undefined}
           </Slot>
         ))}
+        </div>
       </div>
     ));
   };
@@ -358,7 +369,7 @@ export default function BattleScreen() {
 
           <div className="space-y-1.5 sm:space-y-2.5">
             {rowsFor("enemy")}
-            <div className="relative flex items-center gap-3 py-0.5"><span className="h-px flex-1 bg-gradient-to-r from-transparent via-bronze/40 to-transparent" /><span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-bronze/70">линия фронта</span><span className="h-px flex-1 bg-gradient-to-r from-transparent via-bronze/40 to-transparent" /></div>
+            <div className="relative flex items-center gap-3 py-0.5"><span className="h-px flex-1 bg-gradient-to-r from-transparent via-bronze/40 to-transparent" /><span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-bronze/70">линия фронта · стол {boardLabel(b.shape)}</span><span className="h-px flex-1 bg-gradient-to-r from-transparent via-bronze/40 to-transparent" /></div>
             {rowsFor("me")}
           </div>
 
@@ -501,8 +512,9 @@ export function BattleRules({ className }: { className?: string }) {
   return (
     <div className={cn("text-[13px] leading-relaxed text-dim", className)}>
       <p>Один запас энергии платит и за вывод карты, и за её атаку. Энергия растёт в начале каждого вашего хода.</p>
-      <p className="mt-2">Авангард бьёт отряд напротив, затем ближайшего — и получает ответный удар; отряд с провокацией перехватывает удар первым. Когда вражеский авангард выбит, ближний бой доходит до тыла, а осада берётся за постройки: вождя бьют, только когда поле противника пусто.</p>
-      <p className="mt-2">Дальнобойные и засадные стреляют через вражеский авангард по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из тыла достаёт лишь врага напротив. Манёвры разыгрываются сразу и слот не занимают.</p>
+      <p className="mt-2">Стол растёт вместе с эпохами: Каменный век — одна линия в три клетки, Античный мир — вторые ряды, Средневековье — четвёртый столбец, Ренессанс — третий ряд, Эпоха Пара и Стали — четвёртый ряд, Новейшее время — пятый столбец, Будущее — пятый ряд. Размер общий для обеих сторон и берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.</p>
+      <p className="mt-2">Авангард бьёт отряд напротив, затем ближайшего — и получает ответный удар; отряд с провокацией перехватывает удар первым. Ближний бой продвигается вглубь ряд за рядом: пока жив вражеский авангард, задние ряды для него недоступны. Когда ряды перед ним пусты, осада берётся за постройки в тылу, а вождя бьют только при полностью пустом столе.</p>
+      <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные и «длинное оружие» могут стоять в любом ряду. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
       <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
       <Legend className="mt-3 text-faint" />
     </div>

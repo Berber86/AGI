@@ -174,6 +174,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       name: o.name,
       clan: o.clan,
       era: M.getOpponentBattleConfig(g, o.id).era,
+      // От эпохи угрозы (максимум эпох игрока и племени) зависит размер стола: BOARD_SHAPES в движке.
+      threatEra: M.getOpponentBattleConfig(g, o.id).threatEra,
       leaderBattle: !!o.leader,
       tutorial: battles === 0,
     });

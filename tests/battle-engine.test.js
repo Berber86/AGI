@@ -63,7 +63,9 @@ function card(name, options = {}) {
   };
 }
 
-const match = () => ({ kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, leaderBattle: false, tutorial: false });
+// threatEra: 2 — классический стол Средневековья (2 ряда по 4): эти тесты про правила рядов,
+// а не про рост стола, который проверяется отдельно в tests/era-board.test.js.
+const match = () => ({ kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra: 2, leaderBattle: false, tutorial: false });
 
 function battle(myCards, enemyCards, cfg = {}) {
   const config = { hp: 20, energyMax: 10, energyGrowth: 1, fatigueDelay: 0, atkBonus: 0, ...cfg };
@@ -82,10 +84,34 @@ function place(b, side, cardName, row = 'front', slot = 0) {
   return ok;
 }
 
+function rowArr(b, side, row) {
+  return typeof row === 'number' ? api.rowsOf(b[side])[row] : b[side][row];
+}
+
 function unitAt(b, side, row, slot) {
-  const u = b[side][row][slot];
+  const u = rowArr(b, side, row)[slot];
   assert.ok(u, `в ${side}.${row}[${slot}] должен стоять отряд`);
   return u;
+}
+
+/**
+ * Ставит отряд в указанный ряд, минуя правила высадки: deploy их теперь проверяет (постройки —
+ * только в тыл, ближний бой без стрельбы — только в авангард), а эти тесты смотрят на бой отряда,
+ * который уже оказался в глубине стола. Поэтому карта выходит на законный ряд и переносится.
+ */
+function putUnit(b, side, cardName, row = 'front', slot = 0) {
+  const idx = b[side].hand.findIndex((c) => c.name === cardName);
+  assert.ok(idx >= 0, `«${cardName}» должна быть в руке стороны ${side}`);
+  const card = b[side].hand[idx];
+  const rows = api.rowsOf(b[side]);
+  const stage = card.card_type === 'structure' ? rows.length - 1 : 0;
+  const free = rows[stage].indexOf(null);
+  assert.ok(free >= 0, 'для переноса нужно свободное место на законном ряду');
+  assert.equal(place(b, side, cardName, stage, free), true, `«${cardName}» должна выйти на стол`);
+  const unit = rows[stage][free];
+  rows[stage][free] = null;
+  rowArr(b, side, row)[slot] = unit;
+  return unit;
 }
 
 /** Снимает усталость со всех отрядов: высадка оставляет отряд истощённым до следующего хода. */
@@ -254,7 +280,8 @@ test('цель удара: насмешка, зеркальный слот, бл
 test('из тыла бьют только дальний бой, засада и досягаемость', () => {
   // обычный отряд в тылу не дотягивается: удар тратится впустую
   const melee = battle([card('Древние копейщики', { atk: 2 })], [card('Древние копейщики', { hp: 6 })]);
-  place(melee, 'me', 'Древние копейщики', 'back', 0);
+  assert.equal(place(melee, 'me', 'Древние копейщики', 'back', 0), false, 'ближний бой без стрельбы в тыл не выпускают');
+  putUnit(melee, 'me', 'Древние копейщики', 'back', 0);
   place(melee, 'enemy', 'Древние копейщики', 'front', 0);
   refresh(melee);
   assert.equal(api.findTarget(melee, unitAt(melee, 'me', 'back', 0), 'me'), null);
@@ -455,7 +482,7 @@ test('постройку в тылу разбирает только осада:
   const b = battle([sword], [camp, guard]);
   place(b, 'me', sword.name, 'front', 0);
   place(b, 'enemy', camp.name, 'back', 0);
-  place(b, 'enemy', guard.name, 'back', 1);
+  putUnit(b, 'enemy', guard.name, 'back', 1);
   refresh(b);
   assert.equal(api.findTarget(b, unitAt(b, 'me', 'front', 0), 'me').unit.name, guard.name);
   attack(b, 'me');
@@ -466,7 +493,7 @@ test('постройку в тылу разбирает только осада:
   const ram = battle([card('Таран', { atk: 2, keywords: ['siege'] })], [camp, guard]);
   place(ram, 'me', 'Таран', 'front', 0);
   place(ram, 'enemy', camp.name, 'back', 0);
-  place(ram, 'enemy', guard.name, 'back', 1);
+  putUnit(ram, 'enemy', guard.name, 'back', 1);
   refresh(ram);
   assert.equal(api.findTarget(ram, unitAt(ram, 'me', 'front', 0), 'me').unit.name, camp.name);
   attack(ram, 'me');
@@ -480,7 +507,7 @@ test('стрелки бьют через авангард по самой опа
   const b = battle([bow], [card('Щитоносцы', { hp: 8, atk: 1, keywords: ['armor:2'] }), card('Топорники', { hp: 5, atk: 4 })]);
   place(b, 'me', bow.name, 'back', 0);
   place(b, 'enemy', 'Щитоносцы', 'front', 0);
-  place(b, 'enemy', 'Топорники', 'back', 0);
+  putUnit(b, 'enemy', 'Топорники', 'back', 0);
   refresh(b);
   const target = api.findTarget(b, unitAt(b, 'me', 'back', 0), 'me');
   assert.equal(target.unit.name, 'Топорники', 'цель — самый опасный отряд, а не тот, что напротив');
@@ -495,7 +522,7 @@ test('стрелки бьют через авангард по самой опа
   const tie = battle([bow], [card('Копейщики', { hp: 5, atk: 2 }), card('Пращники врага', { hp: 3, atk: 2 })]);
   place(tie, 'me', bow.name, 'back', 0);
   place(tie, 'enemy', 'Копейщики', 'front', 1);
-  place(tie, 'enemy', 'Пращники врага', 'back', 1);
+  putUnit(tie, 'enemy', 'Пращники врага', 'back', 1);
   refresh(tie);
   assert.equal(api.findTarget(tie, unitAt(tie, 'me', 'back', 0), 'me').unit.name, 'Пращники врага');
 
@@ -503,7 +530,7 @@ test('стрелки бьют через авангард по самой опа
   const taunted = battle([bow], [card('Забияка', { hp: 6, atk: 1, keywords: ['taunt'] }), card('Топорники', { hp: 5, atk: 5 })]);
   place(taunted, 'me', bow.name, 'back', 0);
   place(taunted, 'enemy', 'Забияка', 'front', 0);
-  place(taunted, 'enemy', 'Топорники', 'back', 0);
+  putUnit(taunted, 'enemy', 'Топорники', 'back', 0);
   refresh(taunted);
   assert.equal(api.findTarget(taunted, unitAt(taunted, 'me', 'back', 0), 'me').unit.name, 'Забияка');
 
@@ -520,7 +547,7 @@ test('стрелки бьют через авангард по самой опа
   const frontBow = battle([bow], [card('Щитоносцы', { hp: 8, atk: 1 }), card('Топорники', { hp: 5, atk: 4 })]);
   place(frontBow, 'me', bow.name, 'front', 0);
   place(frontBow, 'enemy', 'Щитоносцы', 'front', 0);
-  place(frontBow, 'enemy', 'Топорники', 'back', 2);
+  putUnit(frontBow, 'enemy', 'Топорники', 'back', 2);
   refresh(frontBow);
   assert.equal(api.findTarget(frontBow, unitAt(frontBow, 'me', 'front', 0), 'me').unit.name, 'Топорники');
 });

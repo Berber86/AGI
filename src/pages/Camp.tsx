@@ -1,9 +1,10 @@
-import { Crown, Heart, Layers, ScrollText, Shield, Swords, Tent, Trophy, Zap, Flame, ArrowRight, Lock } from "lucide-react";
+import { Crown, Grid3x3, Heart, Layers, ScrollText, Shield, Swords, Tent, Trophy, Zap, Flame, ArrowRight, Lock } from "lucide-react";
 import { M } from "@/game/model";
 import { cn } from "@/utils/cn";
 import { Btn, Chip, GloryCost, Heading, Label, Meter, Panel } from "@/components/ui";
 import { PageFrame } from "@/components/Shell";
 import { useDerived, useStore } from "@/game/store";
+import { boardLabel, boardShape } from "@/game/battle";
 
 /**
  * Лагерь — единственный хаб прототипа: военный стол (соперники), постоянные улучшения за славу
@@ -59,6 +60,9 @@ export default function Camp() {
                         <span className="inline-flex items-center gap-1"><Heart size={11} />вождь {oc.hp}</span>
                         <span className="inline-flex items-center gap-1"><Layers size={11} />{oc.deckLimit} карт</span>
                         <span className="inline-flex items-center gap-1"><Zap size={11} />энергия до {oc.energyMax}</span>
+                        <span className="inline-flex items-center gap-1" title="Стол боя растёт по эпохам: размер берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.">
+                          <Grid3x3 size={11} />стол {boardLabel(boardShape(oc.threatEra))}
+                        </span>
                         <span className="inline-flex items-center gap-1" title="Грубая оценка угрозы: здоровье вождя и размер колоды."><Shield size={11} />угроза {threat}</span>
                       </div>
                       <div className="mt-1 text-[11px] text-faint" title={oc.deckDescription}>{oc.deckStyle}{deck ? ` · ${deck.filter((c) => c.card_type === "unit").length} отряда, ${deck.filter((c) => c.card_type !== "unit").length} прочих` : ""}</div>
@@ -79,7 +83,7 @@ export default function Camp() {
             <Heading title="Вождь в бою" eyebrow="Боевой состав" className="[&_h2]:text-lg" />
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               <Stat icon={<Heart size={15} className="text-ok" />} label="Здоровье вождя" value={cfg.hp} cap={M.COMBAT_CAPS.hp} />
-              <Stat icon={<Layers size={15} className="text-know" />} label="Слоты колоды" value={cfg.deckLimit} cap={M.COMBAT_CAPS.deckLimit} />
+              <Stat icon={<Layers size={15} className="text-know" />} label="Слоты колоды" value={cfg.deckLimit} cap={cfg.deckCap ?? M.COMBAT_CAPS.deckLimit} />
               <Stat icon={<Zap size={15} className="text-bronze" />} label="Предел энергии" value={cfg.energyMax} cap={M.COMBAT_CAPS.energyMax} />
               <Stat icon={<Zap size={15} className="text-bronze" />} label="Прирост энергии" value={`+${cfg.energyGrowth}`} cap={`+${M.COMBAT_CAPS.energyGrowth}`} />
               <Stat icon={<Shield size={15} className="text-mat" />} label="Ходов до усталости" value={cfg.fatigueDelay} cap={M.COMBAT_CAPS.fatigueDelay} hint="с 6-го хода пустая колода бьёт вождя" />

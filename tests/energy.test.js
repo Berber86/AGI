@@ -69,7 +69,7 @@ function newBattle(api, playerCards = [], enemyCards = []) {
   const config = { hp: 20, energyMax: 10, energyGrowth: 1 };
   return api.createBattle(
     playerCards, config, enemyCards, config,
-    { kind: 'practice', opponentId: 'test', name: 'Test enemy', clan: 'Test', era: 0, leaderBattle: false },
+    { kind: 'practice', opponentId: 'test', name: 'Test enemy', clan: 'Test', era: 0, threatEra: 2, leaderBattle: false },
     0,
   );
 }

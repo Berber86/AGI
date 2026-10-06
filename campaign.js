@@ -45,6 +45,18 @@
     // Базовые значения вождя без единого бонуса (те же, что были в кампании).
     const COMBAT_BASE = { deckLimit: 4, hp: 5, energyMax: 2, energyGrowth: 1, fatigueDelay: 0, atkBonus: 0 };
 
+    /* ---------- колода растёт вместе со столом ----------
+       Стол боя растёт по эпохам (BOARD_SHAPES в src/game/battle.ts: от одной линии 1×3 в Каменном
+       веке до 5×5 в Будущем). Лимит колоды растёт следом — иначе на большом столе его нечем
+       заполнить. В Каменном веке база и потолок прежние (4 и 6), дальше +1 за эпоху. Рука остаётся
+       прежней (старт 4, предел 7): больше карт на руках превращает бой в пасьянс, а не в строй. */
+    const DECK_BASE_BY_ERA = [4, 5, 6, 7, 8, 9, 10];
+    const DECK_CAP_BY_ERA = [6, 7, 8, 9, 10, 11, 12];
+    function deckLimits(era) {
+        const i = clampInt(era, 0, DECK_BASE_BY_ERA.length - 1, 0);
+        return { base: DECK_BASE_BY_ERA[i], cap: DECK_CAP_BY_ERA[i] };
+    }
+
     /* ---------- слава: единственная валюта ---------- */
     const GLORY_START = 12;
     const GLORY_WIN_BASE = 8;
@@ -523,8 +535,9 @@
     function getBattleConfig(input) {
         const state = normalizeState(input);
         const perks = combatPerks(state);
+        const deck = deckLimits(state.player.era);
         const raw = {
-            deckLimit: COMBAT_BASE.deckLimit + perks.deck_slots,
+            deckLimit: deck.base + perks.deck_slots,
             hp: COMBAT_BASE.hp + perks.max_hp,
             energyMax: COMBAT_BASE.energyMax + perks.energy_cap,
             energyGrowth: COMBAT_BASE.energyGrowth + perks.energy_growth,
@@ -532,7 +545,8 @@
             atkBonus: COMBAT_BASE.atkBonus + perks.unit_power
         };
         return {
-            deckLimit: Math.min(COMBAT_CAPS.deckLimit, Math.max(1, raw.deckLimit)),
+            deckLimit: Math.min(deck.cap, Math.max(1, raw.deckLimit)),
+            deckBase: deck.base, deckCap: deck.cap, boardEra: state.player.era,
             hp: Math.min(COMBAT_CAPS.hp, raw.hp),
             energyMax: Math.min(COMBAT_CAPS.energyMax, raw.energyMax),
             energyGrowth: Math.min(COMBAT_CAPS.energyGrowth, raw.energyGrowth),
@@ -540,7 +554,7 @@
             atkBonus: Math.min(COMBAT_CAPS.atkBonus, raw.atkBonus),
             perks,
             capped: {
-                deck_slots: raw.deckLimit >= COMBAT_CAPS.deckLimit,
+                deck_slots: raw.deckLimit >= deck.cap,
                 max_hp: raw.hp >= COMBAT_CAPS.hp,
                 energy_cap: raw.energyMax >= COMBAT_CAPS.energyMax,
                 energy_growth: raw.energyGrowth >= COMBAT_CAPS.energyGrowth,
@@ -557,7 +571,7 @@
         const state = normalizeState(input);
         const opponent = state.opponents.find(item => item.id === opponentId);
         const fallback = {
-            era: 0, deckLimit: BARBARIAN_DECK_SIZES[0], deckStyle: 'Незнакомое племя',
+            era: 0, threatEra: 0, deckLimit: BARBARIAN_DECK_SIZES[0], deckStyle: 'Незнакомое племя',
             deckDescription: 'Отряды племени, состав которого неизвестен.',
             hp: COMBAT_BASE.hp, energyMax: COMBAT_BASE.energyMax, energyGrowth: COMBAT_BASE.energyGrowth
         };
@@ -570,9 +584,15 @@
         // становиться тривиальным: силу боя считаем от реальной угрозы — максимум из эпохи
         // племени и эпохи игрока (правило перенесено из кампании без изменений).
         const threatEra = Math.max(era, state.player.era);
+        const limits = deckLimits(threatEra);
         return {
             era,
-            deckLimit: deck ? deck.length : BARBARIAN_DECK_SIZES[stage],
+            // Эпоха угрозы задаёт размер стола (BOARD_SHAPES в движке) — возвращаем её explicitly,
+            // чтобы бой и лагерь считали стол от одного и того же числа.
+            threatEra,
+            // Колода племени растёт вместе со столом: контент племён ограничен Средневековьем,
+            // но в поздних эпохах их отряды многочисленнее (состав повторяется, см. fillDeck).
+            deckLimit: Math.min(limits.cap, Math.max(deck ? deck.length : BARBARIAN_DECK_SIZES[stage], limits.base)),
             deckStyle: (profile && profile.style) || 'Соседнее племя',
             deckDescription: (profile && profile.description) || 'Смешанный отряд дозорных, лучников и защитников рубежа.',
             hp: Math.min(COMBAT_CAPS.hp, COMBAT_BASE.hp + threatEra),
@@ -964,9 +984,11 @@
         }
         p.upgrades = upgrades;
         const seen = new Set();
+        // Предел колоды зависит от эпохи (DECK_CAP_BY_ERA), а не от одной константы: стол растёт,
+        // и состав боя растёт вместе с ним. p.era к этому месту уже приведён к диапазону эпох.
         p.deckCardIds = (Array.isArray(p.deckCardIds) ? p.deckCardIds : [])
             .filter(id => typeof id === 'string' && id && !seen.has(id) && seen.add(id))
-            .slice(0, COMBAT_CAPS.deckLimit);
+            .slice(0, deckLimits(p.era).cap);
         p.craftLevel = clampInt(p.craftLevel, 0, CRAFT_LEVEL_MAX, 0);
         p.craftXp = clampInt(p.craftXp, 0, CRAFT_XP_PER_LEVEL, 0);
         for (const key of ['wins', 'losses', 'streak', 'bestStreak', 'leaderWins', 'leaderLosses']) p[key] = clampInt(p[key], 0, 999999, 0);
@@ -1040,6 +1062,7 @@
         COMBAT_KEYS, COMBAT_LABELS, COMBAT_CAPS, COMBAT_BASE, COMBAT_FIELD, CAMP_UPGRADES,
         GLORY_START, GLORY_WIN_BASE, GLORY_PER_ERA, GLORY_LEADER_BONUS, GLORY_LOSS, GLORY_STREAK_STEP, GLORY_STREAK_MAX,
         CARD_CRAFT_MATERIALS, CARD_RARITY_ODDS, CARD_MODEL_BY_RARITY, RARE_CRAFT_MIN_ERA, CRAFT_LEVEL_MAX, CRAFT_XP_PER_LEVEL,
+        DECK_BASE_BY_ERA, DECK_CAP_BY_ERA, deckLimits,
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES, BARBARIAN_DECK_PROFILES, BRONZE_CARD_MIN_ERA, CULTURE_CHOICE_SIZE,
         STORAGE_KEY, SAVE_VERSION,
         // утилиты
