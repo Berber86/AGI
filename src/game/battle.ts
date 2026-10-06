@@ -258,9 +258,25 @@ function posOf(b: Battle, u: Unit): Slot | null {
 }
 
 const has = (u: Unit | null | undefined, k: string) => !!(u && u.st && u.st[k]);
-const isRanged = (u: Unit) => has(u, "ranged");
-// засадный боец, отступивший в тыл, бьёт как дальний бой — иначе он застревает там без атак
-const strikesFromRear = (u: Unit) => has(u, "ranged") || has(u, "skirmish");
+
+/**
+ * Ключевые слова, которым нужна глубина стола: стрельба из-за спин, засада и «длинное оружие».
+ * В Каменном веке стол — одна линия в три клетки: тыла нет, прятать стрелков не за кем и стрелять
+ * не из-за кого, поэтому дальнего боя там нет вовсе — все отряды бьются врукопашную (бьют того, кто
+ * напротив, затем ближайшего в линии, при пустой линии — вождя) и получают ответный удар.
+ * Тот же список в cards.ts (ONE_LINE_KEYWORDS) использует кузнец: пока стол не вырос до второго
+ * ряда, он не куёт стрелков. Тест сверяет оба списка, чтобы они не разъехались.
+ */
+export const DEPTH_KEYWORDS = ["ranged", "skirmish", "reach"];
+/** Есть ли у стола глубина: больше одного ряда. */
+export const deepTable = (b: Battle): boolean => b.shape.rows > 1;
+/** Какие ключевые слова на этом столе не действуют — для подписей в интерфейсе. */
+export const inactiveKeywords = (b: Battle): string[] => (deepTable(b) ? [] : DEPTH_KEYWORDS);
+
+const isRanged = (b: Battle, u: Unit) => deepTable(b) && has(u, "ranged");
+// засадный боец, отступивший в тыл, бьёт как дальний бой — иначе он застревает там без атак.
+// На столе в одну линию ни тыла, ни стрельбы из-за спин нет: отряд бьётся как обычный ближний бой.
+const strikesFromRear = (b: Battle, u: Unit) => deepTable(b) && (has(u, "ranged") || has(u, "skirmish"));
 
 function modTotal(b: Battle, u: Unit, stat: Mod["stat"]) {
   const p = posOf(b, u);
@@ -487,8 +503,9 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
   const p = posOf(b, attacker);
   if (!p) return null;
   const es = opp(side);
-  // Дальний бой работает из любого ряда: вражеский строй его не закрывает.
-  if (strikesFromRear(attacker)) return rangedTarget(b, es);
+  // Дальний бой работает из любого ряда: вражеский строй его не закрывает. На одной линии
+  // Каменного века дальнего боя нет — стрелок уходит в обычную ветку ближнего боя ниже.
+  if (strikesFromRear(b, attacker)) return rangedTarget(b, es);
   if (p.ri !== 0) {
     // Из глубины без дальнего боя дотягивается только длинное оружие — и лишь по врагу напротив в авангарде.
     const front = rowArray(b[es], 0);
@@ -562,7 +579,7 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     // Засадный боец в авангарде уклоняется в тыл от ближнего боя ДО обмена ударами — урона не будет ни ему, ни атакующему.
     // Уклониться в тыл можно, только если тыл — отдельный ряд: в Каменном веке линия одна.
     const dodgeRow = rowArray(b[defenderSide], rowCount(b[defenderSide]) - 1);
-    const defenderDodges = !isRanged(attacker) && has(t, "skirmish") && target.ri === 0
+    const defenderDodges = !isRanged(b, attacker) && has(t, "skirmish") && target.ri === 0
       && rowCount(b[defenderSide]) > 1 && dodgeRow.indexOf(null) >= 0;
     if (defenderDodges) {
       const free = dodgeRow.indexOf(null);
@@ -582,13 +599,13 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
         }
       }
       let counter = 0;
-      if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
+      if (!isRanged(b, attacker) && t.curHp > 0 && !t.isStructure) {
         const cb = atkOf(b, t);
         if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
       }
       // Выстрел через живой авангард — это отдельная ситуация: иначе непонятно, почему стрелок
       // из тыла бьёт не тех, кто стоит напротив.
-      const overFront = isRanged(attacker) && target.ri > 0 && !!rowArray(b[defenderSide], 0).find((u) => u && u.curHp > 0);
+      const overFront = isRanged(b, attacker) && target.ri > 0 && !!rowArray(b[defenderSide], 0).find((u) => u && u.curHp > 0);
       log(b, side, `${attacker.name} ${overFront ? "стреляет через строй по" : "атакует"} «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
       // Месть: погибший в этом обмене ударами отряд наносит ответный удар своему убийце, если тот ещё жив.
       // Пока охватывает только прямой ближний/дальний бой (resolveHit выше и ниже), а не урон от заклинаний/статусов.

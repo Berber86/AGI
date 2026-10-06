@@ -315,6 +315,76 @@ test('экран боя рисуется на столе любой эпохи: 
   }
 });
 
+test('инспектор боя объясняет ключевые слова и помечает те, что молчат на одной линии', () => {
+  const storage = makeStorage();
+  const app = makeApp(storage);
+  const game = foundedState({ glory: 30, era: 0 });
+  const { store, derived } = makeStore(app, game, { page: 'camp' });
+
+  const bow = {
+    id: 'brow', name: 'Пращники', card_type: 'unit', era: 'ancient', emoji: '🏹', drop_cost: 1, action_cost: 1,
+    hp: 4, atk: 2, description: 'Бьют камнями через строй.', tags: [], abilities: [], keywords: ['ranged'], effects: [], monkey_paw: '',
+  };
+  const cfg = { hp: 20, energyMax: 10, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
+  const match = { kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra: 0, leaderBattle: false };
+
+  // Стол Каменного века: одна линия, стрелок на ней.
+  const stone = app.battle.createBattle([bow], cfg, [{ ...bow, name: 'Дубинщик', keywords: [] }], { ...cfg }, match);
+  stone.active = 'me';
+  stone.me.energy = 10;
+  assert.equal(app.battle.deploy(stone, 'me', 0, 0, 1), true);
+  const stoneUnit = app.battle.rowsOf(stone.me)[0][1];
+  const stoneText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: stoneUnit }, b: stone })).join(' ');
+  assert.match(stoneText, /Дальний бой/u, 'в инспекторе видно название ключевого слова');
+  assert.match(stoneText, /Бьёт через все ряды врага/u, 'и его пояснение');
+  assert.match(stoneText, /Не действует на этом столе/u, 'на одной линии слово помечено и объяснено');
+
+  // Тот же отряд на столе Средневековья: слово работает, предупреждения нет.
+  const deep = app.battle.createBattle([bow], cfg, [], { ...cfg }, { ...match, threatEra: 2 });
+  deep.active = 'me';
+  deep.me.energy = 10;
+  assert.equal(app.battle.deploy(deep, 'me', 0, 'back', 0), true);
+  const deepUnit = app.battle.rowsOf(deep.me)[1][0];
+  const deepText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: deepUnit }, b: deep })).join(' ');
+  assert.match(deepText, /Дальний бой/u);
+  assert.doesNotMatch(deepText, /Не действует на этом столе/u);
+
+  // Правила боя объясняют и одну линию, и то, что чип можно нажать.
+  const rules = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'BattleRules', {})).join(' ');
+  assert.match(rules, /одна линия/u);
+  assert.match(rules, /перечёркнуты/u);
+  assert.match(rules, /нажмите на чип/u);
+});
+
+test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {
+  const storage = makeStorage();
+  const app = makeApp(storage);
+  const game = foundedState({ glory: 30, era: 0 });
+  const { store, derived } = makeStore(app, game, { page: 'camp' });
+
+  const tree = render(app, storage, 'src/components/CardView.tsx', store, derived, 'KeywordChips', {
+    keywords: ['ranged', 'armor:2'], inactive: ['ranged'], note: 'Тестовая причина.',
+  });
+  const chips = [];
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === 'span' && node.props && typeof node.props.title === 'string') chips.push(node);
+    walk(node.props && node.props.children);
+  })(tree);
+
+  assert.equal(chips.length, 2, 'по чипу на ключевое слово');
+  const ranged = chips.find((c) => String(c.props.children.join('')).includes('Дальний бой'));
+  const armor = chips.find((c) => String(c.props.children.join('')).includes('Броня'));
+  assert.ok(ranged && armor, 'оба слова названы по-русски');
+
+  assert.equal(ranged.props.role, 'button', 'чип нажимается');
+  assert.equal(typeof ranged.props.onClick, 'function');
+  assert.match(ranged.props.title, /Бьёт через все ряды/u, 'подсказка при наведении осталась');
+  assert.match(ranged.props.className, /line-through/u, 'молчащее слово перечёркнуто');
+  assert.doesNotMatch(armor.props.className, /line-through/u, 'работающее — нет');
+});
+
 test('оболочка и настройки рендерятся в любом состоянии', () => {
   const storage = makeStorage();
   const app = makeApp(storage);

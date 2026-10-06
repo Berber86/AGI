@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass, CircleHelp, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { allCards, withoutStructures, describeEffect, type Card } from "@/game/cards";
+import { allCards, withoutStructures, describeEffect, kwName, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
-  endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, rowsOf, rowName, spellHasTarget, unitsOf, type Battle, type Unit,
+  deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, inactiveKeywords, rowsOf, rowName, spellHasTarget, unitsOf,
+  type Battle, type Unit,
 } from "@/game/battle";
 import { useStore } from "@/game/store";
 import { Btn, Meter, Modal } from "@/components/ui";
@@ -13,6 +14,17 @@ import { CardFace, KeywordChips } from "@/components/CardView";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Ключевое слово без уровня: «armor:2» → «armor». */
+const kwBase = (k: string) => String(k).toLowerCase().split(":")[0].trim();
+
+/**
+ * Почему «глубинные» слова молчат в этом бою: в Каменном веке стол — одна линия в три клетки,
+ * тыла нет, поэтому стрелки и засада бьются врукопашную и получают ответный удар.
+ */
+const ONE_LINE_NOTE = "Не действует на этом столе: в Каменном веке одна линия — тыла нет, отряд бьётся врукопашную и получает ответный удар.";
+/** Есть ли у отряда слова, которым нужна глубина стола. */
+const needsDepth = (b: Battle, keywords: string[]) => (keywords || []).some((k) => inactiveKeywords(b).includes(kwBase(k)));
 
 function EnergyPips({ energy, max, cap, label }: { energy: number; max: number; cap: number; label?: string }) {
   return (
@@ -270,7 +282,12 @@ export default function BattleScreen() {
     if (!m.tutorial) return null;
     if (b.active === "enemy") return "Сейчас ходит враг. Постройки бьют каждый свой ход бесплатно, отряды — за энергию.";
     if (selCard && selCard.drop_cost > b.me.energy) return `Не хватает энергии: на вывод нужно ${selCard.drop_cost}, а запас идёт и на вывод, и на атаку.`;
-    if (selCard) return selCard.card_type === "spell" ? "Манёвр разыгрывается сразу и не занимает слот." : "Поставьте отряд в авангард (бьёт врага и держит удар) или вглубь стола — туда ближний бой не дотянется, пока цел авангард.";
+    if (selCard) {
+      if (selCard.card_type === "spell") return "Манёвр разыгрывается сразу и не занимает слот.";
+      return deepTable(b)
+        ? "Поставьте отряд в авангард (бьёт врага и держит удар) или вглубь стола — туда ближний бой не дотянется, пока цел авангард."
+        : "Стол Каменного века — одна линия в три клетки: поставьте отряд в любой слот. Все бьются врукопашную, дальнего боя здесь нет.";
+    }
     if (selU && !target) return "Отсюда не достать: из глубины стола бьют только дальнобойные (через все ряды врага) и «длинное оружие» — по врагу напротив.";
     if (selU) return "Нажмите на врага или на «Атаковать». Атака тоже тратит энергию из общего запаса.";
     if (myUnits.length === 0 && hand.length > 0) return "Шаг 1: выберите карту в руке и поставьте её на поле.";
@@ -285,7 +302,9 @@ export default function BattleScreen() {
     if (b.active === "enemy" || busy.current) return { text: "Ход врага…", actions: <Loader2 size={16} className="animate-spin text-dim" /> };
     if (selU) {
       const tName = !target ? "цели нет" : target.kind === "hero" ? "вражеского вождя" : `«${target.unit.name}»`;
-      return { text: target ? `«${selU.name}» атакует ${tName}. Цена: ${costOf(b, selU)} энергии.` : `«${selU.name}» не может дотянуться до врага.`, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
+      const base = target ? `«${selU.name}» атакует ${tName}. Цена: ${costOf(b, selU)} энергии.` : `«${selU.name}» не может дотянуться до врага.`;
+      const note = needsDepth(b, selU.keywords) ? " На одной линии Каменного века дальний бой не работает: удар врукопашную и ответный." : "";
+      return { text: base + note, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
     }
     if (selCard) {
       if (selCard.drop_cost > b.me.energy) return { text: `«${selCard.name}» стоит ${selCard.drop_cost} — не хватает энергии.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
@@ -293,7 +312,12 @@ export default function BattleScreen() {
         const ok = spellHasTarget(b, "me", selCard);
         return { text: `Манёвр «${selCard.name}»: ${(selCard.effects || []).map(describeEffect).join("; ")}${ok ? "" : " — целей сейчас нет"}`, actions: <><Btn size="sm" variant="primary" onClick={doCast}><ScrollText size={14} />Разыграть</Btn><Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn></> };
       }
-      return { text: selCard.card_type === "structure" ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).` : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард, стрелки и «длинное оружие» — в любой ряд.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
+      const slotText = !deepTable(b)
+        ? `«${selCard.name}»: выберите слот на линии — в Каменном веке она одна, и она же тыл.`
+        : selCard.card_type === "structure"
+          ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).`
+          : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард, стрелки и «длинное оружие» — в любой ряд.`;
+      return { text: slotText, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
     }
     return { text: anyMove ? "Ваш ход. Выберите карту в руке или готовый отряд на поле." : "Действий не осталось — завершите ход.", actions: null };
   })();
@@ -460,7 +484,8 @@ export default function BattleScreen() {
   );
 }
 
-function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: Battle }) {
+/** Карточка отряда/карты в бою: свойства, ключевые слова с пояснениями и эффект. Экспорт — для тестов рендера. */
+export function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: Battle }) {
   if (inspect.unit) {
     const u = inspect.unit;
     return (
@@ -471,13 +496,27 @@ function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: B
           <div className="rounded-lg bg-ground/70 py-1.5 text-ok"><Heart size={13} className="mx-auto mb-0.5" />{u.curHp}/{u.hp}</div>
           <div className="rounded-lg bg-ground/70 py-1.5 text-know"><Shield size={13} className="mx-auto mb-0.5" />{armorOf(b, u)}</div>
         </div>
-        <KeywordChips keywords={u.keywords} className="mt-3" />
+        <KeywordChips keywords={u.keywords} className="mt-3" inactive={inactiveKeywords(b)} note={ONE_LINE_NOTE} />
+        {u.keywords.length > 0 && (
+          <ul className="mt-2 space-y-1 text-[11.5px] leading-snug text-dim">
+            {u.keywords.map((k) => {
+              const w = kwName(k);
+              const off = inactiveKeywords(b).includes(kwBase(k));
+              return (
+                <li key={k}>
+                  <span className={cn("text-parch", off && "text-faint line-through decoration-clay/70")}>{w.name}{w.level ? ` ${w.level}` : ""}.</span> {w.desc}
+                  {off && <span className="text-clay"> {ONE_LINE_NOTE}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {u.effects.length > 0 && <ul className="mt-2 space-y-1 text-xs leading-snug text-parch/90">{u.effects.map((e, i) => <li key={i} className="flex gap-1.5"><Zap size={11} className="mt-0.5 shrink-0 text-bronze" />{describeEffect(e)}</li>)}</ul>}
         <p className="mt-3 text-xs italic leading-snug text-dim">{u.description}</p>
       </div>
     );
   }
-  if (inspect.card) return <div className="w-[240px] self-center"><CardFace card={inspect.card} detailed /></div>;
+  if (inspect.card) return <div className="w-[240px] self-center"><CardFace card={inspect.card} detailed inactiveKeywords={inactiveKeywords(b)} keywordNote={ONE_LINE_NOTE} /></div>;
   return (
     <div className="rounded-2xl border border-dashed border-line p-4 text-xs leading-relaxed text-faint">
       <div className="mb-1 font-semibold text-dim">Как играть</div>
@@ -515,6 +554,7 @@ export function BattleRules({ className }: { className?: string }) {
       <p className="mt-2">Стол растёт вместе с эпохами: Каменный век — одна линия в три клетки, Античный мир — вторые ряды, Средневековье — четвёртый столбец, Ренессанс — третий ряд, Эпоха Пара и Стали — четвёртый ряд, Новейшее время — пятый столбец, Будущее — пятый ряд. Размер общий для обеих сторон и берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.</p>
       <p className="mt-2">Авангард бьёт отряд напротив, затем ближайшего — и получает ответный удар; отряд с провокацией перехватывает удар первым. Ближний бой продвигается вглубь ряд за рядом: пока жив вражеский авангард, задние ряды для него недоступны. Когда ряды перед ним пусты, осада берётся за постройки в тылу, а вождя бьют только при полностью пустом столе.</p>
       <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные и «длинное оружие» могут стоять в любом ряду. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
+      <p className="mt-2">В Каменном веке стол — одна линия, поэтому дальнего боя, засады и «длинного оружия» там нет: каждый отряд бьёт того, кто напротив, затем ближайшего в линии, а при пустой линии врага — вождя, и получает ответный удар. Ключевые слова, которые на этом столе молчат, перечёркнуты в описании отряда; нажмите на чип слова, чтобы прочитать, что оно делает.</p>
       <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
       <Legend className="mt-3 text-faint" />
     </div>
