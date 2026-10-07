@@ -258,6 +258,30 @@ test('кузнец Каменного века отклоняет дальний
   assert.match(requests[1].messages[1].content, /ranged/u);
 });
 
+test('перегруженный эффект каменного отряда упрощается, а ковка не отменяется', async () => {
+  const requests = [];
+  const { cards } = loadBoth(async (_url, options) => {
+    requests.push(JSON.parse(options.body));
+    return modelReply(smithCard({
+      name: 'Копейщики брода',
+      description: 'Держат переправу сомкнутым строем.',
+      tags: [],
+      keywords: ['phalanx'],
+      effects: [{
+        event: 'enter_play',
+        target: { side: 'enemy', entity: 'unit', select: 'first', count: 1 },
+        action: { type: 'damage', amount: 4 },
+      }],
+    }));
+  });
+
+  const card = await cards.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(0));
+  assert.equal(requests.length, 1, 'переизбыток не вызывает цикл браковки и повторную ковку');
+  assert.equal(card.effects.length, 1);
+  assert.equal(card.effects[0].action.amount, 3, 'урон автоматически снижен до drop_cost + 1');
+  assert.match(requests[0].messages[0].content, /0–2 простых эффекта/u, 'промпт заранее задаёт ограничение');
+});
+
 test('кузнец Каменного века куёт ближний бой, а с Античного мира — и стрелков', async () => {
   const stone = [];
   const stoneCards = loadBoth(async (url, options) => {

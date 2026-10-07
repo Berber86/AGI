@@ -390,6 +390,59 @@ function spellEffectPower(effect: any): number {
   return cost * (target.count || 1);
 }
 
+/**
+ * Эффекты каменного отряда — необязательная часть ИИ-карты, не причина отменять ковку. Оставляем
+ * максимум два простых действия, сужаем массовую цель до одной и укладываем числа в drop_cost + 1.
+ * Повторяемые глобальные триггеры и сложные типы действий на однорядном столе просто опускаем.
+ */
+function simplifyStoneUnitEffects(effects: any[], budget: number): any[] {
+  const simpleActions = new Set(["damage", "heal", "apply_status", "modify_stat", "modify_cost"]);
+  const simpleEvents = new Set(["enter_play", "attack", "damaged", "death"]);
+  const out: any[] = [];
+  let spent = 0;
+
+  for (const source of effects.slice(0, 6)) {
+    if (out.length >= 2 || spent >= budget) break;
+    if (!simpleEvents.has(source?.event) || !simpleActions.has(source?.action?.type)) continue;
+
+    const effect = { ...source, target: { ...source.target }, action: { ...source.action } };
+    const target = effect.target;
+    const action = effect.action;
+    if (target.select === "all") target.select = "first";
+    target.count = 1;
+    if (target.zone === "rear") target.zone = "front";
+    if (target.relation === "attack_target_row" || target.relation === "attack_target_column") {
+      // Площадное действие превращаем в обычный эффект по цели самого удара.
+      target.relation = "attack_target";
+      target.select = "attack_target";
+    }
+
+    // Длительные эффекты не должны обходить бюджет за счёт срока действия.
+    if (action.type === "apply_status") action.turns = 1;
+    if (action.type === "modify_cost") action.turns = 1;
+    if (action.type === "modify_stat") {
+      if (action.stat === "max_hp") delete action.turns;
+      else action.turns = 1;
+    }
+
+    const remaining = budget - spent;
+    if (["damage", "heal", "apply_status"].includes(action.type)) {
+      action.amount = Math.min(action.amount, remaining);
+    } else {
+      const maxMagnitude = Math.floor(remaining / Math.max(1, action.turns || 1));
+      if (maxMagnitude < 1) continue;
+      action.amount = Math.sign(action.amount) * Math.min(Math.abs(action.amount), maxMagnitude);
+    }
+
+    let power: number;
+    try { power = spellEffectPower(effect); } catch { continue; }
+    if (power < 1 || power > remaining) continue;
+    out.push(effect);
+    spent += power;
+  }
+  return out;
+}
+
 function validateSpellPower(card: Card, rarity: Rarity, oneLine = false, paw: PawTier = "none"): void {
   if (oneLine && card.effects.length !== 1) throw new Error("Манёвр Каменного века должен иметь ровно один скромный эффект.");
   if (!oneLine && card.effects.length > 2) throw new Error("У манёвра не больше двух эффектов — не складывай несколько сильных действий.");
@@ -576,18 +629,23 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     if (c.action_cost < 1) throw new Error("Площадной удар не бывает бесплатным: action_cost минимум 1.");
     if (rarity === "ordinary") throw new Error("Площадной удар — не рядовое свойство: карта с ним должна быть не ниже необычной.");
   }
-  c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
+  if (opts.oneLine && c.card_type === "unit") {
+    // Эффекты отряда необязательны. Бракованный или перегруженный эффект упрощаем/убираем, а не
+    // отменяем оплаченный заказ: полезная карта остаётся, а сильные действия не попадают в бой.
+    const candidates = Array.isArray(c.effects) ? c.effects.slice(0, 6) : [];
+    const validated: any[] = [];
+    for (const rawEffect of candidates) {
+      try { validated.push(...validateEffects([rawEffect])); } catch { /* снимаем только этот эффект */ }
+    }
+    c.effects = simplifyStoneUnitEffects(validated, c.drop_cost + 1);
+  } else {
+    c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
+  }
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
     c.effects = c.effects.filter((e: any) => e.event === "enter_play");
     if (!c.effects.length) throw new Error("Манёвр может использовать только enter_play.");
     validateSpellPower(c as Card, rarity, Boolean(opts.oneLine), paw);
-  } else if (opts.oneLine && c.card_type === "unit" && c.effects.length) {
-    const power = c.effects.reduce((sum: number, effect: any) => sum + spellEffectPower(effect), 0);
-    const budget = c.drop_cost + 1;
-    if (c.effects.length > 2 || power > budget) {
-      throw new Error(`Эффекты каменного отряда слишком сильны или многочисленны: вес ${power}, предел ${budget}; оставь одно-два простых действия.`);
-    }
   }
   c.tags = Array.isArray(c.tags) ? c.tags.slice(0, 3).map((t: any) => String(t).slice(0, 40)) : [];
   c.abilities = [];
@@ -762,7 +820,7 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
 /** Общие для советника и кузнеца краткие правила: полная механика проверяется валидатором. */
 const CARD_SYSTEM = `Ты — ИИ-кузнец карточной стратегии Infinite Forge. Пиши исторические боевые карты без магии и фэнтези. Ответ — только JSON по схеме ниже, без пояснений.
 ЭПОХА: боевой тег карты — только ancient или bronze и не является календарной датой. Исторические предметы, названия, роли и справка должны соответствовать ЭПОХЕ КАМПАНИИ и реальным технологиям из контекста. Не переносить оружие и институты из будущей эпохи в прошлую.
-КАМЕННЫЙ ВЕК / стол в одну линию: только ближний бой, unit HP 1–3, ATK 1–2, цена 1–2; structure запрещена. Для unit не используй ranged, skirmish, reach, screen и не упоминай луки, пращи, стрелы, стреломёты, баллисты, арбалеты, катапульты, снаряды, залпы или обстрел — даже в имени, описании, тегах и history. Не маскируй метательное оружие другим названием. Манёвр в этой эпохе должен содержать ровно один скромный эффект и затрагивать ровно одну цель; без платы вес эффекта не выше 2, а при заказанной плате допускается только небольшая проверяемая надбавка.
+КАМЕННЫЙ ВЕК / стол в одну линию: только ближний бой, unit HP 1–3, ATK 1–2, цена 1–2; structure запрещена. Для unit не используй ranged, skirmish, reach, screen и не упоминай луки, пращи, стрелы, стреломёты, баллисты, арбалеты, катапульты, снаряды, залпы или обстрел — даже в имени, описании, тегах и history. Не маскируй метательное оружие другим названием. Эффекты каменного отряда — только 0–2 простых действия с суммарным весом не выше drop_cost+1; редкость этот предел не повышает. Если эффект не помещается, опусти его. Манёвр в этой эпохе должен содержать ровно один скромный эффект и затрагивать ровно одну цель; без платы вес эффекта не выше 2, а при заказанной плате допускается только небольшая проверяемая надбавка.
 БАЛАНС: у отряда 1–2 ключевых слова, без цепочки сильных бонусов; базовые цифры соразмерны цене. Натиск/клин/фаланга/охват уже увеличивают урон — не складывай несколько таких усилений на одном каменном отряде. Манёвр: цена минимум 1; только 1–2 эффекта enter_play, не более двух целей, без select=all и без destroy. Урон/лечение — умеренные; статус короткий; общий вес эффектов не выше drop_cost+1, с небольшим допуском за редкость. Никаких бесплатных ударов по всему столу, вечных блокировок и гарантированного уничтожения.
 ПОСТРОЙКА возможна только при наличии тыла; action_cost=0, HP≥1, atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — обстрел каждый ход. Ответ на обстрел не приходит, броня его гасит. Не обещай эффектов, которых нет в механике.
 КЛЮЧЕВЫЕ СЛОВА: armor:N — снижает входящий урон; pierce:N — игнорирует броню; ranged — бьёт по опасной цели без ответа; reach — атакует авангард из тыла; charge — +2 к первой атаке; shieldwall — броня и защита соседями; wedge — атака за соседей; phalanx — +атака и броня; skirmish — отступление/атака из тыла; taunt — враг бьёт первым; poison/burn — статус при атаке; heal:N — лечит соседа; rally — +атака соседям; fear/morale — бегство; siege — урон строениям; sturdy — первый удар слабее; holdground — защита от страха/натиска; upkeep — урон без соседа; supply/warcry — энергия при розыгрыше; loot/raider — энергия за попадание/убийство; harras — задержка прироста энергии; exhaustenemy — отнять 1 энергию; cleave:N — соседям цели; blast/sweep/column:N — площадной урон, максимум одно слово на карту, N=1–2, не более трёх дополнительных целей, тяжёлый удар может задеть своего; vengeance:N — месть при гибели; relentless — вторая атака; scavenger — бонус за сброс; suppress:N — атака цели дорожает; unbreakable — иммунитет к бегству и подавлению; laststand — бонус одинокому отряду в ряду; flank — +1 урон по открытому флангу; screen — броня переднему соседу в столбце; command — энергия из тыла; spotter — +1 дальнему/площадному удару по своему столбцу; dispersed — защита от площади; entrenched — укрытие в авангарде.
@@ -773,11 +831,13 @@ description: 1–2 коротких предложения об одном бо�
 
 export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any, paw: PawTier = "none"): Promise<Card> {
   const allowed = allowedCardErasOf(state);
-  const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
+  const oneLine = oneLineBoard(state);
+  const directive = oneLine && advice.cardType === "unit"
+    ? "Каменный век: рукопашный отряд, 0–2 простых эффекта; их общий вес не выше drop_cost+1, редкость не повышает предел."
+    : { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
   // Технологии и культурное наследие — контекст, но не обязательное повторяющееся клише.
   const era = eraContextOf(state);
   const cultureName = state.player?.historicalCulture?.name || "";
-  const oneLine = oneLineBoard(state);
   const brief = `Боевой замысел: «${advice.title}». ${advice.pitch}
 Тип карты: ${advice.cardType}. ${directive}
 Создай простую, исторически правдоподобную карту для текущего сражения. Контекст народа — необязательное вдохновение: варьируй источник образа, не привязывай каждую карту к одной культуре или её стереотипам.
@@ -787,7 +847,7 @@ ${contextOf(state)}
 
 Разрешённый боевой тег карты: ${allowed.join(" или ")}. Историческая эпоха: «${era.label}»; технологии: ${era.tech || "не заданы"}. Короткая историческая справка должна называть реальный прототип этой эпохи, но культурное наследие можно упоминать только если это уместно.`;
   const system = CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.` + (oneLine
-    ? "\nСтол Каменного века — одна линия из трёх клеток. Только ближний бой, без построек и любых образов снарядов; дальние ключевые слова не используй."
+    ? "\nСтол Каменного века — одна линия из трёх клеток. Только ближний бой, без построек и любых образов снарядов; дальние ключевые слова не используй. У каменного отряда может быть 0–2 простых эффекта общей силой не выше drop_cost+1; редкость не добавляет к этому пределу."
     : "");
   const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
 
