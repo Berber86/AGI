@@ -432,6 +432,48 @@ test('линия фронта помечает бреши, а правила о�
     assert.match(rules, new RegExp(info.name, 'u'), 'правила боя называют слово по-русски');
   }
   assert.match(rules, /слова обеспечения/u, 'правила объясняют, кто может стоять в глубине');
+
+  // Подавление: слово объяснено в инспекторе, значок висит на жетоне подавленного отряда,
+  // а правила называют и цену, и контрмеру. Смысл ровно тот, что задуман: удорожание, а не запрет.
+  const mg = { ...foot, name: 'Пулемёт', atk: 2, keywords: ['suppress:2'] };
+  const mgBattle = app.battle.createBattle([mg], cfg, [foot], { ...cfg }, { ...match, threatEra: 2 });
+  mgBattle.active = 'me';
+  mgBattle.me.energy = 10;
+  assert.equal(app.battle.deploy(mgBattle, 'me', 0, 0, 0), true);
+  const mgUnit = app.battle.rowsOf(mgBattle.me)[0][0];
+  const mgText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: mgUnit }, b: mgBattle })).join(' ');
+  assert.match(mgText, /Подавление/u, 'слово названо по-русски');
+  assert.match(mgText, /дорожает/u, 'и объяснено как удорожание атаки');
+
+  mgBattle.active = 'enemy';
+  mgBattle.enemy.energy = 10;
+  assert.equal(app.battle.deploy(mgBattle, 'enemy', 0, 0, 0), true);
+  const suppressedFoe = app.battle.rowsOf(mgBattle.enemy)[0][0];
+  mgBattle.active = 'me';
+  mgBattle.me.energy = 10;
+  mgUnit.exhausted = false; // только что выставленный отряд ещё отдыхает
+  assert.equal(app.battle.attackWith(mgBattle, 'me', mgUnit.iid), true, 'пулемёт попал');
+  assert.equal(suppressedFoe.st.suppress, 2, 'враг подавлен');
+
+  const titles = [];
+  const collect = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const child of node) collect(child); return; }
+    if (node.props) {
+      if (typeof node.props.title === 'string') titles.push(node.props.title);
+      collect(node.props.children);
+    }
+  };
+  collect(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'UnitToken', {
+    b: mgBattle, u: suppressedFoe, mine: false, ready: false, selected: false, targeted: false, splashed: false,
+    onClick: () => {}, onHover: () => {}, onInspect: () => {},
+  }));
+  assert.ok(titles.some((t) => /Подавлен: атака дороже на 2/u.test(t)), 'на жетоне подавленного отряда значок с пояснением');
+
+  assert.match(rules, /Подавление/u, 'правила называют статус');
+  assert.match(rules, /дорожает/u, 'и объясняют, что атака дорожает');
+  assert.match(rules, /Несокрушимый/u, 'контрмера названа');
+  assert.match(rules, /потолок \+3/u, 'предел подавления виден игроку');
 });
 
 test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {

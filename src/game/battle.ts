@@ -200,6 +200,8 @@ export function log(b: Battle, side: LogEntry["side"], text: string) {
 }
 
 const nm = (s: Side) => (s === "me" ? "Вы" : "Враг");
+/** Статусы по-русски: для журнала и для подписей в интерфейсе. */
+export const STATUS_TXT: Record<string, string> = { poison: "яд", burn: "поджог", suppress: "подавление" };
 // глаголы 3-го лица ломают «Вы ...» в журнале («Вы тянет») — подбираем форму под сторону
 const say = (s: Side, third: string, second: string) => `${nm(s)} ${s === "me" ? second : third}`;
 
@@ -329,7 +331,9 @@ export function armorOf(b: Battle, u: Unit): number {
   }
   return Math.max(0, ar);
 }
-export const costOf = (b: Battle, u: Unit) => Math.max(0, u.action_cost + modTotal(b, u, "action_cost"));
+/** Цена атаки: своя стоимость, модификаторы и подавление — оно делает удар дороже, а не запрещает его. */
+export const costOf = (b: Battle, u: Unit) =>
+  Math.max(0, u.action_cost + modTotal(b, u, "action_cost") + Math.min(SUPPRESS_MAX, u.st.suppress || 0));
 
 function adjustEnergy(b: Battle, side: Side, amount: number): number {
   const player = b[side];
@@ -365,6 +369,16 @@ function applyEnergyKeywordsOnPlay(b: Battle, side: Side, card: { name: string; 
   }
 }
 
+/**
+ * Слова-источники статусов хранятся отдельно от самого статуса: `poison:1` на карте означает
+ * «этот отряд отравляет при попадании», а `st.poison` — «этот отряд отравлён». Раньше оба жили в
+ * одном поле, из-за чего отравитель получал урон от собственного яда каждый ход и навсегда, а срок
+ * статуса при этом стирал и само слово. Теперь источник — `poisons`/`burns`/`suppresses`.
+ */
+const STATUS_SOURCE: Record<string, string> = { poison: "poisons", burn: "burns", suppress: "suppresses" };
+/** Потолок подавления: удорожание атаки не должно делать отряд бесплатной мишенью навсегда. */
+export const SUPPRESS_MAX = 3;
+
 function makeUnit(b: Battle, card: Card): Unit {
   const atk = Math.max(0, Math.floor(card.atk) || 0);
   const hp = Math.max(1, Math.floor(card.hp) || 1);
@@ -379,7 +393,8 @@ function makeUnit(b: Battle, card: Card): Unit {
   for (const raw of u.keywords) {
     const [kw, ns] = String(raw).toLowerCase().trim().split(":");
     const n = Math.max(1, parseInt(ns) || 1);
-    if (["armor", "pierce", "poison", "burn", "heal", "cleave", "vengeance", "blast", "sweep", "column"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
+    if (STATUS_SOURCE[kw]) u.st[STATUS_SOURCE[kw]] = Math.max(u.st[STATUS_SOURCE[kw]] || 0, n);
+    else if (["armor", "pierce", "heal", "cleave", "vengeance", "blast", "sweep", "column"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
     else u.st[kw] = true;
   }
   if (u.st.shieldwall || u.st.phalanx) u.st.armor = Math.max(u.st.armor || 0, 1);
@@ -864,8 +879,17 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
       // которые получают явный срок через apply_status) — отряд, который бьют поджигающим/ядовитым атакующим
       // несколько ходов подряд, копил бесконечно растущий урон за ход. Теперь каждый удар обновляет срок действия
       // на 2 хода, как и у аналогичного эффекта заклинаний (баланс-ревизия).
-      if (has(attacker, "poison")) { t.st.poison = (t.st.poison || 0) + 1; t.st.poisonTurns = 2; }
-      if (has(attacker, "burn")) { t.st.burn = (t.st.burn || 0) + 1; t.st.burnTurns = 2; }
+      if (has(attacker, "poisons")) { t.st.poison = (t.st.poison || 0) + 1; t.st.poisonTurns = 2; }
+      if (has(attacker, "burns")) { t.st.burn = (t.st.burn || 0) + 1; t.st.burnTurns = 2; }
+      // Подавление: не запрет, а удорожание атаки. «Несокрушимый» его не чувствует, постройке оно
+      // бессмысленно — постройки не атакуют.
+      if (has(attacker, "suppresses") && !t.isStructure && !has(t, "unbreakable")) {
+        const amount = Math.min(SUPPRESS_MAX, attacker.st.suppresses || 1);
+        const was = t.st.suppress || 0;
+        t.st.suppress = Math.max(was, amount);
+        t.st.suppressTurns = 2;
+        log(b, side, `«${t.name}» подавлен огнём «${attacker.name}»: атака дороже на ${t.st.suppress}${was ? " (снова)" : ""}.`);
+      }
       // После собственной атаки засадный боец тоже уходит в тыл и дальше бьёт как боец дальнего боя (см. strikesFromRear).
       if (has(attacker, "skirmish") && p.ri === 0 && attacker.curHp > 0 && rowCount(b[side]) > 1) {
         const backLine = rowArray(b[side], rowCount(b[side]) - 1);
@@ -1109,10 +1133,11 @@ function execEffect(b: Battle, e: any, t: Tgt, ctx: Ctx) {
       log(b, who, `${src}: лечение +${a.amount} — ${tname}.`);
       break;
     case "apply_status":
-      if (t.kind === "unit") {
-        t.unit.st[a.status] = Math.max(t.unit.st[a.status] || 0, a.amount);
+      if (t.kind === "unit" && !(a.status === "suppress" && has(t.unit, "unbreakable"))) {
+        const amount = a.status === "suppress" ? Math.min(SUPPRESS_MAX, a.amount) : a.amount;
+        t.unit.st[a.status] = Math.max(t.unit.st[a.status] || 0, amount);
         t.unit.st[a.status + "Turns"] = a.turns ?? 2;
-        log(b, who, `${src}: ${a.status === "poison" ? "яд" : "поджог"} ${a.amount} — ${tname}.`);
+        log(b, who, `${src}: ${STATUS_TXT[a.status] || a.status} ${amount} — ${tname}.`);
       }
       break;
     case "destroy":
@@ -1234,6 +1259,12 @@ function tickStatuses(b: Battle, side: Side) {
       if (u.curHp > 0) [s.i - 1, s.i + 1].forEach((ni) => { const n = rowArray(p, s.ri)[ni]; if (n && !n.st.burn && Math.random() < 0.35) { n.st.burn = 1; n.st.burnTurns = 2; log(b, side, `Огонь перекинулся на «${n.name}».`); } });
       if (u.st.burnTurns > 0) { if (--u.st.burnTurns <= 0) { delete u.st.burn; delete u.st.burnTurns; } }
       else { u.st.burn--; if (u.st.burn <= 0) delete u.st.burn; }
+    }
+    // Подавление не наносит урона: оно истекает само и возвращает отряду прежнюю цену атаки.
+    if (u.st.suppress > 0 && u.st.suppressTurns > 0 && --u.st.suppressTurns <= 0) {
+      delete u.st.suppress;
+      delete u.st.suppressTurns;
+      log(b, side, `«${u.name}» приходит в себя: подавление снято.`);
     }
     if (u.curHp > 0 && !has(u, "unbreakable") && (u.fears || (has(u, "morale") && u.curHp / u.hp < 0.3))) {
       if (Math.random() < (u.fears ? 0.5 : 0.2)) {

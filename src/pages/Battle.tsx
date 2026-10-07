@@ -65,7 +65,7 @@ function Hero({ side, b, name, sub, targeted, onClick }: { side: "me" | "enemy";
   );
 }
 
-function UnitToken({ b, u, mine, ready, selected, targeted, splashed, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; splashed?: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
+export function UnitToken({ b, u, mine, ready, selected, targeted, splashed, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; splashed?: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
   const atk = atkOf(b, u);
   const armor = armorOf(b, u);
   const hurt = u.curHp < u.hp;
@@ -115,6 +115,7 @@ function UnitToken({ b, u, mine, ready, selected, targeted, splashed, onClick, o
       <span className="absolute left-1 top-1 flex gap-0.5">
         {u.st.poison > 0 && <span title="Отравлен" className="grid h-4 w-4 place-items-center rounded-full bg-ok/30 text-ok"><Skull size={9} /></span>}
         {u.st.burn > 0 && <span title="Горит" className="grid h-4 w-4 place-items-center rounded-full bg-clay/40 text-clay"><Flame size={9} /></span>}
+        {u.st.suppress > 0 && <span title={`Подавлен: атака дороже на ${u.st.suppress}`} className="grid h-4 w-4 place-items-center rounded-full bg-know/30 text-know"><Hourglass size={9} /></span>}
       </span>
       {u.isStructure ? <span className="absolute right-1 top-1 text-[9px] font-semibold uppercase text-mat">здание</span> : <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 text-[10px] font-semibold text-bronze"><Zap size={9} />{costOf(b, u)}</span>}
       {splashed && <span title="Эту клетку накрывает площадный удар" className="pointer-events-none absolute inset-0 rounded-xl border-2 border-dashed border-clay/80" />}
@@ -395,8 +396,10 @@ export default function BattleScreen() {
         if (selU.st.command) support.push(selPos.ri === rows.length - 1 ? "штаб в тылу: +1 энергии в начале хода" : "штаб снабжает только из тыла — последнего ряда");
         if (selU.st.spotter) support.push(`наводит дальний и площадный огонь по столбцу ${selPos.i + 1}: +1 урона`);
       }
+      // Подавление видно по цене атаки на жетоне, но объяснить причину словами всё равно нужно.
+      const suppressNote = selU.st.suppress ? ` Отряд подавлен: атака стоит ${costOf(b, selU)} вместо ${selU.action_cost}.` : "";
       const supportNote = support.length ? ` ${support.join("; ")}.` : "";
-      return { text: base + note + moveNote + areaNote + supportNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
+      return { text: base + note + moveNote + areaNote + supportNote + suppressNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
     }
     if (selCard) {
       if (selCard.drop_cost > b.me.energy) return { text: `«${selCard.name}» стоит ${selCard.drop_cost} — не хватает энергии.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
@@ -657,6 +660,7 @@ export function BattleRules({ className }: { className?: string }) {
       <p className="mt-2">Площадной удар бьёт не только по цели, но и по её окружению — это ответ на плотный строй. Три формы: «Фугас» накрывает соседей цели в её ряду и отряд прямо за ней, «Картечь» — весь ряд цели, «Обстрел столбца» — весь столбец цели во всех рядах. Дополнительных целей не больше трёх, урон по ним равен числу в слове (основная цель получает полный урон атаки), и ответных ударов площадь не вызывает. Удар с числом 2 считается тяжёлым и задевает ещё и ваш собственный отряд, стоящий напротив в том же столбце: полоса огня проходит через весь столбец. Отвечают на площадь «Рассредоточение» (−1 к площадному урону) и «Окоп» (в авангарде не получает «Картечь» и «Обстрел столбца»). Клетки, которые накроет выбранный отряд, отмечены пунктиром до удара.</p>
       <p className="mt-2">Перестроение: свой отряд можно сдвинуть на одну соседнюю клетку — вбок по своему ряду или на ряд вперёд/назад — за 1 энергию, один раз за ход. Перестроение не истощает отряд: можно сдвинуться и ударить в тот же ход, если хватает энергии. Постройки не двигаются, а правила рядов действуют и здесь — ближний бой без стрельбы не уходит вглубь.</p>
       <p className="mt-2">Слова столбца делают полосу этажом обеспечения боя. «Прикрытие» добавляет +1 брони отряду прямо перед собой в том же столбце — тыл реально бережёт передних, а не только стреляет. «Штаб», пока жив и стоит в последнем ряду, даёт +1 энергии в начале хода сверх текущего предела. «Корректировщик» наводит ваши дальние и площадные удары по целям своего столбца: +1 урона. «Охват» бьёт на 1 сильнее по цели с открытым флангом — у той нет живого соседа хотя бы с одной стороны, значит, она стоит в крайнем столбце или рядом с дырой в строю, — а если отряд напротив пал, идёт вверх по своему столбцу, а не вбок по чужому ряду.</p>
+      <p className="mt-2">Подавление — статус вместо урона: пулемёт и артиллерия не столько убивают, сколько заставляют залечь. Подавленный отряд не теряет права на атаку, но она дорожает на число в слове (потолок +3) на два хода: если энергии хватает, он всё равно ударит. Урона подавление не наносит и истекает само — в журнале это строка «приходит в себя». «Несокрушимый» не чувствует ни страха, ни морали, ни подавления.</p>
       <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
       <Legend className="mt-3 text-faint" />
     </div>
