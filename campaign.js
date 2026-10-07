@@ -285,9 +285,14 @@
         return 'harsh';
     }
 
+    // Каждый шаг качества (grade сырья или уровень кузнеца) снижает шанс обычной карты и повышает
+    // шанс карты выше обычной; при открытой редкости растёт и шанс rare. Раньше maxScore: 1 объединял
+    // оценки 0 и 1 — отборное сырьё стоило вдвое дороже обычного, но показывало те же проценты.
     const CARD_RARITY_ODDS = [
-        { maxScore: 1, odds: { ordinary: 70, uncommon: 25, rare: 5 } },
+        { maxScore: 0, odds: { ordinary: 70, uncommon: 25, rare: 5 } },
+        { maxScore: 1, odds: { ordinary: 60, uncommon: 30, rare: 10 } },
         { maxScore: 2, odds: { ordinary: 50, uncommon: 38, rare: 12 } },
+        { maxScore: 3, odds: { ordinary: 40, uncommon: 44, rare: 16 } },
         { maxScore: 4, odds: { ordinary: 30, uncommon: 50, rare: 20 } },
         { maxScore: 5, odds: { ordinary: 15, uncommon: 45, rare: 40 } }
     ];
@@ -810,7 +815,7 @@
         const availableMaterialQualities = getAvailableMaterialQualities(state);
         const materialQualityUnlocked = availableMaterialQualities.includes(materialQuality);
         // Качество ковки = сырьё + мастерство кузнеца (растёт от успешных ковок).
-        const qualityScore = Math.min(6, material.grade + state.player.craftLevel);
+        const qualityScore = Math.min(CARD_RARITY_ODDS.length - 1, material.grade + state.player.craftLevel);
         const baseOdds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
         const rareLocked = state.player.era < RARE_CRAFT_MIN_ERA;
         const odds = rareLocked

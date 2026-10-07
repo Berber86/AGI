@@ -82,7 +82,7 @@ export function Meter({ value, max, className, color = "bg-bronze" }: { value: n
   );
 }
 
-export function Modal({ open, onClose, children, wide, title, dismissable = true }: { open: boolean; onClose: () => void; children: ReactNode; wide?: boolean; title?: string; dismissable?: boolean }) {
+export function Modal({ open, onClose, children, wide, title, dismissable = true, footer }: { open: boolean; onClose: () => void; children: ReactNode; wide?: boolean; title?: string; dismissable?: boolean; footer?: ReactNode }) {
   useEffect(() => {
     if (!open || !dismissable) return;
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -90,16 +90,27 @@ export function Modal({ open, onClose, children, wide, title, dismissable = true
     return () => window.removeEventListener("keydown", h);
   }, [open, onClose, dismissable]);
   if (!open) return null;
+  const panel = "relative w-full animate-rise rounded-t-3xl border border-line-strong bg-surface shadow-2xl sm:rounded-2xl";
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" aria-label={title}>
       <div className="absolute inset-0 animate-fade bg-black/70 backdrop-blur-[2px]" onClick={dismissable ? onClose : undefined} />
-      <div className={cn("relative max-h-[92dvh] w-full animate-rise overflow-y-auto rounded-t-3xl border border-line-strong bg-surface p-5 shadow-2xl sm:rounded-2xl sm:p-7", wide ? "sm:max-w-3xl" : "sm:max-w-lg")}>
+      <div
+        className={cn(panel, footer ? "flex max-h-[92dvh] flex-col overflow-hidden" : "max-h-[92dvh] overflow-y-auto p-5 sm:p-7", wide ? "sm:max-w-3xl" : "sm:max-w-lg")}
+        style={footer ? { height: "min(92dvh, 740px)" } : undefined}
+      >
         {dismissable && (
-          <button onClick={onClose} aria-label="Закрыть" className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-raised hover:text-parch">
+          <button onClick={onClose} aria-label="Закрыть" className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-raised hover:text-parch">
             <X size={18} />
           </button>
         )}
-        {children}
+        {footer ? (
+          <>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 pt-12 sm:px-7 sm:pb-7 sm:pt-12">{children}</div>
+            <div className="shrink-0 border-t border-line bg-surface px-5 pt-3 sm:px-7" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.75rem)" }}>
+              {footer}
+            </div>
+          </>
+        ) : children}
       </div>
     </div>
   );

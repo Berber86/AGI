@@ -11,6 +11,7 @@ const Campaign = require('../campaign.js');
 
 const root = path.join(__dirname, '..');
 const forgeSource = fs.readFileSync(path.join(root, 'src', 'pages', 'Forge.tsx'), 'utf8');
+const uiSource = fs.readFileSync(path.join(root, 'src', 'components', 'ui.tsx'), 'utf8');
 
 function founded(era = 0, glory = 100) {
   const out = Campaign.foundCampaignState(Campaign.createState(), {
@@ -60,6 +61,61 @@ test('сырьё открывается эпохой, а редкие карты
   assert.equal(blocked.materialQualityUnlocked, false);
   assert.equal(blocked.affordable, false);
   assert.match(blocked.unlockText, /откроется в эпоху/u);
+});
+
+test('каждый уровень сырья за большую славу повышает шанс более редкой карты даже у новичка', () => {
+  const qualities = ['standard', 'refined', 'masterwork'];
+  const quotes = qualities.map(materialQuality =>
+    Campaign.cardCraftQuote(founded(2, 200), { materialQuality })
+  );
+
+  for (let i = 1; i < quotes.length; i++) {
+    const previous = quotes[i - 1];
+    const current = quotes[i];
+    assert.ok(current.cost > previous.cost, `${qualities[i]} стоит дороже`);
+    assert.ok(current.qualityScore > previous.qualityScore, `${qualities[i]} повышает качество`);
+    assert.ok(current.odds.ordinary < previous.odds.ordinary, 'шанс обычной карты снижается');
+    assert.ok(current.odds.rare > previous.odds.rare, 'шанс редкой карты растёт');
+    assert.ok(
+      current.odds.uncommon + current.odds.rare > previous.odds.uncommon + previous.odds.rare,
+      'суммарный шанс карты выше обычной растёт'
+    );
+    assert.equal(current.odds.ordinary + current.odds.uncommon + current.odds.rare, 100);
+  }
+
+  const earlyStandard = Campaign.cardCraftQuote(founded(1, 100), { materialQuality: 'standard' });
+  const earlyRefined = Campaign.cardCraftQuote(founded(1, 100), { materialQuality: 'refined' });
+  assert.equal(earlyStandard.craftLevel, 0);
+  assert.ok(earlyRefined.cost > earlyStandard.cost);
+  assert.ok(earlyRefined.odds.rare > earlyStandard.odds.rare);
+  assert.ok(earlyRefined.odds.ordinary < earlyStandard.odds.ordinary);
+
+  const allScores = Array.from({ length: 6 }, (_, score) => {
+    const state = founded(3, 200);
+    state.player.craftLevel = Math.min(score, Campaign.CRAFT_LEVEL_MAX);
+    const materialQuality = score === 4 ? 'refined' : score === 5 ? 'masterwork' : 'standard';
+    return Campaign.cardCraftQuote(state, { materialQuality });
+  });
+  for (let i = 0; i < allScores.length; i++) {
+    const quote = allScores[i];
+    assert.equal(quote.qualityScore, i);
+    assert.equal(quote.odds.ordinary + quote.odds.uncommon + quote.odds.rare, 100);
+    if (i > 0) {
+      const previous = allScores[i - 1];
+      assert.ok(quote.odds.ordinary < previous.odds.ordinary, `score ${i}: обычных меньше`);
+      assert.ok(quote.odds.rare > previous.odds.rare, `score ${i}: редких больше`);
+      assert.ok(quote.odds.uncommon + quote.odds.rare > previous.odds.uncommon + previous.odds.rare, `score ${i}: выше обычной больше`);
+    }
+  }
+});
+
+test('на экране результата ковки действия остаются видимыми на мобильном', () => {
+  assert.match(forgeSource, /footer=\{reveal &&/u, 'действия переданы в отдельный футер модалки');
+  assert.match(forgeSource, /Принять карту/u);
+  assert.match(forgeSource, /В колоду/u);
+  assert.match(uiSource, /min-h-0 flex-1 overflow-y-auto overscroll-contain/u, 'прокручивается содержимое, не футер');
+  assert.match(uiSource, /safe-area-inset-bottom/u, 'учтён нижний safe area телефона');
+  assert.match(forgeSource, /min-h-14 w-full/u, 'кнопки имеют крупную мобильную область нажатия');
 });
 
 test('мастерство кузнеца повышает шанс редкой карты', () => {
