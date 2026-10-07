@@ -220,6 +220,8 @@ export function rowsOf(p: Player): (Unit | null)[][] {
 export const rowCount = (p: Player): number => rowsOf(p).length;
 export const slotCount = (p: Player): number => p.front.length;
 export const rowArray = (p: Player, ri: number): (Unit | null)[] => rowsOf(p)[ri] || [];
+/** Крайний столбец половины: на столе в один столбец флангом считается и он сам. */
+export const isFlank = (p: Player, i: number): boolean => i <= 0 || i >= slotCount(p) - 1;
 export const isFrontRow = (_p: Player, ri: number): boolean => ri === 0;
 export const isBackRow = (p: Player, ri: number): boolean => ri === rowCount(p) - 1;
 
@@ -364,7 +366,7 @@ function makeUnit(b: Battle, card: Card): Unit {
   for (const raw of u.keywords) {
     const [kw, ns] = String(raw).toLowerCase().trim().split(":");
     const n = Math.max(1, parseInt(ns) || 1);
-    if (["armor", "pierce", "poison", "burn", "heal", "cleave", "vengeance"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
+    if (["armor", "pierce", "poison", "burn", "heal", "cleave", "vengeance", "blast", "sweep", "column"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
     else u.st[kw] = true;
   }
   if (u.st.shieldwall || u.st.phalanx) u.st.armor = Math.max(u.st.armor || 0, 1);
@@ -636,6 +638,112 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attac
   return dmg;
 }
 
+/* ---------- площадный удар: три формы площади ----------
+   Ряд защищает от ближнего боя, но не от площади; столбец задаёт направление удара. Площадь —
+   ответ на плотный строй, и у неё ровно три формы, по осям стола: крест («Фугас» — соседи цели в
+   её ряду и отряд прямо за целью), линия («Картечь» — весь ряд цели), полоса («Обстрел столбца» —
+   весь столбец цели во всех рядах). Все три считаются от основной цели: её выбирает обычное
+   правило выбора цели, включая провокацию, поэтому перехватить площадь taunt'ом нельзя — можно
+   только принять её на себя.
+
+   Ограничения баланса зашиты здесь, а не в советах кузнецу: дополнительных целей не больше
+   AREA_MAX_EXTRA, урон по ним — N (основная цель получает полный урон атаки), ответных ударов
+   площадь не вызывает, а «рассредоточение» и «окоп» её гасят. Тяжёлый удар (N ≥ AREA_HEAVY_N)
+   задевает и собственный отряд, стоящий напротив в той же полосе огня: линия огня проходит через
+   весь столбец, а не только по чужой половине. По вождю площадь не работает — у удара нет точки
+   на поле, считать форму не от чего (прорыв в столбце и так даёт полный урон вождю). */
+export const AREA_KEYWORDS = ["blast", "sweep", "column"] as const;
+export type AreaShape = (typeof AREA_KEYWORDS)[number];
+export const AREA_NAMES: Record<AreaShape, string> = { blast: "Фугас", sweep: "Картечь", column: "Обстрел столбца" };
+/** Больший N — это не «ещё сильнее», а «ещё дороже карта»: потолок один для всех форм. */
+export const AREA_MAX_N = 2;
+/** Сколько дополнительных целей накрывает один удар (основная цель в этот счёт не входит). */
+export const AREA_MAX_EXTRA = 3;
+/** С какого N удар считается тяжёлым и задевает своих в той же полосе. */
+export const AREA_HEAVY_N = 2;
+
+/** Площадное слово отряда: кузнец обязан давать карте не больше одного (см. validateCard). */
+export function areaOf(u: Unit): { shape: AreaShape; n: number } | null {
+  for (const shape of AREA_KEYWORDS) {
+    const n = u.st[shape];
+    if (typeof n === "number" && n > 0) return { shape, n: Math.min(AREA_MAX_N, Math.floor(n)) };
+  }
+  return null;
+}
+
+export interface SplashHit { side: Side; ri: number; i: number; unit: Unit; own: boolean }
+
+/** «Окоп» в авангарде гасит картечь и обстрел столбца, но не разрыв рядом и не прямой удар. */
+const entrenchedSaves = (u: Unit, ri: number, shape: AreaShape): boolean =>
+  has(u, "entrenched") && ri === 0 && shape !== "blast";
+
+/**
+ * Клетки, которые накрывает удар, кроме основной цели. Урон считает applySplash: здесь только
+ * геометрия, чтобы её можно было показать в интерфейсе и проверить в тестах.
+ */
+export function splashTargets(b: Battle, side: Side, attacker: Unit, target: AttackTarget): SplashHit[] {
+  const area = areaOf(attacker);
+  if (!area || target.kind !== "unit") return [];
+  const es = target.side;
+  const dp = b[es];
+  const found: (SplashHit & { dist: number })[] = [];
+  const seen = new Set<Unit>([target.unit]);
+  const push = (ri: number, i: number) => {
+    if (ri < 0 || ri >= rowCount(dp) || i < 0 || i >= slotCount(dp)) return;
+    const u = rowArray(dp, ri)[i];
+    if (!u || u.curHp <= 0 || seen.has(u)) return;
+    if (entrenchedSaves(u, ri, area.shape)) return;
+    seen.add(u);
+    found.push({ side: es, ri, i, unit: u, own: false, dist: Math.abs(ri - target.ri) + Math.abs(i - target.i) });
+  };
+  if (area.shape === "blast") {
+    push(target.ri, target.i - 1);
+    push(target.ri, target.i + 1);
+    push(target.ri + 1, target.i);
+  } else if (area.shape === "sweep") {
+    for (let i = 0; i < slotCount(dp); i++) if (i !== target.i) push(target.ri, i);
+  } else {
+    for (let ri = 0; ri < rowCount(dp); ri++) if (ri !== target.ri) push(ri, target.i);
+  }
+  found.sort((x, y) => x.dist - y.dist || x.ri - y.ri || x.i - y.i);
+  const out: SplashHit[] = found.slice(0, AREA_MAX_EXTRA).map(({ dist, ...hit }) => hit);
+  // Тяжёлая площадь задевает своих: отряд напротив, в той же полосе огня. Стреляющих не накрывает —
+  // они и есть источник удара, — а «окоп» спасает и здесь.
+  if (area.n >= AREA_HEAVY_N) {
+    const mine = rowArray(b[side], 0)[target.i];
+    if (mine && mine.curHp > 0 && mine !== attacker && !entrenchedSaves(mine, 0, area.shape)) {
+      out.push({ side, ri: 0, i: target.i, unit: mine, own: true });
+    }
+  }
+  return out;
+}
+
+/** Урон по площади: броня и «рассредоточение» гасят его, а бонусы атакующего (рывок, трофеи, страх) — нет. */
+function areaDamage(b: Battle, attacker: Unit, u: Unit, base: number): number {
+  let dmg = base;
+  if (attacker.era === "bronze" && u.era === "ancient") dmg += 1;
+  if (attacker.era === "ancient" && u.era === "bronze") dmg = Math.max(1, dmg - 1);
+  dmg = Math.max(1, dmg - Math.max(0, armorOf(b, u) - (attacker.st.pierce || 0)));
+  if (has(u, "dispersed")) dmg = Math.max(1, dmg - 1);
+  if (has(u, "shieldwall") && neighborsOf(b, u).length >= 1) dmg = Math.max(1, dmg - 1);
+  if (has(u, "sturdy") && !u.hitThisTurn) { dmg = Math.max(1, dmg - 1); u.hitThisTurn = true; }
+  if (u.isStructure && has(attacker, "siege")) dmg *= 2;
+  return Math.max(1, Math.floor(dmg));
+}
+
+/** Накрывает площадь вокруг основной цели и пишет это в журнал — по строке на каждую клетку. */
+function applySplash(b: Battle, side: Side, attacker: Unit, target: AttackTarget): void {
+  const area = areaOf(attacker);
+  if (!area) return;
+  for (const h of splashTargets(b, side, attacker, target)) {
+    const dmg = areaDamage(b, attacker, h.unit, h.own ? 1 : area.n);
+    hurtUnit(b, h.unit, dmg, attacker);
+    log(b, side, h.own
+      ? `${AREA_NAMES[area.shape]} задевает свой отряд в той же полосе: «${h.unit.name}» −${dmg}.`
+      : `${AREA_NAMES[area.shape]} накрывает «${h.unit.name}»: −${dmg}.`);
+  }
+}
+
 export function attackWith(b: Battle, side: Side, iid: string): boolean {
   const attacker = unitsOf(b, side).find((s) => s.unit.iid === iid)?.unit;
   if (!attacker || !canAct(b, side, attacker)) return false;
@@ -681,6 +789,9 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
       // из тыла бьёт не тех, кто стоит напротив.
       const overFront = isRanged(b, attacker) && target.ri > 0 && !!rowArray(b[defenderSide], 0).find((u) => u && u.curHp > 0);
       log(b, side, `${attacker.name} ${overFront ? "стреляет через строй по" : "атакует"} «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
+      // Площадь — после основного удара: читатель журнала сначала видит, кто кого ударил, а потом
+      // кого ещё накрыло. Ответных ударов она не вызывает (как и «рассечение»).
+      applySplash(b, side, attacker, target);
       // Месть: погибший в этом обмене ударами отряд наносит ответный удар своему убийце, если тот ещё жив.
       // Пока охватывает только прямой ближний/дальний бой (resolveHit выше и ниже), а не урон от заклинаний/статусов.
       if (t.curHp <= 0 && has(t, "vengeance") && attacker.curHp > 0) {
@@ -716,7 +827,9 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     attacker.exhausted = true;
   }
   adjustEnergy(b, side, -costOf(b, attacker));
-  if (hitLanded && attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : { kind: "unit", side: target.side, unit: target.unit });
+  // Цель удара отдаётся эффектам целиком (с рядом и столбцом): от них зависит геометрия —
+  // relation attack_target_row / attack_target_column выбирают клетки по осям цели.
+  if (hitLanded && attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : target);
   settle(b);
   return true;
 }
@@ -824,9 +937,20 @@ function resolveTargets(b: Battle, e: any, ctx: Ctx, all = false): Tgt[] {
     // на пяти — четыре глубинных ряда: «бьёт по тылам» остаётся осмысленным на любом столе.
     if (spec.zone === "front" && s.ri !== 0) return false;
     if (spec.zone === "rear" && s.ri === 0) return false;
+    // Фланг — крайние столбцы своей половины, центр — всё между ними: ширина стола стала осмысленной
+    // (см. брешь и площадные слова), поэтому у эффектов появился и такой выбор цели.
+    if (spec.zone === "flank" && !isFlank(b[s.side], s.i)) return false;
+    if (spec.zone === "center" && isFlank(b[s.side], s.i)) return false;
     return true;
   });
   if (spec.relation === "self") cands = cands.filter((s) => s.unit === ctx.source);
+  // Ряд и столбец цели удара: те же оси, что и у площадных слов, — только выбирает их эффект карты.
+  if (spec.relation === "attack_target_row" || spec.relation === "attack_target_column") {
+    const t = ctx.eventTarget;
+    cands = t && t.kind === "unit"
+      ? cands.filter((s) => s.side === t.side && (spec.relation === "attack_target_row" ? s.ri === t.ri : s.i === t.i))
+      : [];
+  }
   if (spec.relation === "adjacent") {
     const pos = ctx.source && posOf(b, ctx.source);
     cands = pos ? cands.filter((s) => s.side === pos.side && s.ri === pos.ri && Math.abs(s.i - pos.i) === 1) : [];

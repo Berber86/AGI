@@ -392,6 +392,27 @@ test('линия фронта помечает бреши, а правила о�
   assert.match(rules, /за 1 энергию/u);
   assert.match(rules, /не истощает/u);
   assert.match(rules, /Постройки не двигаются/u);
+
+  // Площадь: три формы, тяжёлый удар задевает своих, а контрмеры названы своими именами.
+  assert.match(rules, /Фугас/u);
+  assert.match(rules, /Картечь/u);
+  assert.match(rules, /Обстрел столбца/u);
+  assert.match(rules, /не больше трёх/u);
+  assert.match(rules, /ответных ударов площадь не вызывает/u);
+  assert.match(rules, /задевает ещё и ваш собственный отряд/u);
+  assert.match(rules, /Рассредоточение/u);
+  assert.match(rules, /Окоп/u);
+
+  // Инспектор объясняет площадное слово отряда так же, как остальные.
+  const gunCard = { ...foot, name: 'Мортира', keywords: ['blast:2'] };
+  const gunBattle = app.battle.createBattle([gunCard], cfg, [], { ...cfg }, match);
+  gunBattle.active = 'me';
+  gunBattle.me.energy = 10;
+  assert.equal(app.battle.deploy(gunBattle, 'me', 0, 0, 0), true);
+  const gun = app.battle.rowsOf(gunBattle.me)[0][0];
+  const gunText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: gun }, b: gunBattle })).join(' ');
+  assert.match(gunText, /Фугас/u, 'площадное слово названо по-русски');
+  assert.match(gunText, /накрывает ещё N урона/u, 'и объяснено');
 });
 
 test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {

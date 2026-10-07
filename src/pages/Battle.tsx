@@ -5,8 +5,8 @@ import { M } from "@/game/model";
 import { allCards, withoutStructures, describeEffect, kwName, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
-  deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, gapsOf, hasGapAt, inactiveKeywords, MOVE_COST, moveTargets,
-  moveUnit, rowsOf, rowName, spellHasTarget, unitsOf, type Battle, type Unit,
+  areaOf, AREA_NAMES, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, gapsOf, hasGapAt, inactiveKeywords,
+  MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf, type Battle, type Unit,
 } from "@/game/battle";
 import { useStore } from "@/game/store";
 import { Btn, Meter, Modal } from "@/components/ui";
@@ -64,7 +64,7 @@ function Hero({ side, b, name, sub, targeted, onClick }: { side: "me" | "enemy";
   );
 }
 
-function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
+function UnitToken({ b, u, mine, ready, selected, targeted, splashed, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; splashed?: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
   const atk = atkOf(b, u);
   const armor = armorOf(b, u);
   const hurt = u.curHp < u.hp;
@@ -116,6 +116,8 @@ function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover, on
         {u.st.burn > 0 && <span title="Горит" className="grid h-4 w-4 place-items-center rounded-full bg-clay/40 text-clay"><Flame size={9} /></span>}
       </span>
       {u.isStructure ? <span className="absolute right-1 top-1 text-[9px] font-semibold uppercase text-mat">здание</span> : <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 text-[10px] font-semibold text-bronze"><Zap size={9} />{costOf(b, u)}</span>}
+      {splashed && <span title="Эту клетку накрывает площадный удар" className="pointer-events-none absolute inset-0 rounded-xl border-2 border-dashed border-clay/80" />}
+      {splashed && <span title="Эту клетку накрывает площадный удар" className="pointer-events-none absolute bottom-0.5 left-1 text-[11px] leading-none">💥</span>}
       {u.hitSeq > 0 && <span key={"d" + u.hitSeq} className="pointer-events-none absolute inset-x-0 top-1/3 animate-float-dmg text-xl font-black text-bad drop-shadow">−{u.lastDmg}</span>}
       {mine && !u.exhausted && !u.isStructure && !ready && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-bronze/30" />}
     </button>
@@ -239,6 +241,11 @@ export default function BattleScreen() {
   /** Клетки, куда выбранный отряд может перестроиться за энергию (см. moveTargets в движке). */
   const selMoves = selU && b.active === "me" && !b.over ? moveTargets(b, "me", selU) : [];
   const isMove = (ri: number, i: number) => selMoves.some((t) => t.ri === ri && t.i === i);
+  /** Радиус площадного удара выбранного отряда: показываем, кого ещё накроет, до самого удара. */
+  const selArea = selU ? areaOf(selU) : null;
+  const splashCells = selU && myTurn && target && selArea ? splashTargets(b, "me", selU, target) : [];
+  const isSplashed = (side: "me" | "enemy", ri: number, i: number) =>
+    splashCells.some((h) => h.side === side && h.ri === ri && h.i === i);
 
   const runEnemy = async () => {
     busy.current = true;
@@ -368,7 +375,12 @@ export default function BattleScreen() {
       const base = target ? `«${selU.name}» атакует ${tName}. Цена: ${costOf(b, selU)} энергии.` : `«${selU.name}» не может дотянуться до врага.`;
       const note = needsDepth(b, selU.keywords) ? " На одной линии Каменного века дальний бой не работает: удар врукопашную и ответный." : "";
       const moveNote = selMoves.length ? ` Перестроение на подсвеченную клетку — ${MOVE_COST} энергии.` : "";
-      return { text: base + note + moveNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
+      const areaNote = selArea
+        ? ` ${AREA_NAMES[selArea.shape]} ${selArea.n}: ${splashCells.filter((h) => !h.own).length
+          ? `накроет ещё ${splashCells.filter((h) => !h.own).length} — клетки отмечены пунктиром` : "сейчас накрывать некого"
+        }${splashCells.some((h) => h.own) ? ", и заденет свой отряд в той же полосе" : ""}.`
+        : "";
+      return { text: base + note + moveNote + areaNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
     }
     if (selCard) {
       if (selCard.drop_cost > b.me.energy) return { text: `«${selCard.name}» стоит ${selCard.drop_cost} — не хватает энергии.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
@@ -404,6 +416,7 @@ export default function BattleScreen() {
                 ready={side === "me" && myTurn && canAct(b, "me", u) && !selUnit}
                 selected={selUnit === u.iid}
                 targeted={!!selU && target?.kind === "unit" && target.unit === u}
+                splashed={isSplashed(side, ri, i)}
                 onClick={() => (side === "me" ? clickMyUnit(u) : clickEnemyUnit(u))}
                 onHover={(v) => setHover(v ? u : null)}
                 onInspect={() => setInspectUnit(u)}
@@ -601,6 +614,7 @@ export function Legend({ className }: { className?: string }) {
     [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-line-strong text-[10px] font-bold text-bronze">2</span>, "Число на отряде — сколько энергии стоит его атака."],
     [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-xl border border-dashed border-know/70 bg-know/10 text-[9px] text-know">⇄</span>, "Подсветка со стрелкой — куда можно перестроить выбранный отряд за 1 энергию."],
     [<span key="k" className="mx-auto block pt-1 text-[9px] font-semibold uppercase tracking-wide text-ok">брешь</span>, "Пометка на линии фронта: в этом столбце у стороны не осталось отрядов, и удар через него проходит вождю."],
+    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border-2 border-dashed border-clay/80 text-[10px]">💥</span>, "Пунктир с отметкой — клетки, которые накрывает площадный удар выбранного отряда."],
   ];
   return (
     <ul className={cn("space-y-1.5", className)}>
@@ -624,6 +638,7 @@ export function BattleRules({ className }: { className?: string }) {
       <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные и «длинное оружие» могут стоять в любом ряду. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
       <p className="mt-2">В Каменном веке стол — одна линия, поэтому дальнего боя, засады и «длинного оружия» там нет: каждый отряд бьёт того, кто напротив, затем ближайшего в линии, а при пустой линии врага — вождя, и получает ответный удар. Ключевые слова, которые на этом столе молчат, перечёркнуты в описании отряда; нажмите на чип слова, чтобы прочитать, что оно делает.</p>
       <p className="mt-2">Брешь в обороне — правило по умолчанию, а не особое свойство карт: столбец, в котором у стороны не осталось живых отрядов, открывает вождя. Удар ближнего боя из этого столбца проходит вождю, даже если чужой строй стоит в соседних столбцах; постройки строй не держат (их разбирает осада), а провокация перехватывает удар и через брешь. Поэтому линию держат по всей ширине, и крайние столбцы — не украшение стола.</p>
+      <p className="mt-2">Площадной удар бьёт не только по цели, но и по её окружению — это ответ на плотный строй. Три формы: «Фугас» накрывает соседей цели в её ряду и отряд прямо за ней, «Картечь» — весь ряд цели, «Обстрел столбца» — весь столбец цели во всех рядах. Дополнительных целей не больше трёх, урон по ним равен числу в слове (основная цель получает полный урон атаки), и ответных ударов площадь не вызывает. Удар с числом 2 считается тяжёлым и задевает ещё и ваш собственный отряд, стоящий напротив в том же столбце: полоса огня проходит через весь столбец. Отвечают на площадь «Рассредоточение» (−1 к площадному урону) и «Окоп» (в авангарде не получает «Картечь» и «Обстрел столбца»). Клетки, которые накроет выбранный отряд, отмечены пунктиром до удара.</p>
       <p className="mt-2">Перестроение: свой отряд можно сдвинуть на одну соседнюю клетку — вбок по своему ряду или на ряд вперёд/назад — за 1 энергию, один раз за ход. Перестроение не истощает отряд: можно сдвинуться и ударить в тот же ход, если хватает энергии. Постройки не двигаются, а правила рядов действуют и здесь — ближний бой без стрельбы не уходит вглубь.</p>
       <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
       <Legend className="mt-3 text-faint" />
