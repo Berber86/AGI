@@ -57,6 +57,17 @@ test('победа даёт славу по эпохе и силе соперн�
   assert.match(Campaign.recordBattleState(state, { opponentId: 'нет', won: true }).error, /Соперник не найден/u);
 });
 
+test('временный темп плейтеста открывает Античность за две победы', () => {
+  assert.deepEqual(Campaign.ERA_GLORY_THRESHOLDS, [0, 15, 40, 80, 140, 225, 350]);
+
+  let state = founded();
+  state = Campaign.recordBattleState(state, { opponentId: 'reed', won: true }).state;
+  assert.equal(state.player.era, 0, 'одной победы пока недостаточно');
+  state = Campaign.recordBattleState(state, { opponentId: 'reed', won: true }).state;
+  assert.equal(state.player.era, 1, 'вторая победа открывает следующую эпоху');
+  assert.ok(state.player.gloryTotal >= Campaign.ERA_GLORY_THRESHOLDS[1]);
+});
+
 test('накопленная слава поднимает эпоху, тянет за собой племена и открывает выбор наследия', () => {
   const state = founded();
   const before = Campaign.nextEraProgress(state);
