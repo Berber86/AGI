@@ -15,7 +15,7 @@ const source = fs.readFileSync(path.join(root, 'campaign.js'), 'utf8');
 
 function founded(overrides = {}) {
   return Campaign.foundCampaignState(Campaign.createState(), {
-    originId: 'river', seedId: 'field', historicalCultureId: 'natufian', ...overrides,
+    seedId: 'field', historicalCultureId: 'natufian', ...overrides,
   });
 }
 
@@ -33,22 +33,24 @@ test('новое состояние: пятая версия, стартовая
   }
 });
 
-test('основание народа требует все три выбора и берёт имя из земли', () => {
+test('основание народа требует оба выбора и складывает имя из наследия и замысла', () => {
   const base = Campaign.createState();
-  assert.match(Campaign.foundCampaignState(base, { seedId: 'field', historicalCultureId: 'natufian' }).error, /происхождение/iu);
-  assert.match(Campaign.foundCampaignState(base, { originId: 'river', historicalCultureId: 'natufian' }).error, /замысел/iu);
-  assert.match(Campaign.foundCampaignState(base, { originId: 'river', seedId: 'field' }).error, /наследие/iu);
+  assert.match(Campaign.foundCampaignState(base, { historicalCultureId: 'natufian' }).error, /замысел/iu);
+  assert.match(Campaign.foundCampaignState(base, { seedId: 'field' }).error, /наследие/iu);
 
   const res = founded();
   assert.equal(res.error, null);
-  assert.equal(res.state.player.name, 'Люди Великой Реки');
-  assert.equal(res.state.player.name, Campaign.originPeopleName(Campaign.ORIGINS[0]));
+  // наследие «Натуф» даёт основу имени, замысел «Пашня и зерно» — судьбу в родительном падеже
+  assert.equal(res.state.player.name, 'Натуфийские жнецы Пашни');
+  assert.equal(res.state.player.name, Campaign.peopleName(res.state.player.historicalCulture,
+    Campaign.SEED_CHOICES.find(seed => seed.id === res.state.player.seedChoiceId)));
   assert.equal(res.state.player.onboardingComplete, true);
   assert.equal(res.state.player.historicalCulture.id, 'natufian');
   assert.deepEqual(res.state.player.culturalLineage, ['natufian']);
-  assert.match(res.state.player.chronicle[0].text, /вышел из земли «Великая Река»/u);
+  assert.match(res.state.player.chronicle[0].text, /вышел из культуры Натуф/u);
+  assert.match(res.state.player.chronicle[0].text, /с замыслом «Пашня и зерно»/u);
   // повторно основать народ нельзя
-  assert.match(Campaign.foundCampaignState(res.state, { originId: 'river', seedId: 'field', historicalCultureId: 'natufian' }).error, /уже основан/iu);
+  assert.match(Campaign.foundCampaignState(res.state, { seedId: 'field', historicalCultureId: 'natufian' }).error, /уже основан/iu);
 });
 
 test('колода первого боя собирается из стартовых карт по лимиту вождя', () => {
@@ -65,14 +67,14 @@ test('колода первого боя собирается из старто�
   assert.equal(ids.size, Campaign.STARTER_CARDS.length, 'идентификаторы стартовых карт уникальны');
 });
 
-test('боевые параметры складываются из земли, замысла, наследия и лагеря', () => {
-  const res = founded({ originId: 'highlands', seedId: 'river', historicalCultureId: 'trypillia' });
+test('боевые параметры складываются из замысла, наследия и лагеря', () => {
+  const res = founded({ seedId: 'river', historicalCultureId: 'trypillia' });
   const perks = Campaign.combatPerks(res.state);
-  // Каменные Предгорья: +1 здоровье; замысел «Река и разлив»: +1 здоровье; Триполье: +1 здоровье
-  assert.equal(perks.max_hp, 3);
+  // замысел «Река и разлив»: +1 здоровье; наследие Триполья: +1 здоровье
+  assert.equal(perks.max_hp, 2);
   const cfg = Campaign.getBattleConfig(res.state);
-  assert.equal(cfg.hp, Campaign.COMBAT_BASE.hp + 3);
-  assert.equal(cfg.origin.id, 'highlands');
+  assert.equal(cfg.hp, Campaign.COMBAT_BASE.hp + 2);
+  assert.equal(cfg.origin, undefined, 'земли в конфигурации вождя больше нет');
   assert.equal(cfg.seed.id, 'river');
   assert.equal(cfg.historicalCulture.id, 'trypillia');
 
@@ -92,8 +94,8 @@ test('боевые параметры складываются из земли, 
 });
 
 test('боевые потолки держатся при любых сочетаниях выборов и улучшений', () => {
-  // самый «сильный» набор: Сухие Земли и «Камень и горн» дают +2 к атаке уже на старте
-  const res = founded({ originId: 'desert', seedId: 'forge', historicalCultureId: 'gobekli' });
+  // самый «сильный» набор: Ямная культура и «Камень и горн» дают +2 к атаке уже на старте
+  const res = founded({ seedId: 'forge', historicalCultureId: 'yamnaya' });
   const before = Campaign.getBattleConfig(res.state);
   assert.equal(before.atkBonus, Campaign.COMBAT_CAPS.atkBonus);
   assert.equal(before.capped.unit_power, true);
@@ -194,7 +196,6 @@ test('normalizeState приводит поля прототипа и отбра�
   broken.player.upgrades.max_hp = 99;
   broken.player.upgrades.deck_slots = -3;
   broken.player.deckCardIds = ['starter-spears', 'starter-spears', 42, null, 'starter-axes'];
-  broken.player.originId = 'атлантида';
   broken.player.historicalCulture = { id: 'yamnaya' };
   broken.player.wins = -4;
   broken.opponents = [{ id: 'reed', era: 9, rating: 0 }, { id: 'unknown' }];
@@ -204,7 +205,6 @@ test('normalizeState приводит поля прототипа и отбра�
   assert.equal(state.player.upgrades.max_hp, Campaign.CAMP_UPGRADES.max_hp.max);
   assert.equal(state.player.upgrades.deck_slots, 0);
   assert.deepEqual(state.player.deckCardIds, ['starter-spears', 'starter-axes'], 'колода без дублей и мусора');
-  assert.equal(state.player.originId, null, 'неизвестная земля сбрасывается');
   assert.equal(state.player.historicalCulture.id, 'yamnaya', 'наследие принимается и по идентификатору');
   assert.equal(state.player.wins, 0);
   assert.deepEqual(state.opponents.map(o => o.id), ['reed', 'steppe', 'north']);

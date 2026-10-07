@@ -14,7 +14,7 @@ const forgeSource = fs.readFileSync(path.join(root, 'src', 'pages', 'Forge.tsx')
 
 function founded(era = 0, glory = 100) {
   const out = Campaign.foundCampaignState(Campaign.createState(), {
-    originId: 'river', seedId: 'forge', historicalCultureId: 'natufian',
+    seedId: 'forge', historicalCultureId: 'natufian',
   });
   const state = out.state;
   state.player.era = era;

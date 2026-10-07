@@ -19,7 +19,10 @@
     'use strict';
 
     const STORAGE_KEY = 'iforge_combat_v1';
-    const SAVE_VERSION = 5;
+    // Версия 6: онбординг сокращён до двух свойств народа (наследие и замысел), земли ORIGINS
+    // удалены, а стартовые колоды Каменного века собраны заново. Старые сохранения не переносятся:
+    // они помнят выбранную землю и колоду из удалённых карт.
+    const SAVE_VERSION = 6;
 
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
     const BRONZE_CARD_MIN_ERA = 1;
@@ -122,7 +125,7 @@
     // без бонусов). Дружина вождя за 3 и всадники ждут своего часа — энергия дорастёт со временем.
     const STARTER_DECK_IDS = ['starter-spears', 'starter-clubmen', 'starter-axes', 'starter-shields'];
 
-    /* ================= данные: эпохи, культуры, земли и замыслы народа =================
+    /* ================= данные: эпохи, культуры и замыслы народа =================
        Блоки перенесены из кампании без переписывания: датировки и прототипы уже проверены
        документацией и тестами. Изменено одно — мирные бонусы происхождения и замысла
        заменены боевыми (поле combat + combatNote), потому что ресурсов в прототипе нет. */
@@ -174,12 +177,12 @@
 
     const HISTORICAL_CULTURES = [
         // --- 0 · Каменный век ---
-        { id: 'yamnaya', name: 'Ямная культура', icon: '🐎', era: 0, desc: '3300-2600 до н.э., Понтийско-Каспийская степь — ямные погребения под курганами, первые кони и повозки. Предки индоевропейцев', bonus: { food: 0.2, materials: 0.2 } },
-        { id: 'trypillia', name: 'Триполье-Кукутени', icon: '🏘️', era: 0, desc: '5400-2750 до н.э., Поднепровье и Карпаты — протогорода на сотни домов, расписная керамика, выжженные по обряду поселения', bonus: { food: 0.3, materials: 0.1 } },
-        { id: 'catalhoyuk', name: 'Чатал-Хююк', icon: '🧱', era: 0, desc: '7500-5700 до н.э., Анатолия — дома без улиц, вход через крышу, обсидиановые мастерские и росписи быков', bonus: { materials: 0.3, knowledge: 0.1 } },
-        { id: 'natufian', name: 'Натуф', icon: '🌾', era: 0, desc: '12500-9500 до н.э., Левант — первые оседлые жнецы дикого ячменя, серпы, ступы и стены Иерихона', bonus: { food: 0.4 } },
-        { id: 'jomon', name: 'Дзёмон', icon: '🏺', era: 0, desc: '14000-300 до н.э., Японские острова — древнейшая в мире керамика с верёвочным узором, морская охота, лаковые изделия', bonus: { food: 0.2, knowledge: 0.2 } },
-        { id: 'gobekli', name: 'Гёбекли-Тепе', icon: '🗿', era: 0, desc: '9600-8000 до н.э., юго-восток Анатолии — мегалитические святилища с резными львами и скорпионами, старше Стоунхенджа', bonus: { knowledge: 0.4 } },
+        { id: 'yamnaya', name: 'Ямная культура', icon: '🐎', era: 0, people: 'Ямный народ', desc: '3300-2600 до н.э., Понтийско-Каспийская степь — ямные погребения под курганами, первые кони и повозки. Предки индоевропейцев', bonus: { food: 0.2, materials: 0.2 } },
+        { id: 'trypillia', name: 'Триполье-Кукутени', icon: '🏘️', era: 0, people: 'Трипольский народ', desc: '5400-2750 до н.э., Поднепровье и Карпаты — протогорода на сотни домов, расписная керамика, выжженные по обряду поселения', bonus: { food: 0.3, materials: 0.1 } },
+        { id: 'catalhoyuk', name: 'Чатал-Хююк', icon: '🧱', era: 0, people: 'Мастера Чатал-Хююка', desc: '7500-5700 до н.э., Анатолия — дома без улиц, вход через крышу, обсидиановые мастерские и росписи быков', bonus: { materials: 0.3, knowledge: 0.1 } },
+        { id: 'natufian', name: 'Натуф', icon: '🌾', era: 0, people: 'Натуфийские жнецы', desc: '12500-9500 до н.э., Левант — первые оседлые жнецы дикого ячменя, серпы, ступы и стены Иерихона', bonus: { food: 0.4 } },
+        { id: 'jomon', name: 'Дзёмон', icon: '🏺', era: 0, people: 'Народ Дзёмона', desc: '14000-300 до н.э., Японские острова — древнейшая в мире керамика с верёвочным узором, морская охота, лаковые изделия', bonus: { food: 0.2, knowledge: 0.2 } },
+        { id: 'gobekli', name: 'Гёбекли-Тепе', icon: '🗿', era: 0, people: 'Жрецы Гёбекли-Тепе', desc: '9600-8000 до н.э., юго-восток Анатолии — мегалитические святилища с резными львами и скорпионами, старше Стоунхенджа', bonus: { knowledge: 0.4 } },
         // --- 1 · Античный мир ---
         { id: 'sumer', name: 'Шумер', icon: '🏛️', era: 1, desc: '4000-2000 до н.э., Урук и Ур — первые города, клинопись, зиккураты, ирригационные каналы', bonus: { knowledge: 0.3 } },
         { id: 'akkad', name: 'Аккад Саргона', icon: '⚔️', era: 1, desc: '2334-2154 до н.э., первая империя Саргона Великого — от Персидского залива до Средиземного моря, регулярная армия', bonus: { materials: 0.2, deck_slots: 1 } },
@@ -245,21 +248,12 @@
         { id: 'climate-engineers', name: 'Климатические инженеры', icon: '❄️', era: 6, desc: '2060-2120, Арктика — аэрозольные экраны, тундровые реакторы и возрождение мамонтовой степи', bonus: { food: 0.3, knowledge: 0.2 } }
     ];
 
-    const ORIGINS = [
-        { id: 'river', name: 'Великая Река', people: 'Люди Великой Реки', place: 'Пойма и дельта большой реки', icon: '🌊', description: 'Разлив приходит каждый год и оставляет ил: поля родят без пара, вода приносит рыбу и тростник. Излишек зерна нужно учесть, сохранить и защитить — отсюда первый счёт и первая власть.', combat: { deck_slots: 1 }, combatNote: 'Ил кормит дружину: под знамя встаёт больше отрядов', biome: 'river', historical: 'Нил Древнего царства и юг Месопотамии, IV–III тыс. до н.э. — ирригация, закрома, первые писцы' },
-        { id: 'highlands', name: 'Каменные Предгорья', people: 'Каменщики Предгорий', place: 'Предгорья с выходами кремня и обсидиана', icon: '⛰️', description: 'Камень здесь под ногами: кремень колется на орудия, обсидиан уходит в обмен, рудная жила обещает медь. Ремесло рождается раньше пашни, и мастерская становится сердцем селения.', combat: { max_hp: 1 }, combatNote: 'Камень и стены предгорий: вождя труднее добить', biome: 'highlands', historical: 'Чатал-Хююк и Анатолийское нагорье, 7500–5700 до н.э. — обсидиановые мастерские, первые плавильные тигли' },
-        { id: 'woodland', name: 'Лесные Тропы', people: 'Лесные Земледельцы', place: 'Лесная опушка и сезонные пастбища', icon: '🌲', description: 'Лес учит счёту времён: когда цветёт липа, когда гонит зверя, когда жечь подсеку. Знание примет и обряда — такой же промысел, как топор и соха.', combat: { fatigue_resist: 1 }, combatNote: 'Лесные тропы и запасливый ход: усталость приходит позже', biome: 'forest', historical: 'Триполье-Кукутени, 5400–2750 до н.э. — протогорода на сотни домов, расписная керамика' },
-        { id: 'steppe', name: 'Ямная Степь', people: 'Дети Ямной Степи', place: 'Понтийско-Каспийская степь, курганы', icon: '🐎', description: 'Открытый горизонт, стада и колёсные повозки: богатство уходит с кочёвкой, а мёртвых хоронят под курганом с оружием. Сила здесь — в подвижности и в верности роду.', combat: { energy_growth: 1 }, combatNote: 'Кони и повозки кочёвки: энергия возвращается быстрее', biome: 'steppe', historical: 'Ямная культура, 3300–2600 до н.э. — ямные погребения под курганами, кони и повозки' },
-        { id: 'coast', name: 'Морской Берег', people: 'Береговые Мореходы', place: 'Побережье, лиманы и острова', icon: '⚓', description: 'Море даёт рыбу, соль и раковину, а прибрежный путь — первая торговая дорога: лодка идёт от селения к селению быстрее вьюка по суше. Чужие вести и чужой товар приходят сюда первыми.', combat: { energy_cap: 1 }, combatNote: 'Лодьи и прибрежные склады: больше энергии в запасе', biome: 'coast', historical: 'Эгейский мир и Минойский Крит, 2700–1450 до н.э. — морская торговля обсидианом и металлом' },
-        { id: 'desert', name: 'Сухие Земли', people: 'Хранители Колодцев', place: 'Каменистая пустыня, оазисы и сухие русла', icon: '🏜️', description: 'Вода здесь — редкость и собственность: колодец, караванная тропа и учёт запасов важнее поля. Пустыня учит счёту, договору и дальнему пути.', combat: { unit_power: 1 }, combatNote: 'Закалённые засухой и дальними переходами: отряды бьют сильнее', biome: 'desert', historical: 'Высыхающая Сахара и Тассилин-Аджер, VI–III тыс. до н.э. — колодцы, караванные тропы, наскальные росписи' }
-    ];
-
     const SEED_CHOICES = [
-        { id: 'river', icon: '🐟', name: 'Река и разлив', line: 'Наш год делит река: разлив приносит ил и рыбу, засуха — счёт запасам', hint: 'Вода, рыболовство, запасы на сухой сезон', note: 'Жнецы Натуфа и рыбаки дельты Нила: хозяйственный календарь от разлива', combat: { max_hp: 1 }, combatNote: 'Разлив кормит дружинников: вождь дольше держится в бою' },
-        { id: 'forge', icon: '⚒️', name: 'Камень и горн', line: 'Мы ищем камень и руду, а огонь делает из них орудия и оружие', hint: 'Кремень, обсидиан, медь, орудия и строительство', note: 'Мастерские Чатал-Хююка и Анатолийских предгорий: ремесло раньше пашни', combat: { unit_power: 1 }, combatNote: 'Камень, руда и горн дают оружие: все отряды бьют сильнее' },
-        { id: 'sky', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера', combat: { energy_cap: 1 }, combatNote: 'Небесный счёт и обряд держат запас: больше энергии' },
-        { id: 'herd', icon: '🐎', name: 'Стадо и воля', line: 'Наше богатство уходит с кочёвкой: стадо, конь и верность роду', hint: 'Скот, движение, набег и защита', note: 'Ямная культура: курганы, кони и повозки, власть рода над местом', combat: { energy_growth: 1 }, combatNote: 'Стадо и конь кочёвки: энергия возвращается быстрее' },
-        { id: 'field', icon: '🌾', name: 'Пашня и зерно', line: 'Земля кормит нас, если её слушать: зерно — первое богатство народа', hint: 'Земледелие, ирригация, урожай, закрома', note: 'Триполье и Левант: зерно, которое нужно вырастить, сохранить и разделить', combat: { deck_slots: 1 }, combatNote: 'Зерно кормит большее войско: +1 место в колоде' }
+        { id: 'river', peopleSuffix: 'Разлива', icon: '🐟', name: 'Река и разлив', line: 'Наш год делит река: разлив приносит ил и рыбу, засуха — счёт запасам', hint: 'Вода, рыболовство, запасы на сухой сезон', note: 'Жнецы Натуфа и рыбаки дельты Нила: хозяйственный календарь от разлива', combat: { max_hp: 1 }, combatNote: 'Разлив кормит дружинников: вождь дольше держится в бою' },
+        { id: 'forge', peopleSuffix: 'Горна', icon: '⚒️', name: 'Камень и горн', line: 'Мы ищем камень и руду, а огонь делает из них орудия и оружие', hint: 'Кремень, обсидиан, медь, орудия и строительство', note: 'Мастерские Чатал-Хююка и Анатолийских предгорий: ремесло раньше пашни', combat: { unit_power: 1 }, combatNote: 'Камень, руда и горн дают оружие: все отряды бьют сильнее' },
+        { id: 'sky', peopleSuffix: 'Неба', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера', combat: { energy_cap: 1 }, combatNote: 'Небесный счёт и обряд держат запас: больше энергии' },
+        { id: 'herd', peopleSuffix: 'Стада', icon: '🐎', name: 'Стадо и воля', line: 'Наше богатство уходит с кочёвкой: стадо, конь и верность роду', hint: 'Скот, движение, набег и защита', note: 'Ямная культура: курганы, кони и повозки, власть рода над местом', combat: { energy_growth: 1 }, combatNote: 'Стадо и конь кочёвки: энергия возвращается быстрее' },
+        { id: 'field', peopleSuffix: 'Пашни', icon: '🌾', name: 'Пашня и зерно', line: 'Земля кормит нас, если её слушать: зерно — первое богатство народа', hint: 'Земледелие, ирригация, урожай, закрома', note: 'Триполье и Левант: зерно, которое нужно вырастить, сохранить и разделить', combat: { deck_slots: 1 }, combatNote: 'Зерно кормит большее войско: +1 место в колоде' }
     ];
 
     // Качество ковки = grade сырья (0..2) + мастерство кузнеца (0..CRAFT_LEVEL_MAX) → диапазон 0..5.
@@ -482,14 +476,20 @@
     }
 
     /* ================= выбор народа: происхождение, замысел, наследие =================
-       Все три выбора онбординга дают боевые бонусы (поле combat у происхождения и замысла,
-       cultureCombatBonus у наследия) — мирных ресурсов в прототипе больше нет. */
+       Оба выбора онбординга дают боевые бонусы (поле combat у замысла, cultureCombatBonus
+       у наследия) — мирных ресурсов в прототипе больше нет. */
 
-    function originById(id) { return ORIGINS.find(origin => origin.id === id) || null; }
     function seedById(id) { return SEED_CHOICES.find(seed => seed.id === id) || null; }
-    function originPeopleName(origin) {
-        if (!origin) return 'Безымянный народ';
-        return origin.people || ('Народ земли «' + origin.name + '»');
+
+    /**
+     * Имя народа складывается из двух свойств онбординга, вводить его не нужно.
+     * Наследие даёт основу («Ямный народ», «Жрецы Гёбекли-Тепе»), замысел — судьбу в родительном
+     * падеже («Стада», «Разлива», «Неба»): 6 культур × 5 замыслов = 30 имён вместо шести прежних.
+     */
+    function peopleName(culture, seed) {
+        const stem = (culture && culture.people) || ('Народ ' + ((culture && culture.name) || 'безымянный'));
+        const fate = seed && seed.peopleSuffix;
+        return fate ? stem + ' ' + fate : stem;
     }
 
     /**
@@ -550,7 +550,6 @@
     function combatPerks(input) {
         const state = normalizeState(input);
         const perks = emptyPerks();
-        addPerks(perks, originById(state.player.originId) ? originById(state.player.originId).combat : null);
         addPerks(perks, seedById(state.player.seedChoiceId) ? seedById(state.player.seedChoiceId).combat : null);
         addPerks(perks, cultureCombatBonus(state.player.historicalCulture));
         addPerks(perks, state.player.upgrades);
@@ -586,7 +585,6 @@
                 fatigue_resist: raw.fatigueDelay >= COMBAT_CAPS.fatigueDelay,
                 unit_power: raw.atkBonus >= COMBAT_CAPS.atkBonus
             },
-            origin: originById(state.player.originId),
             seed: seedById(state.player.seedChoiceId),
             historicalCulture: state.player.historicalCulture
         };
@@ -967,7 +965,7 @@
             version: SAVE_VERSION,
             player: {
                 name: 'Безымянный народ', clan: 'Медный Ворон', era: 0,
-                onboardingComplete: false, originId: null, seedChoiceId: null, seedLine: '',
+                onboardingComplete: false, seedChoiceId: null, seedLine: '',
                 historicalCulture: null, culturalLineage: [],
                 glory: GLORY_START, gloryTotal: 0,
                 upgrades: emptyPerks(),
@@ -983,7 +981,7 @@
     }
 
     /**
-     * Приводит сохранение к текущей форме. Старые сейвы кампании (version < 5) не мигрируются:
+     * Приводит сохранение к текущей форме. Старые сейвы кампании (version < 6) не мигрируются:
      * прототип сменил модель целиком — экономика, карта и здания из них не нужны, поэтому
      * несовместимое сохранение заменяется новым состоянием.
      */
@@ -995,7 +993,6 @@
         p.clan = typeof p.clan === 'string' && p.clan.trim() ? p.clan.trim().slice(0, 60) : 'Медный Ворон';
         p.era = clampInt(p.era, 0, ERAS.length - 1, 0);
         p.onboardingComplete = Boolean(p.onboardingComplete);
-        p.originId = originById(p.originId) ? p.originId : null;
         p.seedChoiceId = seedById(p.seedChoiceId) ? p.seedChoiceId : null;
         p.seedLine = typeof p.seedLine === 'string' ? p.seedLine.slice(0, 200) : '';
         p.historicalCulture = findCulture(p.historicalCulture);
@@ -1040,22 +1037,23 @@
     }
 
     /**
-     * Основание народа: три выбора — происхождение, наследие и замысел. Каждый даёт боевой
+     * Основание народа: два выбора — наследие (культура) и замысел (менталитет). Каждый даёт боевой
      * бонус, вместе они определяют вождя в первом бою. Никакой экономики и построек:
      * игрок сразу может выйти на поле.
+     *
+     * Третьего свойства нет: «Происхождение» дублировало замысел — земля «Ямная Степь» и замысел
+     * «Стадо и воля» давали один и тот же бонус (+1 к росту энергии), а имя народа земля определяла
+     * вместе с культурой. Теперь имя складывается из обоих свойств (peopleName): имён 30, а не шесть,
+     * и ни одно поле ввода игроку по-прежнему не нужно (options.name намеренно игнорируется).
      */
     function foundCampaignState(input, options = {}) {
         const state = normalizeState(input);
         if (state.player.onboardingComplete) return { state, error: 'Народ уже основан.' };
-        const origin = originById(options.originId);
-        if (!origin) return { state, error: 'Выберите происхождение народа.' };
         const seed = seedById(options.seedId);
         if (!seed) return { state, error: 'Выберите замысел народа.' };
         const culture = findCulture(options.historicalCultureId, 0);
         if (!culture) return { state, error: 'Выберите наследие эпохи «' + eraName(0) + '».' };
-        // Имя народа игрок не вводит: оно происходит из выбранной земли (options.name намеренно игнорируется).
-        const name = originPeopleName(origin);
-        state.player.originId = origin.id;
+        const name = peopleName(culture, seed);
         state.player.name = name;
         state.player.seedChoiceId = seed.id;
         state.player.seedLine = seed.line || '';
@@ -1066,7 +1064,7 @@
         state.player.onboardingComplete = true;
         const limit = getBattleConfig(state).deckLimit;
         state.player.deckCardIds = STARTER_DECK_IDS.slice(0, limit);
-        chroniclePush(state, 'Народ ' + name + ' вышел из земли «' + origin.name + '» (' + origin.place + ') с замыслом «' + seed.name + '»: ' + seed.line + '. Наследие — ' + culture.name + '. Боевой набор: ' + (describePerks(combatPerks(state)).join(', ') || 'обычные отряды племени') + '.');
+        chroniclePush(state, 'Народ «' + name + '» вышел из культуры ' + culture.name + ' с замыслом «' + seed.name + '»: ' + seed.line + '. Наследие даёт ' + (describePerks(cultureCombatBonus(culture)).join(', ') || 'ничего') + ', замысел — ' + (describePerks(seed.combat).join(', ') || 'ничего') + '. Боевой набор: ' + (describePerks(combatPerks(state)).join(', ') || 'обычные отряды племени') + '.');
         state.player.campaignNotice = 'Народ основан. Выберите соперника в лагере и выйдите в первый бой.';
         return { state, error: null, battle: getBattleConfig(state) };
     }
@@ -1083,7 +1081,7 @@
 
     const api = {
         // данные
-        ERAS, ERA_HISTORICAL, ERA_GLORY_THRESHOLDS, ORIGINS, SEED_CHOICES, HISTORICAL_CULTURES, STARTER_CARDS, STARTER_DECK_IDS,
+        ERAS, ERA_HISTORICAL, ERA_GLORY_THRESHOLDS, SEED_CHOICES, HISTORICAL_CULTURES, STARTER_CARDS, STARTER_DECK_IDS,
         COMBAT_KEYS, COMBAT_LABELS, COMBAT_CAPS, COMBAT_BASE, COMBAT_FIELD, CAMP_UPGRADES,
         GLORY_START, GLORY_WIN_BASE, GLORY_PER_ERA, GLORY_LEADER_BONUS, GLORY_LOSS, GLORY_STREAK_STEP, GLORY_STREAK_MAX,
         CARD_CRAFT_MATERIALS, CARD_RARITY_ODDS, CARD_MODEL_BY_RARITY, RARE_CRAFT_MIN_ERA, CRAFT_LEVEL_MAX, CRAFT_XP_PER_LEVEL,
@@ -1093,7 +1091,7 @@
         // утилиты
         clone, hashString, seededRandom, pickRandom, eraName, allowedCardEras, findCulture, describePerks, cultureCombatBonus,
         // народ и бой
-        createState, normalizeState, load, save, originPeopleName, foundCampaignState,
+        createState, normalizeState, load, save, peopleName, foundCampaignState,
         combatPerks, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         toggleDeckCardState: toggleDeckCard,
         // слава, эпохи, лагерь

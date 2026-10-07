@@ -26,10 +26,11 @@ interface Store {
   checkAi: () => Promise<boolean>;
   model: string;
   /**
-   * Основание народа: происхождение, наследие и замысел. Все три выбора дают боевые бонусы
-   * (campaign.js → combatPerks), поэтому сразу после онбординга можно выходить в бой.
+   * Основание народа: наследие и замысел. Оба выбора дают боевые бонусы (campaign.js → combatPerks),
+   * поэтому сразу после онбординга можно выходить в бой. Имя народа игрок не вводит: оно
+   * складывается из двух свойств (campaign.js → peopleName).
    */
-  foundPeople: (input: { originId: string; seedId: string; historicalCultureId?: string | null }) => { ok: boolean; error?: string };
+  foundPeople: (input: { seedId: string; historicalCultureId?: string | null }) => { ok: boolean; error?: string };
   page: Page;
   go: (p: Page) => void;
   toasts: Toast[];
@@ -144,8 +145,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void checkAi(); /* eslint-disable-line react-hooks/exhaustive-deps */
   }, []);
 
-  const foundPeople = useCallback(({ originId, seedId, historicalCultureId }: { originId: string; seedId: string; historicalCultureId?: string | null }) => {
-    const founded = M.foundCampaign(M.clone(gameRef.current), { originId, seedId, historicalCultureId });
+  const foundPeople = useCallback(({ seedId, historicalCultureId }: { seedId: string; historicalCultureId?: string | null }) => {
+    const founded = M.foundCampaign(M.clone(gameRef.current), { seedId, historicalCultureId });
     if (founded.error) return { ok: false, error: founded.error as string };
     commit(founded.state, { silent: true });
     return { ok: true };

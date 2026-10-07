@@ -10,13 +10,13 @@ const Campaign = require('../campaign.js');
 
 function founded(overrides = {}) {
   return Campaign.foundCampaignState(Campaign.createState(), {
-    originId: 'river', seedId: 'field', historicalCultureId: 'natufian', ...overrides,
+    seedId: 'field', historicalCultureId: 'natufian', ...overrides,
   }).state;
 }
 
-/** Набор без бонусов к колоде: лимит 4, здоровье 8 — удобно проверять смену наследия. */
+/** Набор без бонусов к колоде: лимит 4, здоровье 7 — удобно проверять смену наследия. */
 function plainFounded() {
-  return founded({ originId: 'highlands', seedId: 'river', historicalCultureId: 'natufian' });
+  return founded({ seedId: 'river', historicalCultureId: 'natufian' });
 }
 
 function withGlory(state, glory) {
@@ -186,8 +186,8 @@ test('лагерь: цена растёт с уровнем, а потолок �
   assert.equal(Campaign.getBattleConfig(current).hp, Campaign.COMBAT_BASE.hp + Campaign.combatPerks(current).max_hp);
   assert.match(Campaign.buyUpgradeState(current, 'max_hp').error, /на пределе/u);
 
-  // боевой потолок: атака уже +2 от земли и замысла, поэтому доктрина ничего не даст
-  const capped = withGlory(founded({ originId: 'desert', seedId: 'forge', historicalCultureId: 'natufian' }), 500);
+  // боевой потолок: атака уже +2 от наследия и замысла, поэтому доктрина ничего не даст
+  const capped = withGlory(founded({ seedId: 'forge', historicalCultureId: 'yamnaya' }), 500);
   assert.equal(Campaign.getBattleConfig(capped).atkBonus, Campaign.COMBAT_CAPS.atkBonus);
   assert.match(Campaign.buyUpgradeState(capped, 'unit_power').error, /на боевом пределе/u);
   assert.equal(Campaign.buyUpgradeState(capped, 'unit_power').state.player.glory, 500, 'слава не списана');

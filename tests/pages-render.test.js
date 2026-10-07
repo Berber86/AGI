@@ -131,7 +131,7 @@ function makeApp(storage) {
 
 function foundedState(overrides = {}) {
   const out = Campaign.foundCampaignState(Campaign.createState(), {
-    originId: 'highlands', seedId: 'river', historicalCultureId: 'natufian',
+    seedId: 'river', historicalCultureId: 'natufian',
   });
   assert.equal(out.error, null);
   const state = out.state;
@@ -192,14 +192,15 @@ const ADVICE = [
   { id: 'structure-0-3', cardType: 'structure', title: 'Частокол с бойницами', pitch: 'Обстреливает врага каждый ход.' },
 ];
 
-test('онбординг рендерится на всех трёх шагах и не требует имени или модели', () => {
+test('онбординг рендерится на обоих шагах и не требует имени или модели', () => {
   const storage = makeStorage();
   const app = makeApp(storage);
   const { store, derived } = makeStore(app, Campaign.createState());
   assert.doesNotThrow(() => render(app, storage, 'src/pages/Onboarding.tsx', store, derived));
   // экран читает реальные списки модели
-  assert.equal(app.M.ORIGINS.length, 6);
   assert.equal(app.M.SEED_CHOICES.length, 5);
+  assert.equal(app.M.HISTORICAL_CULTURES.filter((c) => c.era === 0).length, 6);
+  assert.equal(app.M.ORIGINS, undefined, 'земель в модели больше нет');
 });
 
 test('лагерь рендерится с соперниками, улучшениями и шкалой эпохи', () => {

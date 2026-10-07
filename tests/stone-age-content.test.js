@@ -44,8 +44,7 @@ const C = runInVm('src/game/cards.ts', transpile('src/game/cards.ts'), {
     if (name === './model') {
       return {
         M: {
-          ERA_HISTORICAL: Campaign.ERA_HISTORICAL, HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
-          ORIGINS: Campaign.ORIGINS, SEED_CHOICES: Campaign.SEED_CHOICES, STARTER_CARDS: Campaign.STARTER_CARDS,
+          ERA_HISTORICAL: Campaign.ERA_HISTORICAL, HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES, SEED_CHOICES: Campaign.SEED_CHOICES, STARTER_CARDS: Campaign.STARTER_CARDS,
           eraName: Campaign.eraName, allowedCardEras: Campaign.allowedCardEras,
           combatPerks: Campaign.combatPerks, describePerks: Campaign.describePerks,
         },

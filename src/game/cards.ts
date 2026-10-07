@@ -630,12 +630,12 @@ export function eraContextOf(state: any): { label: string; desc: string; culture
 export function contextOf(state: any): string {
   const p = state.player;
   const era = eraContextOf(state);
-  const origin = (M.ORIGINS as any[]).find((o) => o.id === p.originId) || null;
+  // Двух свойств народа хватает на образ: «Земля» дублировала замысел (тот же боевой бонус),
+  // а имя народа уже сложено из наследия и замысла — оно идёт модели первой строкой.
   const seed = (M.SEED_CHOICES as any[]).find((s) => s.id === p.seedChoiceId) || null;
   const perks = M.describePerks(M.combatPerks(state)) as string[];
   return [
     `Народ: ${p.name} (${p.clan})`,
-    origin && `Земля: ${origin.name} — ${origin.place}.${origin.historical ? " " + origin.historical : ""}`,
     seed && `Замысел народа: «${seed.line || seed.name}»`,
     p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
     `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
