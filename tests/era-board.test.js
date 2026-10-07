@@ -47,10 +47,20 @@ function card(name, options = {}) {
 const CFG = { hp: 30, energyMax: 12, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
 
 /** Бой на столе нужной эпохи: threatEra задаёт форму стола. */
+/** Test setup helper: old fixtures start with up to four cards so tests can place several units. */
+function topUpHandsForSetup(b) {
+  for (const side of ['me', 'enemy']) {
+    const player = b[side];
+    const target = Math.min(4, player.hand.length + player.deck.length);
+    while (player.hand.length < target) player.hand.push(player.deck.shift());
+  }
+  return b;
+}
+
 function battleAt(threatEra, myCards, enemyCards, cfg = {}) {
   const config = { ...CFG, ...cfg };
   const match = { kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra, leaderBattle: false, tutorial: false };
-  return api.createBattle(myCards, config, enemyCards, { ...config }, match);
+  return topUpHandsForSetup(api.createBattle(myCards, config, enemyCards, { ...config }, match));
 }
 
 /** Выводит карту из руки на стол законным способом (deploy проверяет правила рядов). */
@@ -455,7 +465,7 @@ test('экран боя рисует столько рядов, сколько �
   assert.match(view, /rowName\(b\[side\], ri\)/u, 'каждый ряд подписан');
   assert.match(view, /canStandInRow\(selCard, b\.me, ri\)/u, 'слот подсвечивается только для законного ряда');
   assert.match(view, /boardLabel\(b\.shape\)/u, 'размер стола виден в бою');
-  assert.match(view, /fillDeck\(/u, 'колода племени добирается до лимита эпохи');
+  assert.match(view, /mirrorDeckToPlayer\(deck,/u, 'колода соперника равна фактической длине колоды игрока');
   assert.doesNotMatch(view, /grid-cols-4/u, 'жёсткой сетки на четыре столбца больше нет');
 
   const camp = fs.readFileSync(path.join(root, 'src', 'pages', 'Camp.tsx'), 'utf8');
@@ -466,6 +476,7 @@ test('экран боя рисует столько рядов, сколько �
   assert.match(store, /threatEra: M\.getOpponentBattleConfig\(g, o\.id\)\.threatEra/u, 'бой получает эпоху угрозы');
 
   const system = fs.readFileSync(path.join(root, 'src', 'game', 'cards.ts'), 'utf8');
-  assert.match(system, /от одной линии в три клетки в Каменном веке до пяти рядов по пять в Будущем/u, 'кузнец знает про рост стола');
-  assert.match(system, /zone rear — все ряды за ним/u);
+  assert.match(system, /КАМЕННЫЙ ВЕК \/ стол в одну линию/u, 'кузнец знает об ограничениях раннего стола');
+  assert.match(system, /oneLineBoard\(state\)/u, 'формат подсказок зависит от текущей геометрии стола');
+  assert.match(system, /ровно один скромный эффект и затрагивать ровно одну цель/u, 'каменный манёвр ограничен одной целью');
 });

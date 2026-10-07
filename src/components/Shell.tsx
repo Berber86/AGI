@@ -184,7 +184,7 @@ export function SettingsModal() {
           </div>
           {aiStatus.status === "bad" && aiStatus.message && <p className="mt-2 text-xs text-bad">{aiStatus.message}</p>}
           <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
-            Без связи кузница не работает: стартовые восемь карт и бой при этом доступны всегда.
+            Без связи с ИИ нельзя выковать первую карту и начать бой, если своя колода ещё пуста.
           </p>
         </div>
         <div className="rounded-xl border border-line bg-ground/50 p-3.5">

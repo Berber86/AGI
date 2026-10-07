@@ -7,7 +7,8 @@ import { buildMilitia, uid, type Card } from "./cards";
 
 export type Side = "me" | "enemy";
 export const HAND_LIMIT = 7;
-const START_HAND = 4;
+const START_HAND = 1;
+const MAX_OPENING_HAND = 2;
 
 /**
  * Форма стола по эпохам (индекс — единая шкала ERAS из campaign.js). Размер общий для обеих
@@ -112,7 +113,8 @@ export interface Battle {
 
 // fatigueDelay — сколько дополнительных кругов сторона выдерживает без усталости (эффект построек fatigue_resist)
 // atkBonus — плоский бонус к атаке всех отрядов стороны (воинская доктрина эпохи, EFFECTS.unit_power)
-export interface SideConfig { hp: number; energyMax: number; energyGrowth: number; fatigueDelay?: number; atkBonus?: number }
+// openingHand — 1 обычно, 2 при соответствующей черте народа; противник всегда начинает с 1.
+export interface SideConfig { hp: number; energyMax: number; energyGrowth: number; fatigueDelay?: number; atkBonus?: number; openingHand?: number }
 
 const opp = (s: Side): Side => (s === "me" ? "enemy" : "me");
 
@@ -177,6 +179,11 @@ export function fillDeck(deck: Card[], limit: number): Card[] {
   return out;
 }
 
+/** Сохраняет паритет колод: соперник получает ровно столько карт, сколько выбрал игрок. */
+export function mirrorDeckToPlayer(playerDeck: Card[], opponentPool: Card[]): Card[] {
+  return fillDeck(opponentPool, playerDeck.length);
+}
+
 export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[], enemyCfg: SideConfig, match: Match): Battle {
   const shape = boardShape(match.threatEra ?? match.era);
   const b: Battle = {
@@ -184,10 +191,11 @@ export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[
     turn: 1, active: "me", counters: { me: 1, enemy: 0 },
     log: [], seq: 0, order: 0, over: null, match,
   };
-  const n = Math.min(START_HAND, myDeck.length);
-  for (let i = 0; i < n; i++) { drawOne(b, "me", true); }
+  const requested = Number.isFinite(myCfg.openingHand) ? Math.trunc(myCfg.openingHand as number) : START_HAND;
+  const openingHand = Math.max(START_HAND, Math.min(MAX_OPENING_HAND, requested));
+  for (let i = 0; i < Math.min(openingHand, myDeck.length); i++) { drawOne(b, "me", true); }
   for (let i = 0; i < Math.min(START_HAND, enemyDeck.length); i++) { drawOne(b, "enemy", true); }
-  log(b, "system", "Бой начался. Вы ходите первым — темп боя изначально на вашей стороне.");
+  log(b, "system", `Бой начался: у вас ${Math.min(openingHand, myDeck.length)} карт в руке, у соперника ${Math.min(START_HAND, enemyDeck.length)}. Вы ходите первым — темп боя изначально на вашей стороне.`);
   log(b, "system", `Стол эпохи: ${shape.rows === 1 ? "одна линия" : `${shape.rows} ряда(ов)`} по ${shape.slots} клетки — ${boardLabel(shape)}.`);
   return b;
 }
@@ -318,7 +326,9 @@ export function atkOf(b: Battle, u: Unit): number {
   if (has(u, "scavenger") && p) a += Math.min(2, Math.floor(b[opp(p.side)].discard.length / 2));
   // Последний рубеж: в одиночестве в своём ряду отряд дерётся отчаяннее и держится твёрже.
   if (has(u, "laststand") && p && unitsOf(b, p.side).filter((s) => s.ri === p.ri).length === 1) a += 1;
-  return Math.max(0, Math.min(99, a));
+  // На однорядном столе бонусы атаки и ключевые слова не должны превращать каменные отряды
+  // в высокоуронные машины: потолок атаки — 3 даже при фаланге, клине, натиске и бонусе вождя.
+  return Math.max(0, Math.min(b.shape.rows === 1 ? 3 : 99, a));
 }
 export function armorOf(b: Battle, u: Unit): number {
   let ar = (u.st.armor || 0) + modTotal(b, u, "armor");
@@ -668,7 +678,8 @@ function calculateHitDamage(
     if (markSturdy) target.hitThisTurn = true;
   }
   if (target.isStructure && has(attacker, "siege")) dmg *= 2;
-  return Math.max(1, Math.floor(dmg));
+  const damage = Math.max(1, Math.floor(dmg));
+  return b.shape.rows === 1 ? Math.min(3, damage) : damage;
 }
 
 function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attackerSide: Side): number {
@@ -763,7 +774,9 @@ const entrenchedSaves = (u: Unit, ri: number, shape: AreaShape): boolean =>
  */
 export function splashTargets(b: Battle, side: Side, attacker: Unit, target: AttackTarget): SplashHit[] {
   const area = areaOf(attacker);
-  if (!area || target.kind !== "unit") return [];
+  // На линии Каменного века даже старые сохранённые карты не получают площадной/метательный бой;
+  // рукопашный удар остаётся прямым. Геометрия и ответная полоса действуют со второго ряда.
+  if (!area || b.shape.rows === 1 || target.kind !== "unit") return [];
   const es = target.side;
   const dp = b[es];
   const found: (SplashHit & { dist: number })[] = [];

@@ -7,17 +7,14 @@ import { Btn, Chip, Empty, Heading, Label, Modal, Panel, Tabs } from "@/componen
 import { CardFace, CardTile } from "@/components/CardView";
 import { PageFrame } from "@/components/Shell";
 
-/**
- * Боевой состав: колода из стартовых и выкованных карт. Ополчения, которое раньше бесплатно
- * добивало пустые слоты, больше нет — восемь стартовых карт закрывают колоду с первого боя,
- * а пустой слот остаётся пустым, если игрок сам убрал карту.
- */
+/** Коллекция и колода состоят только из карт, созданных ИИ-кузнецом для игрока. */
 export default function Army() {
   const { game, collection, act, removeCard, go } = useStore();
   const { cfg, glory } = useDerived();
   const p = game.player;
 
   const cards = useMemo(() => allCards(collection), [collection]);
+  const ownedIds = useMemo(() => cards.map((card) => card.id), [cards]);
   const byId = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
   const deck: Card[] = p.deckCardIds.map((id: string) => byId.get(id)).filter(Boolean) as Card[];
   const [filter, setFilter] = useState<"all" | CardType>("all");
@@ -25,13 +22,12 @@ export default function Army() {
   const [del, setDel] = useState<Card | null>(null);
   const [swapFor, setSwapFor] = useState<Card | null>(null);
 
-  const toggle = (id: string) => act((s) => M.toggleDeckCard(s, id), { silent: true });
+  const toggle = (id: string) => act((s) => M.toggleDeckCard(s, id, ownedIds), { silent: true });
   const missing = Math.max(0, cfg.deckLimit - deck.length);
   const shown = cards.filter((c) => (filter === "all" || c.card_type === filter) && (!q || (c.name + c.description).toLowerCase().includes(q.toLowerCase())));
   const inDeck = new Set(p.deckCardIds);
   const full = deck.length >= cfg.deckLimit;
   const slots = Array.from({ length: cfg.deckLimit }, (_, i) => deck[i] ?? null);
-  const starterCount = (M.STARTER_CARDS as Card[]).length;
 
   return (
     <PageFrame wide>
@@ -39,7 +35,7 @@ export default function Army() {
         <div>
           <Label>Армия</Label>
           <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Боевой состав</h1>
-          <p className="mt-1 max-w-xl text-sm text-dim">Единая колода для всех сражений: {starterCount} стартовых карт и всё, что выкуете сами. Размер состава растёт вместе с народом.</p>
+          <p className="mt-1 max-w-xl text-sm text-dim">В колоду входят только карты, выкованные ИИ для вашего народа. Первая карта автоматически попадёт в пустую колоду; дальше состав выбираете вы.</p>
         </div>
         <Btn variant="primary" size="lg" onClick={() => go("camp")}><Swords size={18} />К соперникам</Btn>
       </div>
@@ -67,12 +63,12 @@ export default function Army() {
         {missing > 0 && (
           <p className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-dim">
             <Info size={14} className="mt-0.5 shrink-0 text-bronze" />
-            Пустых слотов: {missing}. В бою колода будет короче — добавьте карты из коллекции ниже или выкуйте новые в кузнице ({glory} славы).
+            Пустых слотов: {missing}. В бою колода будет короче — добавьте карту из коллекции ниже или выкуйте новую в кузнице ({glory} славы).
           </p>
         )}
         <p className="mt-2 flex items-start gap-2 text-xs leading-relaxed text-faint">
           <Tent size={13} className="mt-0.5 shrink-0 text-bronze" />
-          Больше слотов дают земля, замысел и наследие народа, а также улучшение «Знамя дружины» в лагере.
+          Больше слотов дают замысел и наследие народа, а также улучшение «Знамя дружины» в лагере.
         </p>
       </Panel>
 
@@ -91,7 +87,7 @@ export default function Army() {
       </div>
 
       {shown.length === 0 ? (
-        <Empty icon={<Layers size={28} />} title="Ничего не найдено" hint={collection.length === 0 ? "У вас пока только стартовые карты. Выкуйте новые в кузнице." : "Измените фильтр или поисковый запрос."} action={collection.length === 0 ? <Btn onClick={() => go("forge")}>В кузницу</Btn> : undefined} />
+        <Empty icon={<Layers size={28} />} title={collection.length === 0 ? "Коллекция пуста" : "Ничего не найдено"} hint={collection.length === 0 ? "Выкуйте первую карту у ИИ-кузнеца. Она автоматически попадёт в пустую колоду." : "Измените фильтр или поисковый запрос."} action={collection.length === 0 ? <Btn onClick={() => go("forge")}>Выковать первую карту</Btn> : undefined} />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {shown.map((c) => {

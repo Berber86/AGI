@@ -40,6 +40,7 @@ export interface Card {
   rarity?: Rarity;
   /** Историческая справка (аккордеон на карте); заполняется только из ответа модели. */
   history?: CardHistory;
+  /** Только для обратной совместимости со старыми сохранёнными шаблонами NPC. */
   campaignStarter?: boolean;
   militia?: boolean;
   generationModel?: string;
@@ -145,6 +146,17 @@ export function oneLineViolation(card: { keywords?: string[] } | null | undefine
   return ((card && card.keywords) || []).map(keywordBase).filter((k) => ONE_LINE_KEYWORDS.includes(k));
 }
 
+// Помимо keywords проверяем весь текст: «стреломёт без ключевого слова ranged» всё равно был бы
+// анахронизмом и обещал бы на однорядном поле атаку, которой в движке нет.
+const ONE_LINE_PROJECTILE_TEXT = /стрел|лук|пращ|баллист|арбалет|катапульт|метател|копь[её]м[её]т|дротик|atlatl|бумеранг|камнем[её]т|осадн.{0,18}машин|огнестрел|мушкет|выстрел|обстрел|залп|дальн.{0,12}бой/iu;
+export function oneLineTextViolation(card: any): string[] {
+  if (!card || typeof card !== "object") return [];
+  const fields = [card.name, card.description, card.monkey_paw, ...(Array.isArray(card.tags) ? card.tags : []),
+    card.history?.title, card.history?.text];
+  const found = fields.filter((value) => typeof value === "string" && ONE_LINE_PROJECTILE_TEXT.test(value));
+  return found.map((value) => value.match(ONE_LINE_PROJECTILE_TEXT)?.[0] || "дальнобойный образ");
+}
+
 export function kwName(raw: string) {
   const [k, n] = raw.split(":");
   const info = KEYWORD_INFO[k];
@@ -204,7 +216,7 @@ export function describeEffect(e: any): string {
   return `${ev[e.event] ?? e.event}: ${act}`;
 }
 
-/* ---------- Ополчение — запасные карты, если колода не заполнена ---------- */
+/* ---------- NPC-ополчение: шаблоны только для противников ---------- */
 
 function mk(p: Partial<Card> & { name: string; card_type: CardType }): Card {
   return {
@@ -225,10 +237,8 @@ function mk(p: Partial<Card> & { name: string; card_type: CardType }): Card {
 }
 
 /**
- * Ополчение — стартовый состав игрока (STARTER_CARDS в campaign.js) плюс две бронзовые карты,
- * которые появляются у дозоров с Античного мира. Числа берём из одного источника: раньше здесь
- * жила отдельная копия стартовых карт, и она разъехалась — на столе Каменного века в одну линию
- * у ополчения оказались стрелки, чьи слова всё равно молчат.
+ * NPC-ополчение использует отдельные статические шаблоны; в коллекцию игрока они не попадают.
+ * Каменные шаблоны берём из campaign.js, бронзовые открываются противникам со второго этапа.
  */
 const BRONZE_MILITIA: Card[] = [
   mk({ name: "Бронзовые наёмники", card_type: "unit", era: "bronze", emoji: "⚔️", drop_cost: 3, action_cost: 2, atk: 3, hp: 5, description: "Бронзовые мечи пробивают щиты.", keywords: ["pierce:1"] }),
@@ -236,8 +246,8 @@ const BRONZE_MILITIA: Card[] = [
 ];
 
 export function buildMilitia(): Card[] {
-  const starter = ((M.STARTER_CARDS as any[]) || []).map((c) => ({ ...c })) as Card[];
-  return [...starter, ...BRONZE_MILITIA];
+  const stone = ((M.MILITIA_CORE_CARDS as any[]) || []).map((c) => ({ ...c, militia: true })) as Card[];
+  return [...stone, ...BRONZE_MILITIA.map((c) => ({ ...c, militia: true }))];
 }
 
 /** Учебный бой: враг приходит без построек, чтобы новичка не били бесплатно из тыла. */
@@ -245,10 +255,14 @@ export function withoutStructures(pool: Card[]): Card[] {
   return pool.filter((c) => c.card_type !== "structure");
 }
 
-/* ---------- Карты игрока: стартовые + коллекция ---------- */
+/* ---------- Коллекция игрока: только карты, выкованные ИИ ---------- */
 
 export function allCards(collection: Card[]): Card[] {
-  return [...(M.STARTER_CARDS as Card[]), ...collection];
+  return (Array.isArray(collection) ? collection : []).filter((card) =>
+    card && !card.militia && !card.campaignStarter
+      && !/^(?:militia-|starter-)/u.test(String(card.id || ""))
+      && !(typeof M.isNpcMilitiaCardId === "function" && M.isNpcMilitiaCardId(card.id)),
+  );
 }
 
 /* ---------- Валидация карты (для ответа LLM) ---------- */
@@ -356,6 +370,39 @@ function cardPowerBudget(dropCost: number, actionCost: number, cardType: string,
   const mult = RARITY_BUDGET_MULT[rarity] || 1;
   const base = cardType === "structure" ? 2 * dropCost + 1 : 2 * dropCost + actionCost + 1;
   return Math.max(2, Math.round(base * mult)) + Math.max(0, Math.floor(pawWeight));
+}
+
+/** Небольшой, проверяемый бюджет силы разовых манёвров; большие цели и уничтожение запрещены. */
+function spellEffectPower(effect: any): number {
+  const { action, target } = effect;
+  if (target.select === "all") throw new Error("Манёвр не может целиться сразу во все подходящие отряды.");
+  if ((target.count || 1) > 2) throw new Error("Манёвр может затронуть не более двух целей.");
+  let cost: number;
+  switch (action.type) {
+    case "damage": case "heal": cost = action.amount; break;
+    case "apply_status": cost = action.amount + Math.ceil(((action.turns || 1) - 1) / 2); break;
+    case "modify_resource": cost = Math.abs(action.amount) * 2; break;
+    case "modify_stat": case "modify_cost": cost = Math.abs(action.amount) * (action.turns || 1); break;
+    case "draw": case "discard": case "exchange": case "scry": cost = action.amount * 2; break;
+    case "destroy": throw new Error("Манёвр не может мгновенно уничтожать отряд или постройку.");
+    default: cost = 99;
+  }
+  return cost * (target.count || 1);
+}
+
+function validateSpellPower(card: Card, rarity: Rarity, oneLine = false, paw: PawTier = "none"): void {
+  if (oneLine && card.effects.length !== 1) throw new Error("Манёвр Каменного века должен иметь ровно один скромный эффект.");
+  if (!oneLine && card.effects.length > 2) throw new Error("У манёвра не больше двух эффектов — не складывай несколько сильных действий.");
+  if (oneLine && card.effects.some((effect) => (effect.target.count || 1) !== 1 || effect.target.select === "all")) {
+    throw new Error("Манёвр Каменного века может затронуть только одну цель.");
+  }
+  const power = card.effects.reduce((sum, effect) => sum + spellEffectPower(effect), 0);
+  const rarityBonus = rarity === "rare" ? 2 : rarity === "uncommon" ? 1 : 0;
+  // На однорядном столе редкость не разгоняет манёвр; реальная плата может вернуть не более двух
+  // пунктов эффекта, чтобы жёсткий жребий не делал первую AI-карту невыполнимой.
+  const paidAllowance = oneLine && paw !== "none" ? Math.min(2, pawSeverity(card, paw)) : 0;
+  const budget = oneLine ? Math.min(2, card.drop_cost) + paidAllowance : card.drop_cost + 1 + rarityBonus;
+  if (power > budget) throw new Error(`Манёвр слишком силён для цены: вес эффектов ${power}, предел ${budget}. Уменьши урон, длительность или число целей.`);
 }
 
 /**
@@ -481,13 +528,19 @@ const pawError = (message: string) => Object.assign(new Error(message), { pawRej
  * на месте), но её величину движок уже не бракует. Лучше карта с платой не той силы, чем отменённая
  * ковка: жребий задаёт ЗАКАЗ модели, а не повод вернуть игроку славу.
  */
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none", opts: { relaxBand?: boolean } = {}): Card {
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none", opts: { relaxBand?: boolean; oneLine?: boolean } = {}): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
   if (c.card_type !== expectedType) throw new Error("Советник вернул не тот тип карты, который был заказан.");
   if (!allowedEras.includes(c.era)) c.era = allowedEras[0];
   for (const f of ["drop_cost", "action_cost", "hp", "atk"]) int(c[f], 0, 99, f);
+  if (c.drop_cost < 1) throw new Error("Карта не может быть бесплатной: drop_cost минимум 1.");
+  c.drop_cost = Math.min(6, c.drop_cost);
+  if (opts.oneLine) {
+    if (c.card_type === "structure") throw new Error("В Каменном веке построек нет: на одной линии они занимают место бойца.");
+    c.drop_cost = Math.min(2, c.drop_cost);
+  }
   if (c.card_type === "spell") { c.hp = 0; c.atk = 0; c.action_cost = 0; }
   // Постройка не ходит и не атакует как отряд, но может стрелять: atk 0 — это стена или склад,
   // atk 1…4 — башня или орудие, которое каждый ход обстреливает врага (урон гасит броня, ответа нет).
@@ -501,6 +554,16 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
+  if (opts.oneLine && c.keywords.some((k: string) => AREA_KEYWORDS.includes(k.split(":")[0]))) {
+    throw new Error("Площадные и метательные атаки не подходят для рукопашного стола Каменного века.");
+  }
+  if (opts.oneLine && c.card_type === "unit") {
+    if (c.keywords.length > 2) throw new Error("Каменный отряд может иметь не больше двух ключевых слов.");
+    const attackBoosts = c.keywords.filter((k: string) => ["charge", "phalanx", "wedge", "rally", "flank", "scavenger", "laststand", "cleave", "relentless"].includes(k.split(":")[0]));
+    if (attackBoosts.length > 1) throw new Error("Не складывай несколько усилителей атаки на одном каменном отряде.");
+    c.action_cost = Math.min(2, Math.max(1, c.action_cost));
+    c.keywords = c.keywords.map((k: string) => k.split(":")[0] === "cleave" ? "cleave:1" : k);
+  }
   // Площадь — самая сильная геометрия стола, поэтому рамки жёсткие и проверяются здесь, а не на глаз:
   // одно площадное слово на карту, N не выше AREA_MAX_N, удар не бесплатный и карта не рядовая.
   const areaKws = c.keywords.filter((k: string) => AREA_KEYWORDS.includes(k.split(":")[0]));
@@ -518,6 +581,13 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
     c.effects = c.effects.filter((e: any) => e.event === "enter_play");
     if (!c.effects.length) throw new Error("Манёвр может использовать только enter_play.");
+    validateSpellPower(c as Card, rarity, Boolean(opts.oneLine), paw);
+  } else if (opts.oneLine && c.card_type === "unit" && c.effects.length) {
+    const power = c.effects.reduce((sum: number, effect: any) => sum + spellEffectPower(effect), 0);
+    const budget = c.drop_cost + 1;
+    if (c.effects.length > 2 || power > budget) {
+      throw new Error(`Эффекты каменного отряда слишком сильны или многочисленны: вес ${power}, предел ${budget}; оставь одно-два простых действия.`);
+    }
   }
   c.tags = Array.isArray(c.tags) ? c.tags.slice(0, 3).map((t: any) => String(t).slice(0, 40)) : [];
   c.abilities = [];
@@ -553,6 +623,12 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
       c.atk = Math.max(0, Math.round(c.atk * scale));
       c.hp = Math.max(1, Math.round(c.hp * scale));
     }
+  }
+  // Числа каменной рукопашной ограничены не только бюджетом стоимости: даже необычная редкая карта
+  // не поднимает базовую атаку выше 2 и здоровье выше 3. Бой отдельно ограничивает эффективный урон.
+  if (opts.oneLine && c.card_type === "unit") {
+    c.atk = Math.max(1, Math.min(2, c.atk));
+    c.hp = Math.max(1, Math.min(3, c.hp));
   }
   c.id = c.id || "card-" + uid();
   return c as Card;
@@ -628,20 +704,16 @@ export function eraContextOf(state: any): { label: string; desc: string; culture
 }
 
 export function contextOf(state: any): string {
-  const p = state.player;
+  const p = state.player || {};
   const era = eraContextOf(state);
-  // Двух свойств народа хватает на образ: «Земля» дублировала замысел (тот же боевой бонус),
-  // а имя народа уже сложено из наследия и замысла — оно идёт модели первой строкой.
   const seed = (M.SEED_CHOICES as any[]).find((s) => s.id === p.seedChoiceId) || null;
   const perks = M.describePerks(M.combatPerks(state)) as string[];
   return [
-    `Народ: ${p.name} (${p.clan})`,
-    seed && `Замысел народа: «${seed.line || seed.name}»`,
-    p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
-    `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
-    era.cultures && `Культуры эпохи: ${era.cultures}`,
+    `Эпоха кампании: ${era.label}.`,
     era.tech && `Технологии эпохи: ${era.tech}`,
-    perks.length && `Боевой набор народа: ${perks.join(", ")}`,
+    p.historicalCulture?.name && `Наследие — необязательный ориентир: ${p.historicalCulture.name}; не повторяй его клише в каждой карте.`,
+    seed && `Замысел народа — один из возможных источников образа, не обязательная тема: ${seed.line || seed.name}`,
+    perks.length && `Боевые черты вождя: ${perks.join(", ")}`,
   ].filter(Boolean).join("\n");
 }
 
@@ -657,37 +729,28 @@ export function allowedCardErasOf(state: any): string[] {
 
 export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   const era = allowedCardErasOf(state).join(" и ");
-  // Стол Каменного века — одна линия: тыла нет, поэтому и замыслов про стрельбу из-за спин не будет.
   const oneLine = oneLineBoard(state);
+  const cardTypes: CardType[] = oneLine ? ["unit", "spell"] : ["unit", "spell", "structure"];
   const tableRule = oneLine
-    ? `\nСтол этого боя — ОДНА ЛИНИЯ в три клетки (Каменный век): тыла нет, дальний бой и засада не работают, все отряды бьются врукопашную и получают ответный удар. Для unit предлагай только роли ближнего боя: натиск, удержание линии, защита соседей по линии, длинное оружие в строю. Не предлагай стрелков, пращников-застрельщиков и засады.`
+    ? ` Стол Каменного века — одна линия из трёх клеток: без тыла, построек, стрелков, снарядов и дальнего боя. Для unit предлагай только историческую роль ближнего боя; spell — ровно один небольшой эффект на одну цель.`
     : "";
+  const typeList = cardTypes.join(", ");
+  const typeUnion = cardTypes.join("|");
   const data = await hydraChat({
-    model, temperature: 1, maxTokens: 900,
-    system: `Ты военный советник кузницы исторической карточной стратегии "Infinite Forge". Ты придумываешь замыслы именно для боевой колоды: каждая идея должна быть полезна в одном текущем сражении, а не описывать развитие народа между боями. Используй историю, географию, материалы и обычаи народа как источник образа и боевой тактики, но не как повод рассказывать о мирном хозяйстве.
-В бою есть авангард и тыл, а вывод карты и атака расходуют общий запас энергии.
-Предложи ровно три разных замысла, строго по одному каждого типа:
-- unit — боец или воинское подразделение, которое выходит на поле и атакует; в pitch назови его тактическую роль: натиск, удержание линии, защита союзника, стрельба из тыла, засада или осада.
-- spell — разовый манёвр, который немедленно меняет ход боя: удар, ловушка, поджог/яд, лечение, усиление бойца или воздействие на энергию/руку. Никакого урожая, ремесленного производства или подготовки к будущему походу.
-- structure — именно боевая постройка/орудие в тылу, а не гражданское здание. В этой игре постройка остаётся в последнем ряду, не двигается и не атакует как отряд. Если у неё atk ≥ 1, она каждый ход обстреливает ближайший вражеский отряд или вождя: урон равен atk, броня его гасит, ответа на обстрел нет. Постройка с atk = 0 не стреляет вовсе — это стена, склад или лагерь, она держит место в тылу и поддерживает войска ключевыми словами (rally, screen, command). Замысел постройки — либо постоянный обстрел, либо поддержка войска; не делай из неё ни пустое украшение, ни второе войско.
-В каждом pitch — одно короткое предложение с конкретным боевым действием и его целью/результатом. Не ограничивайся предысторией, бытом или тем, что народ «готовится», «сеет», «строит на будущее» или «собирается в путь»: сразу объясни, что карта делает на поле боя. Не предлагай сельское хозяйство, доход поселения, торговлю, погребения, дальнюю дорогу и долгосрочное развитие как самостоятельный эффект карты. Контекст народа — вдохновение для тактики, не задача карты.
-Ответ — строго JSON: {"choices":[{"card_type":"unit|spell|structure","title":"короткое название","pitch":"одно предложение о тактической роли в бою"}]}. Язык — русский, исторический сеттинг без магии и фэнтези.`,
-    user: `Нужны три боевые идеи для колоды — по одному unit, spell и structure. Преврати особенности народа в тактику одного сражения: контекст ниже нужен для исторического образа, а не для проектов хозяйства или долгой жизни поселения.
-Контекст цивилизации:
-${contextOf(state)}
-Разрешённые эпохи карт: ${era}.${tableRule}`,
+    model, temperature: 0.85, maxTokens: 650,
+    system: `Ты — военный советник Infinite Forge. Придумывай идеи для одного текущего боя, а не развитие хозяйства между боями. Вывод карты и атака расходуют общий запас энергии; на поле есть авангард и тыл.\nunit — правдоподобный отряд с ясной тактической ролью. spell — немедленный, умеренный манёвр, обычно против одной цели. structure — только для стола с тылом: боевая постройка стоит в последнем ряду, action_cost=0, hp≥1; atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — каждый ход обстреливает ближайшего врага или вождя, урон равен atk, броня его гасит, ответа нет. Не предлагай структуру без роли.\nИстория и наследие — источник возможных образов, не обязательная тема каждой карты. Не повторяй одну культуру, известный народ или оружейное клише; выбирай разные исторические детали и только реально доступные технологии указанной эпохи. Никакой магии, фэнтези и анахронизмов. Pitch: одно короткое предложение о действии и цели в бою, не о подготовке. Не предлагай сельское хозяйство, ремесло, торговлю, погребения, доход или долгосрочное развитие.\n${oneLine ? "В Каменном веке unit — только рукопашный: не лучник, не пращник и не метатель; оружие дальнего боя и его слова запрещены." : ""}\nОтвет строго JSON: {\"choices\":[{\"card_type\":\"${typeUnion}\",\"title\":\"короткое название\",\"pitch\":\"тактическая роль\"}]}. Верни ровно ${cardTypes.length} разных идей — по одной каждого разрешённого типа. Язык — русский.`,
+    user: `Нужны ${cardTypes.length} боевые идеи для колоды, ровно по одному каждого типа: ${typeList}. Контекст ниже — необязательное вдохновение; разнообразь образы и не своди их все к культуре народа.\nКонтекст цивилизации:\n${contextOf(state)}\nРазрешённые эпохи карт: ${era}.${tableRule}`,
   });
   const list = data.choices;
-  if (!Array.isArray(list) || list.length !== 3) throw new Error("Советник должен вернуть три замысла.");
+  if (!Array.isArray(list) || list.length !== cardTypes.length) throw new Error(`Советник должен вернуть ${cardTypes.length} боевых замысла.`);
 
-  const cardTypes: CardType[] = ["unit", "spell", "structure"];
   const seen = new Set<CardType>();
   return list.map((c: any, i: number) => {
     if (!c || typeof c !== "object" || Array.isArray(c) || !cardTypes.includes(c.card_type)) {
-      throw new Error("Советник должен предложить по одному замыслу каждого типа карты.");
+      throw new Error("Советник должен предложить по одному замыслу каждого доступного типа карты.");
     }
     const cardType = c.card_type as CardType;
-    if (seen.has(cardType)) throw new Error("Советник должен предложить по одному замыслу каждого типа карты.");
+    if (seen.has(cardType)) throw new Error("Советник должен предложить по одному замыслу каждого доступного типа карты.");
     seen.add(cardType);
     const title = typeof c.title === "string" ? c.title.trim().slice(0, 60) : "";
     const pitch = typeof c.pitch === "string" ? c.pitch.trim().slice(0, 190) : "";
@@ -695,52 +758,36 @@ ${contextOf(state)}
     return { id: `${cardType}-${i}-${Date.now()}`, cardType, title, pitch };
   });
 }
-const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
-Эпохи карт (боевой тег, их ровно две): "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
-Важно: боевой тег — это не дата в календаре кампании. В контексте указана эпоха кампании (например «Ренессанс» или «Эпоха Пара и Стали») вместе с её культурами и технологиями: образы, названия, описания и технологии карты должны соответствовать ИМЕННО этой эпохе (мушкеты и печатный стан для Ренессанса, пар и сталь для 1800-1910), а тег era при этом остаётся в разрешённом наборе ancient/bronze.
-Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), blast:N (при попадании доп. N урона соседям цели в её ряду и отряду прямо за ней — крест, «фугас»), sweep:N (доп. N урона всем остальным отрядам в ряду цели — «картечь»), column:N (доп. N урона всем остальным отрядам в столбце цели, во всех рядах — «обстрел столбца», навесной огонь), dispersed (площадной урон по отряду уменьшен на 1, но не ниже 1), entrenched (стоя в авангарде, не получает урона от sweep и column), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). suppress:N (при попадании подавляет отряд: его атака дорожает на N на 2 хода — это не запрет, а удорожание; потолок +3; unbreakable теперь гасит и подавление, поэтому «Несокрушимый» — ответ на пулемёт). Яд/поджог/лечение/подавление оформляй через effects[] или одноимёнными ключевыми словами. Слова столбца делают ширину и глубину стола обеспечением боя: flank (+1 урона по цели с открытым флангом — крайний столбец или дыра в строю; если отряд напротив пал, идёт вверх по своему столбцу), screen (+1 брони отряду прямо перед собой в том же столбце), command (+1 энергия в начале хода, пока жив и стоит в последнем ряду), spotter (ваши ranged, blast, sweep и column по целям в его столбце наносят +1 урона). Они работают по столбцу, а не по соседям в ряду, поэтому на столе в одну линию screen молчит — как ranged, skirmish и reach. Площадные слова (blast, sweep, column) держи в рамках: не больше одного на карту, N от 1 до 2, action_cost минимум 1 и только для карт не ниже необычной редкости; дополнительных целей движок накрывает не больше трёх, ответных ударов площадь не вызывает, а удар с N=2 задевает ещё и собственный отряд напротив в том же столбце.
-Выбор цели в бою решает движок, в карте он не задаётся — но описание и образ должны ему соответствовать. Стол растёт по эпохам: от одной линии в три клетки в Каменном веке до пяти рядов по пять в Будущем. Ряд — это глубина (авангард, средние ряды, тыл), столбец — ширина (два крайних фланга и центр между ними). Ближний бой из авангарда бьёт отряд напротив, затем ближайшего в своём ряду, затем продвигается вглубь ряд за рядом, а taunt перехватывает удар первым. БРЕШЬ — общее правило для обеих сторон и всех эпох: если в столбце атакующего у противника не осталось живых отрядов, удар ближнего боя проходит вождю, даже когда чужой строй стоит в соседних столбцах; постройки строй не держат, их разбирает siege. Дальний бой (ranged, skirmish) бьёт через ВСЕ ряды врага по самому опасному отряду на поле и не получает ответного удара, taunt перехватывает и выстрел. reach из глубины достаёт только врага напротив в авангарде. Свой отряд можно перестроить на соседнюю клетку за 1 энергию — раз за ход и без истощения, так закрывают свою брешь и заходят в чужую. Постройки встают лишь в последний ряд и не двигаются, ближний бой без стрельбы — лишь в авангард, а стрелки и «длинное оружие» — в любой ряд: поэтому zone front означает авангард, zone rear — все ряды за ним, zone flank — крайние столбцы половины, zone center — столбцы между ними. Глубина спасает от ближнего боя, но не от стрел и не от площади; ширина даёт охват, но дыра во фланге стоит вождя.
-Особый случай — Каменный век: там стол состоит из ОДНОЙ линии в три клетки, тыла нет, поэтому ranged, skirmish и reach не действуют вовсе — отряд со стрелами бьётся врукопашную и получает ответный удар. Если в заказе сказано, что стол — одна линия, не используй эти ключевые слова и не обещай стрельбу из-за спин: роль карты — ближний бой, удержание линии, защита соседей, строй или манёвр. Со второго ряда (Античный мир) они снова заработают.
-Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
-Замысел от военного советника — только исторический образ: преврати его в тактическую карту, полезную в текущем сражении. Описание и эффекты должны показывать боевую роль отряда, немедленный результат манёвра или постоянную роль постройки в тылу. Не делай из карты сельское хозяйство, ремесленное производство, доход поселения или подготовку к будущему походу.
-Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
-description — 1–2 коротких предложения, один образ.
-effects[] — объекты {event, target, action, condition?, watch?}:
- event: enter_play | attack | turn_start | turn_end | damaged (это событие срабатывает у самого отряда, когда он получает урон в бою) | death | card_death (когда гибнет отряд) | card_enter_play (когда выходит любая карта: отряд, постройка или манёвр). Для card_death и card_enter_play обязателен watch:{side:all|friendly|enemy}.
- target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|flank|center|any, relation?: any|self|adjacent|attack_target|attack_target_row|attack_target_column (ряд и столбец цели удара — только для события attack), select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random (all — абсолютно все подходящие цели сразу, игнорирует count; random — count случайных целей), count?: 1-3}
- action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn|suppress, amount 1-5, turns 1-3; suppress — удорожание атаки цели на amount, а не урон) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
-condition (необязательное поле эффекта) помимо target_wounded/target_status/target_stat/resource теперь поддерживает board_count: {type:"board_count", side: controller|opponent, op: eq|ne|lt|lte|gt|gte, value: 0-8} — количество живых отрядов на стороне.
-У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки action_cost=0, hp≥1 и atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — обстрел каждый ход. У отряда hp≥1.
-Про историческую справку (поле history — ОБЯЗАТЕЛЬНО, пиши его последним): {"title":"","text":""}.
- title (до 70 знаков) — настоящий прототип карты: конкретная находка, место, обычай, род войск или звание ЭПОХИ КАМПАНИИ и НАСЛЕДИЯ НАРОДА из контекста («Курганные погребения ямной культуры», «Бронзовый кинжал из Арслантепе», «Янычарская мушкетная шеренга»).
- text (2–4 предложения, до 480 знаков) — зачем эта вещь или обычай существовали именно в эту эпоху у этого народа: из чего и какими технологиями эпохи её делали, кем были эти люди, чем она была в быту и почему на поле боя карта ведёт себя так, как у неё записано (её числа, ключевые слова, эффекты).
- Только реальная история: ни магии, ни фэнтези, ни вымышленных цивилизаций и пророчеств. Не пересказывай description и не повторяй название карты целиком. Если точного прототипа нет — возьми самое близкое явление этой эпохи, но не выдумывай народы.
-Силу и цену выбираешь сам: сильные и странные карты допустимы. Ответ — строго JSON:
-{"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":0,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"текст платы лапы обезьяны, если она заказана, иначе пустая строка","history":{"title":"","text":""}}
-Язык — русский.`;
+
+/** Общие для советника и кузнеца краткие правила: полная механика проверяется валидатором. */
+const CARD_SYSTEM = `Ты — ИИ-кузнец карточной стратегии Infinite Forge. Пиши исторические боевые карты без магии и фэнтези. Ответ — только JSON по схеме ниже, без пояснений.
+ЭПОХА: боевой тег карты — только ancient или bronze и не является календарной датой. Исторические предметы, названия, роли и справка должны соответствовать ЭПОХЕ КАМПАНИИ и реальным технологиям из контекста. Не переносить оружие и институты из будущей эпохи в прошлую.
+КАМЕННЫЙ ВЕК / стол в одну линию: только ближний бой, unit HP 1–3, ATK 1–2, цена 1–2; structure запрещена. Для unit не используй ranged, skirmish, reach, screen и не упоминай луки, пращи, стрелы, стреломёты, баллисты, арбалеты, катапульты, снаряды, залпы или обстрел — даже в имени, описании, тегах и history. Не маскируй метательное оружие другим названием. Манёвр в этой эпохе должен содержать ровно один скромный эффект и затрагивать ровно одну цель; без платы вес эффекта не выше 2, а при заказанной плате допускается только небольшая проверяемая надбавка.
+БАЛАНС: у отряда 1–2 ключевых слова, без цепочки сильных бонусов; базовые цифры соразмерны цене. Натиск/клин/фаланга/охват уже увеличивают урон — не складывай несколько таких усилений на одном каменном отряде. Манёвр: цена минимум 1; только 1–2 эффекта enter_play, не более двух целей, без select=all и без destroy. Урон/лечение — умеренные; статус короткий; общий вес эффектов не выше drop_cost+1, с небольшим допуском за редкость. Никаких бесплатных ударов по всему столу, вечных блокировок и гарантированного уничтожения.
+ПОСТРОЙКА возможна только при наличии тыла; action_cost=0, HP≥1, atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — обстрел каждый ход. Ответ на обстрел не приходит, броня его гасит. Не обещай эффектов, которых нет в механике.
+КЛЮЧЕВЫЕ СЛОВА: armor:N — снижает входящий урон; pierce:N — игнорирует броню; ranged — бьёт по опасной цели без ответа; reach — атакует авангард из тыла; charge — +2 к первой атаке; shieldwall — броня и защита соседями; wedge — атака за соседей; phalanx — +атака и броня; skirmish — отступление/атака из тыла; taunt — враг бьёт первым; poison/burn — статус при атаке; heal:N — лечит соседа; rally — +атака соседям; fear/morale — бегство; siege — урон строениям; sturdy — первый удар слабее; holdground — защита от страха/натиска; upkeep — урон без соседа; supply/warcry — энергия при розыгрыше; loot/raider — энергия за попадание/убийство; harras — задержка прироста энергии; exhaustenemy — отнять 1 энергию; cleave:N — соседям цели; blast/sweep/column:N — площадной урон, максимум одно слово на карту, N=1–2, не более трёх дополнительных целей, тяжёлый удар может задеть своего; vengeance:N — месть при гибели; relentless — вторая атака; scavenger — бонус за сброс; suppress:N — атака цели дорожает; unbreakable — иммунитет к бегству и подавлению; laststand — бонус одинокому отряду в ряду; flank — +1 урон по открытому флангу; screen — броня переднему соседу в столбце; command — энергия из тыла; spotter — +1 дальнему/площадному удару по своему столбцу; dispersed — защита от площади; entrenched — укрытие в авангарде.
+МЕХАНИКА effects: [{event,target,action,condition?,watch?}]. event: enter_play, attack, turn_start, turn_end, damaged, death, card_death или card_enter_play (последним двум нужен watch:{side:all|friendly|enemy}). target: {side:friendly|controller|enemy|opponent|either,entity:unit|structure|permanent|player,zone?:front|rear|flank|center|any,relation?:self|adjacent|attack_target|attack_target_row|attack_target_column,select?:first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random,count?:1–3}. action.type: damage, heal, apply_status(poison|burn|suppress), destroy, modify_resource(energy), modify_stat(attack|armor|max_hp), modify_cost(action), draw/discard/exchange/scry. Для spell разрешён только enter_play; все числа и цели проходят строгую проверку игры. Событие attack нужно только для реакций на удар.
+description: 1–2 коротких предложения об одном боевом образе. abilities всегда []. tags — до трёх кратких слов. Все боевые эффекты описывай в effects, не только в тексте.
+ИСТОРИЯ: поле history обязательно: {"title":"","text":""}. title — реальный прототип указанной эпохи (находка, обычай, тип отряда или звание); text — 2–3 коротких предложения о материале/технологии и связи прототипа с цифрами или ролью карты. Не выдумывай место, народ или находку. Культурное наследие — необязательный ориентир: не надо вставлять имя народа и его клише в каждую карту; чередуй военные, бытовые и технологические источники эпохи.
+Схема JSON: {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":1,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"текст заказанной платы или пустая строка","history":{"title":"","text":""}}. Для spell: hp=0, atk=0, action_cost=0. Для structure: action_cost=0. Для unit: hp≥1. Все названия и тексты — по-русски.`;
 
 export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any, paw: PawTier = "none"): Promise<Card> {
   const allowed = allowedCardErasOf(state);
   const directive = { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
-  // Справка пишется под ЭПОХУ КАМПАНИИ и НАСЛЕДИЕ НАРОДА (не под боевой тег ancient/bronze):
-  // иначе карты «древнего мира» и «античности» звучали бы одинаково при разных технологиях.
+  // Технологии и культурное наследие — контекст, но не обязательное повторяющееся клише.
   const era = eraContextOf(state);
   const cultureName = state.player?.historicalCulture?.name || "";
+  const oneLine = oneLineBoard(state);
   const brief = `Боевой замысел: «${advice.title}». ${advice.pitch}
 Тип карты: ${advice.cardType}. ${directive}
-Воплоти этот образ в боевую роль в текущем матче: не превращай ремесло, урожай, быт или дальний путь в долгосрочный эффект. Сами описание и effects должны объяснять, что происходит с бойцами, строем, энергией или полем боя.
+Создай простую, исторически правдоподобную карту для текущего сражения. Контекст народа — необязательное вдохновение: варьируй источник образа, не привязывай каждую карту к одной культуре или её стереотипам.
 
 Контекст цивилизации:
 ${contextOf(state)}
 
-Эпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.
-
-Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`;
-  // Стол одной линии (Каменный век): заказ сразу говорит об этом модели, а проверка ниже не пускает
-  // стрелков в колоду — иначе карта обещает то, чего на этом столе не бывает.
-  const oneLine = oneLineBoard(state);
+Разрешённый боевой тег карты: ${allowed.join(" или ")}. Историческая эпоха: «${era.label}»; технологии: ${era.tech || "не заданы"}. Короткая историческая справка должна называть реальный прототип этой эпохи, но культурное наследие можно упоминать только если это уместно.`;
   const system = CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.` + (oneLine
-    ? "\nСтол этого боя — ОДНА ЛИНИЯ в три клетки (Каменный век): тыла нет, ranged/skirmish/reach не действуют. Не используй эти ключевые слова и не описывай стрельбу из-за спин — только ближний бой, строй, удержание линии или манёвр."
+    ? "\nСтол Каменного века — одна линия из трёх клеток. Только ближний бой, без построек и любых образов снарядов; дальние ключевые слова не используй."
     : "");
   const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
 
@@ -760,11 +807,15 @@ ${contextOf(state)}
       user: `${brief}\n\n${pawDirective(paw)}${retry}`,
     });
     try {
-      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { relaxBand });
+      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { relaxBand, oneLine });
       if (oneLine) {
-        const bad = oneLineViolation(card);
-        if (bad.length) {
-          throw new Error(`Стол этого боя — одна линия (Каменный век), тыла нет: ключевые слова ${bad.join(", ")} не действуют. Убери их и дай карте роль ближнего боя, строя или манёвра — без стрельбы из-за спин.`);
+        const badKeywords = oneLineViolation(card);
+        if (badKeywords.length) {
+          throw new Error(`На одной линии Каменного века не действуют ключевые слова ${badKeywords.join(", ")}; замени их на роль ближнего боя.`);
+        }
+        const badText = oneLineTextViolation(card);
+        if (badText.length) {
+          throw new Error(`Для Каменного века запрещён дальнобойный или анахроничный образ («${badText.join(", ")}»). Перепиши имя, текст, теги и справку как рукопашную карту без снарядов.`);
         }
       }
       card.rarity = rarity;

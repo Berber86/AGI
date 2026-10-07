@@ -31,10 +31,20 @@ function card(name, options = {}) {
   };
 }
 
+/** Test setup helper: old fixtures start with up to four cards so tests can place several units. */
+function topUpHandsForSetup(b) {
+  for (const side of ['me', 'enemy']) {
+    const player = b[side];
+    const target = Math.min(4, player.hand.length + player.deck.length);
+    while (player.hand.length < target) player.hand.push(player.deck.shift());
+  }
+  return b;
+}
+
 function stoneBattle(myCards, enemyCards) {
   const config = { hp: 20, energyMax: 10, energyGrowth: 1, fatigueDelay: 0, atkBonus: 0 };
   const match = { kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra: 0, leaderBattle: false, tutorial: false };
-  return api.createBattle(myCards, config, enemyCards, { ...config }, match);
+  return topUpHandsForSetup(api.createBattle(myCards, config, enemyCards, { ...config }, match));
 }
 
 function deploy(b, side, name, slot) {

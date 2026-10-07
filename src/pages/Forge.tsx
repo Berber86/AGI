@@ -10,37 +10,42 @@ import { PageFrame } from "@/components/Shell";
 
 const ADV_KEY = "iforge_advice_combat";
 
-function readAdvice(era: number): Advice[] | null {
+function readAdvice(era: number, count: number): Advice[] | null {
   try {
     const raw = JSON.parse(localStorage.getItem(ADV_KEY) || "null");
-    if (raw && raw.era === era && Array.isArray(raw.advice) && raw.advice.length === 3) return raw.advice;
+    if (raw && raw.era === era && Array.isArray(raw.advice) && raw.advice.length === count) return raw.advice;
   } catch { /* ignore */ }
   return null;
 }
 
 /**
- * Кузница: ИИ-кузнец придумывает три боевых замысла и по выбранному делает карту.
+ * Кузница: ИИ-кузнец придумывает боевые замыслы (два на однорядном столе, три при наличии тыла)
+ * и по выбранному делает карту.
  * Ковка мгновенная и стоит славу — ни дней, ни приказов, ни очереди заказов в прототипе нет.
  * Редкость выпадает до ковки (шансы зависят от сырья и мастерства кузнеца), при сбое ответа
  * слава возвращается.
  */
 export default function Forge() {
-  const { game, act, addCard, model, toast, go } = useStore();
+  const { game, collection, act, addCard, model, toast, go } = useStore();
   const { glory } = useDerived();
   const p = game.player;
-  const [advice, setAdvice] = useState<Advice[]>(() => readAdvice(p.era) ?? []);
+  const expectedAdviceCount = oneLineBoard(game) ? 2 : 3;
+  const [advice, setAdvice] = useState<Advice[]>(() => readAdvice(p.era, oneLineBoard(game) ? 2 : 3) ?? []);
   const [pick, setPick] = useState<string | null>(null);
   const [material, setMaterial] = useState("standard");
   const [askLoading, setAskLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<Card | null>(null);
   const [era, setEra] = useState(p.era);
+  const [cachedAdviceCount, setCachedAdviceCount] = useState(expectedAdviceCount);
 
   useEffect(() => { localStorage.setItem(ADV_KEY, JSON.stringify({ era: p.era, advice })); }, [advice, p.era]);
-  // Смена эпохи сбрасывает замыслы: советник должен учесть новую силу племён и технологии.
+  // Смена эпохи или размера стола сбрасывает замыслы: типы и роли должны соответствовать бою.
   useEffect(() => {
-    if (era !== p.era) { setEra(p.era); setAdvice([]); setPick(null); setMaterial("standard"); }
-  }, [era, p.era]);
+    if (era !== p.era || cachedAdviceCount !== expectedAdviceCount) {
+      setEra(p.era); setCachedAdviceCount(expectedAdviceCount); setAdvice([]); setPick(null); setMaterial("standard");
+    }
+  }, [era, p.era, cachedAdviceCount, expectedAdviceCount]);
 
   const quote = M.cardCraftQuote(game, { materialQuality: material });
   const selected = advice.find((a) => a.id === pick) || null;
@@ -51,7 +56,7 @@ export default function Forge() {
     try {
       const list = await llmAdvice(model, game);
       setAdvice(list);
-      toast("Советник предложил три боевых замысла.", "ok");
+      toast(`Советник предложил ${list.length} боевых замысла.`, "ok");
     } catch (e: any) {
       toast(`Советник недоступен: ${e?.message}. Попробуйте ещё раз — заготовок нет.`, "bad");
     }
@@ -70,11 +75,19 @@ export default function Forge() {
       const snapshot = M.clone(game);
       // begin.paw — жребий лапы обезьяны: он уходит в промпт кузнеца, но игроку до раскрытия не показывается.
       const card: Card = await llmCard(begin.modelId, selected, begin.rarity as Rarity, snapshot, begin.paw);
+      const firstDeckCard = !game.player.deckCardIds.some((id: string) => collection.some((owned) => owned.id === id));
       const wait = 1200 - (Date.now() - started);
       if (wait > 0) await new Promise((r) => setTimeout(r, wait));
       addCard(card);
+      let autoAdded = false;
+      if (firstDeckCard) {
+        // Убираем только осиротевшие ID старой коллекции, если они есть, и привязываем карту
+        // явно к ownership: toggleDeckCard больше не принимает произвольные идентификаторы.
+        if (game.player.deckCardIds.length) act((s) => { s.player.deckCardIds = []; return { state: s, error: null }; }, { silent: true });
+        autoAdded = Boolean(act((s) => M.toggleDeckCard(s, card.id, [card.id]), { silent: true }));
+      }
       const done = act((s) => M.completeCraft(s, { name: card.name, rarity: card.rarity || begin.rarity, monkeyPaw: card.monkey_paw }), { silent: true });
-      toast(`${advisorOrder} → карта «${card.name}» в коллекции.`, "ok");
+      toast(`${advisorOrder} → карта «${card.name}» ${autoAdded ? "в коллекции и добавлена в пустую колоду" : "в коллекции"}.`, "ok");
       if (done?.leveledUp) toast(`Кузнец поднял мастерство до уровня ${done.craftLevel}: шанс редкой карты вырос.`, "ok");
       setReveal(card);
       setPick(null);
@@ -96,7 +109,7 @@ export default function Forge() {
         <div>
           <Label>Кузница</Label>
           <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Выковать карту</h1>
-          <p className="mt-1 max-w-xl text-sm text-dim">Два шага: замысел советника и сырьё. Карта куётся сразу и уходит в коллекцию — дни и приказы для этого не нужны.</p>
+          <p className="mt-1 max-w-xl text-sm text-dim">Кузнец создаёт карту по историческому замыслу ИИ. Первая карта автоматически входит в колоду; следующие вы добавляете сами.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Chip tone="bronze"><Trophy size={12} />{glory} славы</Chip>
@@ -111,7 +124,7 @@ export default function Forge() {
               <StepTitle n={1} title="Замысел" hint="Что поможет победить в одном бою?" />
               <Btn size="sm" onClick={askAdvisor} disabled={askLoading}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{advice.length ? "Другие замыслы" : "Спросить ИИ-советника"}</Btn>
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-dim">Все идеи — для одного сражения: боец, немедленный манёвр или боевая постройка в тылу. История народа даёт образ и тактику.</p>
+            <p className="mt-3 text-xs leading-relaxed text-dim">Все идеи — для одного сражения. На Каменном веке советник предлагает рукопашного бойца и манёвр, без построек и метательного оружия. Наследие — лишь один из возможных источников вдохновения.</p>
             {oneLineBoard(game) && (
               <p className="mt-2 rounded-lg border border-line bg-ground/60 px-3 py-2 text-xs leading-relaxed text-dim">
                 Стол Каменного века — одна линия в три клетки: тыла нет, поэтому дальний бой, засада и «длинное оружие» здесь не действуют — все отряды бьются врукопашную. Кузнец не выдаст стрелков, пока стол не вырастет до второго ряда (Античный мир).
@@ -120,7 +133,7 @@ export default function Forge() {
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {advice.length === 0 && (
                 <p className="rounded-xl border border-dashed border-line-strong p-4 text-sm leading-relaxed text-dim md:col-span-3">
-                  Боевых замыслов пока нет: советник предложит бойца, разовый манёвр и постройку для боя. Нажмите «Спросить ИИ-советника».
+                  Боевых замыслов пока нет: советник предложит {oneLineBoard(game) ? "рукопашный отряд и умеренный манёвр для одной цели" : "бойца, разовый манёвр и боевую постройку"}. Нажмите «Спросить ИИ-советника».
                 </p>
               )}
               {advice.map((a) => (

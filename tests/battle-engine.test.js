@@ -32,7 +32,7 @@ function loadTypeScriptModule(relativePath, dependencies = {}) {
           ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
           HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
           SEED_CHOICES: Campaign.SEED_CHOICES,
-          STARTER_CARDS: Campaign.STARTER_CARDS,
+          MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
           eraName: Campaign.eraName,
           allowedCardEras: Campaign.allowedCardEras,
           combatPerks: Campaign.combatPerks,
@@ -68,8 +68,14 @@ function card(name, options = {}) {
 const match = () => ({ kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra: 2, leaderBattle: false, tutorial: false });
 
 function battle(myCards, enemyCards, cfg = {}) {
-  const config = { hp: 20, energyMax: 10, energyGrowth: 1, fatigueDelay: 0, atkBonus: 0, ...cfg };
-  return api.createBattle(myCards, config, enemyCards, { ...config }, match());
+  const config = { hp: 20, energyMax: 10, energyGrowth: 1, fatigueDelay: 0, atkBonus: 0, openingHand: 4, ...cfg };
+  const b = api.createBattle(myCards, config, enemyCards, { ...config }, match());
+  for (const side of ['me', 'enemy']) {
+    const player = b[side];
+    const target = Math.min(4, player.hand.length + player.deck.length);
+    while (player.hand.length < target) player.hand.push(player.deck.shift());
+  }
+  return b;
 }
 
 /** Ставит карту из руки на поле, временно передавая ход нужной стороне. */
@@ -461,7 +467,16 @@ test('усталость начинается после шестого круг
   assert.equal(withDelay.me.fatigue, 0, 'задержка усталости сдвигает первый урон');
 });
 
-test('бой заканчивается, когда падает вождь, и стартовая рука ограничена', () => {
+test('колода соперника зеркалит фактическое число карт игрока', () => {
+  const pool = [card('Ополченец A'), card('Ополченец B'), card('Ополченец C')];
+  assert.equal(api.mirrorDeckToPlayer([card('Выкованная')], pool).length, 1, 'одна карта игрока — одна у соперника');
+  assert.equal(api.mirrorDeckToPlayer([card('A'), card('B')], pool).length, 2);
+  assert.equal(api.mirrorDeckToPlayer([], pool).length, 0, 'пустая колода не запускает бой с NPC-шаблонами');
+  assert.equal(api.mirrorDeckToPlayer([card('A'), card('B'), card('C'), card('D')], pool).length, 4,
+    'если игрок расширил колоду, ополчение добирается повторением шаблонов');
+});
+
+test('бой заканчивается, когда падает вождь, а стартовая рука зависит от черты и размера колоды', () => {
   const b = battle([card('Древние копейщики')], [card('Древние копейщики')], { hp: 3 });
   assert.equal(b.me.hand.length, 1);
   b.enemy.hp = 0;
@@ -475,13 +490,23 @@ test('бой заканчивается, когда падает вождь, и 
   assert.equal(loss.over, 'lose');
   assert.match(loss.log.at(-1).text, /Ваш вождь пал/u);
 
-  // рука не переполняется: лимит 7, старт 4
+  // Рука не переполняется: лимит 7; обычный конфиг начинает с 1, одна черта народа — с 2.
   const deck = Array.from({ length: 12 }, (_, i) => card(`Боец ${i}`));
-  const wide = battle(deck, deck);
-  assert.equal(wide.me.hand.length, 4);
+  const defaults = api.createBattle(deck, { hp: 20, energyMax: 10, energyGrowth: 1 }, deck,
+    { hp: 20, energyMax: 10, energyGrowth: 1 }, { ...match(), threatEra: 0 });
+  assert.equal(defaults.me.hand.length, 1, 'обычный старт — одна карта');
+  assert.equal(defaults.enemy.hand.length, 1, 'соперник также открывает одну карту');
+  const trait = api.createBattle(deck, { hp: 20, energyMax: 10, energyGrowth: 1, openingHand: 2 }, deck,
+    { hp: 20, energyMax: 10, energyGrowth: 1, openingHand: 2 }, { ...match(), threatEra: 0 });
+  assert.equal(trait.me.hand.length, 2, 'черта народа открывает вторую карту');
+  assert.equal(trait.enemy.hand.length, 1, 'вторая карта — преимущество народа, не соперника');
+  const capped = api.createBattle(deck, { hp: 20, energyMax: 10, energyGrowth: 1, openingHand: 9 }, deck,
+    { hp: 20, energyMax: 10, energyGrowth: 1 }, { ...match(), threatEra: 0 });
+  assert.equal(capped.me.hand.length, 2, 'открывающую руку нельзя разогнать выше двух');
+  assert.equal(battle([card('Только один')], [card('Враг')], { openingHand: 2 }).me.hand.length, 1, 'рука не больше размера колоды');
   assert.equal(api.HAND_LIMIT, 7);
-  for (let i = 0; i < 6; i++) { api.beginEnemyTurn(b); api.beginPlayerTurn(b); }
-  assert.ok(wide.me.hand.length <= api.HAND_LIMIT, `рука ${wide.me.hand.length}`);
+  for (let i = 0; i < 6; i++) { api.beginEnemyTurn(trait); api.beginPlayerTurn(trait); }
+  assert.ok(trait.me.hand.length <= api.HAND_LIMIT, `рука ${trait.me.hand.length}`);
 });
 
 test('движок получает только проверенные эффекты: битые карты не пускает валидатор', () => {

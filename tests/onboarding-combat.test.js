@@ -47,31 +47,38 @@ test('два шага: наследие, замысел — и никакого 
   }
 });
 
-test('каждый выбор показывает свой боевой бонус', () => {
+test('каждый выбор показывает бонус, а стартовая рука считается отдельной чертой', () => {
   assert.match(onboarding, /perksOf\(M\.cultureCombatBonus\(c\)\)/, 'бонус наследия виден на первом шаге');
   assert.match(onboarding, /perksOf\(c\.combat\)/, 'бонус замысла виден на втором шаге');
   assert.ok((onboarding.match(/combatNote/g) || []).length >= 1, 'пояснение бонуса показано рядом с выбором');
   assert.match(onboarding, /function perksOf\(bonus: any\): string\[\] \{\s*return M\.describePerks\(bonus \|\| \{\}\) as string\[\];/u);
 
-  // данные согласованы с экраном: у каждого варианта ровно один бонус и пояснение к нему
+  // Четыре замысла дают по одному боевому бонусу; «Знаки неба» отдельно открывают две карты.
   for (const seed of Campaign.SEED_CHOICES) {
-    assert.equal(Campaign.describePerks(seed.combat).length, 1, `${seed.id}: один боевой бонус`);
+    const perks = Campaign.describePerks(seed.combat || {});
+    assert.equal(perks.length + (seed.openingHand === 2 ? 1 : 0), 1, `${seed.id}: один боевой бонус или trait стартовой руки`);
     assert.ok(seed.combatNote && seed.combatNote.length > 10, `${seed.id}: есть пояснение`);
     assert.ok(seed.line && seed.line.length > 10, `${seed.id}: есть строка менталитета`);
     assert.ok(seed.peopleSuffix && seed.peopleSuffix.length > 2, `${seed.id}: есть половина имени народа`);
   }
+  assert.match(onboarding, /c\.openingHand/);
+  assert.match(onboarding, /preview\.openingHand/);
+  assert.deepEqual(Campaign.SEED_CHOICES.filter((seed) => seed.openingHand === 2).map((seed) => seed.id), ['sky']);
+  assert.equal(Campaign.getBattleConfig(Campaign.foundCampaignState(Campaign.createState(), { seedId: 'sky', historicalCultureId: 'jomon' }).state).openingHand, 2);
+  assert.equal(Campaign.getBattleConfig(Campaign.foundCampaignState(Campaign.createState(), { seedId: 'river', historicalCultureId: 'jomon' }).state).openingHand, 1);
   for (const culture of startCultures) {
     assert.equal(Campaign.describePerks(Campaign.cultureCombatBonus(culture)).length, 1, `${culture.id}: один боевой бонус`);
     assert.ok(culture.people && culture.people.length > 3, `${culture.id}: есть основа имени народа`);
   }
 
-  // Два свойства покрывают пять бонусов из шести: стойкость к усталости осталась только в лагере.
+  // Два свойства покрывают четыре числовых боевых бонуса; невыбранные предел энергии и устойчивость к усталости — в лагере.
   const covered = new Set([
-    ...Campaign.SEED_CHOICES.flatMap((s) => Object.keys(s.combat).filter((k) => s.combat[k] > 0)),
+    ...Campaign.SEED_CHOICES.flatMap((s) => Object.keys(s.combat || {}).filter((k) => s.combat[k] > 0)),
     ...startCultures.flatMap((c) => Object.keys(Campaign.cultureCombatBonus(c)).filter((k) => Campaign.cultureCombatBonus(c)[k] > 0)),
   ]);
-  assert.equal(covered.size, Campaign.COMBAT_KEYS.length - 1, 'наследие и замысел дают разные бонусы');
+  assert.equal(covered.size, Campaign.COMBAT_KEYS.length - 2, 'наследие и замысел дают разные числовые бонусы');
   assert.equal(covered.has('fatigue_resist'), false, 'устойчивость к усталости — не свойство народа');
+  assert.equal(covered.has('energy_cap'), false, 'предел энергии не маскирует бонус стартовой руки');
   for (const key of Campaign.COMBAT_KEYS) {
     assert.ok(Campaign.CAMP_UPGRADES[key], `${key}: любой бонус добирается улучшением лагеря`);
   }
@@ -96,12 +103,14 @@ test('сводка вождя считается на настоящем сос�
   assert.equal(preview.capped.unit_power, true);
 });
 
-test('основание народа ведёт в лагерь, а не в поселение или науку', () => {
+test('основание народа ведёт к ИИ-кузнецу за первой картой', () => {
   assert.match(onboarding, /foundPeople\(\{ seedId, historicalCultureId: cultureId \}\)/);
-  assert.match(onboarding, /go\("camp"\)/);
-  assert.match(onboarding, /Выберите соперника и выйдите в первый бой/u);
+  assert.match(onboarding, /go\("forge"\)/);
+  assert.match(onboarding, /первую карту/u);
+  assert.match(onboarding, /автоматически попадёт/u);
+  assert.match(onboarding, /ИИ-кузнеца/u);
   assert.match(onboarding, /Что произойдёт дальше/u);
-  assert.match(onboarding, /победа даёт славу/u);
+  assert.match(onboarding, /поражение тоже приносит 2 славы/u);
   for (const gone of ['go("develop")', 'go("map")', 'go("home")', 'llmScience', 'chooseScience']) {
     assert.ok(!onboarding.includes(gone), `в онбординге не должно быть ${gone}`);
   }
@@ -111,12 +120,14 @@ test('основание народа ведёт в лагерь, а не в п�
   }
 });
 
-test('стор основывает народ двумя идентификаторами и ничего больше не спрашивает', () => {
+test('стор основывает народ двумя идентификаторами, а бой блокирует пустую колоду', () => {
   assert.match(store, /foundPeople = useCallback\(\(\{ seedId, historicalCultureId \}/u);
   assert.match(store, /M\.foundCampaign\(M\.clone\(gameRef\.current\), \{ seedId, historicalCultureId \}\)/);
   assert.match(store, /if \(founded\.error\) return \{ ok: false, error: founded\.error as string \};/);
   assert.match(store, /commit\(founded\.state, \{ silent: true \}\)/);
   assert.ok(!store.includes('originId'), 'стор больше не передаёт землю');
+  assert.match(store, /if \(!deckCount\)/u, 'в бой нельзя начать без собственной карты');
+  assert.match(store, /setPage\("forge"\)/u, 'пустая колода направляет игрока к кузнецу');
 
   // модель так же не принимает имя: попытка передать своё игнорируется
   const res = Campaign.foundCampaignState(Campaign.createState(), { name: 'Своя кличка', seedId: 'sky', historicalCultureId: 'jomon' });

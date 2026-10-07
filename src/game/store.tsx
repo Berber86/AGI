@@ -66,7 +66,8 @@ function loadCollection(): Card[] {
   try {
     const raw = JSON.parse(localStorage.getItem(COLL_KEY) || "[]");
     if (!Array.isArray(raw)) return [];
-    return raw.filter((c) => c && c.id && c.name).map((c) => ({ keywords: [], effects: [], ...c }));
+    return raw.filter((c) => c && c.id && c.name && !c.militia && !c.campaignStarter && !M.isNpcMilitiaCardId(c.id))
+      .map((c) => ({ keywords: [], effects: [], ...c }));
   } catch { return []; }
 }
 
@@ -165,6 +166,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const startBattle = useCallback((opponentId: string) => {
     const g = gameRef.current;
+    const owned = new Set(collection.map((card) => card.id));
+    const deckCount = g.player.deckCardIds.filter((id: string) => owned.has(id)).length;
+    if (!deckCount) {
+      setPage("forge");
+      window.scrollTo({ top: 0 });
+      toast("Колода пуста. Выкуйте первую карту у ИИ-кузнеца — она автоматически добавится в колоду.", "info");
+      return;
+    }
     const o = g.opponents.find((x: any) => x.id === opponentId);
     if (!o) return;
     // Первый в жизни игрока бой остаётся мягким входом: подсказки тренера и враг без построек.
@@ -180,7 +189,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       leaderBattle: !!o.leader,
       tutorial: battles === 0,
     });
-  }, []);
+  }, [collection, toast]);
 
   const finishBattle = useCallback((won: boolean) => {
     if (!match) return "";

@@ -7,8 +7,8 @@ import { Btn, Chip, Label } from "@/components/ui";
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
-// Два осознанных выбора — и народ основан. Оба дают боевые бонусы (campaign.js → combatPerks):
-// экономика, постройки и науки из прототипа убраны, поэтому выбор сразу видно в параметрах вождя.
+// Два осознанных выбора — и народ основан. Наследие и замысел меняют бой; один замысел также
+// даёт вторую стартовую карту в руку. Первые карты игрок выкует у ИИ-кузнеца после онбординга.
 // Третьего свойства («Происхождение») больше нет: земля дублировала замысел — и тем же бонусом
 // (+1 к приросту энергии у степи и «Стада и воли»), и ролью в имени народа.
 // Шага «Имя» по-прежнему нет: имя складывается из двух свойств (M.peopleName — наследие даёт
@@ -53,8 +53,8 @@ export default function Onboarding() {
     const res = foundPeople({ seedId, historicalCultureId: cultureId });
     if (!res.ok) { setError(res.error || "Не удалось основать народ."); return; }
     setError("");
-    go("camp");
-    toast(`${people} разбивают лагерь. Выберите соперника и выйдите в первый бой.`, "ok");
+    go("forge");
+    toast(`${people} основан. Выкуйте у ИИ-кузнеца первую карту — она автоматически попадёт в колоду.`, "ok");
   };
 
   return (
@@ -68,8 +68,8 @@ export default function Onboarding() {
           <h1 className="font-display mt-4 text-4xl font-semibold leading-tight text-parch">Основать народ и выйти в бой</h1>
           <p className="mt-3 max-w-md text-[15px] leading-relaxed text-dim">
             Два выбора — наследие и замысел. Каждый меняет вождя в бою: здоровье, энергию, размер
-            колоды и силу отрядов. Вместе они дают народу имя. Дальше — военный стол, лагерь
-            и кузница карт.
+            колоды и стартовую руку. Вместе они дают народу имя. Первую карту выкует ИИ-кузнец;
+            затем можно выйти на военный стол.
           </p>
         </div>
       </div>
@@ -92,6 +92,7 @@ export default function Onboarding() {
               <p className="mt-2 text-dim">
                 Это наследие народа — древняя культура, чьи обычаи он несёт. Кузнец читает её в каждой карте,
                 а боевой бонус действует с первого боя. Сменить наследие можно при переходе в новую эпоху.
+              История культуры вдохновляет кузнеца, но не обязана повторяться в каждой карте.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {startCultures.map((c: any) => (
@@ -136,7 +137,8 @@ export default function Onboarding() {
                 {preview && (
                   <div className="mt-3 flex flex-wrap gap-2 border-t border-bronze/25 pt-3">
                     <Chip tone="ok"><Heart size={12} />вождь {preview.hp} HP</Chip>
-                    <Chip tone="know"><Layers size={12} />колода {preview.deckLimit}</Chip>
+                    <Chip tone="know"><Layers size={12} />колода до {preview.deckLimit}</Chip>
+                    <Chip tone="neutral"><Layers size={12} />рука на старте: {preview.openingHand}</Chip>
                     <Chip tone="bronze"><Zap size={12} />энергия до {preview.energyMax}, +{preview.energyGrowth}/ход</Chip>
                     {preview.atkBonus > 0 && <Chip tone="clay"><Swords size={12} />атака +{preview.atkBonus}</Chip>}
                     {preview.fatigueDelay > 0 && <Chip tone="ok">усталость позже на {preview.fatigueDelay}</Chip>}
@@ -152,6 +154,7 @@ export default function Onboarding() {
                       <span className="text-3xl">{c.icon}</span>
                       <span className="flex flex-wrap items-center justify-end gap-1">
                         {perksOf(c.combat).map((perk: string) => <Chip key={perk} tone={seedId === c.id ? "bronze" : "neutral"}>{perk}</Chip>)}
+                        {Number(c.openingHand) > 1 && <Chip tone={seedId === c.id ? "bronze" : "neutral"}><Layers size={12} />Рука: {c.openingHand}</Chip>}
                         {seedId === c.id && <Check size={16} className="text-bronze" />}
                       </span>
                     </div>
@@ -165,9 +168,10 @@ export default function Onboarding() {
 
               <div className="mt-5 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed text-dim">
                 <div className="mb-1 flex items-center gap-2 font-semibold text-parch"><Swords size={15} className="text-bronze" />Что произойдёт дальше</div>
-                Вы окажетесь в лагере: на военном столе три племени, победа даёт славу. За славу покупают постоянные
-                улучшения лагеря (здоровье вождя, энергия, слоты колоды, атака) и куют новые карты у ИИ-кузнеца.
-                В колоде уже {M.STARTER_DECK_IDS.length} карты из {M.STARTER_CARDS.length} стартовых — состав можно собрать под себя во вкладке <b className="text-parch">«Армия»</b>.
+                После основания вы сразу перейдёте к ИИ-кузнецу: выкуйте первую карту, и она автоматически попадёт
+                в пустую колоду. Затем в лагере можно выбрать соперника; обе стороны начинают с одной картой в руке,
+                а замысел «Знаки неба» открывает две. Победа даёт славу, поражение тоже приносит 2 славы; за неё
+                покупают улучшения лагеря и куют новые AI-карты. Состав и слоты настраиваются во вкладке <b className="text-parch">«Армия»</b>.
               </div>
               {error && <p className="mt-3 text-sm text-bad">{error}</p>}
             </div>

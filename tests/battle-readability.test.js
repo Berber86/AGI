@@ -34,6 +34,14 @@ function loadModule(rel) {
 const battle = loadBattle();
 const militia = loadModule('src/game/cards.ts').buildMilitia();
 const CFG = () => ({ hp: 5, energyMax: 2, energyGrowth: 1 });
+function setupFourCardHands(b) {
+    for (const side of ['me', 'enemy']) {
+        const player = b[side];
+        const target = Math.min(4, player.hand.length + player.deck.length);
+        while (player.hand.length < target) player.hand.push(player.deck.shift());
+    }
+    return b;
+}
 
 test('enemy militia deck is renamed, same size and card schema as friendly militia', () => {
     const enemyDeck = battle.enemyDeckForEra(0, militia.length);
@@ -47,7 +55,7 @@ test('enemy militia deck is renamed, same size and card schema as friendly milit
 
 test('battle log addresses the player in second person and reports initiative', () => {
     const deck = militia.slice(0, 4);
-    const b = battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' });
+    const b = setupFourCardHands(battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' }));
     const lines = () => b.log.map(entry => String(entry.text));
     assert.ok(lines()[0].includes('Вы ходите первым'), 'initiative is announced');
     assert.ok(!lines().some(line => line.includes('Вы тянет ') || line.includes('Вы выводит')), 'no third-person verbs after «Вы»');
@@ -59,7 +67,7 @@ test('battle log addresses the player in second person and reports initiative', 
 
 test('fatigue waits until turn six instead of killing micro-decks at turn four', () => {
     const deck = militia.slice(0, 4);
-    const b = battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' });
+    const b = setupFourCardHands(battle.createBattle(deck, CFG(), battle.enemyDeckForEra(0, 4), CFG(), { kind: 'practice', name: 'Тренировка' }));
     const hp = () => [b.me.hp, b.enemy.hp].join('|');
     for (let round = 0; round < 4 && !b.over; round++) { battle.beginEnemyTurn(b); battle.beginPlayerTurn(b); }
     assert.equal(hp(), '5|5', 'no fatigue damage through turn five');

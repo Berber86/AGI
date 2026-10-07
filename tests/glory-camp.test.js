@@ -25,7 +25,7 @@ function withGlory(state, glory) {
   return next;
 }
 
-test('победа даёт славу по эпохе и силе соперника, поражение — только опыт', () => {
+test('победа даёт славу по эпохе и силе соперника, поражение тоже даёт 2 славы', () => {
   const state = founded();
   assert.equal(Campaign.gloryForWin(state, { opponentId: 'reed', won: false }), Campaign.GLORY_LOSS);
   assert.equal(Campaign.gloryForWin(state, { opponentId: 'reed', won: true, streak: 0 }), Campaign.GLORY_WIN_BASE);
@@ -55,6 +55,15 @@ test('победа даёт славу по эпохе и силе соперн�
   assert.equal(loss.glory, Campaign.GLORY_LOSS);
 
   assert.match(Campaign.recordBattleState(state, { opponentId: 'нет', won: true }).error, /Соперник не найден/u);
+});
+
+test('обычная шкала славы сохраняет полные пороги эпох после плейтеста', () => {
+  assert.deepEqual(Campaign.ERA_GLORY_THRESHOLDS, [0, 60, 160, 320, 560, 900, 1400]);
+  assert.equal(Campaign.eraForGlory(Campaign.ERA_GLORY_THRESHOLDS[1] - 1), 0, 'до 60 славы остаётся Каменный век');
+  assert.equal(Campaign.eraForGlory(Campaign.ERA_GLORY_THRESHOLDS[1]), 1, 'Античность открывается на обычном пороге');
+
+  const state = Campaign.recordBattleState(founded(), { opponentId: 'reed', won: true }).state;
+  assert.equal(state.player.era, 0, 'одной ранней победы недостаточно для смены эпохи');
 });
 
 test('накопленная слава поднимает эпоху, тянет за собой племена и открывает выбор наследия', () => {
@@ -153,7 +162,7 @@ test('наследие не урезает молча собранную кол�
   akkad.player.historicalCulture = Campaign.HISTORICAL_CULTURES.find(c => c.id === 'akkad');
   akkad.player.culturalLineage = ['natufian', 'akkad'];
   const limit = Campaign.getBattleConfig(akkad).deckLimit;
-  akkad.player.deckCardIds = Campaign.STARTER_CARDS.slice(0, limit).map(c => c.id);
+  akkad.player.deckCardIds = Array.from({ length: limit }, (_, i) => `forged-card-${i}`);
   akkad.player.pendingCultureChoice = { era: 2, candidates: ['byzantium', 'caliphate', 'song-china'] };
 
   const out = Campaign.chooseCultureState(akkad, 'byzantium');

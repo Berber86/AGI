@@ -6,7 +6,7 @@
  * сосредоточен на боевой системе. Что осталось и почему — docs/COMBAT_PROTOTYPE_CUT.md.
  *
  * Модель хранит только то, что нужно бою:
- *   • боевой состав — колода из стартовых карт и выкованных в кузнице;
+ *   • боевой состав — только выкованные для игрока карты; NPC-шаблоны ополчения не выдаются игроку;
  *   • параметры вождя (здоровье, энергия, слоты колоды, усталость, атака) — складываются
  *     из происхождения, замысла, наследия и постоянных улучшений лагеря;
  *   • слава — единственная валюта: добывается в бою, уходит на лагерь и на ковку карт;
@@ -19,10 +19,9 @@
     'use strict';
 
     const STORAGE_KEY = 'iforge_combat_v1';
-    // Версия 6: онбординг сокращён до двух свойств народа (наследие и замысел), земли ORIGINS
-    // удалены, а стартовые колоды Каменного века собраны заново. Старые сохранения не переносятся:
-    // они помнят выбранную землю и колоду из удалённых карт.
-    const SAVE_VERSION = 6;
+    // Версия 7: игрок начинает без шаблонных карт; старые сохранённые ополчения удаляются из колоды,
+    // остальные данные версии 6 сохраняются.
+    const SAVE_VERSION = 7;
 
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
     const BRONZE_CARD_MIN_ERA = 1;
@@ -71,7 +70,7 @@
     const GLORY_LOSS = 2;         // поражение тоже даёт немного славы: прототип не должен вставать в тупик
     const GLORY_STREAK_STEP = 2;  // серия побед подряд добавляет славы
     const GLORY_STREAK_MAX = 6;
-    // Пороги эпох по НАКОПЛЕННОЙ славе: эпоха растёт от побед, а не от «просветления» ресурсами.
+    // Обычная шкала славы эпох (временное ускорение плейтеста завершено).
     const ERA_GLORY_THRESHOLDS = [0, 60, 160, 320, 560, 900, 1400];
 
     /* ---------- лагерь: постоянные улучшения вместо зданий и наук ----------
@@ -100,31 +99,25 @@
     const CRAFT_LEVEL_MAX = 3;
     const CULTURE_CHOICE_SIZE = 3;
 
-    /* ---------- стартовый боевой состав ----------
-       Каменный век воюет врукопашную: на столе одна линия, тыла нет, поэтому в стартовом составе
-       нет ни дальнего боя (ranged), ни засады (skirmish), ни длинного оружия (reach) — эти слова
-       приходят с Античного мира, когда у стола появляется второй ряд и стрелка есть куда поставить.
-       Здоровье отрядов соответствует хрупкому каменному бою: 1–3 HP. При одновременном обмене
-       взаимная гибель — нормальный размен, а не повод раздувать здоровье. Построек в Каменном веке
-       тоже нет: на единственной
-       линии постройка не держит столбец (брешь всё равно проходит вождю) и только съедает место
-       бойца — укрепления начинаются со второго ряда, то есть с Античного мира. */
-    const STARTER_CARDS = [
-        { id: 'starter-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 2, hp: 3, description: 'Сомкнутое копейное ополчение держит линию, но лёгкая защита не спасает от долгого боя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [], campaignStarter: true },
-        { id: 'starter-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 2, hp: 2, description: 'Молодые воины первыми бросаются в схватку: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [], campaignStarter: true },
-        { id: 'starter-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 3, hp: 2, description: 'Каменные топоры и кожаные щиты: клин ломает строй, но боец уязвим.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [], campaignStarter: true },
-        { id: 'starter-shields', name: 'Щитоносцы', card_type: 'unit', emoji: '🛡️', drop_cost: 2, action_cost: 1, atk: 2, hp: 3, description: 'Плетёные щиты смягчают удар, пока щитоносцы удерживают линию.', tags: ['щит', 'строй'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall'], effects: [], campaignStarter: true },
-        { id: 'starter-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Лёгкая конница налетает первой и уносит припасы, но не держит долгий бой.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'raider'], effects: [], campaignStarter: true },
-        { id: 'starter-drivers', name: 'Загонщики', card_type: 'unit', emoji: '🦌', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Загонщики заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['flank'], effects: [], campaignStarter: true },
-        { id: 'starter-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 3, hp: 3, description: 'Отборные телохранители прикрывают вождя щитами и бьются до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [], campaignStarter: true },
-        {
-            id: 'starter-night-raid', name: 'Ночной набег', card_type: 'spell', emoji: '🌙', drop_cost: 2, action_cost: 0, atk: 0, hp: 0, description: 'Поджигает вражеский авангард: самый сильный отряд горит два хода.', tags: ['набег', 'огонь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], effects: [], campaignStarter: true,
-            effects: [{ event: 'enter_play', target: { side: 'enemy', entity: 'unit', zone: 'front', select: 'highest_attack', count: 1 }, action: { type: 'apply_status', status: 'burn', amount: 1, turns: 2 } }]
-        }
+    /* ---------- шаблоны только для вражеского ополчения ----------
+       Эти карты никогда не попадают в коллекцию или колоду игрока: первую собственную карту
+       игрок выковывает у ИИ. Каменный пул остаётся NPC-контентом; в нём нет построек и дальних
+       слов для однорядного стола, у отрядов 1–3 HP и умеренная базовая атака. */
+    const MILITIA_CORE_CARDS = [
+        { id: 'militia-core-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 2, hp: 3, description: 'Сомкнутое копейное ополчение держит линию, но лёгкая защита не спасает от долгого боя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [] },
+        { id: 'militia-core-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 1, hp: 2, description: 'Молодые воины первыми бросаются в схватку: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [] },
+        { id: 'militia-core-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Каменные топоры и кожаные щиты: клин ломает строй, но боец уязвим.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [] },
+        { id: 'militia-core-shields', name: 'Щитоносцы', card_type: 'unit', emoji: '🛡️', drop_cost: 2, action_cost: 1, atk: 1, hp: 3, description: 'Плетёные щиты смягчают удар, пока щитоносцы удерживают линию.', tags: ['щит', 'строй'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall'], effects: [] },
+        { id: 'militia-core-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 1, hp: 2, description: 'Лёгкая конница налетает первой и уносит припасы, но не держит долгий бой.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'raider'], effects: [] },
+        { id: 'militia-core-drivers', name: 'Загонщики', card_type: 'unit', emoji: '🦌', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Загонщики заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['flank'], effects: [] },
+        { id: 'militia-core-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 2, hp: 3, description: 'Отборные телохранители прикрывают вождя щитами и бьются до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [] },
+        { id: 'militia-core-night-raid', name: 'Ночной набег', card_type: 'spell', emoji: '🌙', drop_cost: 2, action_cost: 0, atk: 0, hp: 0, description: 'Поджигает вражеский авангард: самый сильный отряд горит два хода.', tags: ['набег', 'огонь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], effects: [{ event: 'enter_play', target: { side: 'enemy', entity: 'unit', zone: 'front', select: 'highest_attack', count: 1 }, action: { type: 'apply_status', status: 'burn', amount: 1, turns: 2 } }] }
     ];
-    // Колода первого боя: четыре отряда, которые реально сыграть при пределе энергии 2 (лимит вождя
-    // без бонусов). Дружина вождя за 3 и всадники ждут своего часа — энергия дорастёт со временем.
-    const STARTER_DECK_IDS = ['starter-spears', 'starter-clubmen', 'starter-axes', 'starter-shields'];
+
+    function isNpcMilitiaCardId(id) {
+        const value = String(id || '');
+        return value.startsWith('militia-') || value.startsWith('starter-');
+    }
 
     /* ================= данные: эпохи, культуры и замыслы народа =================
        Блоки перенесены из кампании без переписывания: датировки и прототипы уже проверены
@@ -252,7 +245,7 @@
     const SEED_CHOICES = [
         { id: 'river', peopleSuffix: 'Разлива', icon: '🐟', name: 'Река и разлив', line: 'Наш год делит река: разлив приносит ил и рыбу, засуха — счёт запасам', hint: 'Вода, рыболовство, запасы на сухой сезон', note: 'Жнецы Натуфа и рыбаки дельты Нила: хозяйственный календарь от разлива', combat: { max_hp: 1 }, combatNote: 'Разлив кормит дружинников: вождь дольше держится в бою' },
         { id: 'forge', peopleSuffix: 'Горна', icon: '⚒️', name: 'Камень и горн', line: 'Мы ищем камень и руду, а огонь делает из них орудия и оружие', hint: 'Кремень, обсидиан, медь, орудия и строительство', note: 'Мастерские Чатал-Хююка и Анатолийских предгорий: ремесло раньше пашни', combat: { unit_power: 1 }, combatNote: 'Камень, руда и горн дают оружие: все отряды бьют сильнее' },
-        { id: 'sky', peopleSuffix: 'Неба', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера', combat: { energy_cap: 1 }, combatNote: 'Небесный счёт и обряд держат запас: больше энергии' },
+        { id: 'sky', peopleSuffix: 'Неба', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера', openingHand: 2, combatNote: 'Небесный счёт помогает подготовиться: в начале боя в руке на одну карту больше' },
         { id: 'herd', peopleSuffix: 'Стада', icon: '🐎', name: 'Стадо и воля', line: 'Наше богатство уходит с кочёвкой: стадо, конь и верность роду', hint: 'Скот, движение, набег и защита', note: 'Ямная культура: курганы, кони и повозки, власть рода над местом', combat: { energy_growth: 1 }, combatNote: 'Стадо и конь кочёвки: энергия возвращается быстрее' },
         { id: 'field', peopleSuffix: 'Пашни', icon: '🌾', name: 'Пашня и зерно', line: 'Земля кормит нас, если её слушать: зерно — первое богатство народа', hint: 'Земледелие, ирригация, урожай, закрома', note: 'Триполье и Левант: зерно, которое нужно вырастить, сохранить и разделить', combat: { deck_slots: 1 }, combatNote: 'Зерно кормит большее войско: +1 место в колоде' }
     ];
@@ -578,6 +571,7 @@
         return {
             deckLimit: Math.min(deck.cap, Math.max(1, raw.deckLimit)),
             deckBase: deck.base, deckCap: deck.cap, boardEra: state.player.era,
+            openingHand: seedById(state.player.seedChoiceId)?.openingHand === 2 ? 2 : 1,
             hp: Math.min(COMBAT_CAPS.hp, raw.hp),
             energyMax: Math.min(COMBAT_CAPS.energyMax, raw.energyMax),
             energyGrowth: Math.min(COMBAT_CAPS.energyGrowth, raw.energyGrowth),
@@ -787,7 +781,7 @@
 
     /* ================= колода ================= */
 
-    function toggleDeckCard(input, cardId) {
+    function toggleDeckCard(input, cardId, ownedCardIds) {
         const state = normalizeState(input);
         if (!cardId) return { state, error: 'Карта не найдена.' };
         const ids = state.player.deckCardIds;
@@ -795,6 +789,8 @@
             state.player.deckCardIds = ids.filter(id => id !== cardId);
             return { state, error: null };
         }
+        if (isNpcMilitiaCardId(cardId)) return { state, error: 'Шаблоны ополчения принадлежат соперникам — выкуйте собственную карту у кузнеца.' };
+        if (!Array.isArray(ownedCardIds) || !ownedCardIds.includes(cardId)) return { state, error: 'Добавить можно только карту из вашей коллекции.' };
         const limit = getBattleConfig(state).deckLimit;
         if (ids.length >= limit) return { state, error: 'В колоде ' + limit + ' карт — это предел. Поднимите его улучшением «Знамя дружины» в лагере или уберите другую карту.' };
         state.player.deckCardIds = [...ids, cardId];
@@ -993,8 +989,10 @@
      * несовместимое сохранение заменяется новым состоянием.
      */
     function normalizeState(value) {
-        if (!value || typeof value !== 'object' || Number(value.version) !== SAVE_VERSION || !value.player || typeof value.player !== 'object') return createState();
+        const version = Number(value && value.version);
+        if (!value || typeof value !== 'object' || ![6, SAVE_VERSION].includes(version) || !value.player || typeof value.player !== 'object') return createState();
         const state = clone(value);
+        state.version = SAVE_VERSION;
         const p = state.player;
         p.name = typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 60) : 'Безымянный народ';
         p.clan = typeof p.clan === 'string' && p.clan.trim() ? p.clan.trim().slice(0, 60) : 'Медный Ворон';
@@ -1016,7 +1014,7 @@
         // Предел колоды зависит от эпохи (DECK_CAP_BY_ERA), а не от одной константы: стол растёт,
         // и состав боя растёт вместе с ним. p.era к этому месту уже приведён к диапазону эпох.
         p.deckCardIds = (Array.isArray(p.deckCardIds) ? p.deckCardIds : [])
-            .filter(id => typeof id === 'string' && id && !seen.has(id) && seen.add(id))
+            .filter(id => typeof id === 'string' && id && !isNpcMilitiaCardId(id) && !seen.has(id) && seen.add(id))
             .slice(0, deckLimits(p.era).cap);
         p.craftLevel = clampInt(p.craftLevel, 0, CRAFT_LEVEL_MAX, 0);
         p.craftXp = clampInt(p.craftXp, 0, CRAFT_XP_PER_LEVEL, 0);
@@ -1045,8 +1043,8 @@
 
     /**
      * Основание народа: два выбора — наследие (культура) и замысел (менталитет). Каждый даёт боевой
-     * бонус, вместе они определяют вождя в первом бою. Никакой экономики и построек:
-     * игрок сразу может выйти на поле.
+     * бонус, вместе они определяют вождя. Никакой экономики и построек: после основания игрок
+     * идёт к ИИ-кузнецу за первой картой и выходит на поле только со своей выкованной колодой.
      *
      * Третьего свойства нет: «Происхождение» дублировало замысел — земля «Ямная Степь» и замысел
      * «Стадо и воля» давали один и тот же бонус (+1 к росту энергии), а имя народа земля определяла
@@ -1069,10 +1067,11 @@
         state.player.glory = GLORY_START;
         state.player.gloryTotal = 0;
         state.player.onboardingComplete = true;
-        const limit = getBattleConfig(state).deckLimit;
-        state.player.deckCardIds = STARTER_DECK_IDS.slice(0, limit);
-        chroniclePush(state, 'Народ «' + name + '» вышел из культуры ' + culture.name + ' с замыслом «' + seed.name + '»: ' + seed.line + '. Наследие даёт ' + (describePerks(cultureCombatBonus(culture)).join(', ') || 'ничего') + ', замысел — ' + (describePerks(seed.combat).join(', ') || 'ничего') + '. Боевой набор: ' + (describePerks(combatPerks(state)).join(', ') || 'обычные отряды племени') + '.');
-        state.player.campaignNotice = 'Народ основан. Выберите соперника в лагере и выйдите в первый бой.';
+        // Игрок начинает без карт: первые боевые карты должны быть выкованы ИИ специально для него.
+        state.player.deckCardIds = [];
+        const openingHand = getBattleConfig(state).openingHand;
+        chroniclePush(state, 'Народ «' + name + '» вышел из культуры ' + culture.name + ' с замыслом «' + seed.name + '»: ' + seed.line + '. Наследие даёт ' + (describePerks(cultureCombatBonus(culture)).join(', ') || 'ничего') + ', замысел — ' + (describePerks(seed.combat || {}).join(', ') || (openingHand > 1 ? 'в начале боя дополнительная карта в руке' : 'ничего')) + '. Боевой набор: ' + (describePerks(combatPerks(state)).join(', ') || 'обычные отряды племени') + '.');
+        state.player.campaignNotice = 'Народ основан. Выкуйте первую карту у ИИ-кузнеца: она автоматически попадёт в пустую колоду.';
         return { state, error: null, battle: getBattleConfig(state) };
     }
 
@@ -1088,7 +1087,7 @@
 
     const api = {
         // данные
-        ERAS, ERA_HISTORICAL, ERA_GLORY_THRESHOLDS, SEED_CHOICES, HISTORICAL_CULTURES, STARTER_CARDS, STARTER_DECK_IDS,
+        ERAS, ERA_HISTORICAL, ERA_GLORY_THRESHOLDS, SEED_CHOICES, HISTORICAL_CULTURES, MILITIA_CORE_CARDS,
         COMBAT_KEYS, COMBAT_LABELS, COMBAT_CAPS, COMBAT_BASE, COMBAT_FIELD, CAMP_UPGRADES,
         GLORY_START, GLORY_WIN_BASE, GLORY_PER_ERA, GLORY_LEADER_BONUS, GLORY_LOSS, GLORY_STREAK_STEP, GLORY_STREAK_MAX,
         CARD_CRAFT_MATERIALS, CARD_RARITY_ODDS, CARD_MODEL_BY_RARITY, RARE_CRAFT_MIN_ERA, CRAFT_LEVEL_MAX, CRAFT_XP_PER_LEVEL,
@@ -1096,7 +1095,7 @@
         BARBARIAN_ERA_CAP, BARBARIAN_DECK_SIZES, BARBARIAN_DECK_PROFILES, BRONZE_CARD_MIN_ERA, CULTURE_CHOICE_SIZE,
         STORAGE_KEY, SAVE_VERSION,
         // утилиты
-        clone, hashString, seededRandom, pickRandom, eraName, allowedCardEras, findCulture, describePerks, cultureCombatBonus,
+        clone, hashString, seededRandom, pickRandom, eraName, allowedCardEras, findCulture, describePerks, cultureCombatBonus, isNpcMilitiaCardId,
         // народ и бой
         createState, normalizeState, load, save, peopleName, foundCampaignState,
         combatPerks, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
@@ -1109,7 +1108,7 @@
         // кузница
         getAvailableMaterialQualities, cardCraftQuote, beginCraftState: beginCraft, completeCraftState: completeCraft, failCraftState: failCraft,
         PAW_TIERS, PAW_TIER_LABELS, PAW_TIER_NOTES, rollPawTier,
-        getStarterCards: () => clone(STARTER_CARDS)
+        getMilitiaCoreCards: () => clone(MILITIA_CORE_CARDS)
     };
     root.CampaignMvp = api;
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
