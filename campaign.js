@@ -104,18 +104,19 @@
        Каменный век воюет врукопашную: на столе одна линия, тыла нет, поэтому в стартовом составе
        нет ни дальнего боя (ranged), ни засады (skirmish), ни длинного оружия (reach) — эти слова
        приходят с Античного мира, когда у стола появляется второй ряд и стрелка есть куда поставить.
-       Числа подобраны под одновременный обмен ударами: отряд держит два-три обмена, а не один,
-       иначе ответного удара просто не видно. Построек в Каменном веке тоже нет: на единственной
+       Здоровье отрядов соответствует хрупкому каменному бою: 1–3 HP. При одновременном обмене
+       взаимная гибель — нормальный размен, а не повод раздувать здоровье. Построек в Каменном веке
+       тоже нет: на единственной
        линии постройка не держит столбец (брешь всё равно проходит вождю) и только съедает место
        бойца — укрепления начинаются со второго ряда, то есть с Античного мира. */
     const STARTER_CARDS = [
-        { id: 'starter-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 2, hp: 4, description: 'Строй копейщиков держит линию: сомкнутый ряд бьёт и защищается вместе.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [], campaignStarter: true },
-        { id: 'starter-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 2, hp: 3, description: 'Молодые воины бегут в схватку первыми: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [], campaignStarter: true },
-        { id: 'starter-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 3, hp: 5, description: 'Каменные топоры и кожаные щиты: клин ломает строй, а шкуры держат удар.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [], campaignStarter: true },
-        { id: 'starter-shields', name: 'Щитоносцы', card_type: 'unit', emoji: '🛡️', drop_cost: 2, action_cost: 1, atk: 2, hp: 6, description: 'Плетёные щиты в рост человека: урон об стену щитов гаснет, линия не рвётся.', tags: ['щит', 'строй'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall'], effects: [], campaignStarter: true },
-        { id: 'starter-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 2, hp: 4, description: 'Кони кочёвки: налёт в тот же ход, когда отряд вышел, и захваченные припасы врага.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'raider'], effects: [], campaignStarter: true },
-        { id: 'starter-drivers', name: 'Загонщики', card_type: 'unit', emoji: '🦌', drop_cost: 2, action_cost: 1, atk: 2, hp: 4, description: 'Загонная охота учит бить сбоку: там, где у противника нет соседа, удар тяжелее.', tags: ['охота', 'охват'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['flank'], effects: [], campaignStarter: true },
-        { id: 'starter-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 3, hp: 7, description: 'Отборные воины принимают удар на себя и держатся вокруг вождя до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [], campaignStarter: true },
+        { id: 'starter-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 2, hp: 3, description: 'Сомкнутое копейное ополчение держит линию, но лёгкая защита не спасает от долгого боя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [], campaignStarter: true },
+        { id: 'starter-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 2, hp: 2, description: 'Молодые воины первыми бросаются в схватку: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [], campaignStarter: true },
+        { id: 'starter-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 3, hp: 2, description: 'Каменные топоры и кожаные щиты: клин ломает строй, но боец уязвим.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [], campaignStarter: true },
+        { id: 'starter-shields', name: 'Щитоносцы', card_type: 'unit', emoji: '🛡️', drop_cost: 2, action_cost: 1, atk: 2, hp: 3, description: 'Плетёные щиты смягчают удар, пока щитоносцы удерживают линию.', tags: ['щит', 'строй'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall'], effects: [], campaignStarter: true },
+        { id: 'starter-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Лёгкая конница налетает первой и уносит припасы, но не держит долгий бой.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'raider'], effects: [], campaignStarter: true },
+        { id: 'starter-drivers', name: 'Загонщики', card_type: 'unit', emoji: '🦌', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Загонщики заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['flank'], effects: [], campaignStarter: true },
+        { id: 'starter-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 3, hp: 3, description: 'Отборные телохранители прикрывают вождя щитами и бьются до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [], campaignStarter: true },
         {
             id: 'starter-night-raid', name: 'Ночной набег', card_type: 'spell', emoji: '🌙', drop_cost: 2, action_cost: 0, atk: 0, hp: 0, description: 'Поджигает вражеский авангард: самый сильный отряд горит два хода.', tags: ['набег', 'огонь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], effects: [], campaignStarter: true,
             effects: [{ event: 'enter_play', target: { side: 'enemy', entity: 'unit', zone: 'front', select: 'highest_attack', count: 1 }, action: { type: 'apply_status', status: 'burn', amount: 1, turns: 2 } }]
@@ -322,13 +323,14 @@
        Каменный век у всех трёх племён рукопашный: на столе одна линия, поэтому ни ranged, ни
        skirmish, ни reach — эти слова приходят с Античного мира, когда появляется второй ряд.
        Построек в Каменном веке тоже нет: на единственной линии они не держат столбец и только
-       занимают место бойца. Числа — под одновременный обмен ударами: отряд живёт два-три обмена. */
+       занимают место бойца. У каждого каменного отряда 1–3 HP: для эпохи это норма; обмен может
+       закончиться взаимной гибелью, поэтому тактический ИИ теперь оценивает ответный удар. */
 
     const REED_STONE_DECK = [
-        barbarianCard('reed', 'spearline', { name: 'Копьеносцы', emoji: '🔱', drop_cost: 1, atk: 2, hp: 4, description: 'Копьеносцы речного племени держат сомкнутый строй: вместе бьют и вместе защищаются.', tags: ['копьё', 'строй'], keywords: ['phalanx'] }),
-        barbarianCard('reed', 'macebearers', { name: 'Булавоносцы', emoji: '🪨', drop_cost: 2, atk: 3, hp: 4, description: 'Каменные булавы пробивают толпу: клин идёт туда, где строй уже сомкнулся.', tags: ['булава', 'клин'], keywords: ['wedge'] }),
-        barbarianCard('reed', 'retinue', { name: 'Дружинники', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 6, description: 'Старшие воины с плетёными щитами принимают удар на себя и не дают строю дрогнуть.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
-        barbarianCard('reed', 'levy', { name: 'Ополченцы', emoji: '🧺', drop_cost: 1, atk: 2, hp: 3, description: 'Земледельцы с вилами и кольями: сами слабы, но поддерживают соседей по строю.', tags: ['ополчение', 'поддержка'], keywords: ['rally'] })
+        barbarianCard('reed', 'spearline', { name: 'Копьеносцы', emoji: '🔱', drop_cost: 1, atk: 2, hp: 3, description: 'Копьеносцы речного племени держат сомкнутый строй, хотя сами легко ранимы.', tags: ['копьё', 'строй'], keywords: ['phalanx'] }),
+        barbarianCard('reed', 'macebearers', { name: 'Булавоносцы', emoji: '🪨', drop_cost: 2, atk: 3, hp: 2, description: 'Каменные булавы пробивают толпу: клин идёт туда, где строй уже сомкнулся.', tags: ['булава', 'клин'], keywords: ['wedge'] }),
+        barbarianCard('reed', 'retinue', { name: 'Дружинники', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Старшие воины с плетёными щитами принимают удар, пока строй не дрогнул.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('reed', 'levy', { name: 'Ополченцы', emoji: '🧺', drop_cost: 1, atk: 2, hp: 2, description: 'Земледельцы с вилами и кольями слабы в одиночку, но поддерживают соседей.', tags: ['ополчение', 'поддержка'], keywords: ['rally'] })
     ];
     const REED_ANTIQUITY_DECK = [
         barbarianCard('reed', 'sarissophoroi', { name: 'Сариссофоры', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 5, description: 'Длинные пики в шесть метров: строй бьёт из-за спин переднего ряда, не открываясь для удара.', tags: ['бронза', 'пика'], keywords: ['phalanx', 'reach'] }),
@@ -350,10 +352,10 @@
     ];
 
     const STEPPE_STONE_DECK = [
-        barbarianCard('steppe', 'nomads', { name: 'Кочевники', emoji: '🐎', drop_cost: 2, atk: 2, hp: 4, description: 'Налёт в тот же ход, когда отряд вышел, и унесённые припасы противника.', tags: ['конница', 'налёт'], keywords: ['charge', 'raider'] }),
-        barbarianCard('steppe', 'axe-bearers', { name: 'Секирники', emoji: '🪓', drop_cost: 2, atk: 3, hp: 4, description: 'Боевые секиры и кожаные доспехи: клин рубит строй соседей.', tags: ['секира', 'клин'], keywords: ['armor:1', 'wedge'] }),
-        barbarianCard('steppe', 'herders', { name: 'Табунщики', emoji: '🔺', drop_cost: 1, atk: 2, hp: 3, description: 'Пастухи держатся вокруг табуна и встречают налётчиков сомкнутыми копьями.', tags: ['копьё', 'табун'], keywords: ['phalanx'] }),
-        barbarianCard('steppe', 'kurgan-guard', { name: 'Курганная стража', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 6, description: 'Старшие воины держатся вокруг знамени и принимают удар на себя.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] })
+        barbarianCard('steppe', 'nomads', { name: 'Кочевники', emoji: '🐎', drop_cost: 2, atk: 2, hp: 2, description: 'Кочевники налетают стремительно и уносят припасы, но не держат долгий бой.', tags: ['конница', 'налёт'], keywords: ['charge', 'raider'] }),
+        barbarianCard('steppe', 'axe-bearers', { name: 'Секирники', emoji: '🪓', drop_cost: 2, atk: 3, hp: 2, description: 'Боевые секиры и кожаные доспехи: клин рубит строй соседей.', tags: ['секира', 'клин'], keywords: ['armor:1', 'wedge'] }),
+        barbarianCard('steppe', 'herders', { name: 'Табунщики', emoji: '🔺', drop_cost: 1, atk: 2, hp: 2, description: 'Пастухи держатся вокруг табуна и встречают налётчиков сомкнутыми копьями.', tags: ['копьё', 'табун'], keywords: ['phalanx'] }),
+        barbarianCard('steppe', 'kurgan-guard', { name: 'Курганная стража', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Старшие воины держатся вокруг знамени и принимают удар на себя.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] })
     ];
     const STEPPE_ANTIQUITY_DECK = [
         barbarianCard('steppe', 'horse-archers', { name: 'Конные лучники', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 3, description: 'Стреляют на ходу и не принимают ближнего боя: ответа из глубины им нет.', tags: ['бронза', 'конница'], keywords: ['ranged', 'skirmish'] }),
@@ -375,10 +377,10 @@
     ];
 
     const NORTH_STONE_DECK = [
-        barbarianCard('north', 'flint-axes', { name: 'Кремнёвые топорники', emoji: '🪓', drop_cost: 2, atk: 3, hp: 4, description: 'Каменные топоры и кожаные накладки: клин держит лесную тропу.', tags: ['топор', 'лес'], keywords: ['armor:1', 'wedge'] }),
-        barbarianCard('north', 'trappers', { name: 'Ловчие', emoji: '🐺', drop_cost: 1, atk: 2, hp: 3, description: 'Охотники-ловчие выходят на зверя и на врага стремительно, в первый же ход.', tags: ['охота', 'лес'], keywords: ['charge'] }),
-        barbarianCard('north', 'wardens', { name: 'Стражи', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 6, description: 'Стражи закрывают проход щитами и принимают удар на себя.', tags: ['щит', 'рубеж'], keywords: ['shieldwall', 'taunt'] }),
-        barbarianCard('north', 'hunters', { name: 'Охотники', emoji: '🌲', drop_cost: 2, atk: 2, hp: 4, description: 'Загонная охота учит бить сбоку: там, где у противника нет соседа, удар тяжелее.', tags: ['охота', 'охват'], keywords: ['flank'] })
+        barbarianCard('north', 'flint-axes', { name: 'Кремнёвые топорники', emoji: '🪓', drop_cost: 2, atk: 3, hp: 2, description: 'Каменные топоры и кожаные накладки: клин бьёт по строю, но боец уязвим.', tags: ['топор', 'лес'], keywords: ['armor:1', 'wedge'] }),
+        barbarianCard('north', 'trappers', { name: 'Ловчие', emoji: '🐺', drop_cost: 1, atk: 2, hp: 2, description: 'Охотники-ловчие стремительно выходят на зверя и врага.', tags: ['охота', 'лес'], keywords: ['charge'] }),
+        barbarianCard('north', 'wardens', { name: 'Стражи', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Стражи закрывают проход щитами и принимают удар на себя.', tags: ['щит', 'рубеж'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('north', 'hunters', { name: 'Охотники', emoji: '🌲', drop_cost: 2, atk: 2, hp: 2, description: 'Охотники заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], keywords: ['flank'] })
     ];
     const NORTH_ANTIQUITY_DECK = [
         barbarianCard('north', 'phalangites', { name: 'Фалангиты', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 5, description: 'Бронзовые наконечники и сомкнутый строй на перевале.', tags: ['бронза', 'фаланга'], keywords: ['phalanx', 'armor:1'] }),

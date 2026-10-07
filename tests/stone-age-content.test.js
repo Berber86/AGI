@@ -7,8 +7,8 @@
  * собственным текстом и работали как слабые рукопашные. Теперь дальний бой приходит с Античного
  * мира, когда у стола появляется второй ряд.
  *
- * Числа подобраны под одновременный обмен ударами (tests/counter-exchange.test.js): отряд держит
- * два-три обмена, иначе ответного удара не видно — все умирают с первого.
+ * Здоровье соответствует хрупкому бою эпохи (1–3 HP): обоюдная гибель — нормальный размен,
+ * а не ошибка баланса. ИИ учитывает ответ и не бросает отряд в заведомо убыточную атаку.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -73,9 +73,8 @@ test('стартовый состав игрока — рукопашный Ка
   const units = starter.filter((c) => c.card_type === 'unit');
   assert.equal(units.length, 7, 'семь отрядов и один манёвр');
   for (const unit of units) {
-    assert.ok(unit.hp >= 3, `«${unit.name}»: hp ${unit.hp} — отряд умирает с одного удара и не успевает ответить`);
-    assert.ok(unit.atk <= 3, `«${unit.name}»: atk ${unit.atk} — с таким уроном обмен всегда обоюдный до смерти`);
-    assert.ok(unit.hp > unit.atk - 1, `«${unit.name}»: отряд должен переживать хотя бы один ответный удар`);
+    assert.ok(unit.hp >= 1 && unit.hp <= 3, `«${unit.name}»: в Каменном веке нормальный диапазон — 1–3 HP`);
+    assert.ok(unit.atk <= 3, `«${unit.name}»: базовая атака должна оставаться читаемой и умеренной`);
   }
 });
 
@@ -106,6 +105,7 @@ test('колоды племён: каменный век рукопашный, �
           assert.deepEqual(depthWordsOf(card), [], `${tribe} «${card.name}»: на одной линии слова глубины молчат`);
           assert.notEqual(card.card_type, 'structure', `${tribe} «${card.name}»: в Каменном веке построек нет`);
           assert.ok(!/бронз/u.test(card.name + card.description), `${tribe} «${card.name}»: бронзы в Каменном веке нет`);
+          if (card.card_type === 'unit') assert.ok(card.hp >= 1 && card.hp <= 3, `${tribe} «${card.name}»: Каменный век — 1–3 HP, получено ${card.hp}`);
         }
       }
       const units = deck.filter((c) => c.card_type === 'unit');

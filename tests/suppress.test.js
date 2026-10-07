@@ -253,7 +253,7 @@ test('постройку подавлять бессмысленно: она н�
 });
 
 test('подавленный противник не тратит ход впустую: энергии хватает — и он бьёт', () => {
-  const { b, gun, foe } = duel(gunner(), soldier());
+  const { b, gun, foe } = duel(gunner(), soldier({ atk: 3 }));
   assert.equal(api.attackWith(b, 'me', gun.iid), true);
   b.active = 'enemy';
   b.enemy.energy = 8;
