@@ -33,6 +33,7 @@ function loadTypeScriptModule(relativePath, dependencies = {}) {
           HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
           ORIGINS: Campaign.ORIGINS,
           SEED_CHOICES: Campaign.SEED_CHOICES,
+          STARTER_CARDS: Campaign.STARTER_CARDS,
           eraName: Campaign.eraName,
           allowedCardEras: Campaign.allowedCardEras,
           combatPerks: Campaign.combatPerks,
@@ -193,18 +194,19 @@ test('щитовой строй, стойкость и последний руб
   assert.equal(unitAt(last, 'enemy', 'front', 0).curHp, 9 - 2, 'laststand: +1 броня, когда в ряду больше никого');
 });
 
-test('постройка стоит в тылу, не атакует и каждый ход обстреливает врага', () => {
-  const tower = card('Частокол с бойницами', { card_type: 'structure', atk: 0, action_cost: 0, hp: 4 });
+test('постройка стоит в тылу, не атакует и обстреливает врага своей атакой', () => {
+  const tower = card('Сторожевая башня', { card_type: 'structure', atk: 2, action_cost: 0, hp: 4 });
   const b = battle([tower, card('Древние копейщики')], [card('Древние копейщики', { hp: 6 })]);
   assert.equal(place(b, 'me', tower.name, 'front', 0), false, 'постройку нельзя поставить в передний ряд');
   assert.equal(place(b, 'me', tower.name, 'back', 0), true);
   assert.equal(api.canAct(b, 'me', unitAt(b, 'me', 'back', 0)), false, 'постройка не атакует');
 
-  // чужой отряд на поле — обстрел идёт по нему
+  // чужой отряд на поле — обстрел идёт по нему и считается как обычный удар (броня гасит)
   place(b, 'enemy', 'Древние копейщики', 'front', 0);
   api.beginEnemyTurn(b);
   api.beginPlayerTurn(b);
-  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 5, 'обстрел снял 1 HP');
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, 4, 'обстрел снял 2 HP — свою атаку, а не фиксированную единицу');
+  assert.ok(!b.log.some((l) => /ответ −/u.test(l.text)), 'на обстрел не отвечают: до чужого тыла не достать');
 
   // поле пустое — обстрел идёт по вождю
   unitAt(b, 'enemy', 'front', 0).curHp = 0;
@@ -212,7 +214,19 @@ test('постройка стоит в тылу, не атакует и кажд
   const hpBefore = b.enemy.hp;
   api.beginEnemyTurn(b);
   api.beginPlayerTurn(b);
-  assert.equal(b.enemy.hp, hpBefore - 1);
+  assert.equal(b.enemy.hp, hpBefore - 2);
+});
+
+test('стена без атаки не стреляет: частокол преграждает проход, а не бьёт бесплатно', () => {
+  const wall = card('Частокол', { card_type: 'structure', atk: 0, action_cost: 0, hp: 6 });
+  const b = battle([wall, card('Древние копейщики')], [card('Древние копейщики', { hp: 6 })]);
+  place(b, 'me', wall.name, 'back', 0);
+  place(b, 'enemy', 'Древние копейщики', 'front', 0);
+  const before = unitAt(b, 'enemy', 'front', 0).curHp;
+  api.beginEnemyTurn(b);
+  api.beginPlayerTurn(b);
+  assert.equal(unitAt(b, 'enemy', 'front', 0).curHp, before, 'постройка без атаки никого не обстреливает');
+  assert.ok(!b.log.some((l) => /обстреливает/u.test(l.text)));
 });
 
 test('осада достаёт тыл и удваивает урон по постройкам', () => {

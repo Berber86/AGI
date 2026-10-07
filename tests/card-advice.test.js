@@ -26,6 +26,7 @@ function loadCards(fetchImpl) {
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
             ORIGINS: Campaign.ORIGINS,
             SEED_CHOICES: Campaign.SEED_CHOICES,
+            STARTER_CARDS: Campaign.STARTER_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,
@@ -86,6 +87,11 @@ test('военный советник получает строгую боеву
   assert.match(system, /spell — разовый манёвр/iu);
   assert.match(system, /structure — именно боевая постройка/iu);
   assert.match(system, /каждый ход обстреливает/iu);
+  // Постройка стреляет своей атакой, а стена без атаки — нет: кузнец должен это знать,
+  // иначе он скуёт частокол с atk 0 и будет ждать от него обстрела.
+  assert.match(system, /atk ≥ 1/u, 'промпт объясняет, какая постройка стреляет');
+  assert.match(system, /не стреляет вовсе/u, 'и что постройка без атаки не стреляет');
+  assert.match(system, /броня его гасит/u, 'обстрел считается как обычный удар');
   assert.match(system, /Не ограничивайся предысторией, бытом/iu);
   assert.match(system, /не задача карты/iu);
   assert.match(user, /Нужны три боевые идеи для колоды/iu);
