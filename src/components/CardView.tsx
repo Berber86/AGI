@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Sword, Heart, Zap, ScrollText } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { Accordion } from "@/components/ui";
@@ -10,19 +10,54 @@ const TYPE_TINT: Record<string, string> = {
   structure: "from-mat/25 via-mat/5",
 };
 
-export function KeywordChips({ keywords, className, limit }: { keywords: string[]; className?: string; limit?: number }) {
+/**
+ * Чипы ключевых слов. Подсказка при наведении есть, но на телефоне её не увидеть, поэтому клик по
+ * чипу раскрывает пояснение прямо под строкой — повторный клик сворачивает. Слова, которые не
+ * работают на текущем столе (дальний бой на одной линии Каменного века), перечёркнуты и объясняют
+ * это в том же пояснении.
+ */
+export function KeywordChips({ keywords, className, limit, inactive = [], note }: {
+  keywords: string[]; className?: string; limit?: number; inactive?: string[]; note?: string;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
   const list = limit ? keywords.slice(0, limit) : keywords;
+  const base = (k: string) => String(k).toLowerCase().split(":")[0].trim();
+  const shown = open ? kwName(open) : null;
+  const shownOff = open ? inactive.includes(base(open)) : false;
   return (
-    <div className={cn("flex flex-wrap gap-1", className)}>
-      {list.map((k) => {
-        const w = kwName(k);
-        return (
-          <span key={k} title={w.desc} className="rounded-md border border-line bg-ground/60 px-1.5 py-0.5 text-[10.5px] font-medium text-dim">
-            {w.name}{w.level ? ` ${w.level}` : ""}
-          </span>
-        );
-      })}
-      {limit && keywords.length > limit && <span className="px-1 text-[10.5px] text-faint">+{keywords.length - limit}</span>}
+    <div className="min-w-0">
+      <div className={cn("flex flex-wrap gap-1", className)}>
+        {list.map((k) => {
+          const w = kwName(k);
+          const off = inactive.includes(base(k));
+          const isOpen = open === k;
+          return (
+            <span
+              key={k}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isOpen}
+              title={w.desc}
+              onClick={(e) => { e.stopPropagation(); setOpen(isOpen ? null : k); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(isOpen ? null : k); } }}
+              className={cn(
+                "cursor-pointer rounded-md border border-line bg-ground/60 px-1.5 py-0.5 text-[10.5px] font-medium text-dim transition-colors hover:border-bronze/60 hover:text-parch",
+                off && "border-dashed text-faint line-through decoration-clay/70",
+                isOpen && "border-bronze bg-ground text-parch",
+              )}
+            >
+              {w.name}{w.level ? ` ${w.level}` : ""}
+            </span>
+          );
+        })}
+        {limit && keywords.length > limit && <span className="px-1 text-[10.5px] text-faint">+{keywords.length - limit}</span>}
+      </div>
+      {shown && (
+        <p className="mt-1 text-[10.5px] leading-snug text-dim" onClick={(e) => e.stopPropagation()}>
+          <span className="text-parch">{shown.name}{shown.level ? ` ${shown.level}` : ""}.</span> {shown.desc}
+          {shownOff && <span className="text-clay"> {note || "Не действует на этом столе."}</span>}
+        </p>
+      )}
     </div>
   );
 }
@@ -58,6 +93,10 @@ interface Props {
   dim?: boolean;
   /** Историческая справка сразу раскрыта: так показываем только что выкованную карту. */
   historyOpen?: boolean;
+  /** Ключевые слова, которые не действуют на текущем столе боя (см. inactiveKeywords в движке). */
+  inactiveKeywords?: string[];
+  /** Почему они не действуют — одним предложением. */
+  keywordNote?: string;
 }
 
 /** Историческая справка карты: эпоха кампании и наследие народа, под которые её написал кузнец. */
@@ -81,7 +120,7 @@ export function HistoryNote({ history, defaultOpen }: { history: CardHistory; de
 }
 
 /** Полноразмерная карта */
-export function CardFace({ card, onClick, selected, footer, badge, detailed, className, dim, historyOpen }: Props) {
+export function CardFace({ card, onClick, selected, footer, badge, detailed, className, dim, historyOpen, inactiveKeywords, keywordNote }: Props) {
   const rarity = card.rarity ? RARITY_INFO[card.rarity] : null;
   const type = CARD_TYPE_INFO[card.card_type];
   const Wrapper: any = onClick ? "button" : "div";
@@ -111,10 +150,19 @@ export function CardFace({ card, onClick, selected, footer, badge, detailed, cla
         <div className="mt-0.5 text-[11px] text-faint">{card.era === "bronze" ? "Бронзовый век" : "Древний мир"}</div>
       </div>
       <div className="flex flex-1 flex-col gap-2 px-3 pb-3">
-        {card.keywords?.length > 0 && <KeywordChips keywords={card.keywords} className="justify-center" limit={detailed ? undefined : 4} />}
+        {card.keywords?.length > 0 && <KeywordChips keywords={card.keywords} className="justify-center" limit={detailed ? undefined : 4} inactive={inactiveKeywords} note={keywordNote} />}
         {detailed && card.keywords?.length > 0 && (
           <ul className="space-y-0.5 text-[11.5px] leading-snug text-dim">
-            {card.keywords.map((k) => { const w = kwName(k); return <li key={k}><span className="text-parch">{w.name}{w.level ? ` ${w.level}` : ""}.</span> {w.desc}</li>; })}
+            {card.keywords.map((k) => {
+              const w = kwName(k);
+              const off = (inactiveKeywords || []).includes(String(k).toLowerCase().split(":")[0].trim());
+              return (
+                <li key={k}>
+                  <span className={cn("text-parch", off && "text-faint line-through decoration-clay/70")}>{w.name}{w.level ? ` ${w.level}` : ""}.</span> {w.desc}
+                  {off && <span className="text-clay"> {keywordNote || "Не действует на этом столе."}</span>}
+                </li>
+              );
+            })}
           </ul>
         )}
         {card.effects?.length > 0 && (

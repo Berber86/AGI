@@ -60,6 +60,8 @@ export interface Unit {
   exhausted: boolean;
   fresh: boolean;
   hitThisTurn: boolean;
+  /** Отряд уже перестраивался в этот ход: второе перемещение за ход запрещено (см. moveUnit). */
+  movedThisTurn: boolean;
   fears: boolean;
   /** "relentless" уже потратил свою вторую атаку в этом ходу. */
   usedRelentless: boolean;
@@ -198,6 +200,8 @@ export function log(b: Battle, side: LogEntry["side"], text: string) {
 }
 
 const nm = (s: Side) => (s === "me" ? "Вы" : "Враг");
+/** Статусы по-русски: для журнала и для подписей в интерфейсе. */
+export const STATUS_TXT: Record<string, string> = { poison: "яд", burn: "поджог", suppress: "подавление" };
 // глаголы 3-го лица ломают «Вы ...» в журнале («Вы тянет») — подбираем форму под сторону
 const say = (s: Side, third: string, second: string) => `${nm(s)} ${s === "me" ? second : third}`;
 
@@ -218,6 +222,8 @@ export function rowsOf(p: Player): (Unit | null)[][] {
 export const rowCount = (p: Player): number => rowsOf(p).length;
 export const slotCount = (p: Player): number => p.front.length;
 export const rowArray = (p: Player, ri: number): (Unit | null)[] => rowsOf(p)[ri] || [];
+/** Крайний столбец половины: на столе в один столбец флангом считается и он сам. */
+export const isFlank = (p: Player, i: number): boolean => i <= 0 || i >= slotCount(p) - 1;
 export const isFrontRow = (_p: Player, ri: number): boolean => ri === 0;
 export const isBackRow = (p: Player, ri: number): boolean => ri === rowCount(p) - 1;
 
@@ -258,9 +264,32 @@ function posOf(b: Battle, u: Unit): Slot | null {
 }
 
 const has = (u: Unit | null | undefined, k: string) => !!(u && u.st && u.st[k]);
-const isRanged = (u: Unit) => has(u, "ranged");
-// засадный боец, отступивший в тыл, бьёт как дальний бой — иначе он застревает там без атак
-const strikesFromRear = (u: Unit) => has(u, "ranged") || has(u, "skirmish");
+
+/**
+ * Ключевые слова, которым нужна глубина стола: стрельба из-за спин, засада и «длинное оружие».
+ * В Каменном веке стол — одна линия в три клетки: тыла нет, прятать стрелков не за кем и стрелять
+ * не из-за кого, поэтому дальнего боя там нет вовсе — все отряды бьются врукопашную (бьют того, кто
+ * напротив, затем ближайшего в линии, при пустой линии — вождя) и получают ответный удар.
+ * Тот же список в cards.ts (ONE_LINE_KEYWORDS) использует кузнец: пока стол не вырос до второго
+ * ряда, он не куёт стрелков. Тест сверяет оба списка, чтобы они не разъехались.
+ */
+export const DEPTH_KEYWORDS = ["ranged", "skirmish", "reach", "screen"];
+/**
+ * Слова обеспечения боя: прикрытие, штаб и корректировщик работают из глубины своего столбца,
+ * поэтому стоять могут в любом ряду — иначе до тыла, где от них есть толк, они бы просто не доехали.
+ * В отличие от DEPTH_KEYWORDS они не молчат на столе в одну линию: штаб снабжает и с единственной
+ * линии (она же и тыл), а корректировщик наводит площадный удар.
+ */
+export const SUPPORT_KEYWORDS = ["screen", "command", "spotter"];
+/** Есть ли у стола глубина: больше одного ряда. */
+export const deepTable = (b: Battle): boolean => b.shape.rows > 1;
+/** Какие ключевые слова на этом столе не действуют — для подписей в интерфейсе. */
+export const inactiveKeywords = (b: Battle): string[] => (deepTable(b) ? [] : DEPTH_KEYWORDS);
+
+const isRanged = (b: Battle, u: Unit) => deepTable(b) && has(u, "ranged");
+// засадный боец, отступивший в тыл, бьёт как дальний бой — иначе он застревает там без атак.
+// На столе в одну линию ни тыла, ни стрельбы из-за спин нет: отряд бьётся как обычный ближний бой.
+const strikesFromRear = (b: Battle, u: Unit) => deepTable(b) && (has(u, "ranged") || has(u, "skirmish"));
 
 function modTotal(b: Battle, u: Unit, stat: Mod["stat"]) {
   const p = posOf(b, u);
@@ -294,9 +323,17 @@ export function armorOf(b: Battle, u: Unit): number {
   let ar = (u.st.armor || 0) + modTotal(b, u, "armor");
   const p = posOf(b, u);
   if (has(u, "laststand") && p && unitsOf(b, p.side).filter((s) => s.ri === p.ri).length === 1) ar += 1;
+  // Прикрытие: отряд этажом ниже в том же столбце добавляет брони тому, кто стоит перед ним.
+  // На столе в одну линию ряда ниже нет — значит, и прикрывать некого (см. DEPTH_KEYWORDS).
+  if (p) {
+    const behind = rowArray(b[p.side], p.ri + 1)[p.i];
+    if (behind && behind.curHp > 0 && has(behind, "screen")) ar += 1;
+  }
   return Math.max(0, ar);
 }
-export const costOf = (b: Battle, u: Unit) => Math.max(0, u.action_cost + modTotal(b, u, "action_cost"));
+/** Цена атаки: своя стоимость, модификаторы и подавление — оно делает удар дороже, а не запрещает его. */
+export const costOf = (b: Battle, u: Unit) =>
+  Math.max(0, u.action_cost + modTotal(b, u, "action_cost") + Math.min(SUPPRESS_MAX, u.st.suppress || 0));
 
 function adjustEnergy(b: Battle, side: Side, amount: number): number {
   const player = b[side];
@@ -332,6 +369,16 @@ function applyEnergyKeywordsOnPlay(b: Battle, side: Side, card: { name: string; 
   }
 }
 
+/**
+ * Слова-источники статусов хранятся отдельно от самого статуса: `poison:1` на карте означает
+ * «этот отряд отравляет при попадании», а `st.poison` — «этот отряд отравлён». Раньше оба жили в
+ * одном поле, из-за чего отравитель получал урон от собственного яда каждый ход и навсегда, а срок
+ * статуса при этом стирал и само слово. Теперь источник — `poisons`/`burns`/`suppresses`.
+ */
+const STATUS_SOURCE: Record<string, string> = { poison: "poisons", burn: "burns", suppress: "suppresses" };
+/** Потолок подавления: удорожание атаки не должно делать отряд бесплатной мишенью навсегда. */
+export const SUPPRESS_MAX = 3;
+
 function makeUnit(b: Battle, card: Card): Unit {
   const atk = Math.max(0, Math.floor(card.atk) || 0);
   const hp = Math.max(1, Math.floor(card.hp) || 1);
@@ -339,14 +386,15 @@ function makeUnit(b: Battle, card: Card): Unit {
     iid: uid(), card, name: card.name || "Безымянный", emoji: card.emoji || "⚒️", card_type: card.card_type, era: card.era || "ancient",
     atk, hp, curHp: hp, drop_cost: card.drop_cost || 0, action_cost: card.action_cost || 0,
     keywords: card.keywords || [], effects: card.effects || [], st: {}, mods: [],
-    exhausted: true, fresh: true, hitThisTurn: false, fears: false, usedRelentless: false,
+    exhausted: true, fresh: true, hitThisTurn: false, movedThisTurn: false, fears: false, usedRelentless: false,
     isStructure: card.card_type === "structure", order: b.order++, hitSeq: 0, lastDmg: 0,
     rarity: card.rarity, description: card.description || "",
   };
   for (const raw of u.keywords) {
     const [kw, ns] = String(raw).toLowerCase().trim().split(":");
     const n = Math.max(1, parseInt(ns) || 1);
-    if (["armor", "pierce", "poison", "burn", "heal", "cleave", "vengeance"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
+    if (STATUS_SOURCE[kw]) u.st[STATUS_SOURCE[kw]] = Math.max(u.st[STATUS_SOURCE[kw]] || 0, n);
+    else if (["armor", "pierce", "heal", "cleave", "vengeance", "blast", "sweep", "column"].includes(kw)) u.st[kw] = Math.max(u.st[kw] || 0, n);
     else u.st[kw] = true;
   }
   if (u.st.shieldwall || u.st.phalanx) u.st.armor = Math.max(u.st.armor || 0, 1);
@@ -463,6 +511,30 @@ function nearestBehind(b: Battle, es: Side, fromRi: number, i: number, structure
   return null;
 }
 
+/* ---------- столбцы: брешь в обороне ----------
+   Терминология стола: РЯД — глубина (авангард, средние ряды, тыл), СТОЛБЕЦ — ширина (фланги и
+   центр), КЛЕТКА — слот на пересечении. Ряды защищают от ближнего боя, а столбцы определяют, куда
+   удар приходит: столбец, в котором у стороны не осталось живых отрядов, — это брешь. */
+
+/** Есть ли в столбце стороны живой отряд. Постройки строй не держат: их разбирает осада. */
+function laneHolds(b: Battle, side: Side, i: number): boolean {
+  for (let ri = 0; ri < rowCount(b[side]); ri++) {
+    const u = rowArray(b[side], ri)[i];
+    if (u && u.curHp > 0 && !u.isStructure) return true;
+  }
+  return false;
+}
+
+/** Брешь ли в этом столбце: правило общее для обеих сторон и для всех эпох. */
+export const hasGapAt = (b: Battle, side: Side, i: number): boolean => i >= 0 && i < slotCount(b[side]) && !laneHolds(b, side, i);
+
+/** Все столбцы стороны с брешами — для подсветки в интерфейсе и для выбора слота противником. */
+export function gapsOf(b: Battle, side: Side): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < slotCount(b[side]); i++) if (!laneHolds(b, side, i)) out.push(i);
+  return out;
+}
+
 /**
  * Цель дальнего боя: стрелки (ranged, skirmish) бьют через ВСЕ вражеские ряды — строй защищает
  * только от ближнего боя. Провокация перехватывает выстрел, иначе целью становится самый опасный
@@ -487,8 +559,9 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
   const p = posOf(b, attacker);
   if (!p) return null;
   const es = opp(side);
-  // Дальний бой работает из любого ряда: вражеский строй его не закрывает.
-  if (strikesFromRear(attacker)) return rangedTarget(b, es);
+  // Дальний бой работает из любого ряда: вражеский строй его не закрывает. На одной линии
+  // Каменного века дальнего боя нет — стрелок уходит в обычную ветку ближнего боя ниже.
+  if (strikesFromRear(b, attacker)) return rangedTarget(b, es);
   if (p.ri !== 0) {
     // Из глубины без дальнего боя дотягивается только длинное оружие — и лишь по врагу напротив в авангарде.
     const front = rowArray(b[es], 0);
@@ -497,18 +570,72 @@ export function findTarget(b: Battle, attacker: Unit, side: Side): AttackTarget 
   }
   const front = rowArray(b[es], 0);
   for (let i = 0; i < front.length; i++) { const u = front[i]; if (u && has(u, "taunt")) return targetAt(b, es, 0, i, u); }
-  if (front[p.i]) return targetAt(b, es, 0, p.i, front[p.i]!);
-  const beside = nearestInRow(b, es, 0, p.i, false);
-  if (beside) return beside;
-  // Авангард врага пуст — ближний бой идёт вглубь, ряд за рядом. Осадное орудие ищет постройки
-  // (они стоят в тылу), остальные берут ближайший отряд, и только при пустом столе бьют вождя.
-  if (has(attacker, "siege")) {
-    const structure = nearestBehind(b, es, 1, p.i, true);
+  // Осада проверяется раньше бреши: постройка строй не держит, но для осадного орудия она и есть
+  // цель — иначе таран шагал бы мимо частокола вождю. Прикрытая живым отрядом того же столбца
+  // постройка недоступна: сначала надо пройти тех, кто стоит ближе (общее правило рядов).
+  if (has(attacker, "siege") && !laneHolds(b, es, p.i)) {
+    const structure = nearestBehind(b, es, 0, p.i, true);
     if (structure) return structure;
   }
+  // БРЕШЬ — правило по умолчанию, а не особое ключевое слово: если в столбце атакующего у врага не
+  // осталось живых отрядов, удар проходит вождю, даже когда вражеский строй стоит в других столбцах.
+  // Держать надо всю линию, а не центр. Провокация перехватывает удар и здесь — она проверена выше.
+  if (!laneHolds(b, es, p.i)) return { kind: "hero", side: es };
+  if (front[p.i]) return targetAt(b, es, 0, p.i, front[p.i]!);
+  // Охват: если зеркальный слот пуст, а столбец держит отряд в глубине, такой боец идёт вверх по
+  // своей полосе, а не вбок по чужому ряду — фланговый удар остаётся фланговым.
+  if (has(attacker, "flank")) {
+    const lane = nearestBehind(b, es, 1, p.i, false);
+    if (lane) return lane;
+  }
+  const beside = nearestInRow(b, es, 0, p.i, false);
+  if (beside) return beside;
+  // Авангард врага пуст — ближний бой идёт вглубь, ряд за рядом (осадное орудие свои постройки
+  // уже проверило выше). Ближайший отряд в глубине важнее вождя: брешь в столбце — не повод
+  // проходить мимо чужого строя.
   const deep = nearestBehind(b, es, 1, p.i, false);
   if (deep) return deep;
   return { kind: "hero", side: es };
+}
+
+/* ---------- перестроение: манёвр по клеткам своей половины за энергию ----------
+   Отряд можно сдвинуть на одну соседнюю клетку (вбок по своему ряду или на ряд вперёд/назад, без
+   диагоналей) за MOVE_COST энергии, один раз за ход. Правила рядов действуют и здесь: ближний бой
+   без стрельбы не уходит вглубь, постройки не двигаются вовсе. Манёвр не истощает отряд — можно
+   перестроиться и ударить в тот же ход, если хватает энергии: так находятся бреши во вражеской
+   линии и закрываются свои. */
+export const MOVE_COST = 1;
+export interface MoveTarget { ri: number; i: number }
+
+export function moveTargets(b: Battle, side: Side, u: Unit): MoveTarget[] {
+  if (b.over || b.active !== side || u.isStructure || u.curHp <= 0 || u.movedThisTurn) return [];
+  if (b[side].energy < MOVE_COST) return [];
+  const p = posOf(b, u);
+  if (!p) return [];
+  const out: MoveTarget[] = [];
+  for (const [ri, i] of [[p.ri, p.i - 1], [p.ri, p.i + 1], [p.ri - 1, p.i], [p.ri + 1, p.i]] as [number, number][]) {
+    if (ri < 0 || ri >= rowCount(b[side]) || i < 0 || i >= slotCount(b[side])) continue;
+    if (rowArray(b[side], ri)[i]) continue;
+    if (!canStandInRow(u, b[side], ri)) continue;
+    out.push({ ri, i });
+  }
+  return out;
+}
+
+export function moveUnit(b: Battle, side: Side, iid: string, ri: number, i: number): boolean {
+  if (b.over || b.active !== side) return false;
+  const u = unitsOf(b, side).find((s) => s.unit.iid === iid)?.unit;
+  if (!u) return false;
+  const from = posOf(b, u);
+  if (!from) return false;
+  if (!moveTargets(b, side, u).some((t) => t.ri === ri && t.i === i)) return false;
+  rowArray(b[side], from.ri)[from.i] = null;
+  rowArray(b[side], ri)[i] = u;
+  u.movedThisTurn = true;
+  b[side].energy = Math.max(0, b[side].energy - MOVE_COST);
+  log(b, side, `«${u.name}» перестраивается: ${rowName(b[side], from.ri)}, столбец ${from.i + 1} → ${rowName(b[side], ri)}, столбец ${i + 1}. −${MOVE_COST} энергии.`);
+  settle(b);
+  return true;
 }
 
 export function canAct(b: Battle, side: Side, u: Unit): boolean {
@@ -525,6 +652,13 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attac
   const armor = Math.max(0, armorOf(b, target) - (attacker.st.pierce || 0));
   dmg = Math.max(1, dmg - armor);
   if (has(attacker, "charge") && attacker.fresh && !(has(target, "holdground") && target.fresh)) dmg += 2;
+  // Охват: цель с открытым флангом (крайний столбец или дыра в строю) получает на 1 больше.
+  if (has(attacker, "flank") && flankExposed(b, target)) dmg += 1;
+  // Корректировщик наводит дальний бой по целям своего столбца.
+  if (strikesFromRear(b, attacker)) {
+    const tp = posOf(b, target);
+    if (tp) dmg += spotterBonus(b, attackerSide, tp.i, attacker);
+  }
   if (has(target, "shieldwall") && neighborsOf(b, target).length >= 1) dmg = Math.max(1, dmg - 1);
   if (has(target, "sturdy") && !target.hitThisTurn) { dmg = Math.max(1, dmg - 1); target.hitThisTurn = true; }
   if (target.isStructure && has(attacker, "siege")) dmg *= 2;
@@ -545,6 +679,142 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attac
   return dmg;
 }
 
+/* ---------- столбцы как поддержка: охват, прикрытие, штаб, корректировщик ----------
+   Ряд защищает от удара, столбец задаёт направление — а эти четыре слова делают столбец ещё и
+   этажом обеспечения боя: тыл прикрывает передних, штаб снабжает, корректировщик наводит, а охват
+   наказывает за открытый фланг и идёт вверх по своей полосе. Все четыре работают по столбцу, а не
+   по соседям в ряду, поэтому на столе в одну линию «Прикрытие» молчит (прикрывать некого). */
+
+/** Отряд с открытым флангом: живого соседа нет хотя бы с одной стороны (край стола или дыра в строю). */
+export function flankExposed(b: Battle, u: Unit): boolean {
+  const p = posOf(b, u);
+  if (!p) return false;
+  const row = rowArray(b[p.side], p.ri);
+  const holds = (x: Unit | null | undefined) => !!x && x.curHp > 0;
+  const left = p.i - 1 < 0 ? null : row[p.i - 1];
+  const right = p.i + 1 >= slotCount(b[p.side]) ? null : row[p.i + 1];
+  return !holds(left) || !holds(right);
+}
+
+/** Сколько энергии добавляют штабы стороны: живые отряды с command в последнем ряду. */
+export function commandBonus(b: Battle, side: Side): number {
+  const p = b[side];
+  return unitsOf(b, side).filter((s) => s.unit.curHp > 0 && has(s.unit, "command") && isBackRow(p, s.ri)).length;
+}
+
+/** Корректировщик в столбце i: +1 к урону дальнего и площадного удара по целям этого столбца. */
+export function spotterBonus(b: Battle, side: Side, i: number, attacker: Unit | null): number {
+  return unitsOf(b, side).some((s) => s.i === i && s.unit.curHp > 0 && s.unit !== attacker && has(s.unit, "spotter")) ? 1 : 0;
+}
+
+/* ---------- площадный удар: три формы площади ----------
+   Ряд защищает от ближнего боя, но не от площади; столбец задаёт направление удара. Площадь —
+   ответ на плотный строй, и у неё ровно три формы, по осям стола: крест («Фугас» — соседи цели в
+   её ряду и отряд прямо за целью), линия («Картечь» — весь ряд цели), полоса («Обстрел столбца» —
+   весь столбец цели во всех рядах). Все три считаются от основной цели: её выбирает обычное
+   правило выбора цели, включая провокацию, поэтому перехватить площадь taunt'ом нельзя — можно
+   только принять её на себя.
+
+   Ограничения баланса зашиты здесь, а не в советах кузнецу: дополнительных целей не больше
+   AREA_MAX_EXTRA, урон по ним — N (основная цель получает полный урон атаки), ответных ударов
+   площадь не вызывает, а «рассредоточение» и «окоп» её гасят. Тяжёлый удар (N ≥ AREA_HEAVY_N)
+   задевает и собственный отряд, стоящий напротив в той же полосе огня: линия огня проходит через
+   весь столбец, а не только по чужой половине. По вождю площадь не работает — у удара нет точки
+   на поле, считать форму не от чего (прорыв в столбце и так даёт полный урон вождю). */
+export const AREA_KEYWORDS = ["blast", "sweep", "column"] as const;
+export type AreaShape = (typeof AREA_KEYWORDS)[number];
+export const AREA_NAMES: Record<AreaShape, string> = { blast: "Фугас", sweep: "Картечь", column: "Обстрел столбца" };
+/** Больший N — это не «ещё сильнее», а «ещё дороже карта»: потолок один для всех форм. */
+export const AREA_MAX_N = 2;
+/** Сколько дополнительных целей накрывает один удар (основная цель в этот счёт не входит). */
+export const AREA_MAX_EXTRA = 3;
+/** С какого N удар считается тяжёлым и задевает своих в той же полосе. */
+export const AREA_HEAVY_N = 2;
+
+/** Площадное слово отряда: кузнец обязан давать карте не больше одного (см. validateCard). */
+export function areaOf(u: Unit): { shape: AreaShape; n: number } | null {
+  for (const shape of AREA_KEYWORDS) {
+    const n = u.st[shape];
+    if (typeof n === "number" && n > 0) return { shape, n: Math.min(AREA_MAX_N, Math.floor(n)) };
+  }
+  return null;
+}
+
+export interface SplashHit { side: Side; ri: number; i: number; unit: Unit; own: boolean }
+
+/** «Окоп» в авангарде гасит картечь и обстрел столбца, но не разрыв рядом и не прямой удар. */
+const entrenchedSaves = (u: Unit, ri: number, shape: AreaShape): boolean =>
+  has(u, "entrenched") && ri === 0 && shape !== "blast";
+
+/**
+ * Клетки, которые накрывает удар, кроме основной цели. Урон считает applySplash: здесь только
+ * геометрия, чтобы её можно было показать в интерфейсе и проверить в тестах.
+ */
+export function splashTargets(b: Battle, side: Side, attacker: Unit, target: AttackTarget): SplashHit[] {
+  const area = areaOf(attacker);
+  if (!area || target.kind !== "unit") return [];
+  const es = target.side;
+  const dp = b[es];
+  const found: (SplashHit & { dist: number })[] = [];
+  const seen = new Set<Unit>([target.unit]);
+  const push = (ri: number, i: number) => {
+    if (ri < 0 || ri >= rowCount(dp) || i < 0 || i >= slotCount(dp)) return;
+    const u = rowArray(dp, ri)[i];
+    if (!u || u.curHp <= 0 || seen.has(u)) return;
+    if (entrenchedSaves(u, ri, area.shape)) return;
+    seen.add(u);
+    found.push({ side: es, ri, i, unit: u, own: false, dist: Math.abs(ri - target.ri) + Math.abs(i - target.i) });
+  };
+  if (area.shape === "blast") {
+    push(target.ri, target.i - 1);
+    push(target.ri, target.i + 1);
+    push(target.ri + 1, target.i);
+  } else if (area.shape === "sweep") {
+    for (let i = 0; i < slotCount(dp); i++) if (i !== target.i) push(target.ri, i);
+  } else {
+    for (let ri = 0; ri < rowCount(dp); ri++) if (ri !== target.ri) push(ri, target.i);
+  }
+  found.sort((x, y) => x.dist - y.dist || x.ri - y.ri || x.i - y.i);
+  const out: SplashHit[] = found.slice(0, AREA_MAX_EXTRA).map(({ dist, ...hit }) => hit);
+  // Тяжёлая площадь задевает своих: отряд напротив, в той же полосе огня. Стреляющих не накрывает —
+  // они и есть источник удара, — а «окоп» спасает и здесь.
+  if (area.n >= AREA_HEAVY_N) {
+    const mine = rowArray(b[side], 0)[target.i];
+    if (mine && mine.curHp > 0 && mine !== attacker && !entrenchedSaves(mine, 0, area.shape)) {
+      out.push({ side, ri: 0, i: target.i, unit: mine, own: true });
+    }
+  }
+  return out;
+}
+
+/** Урон по площади: броня и «рассредоточение» гасят его, а бонусы атакующего (рывок, трофеи, страх) — нет. */
+function areaDamage(b: Battle, attacker: Unit, side: Side, u: Unit, base: number): number {
+  let dmg = base;
+  if (attacker.era === "bronze" && u.era === "ancient") dmg += 1;
+  if (attacker.era === "ancient" && u.era === "bronze") dmg = Math.max(1, dmg - 1);
+  const up = posOf(b, u);
+  if (up) dmg += spotterBonus(b, side, up.i, attacker);
+  dmg = Math.max(1, dmg - Math.max(0, armorOf(b, u) - (attacker.st.pierce || 0)));
+  if (has(u, "dispersed")) dmg = Math.max(1, dmg - 1);
+  if (has(u, "shieldwall") && neighborsOf(b, u).length >= 1) dmg = Math.max(1, dmg - 1);
+  if (has(u, "sturdy") && !u.hitThisTurn) { dmg = Math.max(1, dmg - 1); u.hitThisTurn = true; }
+  if (u.isStructure && has(attacker, "siege")) dmg *= 2;
+  return Math.max(1, Math.floor(dmg));
+}
+
+/** Накрывает площадь вокруг основной цели и пишет это в журнал — по строке на каждую клетку. */
+function applySplash(b: Battle, side: Side, attacker: Unit, target: AttackTarget): void {
+  const area = areaOf(attacker);
+  if (!area) return;
+  for (const h of splashTargets(b, side, attacker, target)) {
+    const dmg = areaDamage(b, attacker, side, h.unit, h.own ? 1 : area.n);
+    hurtUnit(b, h.unit, dmg, attacker);
+    log(b, side, h.own
+      ? `${AREA_NAMES[area.shape]} задевает свой отряд в той же полосе: «${h.unit.name}» −${dmg}.`
+      : `${AREA_NAMES[area.shape]} накрывает «${h.unit.name}»: −${dmg}.`);
+  }
+}
+
 export function attackWith(b: Battle, side: Side, iid: string): boolean {
   const attacker = unitsOf(b, side).find((s) => s.unit.iid === iid)?.unit;
   if (!attacker || !canAct(b, side, attacker)) return false;
@@ -562,7 +832,7 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     // Засадный боец в авангарде уклоняется в тыл от ближнего боя ДО обмена ударами — урона не будет ни ему, ни атакующему.
     // Уклониться в тыл можно, только если тыл — отдельный ряд: в Каменном веке линия одна.
     const dodgeRow = rowArray(b[defenderSide], rowCount(b[defenderSide]) - 1);
-    const defenderDodges = !isRanged(attacker) && has(t, "skirmish") && target.ri === 0
+    const defenderDodges = !isRanged(b, attacker) && has(t, "skirmish") && target.ri === 0
       && rowCount(b[defenderSide]) > 1 && dodgeRow.indexOf(null) >= 0;
     if (defenderDodges) {
       const free = dodgeRow.indexOf(null);
@@ -582,14 +852,17 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
         }
       }
       let counter = 0;
-      if (!isRanged(attacker) && t.curHp > 0 && !t.isStructure) {
+      if (!isRanged(b, attacker) && t.curHp > 0 && !t.isStructure) {
         const cb = atkOf(b, t);
         if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
       }
       // Выстрел через живой авангард — это отдельная ситуация: иначе непонятно, почему стрелок
       // из тыла бьёт не тех, кто стоит напротив.
-      const overFront = isRanged(attacker) && target.ri > 0 && !!rowArray(b[defenderSide], 0).find((u) => u && u.curHp > 0);
+      const overFront = isRanged(b, attacker) && target.ri > 0 && !!rowArray(b[defenderSide], 0).find((u) => u && u.curHp > 0);
       log(b, side, `${attacker.name} ${overFront ? "стреляет через строй по" : "атакует"} «${t.name}»: −${d}${counter ? ` / ответ −${counter}` : ""}.`);
+      // Площадь — после основного удара: читатель журнала сначала видит, кто кого ударил, а потом
+      // кого ещё накрыло. Ответных ударов она не вызывает (как и «рассечение»).
+      applySplash(b, side, attacker, target);
       // Месть: погибший в этом обмене ударами отряд наносит ответный удар своему убийце, если тот ещё жив.
       // Пока охватывает только прямой ближний/дальний бой (resolveHit выше и ниже), а не урон от заклинаний/статусов.
       if (t.curHp <= 0 && has(t, "vengeance") && attacker.curHp > 0) {
@@ -606,8 +879,17 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
       // которые получают явный срок через apply_status) — отряд, который бьют поджигающим/ядовитым атакующим
       // несколько ходов подряд, копил бесконечно растущий урон за ход. Теперь каждый удар обновляет срок действия
       // на 2 хода, как и у аналогичного эффекта заклинаний (баланс-ревизия).
-      if (has(attacker, "poison")) { t.st.poison = (t.st.poison || 0) + 1; t.st.poisonTurns = 2; }
-      if (has(attacker, "burn")) { t.st.burn = (t.st.burn || 0) + 1; t.st.burnTurns = 2; }
+      if (has(attacker, "poisons")) { t.st.poison = (t.st.poison || 0) + 1; t.st.poisonTurns = 2; }
+      if (has(attacker, "burns")) { t.st.burn = (t.st.burn || 0) + 1; t.st.burnTurns = 2; }
+      // Подавление: не запрет, а удорожание атаки. «Несокрушимый» его не чувствует, постройке оно
+      // бессмысленно — постройки не атакуют.
+      if (has(attacker, "suppresses") && !t.isStructure && !has(t, "unbreakable")) {
+        const amount = Math.min(SUPPRESS_MAX, attacker.st.suppresses || 1);
+        const was = t.st.suppress || 0;
+        t.st.suppress = Math.max(was, amount);
+        t.st.suppressTurns = 2;
+        log(b, side, `«${t.name}» подавлен огнём «${attacker.name}»: атака дороже на ${t.st.suppress}${was ? " (снова)" : ""}.`);
+      }
       // После собственной атаки засадный боец тоже уходит в тыл и дальше бьёт как боец дальнего боя (см. strikesFromRear).
       if (has(attacker, "skirmish") && p.ri === 0 && attacker.curHp > 0 && rowCount(b[side]) > 1) {
         const backLine = rowArray(b[side], rowCount(b[side]) - 1);
@@ -625,7 +907,9 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
     attacker.exhausted = true;
   }
   adjustEnergy(b, side, -costOf(b, attacker));
-  if (hitLanded && attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : { kind: "unit", side: target.side, unit: target.unit });
+  // Цель удара отдаётся эффектам целиком (с рядом и столбцом): от них зависит геометрия —
+  // relation attack_target_row / attack_target_column выбирают клетки по осям цели.
+  if (hitLanded && attacker.curHp > 0 && posOf(b, attacker)) runEffects(b, attacker, "attack", side, target.kind === "hero" ? { kind: "player", side: target.side } : target);
   settle(b);
   return true;
 }
@@ -640,12 +924,21 @@ export function canPlay(b: Battle, side: Side, card: Card): boolean {
  * Кто может стоять в ряду ri (обобщение прежних двух рядов на любую глубину стола):
  *  • постройки — только в тылу, последний ряд: в Каменном веке это единственная линия;
  *  • ближний бой без стрельбы и без «длинного оружия» — только в авангарде, из глубины он не дотянется;
- *  • дальнобойные (ranged, skirmish) и reach — в любом ряду: они бьют поверх строя.
+ *  • дальнобойные (ranged, skirmish) и reach — в любом ряду: они бьют поверх строя;
+ *  • слова обеспечения (screen, command, spotter) — тоже в любом ряду: их место как раз в глубине.
  */
 export function canStandInRow(card: { card_type: string; keywords?: string[] }, p: Player, ri: number): boolean {
   if (card.card_type === "structure") return isBackRow(p, ri);
   if (isFrontRow(p, ri) || rowCount(p) === 1) return true;
-  return (card.keywords || []).some((raw) => ["ranged", "skirmish", "reach"].includes(String(raw).toLowerCase().trim().split(":")[0]));
+  return standsDeep(card);
+}
+
+/** Кому место в глубине: стрельба поверх строя и слова обеспечения своего столбца. */
+function standsDeep(card: { keywords?: string[] }): boolean {
+  return (card.keywords || []).some((raw) => {
+    const kw = String(raw).toLowerCase().trim().split(":")[0];
+    return kw === "ranged" || kw === "skirmish" || kw === "reach" || SUPPORT_KEYWORDS.includes(kw);
+  });
 }
 
 export function deploy(b: Battle, side: Side, handIdx: number, row: RowRef, slot: number): boolean {
@@ -733,9 +1026,20 @@ function resolveTargets(b: Battle, e: any, ctx: Ctx, all = false): Tgt[] {
     // на пяти — четыре глубинных ряда: «бьёт по тылам» остаётся осмысленным на любом столе.
     if (spec.zone === "front" && s.ri !== 0) return false;
     if (spec.zone === "rear" && s.ri === 0) return false;
+    // Фланг — крайние столбцы своей половины, центр — всё между ними: ширина стола стала осмысленной
+    // (см. брешь и площадные слова), поэтому у эффектов появился и такой выбор цели.
+    if (spec.zone === "flank" && !isFlank(b[s.side], s.i)) return false;
+    if (spec.zone === "center" && isFlank(b[s.side], s.i)) return false;
     return true;
   });
   if (spec.relation === "self") cands = cands.filter((s) => s.unit === ctx.source);
+  // Ряд и столбец цели удара: те же оси, что и у площадных слов, — только выбирает их эффект карты.
+  if (spec.relation === "attack_target_row" || spec.relation === "attack_target_column") {
+    const t = ctx.eventTarget;
+    cands = t && t.kind === "unit"
+      ? cands.filter((s) => s.side === t.side && (spec.relation === "attack_target_row" ? s.ri === t.ri : s.i === t.i))
+      : [];
+  }
   if (spec.relation === "adjacent") {
     const pos = ctx.source && posOf(b, ctx.source);
     cands = pos ? cands.filter((s) => s.side === pos.side && s.ri === pos.ri && Math.abs(s.i - pos.i) === 1) : [];
@@ -829,10 +1133,11 @@ function execEffect(b: Battle, e: any, t: Tgt, ctx: Ctx) {
       log(b, who, `${src}: лечение +${a.amount} — ${tname}.`);
       break;
     case "apply_status":
-      if (t.kind === "unit") {
-        t.unit.st[a.status] = Math.max(t.unit.st[a.status] || 0, a.amount);
+      if (t.kind === "unit" && !(a.status === "suppress" && has(t.unit, "unbreakable"))) {
+        const amount = a.status === "suppress" ? Math.min(SUPPRESS_MAX, a.amount) : a.amount;
+        t.unit.st[a.status] = Math.max(t.unit.st[a.status] || 0, amount);
         t.unit.st[a.status + "Turns"] = a.turns ?? 2;
-        log(b, who, `${src}: ${a.status === "poison" ? "яд" : "поджог"} ${a.amount} — ${tname}.`);
+        log(b, who, `${src}: ${STATUS_TXT[a.status] || a.status} ${amount} — ${tname}.`);
       }
       break;
     case "destroy":
@@ -955,6 +1260,12 @@ function tickStatuses(b: Battle, side: Side) {
       if (u.st.burnTurns > 0) { if (--u.st.burnTurns <= 0) { delete u.st.burn; delete u.st.burnTurns; } }
       else { u.st.burn--; if (u.st.burn <= 0) delete u.st.burn; }
     }
+    // Подавление не наносит урона: оно истекает само и возвращает отряду прежнюю цену атаки.
+    if (u.st.suppress > 0 && u.st.suppressTurns > 0 && --u.st.suppressTurns <= 0) {
+      delete u.st.suppress;
+      delete u.st.suppressTurns;
+      log(b, side, `«${u.name}» приходит в себя: подавление снято.`);
+    }
     if (u.curHp > 0 && !has(u, "unbreakable") && (u.fears || (has(u, "morale") && u.curHp / u.hp < 0.3))) {
       if (Math.random() < (u.fears ? 0.5 : 0.2)) {
         if (p.hand.length < HAND_LIMIT) { p.hand.push(cardOfUnit(u)); log(b, side, `«${u.name}» бежит с поля и возвращается в руку.`); }
@@ -980,8 +1291,16 @@ export function startTurn(b: Battle, side: Side) {
   const blockedGrowth = Math.max(0, p.energyGrowthBlockedNext || 0);
   p.energyMax = Math.min(p.energyCap, p.energyMax + Math.max(0, p.energyGrowth - blockedGrowth));
   p.energyGrowthBlockedNext = 0;
-  p.energy = p.energyMax;
+  // Штаб в тылу: +1 энергии сверх текущего предела за каждый живой отряд с command в последнем ряду.
+  // Предел не растёт навсегда — снабжение идёт, пока штаб жив и стоит в тылу (общий потолок energyCap).
+  const staff = commandBonus(b, side);
+  p.energy = Math.min(p.energyCap, p.energyMax + staff);
   log(b, "system", `Ход ${b.turn}: ${side === "me" ? "ваш" : "вражеский"}. Энергия ${p.energy}.`);
+  if (staff) {
+    for (const s of unitsOf(b, side)) {
+      if (s.unit.curHp > 0 && has(s.unit, "command") && isBackRow(p, s.ri)) log(b, side, `«${s.unit.name}» держит штаб в тылу: +1 энергии сверх предела.`);
+    }
+  }
   if (b.turn >= 12) {
     const d = b.turn - 10;
     hurtHero(b, side, d);
@@ -1007,6 +1326,7 @@ export function startTurn(b: Battle, side: Side) {
     // а не здесь: раньше это поле гасло ещё до того, как юнит вообще получал право
     // действовать, из-за чего бонус "charge" и защита "holdground" не успевали сработать.
     u.hitThisTurn = false;
+    u.movedThisTurn = false;
     u.usedRelentless = false;
     if (u.st.upkeep && !u.isStructure && neighborsOf(b, u).length === 0) { hurtUnit(b, u, 1); log(b, side, `«${u.name}» без поддержки соседей теряет 1 HP.`); }
   }
@@ -1043,12 +1363,27 @@ export function beginEnemyTurn(b: Battle) {
 export function enemyAct(b: Battle): boolean {
   if (b.over || b.active !== "enemy") return false;
   const e = b.enemy;
-  const freeSlot = (ri: number) => rowArray(e, ri).indexOf(null);
-  /** Порядок рядов для карты: постройки в тыл, стрелки и «длинное оружие» — как можно глубже, ближний бой — в авангард. */
+  /**
+   * Слот для высадки: сначала закрываем брешь — столбец, где у игрока стоит живой отряд, а у нас
+   * никого нет. Иначе игрок бьёт в этот столбец и проходит вождю (правило бреши в findTarget).
+   */
+  const freeSlot = (ri: number) => {
+    const row = rowArray(e, ri);
+    const free: number[] = [];
+    for (let i = 0; i < row.length; i++) if (!row[i]) free.push(i);
+    if (!free.length) return -1;
+    const theirs = new Set(unitsOf(b, "me").filter((s) => s.unit.curHp > 0).map((s) => s.i));
+    const gap = free.find((i) => theirs.has(i) && !laneHolds(b, "enemy", i));
+    return gap === undefined ? free[0] : gap;
+  };
+  /**
+   * Порядок рядов для карты: постройки в тыл, ближний бой — в авангард, а стрелки, «длинное оружие»
+   * и слова обеспечения — как можно глубже: штаб снабжает только из последнего ряда, прикрытие
+   * прикрывает того, кто впереди, а корректировщик из тыла наводит огонь по своему столбцу.
+   */
   const rowOrder = (c: Card): number[] => {
     const all = Array.from({ length: rowCount(e) }, (_, ri) => ri);
-    const strikes = (c.keywords || []).some((k) => ["ranged", "skirmish", "reach"].includes(String(k).toLowerCase().trim().split(":")[0]));
-    return c.card_type === "structure" || !strikes ? all.filter((ri) => canStandInRow(c, e, ri)) : [...all].reverse();
+    return c.card_type === "structure" || !standsDeep(c) ? all.filter((ri) => canStandInRow(c, e, ri)) : [...all].reverse();
   };
   const playable = e.hand
     .map((c, i) => ({ c, i }))

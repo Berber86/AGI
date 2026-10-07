@@ -315,6 +315,196 @@ test('экран боя рисуется на столе любой эпохи: 
   }
 });
 
+test('инспектор боя объясняет ключевые слова и помечает те, что молчат на одной линии', () => {
+  const storage = makeStorage();
+  const app = makeApp(storage);
+  const game = foundedState({ glory: 30, era: 0 });
+  const { store, derived } = makeStore(app, game, { page: 'camp' });
+
+  const bow = {
+    id: 'brow', name: 'Пращники', card_type: 'unit', era: 'ancient', emoji: '🏹', drop_cost: 1, action_cost: 1,
+    hp: 4, atk: 2, description: 'Бьют камнями через строй.', tags: [], abilities: [], keywords: ['ranged'], effects: [], monkey_paw: '',
+  };
+  const cfg = { hp: 20, energyMax: 10, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
+  const match = { kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra: 0, leaderBattle: false };
+
+  // Стол Каменного века: одна линия, стрелок на ней.
+  const stone = app.battle.createBattle([bow], cfg, [{ ...bow, name: 'Дубинщик', keywords: [] }], { ...cfg }, match);
+  stone.active = 'me';
+  stone.me.energy = 10;
+  assert.equal(app.battle.deploy(stone, 'me', 0, 0, 1), true);
+  const stoneUnit = app.battle.rowsOf(stone.me)[0][1];
+  const stoneText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: stoneUnit }, b: stone })).join(' ');
+  assert.match(stoneText, /Дальний бой/u, 'в инспекторе видно название ключевого слова');
+  assert.match(stoneText, /Бьёт через все ряды врага/u, 'и его пояснение');
+  assert.match(stoneText, /Не действует на этом столе/u, 'на одной линии слово помечено и объяснено');
+
+  // Тот же отряд на столе Средневековья: слово работает, предупреждения нет.
+  const deep = app.battle.createBattle([bow], cfg, [], { ...cfg }, { ...match, threatEra: 2 });
+  deep.active = 'me';
+  deep.me.energy = 10;
+  assert.equal(app.battle.deploy(deep, 'me', 0, 'back', 0), true);
+  const deepUnit = app.battle.rowsOf(deep.me)[1][0];
+  const deepText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: deepUnit }, b: deep })).join(' ');
+  assert.match(deepText, /Дальний бой/u);
+  assert.doesNotMatch(deepText, /Не действует на этом столе/u);
+
+  // Правила боя объясняют и одну линию, и то, что чип можно нажать.
+  const rules = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'BattleRules', {})).join(' ');
+  assert.match(rules, /одна линия/u);
+  assert.match(rules, /перечёркнуты/u);
+  assert.match(rules, /нажмите на чип/u);
+});
+
+test('линия фронта помечает бреши, а правила объясняют прорыв и перестроение', () => {
+  const storage = makeStorage();
+  const app = makeApp(storage);
+  const game = foundedState({ glory: 40, era: 2 });
+  const { store, derived } = makeStore(app, game, { page: 'camp' });
+
+  const foot = {
+    id: 'foot', name: 'Пеший', card_type: 'unit', era: 'ancient', emoji: '🛡️', drop_cost: 1, action_cost: 1,
+    hp: 6, atk: 3, description: 'Держит строй.', tags: [], abilities: [], keywords: [], effects: [], monkey_paw: '',
+  };
+  const cfg = { hp: 20, energyMax: 10, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
+  const match = { kind: 'practice', opponentId: 'steppe', name: 'Тархан', clan: 'Степной Союз', era: 0, threatEra: 2, leaderBattle: false };
+  const b = app.battle.createBattle([foot, foot, foot], cfg, [foot, foot, foot], { ...cfg }, match);
+
+  // Пустое поле — начало боя, а не «брешь»: пометок нет.
+  const empty = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'GapStrip', { b, side: 'enemy', compact: false })).join(' ');
+  assert.doesNotMatch(empty, /брешь/u, 'на пустом поле пометок нет');
+
+  // Враг держит столбцы 1 и 3: третий столбец открыт, и это видно на линии фронта.
+  b.active = 'enemy';
+  b.enemy.energy = 10;
+  for (const slot of [0, 2]) assert.equal(app.battle.deploy(b, 'enemy', 0, 0, slot), true);
+  b.active = 'me';
+  assert.equal(app.battle.gapsOf(b, 'enemy').join(','), '1,3');
+  const held = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'GapStrip', { b, side: 'enemy', compact: false })).join(' ');
+  assert.equal(held.split('брешь').length - 1, 2, 'помечены ровно открытые столбцы');
+  assert.match(held, /·/u, 'закрытые столбцы остаются пустыми метками, чтобы полоса совпадала с сеткой');
+
+  // Правила и легенда объясняют новое: брешь как общее правило и манёвр за энергию.
+  const rules = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'BattleRules', {})).join(' ');
+  assert.match(rules, /Брешь в обороне/u, 'правило прорыва объяснено');
+  assert.match(rules, /проходит вождю/u);
+  assert.match(rules, /Перестроение/u, 'манёвр объяснён');
+  assert.match(rules, /за 1 энергию/u);
+  assert.match(rules, /не истощает/u);
+  assert.match(rules, /Постройки не двигаются/u);
+
+  // Площадь: три формы, тяжёлый удар задевает своих, а контрмеры названы своими именами.
+  assert.match(rules, /Фугас/u);
+  assert.match(rules, /Картечь/u);
+  assert.match(rules, /Обстрел столбца/u);
+  assert.match(rules, /не больше трёх/u);
+  assert.match(rules, /ответных ударов площадь не вызывает/u);
+  assert.match(rules, /задевает ещё и ваш собственный отряд/u);
+  assert.match(rules, /Рассредоточение/u);
+  assert.match(rules, /Окоп/u);
+
+  // Инспектор объясняет площадное слово отряда так же, как остальные.
+  const gunCard = { ...foot, name: 'Мортира', keywords: ['blast:2'] };
+  const gunBattle = app.battle.createBattle([gunCard], cfg, [], { ...cfg }, match);
+  gunBattle.active = 'me';
+  gunBattle.me.energy = 10;
+  assert.equal(app.battle.deploy(gunBattle, 'me', 0, 0, 0), true);
+  const gun = app.battle.rowsOf(gunBattle.me)[0][0];
+  const gunText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: gun }, b: gunBattle })).join(' ');
+  assert.match(gunText, /Фугас/u, 'площадное слово названо по-русски');
+  assert.match(gunText, /накрывает ещё N урона/u, 'и объяснено');
+
+  // Слова столбца: те же требования — русское имя, пояснение, упоминание в правилах боя.
+  for (const kw of ['flank', 'screen', 'command', 'spotter']) {
+    const supportCard = { ...foot, name: 'Поддержка', keywords: [kw] };
+    const sb = app.battle.createBattle([supportCard], cfg, [], { ...cfg }, { ...match, threatEra: 2 });
+    sb.active = 'me';
+    sb.me.energy = 10;
+    assert.equal(app.battle.deploy(sb, 'me', 0, 0, 0), true);
+    const text = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: app.battle.rowsOf(sb.me)[0][0] }, b: sb })).join(' ');
+    assert.ok(text.length > 40, `инспектор показал карточку со словом ${kw}`);
+  }
+  const names = ['Охват', 'Прикрытие', 'Штаб', 'Корректировщик'];
+  const infos = Object.keys(app.cards.KEYWORD_INFO).map((k) => app.cards.KEYWORD_INFO[k]).filter((info) => names.includes(info.name));
+  assert.equal(infos.length, names.length, 'все четыре слова столбца есть в словаре');
+  for (const info of infos) {
+    assert.ok(info.desc.length > 20, 'у каждого слова столбца есть пояснение');
+    assert.match(rules, new RegExp(info.name, 'u'), 'правила боя называют слово по-русски');
+  }
+  assert.match(rules, /слова обеспечения/u, 'правила объясняют, кто может стоять в глубине');
+
+  // Подавление: слово объяснено в инспекторе, значок висит на жетоне подавленного отряда,
+  // а правила называют и цену, и контрмеру. Смысл ровно тот, что задуман: удорожание, а не запрет.
+  const mg = { ...foot, name: 'Пулемёт', atk: 2, keywords: ['suppress:2'] };
+  const mgBattle = app.battle.createBattle([mg], cfg, [foot], { ...cfg }, { ...match, threatEra: 2 });
+  mgBattle.active = 'me';
+  mgBattle.me.energy = 10;
+  assert.equal(app.battle.deploy(mgBattle, 'me', 0, 0, 0), true);
+  const mgUnit = app.battle.rowsOf(mgBattle.me)[0][0];
+  const mgText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: mgUnit }, b: mgBattle })).join(' ');
+  assert.match(mgText, /Подавление/u, 'слово названо по-русски');
+  assert.match(mgText, /дорожает/u, 'и объяснено как удорожание атаки');
+
+  mgBattle.active = 'enemy';
+  mgBattle.enemy.energy = 10;
+  assert.equal(app.battle.deploy(mgBattle, 'enemy', 0, 0, 0), true);
+  const suppressedFoe = app.battle.rowsOf(mgBattle.enemy)[0][0];
+  mgBattle.active = 'me';
+  mgBattle.me.energy = 10;
+  mgUnit.exhausted = false; // только что выставленный отряд ещё отдыхает
+  assert.equal(app.battle.attackWith(mgBattle, 'me', mgUnit.iid), true, 'пулемёт попал');
+  assert.equal(suppressedFoe.st.suppress, 2, 'враг подавлен');
+
+  const titles = [];
+  const collect = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const child of node) collect(child); return; }
+    if (node.props) {
+      if (typeof node.props.title === 'string') titles.push(node.props.title);
+      collect(node.props.children);
+    }
+  };
+  collect(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'UnitToken', {
+    b: mgBattle, u: suppressedFoe, mine: false, ready: false, selected: false, targeted: false, splashed: false,
+    onClick: () => {}, onHover: () => {}, onInspect: () => {},
+  }));
+  assert.ok(titles.some((t) => /Подавлен: атака дороже на 2/u.test(t)), 'на жетоне подавленного отряда значок с пояснением');
+
+  assert.match(rules, /Подавление/u, 'правила называют статус');
+  assert.match(rules, /дорожает/u, 'и объясняют, что атака дорожает');
+  assert.match(rules, /Несокрушимый/u, 'контрмера названа');
+  assert.match(rules, /потолок \+3/u, 'предел подавления виден игроку');
+});
+
+test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {
+  const storage = makeStorage();
+  const app = makeApp(storage);
+  const game = foundedState({ glory: 30, era: 0 });
+  const { store, derived } = makeStore(app, game, { page: 'camp' });
+
+  const tree = render(app, storage, 'src/components/CardView.tsx', store, derived, 'KeywordChips', {
+    keywords: ['ranged', 'armor:2'], inactive: ['ranged'], note: 'Тестовая причина.',
+  });
+  const chips = [];
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (node.type === 'span' && node.props && typeof node.props.title === 'string') chips.push(node);
+    walk(node.props && node.props.children);
+  })(tree);
+
+  assert.equal(chips.length, 2, 'по чипу на ключевое слово');
+  const ranged = chips.find((c) => String(c.props.children.join('')).includes('Дальний бой'));
+  const armor = chips.find((c) => String(c.props.children.join('')).includes('Броня'));
+  assert.ok(ranged && armor, 'оба слова названы по-русски');
+
+  assert.equal(ranged.props.role, 'button', 'чип нажимается');
+  assert.equal(typeof ranged.props.onClick, 'function');
+  assert.match(ranged.props.title, /Бьёт через все ряды/u, 'подсказка при наведении осталась');
+  assert.match(ranged.props.className, /line-through/u, 'молчащее слово перечёркнуто');
+  assert.doesNotMatch(armor.props.className, /line-through/u, 'работающее — нет');
+});
+
 test('оболочка и настройки рендерятся в любом состоянии', () => {
   const storage = makeStorage();
   const app = makeApp(storage);

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass, CircleHelp, Sparkles } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { allCards, withoutStructures, describeEffect, type Card } from "@/game/cards";
+import { allCards, withoutStructures, describeEffect, kwName, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
-  endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, rowsOf, rowName, spellHasTarget, unitsOf, type Battle, type Unit,
+  areaOf, AREA_NAMES, commandBonus, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, flankExposed, gapsOf,
+  hasGapAt, inactiveKeywords, MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf,
+  type Battle, type Unit,
 } from "@/game/battle";
 import { useStore } from "@/game/store";
 import { Btn, Meter, Modal } from "@/components/ui";
@@ -13,6 +15,17 @@ import { CardFace, KeywordChips } from "@/components/CardView";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Ключевое слово без уровня: «armor:2» → «armor». */
+const kwBase = (k: string) => String(k).toLowerCase().split(":")[0].trim();
+
+/**
+ * Почему «глубинные» слова молчат в этом бою: в Каменном веке стол — одна линия в три клетки,
+ * тыла нет, поэтому стрелки и засада бьются врукопашную и получают ответный удар.
+ */
+const ONE_LINE_NOTE = "Не действует на этом столе: в Каменном веке одна линия — тыла нет, отряд бьётся врукопашную и получает ответный удар.";
+/** Есть ли у отряда слова, которым нужна глубина стола. */
+const needsDepth = (b: Battle, keywords: string[]) => (keywords || []).some((k) => inactiveKeywords(b).includes(kwBase(k)));
 
 function EnergyPips({ energy, max, cap, label }: { energy: number; max: number; cap: number; label?: string }) {
   return (
@@ -52,7 +65,7 @@ function Hero({ side, b, name, sub, targeted, onClick }: { side: "me" | "enemy";
   );
 }
 
-function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
+export function UnitToken({ b, u, mine, ready, selected, targeted, splashed, onClick, onHover, onInspect }: { b: Battle; u: Unit; mine: boolean; ready: boolean; selected: boolean; targeted: boolean; splashed?: boolean; onClick: () => void; onHover: (v: boolean) => void; onInspect: () => void }) {
   const atk = atkOf(b, u);
   const armor = armorOf(b, u);
   const hurt = u.curHp < u.hp;
@@ -102,22 +115,65 @@ function UnitToken({ b, u, mine, ready, selected, targeted, onClick, onHover, on
       <span className="absolute left-1 top-1 flex gap-0.5">
         {u.st.poison > 0 && <span title="Отравлен" className="grid h-4 w-4 place-items-center rounded-full bg-ok/30 text-ok"><Skull size={9} /></span>}
         {u.st.burn > 0 && <span title="Горит" className="grid h-4 w-4 place-items-center rounded-full bg-clay/40 text-clay"><Flame size={9} /></span>}
+        {u.st.suppress > 0 && <span title={`Подавлен: атака дороже на ${u.st.suppress}`} className="grid h-4 w-4 place-items-center rounded-full bg-know/30 text-know"><Hourglass size={9} /></span>}
       </span>
       {u.isStructure ? <span className="absolute right-1 top-1 text-[9px] font-semibold uppercase text-mat">здание</span> : <span className="absolute right-1 top-1 inline-flex items-center gap-0.5 text-[10px] font-semibold text-bronze"><Zap size={9} />{costOf(b, u)}</span>}
+      {splashed && <span title="Эту клетку накрывает площадный удар" className="pointer-events-none absolute inset-0 rounded-xl border-2 border-dashed border-clay/80" />}
+      {splashed && <span title="Эту клетку накрывает площадный удар" className="pointer-events-none absolute bottom-0.5 left-1 text-[11px] leading-none">💥</span>}
       {u.hitSeq > 0 && <span key={"d" + u.hitSeq} className="pointer-events-none absolute inset-x-0 top-1/3 animate-float-dmg text-xl font-black text-bad drop-shadow">−{u.lastDmg}</span>}
       {mine && !u.exhausted && !u.isStructure && !ready && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-bronze/30" />}
     </button>
   );
 }
 
-function Slot({ children, valid, onClick, compact }: { children?: React.ReactNode; valid?: boolean; onClick?: () => void; compact?: boolean }) {
+function Slot({ children, valid, onClick, compact, kind = "deploy" }: {
+  children?: React.ReactNode; valid?: boolean; onClick?: () => void; compact?: boolean; kind?: "deploy" | "move";
+}) {
   return (
     <div className={cn(compact ? "h-[56px] sm:h-[74px] [@media(min-height:900px)]:sm:h-[86px]" : "h-[74px] sm:h-[100px] [@media(min-height:900px)]:sm:h-[114px]")}>
       {children ?? (
-        <button onClick={onClick} disabled={!valid} className={cn("grid h-full w-full place-items-center rounded-xl border border-dashed text-[10px] transition-all", valid ? "animate-pulse-soft border-bronze/70 bg-bronze/8 text-bronze-soft hover:bg-bronze/15" : "border-line/60 text-line-strong")}>
-          {valid ? "+ выйти" : ""}
+        <button
+          onClick={onClick}
+          disabled={!valid}
+          title={kind === "move" ? `Перестроить отряд сюда за ${MOVE_COST} энергии` : "Вывести сюда отряд из руки"}
+          className={cn(
+            "grid h-full w-full place-items-center rounded-xl border border-dashed text-[10px] transition-all",
+            !valid && "border-line/60 text-line-strong",
+            valid && kind === "deploy" && "animate-pulse-soft border-bronze/70 bg-bronze/8 text-bronze-soft hover:bg-bronze/15",
+            valid && kind === "move" && "border-know/70 bg-know/8 text-know hover:bg-know/15",
+          )}
+        >
+          {valid ? (kind === "move" ? "⇄ сюда" : "+ выйти") : ""}
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * Полоса брешей: столбцы, в которых у стороны не осталось живых отрядов. Через брешь удар ближнего
+ * боя проходит вождю, поэтому их видно прямо на линии фронта — чужие (зелёные) как возможность,
+ * свои (красные) как опасность.
+ */
+export function GapStrip({ b, side, compact }: { b: Battle; side: "me" | "enemy"; compact: boolean }) {
+  // Пустое поле — не «брешь», а начало боя: помечаем только линию, которую уже держат отряды.
+  const holds = unitsOf(b, side).some((s) => s.unit.curHp > 0 && !s.unit.isStructure);
+  const gaps = holds ? gapsOf(b, side) : [];
+  if (!gaps.length) return null;
+  const title = side === "enemy"
+    ? "Брешь в обороне врага: удар ближнего боя из этого столбца проходит вождю."
+    : "Ваша брешь: вражеский отряд из этого столбца бьёт вашего вождя.";
+  return (
+    <div className="flex items-stretch gap-1 sm:gap-1.5" title={title}>
+      <div className={cn("shrink-0", compact ? "w-8 sm:w-10" : "w-10 sm:w-12")} />
+      <div className="grid min-w-0 flex-1 gap-1.5 sm:gap-2.5" style={{ gridTemplateColumns: `repeat(${b.shape.slots}, minmax(0, 1fr))` }}>
+        {Array.from({ length: b.shape.slots }, (_, i) => (
+          <div key={i} className={cn("text-center text-[8.5px] font-semibold uppercase leading-none tracking-[0.08em] sm:text-[9.5px]",
+            gaps.includes(i) ? (side === "enemy" ? "text-ok" : "text-bad") : "text-transparent")}>
+            {gaps.includes(i) ? "брешь" : "·"}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -184,6 +240,16 @@ export default function BattleScreen() {
   const selCard = selHand !== null ? hand[selHand] : null;
   const selU = selUnit ? unitsOf(b, "me").find((s) => s.unit.iid === selUnit)?.unit ?? null : null;
   const target = selU ? findTarget(b, selU, "me") : null;
+  /** Клетки, куда выбранный отряд может перестроиться за энергию (см. moveTargets в движке). */
+  const selMoves = selU && b.active === "me" && !b.over ? moveTargets(b, "me", selU) : [];
+  const isMove = (ri: number, i: number) => selMoves.some((t) => t.ri === ri && t.i === i);
+  /** Радиус площадного удара выбранного отряда: показываем, кого ещё накроет, до самого удара. */
+  const selArea = selU ? areaOf(selU) : null;
+  const splashCells = selU && myTurn && target && selArea ? splashTargets(b, "me", selU, target) : [];
+  const isSplashed = (side: "me" | "enemy", ri: number, i: number) =>
+    splashCells.some((h) => h.side === side && h.ri === ri && h.i === i);
+  /** Позиция выбранного отряда: нужна словам столбца — прикрытию, штабу и корректировщику. */
+  const selPos = selU ? unitsOf(b, "me").find((s) => s.unit.iid === selU.iid) ?? null : null;
 
   const runEnemy = async () => {
     busy.current = true;
@@ -233,6 +299,18 @@ export default function BattleScreen() {
     mutate((nb) => { attackWith(nb, "me", id); });
     setSelUnit(null);
   };
+  const doMove = (ri: number, i: number) => {
+    if (!selU) return;
+    const id = selU.iid;
+    mutate((nb) => { moveUnit(nb, "me", id, ri, i); });
+    setSelUnit(null);
+  };
+  /** Клик по пустой клетке своей половины: либо вывод карты из руки, либо перестроение отряда. */
+  const clickCell = (side: "me" | "enemy", ri: number, i: number) => {
+    if (side !== "me" || !myTurn) return;
+    if (selHand !== null) { doDeploy(ri, i); return; }
+    if (isMove(ri, i)) doMove(ri, i);
+  };
   const clickMyUnit = (u: Unit) => {
     if (!myTurn) return;
     if (selUnit === u.iid) { setSelUnit(null); return; }
@@ -258,23 +336,36 @@ export default function BattleScreen() {
     && !rowsOf(b.me)[ri][i] && canStandInRow(selCard, b.me, ri);
 
   const inspect: { unit?: Unit; card?: Card } = hover ? { unit: hover } : selU ? { unit: selU } : selCard ? { card: selCard } : {};
-  const anyMove = unitsOf(b, "me").some((s) => canAct(b, "me", s.unit)) || hand.some((c) => c.drop_cost <= b.me.energy);
+  const anyMove = unitsOf(b, "me").some((s) => canAct(b, "me", s.unit) || moveTargets(b, "me", s.unit).length > 0)
+    || hand.some((c) => c.drop_cost <= b.me.energy);
 
   const enemyName = `${m.name}`;
   // Тренер ведёт первый бой по шагам: объясняет ровно то, что сейчас на экране.
   const myUnits = unitsOf(b, "me").filter((s) => !s.unit.isStructure);
   const anyReady = myUnits.some((s) => canAct(b, "me", s.unit));
+  /** Отряд, который прямо сейчас бьёт вождя через брешь в столбце врага: об этом стоит сказать вслух. */
+  const enemyHolds = unitsOf(b, "enemy").some((s) => s.unit.curHp > 0 && !s.unit.isStructure);
+  const breach = myTurn && enemyHolds
+    ? unitsOf(b, "me").find((s) => s.ri === 0 && !s.unit.isStructure && canAct(b, "me", s.unit) && hasGapAt(b, "enemy", s.i)) ?? null
+    : null;
   const cheapestCard = hand.reduce((min, c) => Math.min(min, c.drop_cost), Infinity);
   const coach = (() => {
     if (b.over) return null;
     if (!m.tutorial) return null;
     if (b.active === "enemy") return "Сейчас ходит враг. Постройки бьют каждый свой ход бесплатно, отряды — за энергию.";
     if (selCard && selCard.drop_cost > b.me.energy) return `Не хватает энергии: на вывод нужно ${selCard.drop_cost}, а запас идёт и на вывод, и на атаку.`;
-    if (selCard) return selCard.card_type === "spell" ? "Манёвр разыгрывается сразу и не занимает слот." : "Поставьте отряд в авангард (бьёт врага и держит удар) или вглубь стола — туда ближний бой не дотянется, пока цел авангард.";
+    if (selCard) {
+      if (selCard.card_type === "spell") return "Манёвр разыгрывается сразу и не занимает слот.";
+      return deepTable(b)
+        ? "Поставьте отряд в авангард (бьёт врага и держит удар) или вглубь стола — туда ближний бой не дотянется, пока цел авангард."
+        : "Стол Каменного века — одна линия в три клетки: поставьте отряд в любой слот. Все бьются врукопашную, дальнего боя здесь нет.";
+    }
+    if (selU && !target && selMoves.length > 0) return "Цели нет: перестройтесь на подсвеченную клетку за 1 энергию — так закрывают свою брешь или заходят в чужую.";
     if (selU && !target) return "Отсюда не достать: из глубины стола бьют только дальнобойные (через все ряды врага) и «длинное оружие» — по врагу напротив.";
     if (selU) return "Нажмите на врага или на «Атаковать». Атака тоже тратит энергию из общего запаса.";
     if (myUnits.length === 0 && hand.length > 0) return "Шаг 1: выберите карту в руке и поставьте её на поле.";
     if (myUnits.length > 0 && !anyReady && b.turn === 1) return "Отряд вышел в этом ходу и пока не атакует — так у всех. Нажмите «Конец хода».";
+    if (breach) return `Брешь в обороне врага: в столбце ${breach.i + 1} у него не осталось отрядов — удар «${breach.unit.name}» пройдёт вождю.`;
     if (anyReady) return "Шаг 2: отряд с золотой рамкой готов — нажмите на него, затем на цель.";
     if (hand.length && cheapestCard > b.me.energy) return "Карты пока дороже вашей энергии: завершите ход, энергии станет больше.";
     return "Завершите ход — отряды восстановятся, а энергия вырастет.";
@@ -285,7 +376,30 @@ export default function BattleScreen() {
     if (b.active === "enemy" || busy.current) return { text: "Ход врага…", actions: <Loader2 size={16} className="animate-spin text-dim" /> };
     if (selU) {
       const tName = !target ? "цели нет" : target.kind === "hero" ? "вражеского вождя" : `«${target.unit.name}»`;
-      return { text: target ? `«${selU.name}» атакует ${tName}. Цена: ${costOf(b, selU)} энергии.` : `«${selU.name}» не может дотянуться до врага.`, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
+      const base = target ? `«${selU.name}» атакует ${tName}. Цена: ${costOf(b, selU)} энергии.` : `«${selU.name}» не может дотянуться до врага.`;
+      const note = needsDepth(b, selU.keywords) ? " На одной линии Каменного века дальний бой не работает: удар врукопашную и ответный." : "";
+      const moveNote = selMoves.length ? ` Перестроение на подсвеченную клетку — ${MOVE_COST} энергии.` : "";
+      const areaNote = selArea
+        ? ` ${AREA_NAMES[selArea.shape]} ${selArea.n}: ${splashCells.filter((h) => !h.own).length
+          ? `накроет ещё ${splashCells.filter((h) => !h.own).length} — клетки отмечены пунктиром` : "сейчас накрывать некого"
+        }${splashCells.some((h) => h.own) ? ", и заденет свой отряд в той же полосе" : ""}.`
+        : "";
+      // Слова столбца: коротко о том, что выбранный отряд делает для своей полосы прямо сейчас.
+      const support: string[] = [];
+      if (selPos) {
+        const rows = rowsOf(b.me);
+        if (selU.st.flank && target?.kind === "unit" && flankExposed(b, target.unit)) support.push("цель с открытым флангом: +1 к урону");
+        if (selU.st.screen) {
+          const ahead = rows[selPos.ri - 1]?.[selPos.i];
+          support.push(ahead && ahead.curHp > 0 ? `прикрывает «${ahead.name}» впереди: +1 брони` : "впереди в этом столбце прикрывать некого");
+        }
+        if (selU.st.command) support.push(selPos.ri === rows.length - 1 ? "штаб в тылу: +1 энергии в начале хода" : "штаб снабжает только из тыла — последнего ряда");
+        if (selU.st.spotter) support.push(`наводит дальний и площадный огонь по столбцу ${selPos.i + 1}: +1 урона`);
+      }
+      // Подавление видно по цене атаки на жетоне, но объяснить причину словами всё равно нужно.
+      const suppressNote = selU.st.suppress ? ` Отряд подавлен: атака стоит ${costOf(b, selU)} вместо ${selU.action_cost}.` : "";
+      const supportNote = support.length ? ` ${support.join("; ")}.` : "";
+      return { text: base + note + moveNote + areaNote + supportNote + suppressNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
     }
     if (selCard) {
       if (selCard.drop_cost > b.me.energy) return { text: `«${selCard.name}» стоит ${selCard.drop_cost} — не хватает энергии.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
@@ -293,7 +407,12 @@ export default function BattleScreen() {
         const ok = spellHasTarget(b, "me", selCard);
         return { text: `Манёвр «${selCard.name}»: ${(selCard.effects || []).map(describeEffect).join("; ")}${ok ? "" : " — целей сейчас нет"}`, actions: <><Btn size="sm" variant="primary" onClick={doCast}><ScrollText size={14} />Разыграть</Btn><Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn></> };
       }
-      return { text: selCard.card_type === "structure" ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).` : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард, стрелки и «длинное оружие» — в любой ряд.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
+      const slotText = !deepTable(b)
+        ? `«${selCard.name}»: выберите слот на линии — в Каменном веке она одна, и она же тыл.`
+        : selCard.card_type === "structure"
+          ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).`
+          : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард; стрелки, «длинное оружие» и слова обеспечения — в любой ряд.`;
+      return { text: slotText, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
     }
     return { text: anyMove ? "Ваш ход. Выберите карту в руке или готовый отряд на поле." : "Действий не осталось — завершите ход.", actions: null };
   })();
@@ -309,13 +428,14 @@ export default function BattleScreen() {
         <div className={cn("grid shrink-0 place-items-center text-center text-[8.5px] font-semibold uppercase leading-tight tracking-[0.06em] text-faint sm:text-[9.5px]", compact ? "w-8 sm:w-10" : "w-10 sm:w-12")}>{rowName(b[side], ri)}</div>
         <div className="grid min-w-0 flex-1 gap-1.5 sm:gap-2.5" style={{ gridTemplateColumns: `repeat(${rows[ri].length}, minmax(0, 1fr))` }}>
         {rows[ri].map((u, i) => (
-          <Slot key={i} compact={compact} valid={side === "me" && validSlot(ri, i)} onClick={() => doDeploy(ri, i)}>
+          <Slot key={i} compact={compact} kind={isMove(ri, i) ? "move" : "deploy"} valid={side === "me" && (validSlot(ri, i) || isMove(ri, i))} onClick={() => clickCell(side, ri, i)}>
             {u ? (
               <UnitToken
                 b={b} u={u} mine={side === "me"}
                 ready={side === "me" && myTurn && canAct(b, "me", u) && !selUnit}
                 selected={selUnit === u.iid}
                 targeted={!!selU && target?.kind === "unit" && target.unit === u}
+                splashed={isSplashed(side, ri, i)}
                 onClick={() => (side === "me" ? clickMyUnit(u) : clickEnemyUnit(u))}
                 onHover={(v) => setHover(v ? u : null)}
                 onInspect={() => setInspectUnit(u)}
@@ -364,18 +484,20 @@ export default function BattleScreen() {
         <div className="no-scrollbar mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-between gap-1 overflow-y-auto overscroll-contain">
           <div>
             <Hero side="enemy" b={b} name={enemyName} sub={`${m.clan} · ${M.eraName(m.era)} · в руке ${b.enemy.hand.length}, в колоде ${b.enemy.deck.length}`} targeted={!!selU && target?.kind === "hero"} onClick={() => { if (selU && target?.kind === "hero") doAttack(); }} />
-            <div className="mt-1.5 flex justify-end"><EnergyPips energy={b.enemy.energy} max={b.enemy.energyMax} cap={b.enemy.energyCap} label="враг" /></div>
+            <div className="mt-1.5 flex justify-end"><EnergyPips energy={b.enemy.energy} max={b.enemy.energyMax + commandBonus(b, "enemy")} cap={b.enemy.energyCap} label="враг" /></div>
           </div>
 
           <div className="space-y-1.5 sm:space-y-2.5">
             {rowsFor("enemy")}
+            <GapStrip b={b} side="enemy" compact={b.shape.rows >= 4 || b.shape.slots >= 5} />
             <div className="relative flex items-center gap-3 py-0.5"><span className="h-px flex-1 bg-gradient-to-r from-transparent via-bronze/40 to-transparent" /><span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-bronze/70">линия фронта · стол {boardLabel(b.shape)}</span><span className="h-px flex-1 bg-gradient-to-r from-transparent via-bronze/40 to-transparent" /></div>
+            <GapStrip b={b} side="me" compact={b.shape.rows >= 4 || b.shape.slots >= 5} />
             {rowsFor("me")}
           </div>
 
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <EnergyPips energy={b.me.energy} max={b.me.energyMax} cap={b.me.energyCap} label="вы" />
+              <EnergyPips energy={b.me.energy} max={b.me.energyMax + commandBonus(b, "me")} cap={b.me.energyCap} label="вы" />
               <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad" title="С 6-го хода каждая попытка добрать из пустой колоды бьёт вождя нарастающим уроном"> · усталость {b.me.fatigue}</span>}</span>
             </div>
             <Hero side="me" b={b} name={game.player.name} sub={`${game.player.clan} · ${M.eraName(game.player.era)}`} />
@@ -460,7 +582,8 @@ export default function BattleScreen() {
   );
 }
 
-function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: Battle }) {
+/** Карточка отряда/карты в бою: свойства, ключевые слова с пояснениями и эффект. Экспорт — для тестов рендера. */
+export function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: Battle }) {
   if (inspect.unit) {
     const u = inspect.unit;
     return (
@@ -471,13 +594,27 @@ function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card }; b: B
           <div className="rounded-lg bg-ground/70 py-1.5 text-ok"><Heart size={13} className="mx-auto mb-0.5" />{u.curHp}/{u.hp}</div>
           <div className="rounded-lg bg-ground/70 py-1.5 text-know"><Shield size={13} className="mx-auto mb-0.5" />{armorOf(b, u)}</div>
         </div>
-        <KeywordChips keywords={u.keywords} className="mt-3" />
+        <KeywordChips keywords={u.keywords} className="mt-3" inactive={inactiveKeywords(b)} note={ONE_LINE_NOTE} />
+        {u.keywords.length > 0 && (
+          <ul className="mt-2 space-y-1 text-[11.5px] leading-snug text-dim">
+            {u.keywords.map((k) => {
+              const w = kwName(k);
+              const off = inactiveKeywords(b).includes(kwBase(k));
+              return (
+                <li key={k}>
+                  <span className={cn("text-parch", off && "text-faint line-through decoration-clay/70")}>{w.name}{w.level ? ` ${w.level}` : ""}.</span> {w.desc}
+                  {off && <span className="text-clay"> {ONE_LINE_NOTE}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {u.effects.length > 0 && <ul className="mt-2 space-y-1 text-xs leading-snug text-parch/90">{u.effects.map((e, i) => <li key={i} className="flex gap-1.5"><Zap size={11} className="mt-0.5 shrink-0 text-bronze" />{describeEffect(e)}</li>)}</ul>}
         <p className="mt-3 text-xs italic leading-snug text-dim">{u.description}</p>
       </div>
     );
   }
-  if (inspect.card) return <div className="w-[240px] self-center"><CardFace card={inspect.card} detailed /></div>;
+  if (inspect.card) return <div className="w-[240px] self-center"><CardFace card={inspect.card} detailed inactiveKeywords={inactiveKeywords(b)} keywordNote={ONE_LINE_NOTE} /></div>;
   return (
     <div className="rounded-2xl border border-dashed border-line p-4 text-xs leading-relaxed text-faint">
       <div className="mb-1 font-semibold text-dim">Как играть</div>
@@ -494,6 +631,9 @@ export function Legend({ className }: { className?: string }) {
     [<span key="k" className="mx-auto block h-5 w-5 rounded-md border border-line-strong bg-[#241f17]" />, "Тонкая полоса снизу — отряд вышел в этом ходу и атаковать ещё не может."],
     [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-mat/40 bg-[#2a2016] text-[9px] text-mat">зд</span>, "Постройки бьют каждый свой ход бесплатно — их лучше сносить первыми."],
     [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-line-strong text-[10px] font-bold text-bronze">2</span>, "Число на отряде — сколько энергии стоит его атака."],
+    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-xl border border-dashed border-know/70 bg-know/10 text-[9px] text-know">⇄</span>, "Подсветка со стрелкой — куда можно перестроить выбранный отряд за 1 энергию."],
+    [<span key="k" className="mx-auto block pt-1 text-[9px] font-semibold uppercase tracking-wide text-ok">брешь</span>, "Пометка на линии фронта: в этом столбце у стороны не осталось отрядов, и удар через него проходит вождю."],
+    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border-2 border-dashed border-clay/80 text-[10px]">💥</span>, "Пунктир с отметкой — клетки, которые накрывает площадный удар выбранного отряда."],
   ];
   return (
     <ul className={cn("space-y-1.5", className)}>
@@ -514,7 +654,13 @@ export function BattleRules({ className }: { className?: string }) {
       <p>Один запас энергии платит и за вывод карты, и за её атаку. Энергия растёт в начале каждого вашего хода.</p>
       <p className="mt-2">Стол растёт вместе с эпохами: Каменный век — одна линия в три клетки, Античный мир — вторые ряды, Средневековье — четвёртый столбец, Ренессанс — третий ряд, Эпоха Пара и Стали — четвёртый ряд, Новейшее время — пятый столбец, Будущее — пятый ряд. Размер общий для обеих сторон и берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.</p>
       <p className="mt-2">Авангард бьёт отряд напротив, затем ближайшего — и получает ответный удар; отряд с провокацией перехватывает удар первым. Ближний бой продвигается вглубь ряд за рядом: пока жив вражеский авангард, задние ряды для него недоступны. Когда ряды перед ним пусты, осада берётся за постройки в тылу, а вождя бьют только при полностью пустом столе.</p>
-      <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные и «длинное оружие» могут стоять в любом ряду. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
+      <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные, «длинное оружие» и слова обеспечения (прикрытие, штаб, корректировщик) могут стоять в любом ряду — их место как раз в глубине своего столбца. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
+      <p className="mt-2">В Каменном веке стол — одна линия, поэтому дальнего боя, засады, «длинного оружия» и прикрытия там нет: каждый отряд бьёт того, кто напротив, затем ближайшего в линии, а при пустой линии врага — вождя, и получает ответный удар. Ключевые слова, которые на этом столе молчат, перечёркнуты в описании отряда; нажмите на чип слова, чтобы прочитать, что оно делает.</p>
+      <p className="mt-2">Брешь в обороне — правило по умолчанию, а не особое свойство карт: столбец, в котором у стороны не осталось живых отрядов, открывает вождя. Удар ближнего боя из этого столбца проходит вождю, даже если чужой строй стоит в соседних столбцах; постройки строй не держат (их разбирает осада), а провокация перехватывает удар и через брешь. Поэтому линию держат по всей ширине, и крайние столбцы — не украшение стола.</p>
+      <p className="mt-2">Площадной удар бьёт не только по цели, но и по её окружению — это ответ на плотный строй. Три формы: «Фугас» накрывает соседей цели в её ряду и отряд прямо за ней, «Картечь» — весь ряд цели, «Обстрел столбца» — весь столбец цели во всех рядах. Дополнительных целей не больше трёх, урон по ним равен числу в слове (основная цель получает полный урон атаки), и ответных ударов площадь не вызывает. Удар с числом 2 считается тяжёлым и задевает ещё и ваш собственный отряд, стоящий напротив в том же столбце: полоса огня проходит через весь столбец. Отвечают на площадь «Рассредоточение» (−1 к площадному урону) и «Окоп» (в авангарде не получает «Картечь» и «Обстрел столбца»). Клетки, которые накроет выбранный отряд, отмечены пунктиром до удара.</p>
+      <p className="mt-2">Перестроение: свой отряд можно сдвинуть на одну соседнюю клетку — вбок по своему ряду или на ряд вперёд/назад — за 1 энергию, один раз за ход. Перестроение не истощает отряд: можно сдвинуться и ударить в тот же ход, если хватает энергии. Постройки не двигаются, а правила рядов действуют и здесь — ближний бой без стрельбы не уходит вглубь.</p>
+      <p className="mt-2">Слова столбца делают полосу этажом обеспечения боя. «Прикрытие» добавляет +1 брони отряду прямо перед собой в том же столбце — тыл реально бережёт передних, а не только стреляет. «Штаб», пока жив и стоит в последнем ряду, даёт +1 энергии в начале хода сверх текущего предела. «Корректировщик» наводит ваши дальние и площадные удары по целям своего столбца: +1 урона. «Охват» бьёт на 1 сильнее по цели с открытым флангом — у той нет живого соседа хотя бы с одной стороны, значит, она стоит в крайнем столбце или рядом с дырой в строю, — а если отряд напротив пал, идёт вверх по своему столбцу, а не вбок по чужому ряду.</p>
+      <p className="mt-2">Подавление — статус вместо урона: пулемёт и артиллерия не столько убивают, сколько заставляют залечь. Подавленный отряд не теряет права на атаку, но она дорожает на число в слове (потолок +3) на два хода: если энергии хватает, он всё равно ударит. Урона подавление не наносит и истекает само — в журнале это строка «приходит в себя». «Несокрушимый» не чувствует ни страха, ни морали, ни подавления.</p>
       <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
       <Legend className="mt-3 text-faint" />
     </div>

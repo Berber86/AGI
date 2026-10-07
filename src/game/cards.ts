@@ -93,14 +93,57 @@ export const KEYWORD_INFO: Record<string, { name: string; desc: string }> = {
   harras: { name: "Набег", desc: "На следующий ход противника уменьшает прирост общей энергии на 1." },
   exhaustenemy: { name: "Изнурение", desc: "При розыгрыше отнимает 1 текущую энергию у противника." },
   cleave: { name: "Рассечение", desc: "При атаке дополнительно наносит N урона всем соседям цели в её ряду." },
+  blast: { name: "Фугас", desc: "При попадании накрывает ещё N урона соседям цели в её ряду и отряду прямо за ней — до трёх целей. Ответных ударов площадь не вызывает. Тяжёлый удар (N=2) задевает и ваш отряд напротив в том же столбце." },
+  sweep: { name: "Картечь", desc: "При попадании накрывает ещё N урона всем остальным отрядам в ряду цели — до трёх целей. Ответных ударов площадь не вызывает." },
+  column: { name: "Обстрел столбца", desc: "При попадании накрывает ещё N урона всем остальным отрядам в столбце цели, во всех рядах, — до трёх целей. Ответных ударов площадь не вызывает. Тяжёлый удар (N=2) задевает и ваш отряд напротив в том же столбце." },
   vengeance: { name: "Месть", desc: "При гибели в бою наносит N урона своему убийце, если тот ещё жив." },
   relentless: { name: "Неутомимый", desc: "Может атаковать дважды за ход, если хватает энергии на обе атаки." },
   scavenger: { name: "Мародёр", desc: "+1 к атаке за каждые 2 карты во вражеском сбросе (максимум +2)." },
-  unbreakable: { name: "Несокрушимый", desc: "Полный иммунитет к бегству от страха и морали." },
+  suppress: { name: "Подавление", desc: "При попадании подавляет отряд: его атака дорожает на N на 2 хода. Не запрет, а именно удорожание — если энергии хватает, отряд всё ещё может ударить. Потолок +3. «Несокрушимый» подавление не чувствует." },
+  unbreakable: { name: "Несокрушимый", desc: "Полный иммунитет к бегству от страха, к морали и к подавлению." },
   laststand: { name: "Последний рубеж", desc: "Если это единственный живой отряд в своём ряду — +1 к атаке и +1 брони." },
+  flank: { name: "Охват", desc: "+1 к урону по цели с открытым флангом — у неё нет живого соседа хотя бы с одной стороны (крайний столбец или дыра в строю). Если отряд напротив пал, такой боец идёт вверх по своему столбцу, а не вбок по чужому ряду." },
+  screen: { name: "Прикрытие", desc: "+1 брони отряду прямо перед собой в том же столбце — тому, кто стоит ближе к врагу. На столе в одну линию прикрывать некого." },
+  command: { name: "Штаб", desc: "Пока жив и стоит в тылу (последний ряд), даёт +1 энергии в начале хода — сверх текущего предела, но не выше общего потолка." },
+  spotter: { name: "Корректировщик", desc: "Ваши дальние и площадные удары по целям в его столбце наносят +1 урона. Сам себя не наводит." },
+  dispersed: { name: "Рассредоточение", desc: "Площадной урон («Фугас», «Картечь», «Обстрел столбца») по этому отряду уменьшен на 1, но не ниже 1. Прямого удара не касается." },
+  entrenched: { name: "Окоп", desc: "Стоя в авангарде, не получает урона от «Картечи» и «Обстрела столбца» — ни от чужого, ни от своего. Прямой удар и «Фугас» укрытие пробивают." },
 };
 
+/* ---------- площадь: словарь и пределы ----------
+   Те же числа, что и в движке (AREA_KEYWORDS / AREA_MAX_N в src/game/battle.ts): правила кузнеца и
+   бой не должны разъезжаться, поэтому tests/area-shapes.test.js сверяет оба списка напрямую. */
+export const AREA_KEYWORDS = ["blast", "sweep", "column"];
+export const AREA_MAX_N = 2;
+
 const SUPPORTED_KEYWORDS = new Set(Object.keys(KEYWORD_INFO));
+
+/**
+ * Ключевые слова, которым нужна глубина стола (список совпадает с DEPTH_KEYWORDS в движке — тест
+ * tests/era-board.test.js это проверяет). В Каменном веке стол — одна линия в три клетки: тыла нет,
+ * поэтому стрелков, засады и «длинное оружие» кузнец там не куёт — они заработают только со второго
+ * ряда, с Античного мира. «Прикрытие» (`screen`) в том же списке по той же причине: прикрывать на
+ * одной линии некого — ряда впереди просто нет.
+ */
+export const ONE_LINE_KEYWORDS = ["ranged", "skirmish", "reach", "screen"];
+const keywordBase = (k: string) => String(k).toLowerCase().split(":")[0].trim();
+
+/** Эпоха стола следующего боя — та же формула, что у threatEra в campaign.js. */
+export function boardEraOf(state: any): number {
+  const foes = Array.isArray(state?.opponents) ? state.opponents.map((o: any) => Number(o?.era) || 0) : [];
+  return Math.max(Number(state?.player?.era) || 0, ...foes);
+}
+
+/** Стол следующего боя — одна линия (Каменный век): дальний бой не действует. */
+export const oneLineBoard = (state: any): boolean => boardEraOf(state) <= 0;
+
+/**
+ * Какие «глубинные» ключевые слова модель вернула для боя на одной линии. Пустой массив — карта
+ * законна; иначе текст уходит модели на переделку вместе с объяснением правила.
+ */
+export function oneLineViolation(card: { keywords?: string[] } | null | undefined): string[] {
+  return ((card && card.keywords) || []).map(keywordBase).filter((k) => ONE_LINE_KEYWORDS.includes(k));
+}
 
 export function kwName(raw: string) {
   const [k, n] = raw.split(":");
@@ -138,13 +181,16 @@ export function describeEffect(e: any): string {
     t.select === "random" ? (t.entity === "structure" ? "случайную постройку" : "случайный отряд") :
     `${t.count > 1 ? t.count + " " : ""}${t.entity === "structure" ? "постройку" : "отряд"}`;
   const who = t.entity === "player" ? `${SIDE_TXT[t.side] ?? ""} вождя`.trim() : `${SIDE_TXT[t.side] ?? ""} ${entityNoun}`.trim();
-  const rel = t.relation === "self" ? "себя" : t.relation === "adjacent" ? "соседей" : t.relation === "attack_target" ? "цель удара" : null;
-  const target = rel ?? who;
+  const rel = t.relation === "self" ? "себя" : t.relation === "adjacent" ? "соседей" : t.relation === "attack_target" ? "цель удара"
+    : t.relation === "attack_target_row" ? "весь ряд цели удара" : t.relation === "attack_target_column" ? "весь столбец цели удара" : null;
+  // Фланг и центр — ширина стола: у эффектов теперь есть и такая геометрия, её надо называть словами.
+  const zoneTxt = t.zone === "flank" ? " на фланге" : t.zone === "center" ? " в центре" : "";
+  const target = rel ?? `${who}${zoneTxt}`;
   let act = "";
   switch (a.type) {
     case "damage": act = `${a.amount} урона: ${target}`; break;
     case "heal": act = `лечит ${target} на ${a.amount}`; break;
-    case "apply_status": act = `${a.status === "poison" ? "яд" : "поджог"} ${a.amount} на ${a.turns ?? 2} хода: ${target}`; break;
+    case "apply_status": act = `${a.status === "poison" ? "яд" : a.status === "burn" ? "поджог" : "подавление"} ${a.amount} на ${a.turns ?? 2} хода: ${target}`; break;
     case "destroy": act = `уничтожает: ${target}`; break;
     case "modify_resource": act = `${a.amount > 0 ? "+" : ""}${a.amount} энергии ${t.side === "enemy" || t.side === "opponent" ? "врагу" : "вам"}`; break;
     case "modify_stat": act = `${a.amount > 0 ? "+" : ""}${a.amount} ${a.stat === "attack" ? "атаки" : a.stat === "armor" ? "брони" : "здоровья"}: ${target}${a.turns ? ` на ${a.turns} хода` : ""}`; break;
@@ -227,7 +273,7 @@ function validateCondition(node: any, depth = 0): any {
   }
   if (node.not) return { not: validateCondition(node.not, depth + 1) };
   if (node.type === "target_wounded") return { type: "target_wounded" };
-  if (node.type === "target_status") { if (!["poison", "burn"].includes(node.status)) throw new Error("Неизвестный статус в условии."); return { type: "target_status", status: node.status }; }
+  if (node.type === "target_status") { if (!["poison", "burn", "suppress"].includes(node.status)) throw new Error("Неизвестный статус в условии."); return { type: "target_status", status: node.status }; }
   if (node.type === "target_stat") { if (!["hp", "attack", "armor"].includes(node.stat) || !CMP.includes(node.op)) throw new Error("Некорректное условие target_stat."); return { type: "target_stat", stat: node.stat, op: node.op, value: int(node.value, 0, 99, "value") }; }
   if (node.type === "resource") { if (!["controller", "opponent"].includes(node.side) || !["energy", "drop", "action"].includes(node.resource) || !CMP.includes(node.op)) throw new Error("Некорректное условие resource."); return { type: "resource", side: node.side, resource: "energy", op: node.op, value: int(node.value, 0, 99, "value") }; }
   if (node.type === "board_count") { if (!["controller", "opponent"].includes(node.side) || !CMP.includes(node.op)) throw new Error("Некорректное условие board_count."); return { type: "board_count", side: node.side, op: node.op, value: int(node.value, 0, 8, "value") }; }
@@ -251,7 +297,7 @@ export function validateEffects(raw: any): any[] {
     const action: any = { type: a.type };
     if (["damage", "heal", "apply_status"].includes(a.type)) action.amount = int(a.amount, 1, a.type === "damage" ? 12 : a.type === "apply_status" ? 5 : 8, "amount");
     if (a.type === "apply_status") {
-      if (!["poison", "burn"].includes(a.status)) fail("только poison или burn.");
+      if (!["poison", "burn", "suppress"].includes(a.status)) fail("только poison, burn или suppress.");
       action.status = a.status;
       action.turns = a.turns === undefined ? 2 : int(a.turns, 1, 3, "turns");
     }
@@ -278,11 +324,12 @@ export function validateEffects(raw: any): any[] {
     if (!["friendly", "enemy", "controller", "opponent", "either"].includes(t.side)) fail("target.side неизвестен.");
     if (!["unit", "structure", "permanent", "player"].includes(t.entity)) fail("target.entity неизвестен.");
     const target: any = { side: t.side, entity: t.entity };
-    if (t.zone !== undefined) { if (!["front", "rear", "any"].includes(t.zone)) fail("zone неизвестна."); target.zone = t.zone; }
-    if (t.relation !== undefined) { if (!["any", "self", "adjacent", "attack_target"].includes(t.relation)) fail("relation неизвестен."); target.relation = t.relation; }
+    if (t.zone !== undefined) { if (!["front", "rear", "flank", "center", "any"].includes(t.zone)) fail("zone неизвестна."); target.zone = t.zone; }
+    if (t.relation !== undefined) { if (!["any", "self", "adjacent", "attack_target", "attack_target_row", "attack_target_column"].includes(t.relation)) fail("relation неизвестен."); target.relation = t.relation; }
     if (t.select !== undefined) { if (!["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose", "all", "random"].includes(t.select)) fail("select неизвестен."); target.select = t.select; }
-    if ((target.select === "attack_target" || target.relation === "attack_target") && e.event !== "attack") fail("attack_target только для события attack.");
-    if (target.relation === "adjacent" && target.entity === "player") fail("adjacent неприменим к игроку.");
+    const targetRelations = ["attack_target", "attack_target_row", "attack_target_column"];
+    if ((target.select === "attack_target" || targetRelations.includes(target.relation)) && e.event !== "attack") fail("attack_target только для события attack.");
+    if ((target.relation === "adjacent" || targetRelations.includes(target.relation)) && target.entity === "player") fail("это отношение неприменимо к игроку.");
     if (e.event === "death" && target.relation === "self") fail("погибший источник не может быть целью.");
     target.count = t.count === undefined ? 1 : int(t.count, 1, 3, "count");
     if (["apply_status"].includes(a.type) && target.entity !== "unit") fail("статус только на отряд.");
@@ -371,7 +418,7 @@ export function pawMarkers(c: Pick<Card, "keywords" | "effects">, paw: PawTier =
     const amount = Math.abs(Number(a.amount) || 0);
     const who = own ? "своим" : "врагу";
     if (own && a.type === "damage") out.push({ text: `${amount} урона ${who}`, weight: amount });
-    else if (own && a.type === "apply_status") out.push({ text: `${a.status === "burn" ? "огонь" : "яд"} на ${who} (${a.turns || 2} хода)`, weight: amount + Math.max(0, (a.turns || 2) - 1) });
+    else if (own && a.type === "apply_status") out.push({ text: `${a.status === "burn" ? "огонь" : a.status === "suppress" ? "подавление" : "яд"} на ${who} (${a.turns || 2} хода)`, weight: amount + Math.max(0, (a.turns || 2) - 1) });
     else if (own && a.type === "destroy") out.push({ text: "уничтожает собственный отряд", weight: 4 });
     else if (own && a.type === "modify_stat" && Number(a.amount) < 0) out.push({ text: `${a.amount} к «${a.stat}» ${who}`, weight: amount + (a.turns ? 0 : 1) });
     else if (own && a.type === "modify_cost" && Number(a.amount) > 0) out.push({ text: `+${amount} к цене атаки ${who}`, weight: amount });
@@ -392,7 +439,7 @@ export const pawSeverity = (c: Pick<Card, "keywords" | "effects">, paw: PawTier 
 /** Таблица весов для промпта: модель обязана попасть в заказанный диапазон, а не угадать его. */
 const PAW_WEIGHT_TABLE = `Вес платы движок считает по карте сам:
 - damage по своим (side friendly|controller) — вес = amount;
-- apply_status poison|burn по своим — вес = amount + (turns − 1);
+- apply_status poison|burn|suppress по своим — вес = amount + (turns − 1);
 - destroy своего отряда — вес 4;
 - modify_stat с отрицательным amount по своим — вес = |amount|, и ещё +1 если без turns (навсегда);
 - modify_cost с положительным amount по своим — вес = amount;
@@ -454,6 +501,18 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
+  // Площадь — самая сильная геометрия стола, поэтому рамки жёсткие и проверяются здесь, а не на глаз:
+  // одно площадное слово на карту, N не выше AREA_MAX_N, удар не бесплатный и карта не рядовая.
+  const areaKws = c.keywords.filter((k: string) => AREA_KEYWORDS.includes(k.split(":")[0]));
+  if (areaKws.length > 1) throw new Error("Карте хватает одного площадного слова: «Фугас», «Картечь» и «Обстрел столбца» не складываются.");
+  for (const raw of areaKws) {
+    const [kw, ns] = String(raw).split(":");
+    const n = parseInt(ns || "1", 10);
+    if (!Number.isInteger(n) || n < 1 || n > AREA_MAX_N) throw new Error(`Площадное слово ${kw} принимает N от 1 до ${AREA_MAX_N}.`);
+    if (c.card_type !== "unit") throw new Error("Площадные слова доступны только отрядам.");
+    if (c.action_cost < 1) throw new Error("Площадной удар не бывает бесплатным: action_cost минимум 1.");
+    if (rarity === "ordinary") throw new Error("Площадной удар — не рядовое свойство: карта с ним должна быть не ниже необычной.");
+  }
   c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   if (c.card_type === "spell") {
     if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
@@ -598,6 +657,11 @@ export function allowedCardErasOf(state: any): string[] {
 
 export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   const era = allowedCardErasOf(state).join(" и ");
+  // Стол Каменного века — одна линия: тыла нет, поэтому и замыслов про стрельбу из-за спин не будет.
+  const oneLine = oneLineBoard(state);
+  const tableRule = oneLine
+    ? `\nСтол этого боя — ОДНА ЛИНИЯ в три клетки (Каменный век): тыла нет, дальний бой и засада не работают, все отряды бьются врукопашную и получают ответный удар. Для unit предлагай только роли ближнего боя: натиск, удержание линии, защита соседей по линии, длинное оружие в строю. Не предлагай стрелков, пращников-застрельщиков и засады.`
+    : "";
   const data = await hydraChat({
     model, temperature: 1, maxTokens: 900,
     system: `Ты военный советник кузницы исторической карточной стратегии "Infinite Forge". Ты придумываешь замыслы именно для боевой колоды: каждая идея должна быть полезна в одном текущем сражении, а не описывать развитие народа между боями. Используй историю, географию, материалы и обычаи народа как источник образа и боевой тактики, но не как повод рассказывать о мирном хозяйстве.
@@ -611,7 +675,7 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
     user: `Нужны три боевые идеи для колоды — по одному unit, spell и structure. Преврати особенности народа в тактику одного сражения: контекст ниже нужен для исторического образа, а не для проектов хозяйства или долгой жизни поселения.
 Контекст цивилизации:
 ${contextOf(state)}
-Разрешённые эпохи карт: ${era}.`,
+Разрешённые эпохи карт: ${era}.${tableRule}`,
   });
   const list = data.choices;
   if (!Array.isArray(list) || list.length !== 3) throw new Error("Советник должен вернуть три замысла.");
@@ -634,16 +698,17 @@ ${contextOf(state)}
 const CARD_SYSTEM = `Ты — ИИ-Кузнец исторической карточной стратегии "Infinite Forge" о становлении цивилизаций. Сеттинг: реалистичный древний мир и бронзовый век, БЕЗ магии и фэнтези.
 Эпохи карт (боевой тег, их ровно две): "ancient" (камень, кремень, пращи, частоколы) и "bronze" (бронзовое оружие, колесницы, стены). Используй только разрешённые.
 Важно: боевой тег — это не дата в календаре кампании. В контексте указана эпоха кампании (например «Ренессанс» или «Эпоха Пара и Стали») вместе с её культурами и технологиями: образы, названия, описания и технологии карты должны соответствовать ИМЕННО этой эпохе (мушкеты и печатный стан для Ренессанса, пар и сталь для 1800-1910), а тег era при этом остаётся в разрешённом наборе ancient/bronze.
-Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). Яд/поджог/лечение оформляй через effects[].
-Выбор цели в бою решает движок, в карте он не задаётся — но описание и образ должны ему соответствовать. Стол растёт по эпохам: от одной линии в три клетки в Каменном веке до пяти рядов по пять в Будущем (авангард, средние ряды, тыл). Ближний бой из авангарда бьёт отряд напротив, затем ближайшего; отряд с taunt перехватывает удар первым. Когда ряд перед атакующим пуст, ближний бой продвигается вглубь ряд за рядом, а siege берётся за постройки в последнем ряду; по вождю удар уходит только при полностью пустом столе. Дальний бой (ranged, skirmish) бьёт через ВСЕ ряды врага по самому опасному отряду на поле и не получает ответного удара, taunt перехватывает и выстрел. reach из глубины достаёт только врага напротив в авангарде. Постройки встают лишь в последний ряд, ближний бой без стрельбы — лишь в авангард, а стрелки и «длинное оружие» — в любой ряд: поэтому zone front означает авангард, zone rear — все ряды за ним. Глубина стола защищает от ближнего боя, но не от стрел: этим объясняются и плотный строй щитов, и засады, и ценность провокации.
+Ключевые слова: armor:N, pierce:N, ranged, reach, charge, shieldwall, wedge, phalanx, skirmish, taunt, heal:N, rally, fear, morale, siege, sturdy, holdground, upkeep, cleave:N (при атаке доп. N урона всем соседям цели в её ряду), blast:N (при попадании доп. N урона соседям цели в её ряду и отряду прямо за ней — крест, «фугас»), sweep:N (доп. N урона всем остальным отрядам в ряду цели — «картечь»), column:N (доп. N урона всем остальным отрядам в столбце цели, во всех рядах — «обстрел столбца», навесной огонь), dispersed (площадной урон по отряду уменьшен на 1, но не ниже 1), entrenched (стоя в авангарде, не получает урона от sweep и column), vengeance:N (при гибели в бою наносит N урона своему убийце, если тот жив), relentless (может атаковать дважды за ход, если хватает энергии на обе атаки), scavenger (+1 к атаке за каждые 2 карты во вражеском сбросе, максимум +2), unbreakable (полный иммунитет к бегству от страха и морали), laststand (если это единственный живой отряд в своём ряду — +1 атаки и +1 брони). Энергетические свойства: supply (при выводе отряда/постройки или розыгрыше манёвра +1 к пределу энергии и +1 текущей энергии), warcry (+1 энергия при розыгрыше), loot (+1 энергия за убийство отряда; только для отряда), raider (крадёт 1 энергию у врага при попадании по отряду; только для отряда), harras (−1 к приросту энергии врага в его следующий ход), exhaustenemy (−1 энергия врага при розыгрыше). suppress:N (при попадании подавляет отряд: его атака дорожает на N на 2 хода — это не запрет, а удорожание; потолок +3; unbreakable теперь гасит и подавление, поэтому «Несокрушимый» — ответ на пулемёт). Яд/поджог/лечение/подавление оформляй через effects[] или одноимёнными ключевыми словами. Слова столбца делают ширину и глубину стола обеспечением боя: flank (+1 урона по цели с открытым флангом — крайний столбец или дыра в строю; если отряд напротив пал, идёт вверх по своему столбцу), screen (+1 брони отряду прямо перед собой в том же столбце), command (+1 энергия в начале хода, пока жив и стоит в последнем ряду), spotter (ваши ranged, blast, sweep и column по целям в его столбце наносят +1 урона). Они работают по столбцу, а не по соседям в ряду, поэтому на столе в одну линию screen молчит — как ranged, skirmish и reach. Площадные слова (blast, sweep, column) держи в рамках: не больше одного на карту, N от 1 до 2, action_cost минимум 1 и только для карт не ниже необычной редкости; дополнительных целей движок накрывает не больше трёх, ответных ударов площадь не вызывает, а удар с N=2 задевает ещё и собственный отряд напротив в том же столбце.
+Выбор цели в бою решает движок, в карте он не задаётся — но описание и образ должны ему соответствовать. Стол растёт по эпохам: от одной линии в три клетки в Каменном веке до пяти рядов по пять в Будущем. Ряд — это глубина (авангард, средние ряды, тыл), столбец — ширина (два крайних фланга и центр между ними). Ближний бой из авангарда бьёт отряд напротив, затем ближайшего в своём ряду, затем продвигается вглубь ряд за рядом, а taunt перехватывает удар первым. БРЕШЬ — общее правило для обеих сторон и всех эпох: если в столбце атакующего у противника не осталось живых отрядов, удар ближнего боя проходит вождю, даже когда чужой строй стоит в соседних столбцах; постройки строй не держат, их разбирает siege. Дальний бой (ranged, skirmish) бьёт через ВСЕ ряды врага по самому опасному отряду на поле и не получает ответного удара, taunt перехватывает и выстрел. reach из глубины достаёт только врага напротив в авангарде. Свой отряд можно перестроить на соседнюю клетку за 1 энергию — раз за ход и без истощения, так закрывают свою брешь и заходят в чужую. Постройки встают лишь в последний ряд и не двигаются, ближний бой без стрельбы — лишь в авангард, а стрелки и «длинное оружие» — в любой ряд: поэтому zone front означает авангард, zone rear — все ряды за ним, zone flank — крайние столбцы половины, zone center — столбцы между ними. Глубина спасает от ближнего боя, но не от стрел и не от площади; ширина даёт охват, но дыра во фланге стоит вождя.
+Особый случай — Каменный век: там стол состоит из ОДНОЙ линии в три клетки, тыла нет, поэтому ranged, skirmish и reach не действуют вовсе — отряд со стрелами бьётся врукопашную и получает ответный удар. Если в заказе сказано, что стол — одна линия, не используй эти ключевые слова и не обещай стрельбу из-за спин: роль карты — ближний бой, удержание линии, защита соседей, строй или манёвр. Со второго ряда (Античный мир) они снова заработают.
 Боевой ресурс один: и вывод карты, и атака расходуют общий запас энергии.
 Замысел от военного советника — только исторический образ: преврати его в тактическую карту, полезную в текущем сражении. Описание и эффекты должны показывать боевую роль отряда, немедленный результат манёвра или постоянную роль постройки в тылу. Не делай из карты сельское хозяйство, ремесленное производство, доход поселения или подготовку к будущему походу.
 Разовые и срабатывающие действия — только в effects[]. Движок не читает description/tags.
 description — 1–2 коротких предложения, один образ.
 effects[] — объекты {event, target, action, condition?, watch?}:
  event: enter_play | attack | turn_start | turn_end | damaged (это событие срабатывает у самого отряда, когда он получает урон в бою) | death | card_death (когда гибнет отряд) | card_enter_play (когда выходит любая карта: отряд, постройка или манёвр). Для card_death и card_enter_play обязателен watch:{side:all|friendly|enemy}.
- target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|any, relation?: any|self|adjacent|attack_target, select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random (all — абсолютно все подходящие цели сразу, игнорирует count; random — count случайных целей), count?: 1-3}
- action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn, amount 1-5, turns 1-3) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
+ target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|flank|center|any, relation?: any|self|adjacent|attack_target|attack_target_row|attack_target_column (ряд и столбец цели удара — только для события attack), select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random (all — абсолютно все подходящие цели сразу, игнорирует count; random — count случайных целей), count?: 1-3}
+ action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn|suppress, amount 1-5, turns 1-3; suppress — удорожание атаки цели на amount, а не урон) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
 condition (необязательное поле эффекта) помимо target_wounded/target_status/target_stat/resource теперь поддерживает board_count: {type:"board_count", side: controller|opponent, op: eq|ne|lt|lte|gt|gte, value: 0-8} — количество живых отрядов на стороне.
 У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки atk=0, action_cost=0, hp≥1. У отряда hp≥1.
 Про историческую справку (поле history — ОБЯЗАТЕЛЬНО, пиши его последним): {"title":"","text":""}.
@@ -671,7 +736,12 @@ ${contextOf(state)}
 Эпоха кампании: «${era.label}». Наследие народа: «${cultureName || "своё, по контексту"}». Название, образ, описание, свойства (числа, ключевые слова, эффекты) и историческая справка должны принадлежать ИМЕННО этой эпохе и этому наследию — иначе карты «древнего мира» и «античности» неотличимы. Технологии эпохи: ${era.tech || "не заданы"}. Боевой тег карты при этом только один из разрешённых: ${allowed.join(" или ")}.
 
 Историческая справка (поле history): привяжи карту к эпохе кампании «${era.label}»${cultureName ? ` и наследию «${cultureName}»` : ""} — к их технологиям, обычаям и людям.`;
-  const system = CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.`;
+  // Стол одной линии (Каменный век): заказ сразу говорит об этом модели, а проверка ниже не пускает
+  // стрелков в колоду — иначе карта обещает то, чего на этом столе не бывает.
+  const oneLine = oneLineBoard(state);
+  const system = CARD_SYSTEM + `\nРазрешённые эпохи сейчас: ${allowed.join(", ")}.` + (oneLine
+    ? "\nСтол этого боя — ОДНА ЛИНИЯ в три клетки (Каменный век): тыла нет, ranged/skirmish/reach не действуют. Не используй эти ключевые слова и не описывай стрельбу из-за спин — только ближний бой, строй, удержание линии или манёвр."
+    : "");
   const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
 
   // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
@@ -691,6 +761,12 @@ ${contextOf(state)}
     });
     try {
       const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { relaxBand });
+      if (oneLine) {
+        const bad = oneLineViolation(card);
+        if (bad.length) {
+          throw new Error(`Стол этого боя — одна линия (Каменный век), тыла нет: ключевые слова ${bad.join(", ")} не действуют. Убери их и дай карте роль ближнего боя, строя или манёвра — без стрельбы из-за спин.`);
+        }
+      }
       card.rarity = rarity;
       card.id = "card-" + uid();
       // Справку подписываем эпохой и наследием из состояния: модель могла вернуть свои формулировки.

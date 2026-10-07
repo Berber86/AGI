@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Anvil, Sparkles, Loader2, Lock, Check, Trophy } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
-import { CARD_TYPE_INFO, RARITY_INFO, craftErrorMessage, llmAdvice, llmCard, type Advice, type Card, type Rarity } from "@/game/cards";
+import { CARD_TYPE_INFO, RARITY_INFO, craftErrorMessage, llmAdvice, llmCard, oneLineBoard, type Advice, type Card, type Rarity } from "@/game/cards";
 import { useDerived, useStore } from "@/game/store";
 import { Btn, Chip, GloryCost, Heading, Label, Meter, Modal, Panel } from "@/components/ui";
 import { CardFace } from "@/components/CardView";
@@ -112,6 +112,11 @@ export default function Forge() {
               <Btn size="sm" onClick={askAdvisor} disabled={askLoading}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{advice.length ? "Другие замыслы" : "Спросить ИИ-советника"}</Btn>
             </div>
             <p className="mt-3 text-xs leading-relaxed text-dim">Все идеи — для одного сражения: боец, немедленный манёвр или боевая постройка в тылу. История народа даёт образ и тактику.</p>
+            {oneLineBoard(game) && (
+              <p className="mt-2 rounded-lg border border-line bg-ground/60 px-3 py-2 text-xs leading-relaxed text-dim">
+                Стол Каменного века — одна линия в три клетки: тыла нет, поэтому дальний бой, засада и «длинное оружие» здесь не действуют — все отряды бьются врукопашную. Кузнец не выдаст стрелков, пока стол не вырастет до второго ряда (Античный мир).
+              </p>
+            )}
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {advice.length === 0 && (
                 <p className="rounded-xl border border-dashed border-line-strong p-4 text-sm leading-relaxed text-dim md:col-span-3">
