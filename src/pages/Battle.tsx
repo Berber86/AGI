@@ -5,8 +5,9 @@ import { M } from "@/game/model";
 import { allCards, withoutStructures, describeEffect, kwName, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
-  areaOf, AREA_NAMES, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, gapsOf, hasGapAt, inactiveKeywords,
-  MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf, type Battle, type Unit,
+  areaOf, AREA_NAMES, commandBonus, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, flankExposed, gapsOf,
+  hasGapAt, inactiveKeywords, MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf,
+  type Battle, type Unit,
 } from "@/game/battle";
 import { useStore } from "@/game/store";
 import { Btn, Meter, Modal } from "@/components/ui";
@@ -246,6 +247,8 @@ export default function BattleScreen() {
   const splashCells = selU && myTurn && target && selArea ? splashTargets(b, "me", selU, target) : [];
   const isSplashed = (side: "me" | "enemy", ri: number, i: number) =>
     splashCells.some((h) => h.side === side && h.ri === ri && h.i === i);
+  /** Позиция выбранного отряда: нужна словам столбца — прикрытию, штабу и корректировщику. */
+  const selPos = selU ? unitsOf(b, "me").find((s) => s.unit.iid === selU.iid) ?? null : null;
 
   const runEnemy = async () => {
     busy.current = true;
@@ -380,7 +383,20 @@ export default function BattleScreen() {
           ? `накроет ещё ${splashCells.filter((h) => !h.own).length} — клетки отмечены пунктиром` : "сейчас накрывать некого"
         }${splashCells.some((h) => h.own) ? ", и заденет свой отряд в той же полосе" : ""}.`
         : "";
-      return { text: base + note + moveNote + areaNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
+      // Слова столбца: коротко о том, что выбранный отряд делает для своей полосы прямо сейчас.
+      const support: string[] = [];
+      if (selPos) {
+        const rows = rowsOf(b.me);
+        if (selU.st.flank && target?.kind === "unit" && flankExposed(b, target.unit)) support.push("цель с открытым флангом: +1 к урону");
+        if (selU.st.screen) {
+          const ahead = rows[selPos.ri - 1]?.[selPos.i];
+          support.push(ahead && ahead.curHp > 0 ? `прикрывает «${ahead.name}» впереди: +1 брони` : "впереди в этом столбце прикрывать некого");
+        }
+        if (selU.st.command) support.push(selPos.ri === rows.length - 1 ? "штаб в тылу: +1 энергии в начале хода" : "штаб снабжает только из тыла — последнего ряда");
+        if (selU.st.spotter) support.push(`наводит дальний и площадный огонь по столбцу ${selPos.i + 1}: +1 урона`);
+      }
+      const supportNote = support.length ? ` ${support.join("; ")}.` : "";
+      return { text: base + note + moveNote + areaNote + supportNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
     }
     if (selCard) {
       if (selCard.drop_cost > b.me.energy) return { text: `«${selCard.name}» стоит ${selCard.drop_cost} — не хватает энергии.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
@@ -392,7 +408,7 @@ export default function BattleScreen() {
         ? `«${selCard.name}»: выберите слот на линии — в Каменном веке она одна, и она же тыл.`
         : selCard.card_type === "structure"
           ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).`
-          : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард, стрелки и «длинное оружие» — в любой ряд.`;
+          : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард; стрелки, «длинное оружие» и слова обеспечения — в любой ряд.`;
       return { text: slotText, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
     }
     return { text: anyMove ? "Ваш ход. Выберите карту в руке или готовый отряд на поле." : "Действий не осталось — завершите ход.", actions: null };
@@ -465,7 +481,7 @@ export default function BattleScreen() {
         <div className="no-scrollbar mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-between gap-1 overflow-y-auto overscroll-contain">
           <div>
             <Hero side="enemy" b={b} name={enemyName} sub={`${m.clan} · ${M.eraName(m.era)} · в руке ${b.enemy.hand.length}, в колоде ${b.enemy.deck.length}`} targeted={!!selU && target?.kind === "hero"} onClick={() => { if (selU && target?.kind === "hero") doAttack(); }} />
-            <div className="mt-1.5 flex justify-end"><EnergyPips energy={b.enemy.energy} max={b.enemy.energyMax} cap={b.enemy.energyCap} label="враг" /></div>
+            <div className="mt-1.5 flex justify-end"><EnergyPips energy={b.enemy.energy} max={b.enemy.energyMax + commandBonus(b, "enemy")} cap={b.enemy.energyCap} label="враг" /></div>
           </div>
 
           <div className="space-y-1.5 sm:space-y-2.5">
@@ -478,7 +494,7 @@ export default function BattleScreen() {
 
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <EnergyPips energy={b.me.energy} max={b.me.energyMax} cap={b.me.energyCap} label="вы" />
+              <EnergyPips energy={b.me.energy} max={b.me.energyMax + commandBonus(b, "me")} cap={b.me.energyCap} label="вы" />
               <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad" title="С 6-го хода каждая попытка добрать из пустой колоды бьёт вождя нарастающим уроном"> · усталость {b.me.fatigue}</span>}</span>
             </div>
             <Hero side="me" b={b} name={game.player.name} sub={`${game.player.clan} · ${M.eraName(game.player.era)}`} />
@@ -635,11 +651,12 @@ export function BattleRules({ className }: { className?: string }) {
       <p>Один запас энергии платит и за вывод карты, и за её атаку. Энергия растёт в начале каждого вашего хода.</p>
       <p className="mt-2">Стол растёт вместе с эпохами: Каменный век — одна линия в три клетки, Античный мир — вторые ряды, Средневековье — четвёртый столбец, Ренессанс — третий ряд, Эпоха Пара и Стали — четвёртый ряд, Новейшее время — пятый столбец, Будущее — пятый ряд. Размер общий для обеих сторон и берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.</p>
       <p className="mt-2">Авангард бьёт отряд напротив, затем ближайшего — и получает ответный удар; отряд с провокацией перехватывает удар первым. Ближний бой продвигается вглубь ряд за рядом: пока жив вражеский авангард, задние ряды для него недоступны. Когда ряды перед ним пусты, осада берётся за постройки в тылу, а вождя бьют только при полностью пустом столе.</p>
-      <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные и «длинное оружие» могут стоять в любом ряду. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
-      <p className="mt-2">В Каменном веке стол — одна линия, поэтому дальнего боя, засады и «длинного оружия» там нет: каждый отряд бьёт того, кто напротив, затем ближайшего в линии, а при пустой линии врага — вождя, и получает ответный удар. Ключевые слова, которые на этом столе молчат, перечёркнуты в описании отряда; нажмите на чип слова, чтобы прочитать, что оно делает.</p>
+      <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные, «длинное оружие» и слова обеспечения (прикрытие, штаб, корректировщик) могут стоять в любом ряду — их место как раз в глубине своего столбца. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают.</p>
+      <p className="mt-2">В Каменном веке стол — одна линия, поэтому дальнего боя, засады, «длинного оружия» и прикрытия там нет: каждый отряд бьёт того, кто напротив, затем ближайшего в линии, а при пустой линии врага — вождя, и получает ответный удар. Ключевые слова, которые на этом столе молчат, перечёркнуты в описании отряда; нажмите на чип слова, чтобы прочитать, что оно делает.</p>
       <p className="mt-2">Брешь в обороне — правило по умолчанию, а не особое свойство карт: столбец, в котором у стороны не осталось живых отрядов, открывает вождя. Удар ближнего боя из этого столбца проходит вождю, даже если чужой строй стоит в соседних столбцах; постройки строй не держат (их разбирает осада), а провокация перехватывает удар и через брешь. Поэтому линию держат по всей ширине, и крайние столбцы — не украшение стола.</p>
       <p className="mt-2">Площадной удар бьёт не только по цели, но и по её окружению — это ответ на плотный строй. Три формы: «Фугас» накрывает соседей цели в её ряду и отряд прямо за ней, «Картечь» — весь ряд цели, «Обстрел столбца» — весь столбец цели во всех рядах. Дополнительных целей не больше трёх, урон по ним равен числу в слове (основная цель получает полный урон атаки), и ответных ударов площадь не вызывает. Удар с числом 2 считается тяжёлым и задевает ещё и ваш собственный отряд, стоящий напротив в том же столбце: полоса огня проходит через весь столбец. Отвечают на площадь «Рассредоточение» (−1 к площадному урону) и «Окоп» (в авангарде не получает «Картечь» и «Обстрел столбца»). Клетки, которые накроет выбранный отряд, отмечены пунктиром до удара.</p>
       <p className="mt-2">Перестроение: свой отряд можно сдвинуть на одну соседнюю клетку — вбок по своему ряду или на ряд вперёд/назад — за 1 энергию, один раз за ход. Перестроение не истощает отряд: можно сдвинуться и ударить в тот же ход, если хватает энергии. Постройки не двигаются, а правила рядов действуют и здесь — ближний бой без стрельбы не уходит вглубь.</p>
+      <p className="mt-2">Слова столбца делают полосу этажом обеспечения боя. «Прикрытие» добавляет +1 брони отряду прямо перед собой в том же столбце — тыл реально бережёт передних, а не только стреляет. «Штаб», пока жив и стоит в последнем ряду, даёт +1 энергии в начале хода сверх текущего предела. «Корректировщик» наводит ваши дальние и площадные удары по целям своего столбца: +1 урона. «Охват» бьёт на 1 сильнее по цели с открытым флангом — у той нет живого соседа хотя бы с одной стороны, значит, она стоит в крайнем столбце или рядом с дырой в строю, — а если отряд напротив пал, идёт вверх по своему столбцу, а не вбок по чужому ряду.</p>
       <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
       <Legend className="mt-3 text-faint" />
     </div>

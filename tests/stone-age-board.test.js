@@ -153,7 +153,7 @@ test('Каменный век: стрелок на одной линии бьё�
     [cardFixture('Дубинщик А', { atk: 5, hp: 6 }), cardFixture('Дубинщик Б', { atk: 1, hp: 6 })]);
 
   assert.equal(battle.deepTable(b), false, 'глубины у стола нет');
-  assert.equal(battle.inactiveKeywords(b).join(','), 'ranged,skirmish,reach', 'интерфейс знает, какие слова молчат');
+  assert.equal(battle.inactiveKeywords(b).join(','), 'ranged,skirmish,reach,screen', 'интерфейс знает, какие слова молчат');
 
   place(battle, b, 'me', 'Пращники', 0, 1);
   place(battle, b, 'enemy', 'Дубинщик А', 0, 0);
@@ -297,7 +297,7 @@ test('советник в Каменном веке не предлагает с
 test('списки «глубинных» слов в движке и у кузнеца совпадают, а эпоха стола считается как в бою', () => {
   const { cards, battle } = loadBoth(async () => { throw new Error('сеть не нужна'); });
   assert.equal(cards.ONE_LINE_KEYWORDS.join(','), battle.DEPTH_KEYWORDS.join(','), 'движок и кузнец говорят об одном');
-  assert.equal(cards.ONE_LINE_KEYWORDS.join(','), 'ranged,skirmish,reach');
+  assert.equal(cards.ONE_LINE_KEYWORDS.join(','), 'ranged,skirmish,reach,screen');
 
   assert.equal(cards.boardEraOf(stateAt(0)), 0);
   assert.equal(cards.oneLineBoard(stateAt(0)), true);

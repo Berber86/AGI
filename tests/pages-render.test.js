@@ -413,6 +413,25 @@ test('линия фронта помечает бреши, а правила о�
   const gunText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: gun }, b: gunBattle })).join(' ');
   assert.match(gunText, /Фугас/u, 'площадное слово названо по-русски');
   assert.match(gunText, /накрывает ещё N урона/u, 'и объяснено');
+
+  // Слова столбца: те же требования — русское имя, пояснение, упоминание в правилах боя.
+  for (const kw of ['flank', 'screen', 'command', 'spotter']) {
+    const supportCard = { ...foot, name: 'Поддержка', keywords: [kw] };
+    const sb = app.battle.createBattle([supportCard], cfg, [], { ...cfg }, { ...match, threatEra: 2 });
+    sb.active = 'me';
+    sb.me.energy = 10;
+    assert.equal(app.battle.deploy(sb, 'me', 0, 0, 0), true);
+    const text = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: app.battle.rowsOf(sb.me)[0][0] }, b: sb })).join(' ');
+    assert.ok(text.length > 40, `инспектор показал карточку со словом ${kw}`);
+  }
+  const names = ['Охват', 'Прикрытие', 'Штаб', 'Корректировщик'];
+  const infos = Object.keys(app.cards.KEYWORD_INFO).map((k) => app.cards.KEYWORD_INFO[k]).filter((info) => names.includes(info.name));
+  assert.equal(infos.length, names.length, 'все четыре слова столбца есть в словаре');
+  for (const info of infos) {
+    assert.ok(info.desc.length > 20, 'у каждого слова столбца есть пояснение');
+    assert.match(rules, new RegExp(info.name, 'u'), 'правила боя называют слово по-русски');
+  }
+  assert.match(rules, /слова обеспечения/u, 'правила объясняют, кто может стоять в глубине');
 });
 
 test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {
