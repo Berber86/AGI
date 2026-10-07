@@ -47,7 +47,7 @@ function loadBoth() {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
             SEED_CHOICES: Campaign.SEED_CHOICES,
-            STARTER_CARDS: Campaign.STARTER_CARDS,
+            MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,
@@ -80,10 +80,20 @@ function card(name, options = {}) {
 
 const CFG = { hp: 30, energyMax: 12, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
 
+/** Test setup helper: old fixtures start with up to four cards so tests can place several units. */
+function topUpHandsForSetup(b) {
+  for (const side of ['me', 'enemy']) {
+    const player = b[side];
+    const target = Math.min(4, player.hand.length + player.deck.length);
+    while (player.hand.length < target) player.hand.push(player.deck.shift());
+  }
+  return b;
+}
+
 function battleAt(threatEra, myCards, enemyCards, cfg = {}) {
   const config = { ...CFG, ...cfg };
   const match = { kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra, leaderBattle: false, tutorial: false };
-  return api.createBattle(myCards, config, enemyCards, { ...config }, match);
+  return topUpHandsForSetup(api.createBattle(myCards, config, enemyCards, { ...config }, match));
 }
 
 function place(b, side, cardName, row = 0, slot = 0) {
@@ -382,10 +392,10 @@ test('по вождю площади нет: у удара через брешь
   assert.equal(bystander.curHp, 9, 'чужой отряд в другом столбце не задет');
 });
 
-test('на столе в одну линию обстрелу столбца некого накрывать', () => {
-  const b = battleAt(0, [card('Миномёт', { atk: 3, hp: 8, keywords: ['column:1'] })], [card('Враг 1', { hp: 9 }), card('Враг 2', { hp: 9 })]);
+test('площадное слово не превращает рукопашный стол Каменного века в обстрел', () => {
+  const b = battleAt(0, [card('Каменный боец', { atk: 3, hp: 8, keywords: ['sweep:1'] })], [card('Враг 1', { hp: 9 }), card('Враг 2', { hp: 9 })]);
   deployAt(b, 'enemy', [[0, 0], [0, 1]]);
-  const gun = putUnit(b, 'me', 'Миномёт', 0, 0);
+  const gun = putUnit(b, 'me', 'Каменный боец', 0, 0);
   refresh(b);
   b.active = 'me';
   b.me.energy = 8;
@@ -479,12 +489,13 @@ test('кузнец держит площадные слова в рамках, �
   const spell = (target) => ({
     name: 'Залп', card_type: 'spell', era: 'ancient', emoji: '💥', drop_cost: 2, action_cost: 0, atk: 0, hp: 0,
     description: 'Накрывает полосу.', tags: [], abilities: [], keywords: [], monkey_paw: '',
-    effects: [{ event: 'enter_play', target, action: { type: 'damage', amount: 2 } }],
+    effects: [{ event: 'enter_play', target, action: { type: 'damage', amount: 1 } }],
   });
   const validateSpell = (target) => C.validateCard(spell(target), 'spell', ['ancient'], 'ordinary', 'none');
-  assert.doesNotThrow(() => validateSpell({ side: 'enemy', entity: 'unit', zone: 'flank', select: 'all' }), 'зона фланга законна');
+  assert.doesNotThrow(() => validateSpell({ side: 'enemy', entity: 'unit', zone: 'flank', select: 'first' }), 'зона фланга законна');
   assert.doesNotThrow(() => validateSpell({ side: 'enemy', entity: 'unit', zone: 'center', count: 2 }), 'зона центра законна');
   assert.throws(() => validateSpell({ side: 'enemy', entity: 'unit', zone: 'middle' }), /zone неизвестна/u);
+  assert.throws(() => validateSpell({ side: 'enemy', entity: 'unit', select: 'all' }), /Манёвр не может целиться сразу/u, 'манёвр не накрывает все цели');
   assert.throws(() => validateSpell({ side: 'enemy', entity: 'unit', relation: 'attack_target_row' }), /только для события attack/u, 'ряд цели удара существует лишь для удара');
 
   const unitWithRelation = (relation) => C.validateCard({

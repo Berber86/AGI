@@ -25,7 +25,7 @@ function loadCards(fetchImpl) {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
             SEED_CHOICES: Campaign.SEED_CHOICES,
-            STARTER_CARDS: Campaign.STARTER_CARDS,
+            MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,
@@ -50,52 +50,58 @@ function modelReply(payload) {
   return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify(payload) } }] }) };
 }
 
-function readyState() {
-  // Онбординг прототипа: три выбора дают боевые бонусы, а замысел попадает в промпт кузнеца.
-  return Campaign.foundCampaignState(Campaign.createState(), {
+function readyState(era = 0) {
+  const state = Campaign.foundCampaignState(Campaign.createState(), {
     seedId: 'forge', historicalCultureId: 'natufian',
   }).state;
+  state.player.era = era;
+  return Campaign.normalizeState(state);
 }
 
+const STONE_CHOICES = [
+  { card_type: 'unit', title: 'Стражи переправы', pitch: 'Копейщики удерживают авангард врага в ближнем бою.' },
+  { card_type: 'spell', title: 'Каменный заслон', pitch: 'Манёвр замедляет один вражеский отряд на короткое время.' },
+];
 const BATTLE_CHOICES = [
   { card_type: 'unit', title: 'Стражи переправы', pitch: 'Копейщики удерживают авангард врага, пока лучники бьют из тыла.' },
-  { card_type: 'spell', title: 'Засада в камышах', pitch: 'Скрытый залп поджигает вражеский авангард прямо сейчас.' },
+  { card_type: 'spell', title: 'Засада в камышах', pitch: 'Ловушка ненадолго ослабляет вражеский авангард.' },
   { card_type: 'structure', title: 'Частокол с бойницами', pitch: 'Каждый ход частокол обстреливает первого врага в строю.' },
 ];
 
-test('военный советник получает строгую боевую задачу и возвращает по одной идее каждого типа', async () => {
+test('советник Каменного века предлагает только рукопашный отряд и умеренный манёвр', async () => {
   const requests = [];
   const api = loadCards(async (url, init) => {
     requests.push({ url, body: JSON.parse(init.body) });
-    return modelReply({ choices: BATTLE_CHOICES });
+    return modelReply({ choices: STONE_CHOICES });
   });
   const state = readyState();
   const advice = await api.llmAdvice('gpt-6-luna', state);
 
-  assert.deepEqual(advice.map((item) => item.cardType), ['unit', 'spell', 'structure']);
+  assert.deepEqual(advice.map((item) => item.cardType), ['unit', 'spell']);
   assert.ok(advice.every((item) => item.title && item.pitch));
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, '/api/hydra');
   assert.equal(requests[0].body.response_format.type, 'json_object');
   const [system, user] = requests[0].body.messages.map((message) => message.content);
-  assert.match(system, /боевой колоды/iu);
-  assert.match(system, /в одном текущем сражении/iu);
-  assert.match(system, /авангард и тыл.*общий запас энергии/iu);
-  assert.match(system, /строго по одному каждого типа/iu);
-  assert.match(system, /unit — боец/iu);
-  assert.match(system, /spell — разовый манёвр/iu);
-  assert.match(system, /structure — именно боевая постройка/iu);
+  assert.match(system, /военный советник Infinite Forge/iu);
+  assert.match(system, /одного текущего боя/iu);
+  assert.match(system, /общий запас энергии/iu);
+  assert.match(system, /по одной каждого разрешённого типа/iu);
+  assert.match(system, /unit — правдоподобный отряд/iu);
+  assert.match(system, /spell — немедленный, умеренный манёвр/iu);
+  assert.match(system, /structure — только для стола с тылом/iu);
   assert.match(system, /каждый ход обстреливает/iu);
-  // Постройка стреляет своей атакой, а стена без атаки — нет: кузнец должен это знать,
-  // иначе он скуёт частокол с atk 0 и будет ждать от него обстрела.
-  assert.match(system, /atk ≥ 1/u, 'промпт объясняет, какая постройка стреляет');
-  assert.match(system, /не стреляет вовсе/u, 'и что постройка без атаки не стреляет');
+  assert.match(system, /atk от 0 до 4/u, 'промпт объясняет, какая постройка стреляет');
+  assert.match(system, /не стреляет/u, 'и что стена без атаки не стреляет');
   assert.match(system, /броня его гасит/u, 'обстрел считается как обычный удар');
-  assert.match(system, /Не ограничивайся предысторией, бытом/iu);
-  assert.match(system, /не задача карты/iu);
-  assert.match(user, /Нужны три боевые идеи для колоды/iu);
+  assert.match(system, /не повторяй одну культуру/iu);
+  assert.match(system, /Никакой магии, фэнтези и анахронизмов/iu);
+  assert.match(user, /Нужны 2 боевые идеи для колоды/iu);
+  assert.match(user, /Допустимые|Разрешённые эпохи карт/iu);
+  assert.match(user, /ОДНА ЛИНИЯ|Стол Каменного века/iu);
   assert.match(user, /Контекст цивилизации/iu);
-  assert.ok(user.includes(state.player.seedLine), 'история народа по-прежнему идёт модели как источник образа');
+  assert.ok(user.includes(state.player.seedLine), 'менталитет народа остаётся в контексте, но необязателен как тема карты');
+  assert.equal(advice.some((item) => item.cardType === 'structure'), false, 'постройка исключена с однорядного стола');
 });
 
 test('советник не пропускает дубли карточных типов или пустые замыслы', async () => {
@@ -104,14 +110,14 @@ test('советник не пропускает дубли карточных �
     { ...BATTLE_CHOICES[1], card_type: 'unit' },
     BATTLE_CHOICES[2],
   ] }));
-  await assert.rejects(() => duplicates.llmAdvice('gpt-6-luna', readyState()), /по одному замыслу каждого типа/iu);
+  await assert.rejects(() => duplicates.llmAdvice('gpt-6-luna', readyState(1)), /по одному замыслу каждого доступного типа/iu);
 
   const emptyPitch = loadCards(async () => modelReply({ choices: [
     BATTLE_CHOICES[0],
     { ...BATTLE_CHOICES[1], pitch: '   ' },
     BATTLE_CHOICES[2],
   ] }));
-  await assert.rejects(() => emptyPitch.llmAdvice('gpt-6-luna', readyState()), /название и описание тактической роли/iu);
+  await assert.rejects(() => emptyPitch.llmAdvice('gpt-6-luna', readyState(1)), /название и описание тактической роли/iu);
 });
 
 test('кузнец превращает исторический замысел в эффект текущего боя, а не в долгосрочное хозяйство', async () => {
@@ -121,7 +127,7 @@ test('кузнец превращает исторический замысел 
     return modelReply({
       name: 'Копейщики у брода', card_type: 'unit', era: 'ancient', emoji: '🛡️',
       drop_cost: 2, action_cost: 1, hp: 4, atk: 2,
-      description: 'Держат переправу и не дают противнику прорваться к лучникам.',
+      description: 'Держат переправу и не дают противнику прорваться.',
       tags: [], abilities: [], keywords: ['phalanx'], effects: [], monkey_paw: '',
     });
   });
@@ -132,11 +138,13 @@ test('кузнец превращает исторический замысел 
   }, 'ordinary', readyState());
 
   const [system, user] = requests[0].messages.map((message) => message.content);
-  assert.match(system, /Замысел от военного советника — только исторический образ/iu);
-  assert.match(system, /полезную в текущем сражении/iu);
+  assert.match(system, /ЭПОХЕ КАМПАНИИ/iu);
+  assert.match(system, /Манёвр: цена минимум 1/iu);
+  assert.match(system, /общий вес эффектов/iu);
   assert.match(user, /Боевой замысел:/iu);
-  assert.match(user, /Воплоти этот образ в боевую роль в текущем матче/iu);
-  assert.match(user, /не превращай ремесло, урожай, быт или дальний путь/iu);
+  assert.match(user, /Создай простую, исторически правдоподобную карту/iu);
+  assert.match(user, /культурное наследие можно упоминать только если это уместно/iu);
+  assert.ok(system.length < 6000, `системный промпт компактнее 6000 символов (${system.length})`);
 });
 
 test('экран кузницы держит замыслы в своём кэше и сбрасывает их со сменой эпохи', () => {
@@ -144,9 +152,10 @@ test('экран кузницы держит замыслы в своём кэш
   assert.match(forge, /const ADV_KEY = "iforge_advice_combat";/);
   assert.doesNotMatch(forge, /iforge_advice_v3|iforge_advice_v2/, 'старые кэши замыслов больше не читаются');
   // кэш привязан к эпохе: чужая эпоха или обрезанный список не подхватываются
-  assert.match(forge, /raw\.era === era && Array\.isArray\(raw\.advice\) && raw\.advice\.length === 3/);
+  assert.match(forge, /function readAdvice\(era: number, count: number\)/);
+  assert.match(forge, /raw\.era === era && Array\.isArray\(raw\.advice\) && raw\.advice\.length === count/);
   assert.match(forge, /localStorage\.setItem\(ADV_KEY, JSON\.stringify\(\{ era: p\.era, advice \}\)\)/);
-  assert.match(forge, /if \(era !== p\.era\) \{ setEra\(p\.era\); setAdvice\(\[\]\); setPick\(null\); setMaterial\("standard"\); \}/);
+  assert.match(forge, /cachedAdviceCount !== expectedAdviceCount/);
   assert.match(forge, /Все идеи — для одного сражения/iu);
   assert.match(forge, /Что поможет победить в одном бою/iu);
 });

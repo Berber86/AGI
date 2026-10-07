@@ -5,7 +5,7 @@ import { M } from "@/game/model";
 import { allCards, withoutStructures, describeEffect, kwName, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
-  areaOf, AREA_NAMES, commandBonus, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, fillDeck, findTarget, flankExposed, gapsOf,
+  areaOf, AREA_NAMES, commandBonus, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, mirrorDeckToPlayer, findTarget, flankExposed, gapsOf,
   hasGapAt, inactiveKeywords, MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf,
   type Battle, type Unit,
 } from "@/game/battle";
@@ -190,9 +190,10 @@ export default function BattleScreen() {
     const customEnemyDeck = M.getOpponentBattleDeck(game, m.opponentId) as Card[] | null;
     const enemyPool = (customEnemyDeck?.length ? customEnemyDeck : enemyDeckForEra(ec.era, 12)) as Card[];
     // В первом учебном бою враг приходит без построек: никто не бьёт новичка бесплатно из тыла.
-    // Колода племени добирается до лимита эпохи повторением состава: стол растёт, контент племён — нет.
-    const enemyDeck = fillDeck(m.tutorial ? withoutStructures(enemyPool) : enemyPool, ec.deckLimit);
-    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m);
+    // Соперник получает ровно столько карт, сколько реально есть у игрока; при одной выкованной карте
+    // это одно-карточная колода с обеих сторон, даже если шаблон ополчения намного больше.
+    const enemyDeck = mirrorDeckToPlayer(deck, m.tutorial ? withoutStructures(enemyPool) : enemyPool);
+    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus, openingHand: cfg.openingHand }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m);
     // Первый ход новичка начинается с энергии 2 (а не 1), чтобы в руке можно было сыграть карту за 2.
     // Берём фиксированное значение 2, а не текущий предел игрока: иначе бонусы эпохи/черты
     // характера (например, «Владыки Коней») поднимали бы старт сразу до 3 энергии.

@@ -45,7 +45,7 @@ function loadBoth(fetchImpl) {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
             SEED_CHOICES: Campaign.SEED_CHOICES,
-            STARTER_CARDS: Campaign.STARTER_CARDS,
+            MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,
@@ -81,7 +81,7 @@ function stateAt(era, cultureId = 'yamnaya') {
   return Campaign.normalizeState(state);
 }
 
-const ADVICE = { id: 'unit-0-1', cardType: 'unit', title: 'Пращники брода', pitch: 'Держат брод.' };
+const ADVICE = { id: 'unit-0-1', cardType: 'unit', title: 'Копейщики брода', pitch: 'Держат брод.' };
 const cardFixture = (name, extra = {}) => ({
   id: name, name, card_type: 'unit', era: 'ancient', emoji: '🏹', drop_cost: 1, action_cost: 1,
   hp: 5, atk: 2, description: 'Тестовая карта.', tags: [], abilities: [], keywords: [], effects: [], monkey_paw: '',
@@ -98,9 +98,19 @@ const smithCard = (extra = {}) => ({
 
 const CFG = { hp: 20, energyMax: 12, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
 
+/** Test setup helper: old fixtures start with up to four cards so tests can place several units. */
+function topUpHandsForSetup(b) {
+  for (const side of ['me', 'enemy']) {
+    const player = b[side];
+    const target = Math.min(4, player.hand.length + player.deck.length);
+    while (player.hand.length < target) player.hand.push(player.deck.shift());
+  }
+  return b;
+}
+
 function battleAt(battle, threatEra, myCards, enemyCards) {
   const match = { kind: 'practice', opponentId: 'reed', name: 'Илмар', clan: 'Речной Союз', era: 0, threatEra, leaderBattle: false, tutorial: false };
-  return battle.createBattle(myCards, CFG, enemyCards, { ...CFG }, match);
+  return topUpHandsForSetup(battle.createBattle(myCards, CFG, enemyCards, { ...CFG }, match));
 }
 
 function place(battle, b, side, cardName, row = 0, slot = 0) {
@@ -238,13 +248,13 @@ test('кузнец Каменного века отклоняет дальний
 
   const error = await cards.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(0)).then(() => null, (e) => e);
   assert.ok(error, 'карта с дальним боем в Каменном веке не принимается');
-  assert.match(error.message, /одна линия/u, 'ошибка объясняет причину');
+  assert.match(error.message, /Каменного века/u, 'ошибка объясняет причину');
   assert.match(error.message, /ranged/u, 'и называет запрещённое слово');
 
   assert.equal(requests.length, 3, 'две перековки, затем ковка падает');
-  assert.match(requests[0].messages[0].content, /ОДНА ЛИНИЯ в три клетки/u, 'заказ сразу говорит про одну линию');
-  assert.match(requests[0].messages[0].content, /ranged\/skirmish\/reach не действуют/u);
-  assert.match(requests[1].messages[1].content, /одна линия/u, 'в переделку уходит точный текст ошибки');
+  assert.match(requests[0].messages[0].content, /Стол Каменного века — одна линия из трёх клеток/iu, 'заказ сразу говорит про одну линию');
+  assert.match(requests[0].messages[0].content, /стреломёты/u, 'промпт запрещает анахроничные снаряды');
+  assert.match(requests[1].messages[1].content, /одной линии/u, 'в переделку уходит точный текст ошибки');
   assert.match(requests[1].messages[1].content, /ranged/u);
 });
 
@@ -252,7 +262,7 @@ test('кузнец Каменного века куёт ближний бой, �
   const stone = [];
   const stoneCards = loadBoth(async (url, options) => {
     stone.push(JSON.parse(options.body));
-    return modelReply(smithCard({ name: 'Копейщики брода', keywords: ['phalanx'], description: 'Держат брод копьями, пока обоз переходит реку.' }));
+    return modelReply(smithCard({ name: 'Копейщики брода', keywords: ['phalanx'], tags: ['копьё'], description: 'Держат брод копьями, пока обоз переходит реку.' }));
   }).cards;
   const melee = await stoneCards.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(0));
   assert.equal(melee.name, 'Копейщики брода');
@@ -270,28 +280,35 @@ test('кузнец Каменного века куёт ближний бой, �
 });
 
 test('советник в Каменном веке не предлагает стрельбу из тыла и засады', async () => {
-  const choices = {
+  const stoneChoices = {
     choices: [
       { card_type: 'unit', title: 'Копейщики брода', pitch: 'Держат брод строем копий.' },
-      { card_type: 'spell', title: 'Клич вождя', pitch: 'Отряды получают +1 к атаке до конца хода.' },
+      { card_type: 'spell', title: 'Клич вождя', pitch: 'Ослабляет один вражеский отряд на короткое время.' },
+    ],
+  };
+  const deepChoices = {
+    choices: [
+      { card_type: 'unit', title: 'Стражи переправы', pitch: 'Удерживают авангард, пока лучники бьют из тыла.' },
+      { card_type: 'spell', title: 'Засада в камышах', pitch: 'Ловушка ненадолго ослабляет вражеский авангард.' },
       { card_type: 'structure', title: 'Частокол у брода', pitch: 'Каждый ход бьёт по подошедшим врагам.' },
     ],
   };
   const requests = [];
+  let calls = 0;
   const { cards } = loadBoth(async (url, options) => {
     requests.push(JSON.parse(options.body));
-    return modelReply(choices);
+    return modelReply(calls++ === 0 ? stoneChoices : deepChoices);
   });
 
-  await cards.llmAdvice('gpt-6-luna', stateAt(0));
+  const stoneAdvice = await cards.llmAdvice('gpt-6-luna', stateAt(0));
   const user = requests[0].messages[1].content;
-  assert.match(user, /ОДНА ЛИНИЯ/u, 'советник знает размер стола');
-  assert.match(user, /Не предлагай стрелков/u);
-  assert.match(requests[0].messages[0].content, /авангард и тыл.*общий запас энергии/iu, 'общие правила боя на месте');
+  assert.deepEqual(stoneAdvice.map((item) => item.cardType), ['unit', 'spell']);
+  assert.match(user, /Стол Каменного века/u, 'советник знает размер стола');
+  assert.match(user, /без тыла, построек, стрелков, снарядов/iu);
+  assert.match(requests[0].messages[0].content, /общий запас энергии.*авангард и тыл/iu, 'общие правила боя на месте');
 
-  requests.length = 0;
   await cards.llmAdvice('gpt-6-luna', stateAt(1, 'sumer'));
-  assert.doesNotMatch(requests[0].messages[1].content, /ОДНА ЛИНИЯ/u, 'со второго ряда запрет снимается');
+  assert.doesNotMatch(requests[1].messages[1].content, /Стол Каменного века/u, 'со второго ряда ограничения снимаются');
 });
 
 test('списки «глубинных» слов в движке и у кузнеца совпадают, а эпоха стола считается как в бою', () => {

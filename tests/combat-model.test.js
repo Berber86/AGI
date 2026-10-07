@@ -19,7 +19,7 @@ function founded(overrides = {}) {
   });
 }
 
-test('новое состояние: пятая версия, стартовая слава, три племени и пустая колода', () => {
+test('новое состояние: седьмая версия, стартовая слава, три племени и пустая колода', () => {
   const state = Campaign.createState();
   assert.equal(state.version, Campaign.SAVE_VERSION);
   assert.equal(state.player.glory, Campaign.GLORY_START);
@@ -33,7 +33,7 @@ test('новое состояние: пятая версия, стартовая
   }
 });
 
-test('основание народа требует оба выбора и складывает имя из наследия и замысла', () => {
+test('основание народа требует оба выбора, складывает имя и не выдаёт шаблонных карт', () => {
   const base = Campaign.createState();
   assert.match(Campaign.foundCampaignState(base, { historicalCultureId: 'natufian' }).error, /замысел/iu);
   assert.match(Campaign.foundCampaignState(base, { seedId: 'field' }).error, /наследие/iu);
@@ -53,18 +53,18 @@ test('основание народа требует оба выбора и ск
   assert.match(Campaign.foundCampaignState(res.state, { seedId: 'field', historicalCultureId: 'natufian' }).error, /уже основан/iu);
 });
 
-test('колода первого боя собирается из стартовых карт по лимиту вождя', () => {
-  assert.equal(Campaign.STARTER_CARDS.length, 8, 'стартовых карт должно быть восемь: четыре слота колоды игрок выбирает сам');
+test('игрок начинает с пустой колодой, а шаблоны остаются только в NPC-ополчении', () => {
   const res = founded();
-  const cfg = Campaign.getBattleConfig(res.state);
-  assert.equal(res.state.player.deckCardIds.length, Math.min(cfg.deckLimit, Campaign.STARTER_DECK_IDS.length));
-  assert.deepEqual(res.state.player.deckCardIds, Campaign.STARTER_DECK_IDS.slice(0, cfg.deckLimit));
-  for (const id of res.state.player.deckCardIds) {
-    assert.ok(Campaign.STARTER_CARDS.some(card => card.id === id), `${id} есть среди стартовых карт`);
-  }
-  // стартовые карты проходят ту же схему, что и выкованные
-  const ids = new Set(Campaign.STARTER_CARDS.map(card => card.id));
-  assert.equal(ids.size, Campaign.STARTER_CARDS.length, 'идентификаторы стартовых карт уникальны');
+  assert.deepEqual(res.state.player.deckCardIds, [], 'основание не добавляет никаких карт игроку');
+  assert.equal(Campaign.MILITIA_CORE_CARDS.length, 8, 'NPC получает историческое ядро ополчения');
+  assert.equal(new Set(Campaign.MILITIA_CORE_CARDS.map(card => card.id)).size, Campaign.MILITIA_CORE_CARDS.length, 'ID NPC-карт уникальны');
+  assert.ok(Campaign.MILITIA_CORE_CARDS.every(card => Campaign.isNpcMilitiaCardId(card.id)), 'шаблоны помечены как NPC-only');
+  assert.equal(Campaign.getBattleConfig(res.state).openingHand, 1, 'обычная черта открывает одну карту');
+
+  const sky = founded({ seedId: 'sky' });
+  const cfg = Campaign.getBattleConfig(sky.state);
+  assert.equal(cfg.openingHand, 2, 'Знаки неба дают вторую карту в стартовую руку');
+  assert.equal(cfg.energyMax, Campaign.COMBAT_BASE.energyMax, 'черта руки отдельно тестируется и не маскируется под бонус энергии');
 });
 
 test('боевые параметры складываются из замысла, наследия и лагеря', () => {
@@ -146,24 +146,26 @@ test('наследие выводит боевой бонус из того, ч�
   assert.equal(Campaign.describePerks(Campaign.cultureCombatBonus(byId('natufian'))).join(', '), '+1 здоровье вождя');
 });
 
-test('колода: карта добавляется до лимита и убирается обратно', () => {
+test('колода принимает только карты из коллекции, соблюдает лимит и позволяет убрать карту', () => {
   const res = founded();
   const cfg = Campaign.getBattleConfig(res.state);
+  const collection = Array.from({ length: cfg.deckLimit + 1 }, (_, i) => ({ id: `card-generated-${i}` }));
+  const owned = collection.map(card => card.id);
   let state = res.state;
-  // убираем всё, что есть, и заполняем заново
-  for (const id of [...state.player.deckCardIds]) state = Campaign.toggleDeckCardState(state, id).state;
-  assert.deepEqual(state.player.deckCardIds, []);
-  for (const card of Campaign.STARTER_CARDS.slice(0, cfg.deckLimit)) {
-    const out = Campaign.toggleDeckCardState(state, card.id);
+  assert.match(Campaign.toggleDeckCardState(state, owned[0]).error, /коллекции/u, 'без списка принадлежащих карт добавление запрещено');
+  assert.match(Campaign.toggleDeckCardState(state, 'not-owned', owned).error, /коллекции/u, 'чужой ID не принимается');
+  assert.match(Campaign.toggleDeckCardState(state, Campaign.MILITIA_CORE_CARDS[0].id, owned).error, /ополчения/u, 'NPC-шаблон нельзя добавить даже при поддельном ownership');
+
+  for (const id of owned.slice(0, cfg.deckLimit)) {
+    const out = Campaign.toggleDeckCardState(state, id, owned);
     assert.equal(out.error, null);
     state = out.state;
   }
   assert.equal(state.player.deckCardIds.length, cfg.deckLimit);
-  const overflow = Campaign.toggleDeckCardState(state, Campaign.STARTER_CARDS[cfg.deckLimit].id);
+  const overflow = Campaign.toggleDeckCardState(state, owned[cfg.deckLimit], owned);
   assert.match(overflow.error, /Предел|предел|Знамя дружины/u);
   assert.equal(overflow.state.player.deckCardIds.length, cfg.deckLimit);
-  // повторное добавление той же карты — это удаление
-  const back = Campaign.toggleDeckCardState(state, state.player.deckCardIds[0]);
+  const back = Campaign.toggleDeckCardState(state, state.player.deckCardIds[0], owned);
   assert.equal(back.error, null);
   assert.equal(back.state.player.deckCardIds.length, cfg.deckLimit - 1);
 });
@@ -188,6 +190,18 @@ test('сохранение прежней кампании не переноси
   assert.equal('resources' in state.player, false);
 });
 
+test('сохранение версии 6 переносится, но его жёстко заданные карты удаляются из колоды', () => {
+  const old = founded({ seedId: 'sky' }).state;
+  old.version = 6;
+  old.player.deckCardIds = ['starter-spears', 'militia-core-spears', 'card-forged', 'card-forged'];
+  const migrated = Campaign.normalizeState(old);
+  assert.equal(migrated.version, Campaign.SAVE_VERSION);
+  assert.equal(migrated.player.onboardingComplete, true);
+  assert.equal(migrated.player.seedChoiceId, 'sky');
+  assert.deepEqual(migrated.player.deckCardIds, ['card-forged']);
+  assert.equal(Campaign.getBattleConfig(migrated).openingHand, 2);
+});
+
 test('normalizeState приводит поля прототипа и отбрасывает мусор', () => {
   const base = founded().state;
   const broken = Campaign.clone(base);
@@ -195,7 +209,7 @@ test('normalizeState приводит поля прототипа и отбра�
   broken.player.gloryTotal = 'много';
   broken.player.upgrades.max_hp = 99;
   broken.player.upgrades.deck_slots = -3;
-  broken.player.deckCardIds = ['starter-spears', 'starter-spears', 42, null, 'starter-axes'];
+  broken.player.deckCardIds = ['card-owned', 'starter-spears', 'card-owned', 42, null, 'militia-core-axes'];
   broken.player.historicalCulture = { id: 'yamnaya' };
   broken.player.wins = -4;
   broken.opponents = [{ id: 'reed', era: 9, rating: 0 }, { id: 'unknown' }];
@@ -204,7 +218,7 @@ test('normalizeState приводит поля прототипа и отбра�
   assert.equal(state.player.gloryTotal, 0);
   assert.equal(state.player.upgrades.max_hp, Campaign.CAMP_UPGRADES.max_hp.max);
   assert.equal(state.player.upgrades.deck_slots, 0);
-  assert.deepEqual(state.player.deckCardIds, ['starter-spears', 'starter-axes'], 'колода без дублей и мусора');
+  assert.deepEqual(state.player.deckCardIds, ['card-owned'], 'сохраняются только уникальные пользовательские карты, старые шаблоны ополчения удаляются');
   assert.equal(state.player.historicalCulture.id, 'yamnaya', 'наследие принимается и по идентификатору');
   assert.equal(state.player.wins, 0);
   assert.deepEqual(state.opponents.map(o => o.id), ['reed', 'steppe', 'north']);

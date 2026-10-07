@@ -12,9 +12,11 @@ import { boardLabel, boardShape } from "@/game/battle";
  * собрано на одном экране.
  */
 export default function Camp() {
-  const { game, startBattle, buyUpgrade } = useStore();
+  const { game, collection, startBattle, buyUpgrade, go } = useStore();
   const { cfg, camp, era, glory, wins, losses, streak, bestStreak } = useDerived();
   const p = game.player;
+  const ownedIds = new Set(collection.map((card) => card.id));
+  const playerDeckCount = p.deckCardIds.filter((id: string) => ownedIds.has(id)).length;
   const chronicle = (p.chronicle || []).slice(-6).reverse();
   const heritagePerks = M.describePerks(M.cultureCombatBonus(p.historicalCulture)) as string[];
   const upgradePerks = M.describePerks(p.upgrades) as string[];
@@ -42,14 +44,23 @@ export default function Camp() {
           <Panel className="paper p-5">
             <Heading title="Военный стол" eyebrow="Три племени" right={<Chip tone="neutral"><Layers size={12} />состав растёт с эпохой</Chip>} className="[&_h2]:text-lg" />
             <p className="mt-2 text-[12.5px] leading-relaxed text-dim">
-              Бой один на один: два ряда по четыре слота, общая энергия на вывод и атаку, вождь с малым запасом здоровья.
-              Победа даёт славу{streak > 1 ? ` и продолжает серию (${streak})` : ""}, поражение — лишь немного опыта.
+              Размер стола зависит от эпохи угрозы. Колода соперника равна вашей по числу карт; в начале боя у вас одна карта в руке, а у «Знаков неба» — две.
+              Победа даёт славу{streak > 1 ? ` и продолжает серию (${streak})` : ""}; поражение тоже приносит {M.GLORY_LOSS} славы.
             </p>
+            {playerDeckCount === 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bronze/40 bg-bronze/8 p-4">
+                <div className="min-w-0">
+                  <div className="font-semibold text-parch">Сначала выкуйте первую карту</div>
+                  <p className="mt-1 text-xs leading-relaxed text-dim">Колода пока пуста. Карта, созданная ИИ-кузнецом, автоматически попадёт в неё.</p>
+                </div>
+                <Btn variant="primary" onClick={() => go("forge")}><Swords size={15} />Выковать карту</Btn>
+              </div>
+            )}
             <div className="mt-4 grid gap-3">
               {game.opponents.map((o: any) => {
                 const oc = M.getOpponentBattleConfig(game, o.id);
                 const deck = M.getOpponentBattleDeck(game, o.id) as any[] | null;
-                const threat = oc.hp + oc.deckLimit * 2;
+                const threat = oc.hp + playerDeckCount * 2;
                 return (
                   <div key={o.id} className="flex flex-wrap items-center gap-4 rounded-xl border border-line bg-raised/50 p-4">
                     <span className="grid h-11 w-11 place-items-center rounded-xl bg-ground text-clay"><Crown size={20} /></span>
@@ -58,7 +69,7 @@ export default function Camp() {
                       <div className="text-xs text-faint">{o.clan} · {M.eraName(oc.era)}</div>
                       <div className="mt-1 flex flex-wrap gap-3 text-xs text-dim">
                         <span className="inline-flex items-center gap-1"><Heart size={11} />вождь {oc.hp}</span>
-                        <span className="inline-flex items-center gap-1"><Layers size={11} />{oc.deckLimit} карт</span>
+                        <span className="inline-flex items-center gap-1"><Layers size={11} />{playerDeckCount} карт — как у вас</span>
                         <span className="inline-flex items-center gap-1"><Zap size={11} />энергия до {oc.energyMax}</span>
                         <span className="inline-flex items-center gap-1" title="Стол боя растёт по эпохам: размер берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.">
                           <Grid3x3 size={11} />стол {boardLabel(boardShape(oc.threatEra))}
@@ -67,7 +78,7 @@ export default function Camp() {
                       </div>
                       <div className="mt-1 text-[11px] text-faint" title={oc.deckDescription}>{oc.deckStyle}{deck ? ` · ${deck.filter((c) => c.card_type === "unit").length} отряда, ${deck.filter((c) => c.card_type !== "unit").length} прочих` : ""}</div>
                     </div>
-                    <Btn variant="primary" onClick={() => startBattle(o.id)}><Swords size={16} />В бой</Btn>
+                    <Btn variant="primary" disabled={playerDeckCount === 0} onClick={() => startBattle(o.id)}><Swords size={16} />В бой</Btn>
                   </div>
                 );
               })}
@@ -84,6 +95,7 @@ export default function Camp() {
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
               <Stat icon={<Heart size={15} className="text-ok" />} label="Здоровье вождя" value={cfg.hp} cap={M.COMBAT_CAPS.hp} />
               <Stat icon={<Layers size={15} className="text-know" />} label="Слоты колоды" value={cfg.deckLimit} cap={cfg.deckCap ?? M.COMBAT_CAPS.deckLimit} />
+              <Stat icon={<Layers size={15} className="text-know" />} label="Начальная рука" value={cfg.openingHand} cap={2} hint="обычно 1; у «Знаков неба» — 2" />
               <Stat icon={<Zap size={15} className="text-bronze" />} label="Предел энергии" value={cfg.energyMax} cap={M.COMBAT_CAPS.energyMax} />
               <Stat icon={<Zap size={15} className="text-bronze" />} label="Прирост энергии" value={`+${cfg.energyGrowth}`} cap={`+${M.COMBAT_CAPS.energyGrowth}`} />
               <Stat icon={<Shield size={15} className="text-mat" />} label="Ходов до усталости" value={cfg.fatigueDelay} cap={M.COMBAT_CAPS.fatigueDelay} hint="с 6-го хода пустая колода бьёт вождя" />
@@ -183,11 +195,11 @@ export default function Camp() {
           <Panel className="p-5">
             <Heading title="Что дальше" className="[&_h2]:text-lg" />
             <div className="mt-3 space-y-2 text-[13px] text-dim">
-              <NextStep done={p.deckCardIds.length >= cfg.deckLimit} text={`Собрать колоду: ${p.deckCardIds.length} из ${cfg.deckLimit} слотов`} onClick={() => {}} page="army" />
+              <NextStep done={playerDeckCount >= cfg.deckLimit} text={`Собрать колоду: ${playerDeckCount} из ${cfg.deckLimit} слотов`} onClick={() => {}} page="army" />
               <NextStep done={false} text="Выковать новую карту у ИИ-кузнеца" page="forge" />
               <NextStep done={false} text={`Выйти в бой и получить славу (сейчас ${glory})`} page="camp" />
             </div>
-            <Btn variant="secondary" className="mt-4 w-full" onClick={() => startBattle(game.opponents[0].id)}>
+            <Btn variant="secondary" className="mt-4 w-full" disabled={playerDeckCount === 0} onClick={() => startBattle(game.opponents[0].id)}>
               <Swords size={16} />Быстрый бой с «{game.opponents[0].name}»<ArrowRight size={15} className="opacity-60" />
             </Btn>
           </Panel>

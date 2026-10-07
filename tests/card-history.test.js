@@ -31,7 +31,7 @@ function loadCards(fetchImpl) {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
             SEED_CHOICES: Campaign.SEED_CHOICES,
-            STARTER_CARDS: Campaign.STARTER_CARDS,
+            MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,
@@ -99,9 +99,9 @@ test('справка пишется под эпоху кампании и нас
   assert.match(system, /"history"/, 'поле справки описано в схеме ответа');
   assert.match(system, /историческ/iu);
   assert.match(system, /ЭПОХИ КАМПАНИИ|эпох[а-я]* кампании/iu, 'модели объясняют, что справка — про эпоху кампании');
-  assert.match(system, /НАСЛЕДИЯ НАРОДА/);
+  assert.match(system, /Культурное наследие — необязательный ориентир/iu, 'наследие подаётся как один из возможных образов');
   assert.match(system, /БЕЗ магии|без магии/i, 'сеттинг остаётся историческим');
-  assert.match(user, /Историческая справка/);
+  assert.match(user, /историческая справка/iu);
   assert.match(user, new RegExp(Campaign.ERAS[1]), 'в подсказку уходит название эпохи');
   assert.match(user, /Шумер/, '…и название наследия');
   assert.match(user, /Технологии эпохи:/);
@@ -155,9 +155,9 @@ test('справку чистит валидатор: битые и пустые
   assert.equal(withoutHistory.history, undefined);
 });
 
-test('карты ополчения и стартовой колоды живут без справки — она только от кузнеца', () => {
+test('шаблоны NPC-ополчения живут без справки — она только от кузнеца', () => {
   const api = loadCards(async () => modelReply(unitCard()));
-  for (const card of [...api.buildMilitia(), ...Campaign.STARTER_CARDS]) {
+  for (const card of [...api.buildMilitia(), ...Campaign.MILITIA_CORE_CARDS]) {
     assert.equal(card.history, undefined, `${card.name}: справку пишет модель, а не список`);
   }
 });

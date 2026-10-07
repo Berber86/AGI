@@ -31,7 +31,7 @@ function loadCards(fetchImpl) {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
             SEED_CHOICES: Campaign.SEED_CHOICES,
-            STARTER_CARDS: Campaign.STARTER_CARDS,
+            MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,

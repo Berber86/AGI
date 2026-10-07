@@ -7,8 +7,8 @@
  * собственным текстом и работали как слабые рукопашные. Теперь дальний бой приходит с Античного
  * мира, когда у стола появляется второй ряд.
  *
- * Здоровье соответствует хрупкому бою эпохи (1–3 HP): обоюдная гибель — нормальный размен,
- * а не ошибка баланса. ИИ учитывает ответ и не бросает отряд в заведомо убыточную атаку.
+ * Шаблоны каменного ополчения существуют только для NPC. Карты игрока создаются ИИ-кузнецом,
+ * валидатор и боевой движок удерживают их базовую и эффективную атаку в умеренных пределах.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -44,7 +44,7 @@ const C = runInVm('src/game/cards.ts', transpile('src/game/cards.ts'), {
     if (name === './model') {
       return {
         M: {
-          ERA_HISTORICAL: Campaign.ERA_HISTORICAL, HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES, SEED_CHOICES: Campaign.SEED_CHOICES, STARTER_CARDS: Campaign.STARTER_CARDS,
+          ERA_HISTORICAL: Campaign.ERA_HISTORICAL, HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES, SEED_CHOICES: Campaign.SEED_CHOICES, MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS,
           eraName: Campaign.eraName, allowedCardEras: Campaign.allowedCardEras,
           combatPerks: Campaign.combatPerks, describePerks: Campaign.describePerks,
         },
@@ -61,33 +61,27 @@ const TRIBES = ['reed', 'steppe', 'north'];
 const energyCapAt = (stage) => Campaign.COMBAT_BASE.energyMax + stage;
 const ERA_BY_STAGE = ['ancient', 'bronze', 'bronze'];
 
-test('стартовый состав игрока — рукопашный Каменный век', () => {
-  const starter = Campaign.STARTER_CARDS;
-  assert.equal(starter.length, 8, 'восемь карт стартового состава');
-  for (const card of starter) {
+test('NPC-шаблоны каменного века рукопашные и не выдаются в коллекцию игрока', () => {
+  const militiaCore = Campaign.MILITIA_CORE_CARDS;
+  assert.equal(militiaCore.length, 8, 'историческое ядро ополчения');
+  for (const card of militiaCore) {
     assert.deepEqual(depthWordsOf(card), [], `«${card.name}»: на одной линии слова глубины молчат, их не должно быть`);
     assert.notEqual(card.card_type, 'structure', `«${card.name}»: на единственной линии постройка не держит столбец и только съедает место бойца`);
     assert.equal(card.era, 'ancient', `«${card.name}»: Каменный век, а не бронза`);
     assert.ok(!/бронз/u.test(card.name + card.description), `«${card.name}»: бронзы в Каменном веке нет`);
   }
-  const units = starter.filter((c) => c.card_type === 'unit');
-  assert.equal(units.length, 7, 'семь отрядов и один манёвр');
+  const units = militiaCore.filter((c) => c.card_type === 'unit');
+  assert.equal(units.length, 7, 'семь NPC-отрядов и один манёвр');
   for (const unit of units) {
     assert.ok(unit.hp >= 1 && unit.hp <= 3, `«${unit.name}»: в Каменном веке нормальный диапазон — 1–3 HP`);
-    assert.ok(unit.atk <= 3, `«${unit.name}»: базовая атака должна оставаться читаемой и умеренной`);
+    assert.ok(unit.atk >= 1 && unit.atk <= 2, `«${unit.name}»: базовая атака каменного отряда — 1–2`);
   }
 });
 
-test('колода первого боя играбельна при пределе энергии Каменного века', () => {
-  const byId = new Map(Campaign.STARTER_CARDS.map((c) => [c.id, c]));
-  const deck = Campaign.STARTER_DECK_IDS.map((id) => byId.get(id));
-  assert.equal(deck.length, Campaign.STARTER_DECK_IDS.length, 'каждая карта колоды есть в стартовом составе');
-  assert.equal(deck.length, Campaign.COMBAT_BASE.deckLimit, 'колода первого боя равна лимиту вождя без бонусов');
-  for (const card of deck) {
-    assert.ok(card.drop_cost <= energyCapAt(0), `«${card.name}» за ${card.drop_cost} не сыграть при пределе ${energyCapAt(0)}`);
-    assert.deepEqual(depthWordsOf(card), [], `«${card.name}»: в колоде первого боя стрелков нет`);
-  }
-  assert.ok(deck.some((c) => c.drop_cost === 1), 'на первом ходу энергия всего 1 — нужна карта, которую можно сыграть сразу');
+test('шаблоны ополчения не являются источником карт для игрока', () => {
+  assert.deepEqual(C.allCards([]), [], 'пустая коллекция остаётся пустой');
+  assert.equal(C.buildMilitia().length, Campaign.MILITIA_CORE_CARDS.length + 2, 'только NPC-ополчение получает статические шаблоны');
+  assert.deepEqual(C.allCards(Campaign.MILITIA_CORE_CARDS), [], 'шаблоны NPC нельзя показать как карты игрока');
 });
 
 test('колоды племён: каменный век рукопашный, стрельба приходит со второго ряда', () => {
@@ -119,13 +113,13 @@ test('имена отрядов — исторические типы войск
   const invented = /бронзового брода|заводей|перевала|курганов|холодного тракта|горного рубежа|речной заставы|каменного пояса|каменного рубежа/u;
   const names = [];
   for (const tribe of TRIBES) for (const deck of Campaign.BARBARIAN_DECK_PROFILES[tribe].decks) for (const card of deck) names.push(card.name);
-  for (const card of Campaign.STARTER_CARDS) names.push(card.name);
+  for (const card of Campaign.MILITIA_CORE_CARDS) names.push(card.name);
   for (const name of names) {
     assert.ok(!invented.test(name), `«${name}»: выдуманный топоним вместо типа войск`);
     assert.ok(name.split(' ').length <= 3, `«${name}»: имя отряда читается с жетона, а не с абзаца`);
   }
   // Внутри одного боя встречаются только одна колода племени и колода игрока: имена не должны сливаться.
-  const mine = new Set(Campaign.STARTER_CARDS.map((c) => c.name));
+  const mine = new Set(Campaign.MILITIA_CORE_CARDS.map((c) => c.name));
   for (const tribe of TRIBES) {
     for (const deck of Campaign.BARBARIAN_DECK_PROFILES[tribe].decks) {
       for (const card of deck) assert.ok(!mine.has(card.name), `${tribe} «${card.name}»: у игрока уже есть отряд с таким именем — журнал станет нечитаемым`);
@@ -133,13 +127,90 @@ test('имена отрядов — исторические типы войск
   }
 });
 
-test('ополчение — тот же стартовый состав, но другими именами', () => {
+test('ополчение — историческое NPC-ядро и бронзовые подкрепления', () => {
   const militia = C.buildMilitia();
-  assert.equal(militia.length, Campaign.STARTER_CARDS.length + 2, 'стартовый состав плюс две бронзовые карты');
+  assert.equal(militia.length, Campaign.MILITIA_CORE_CARDS.length + 2, 'NPC-ядро плюс две бронзовые карты');
   assert.equal(militia.filter((c) => depthWordsOf(c).length && c.era === 'ancient').length, 0, 'в каменном ополчении стрелков нет');
   const renamed = militia.map((c) => c.name);
   assert.equal(new Set(renamed).size, renamed.length, 'имена ополчения не повторяются');
-  for (const card of Campaign.STARTER_CARDS) assert.ok(renamed.includes(card.name), `«${card.name}» приходит из стартового состава`);
+  for (const card of Campaign.MILITIA_CORE_CARDS) assert.ok(renamed.includes(card.name), `«${card.name}» приходит из NPC-ядра`);
+});
+
+test('Stone-age text validation catches bolt-throwers and any named throwing weapon', () => {
+  for (const name of ['Стреломёт племени', 'Метатель копий', 'Копьемётчик', 'Пращники']) {
+    assert.ok(C.oneLineTextViolation({ name }).length > 0, `«${name}» не просачивается в рукопашную эпоху`);
+  }
+});
+
+test('AI-генерация для Каменного века отклоняет оружие дальнего боя и режет характеристики', async () => {
+  const generated = (extra = {}) => ({
+    name: 'Метатели', card_type: 'unit', era: 'ancient', emoji: '🪨', drop_cost: 2, action_cost: 1,
+    hp: 8, atk: 9, description: 'Стреломёт обстреливает вражеский строй.', tags: [], abilities: [],
+    keywords: ['charge'], effects: [], monkey_paw: '', history: { title: 'Метательная машина', text: 'Стрелы летят через строй.' },
+    ...extra,
+  });
+  const state = Campaign.foundCampaignState(Campaign.createState(), { seedId: 'field', historicalCultureId: 'natufian' }).state;
+  const requestBodies = [];
+  const api = runInVm('src/game/cards.ts', transpile('src/game/cards.ts'), {
+    fetch: async (_url, init) => {
+      requestBodies.push(JSON.parse(init.body));
+      const raw = requestBodies.length < 3
+        ? generated()
+        : generated({ name: 'Каменные копейщики', description: 'Сомкнутый строй держит брод.', hp: 3, atk: 2,
+          history: { title: 'Кремнёвое копьё', text: 'Кремень укрепляет древко для ближнего боя.' } });
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify(raw) } }] }) };
+    },
+    require(name) {
+      if (name === './model') return { M: { ERA_HISTORICAL: Campaign.ERA_HISTORICAL, HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
+        SEED_CHOICES: Campaign.SEED_CHOICES, MILITIA_CORE_CARDS: Campaign.MILITIA_CORE_CARDS, isNpcMilitiaCardId: Campaign.isNpcMilitiaCardId,
+        eraName: Campaign.eraName, allowedCardEras: Campaign.allowedCardEras, combatPerks: Campaign.combatPerks, describePerks: Campaign.describePerks } };
+      throw new Error(name);
+    },
+  });
+  const card = await api.llmCard('gpt-6-luna', { id: 'unit', cardType: 'unit', title: 'Стражи брода', pitch: 'Держат строй.' }, 'ordinary', state);
+  assert.equal(requestBodies.length, 3, 'две версии со стреломётом бракуются до принятия исправленной карты');
+  assert.ok(card.atk <= 2 && card.hp <= 3, 'валидатор удерживает каменные базовые параметры');
+  assert.ok(card.drop_cost <= 2 && card.action_cost >= 1, 'каменный отряд не бесплатный и не требует чрезмерной энергии на действие');
+  assert.match(requestBodies[0].messages[0].content, /стреломёты/u, 'запрет явно включён в компактный системный промпт');
+});
+
+test('каменный манёвр — один умеренный эффект на одну цель; отряд не складывает усилители атаки', () => {
+  const spell = (effects, drop_cost = 2) => ({
+    name: 'Короткий манёвр', card_type: 'spell', era: 'ancient', emoji: '🪨', drop_cost, action_cost: 0,
+    hp: 0, atk: 0, description: 'Ненадолго ослабляет один вражеский отряд.', tags: [], abilities: [],
+    keywords: [], effects, monkey_paw: '',
+  });
+  const damage = (amount, target = { side: 'enemy', entity: 'unit', select: 'first' }) => ({
+    event: 'enter_play', target, action: { type: 'damage', amount },
+  });
+  const validate = (effects, cost) => C.validateCard(spell(effects, cost), 'spell', ['ancient'], 'rare', 'none', { oneLine: true });
+  assert.doesNotThrow(() => validate([damage(2)], 2), 'урон не выше двух по одной цели допустим');
+  assert.throws(() => validate([damage(3)], 2), /предел 2/u, 'камень не получает сильное заклинание даже из-за редкости');
+  assert.throws(() => validate([damage(1, { side: 'enemy', entity: 'unit', select: 'all' })], 2), /только одну цель/u);
+  assert.throws(() => validate([damage(1, { side: 'enemy', entity: 'unit', count: 2 })], 2), /только одну цель/u);
+  assert.throws(() => validate([damage(1), damage(1)], 2), /ровно один скромный эффект/u);
+
+  const paid = spell([{
+    event: 'enter_play', target: { side: 'friendly', entity: 'unit', select: 'first' },
+    action: { type: 'apply_status', status: 'burn', amount: 2, turns: 3 },
+  }], 2);
+  paid.monkey_paw = 'Свой отряд горит три хода.';
+  paid.history = { title: 'Пепельный обряд', text: 'Обряд требует сжечь припасы и терпеть жар в собственном строю.' };
+  assert.doesNotThrow(() => C.validateCard(paid, 'spell', ['ancient'], 'ordinary', 'harsh', { oneLine: true }),
+    'проверяемая жёсткая плата может дать ограниченную надбавку, не блокируя первую ковку');
+
+  const unit = C.validateCard({
+    name: 'Копейщики', card_type: 'unit', era: 'ancient', emoji: '🔺', drop_cost: 2, action_cost: 0,
+    hp: 99, atk: 99, description: 'Держат линию.', tags: [], abilities: [],
+    keywords: ['charge'], effects: [], monkey_paw: '',
+  }, 'unit', ['ancient'], 'rare', 'none', { oneLine: true });
+  assert.ok(unit.hp <= 3 && unit.atk <= 2);
+  assert.equal(unit.action_cost, 1);
+  assert.throws(() => C.validateCard({
+    name: 'Копейщики', card_type: 'unit', era: 'ancient', emoji: '🔺', drop_cost: 2, action_cost: 1,
+    hp: 3, atk: 2, description: 'Держат линию.', tags: [], abilities: [],
+    keywords: ['charge', 'phalanx'], effects: [], monkey_paw: '',
+  }, 'unit', ['ancient'], 'ordinary', 'none', { oneLine: true }), /усилителей атаки/u, 'двойной усилитель атаки отклоняется');
 });
 
 test('постройка стреляет своей атакой, а стена без атаки не стреляет вовсе', () => {

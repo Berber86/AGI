@@ -370,6 +370,11 @@ test('линия фронта помечает бреши, а правила о�
   const cfg = { hp: 20, energyMax: 10, energyGrowth: 2, fatigueDelay: 0, atkBonus: 0 };
   const match = { kind: 'practice', opponentId: 'steppe', name: 'Тархан', clan: 'Степной Союз', era: 0, threatEra: 2, leaderBattle: false };
   const b = app.battle.createBattle([foot, foot, foot], cfg, [foot, foot, foot], { ...cfg }, match);
+  // Тест сцены ставит несколько карт до передачи хода; добираем оставшиеся вручную, не меняя игровой старт в 1 карту.
+  for (const side of ['me', 'enemy']) {
+    const target = Math.min(4, b[side].hand.length + b[side].deck.length);
+    while (b[side].hand.length < target) b[side].hand.push(b[side].deck.shift());
+  }
 
   // Пустое поле — начало боя, а не «брешь»: пометок нет.
   const empty = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'GapStrip', { b, side: 'enemy', compact: false })).join(' ');
