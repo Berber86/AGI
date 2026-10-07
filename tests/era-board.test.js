@@ -300,14 +300,14 @@ test('«длинное оружие» из глубины достаёт тол�
 });
 
 test('постройки обстреливают ближайший занятый ряд, а не только авангард', () => {
-  const b = battleAt(3, [card('Частокол', { card_type: 'structure', atk: 0, action_cost: 0, hp: 4 })], [card('Второй ряд')]);
-  place(b, 'me', 'Частокол', 'back', 0);
+  const b = battleAt(3, [card('Дозорная вышка', { card_type: 'structure', atk: 2, action_cost: 0, hp: 4 })], [card('Второй ряд')]);
+  place(b, 'me', 'Дозорная вышка', 'back', 0);
   putUnit(b, 'enemy', 'Второй ряд', 1, 2);
   const before = unitAt(b, 'enemy', 1, 2).curHp;
 
   api.beginEnemyTurn(b);
   api.beginPlayerTurn(b);
-  assert.equal(unitAt(b, 'enemy', 1, 2).curHp, before - 1, 'авангард врага пуст — обстрел идёт по следующему ряду');
+  assert.equal(unitAt(b, 'enemy', 1, 2).curHp, before - 2, 'авангард врага пуст — обстрел идёт по следующему ряду');
   assert.match(b.log.map((l) => l.text).join(' '), /обстреливает «Второй ряд»/u);
 });
 

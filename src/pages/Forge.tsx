@@ -191,26 +191,32 @@ export default function Forge() {
         </aside>
       </div>
 
-      <Modal open={!!reveal} onClose={() => setReveal(null)} title="Новая карта">
+      <Modal
+        open={!!reveal}
+        onClose={() => setReveal(null)}
+        title="Новая карта"
+        footer={reveal && (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Btn variant="primary" size="lg" className="min-h-14 w-full flex-1 px-4" onClick={() => setReveal(null)}>Принять карту</Btn>
+            <Btn size="lg" className="min-h-14 w-full flex-1 px-4" onClick={() => { setReveal(null); go("army"); }}>В колоду</Btn>
+          </div>
+        )}
+      >
         {reveal && (
           <div className="flex flex-col items-center">
             <Label className="mb-1">Новая карта в коллекции</Label>
-            <h2 className="font-display mb-2 text-2xl font-semibold">{RARITY_INFO[reveal.rarity ?? "ordinary"].label} карта выкована</h2>
+            <h2 className="font-display mb-2 text-center text-2xl font-semibold">{RARITY_INFO[reveal.rarity ?? "ordinary"].label} карта выкована</h2>
             <p className="mb-4 max-w-[330px] text-center text-[12.5px] leading-relaxed text-dim">
               {reveal.monkey_paw
                 ? <>🐾 <b className="text-bad">Лапа обезьяны сработала.</b> Кузнец взял плату — и она же сделала карту сильнее.</>
                 : "Кузнец не взял платы: карта пришла чистой."}
             </p>
-            <div className="w-[270px]"><CardFace card={reveal} detailed historyOpen /></div>
+            <div className="w-[270px] max-w-full"><CardFace card={reveal} detailed historyOpen /></div>
             {reveal.history && (
               <p className="mt-4 max-w-[330px] text-center text-[12px] leading-relaxed text-faint">
                 Справка привязана к эпохе «{reveal.history.era}»{reveal.history.culture ? ` и наследию «${reveal.history.culture}»` : ""} — она останется с картой в коллекции.
               </p>
             )}
-            <div className="mt-6 flex w-full gap-3">
-              <Btn className="flex-1" onClick={() => setReveal(null)}>Продолжить</Btn>
-              <Btn variant="primary" className="flex-1" onClick={() => { setReveal(null); go("army"); }}>В колоду</Btn>
-            </div>
           </div>
         )}
       </Modal>

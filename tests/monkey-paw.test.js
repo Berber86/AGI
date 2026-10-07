@@ -30,8 +30,8 @@ function loadCards(fetchImpl) {
           M: {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
-            ORIGINS: Campaign.ORIGINS,
             SEED_CHOICES: Campaign.SEED_CHOICES,
+            STARTER_CARDS: Campaign.STARTER_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,
@@ -286,6 +286,9 @@ test('последняя переделка принимает плату люб
   const card = await smith.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh');
   assert.equal(requests.length, 3, 'две строгие переделки, затем ковка принимается');
   assert.ok(card.monkey_paw, 'игрок получил карту с настоящей платой, а не возврат славы');
+  // Кузнец знает, что постройка стреляет своей атакой: иначе он скуёт частокол с atk 0 и будет ждать обстрела.
+  assert.match(requests[0].messages[0].content, /atk от 0 до 4: 0 — стена \(не стреляет\), 1 и выше — обстрел каждый ход/u,
+    'системный промпт кузнеца объясняет атаку постройки');
 });
 
 test('плата оплачивает силу: карта с жёсткой платой получает больший бюджет', () => {

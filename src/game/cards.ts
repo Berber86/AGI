@@ -224,22 +224,20 @@ function mk(p: Partial<Card> & { name: string; card_type: CardType }): Card {
   } as Card;
 }
 
+/**
+ * Ополчение — стартовый состав игрока (STARTER_CARDS в campaign.js) плюс две бронзовые карты,
+ * которые появляются у дозоров с Античного мира. Числа берём из одного источника: раньше здесь
+ * жила отдельная копия стартовых карт, и она разъехалась — на столе Каменного века в одну линию
+ * у ополчения оказались стрелки, чьи слова всё равно молчат.
+ */
+const BRONZE_MILITIA: Card[] = [
+  mk({ name: "Бронзовые наёмники", card_type: "unit", era: "bronze", emoji: "⚔️", drop_cost: 3, action_cost: 2, atk: 3, hp: 5, description: "Бронзовые мечи пробивают щиты.", keywords: ["pierce:1"] }),
+  mk({ name: "Военный лагерь", card_type: "structure", era: "bronze", emoji: "⛺", drop_cost: 3, atk: 0, hp: 5, description: "Лагерь поднимает дух соседей и не стреляет.", keywords: ["rally"] }),
+];
+
 export function buildMilitia(): Card[] {
-  return [
-    mk({ name: "Племенные копейщики", card_type: "unit", emoji: "🔺", drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: "Ополчение с копьями держит строй.", keywords: ["phalanx"] }),
-    mk({ name: "Пращники из холмов", card_type: "unit", emoji: "🪨", drop_cost: 1, action_cost: 1, atk: 1, hp: 1, description: "Бросают камни из-за спин пехоты.", keywords: ["ranged", "skirmish"] }),
-    mk({ name: "Охотники с луками", card_type: "unit", emoji: "🏹", drop_cost: 2, action_cost: 1, atk: 2, hp: 1, description: "Лучники бьют издалека, избегая боя.", keywords: ["ranged"] }),
-    mk({ name: "Топорники племени", card_type: "unit", emoji: "🪓", drop_cost: 2, action_cost: 1, atk: 3, hp: 3, description: "Каменные топоры и кожаные щиты.", keywords: ["wedge", "armor:1"] }),
-    mk({ name: "Разведчики на лошадях", card_type: "unit", emoji: "🐎", drop_cost: 3, action_cost: 1, atk: 3, hp: 2, description: "Лёгкая конница, стремительный натиск.", keywords: ["charge", "skirmish"] }),
-    mk({ name: "Дружина вождя", card_type: "unit", emoji: "🛡️", drop_cost: 3, action_cost: 2, atk: 3, hp: 5, description: "Элитные воины прикрывают вождя стеной щитов.", keywords: ["shieldwall", "taunt", "morale"] }),
-    mk({ name: "Частокол", card_type: "structure", emoji: "🧱", drop_cost: 2, atk: 0, hp: 5, description: "Деревянное заграждение преграждает проход." }),
-    mk({
-      name: "Ночной набег", card_type: "spell", emoji: "🌙", drop_cost: 2, description: "Поджигает вражеский авангард.",
-      effects: [{ event: "enter_play", target: { side: "enemy", entity: "unit", zone: "front", select: "highest_attack", count: 1 }, action: { type: "apply_status", status: "burn", amount: 1, turns: 2 } }],
-    }),
-    mk({ name: "Бронзовые наёмники", card_type: "unit", era: "bronze", emoji: "⚔️", drop_cost: 3, action_cost: 2, atk: 3, hp: 4, description: "Бронзовые мечи пробивают щиты.", keywords: ["pierce:1"] }),
-    mk({ name: "Военный лагерь", card_type: "structure", emoji: "⛺", drop_cost: 3, atk: 0, hp: 4, description: "Лагерь поднимает дух соседей.", keywords: ["rally"] }),
-  ];
+  const starter = ((M.STARTER_CARDS as any[]) || []).map((c) => ({ ...c })) as Card[];
+  return [...starter, ...BRONZE_MILITIA];
 }
 
 /** Учебный бой: враг приходит без построек, чтобы новичка не били бесплатно из тыла. */
@@ -491,7 +489,9 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
   if (!allowedEras.includes(c.era)) c.era = allowedEras[0];
   for (const f of ["drop_cost", "action_cost", "hp", "atk"]) int(c[f], 0, 99, f);
   if (c.card_type === "spell") { c.hp = 0; c.atk = 0; c.action_cost = 0; }
-  if (c.card_type === "structure") { c.atk = 0; c.action_cost = 0; if (c.hp < 1) throw new Error("У постройки нужно хотя бы 1 HP."); }
+  // Постройка не ходит и не атакует как отряд, но может стрелять: atk 0 — это стена или склад,
+  // atk 1…4 — башня или орудие, которое каждый ход обстреливает врага (урон гасит броня, ответа нет).
+  if (c.card_type === "structure") { c.atk = Math.min(4, Math.max(0, c.atk)); c.action_cost = 0; if (c.hp < 1) throw new Error("У постройки нужно хотя бы 1 HP."); }
   if (c.card_type === "unit" && c.hp < 1) throw new Error("У отряда должно быть хотя бы 1 HP.");
   if (typeof c.description !== "string" || !c.description.trim()) throw new Error("Нужно описание карты.");
   c.description = c.description.slice(0, 400);
@@ -550,7 +550,7 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity, severity);
     if (power > budget) {
       const scale = budget / power;
-      if (c.card_type !== "structure") c.atk = Math.max(0, Math.round(c.atk * scale));
+      c.atk = Math.max(0, Math.round(c.atk * scale));
       c.hp = Math.max(1, Math.round(c.hp * scale));
     }
   }
@@ -630,12 +630,12 @@ export function eraContextOf(state: any): { label: string; desc: string; culture
 export function contextOf(state: any): string {
   const p = state.player;
   const era = eraContextOf(state);
-  const origin = (M.ORIGINS as any[]).find((o) => o.id === p.originId) || null;
+  // Двух свойств народа хватает на образ: «Земля» дублировала замысел (тот же боевой бонус),
+  // а имя народа уже сложено из наследия и замысла — оно идёт модели первой строкой.
   const seed = (M.SEED_CHOICES as any[]).find((s) => s.id === p.seedChoiceId) || null;
   const perks = M.describePerks(M.combatPerks(state)) as string[];
   return [
     `Народ: ${p.name} (${p.clan})`,
-    origin && `Земля: ${origin.name} — ${origin.place}.${origin.historical ? " " + origin.historical : ""}`,
     seed && `Замысел народа: «${seed.line || seed.name}»`,
     p.historicalCulture && `Наследие: ${p.historicalCulture.name} — ${p.historicalCulture.desc || ""}`,
     `Эпоха: ${era.label}${era.desc ? ` — ${era.desc}` : ""}`,
@@ -669,7 +669,7 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
 Предложи ровно три разных замысла, строго по одному каждого типа:
 - unit — боец или воинское подразделение, которое выходит на поле и атакует; в pitch назови его тактическую роль: натиск, удержание линии, защита союзника, стрельба из тыла, засада или осада.
 - spell — разовый манёвр, который немедленно меняет ход боя: удар, ловушка, поджог/яд, лечение, усиление бойца или воздействие на энергию/руку. Никакого урожая, ремесленного производства или подготовки к будущему походу.
-- structure — именно боевая постройка/орудие в тылу, а не гражданское здание. В этой игре постройка остаётся в тылу и каждый ход обстреливает вражеский авангард или вождя; её замысел должен усиливать эту постоянную боевую роль или поддерживать войска.
+- structure — именно боевая постройка/орудие в тылу, а не гражданское здание. В этой игре постройка остаётся в последнем ряду, не двигается и не атакует как отряд. Если у неё atk ≥ 1, она каждый ход обстреливает ближайший вражеский отряд или вождя: урон равен atk, броня его гасит, ответа на обстрел нет. Постройка с atk = 0 не стреляет вовсе — это стена, склад или лагерь, она держит место в тылу и поддерживает войска ключевыми словами (rally, screen, command). Замысел постройки — либо постоянный обстрел, либо поддержка войска; не делай из неё ни пустое украшение, ни второе войско.
 В каждом pitch — одно короткое предложение с конкретным боевым действием и его целью/результатом. Не ограничивайся предысторией, бытом или тем, что народ «готовится», «сеет», «строит на будущее» или «собирается в путь»: сразу объясни, что карта делает на поле боя. Не предлагай сельское хозяйство, доход поселения, торговлю, погребения, дальнюю дорогу и долгосрочное развитие как самостоятельный эффект карты. Контекст народа — вдохновение для тактики, не задача карты.
 Ответ — строго JSON: {"choices":[{"card_type":"unit|spell|structure","title":"короткое название","pitch":"одно предложение о тактической роли в бою"}]}. Язык — русский, исторический сеттинг без магии и фэнтези.`,
     user: `Нужны три боевые идеи для колоды — по одному unit, spell и structure. Преврати особенности народа в тактику одного сражения: контекст ниже нужен для исторического образа, а не для проектов хозяйства или долгой жизни поселения.
@@ -710,7 +710,7 @@ effects[] — объекты {event, target, action, condition?, watch?}:
  target: {side: friendly|controller|enemy|opponent|either, entity: unit|structure|permanent|player, zone?: front|rear|flank|center|any, relation?: any|self|adjacent|attack_target|attack_target_row|attack_target_column (ряд и столбец цели удара — только для события attack), select?: first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random (all — абсолютно все подходящие цели сразу, игнорирует count; random — count случайных целей), count?: 1-3}
  action.type: damage(amount 1-12) | heal(1-8) | apply_status(status poison|burn|suppress, amount 1-5, turns 1-3; suppress — удорожание атаки цели на amount, а не урон) | destroy | modify_resource(resource energy, amount -5..5; target player; старые drop/action читаются как энергия) | modify_stat(stat attack|armor|max_hp, amount -3..3, turns? 1-3) | modify_cost(cost "action", amount -3..3, turns?) | draw/scry(amount 1-5, target player) | discard/exchange(amount 1-5, choice highest_cost|lowest_cost, target player).
 condition (необязательное поле эффекта) помимо target_wounded/target_status/target_stat/resource теперь поддерживает board_count: {type:"board_count", side: controller|opponent, op: eq|ne|lt|lte|gt|gte, value: 0-8} — количество живых отрядов на стороне.
-У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки atk=0, action_cost=0, hp≥1. У отряда hp≥1.
+У манёвра hp=0, atk=0, action_cost=0 и минимум один эффект enter_play. У постройки action_cost=0, hp≥1 и atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — обстрел каждый ход. У отряда hp≥1.
 Про историческую справку (поле history — ОБЯЗАТЕЛЬНО, пиши его последним): {"title":"","text":""}.
  title (до 70 знаков) — настоящий прототип карты: конкретная находка, место, обычай, род войск или звание ЭПОХИ КАМПАНИИ и НАСЛЕДИЯ НАРОДА из контекста («Курганные погребения ямной культуры», «Бронзовый кинжал из Арслантепе», «Янычарская мушкетная шеренга»).
  text (2–4 предложения, до 480 знаков) — зачем эта вещь или обычай существовали именно в эту эпоху у этого народа: из чего и какими технологиями эпохи её делали, кем были эти люди, чем она была в быту и почему на поле боя карта ведёт себя так, как у неё записано (её числа, ключевые слова, эффекты).

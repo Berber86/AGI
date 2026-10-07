@@ -140,15 +140,15 @@ function newPlayer(deck: Card[], cfg: SideConfig, shape: BoardShape): Player {
   };
 }
 
-// вражеское ополчение говорит своими именами: «Племенные копейщики атакует „Племенные копейщики"» в журнале нечитаемо
+// вражеское ополчение говорит своими именами: «Копейщики атакует „Копейщики“» в журнале нечитаемо
 const ENEMY_MILITIA_NAMES: Record<string, string> = {
-  "Племенные копейщики": "Налётчики с копьями",
-  "Пращники из холмов": "Пращники разбойников",
-  "Охотники с луками": "Стрелки из засады",
-  "Топорники племени": "Топоры мародёров",
-  "Разведчики на лошадях": "Всадники-загонщики",
+  "Копейщики": "Налётчики с копьями",
+  "Дубинщики": "Дубинщики разбойников",
+  "Топорники": "Топоры мародёров",
+  "Щитоносцы": "Щитоносцы разбойников",
+  "Всадники": "Всадники-загонщики",
+  "Загонщики": "Облавщики",
   "Дружина вождя": "Стража атамана",
-  "Частокол": "Баррикады",
   "Ночной набег": "Поджог лагеря",
   "Бронзовые наёмники": "Бронзовые головорезы",
   "Военный лагерь": "Стоянка грабителей",
@@ -269,7 +269,8 @@ const has = (u: Unit | null | undefined, k: string) => !!(u && u.st && u.st[k]);
  * Ключевые слова, которым нужна глубина стола: стрельба из-за спин, засада и «длинное оружие».
  * В Каменном веке стол — одна линия в три клетки: тыла нет, прятать стрелков не за кем и стрелять
  * не из-за кого, поэтому дальнего боя там нет вовсе — все отряды бьются врукопашную (бьют того, кто
- * напротив, затем ближайшего в линии, при пустой линии — вождя) и получают ответный удар.
+ * напротив, затем ближайшего в линии, при пустой линии — вождя) и получают ответный удар: обмен
+ * одновременный, защитник отвечает даже тогда, когда этот удар его убивает.
  * Тот же список в cards.ts (ONE_LINE_KEYWORDS) использует кузнец: пока стол не вырос до второго
  * ряда, он не куёт стрелков. Тест сверяет оба списка, чтобы они не разъехались.
  */
@@ -644,8 +645,10 @@ export function canAct(b: Battle, side: Side, u: Unit): boolean {
 
 /* ---------- удар ---------- */
 
-function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attackerSide: Side): number {
-  const wasAlive = target.curHp > 0;
+/** Чистый расчёт урона удара. AI вызывает его для прогноза размена без изменения стола. */
+function calculateHitDamage(
+  b: Battle, attacker: Unit, target: Unit, base: number, attackerSide: Side, markSturdy = true,
+): number {
   let dmg = base;
   if (attacker.era === "bronze" && target.era === "ancient") dmg += 1;
   if (attacker.era === "ancient" && target.era === "bronze") dmg = Math.max(1, dmg - 1);
@@ -660,10 +663,18 @@ function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attac
     if (tp) dmg += spotterBonus(b, attackerSide, tp.i, attacker);
   }
   if (has(target, "shieldwall") && neighborsOf(b, target).length >= 1) dmg = Math.max(1, dmg - 1);
-  if (has(target, "sturdy") && !target.hitThisTurn) { dmg = Math.max(1, dmg - 1); target.hitThisTurn = true; }
+  if (has(target, "sturdy") && !target.hitThisTurn) {
+    dmg = Math.max(1, dmg - 1);
+    if (markSturdy) target.hitThisTurn = true;
+  }
   if (target.isStructure && has(attacker, "siege")) dmg *= 2;
+  return Math.max(1, Math.floor(dmg));
+}
+
+function resolveHit(b: Battle, attacker: Unit, target: Unit, base: number, attackerSide: Side): number {
+  const wasAlive = target.curHp > 0;
+  const dmg = calculateHitDamage(b, attacker, target, base, attackerSide);
   if (has(attacker, "fear") && Math.random() < 0.25 && !(has(target, "holdground") && target.fresh) && !has(target, "unbreakable")) target.fears = true;
-  dmg = Math.max(1, Math.floor(dmg));
   hurtUnit(b, target, dmg, attacker);
 
   const defenderSide = opp(attackerSide);
@@ -788,7 +799,7 @@ export function splashTargets(b: Battle, side: Side, attacker: Unit, target: Att
 }
 
 /** Урон по площади: броня и «рассредоточение» гасят его, а бонусы атакующего (рывок, трофеи, страх) — нет. */
-function areaDamage(b: Battle, attacker: Unit, side: Side, u: Unit, base: number): number {
+function areaDamage(b: Battle, attacker: Unit, side: Side, u: Unit, base: number, markSturdy = true): number {
   let dmg = base;
   if (attacker.era === "bronze" && u.era === "ancient") dmg += 1;
   if (attacker.era === "ancient" && u.era === "bronze") dmg = Math.max(1, dmg - 1);
@@ -797,7 +808,10 @@ function areaDamage(b: Battle, attacker: Unit, side: Side, u: Unit, base: number
   dmg = Math.max(1, dmg - Math.max(0, armorOf(b, u) - (attacker.st.pierce || 0)));
   if (has(u, "dispersed")) dmg = Math.max(1, dmg - 1);
   if (has(u, "shieldwall") && neighborsOf(b, u).length >= 1) dmg = Math.max(1, dmg - 1);
-  if (has(u, "sturdy") && !u.hitThisTurn) { dmg = Math.max(1, dmg - 1); u.hitThisTurn = true; }
+  if (has(u, "sturdy") && !u.hitThisTurn) {
+    dmg = Math.max(1, dmg - 1);
+    if (markSturdy) u.hitThisTurn = true;
+  }
   if (u.isStructure && has(attacker, "siege")) dmg *= 2;
   return Math.max(1, Math.floor(dmg));
 }
@@ -829,6 +843,12 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
   } else {
     const t = target.unit;
     const defenderSide = target.side;
+    // Обмен ударами одновременный: защитник отвечает, даже если этот удар его убивает. Силу ответа
+    // считаем до урона — иначе бонусы умирающего отряда (клин, последний рубеж, заряд, стена щитов)
+    // пересчитались бы по искалеченному составу и ответ зависел от порядка строк в журнале.
+    // Отвечает только живой отряд и только рукопашному удару: постройка не дерётся, а стрелка
+    // в глубине стола достать нечем. Уклонившаяся засада не бьёт и не получает удара вовсе.
+    const counterBase = !isRanged(b, attacker) && t.curHp > 0 && !t.isStructure ? atkOf(b, t) : 0;
     // Засадный боец в авангарде уклоняется в тыл от ближнего боя ДО обмена ударами — урона не будет ни ему, ни атакующему.
     // Уклониться в тыл можно, только если тыл — отдельный ряд: в Каменном веке линия одна.
     const dodgeRow = rowArray(b[defenderSide], rowCount(b[defenderSide]) - 1);
@@ -851,11 +871,8 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
           log(b, side, `${attacker.name} рассекает ещё и «${n.name}»: −${cd}.`);
         }
       }
-      let counter = 0;
-      if (!isRanged(b, attacker) && t.curHp > 0 && !t.isStructure) {
-        const cb = atkOf(b, t);
-        if (cb > 0) counter = resolveHit(b, t, attacker, cb, opp(side));
-      }
+      // Ответ приходит и по мёртвому телу: урон обмена наносится одновременно.
+      const counter = counterBase > 0 ? resolveHit(b, t, attacker, counterBase, opp(side)) : 0;
       // Выстрел через живой авангард — это отдельная ситуация: иначе непонятно, почему стрелок
       // из тыла бьёт не тех, кто стоит напротив.
       const overFront = isRanged(b, attacker) && target.ri > 0 && !!rowArray(b[defenderSide], 0).find((u) => u && u.curHp > 0);
@@ -863,7 +880,7 @@ export function attackWith(b: Battle, side: Side, iid: string): boolean {
       // Площадь — после основного удара: читатель журнала сначала видит, кто кого ударил, а потом
       // кого ещё накрыло. Ответных ударов она не вызывает (как и «рассечение»).
       applySplash(b, side, attacker, target);
-      // Месть: погибший в этом обмене ударами отряд наносит ответный удар своему убийце, если тот ещё жив.
+      // Месть: погибший в этом обмене отряд наносит сверх своего ответа ещё один удар убийце, если тот жив.
       // Пока охватывает только прямой ближний/дальний бой (resolveHit выше и ниже), а не урон от заклинаний/статусов.
       if (t.curHp <= 0 && has(t, "vengeance") && attacker.curHp > 0) {
         const v = t.st.vengeance;
@@ -1233,11 +1250,23 @@ function firstAlive(b: Battle, es: Side): UnitTarget | null {
 function fireStructures(b: Battle, side: Side) {
   for (const s of unitsOf(b, side).filter((x) => x.unit.isStructure)) {
     if (b.over) return;
+    const shooter = s.unit;
+    // Стреляет только постройка с атакой: частокол или обоз — стена и склад, а не орудие, и раньше
+    // они бесплатно снимали по 1 HP каждый ход в обход брони. Урон идёт через resolveHit, поэтому
+    // броня, пробой и эпоха работают как в обычном бою. Ответа на обстрел нет: до тыла не достать.
+    const base = atkOf(b, shooter);
+    if (base <= 0) continue;
     const es = opp(side);
     // Обстрел идёт по первому живому отряду в ближайшем ряду: на глубоком столе это не обязательно авангард.
     const t = firstAlive(b, es);
-    if (t) { hurtUnit(b, t.unit, 1, s.unit); log(b, side, `«${s.unit.name}» обстреливает «${t.unit.name}»: −1.`); }
-    else { hurtHero(b, es, 1); log(b, side, `«${s.unit.name}» обстреливает ${es === "me" ? "вас" : "вражеского вождя"}: −1.`); }
+    if (t) {
+      const d = resolveHit(b, shooter, t.unit, base, side);
+      log(b, side, `«${shooter.name}» обстреливает «${t.unit.name}»: −${d}.`);
+    } else {
+      const d = Math.max(1, base);
+      hurtHero(b, es, d);
+      log(b, side, `«${shooter.name}» обстреливает ${es === "me" ? "вас" : "вражеского вождя"}: −${d}.`);
+    }
     settle(b);
   }
 }
@@ -1358,6 +1387,101 @@ export function beginEnemyTurn(b: Battle) {
   startTurn(b, "enemy");
 }
 
+/* ---------- ИИ соперника: оценка размена перед ударом ---------- */
+
+/** Условная ценность отряда: стоимость высадки, текущая угроза и ключевые роли. */
+function aiUnitValue(b: Battle, u: Unit): number {
+  let value = 1.25 + Math.max(0, u.drop_cost) * 0.55 + Math.max(0, atkOf(b, u)) * 0.32 + Math.max(1, u.hp) * 0.12;
+  if (has(u, "taunt")) value += 0.35;
+  if (has(u, "ranged") || has(u, "skirmish")) value += 0.3;
+  if (has(u, "heal") || has(u, "command") || has(u, "screen")) value += 0.25;
+  if (has(u, "vengeance") || has(u, "relentless")) value += 0.2;
+  return value;
+}
+
+function aiUnitLoss(b: Battle, u: Unit, damage: number): number {
+  const dealt = Math.min(Math.max(0, u.curHp), Math.max(0, damage));
+  if (dealt === 0) return 0;
+  const value = aiUnitValue(b, u);
+  const loss = value * dealt / Math.max(1, u.hp);
+  // Убийство ещё и освобождает слот и снимает угрозу со стола.
+  return loss + (dealt >= u.curHp ? value * 0.15 : 0);
+}
+
+/**
+ * Оценивает обмен так же, как его разыграет движок: удар, ответ до смерти защитника, броня,
+ * натиск, фланг, затем рассечение/площадь без ответов и месть. Прогноз чистый: он не крутит RNG,
+ * не тратит энергию и не меняет состояние боя. Случайный страх и произвольные эффекты карт —
+ * отдельные тактические модификаторы, в однопроходную оценку размена они не входят.
+ */
+function enemyAttackScore(b: Battle, side: Side, attacker: Unit, target: AttackTarget): number {
+  if (target.kind === "hero") {
+    const damage = Math.max(1, atkOf(b, attacker));
+    const lethal = damage >= b[target.side].hp ? 1000 : 0;
+    return damage * 1.35 + lethal - costOf(b, attacker) * 0.04;
+  }
+
+  const defenderSide = target.side;
+  const defender = target.unit;
+  const ranged = isRanged(b, attacker);
+  const defenderBack = rowArray(b[defenderSide], rowCount(b[defenderSide]) - 1);
+  const dodges = !ranged && has(defender, "skirmish") && target.ri === 0
+    && rowCount(b[defenderSide]) > 1 && defenderBack.indexOf(null) >= 0;
+  if (dodges) return Number.NEGATIVE_INFINITY;
+
+  const projected = new Map<Unit, { side: Side; damage: number }>();
+  const addDamage = (unit: Unit, hitSide: Side, amount: number) => {
+    const prior = projected.get(unit);
+    projected.set(unit, { side: hitSide, damage: (prior?.damage || 0) + Math.max(0, amount) });
+  };
+
+  const mainDamage = calculateHitDamage(b, attacker, defender, atkOf(b, attacker), side, false);
+  addDamage(defender, defenderSide, mainDamage);
+
+  // Рассечение и площадь не получают ответа. Учитываем и своих, если тяжёлая площадь заденет строй.
+  if (has(attacker, "cleave")) {
+    for (const neighbor of neighborsOf(b, defender)) {
+      if (neighbor.curHp > 0) addDamage(neighbor, defenderSide,
+        calculateHitDamage(b, attacker, neighbor, attacker.st.cleave, side, false));
+    }
+  }
+  const area = areaOf(attacker);
+  if (area) {
+    for (const hit of splashTargets(b, side, attacker, target)) {
+      addDamage(hit.unit, hit.side, areaDamage(b, attacker, side, hit.unit, hit.own ? 1 : area.n, false));
+    }
+  }
+
+  let counterDamage = 0;
+  if (!ranged && defender.curHp > 0 && !defender.isStructure) {
+    const counterBase = atkOf(b, defender);
+    if (counterBase > 0) {
+      counterDamage = calculateHitDamage(b, defender, attacker, counterBase, defenderSide, false);
+      addDamage(attacker, side, counterDamage);
+    }
+  }
+
+  const targetAfterHit = Math.max(0, defender.curHp - mainDamage);
+  const attackerAfterExchange = Math.max(0, attacker.curHp - (projected.get(attacker)?.damage || 0));
+  // Месть срабатывает после площади: погибшая цель наказывает только выжившего убийцу;
+  // павший от ответного удара атакующий мстит только оставшейся в живых цели.
+  if (targetAfterHit <= 0 && has(defender, "vengeance") && attackerAfterExchange > 0) {
+    addDamage(attacker, side, defender.st.vengeance);
+  }
+  if (counterDamage > 0 && attackerAfterExchange <= 0 && has(attacker, "vengeance") && targetAfterHit > 0) {
+    addDamage(defender, defenderSide, attacker.st.vengeance);
+  }
+
+  let score = 0;
+  for (const [unit, hit] of projected) {
+    const loss = aiUnitLoss(b, unit, hit.damage);
+    score += hit.side === side ? -loss : loss;
+  }
+  if (has(attacker, "raider") && defenderSide !== side && !defender.isStructure && b[defenderSide].energy > 0) score += 0.2;
+  if (has(attacker, "loot") && targetAfterHit <= 0 && !defender.isStructure) score += 0.2;
+  return score - costOf(b, attacker) * 0.04;
+}
+
 /* ---------- ИИ соперника: одно действие за вызов ---------- */
 
 export function enemyAct(b: Battle): boolean {
@@ -1400,7 +1524,16 @@ export function enemyAct(b: Battle): boolean {
     if (ri === undefined) return false;
     return deploy(b, "enemy", i, ri, freeSlot(ri));
   }
-  const att = unitsOf(b, "enemy").find((s) => canAct(b, "enemy", s.unit));
-  if (att) return attackWith(b, "enemy", att.unit.iid);
+  // Не бросаем первый попавшийся отряд в заведомо плохой размен. Сравниваем все доступные
+  // атаки, учитывая, кто погибнет от ответа, и выбираем лучший обмен; отрицательный размен можно
+  // отложить — защитник всё равно ответит, когда игрок нападёт первым.
+  const attacks = unitsOf(b, "enemy")
+    .filter((s) => canAct(b, "enemy", s.unit))
+    .map((s) => ({ ...s, target: findTarget(b, s.unit, "enemy") }))
+    .filter((s): s is Slot & { target: AttackTarget } => !!s.target)
+    .map((s) => ({ ...s, score: enemyAttackScore(b, "enemy", s.unit, s.target) }))
+    .sort((a, z) => z.score - a.score || costOf(b, a.unit) - costOf(b, z.unit) || a.unit.order - z.unit.order);
+  const best = attacks[0];
+  if (best && best.score > 0.05) return attackWith(b, "enemy", best.unit.iid);
   return false;
 }

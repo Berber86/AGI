@@ -44,8 +44,8 @@ function loadBoth(fetchImpl) {
           M: {
             ERA_HISTORICAL: Campaign.ERA_HISTORICAL,
             HISTORICAL_CULTURES: Campaign.HISTORICAL_CULTURES,
-            ORIGINS: Campaign.ORIGINS,
             SEED_CHOICES: Campaign.SEED_CHOICES,
+            STARTER_CARDS: Campaign.STARTER_CARDS,
             eraName: Campaign.eraName,
             allowedCardEras: Campaign.allowedCardEras,
             combatPerks: Campaign.combatPerks,

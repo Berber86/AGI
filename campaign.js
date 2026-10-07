@@ -19,7 +19,10 @@
     'use strict';
 
     const STORAGE_KEY = 'iforge_combat_v1';
-    const SAVE_VERSION = 5;
+    // Версия 6: онбординг сокращён до двух свойств народа (наследие и замысел), земли ORIGINS
+    // удалены, а стартовые колоды Каменного века собраны заново. Старые сохранения не переносятся:
+    // они помнят выбранную землю и колоду из удалённых карт.
+    const SAVE_VERSION = 6;
 
     const ERAS = ['Каменный век', 'Античный мир', 'Средневековье', 'Ренессанс', 'Эпоха Пара и Стали 1800-1910', 'Новейшее время', 'Будущее 2050-2150'];
     const BRONZE_CARD_MIN_ERA = 1;
@@ -98,26 +101,32 @@
     const CULTURE_CHOICE_SIZE = 3;
 
     /* ---------- стартовый боевой состав ----------
-       Восемь готовых карт вместо прежних двух: игрок с первого боя собирает колоду
-       (лимит 4), а не играет дублями одного копейщика. Все карты — каменного века,
-       бронзовые открываются с эпохой «Античный мир» (allowedCardEras). */
+       Каменный век воюет врукопашную: на столе одна линия, тыла нет, поэтому в стартовом составе
+       нет ни дальнего боя (ranged), ни засады (skirmish), ни длинного оружия (reach) — эти слова
+       приходят с Античного мира, когда у стола появляется второй ряд и стрелка есть куда поставить.
+       Здоровье отрядов соответствует хрупкому каменному бою: 1–3 HP. При одновременном обмене
+       взаимная гибель — нормальный размен, а не повод раздувать здоровье. Построек в Каменном веке
+       тоже нет: на единственной
+       линии постройка не держит столбец (брешь всё равно проходит вождю) и только съедает место
+       бойца — укрепления начинаются со второго ряда, то есть с Античного мира. */
     const STARTER_CARDS = [
-        { id: 'starter-spears', name: 'Племенные копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Ополчение с копьями держит строй и прикрывает вождя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [], campaignStarter: true },
-        { id: 'starter-slingers', name: 'Пращники из холмов', card_type: 'unit', emoji: '🪨', drop_cost: 1, action_cost: 1, atk: 1, hp: 1, description: 'Лёгкие бойцы бросают камни из-за спин авангарда.', tags: ['праща', 'дальний бой'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['ranged', 'skirmish'], effects: [], campaignStarter: true },
-        { id: 'starter-hunters', name: 'Охотники с луками', card_type: 'unit', emoji: '🏹', drop_cost: 2, action_cost: 1, atk: 2, hp: 1, description: 'Лучники бьют издалека и не вступают в рукопашную.', tags: ['лук', 'дальний бой'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['ranged'], effects: [], campaignStarter: true },
-        { id: 'starter-axes', name: 'Топорники племени', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 3, hp: 3, description: 'Каменные топоры и кожаные щиты: клин ломает строй.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [], campaignStarter: true },
-        { id: 'starter-scouts', name: 'Разведчики на лошадях', card_type: 'unit', emoji: '🐎', drop_cost: 3, action_cost: 1, atk: 3, hp: 2, description: 'Лёгкая конница налетает в тот же ход, когда выходит.', tags: ['конница', 'дозор'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'skirmish'], effects: [], campaignStarter: true },
-        { id: 'starter-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '🛡️', drop_cost: 3, action_cost: 2, atk: 3, hp: 5, description: 'Стена щитов принимает удар на себя и держит дух отрядов.', tags: ['дружина', 'щит'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall', 'taunt', 'morale'], effects: [], campaignStarter: true },
-        { id: 'starter-palisade', name: 'Частокол', card_type: 'structure', emoji: '🧱', drop_cost: 2, action_cost: 0, atk: 0, hp: 5, description: 'Деревянное заграждение в тылу преграждает проход и бьёт каждый ход.', tags: ['укрепление'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], effects: [], campaignStarter: true },
+        { id: 'starter-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 2, hp: 3, description: 'Сомкнутое копейное ополчение держит линию, но лёгкая защита не спасает от долгого боя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [], campaignStarter: true },
+        { id: 'starter-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 2, hp: 2, description: 'Молодые воины первыми бросаются в схватку: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [], campaignStarter: true },
+        { id: 'starter-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 3, hp: 2, description: 'Каменные топоры и кожаные щиты: клин ломает строй, но боец уязвим.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [], campaignStarter: true },
+        { id: 'starter-shields', name: 'Щитоносцы', card_type: 'unit', emoji: '🛡️', drop_cost: 2, action_cost: 1, atk: 2, hp: 3, description: 'Плетёные щиты смягчают удар, пока щитоносцы удерживают линию.', tags: ['щит', 'строй'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall'], effects: [], campaignStarter: true },
+        { id: 'starter-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Лёгкая конница налетает первой и уносит припасы, но не держит долгий бой.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'raider'], effects: [], campaignStarter: true },
+        { id: 'starter-drivers', name: 'Загонщики', card_type: 'unit', emoji: '🦌', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Загонщики заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['flank'], effects: [], campaignStarter: true },
+        { id: 'starter-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 3, hp: 3, description: 'Отборные телохранители прикрывают вождя щитами и бьются до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [], campaignStarter: true },
         {
-            id: 'starter-night-raid', name: 'Ночной набег', card_type: 'spell', emoji: '🌙', drop_cost: 2, action_cost: 0, atk: 0, hp: 0, description: 'Поджигает вражеский авангард: самый сильный отряд горит два хода.', tags: ['набег', 'огонь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], campaignStarter: true,
+            id: 'starter-night-raid', name: 'Ночной набег', card_type: 'spell', emoji: '🌙', drop_cost: 2, action_cost: 0, atk: 0, hp: 0, description: 'Поджигает вражеский авангард: самый сильный отряд горит два хода.', tags: ['набег', 'огонь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], effects: [], campaignStarter: true,
             effects: [{ event: 'enter_play', target: { side: 'enemy', entity: 'unit', zone: 'front', select: 'highest_attack', count: 1 }, action: { type: 'apply_status', status: 'burn', amount: 1, turns: 2 } }]
         }
     ];
-    // Колода первого боя: четыре карты стартового состава (лимит вождя без бонусов).
-    const STARTER_DECK_IDS = ['starter-spears', 'starter-slingers', 'starter-axes', 'starter-retinue'];
+    // Колода первого боя: четыре отряда, которые реально сыграть при пределе энергии 2 (лимит вождя
+    // без бонусов). Дружина вождя за 3 и всадники ждут своего часа — энергия дорастёт со временем.
+    const STARTER_DECK_IDS = ['starter-spears', 'starter-clubmen', 'starter-axes', 'starter-shields'];
 
-    /* ================= данные: эпохи, культуры, земли и замыслы народа =================
+    /* ================= данные: эпохи, культуры и замыслы народа =================
        Блоки перенесены из кампании без переписывания: датировки и прототипы уже проверены
        документацией и тестами. Изменено одно — мирные бонусы происхождения и замысла
        заменены боевыми (поле combat + combatNote), потому что ресурсов в прототипе нет. */
@@ -169,12 +178,12 @@
 
     const HISTORICAL_CULTURES = [
         // --- 0 · Каменный век ---
-        { id: 'yamnaya', name: 'Ямная культура', icon: '🐎', era: 0, desc: '3300-2600 до н.э., Понтийско-Каспийская степь — ямные погребения под курганами, первые кони и повозки. Предки индоевропейцев', bonus: { food: 0.2, materials: 0.2 } },
-        { id: 'trypillia', name: 'Триполье-Кукутени', icon: '🏘️', era: 0, desc: '5400-2750 до н.э., Поднепровье и Карпаты — протогорода на сотни домов, расписная керамика, выжженные по обряду поселения', bonus: { food: 0.3, materials: 0.1 } },
-        { id: 'catalhoyuk', name: 'Чатал-Хююк', icon: '🧱', era: 0, desc: '7500-5700 до н.э., Анатолия — дома без улиц, вход через крышу, обсидиановые мастерские и росписи быков', bonus: { materials: 0.3, knowledge: 0.1 } },
-        { id: 'natufian', name: 'Натуф', icon: '🌾', era: 0, desc: '12500-9500 до н.э., Левант — первые оседлые жнецы дикого ячменя, серпы, ступы и стены Иерихона', bonus: { food: 0.4 } },
-        { id: 'jomon', name: 'Дзёмон', icon: '🏺', era: 0, desc: '14000-300 до н.э., Японские острова — древнейшая в мире керамика с верёвочным узором, морская охота, лаковые изделия', bonus: { food: 0.2, knowledge: 0.2 } },
-        { id: 'gobekli', name: 'Гёбекли-Тепе', icon: '🗿', era: 0, desc: '9600-8000 до н.э., юго-восток Анатолии — мегалитические святилища с резными львами и скорпионами, старше Стоунхенджа', bonus: { knowledge: 0.4 } },
+        { id: 'yamnaya', name: 'Ямная культура', icon: '🐎', era: 0, people: 'Ямный народ', desc: '3300-2600 до н.э., Понтийско-Каспийская степь — ямные погребения под курганами, первые кони и повозки. Предки индоевропейцев', bonus: { food: 0.2, materials: 0.2 } },
+        { id: 'trypillia', name: 'Триполье-Кукутени', icon: '🏘️', era: 0, people: 'Трипольский народ', desc: '5400-2750 до н.э., Поднепровье и Карпаты — протогорода на сотни домов, расписная керамика, выжженные по обряду поселения', bonus: { food: 0.3, materials: 0.1 } },
+        { id: 'catalhoyuk', name: 'Чатал-Хююк', icon: '🧱', era: 0, people: 'Мастера Чатал-Хююка', desc: '7500-5700 до н.э., Анатолия — дома без улиц, вход через крышу, обсидиановые мастерские и росписи быков', bonus: { materials: 0.3, knowledge: 0.1 } },
+        { id: 'natufian', name: 'Натуф', icon: '🌾', era: 0, people: 'Натуфийские жнецы', desc: '12500-9500 до н.э., Левант — первые оседлые жнецы дикого ячменя, серпы, ступы и стены Иерихона', bonus: { food: 0.4 } },
+        { id: 'jomon', name: 'Дзёмон', icon: '🏺', era: 0, people: 'Народ Дзёмона', desc: '14000-300 до н.э., Японские острова — древнейшая в мире керамика с верёвочным узором, морская охота, лаковые изделия', bonus: { food: 0.2, knowledge: 0.2 } },
+        { id: 'gobekli', name: 'Гёбекли-Тепе', icon: '🗿', era: 0, people: 'Жрецы Гёбекли-Тепе', desc: '9600-8000 до н.э., юго-восток Анатолии — мегалитические святилища с резными львами и скорпионами, старше Стоунхенджа', bonus: { knowledge: 0.4 } },
         // --- 1 · Античный мир ---
         { id: 'sumer', name: 'Шумер', icon: '🏛️', era: 1, desc: '4000-2000 до н.э., Урук и Ур — первые города, клинопись, зиккураты, ирригационные каналы', bonus: { knowledge: 0.3 } },
         { id: 'akkad', name: 'Аккад Саргона', icon: '⚔️', era: 1, desc: '2334-2154 до н.э., первая империя Саргона Великого — от Персидского залива до Средиземного моря, регулярная армия', bonus: { materials: 0.2, deck_slots: 1 } },
@@ -240,21 +249,12 @@
         { id: 'climate-engineers', name: 'Климатические инженеры', icon: '❄️', era: 6, desc: '2060-2120, Арктика — аэрозольные экраны, тундровые реакторы и возрождение мамонтовой степи', bonus: { food: 0.3, knowledge: 0.2 } }
     ];
 
-    const ORIGINS = [
-        { id: 'river', name: 'Великая Река', people: 'Люди Великой Реки', place: 'Пойма и дельта большой реки', icon: '🌊', description: 'Разлив приходит каждый год и оставляет ил: поля родят без пара, вода приносит рыбу и тростник. Излишек зерна нужно учесть, сохранить и защитить — отсюда первый счёт и первая власть.', combat: { deck_slots: 1 }, combatNote: 'Ил кормит дружину: под знамя встаёт больше отрядов', biome: 'river', historical: 'Нил Древнего царства и юг Месопотамии, IV–III тыс. до н.э. — ирригация, закрома, первые писцы' },
-        { id: 'highlands', name: 'Каменные Предгорья', people: 'Каменщики Предгорий', place: 'Предгорья с выходами кремня и обсидиана', icon: '⛰️', description: 'Камень здесь под ногами: кремень колется на орудия, обсидиан уходит в обмен, рудная жила обещает медь. Ремесло рождается раньше пашни, и мастерская становится сердцем селения.', combat: { max_hp: 1 }, combatNote: 'Камень и стены предгорий: вождя труднее добить', biome: 'highlands', historical: 'Чатал-Хююк и Анатолийское нагорье, 7500–5700 до н.э. — обсидиановые мастерские, первые плавильные тигли' },
-        { id: 'woodland', name: 'Лесные Тропы', people: 'Лесные Земледельцы', place: 'Лесная опушка и сезонные пастбища', icon: '🌲', description: 'Лес учит счёту времён: когда цветёт липа, когда гонит зверя, когда жечь подсеку. Знание примет и обряда — такой же промысел, как топор и соха.', combat: { fatigue_resist: 1 }, combatNote: 'Лесные тропы и запасливый ход: усталость приходит позже', biome: 'forest', historical: 'Триполье-Кукутени, 5400–2750 до н.э. — протогорода на сотни домов, расписная керамика' },
-        { id: 'steppe', name: 'Ямная Степь', people: 'Дети Ямной Степи', place: 'Понтийско-Каспийская степь, курганы', icon: '🐎', description: 'Открытый горизонт, стада и колёсные повозки: богатство уходит с кочёвкой, а мёртвых хоронят под курганом с оружием. Сила здесь — в подвижности и в верности роду.', combat: { energy_growth: 1 }, combatNote: 'Кони и повозки кочёвки: энергия возвращается быстрее', biome: 'steppe', historical: 'Ямная культура, 3300–2600 до н.э. — ямные погребения под курганами, кони и повозки' },
-        { id: 'coast', name: 'Морской Берег', people: 'Береговые Мореходы', place: 'Побережье, лиманы и острова', icon: '⚓', description: 'Море даёт рыбу, соль и раковину, а прибрежный путь — первая торговая дорога: лодка идёт от селения к селению быстрее вьюка по суше. Чужие вести и чужой товар приходят сюда первыми.', combat: { energy_cap: 1 }, combatNote: 'Лодьи и прибрежные склады: больше энергии в запасе', biome: 'coast', historical: 'Эгейский мир и Минойский Крит, 2700–1450 до н.э. — морская торговля обсидианом и металлом' },
-        { id: 'desert', name: 'Сухие Земли', people: 'Хранители Колодцев', place: 'Каменистая пустыня, оазисы и сухие русла', icon: '🏜️', description: 'Вода здесь — редкость и собственность: колодец, караванная тропа и учёт запасов важнее поля. Пустыня учит счёту, договору и дальнему пути.', combat: { unit_power: 1 }, combatNote: 'Закалённые засухой и дальними переходами: отряды бьют сильнее', biome: 'desert', historical: 'Высыхающая Сахара и Тассилин-Аджер, VI–III тыс. до н.э. — колодцы, караванные тропы, наскальные росписи' }
-    ];
-
     const SEED_CHOICES = [
-        { id: 'river', icon: '🐟', name: 'Река и разлив', line: 'Наш год делит река: разлив приносит ил и рыбу, засуха — счёт запасам', hint: 'Вода, рыболовство, запасы на сухой сезон', note: 'Жнецы Натуфа и рыбаки дельты Нила: хозяйственный календарь от разлива', combat: { max_hp: 1 }, combatNote: 'Разлив кормит дружинников: вождь дольше держится в бою' },
-        { id: 'forge', icon: '⚒️', name: 'Камень и горн', line: 'Мы ищем камень и руду, а огонь делает из них орудия и оружие', hint: 'Кремень, обсидиан, медь, орудия и строительство', note: 'Мастерские Чатал-Хююка и Анатолийских предгорий: ремесло раньше пашни', combat: { unit_power: 1 }, combatNote: 'Камень, руда и горн дают оружие: все отряды бьют сильнее' },
-        { id: 'sky', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера', combat: { energy_cap: 1 }, combatNote: 'Небесный счёт и обряд держат запас: больше энергии' },
-        { id: 'herd', icon: '🐎', name: 'Стадо и воля', line: 'Наше богатство уходит с кочёвкой: стадо, конь и верность роду', hint: 'Скот, движение, набег и защита', note: 'Ямная культура: курганы, кони и повозки, власть рода над местом', combat: { energy_growth: 1 }, combatNote: 'Стадо и конь кочёвки: энергия возвращается быстрее' },
-        { id: 'field', icon: '🌾', name: 'Пашня и зерно', line: 'Земля кормит нас, если её слушать: зерно — первое богатство народа', hint: 'Земледелие, ирригация, урожай, закрома', note: 'Триполье и Левант: зерно, которое нужно вырастить, сохранить и разделить', combat: { deck_slots: 1 }, combatNote: 'Зерно кормит большее войско: +1 место в колоде' }
+        { id: 'river', peopleSuffix: 'Разлива', icon: '🐟', name: 'Река и разлив', line: 'Наш год делит река: разлив приносит ил и рыбу, засуха — счёт запасам', hint: 'Вода, рыболовство, запасы на сухой сезон', note: 'Жнецы Натуфа и рыбаки дельты Нила: хозяйственный календарь от разлива', combat: { max_hp: 1 }, combatNote: 'Разлив кормит дружинников: вождь дольше держится в бою' },
+        { id: 'forge', peopleSuffix: 'Горна', icon: '⚒️', name: 'Камень и горн', line: 'Мы ищем камень и руду, а огонь делает из них орудия и оружие', hint: 'Кремень, обсидиан, медь, орудия и строительство', note: 'Мастерские Чатал-Хююка и Анатолийских предгорий: ремесло раньше пашни', combat: { unit_power: 1 }, combatNote: 'Камень, руда и горн дают оружие: все отряды бьют сильнее' },
+        { id: 'sky', peopleSuffix: 'Неба', icon: '⭐', name: 'Знаки неба', line: 'Небо над нами — свод законов: по нему мы знаем время сева и обряда', hint: 'Наблюдения, счёт времени, обряд и знание', note: 'Гёбекли-Тепе и первые календарные святилища: небо как счёт и как вера', combat: { energy_cap: 1 }, combatNote: 'Небесный счёт и обряд держат запас: больше энергии' },
+        { id: 'herd', peopleSuffix: 'Стада', icon: '🐎', name: 'Стадо и воля', line: 'Наше богатство уходит с кочёвкой: стадо, конь и верность роду', hint: 'Скот, движение, набег и защита', note: 'Ямная культура: курганы, кони и повозки, власть рода над местом', combat: { energy_growth: 1 }, combatNote: 'Стадо и конь кочёвки: энергия возвращается быстрее' },
+        { id: 'field', peopleSuffix: 'Пашни', icon: '🌾', name: 'Пашня и зерно', line: 'Земля кормит нас, если её слушать: зерно — первое богатство народа', hint: 'Земледелие, ирригация, урожай, закрома', note: 'Триполье и Левант: зерно, которое нужно вырастить, сохранить и разделить', combat: { deck_slots: 1 }, combatNote: 'Зерно кормит большее войско: +1 место в колоде' }
     ];
 
     // Качество ковки = grade сырья (0..2) + мастерство кузнеца (0..CRAFT_LEVEL_MAX) → диапазон 0..5.
@@ -285,9 +285,14 @@
         return 'harsh';
     }
 
+    // Каждый шаг качества (grade сырья или уровень кузнеца) снижает шанс обычной карты и повышает
+    // шанс карты выше обычной; при открытой редкости растёт и шанс rare. Раньше maxScore: 1 объединял
+    // оценки 0 и 1 — отборное сырьё стоило вдвое дороже обычного, но показывало те же проценты.
     const CARD_RARITY_ODDS = [
-        { maxScore: 1, odds: { ordinary: 70, uncommon: 25, rare: 5 } },
+        { maxScore: 0, odds: { ordinary: 70, uncommon: 25, rare: 5 } },
+        { maxScore: 1, odds: { ordinary: 60, uncommon: 30, rare: 10 } },
         { maxScore: 2, odds: { ordinary: 50, uncommon: 38, rare: 12 } },
+        { maxScore: 3, odds: { ordinary: 40, uncommon: 44, rare: 16 } },
         { maxScore: 4, odds: { ordinary: 30, uncommon: 50, rare: 20 } },
         { maxScore: 5, odds: { ordinary: 15, uncommon: 45, rare: 40 } }
     ];
@@ -318,85 +323,103 @@
         });
     }
 
+    /* ============ колоды племён: исторические типы войск ============
+       Имена — настоящие типы войск своей эпохи, а не выдуманные места («Стража бронзового брода»).
+       Каменный век у всех трёх племён рукопашный: на столе одна линия, поэтому ни ranged, ни
+       skirmish, ни reach — эти слова приходят с Античного мира, когда появляется второй ряд.
+       Построек в Каменном веке тоже нет: на единственной линии они не держат столбец и только
+       занимают место бойца. У каждого каменного отряда 1–3 HP: для эпохи это норма; обмен может
+       закончиться взаимной гибелью, поэтому тактический ИИ теперь оценивает ответный удар. */
+
     const REED_STONE_DECK = [
-        barbarianCard('reed', 'ford-spears', { name: 'Камышовые копейщики', emoji: '🔺', drop_cost: 1, atk: 1, hp: 2, description: 'Копейщики держат узкий брод и не дают врагу развернуть строй.', tags: ['копьё', 'переправа'], keywords: ['phalanx'] }),
-        barbarianCard('reed', 'ford-slingers', { name: 'Пращники переправы', emoji: '🪨', drop_cost: 1, atk: 1, hp: 1, description: 'Пращники осыпают врага камнями из-за камышовых заграждений.', tags: ['праща', 'дальний бой'], keywords: ['ranged', 'skirmish'] }),
-        barbarianCard('reed', 'marsh-hunters', { name: 'Охотники заводей', emoji: '🏹', drop_cost: 2, atk: 2, hp: 2, description: 'Охотники знают протоки и выбирают цели с безопасного берега.', tags: ['охотники', 'река'], keywords: ['ranged'] }),
-        barbarianCard('reed', 'reed-barricade', { name: 'Заслон у брода', card_type: 'structure', emoji: '🧱', drop_cost: 2, action_cost: 0, atk: 0, hp: 4, description: 'Колья и связанные стебли замедляют наступление у воды.', tags: ['укрепление', 'река'] })
+        barbarianCard('reed', 'spearline', { name: 'Копьеносцы', emoji: '🔱', drop_cost: 1, atk: 2, hp: 3, description: 'Копьеносцы речного племени держат сомкнутый строй, хотя сами легко ранимы.', tags: ['копьё', 'строй'], keywords: ['phalanx'] }),
+        barbarianCard('reed', 'macebearers', { name: 'Булавоносцы', emoji: '🪨', drop_cost: 2, atk: 3, hp: 2, description: 'Каменные булавы пробивают толпу: клин идёт туда, где строй уже сомкнулся.', tags: ['булава', 'клин'], keywords: ['wedge'] }),
+        barbarianCard('reed', 'retinue', { name: 'Дружинники', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Старшие воины с плетёными щитами принимают удар, пока строй не дрогнул.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('reed', 'levy', { name: 'Ополченцы', emoji: '🧺', drop_cost: 1, atk: 2, hp: 2, description: 'Земледельцы с вилами и кольями слабы в одиночку, но поддерживают соседей.', tags: ['ополчение', 'поддержка'], keywords: ['rally'] })
     ];
     const REED_ANTIQUITY_DECK = [
-        barbarianCard('reed', 'bronze-ford-guard', { name: 'Стража бронзового брода', era: 'bronze', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Бронзовые наконечники усиливают строй у главной переправы.', tags: ['бронза', 'переправа'], keywords: ['phalanx', 'supply'] }),
-        ...REED_STONE_DECK.slice(1),
-        barbarianCard('reed', 'canal-sappers', { name: 'Сапёры речного канала', era: 'bronze', emoji: '⚒️', drop_cost: 2, atk: 2, hp: 3, description: 'Сапёры укрепляют берега и закрывают обходные пути.', tags: ['бронза', 'инженеры'], keywords: ['shieldwall'] }),
-        barbarianDrawSpell('reed', 'grain-ferry-order', 'Приказ зерновой ладьи', 'bronze', ['warcry'], 'Сигнальный рожок собирает обоз и помогает отрядам взять ещё одну карту.')
+        barbarianCard('reed', 'sarissophoroi', { name: 'Сариссофоры', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 5, description: 'Длинные пики в шесть метров: строй бьёт из-за спин переднего ряда, не открываясь для удара.', tags: ['бронза', 'пика'], keywords: ['phalanx', 'reach'] }),
+        barbarianCard('reed', 'hoplites', { name: 'Гоплиты', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 6, description: 'Тяжёлая пехота в бронзовых доспехах и с круглым щитом: принимает удар и держит фалангу.', tags: ['бронза', 'фаланга'], keywords: ['shieldwall', 'taunt', 'armor:1'] }),
+        barbarianCard('reed', 'archers', { name: 'Лучники', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 3, description: 'Стрелки бьют через весь строй по самой опасной цели — ответа из глубины им нет.', tags: ['бронза', 'лук'], keywords: ['ranged'] }),
+        barbarianCard('reed', 'peltasts', { name: 'Пельтасты', era: 'bronze', emoji: '🪖', drop_cost: 1, atk: 2, hp: 3, description: 'Лёгкие бойцы с плетёным щитом: ударят и уйдут вглубь, не принимая ближнего боя.', tags: ['бронза', 'лёгкая пехота'], keywords: ['skirmish'] }),
+        barbarianCard('reed', 'watchtower', { name: 'Сторожевая башня', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 2, hp: 6, description: 'Башня из сырцового кирпича каждый ход обстреливает подошедших — броня гасит урон.', tags: ['бронза', 'укрепление'] }),
+        barbarianDrawSpell('reed', 'signal-horn', 'Сигнальный рог', 'bronze', ['warcry'], 'Рог над поймой собирает обоз и помогает отрядам взять ещё одну карту.')
     ];
     const REED_MEDIEVAL_DECK = [
-        REED_ANTIQUITY_DECK[0],
-        REED_ANTIQUITY_DECK[1],
-        barbarianCard('reed', 'river-archers', { name: 'Лучники речной заставы', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 3, hp: 2, description: 'Закалённые лучники прикрывают заставу и грабят вражеские обозы.', tags: ['бронза', 'лучники'], keywords: ['ranged', 'raider'] }),
-        REED_ANTIQUITY_DECK[3],
-        REED_ANTIQUITY_DECK[4],
-        REED_ANTIQUITY_DECK[5],
-        barbarianCard('reed', 'river-shield-guard', { name: 'Дружина речных щитоносцев', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 5, description: 'Тяжёлая дружина удерживает переправу под прикрытием щитов.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
-        barbarianCard('reed', 'ford-riders', { name: 'Конные дозорные переправы', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 3, hp: 3, description: 'Конные дозорные быстро обходят берег и бьют по отступающим.', tags: ['конница', 'дозор'], keywords: ['charge', 'skirmish'] })
+        barbarianCard('reed', 'druzhina', { name: 'Дружинники', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 7, description: 'Тяжёлая дружина удерживает переправу под стеной щитов и принимает удар на себя.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('reed', 'crossbowmen', { name: 'Арбалетчики', era: 'bronze', emoji: '🏹', drop_cost: 3, atk: 3, hp: 4, description: 'Арбалет пробивает доспех: стрелки бьют из-за строя и не получают ответа.', tags: ['арбалет', 'стрельба'], keywords: ['ranged', 'pierce:1'] }),
+        barbarianCard('reed', 'sergeants', { name: 'Сержанты', era: 'bronze', emoji: '⚔️', drop_cost: 1, atk: 2, hp: 5, description: 'Строевая пехота в кольчугах держит линию и не даёт строю рассыпаться.', tags: ['пехота', 'кольчуга'], keywords: ['phalanx', 'armor:1'] }),
+        barbarianCard('reed', 'halberdiers', { name: 'Алебардисты', era: 'bronze', emoji: '🪓', drop_cost: 3, atk: 4, hp: 5, description: 'Алебарда рубит и колет: клин взламывает доспех и доходит до задних рядов.', tags: ['алебарда', 'клин'], keywords: ['wedge', 'pierce:1'] }),
+        barbarianCard('reed', 'knights', { name: 'Рыцари', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 4, hp: 6, description: 'Тяжёлый всадник на бронированном коне: первый натиск сминает строй.', tags: ['конница', 'броня'], keywords: ['charge', 'armor:1'] }),
+        barbarianCard('reed', 'men-at-arms', { name: 'Латники', era: 'bronze', emoji: '🛡️', drop_cost: 2, atk: 3, hp: 6, description: 'Пешие латники держат удар: первый за ход попадает по ним слабее.', tags: ['латы', 'пехота'], keywords: ['sturdy', 'armor:1'] }),
+        barbarianCard('reed', 'trebuchet', { name: 'Требушет', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 3, hp: 8, description: 'Метательная машина каждый ход бьёт по строю — урон гасит броня, ответа нет.', tags: ['осада', 'укрепление'] }),
+        barbarianDrawSpell('reed', 'war-cry', 'Боевой клич', 'bronze', ['warcry'], 'Клич над строем поднимает дух и помогает взять ещё одну карту.')
     ];
 
     const STEPPE_STONE_DECK = [
-        barbarianCard('steppe', 'scout-spears', { name: 'Копейщики кочевого дозора', emoji: '🔺', drop_cost: 1, atk: 1, hp: 2, description: 'Подвижный дозор прикрывает табун и встречает налётчиков копьями.', tags: ['копьё', 'дозор'], keywords: ['charge'] }),
-        barbarianCard('steppe', 'horse-archers', { name: 'Лёгкие лучники степи', emoji: '🏹', drop_cost: 2, atk: 1, hp: 2, description: 'Лучники обстреливают врага на ходу и не задерживаются в схватке.', tags: ['лук', 'степь'], keywords: ['ranged', 'skirmish'] }),
-        barbarianCard('steppe', 'kurhan-riders', { name: 'Гонцы курганов', emoji: '🐎', drop_cost: 2, atk: 2, hp: 2, description: 'Всадники передают сигналы между курганами и налетают на фланг.', tags: ['конница', 'курган'], keywords: ['charge', 'skirmish'] }),
-        barbarianCard('steppe', 'kurhan-guard', { name: 'Курганная дружина', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Старшие воины держатся вокруг знамени и не дают строю дрогнуть.', tags: ['дружина', 'степь'], keywords: ['morale'] })
+        barbarianCard('steppe', 'nomads', { name: 'Кочевники', emoji: '🐎', drop_cost: 2, atk: 2, hp: 2, description: 'Кочевники налетают стремительно и уносят припасы, но не держат долгий бой.', tags: ['конница', 'налёт'], keywords: ['charge', 'raider'] }),
+        barbarianCard('steppe', 'axe-bearers', { name: 'Секирники', emoji: '🪓', drop_cost: 2, atk: 3, hp: 2, description: 'Боевые секиры и кожаные доспехи: клин рубит строй соседей.', tags: ['секира', 'клин'], keywords: ['armor:1', 'wedge'] }),
+        barbarianCard('steppe', 'herders', { name: 'Табунщики', emoji: '🔺', drop_cost: 1, atk: 2, hp: 2, description: 'Пастухи держатся вокруг табуна и встречают налётчиков сомкнутыми копьями.', tags: ['копьё', 'табун'], keywords: ['phalanx'] }),
+        barbarianCard('steppe', 'kurgan-guard', { name: 'Курганная стража', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Старшие воины держатся вокруг знамени и принимают удар на себя.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] })
     ];
     const STEPPE_ANTIQUITY_DECK = [
-        barbarianCard('steppe', 'bronze-riders', { name: 'Бронзовые всадники степи', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 3, hp: 3, description: 'Бронзовые копья усиливают стремительный конный налёт.', tags: ['бронза', 'конница'], keywords: ['charge', 'raider'] }),
-        STEPPE_STONE_DECK[1], STEPPE_STONE_DECK[2], STEPPE_STONE_DECK[3],
-        barbarianCard('steppe', 'bronze-lancers', { name: 'Копейщики степного союза', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 3, description: 'Сомкнутый строй копейщиков прикрывает конницу от встречного натиска.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
-        barbarianDrawSpell('steppe', 'signal-fire', 'Сигнальный костёр', 'bronze', ['warcry'], 'Костры на курганах созывают всадников и передают приказ по всей степи.')
+        barbarianCard('steppe', 'horse-archers', { name: 'Конные лучники', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 3, description: 'Стреляют на ходу и не принимают ближнего боя: ответа из глубины им нет.', tags: ['бронза', 'конница'], keywords: ['ranged', 'skirmish'] }),
+        barbarianCard('steppe', 'chariots', { name: 'Боевые колесницы', era: 'bronze', emoji: '🛞', drop_cost: 3, atk: 3, hp: 4, description: 'Пара коней и два бойца в кузове: первый натиск пробивает доспех.', tags: ['бронза', 'колесница'], keywords: ['charge', 'pierce:1'] }),
+        barbarianCard('steppe', 'heavy-riders', { name: 'Тяжёлые всадники', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 3, hp: 5, description: 'Всадник в бронзовой чешуе идёт в натиск и держит ответный удар.', tags: ['бронза', 'конница'], keywords: ['charge', 'armor:1'] }),
+        barbarianCard('steppe', 'raiders', { name: 'Налётчики', era: 'bronze', emoji: '🗡️', drop_cost: 2, atk: 2, hp: 3, description: 'Лёгкие отряды бьют по слабому месту, уходят вглубь и крадут припасы.', tags: ['бронза', 'налёт'], keywords: ['skirmish', 'raider'] }),
+        barbarianCard('steppe', 'spearmen', { name: 'Копьеносцы', era: 'bronze', emoji: '🔱', drop_cost: 1, atk: 2, hp: 4, description: 'Сомкнутый строй прикрывает конницу от встречного натиска.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
+        barbarianDrawSpell('steppe', 'signal-fires', 'Сигнальные костры', 'bronze', ['warcry'], 'Костры на курганах созывают всадников и передают приказ по степи.')
     ];
     const STEPPE_MEDIEVAL_DECK = [
-        barbarianCard('steppe', 'heavy-steppe-riders', { name: 'Тяжёлая конница степи', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 4, hp: 4, description: 'Закованные в бронзу всадники прорывают строй и уносят припасы.', tags: ['тяжёлая конница', 'бронза'], keywords: ['charge', 'raider', 'armor:1'] }),
-        barbarianCard('steppe', 'steppe-horse-archers', { name: 'Конные лучники союза', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 2, description: 'Опытные лучники держат дистанцию и пробивают защиту налётами.', tags: ['конница', 'лук'], keywords: ['ranged', 'pierce:1'] }),
-        STEPPE_ANTIQUITY_DECK[2], STEPPE_ANTIQUITY_DECK[3], STEPPE_ANTIQUITY_DECK[4], STEPPE_ANTIQUITY_DECK[5],
-        barbarianCard('steppe', 'nomad-warlord', { name: 'Вождь кочевого союза', era: 'bronze', emoji: '👑', drop_cost: 3, atk: 3, hp: 5, description: 'Вождь объединяет роды и возвращает бойцам уверенность.', tags: ['вождь', 'дружина'], keywords: ['taunt', 'warcry'] }),
-        barbarianCard('steppe', 'swift-raiders', { name: 'Степные налётчики', era: 'bronze', emoji: '⚔️', drop_cost: 2, atk: 3, hp: 2, description: 'Лёгкие отряды бьют по слабому месту и крадут вражеские припасы.', tags: ['налётчики', 'степь'], keywords: ['skirmish', 'raider'] })
+        barbarianCard('steppe', 'horse-archers-vets', { name: 'Конные лучники', era: 'bronze', emoji: '🏹', drop_cost: 3, atk: 3, hp: 4, description: 'Ветераны налётов: стреляют через строй, пробивают доспех и уходят от ответа.', tags: ['бронза', 'конница'], keywords: ['ranged', 'skirmish', 'pierce:1'] }),
+        barbarianCard('steppe', 'heavy-cavalry', { name: 'Тяжёлая конница', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 4, hp: 6, description: 'Закованные всадники прорывают строй и уносят припасы.', tags: ['бронза', 'конница'], keywords: ['charge', 'raider', 'armor:1'] }),
+        barbarianCard('steppe', 'raiders-vets', { name: 'Налётчики', era: 'bronze', emoji: '🗡️', drop_cost: 2, atk: 3, hp: 4, description: 'Лёгкие отряды бьют из засады, уходят вглубь и крадут энергию противника.', tags: ['бронза', 'налёт'], keywords: ['skirmish', 'raider'] }),
+        barbarianCard('steppe', 'spearmen-vets', { name: 'Копьеносцы', era: 'bronze', emoji: '🔱', drop_cost: 1, atk: 2, hp: 5, description: 'Пехота союза держит линию, пока конница заходит во фланг.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
+        barbarianCard('steppe', 'tarhan-guard', { name: 'Стража тархана', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 7, description: 'Телохранители вождя принимают удар на себя и не отходят.', tags: ['бронза', 'дружина'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('steppe', 'foot-archers', { name: 'Пешие лучники', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 3, hp: 4, description: 'Стрелки бьют через все ряды по самой опасной цели — ответа им нет.', tags: ['бронза', 'лук'], keywords: ['ranged'] }),
+        barbarianCard('steppe', 'wagon-fort', { name: 'Обоз', era: 'bronze', card_type: 'structure', emoji: '⛺', drop_cost: 3, action_cost: 0, atk: 0, hp: 8, description: 'Составленные повозки: лагерь не стреляет, но держит дух соседей.', tags: ['бронза', 'лагерь'], keywords: ['rally'] }),
+        barbarianDrawSpell('steppe', 'courier', 'Гонец', 'bronze', ['warcry'], 'Гонец по степи передаёт приказ и помогает взять ещё одну карту.')
     ];
 
     const NORTH_STONE_DECK = [
-        barbarianCard('north', 'flint-axes', { name: 'Кремнёвые топорники', emoji: '🪓', drop_cost: 2, atk: 2, hp: 3, description: 'Каменные топоры и кожаные накладки помогают держать лесную тропу.', tags: ['топор', 'лес'], keywords: ['armor:1', 'wedge'] }),
-        barbarianCard('north', 'pine-hunters', { name: 'Охотники северного леса', emoji: '🏹', drop_cost: 1, atk: 1, hp: 2, description: 'Охотники прикрывают дозор точными выстрелами из-за деревьев.', tags: ['охота', 'лук'], keywords: ['ranged'] }),
-        barbarianCard('north', 'stone-belt-guards', { name: 'Стражи Каменного Пояса', emoji: '🛡️', drop_cost: 2, atk: 1, hp: 4, description: 'Стражи закрывают перевал щитами и принимают удар на себя.', tags: ['щит', 'перевал'], keywords: ['shieldwall', 'taunt'] }),
-        barbarianCard('north', 'pass-ambushers', { name: 'Засадчики перевала', emoji: '🌲', drop_cost: 1, atk: 2, hp: 1, description: 'Засадчики появляются из чащи, наносят удар и уходят в тень.', tags: ['засада', 'лес'], keywords: ['skirmish'] })
+        barbarianCard('north', 'flint-axes', { name: 'Кремнёвые топорники', emoji: '🪓', drop_cost: 2, atk: 3, hp: 2, description: 'Каменные топоры и кожаные накладки: клин бьёт по строю, но боец уязвим.', tags: ['топор', 'лес'], keywords: ['armor:1', 'wedge'] }),
+        barbarianCard('north', 'trappers', { name: 'Ловчие', emoji: '🐺', drop_cost: 1, atk: 2, hp: 2, description: 'Охотники-ловчие стремительно выходят на зверя и врага.', tags: ['охота', 'лес'], keywords: ['charge'] }),
+        barbarianCard('north', 'wardens', { name: 'Стражи', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 3, description: 'Стражи закрывают проход щитами и принимают удар на себя.', tags: ['щит', 'рубеж'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('north', 'hunters', { name: 'Охотники', emoji: '🌲', drop_cost: 2, atk: 2, hp: 2, description: 'Охотники заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], keywords: ['flank'] })
     ];
     const NORTH_ANTIQUITY_DECK = [
-        barbarianCard('north', 'bronze-axes', { name: 'Бронзовые рубаки Севера', era: 'bronze', emoji: '🪓', drop_cost: 2, atk: 3, hp: 3, description: 'Бронзовые лезвия пробивают доспехи, а кожаные щиты сохраняют строй.', tags: ['топор', 'бронза'], keywords: ['armor:1', 'pierce:1'] }),
-        ...NORTH_STONE_DECK.slice(1),
-        barbarianCard('north', 'cold-road-watch', { name: 'Дозорные холодного тракта', era: 'bronze', emoji: '🏴', drop_cost: 2, atk: 2, hp: 3, description: 'Ночные дозоры срывают подготовку врага к следующему походу.', tags: ['дозор', 'бронза'], keywords: ['harras'] }),
-        barbarianCard('north', 'bronze-spearline', { name: 'Копейщики каменного рубежа', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 4, description: 'Бронзовые наконечники усиливают стойкий строй на перевале.', tags: ['копьё', 'бронза'], keywords: ['phalanx'] })
+        barbarianCard('north', 'phalangites', { name: 'Фалангиты', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 5, description: 'Бронзовые наконечники и сомкнутый строй на перевале.', tags: ['бронза', 'фаланга'], keywords: ['phalanx', 'armor:1'] }),
+        barbarianCard('north', 'bowmen', { name: 'Охотники с луками', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 3, description: 'Лесные стрелки бьют через весь строй по самой опасной цели.', tags: ['бронза', 'лук'], keywords: ['ranged'] }),
+        barbarianCard('north', 'axe-bearers', { name: 'Секирники', era: 'bronze', emoji: '🪓', drop_cost: 2, atk: 3, hp: 5, description: 'Бронзовые секиры пробивают доспех, а кожаные щиты сохраняют строй.', tags: ['бронза', 'секира'], keywords: ['armor:1', 'pierce:1'] }),
+        barbarianCard('north', 'watchers', { name: 'Дозорные', era: 'bronze', emoji: '🏴', drop_cost: 1, atk: 2, hp: 3, description: 'Ночные дозоры бьют и уходят вглубь, срывая подготовку врага к следующему ходу.', tags: ['бронза', 'дозор'], keywords: ['skirmish', 'harras'] }),
+        barbarianCard('north', 'watchtower', { name: 'Дозорная вышка', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 2, hp: 6, description: 'Деревянная вышка каждый ход обстреливает подошедших — броня гасит урон.', tags: ['бронза', 'укрепление'] }),
+        barbarianDrawSpell('north', 'war-horn', 'Боевой рог', 'bronze', ['warcry'], 'Рог над перевалом собирает дозоры и помогает взять ещё одну карту.')
     ];
     const NORTH_MEDIEVAL_DECK = [
-        NORTH_ANTIQUITY_DECK[0],
-        barbarianCard('north', 'bronze-forest-archers', { name: 'Лучники северных застав', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 2, description: 'Опытные лучники прикрывают рубеж бронебойными стрелами.', tags: ['лучники', 'бронза'], keywords: ['ranged', 'pierce:1'] }),
-        barbarianCard('north', 'stone-belt-retinue', { name: 'Дружина Каменного Пояса', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 5, description: 'Закованные щитоносцы удерживают проход и забирают трофеи с поверженных врагов.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt', 'loot'] }),
-        barbarianCard('north', 'forest-raiders', { name: 'Лесные налётчики', era: 'bronze', emoji: '🌲', drop_cost: 2, atk: 3, hp: 2, description: 'Налётчики бьют из чащи и перехватывают вражеские припасы.', tags: ['налётчики', 'лес'], keywords: ['skirmish', 'raider'] }),
-        NORTH_ANTIQUITY_DECK[4], NORTH_ANTIQUITY_DECK[5],
-        barbarianCard('north', 'watchtower', { name: 'Сторожевая башня заставы', card_type: 'structure', era: 'bronze', emoji: '🗼', drop_cost: 2, action_cost: 0, atk: 0, hp: 5, description: 'Башня помогает держать рубеж и поддерживает соседних бойцов.', tags: ['застава', 'укрепление'], keywords: ['rally'] }),
-        barbarianCard('north', 'ridge-wardens', { name: 'Ветераны горного рубежа', era: 'bronze', emoji: '⛰️', drop_cost: 3, atk: 3, hp: 5, description: 'Ветераны сменяют дозор и укрепляют оборону на горных тропах.', tags: ['ветераны', 'горы'], keywords: ['phalanx', 'armor:1'] })
+        barbarianCard('north', 'huscarls', { name: 'Хускарлы', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 7, description: 'Домашняя дружина в кольчугах: стена щитов держит рубеж и первый удар слабее.', tags: ['бронза', 'щит'], keywords: ['shieldwall', 'sturdy'] }),
+        barbarianCard('north', 'archers', { name: 'Стрелки', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 3, hp: 4, description: 'Стрелки бьют через все ряды бронебойной стрелой — ответа из глубины им нет.', tags: ['бронза', 'лук'], keywords: ['ranged', 'pierce:1'] }),
+        barbarianCard('north', 'axe-bearers-vets', { name: 'Секирники', era: 'bronze', emoji: '🪓', drop_cost: 3, atk: 4, hp: 5, description: 'Ветераны с тяжёлыми секирами: клин взламывает доспех и задних рядов.', tags: ['бронза', 'секира'], keywords: ['wedge', 'pierce:1'] }),
+        barbarianCard('north', 'veterans', { name: 'Ветераны', era: 'bronze', emoji: '⛰️', drop_cost: 2, atk: 3, hp: 6, description: 'Ветераны сменяют дозор и держат сомкнутый строй на горных тропах.', tags: ['бронза', 'ветераны'], keywords: ['phalanx', 'armor:1'] }),
+        barbarianCard('north', 'skirmishers', { name: 'Застрельщики', era: 'bronze', emoji: '🌲', drop_cost: 1, atk: 3, hp: 4, description: 'Лёгкие бойцы начинают бой, бьют и уходят вглубь, не принимая ближнего удара.', tags: ['бронза', 'лёгкая пехота'], keywords: ['skirmish'] }),
+        barbarianCard('north', 'levy', { name: 'Ополченцы', era: 'bronze', emoji: '🧺', drop_cost: 1, atk: 3, hp: 5, description: 'Посошная рать: сами слабы, но держат соседей по строю.', tags: ['бронза', 'ополчение'], keywords: ['rally'] }),
+        barbarianCard('north', 'siege-engine', { name: 'Порок', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 3, hp: 7, description: 'Стенобитная машина каждый ход бьёт по строю — урон гасит броня, ответа нет.', tags: ['бронза', 'осада'] }),
+        barbarianDrawSpell('north', 'beacon-fire', 'Дозорный костёр', 'bronze', ['warcry'], 'Костёр на рубеже созывает дозоры и помогает взять ещё одну карту.')
     ];
 
     const BARBARIAN_DECK_PROFILES = {
         reed: {
             style: 'Речной строй',
-            description: 'Копейщики и пращники держат переправы; снабжение помогает отрядам.',
+            description: 'Копьеносцы, булавоносцы и дружинники держат сомкнутый строй у воды; с Античного мира добавляются сариссофоры, лучники и башни.',
             decks: [REED_STONE_DECK, REED_ANTIQUITY_DECK, REED_MEDIEVAL_DECK]
         },
         steppe: {
             style: 'Степной рейд',
-            description: 'Подвижные всадники бьют с налёта и перехватывают припасы.',
+            description: 'Кочевники и секирники бьют с налёта и перехватывают припасы; дальше — конные лучники, колесницы и обоз.',
             decks: [STEPPE_STONE_DECK, STEPPE_ANTIQUITY_DECK, STEPPE_MEDIEVAL_DECK]
         },
         north: {
             style: 'Северная стража',
-            description: 'Топорники, лучники и щитоносцы удерживают перевалы.',
+            description: 'Кремнёвые топорники, ловчие и стражи держат лесной рубеж; дальше — стрелки, дозорные вышки и хускарлы.',
             decks: [NORTH_STONE_DECK, NORTH_ANTIQUITY_DECK, NORTH_MEDIEVAL_DECK]
         }
     };
@@ -460,14 +483,20 @@
     }
 
     /* ================= выбор народа: происхождение, замысел, наследие =================
-       Все три выбора онбординга дают боевые бонусы (поле combat у происхождения и замысла,
-       cultureCombatBonus у наследия) — мирных ресурсов в прототипе больше нет. */
+       Оба выбора онбординга дают боевые бонусы (поле combat у замысла, cultureCombatBonus
+       у наследия) — мирных ресурсов в прототипе больше нет. */
 
-    function originById(id) { return ORIGINS.find(origin => origin.id === id) || null; }
     function seedById(id) { return SEED_CHOICES.find(seed => seed.id === id) || null; }
-    function originPeopleName(origin) {
-        if (!origin) return 'Безымянный народ';
-        return origin.people || ('Народ земли «' + origin.name + '»');
+
+    /**
+     * Имя народа складывается из двух свойств онбординга, вводить его не нужно.
+     * Наследие даёт основу («Ямный народ», «Жрецы Гёбекли-Тепе»), замысел — судьбу в родительном
+     * падеже («Стада», «Разлива», «Неба»): 6 культур × 5 замыслов = 30 имён вместо шести прежних.
+     */
+    function peopleName(culture, seed) {
+        const stem = (culture && culture.people) || ('Народ ' + ((culture && culture.name) || 'безымянный'));
+        const fate = seed && seed.peopleSuffix;
+        return fate ? stem + ' ' + fate : stem;
     }
 
     /**
@@ -528,7 +557,6 @@
     function combatPerks(input) {
         const state = normalizeState(input);
         const perks = emptyPerks();
-        addPerks(perks, originById(state.player.originId) ? originById(state.player.originId).combat : null);
         addPerks(perks, seedById(state.player.seedChoiceId) ? seedById(state.player.seedChoiceId).combat : null);
         addPerks(perks, cultureCombatBonus(state.player.historicalCulture));
         addPerks(perks, state.player.upgrades);
@@ -564,7 +592,6 @@
                 fatigue_resist: raw.fatigueDelay >= COMBAT_CAPS.fatigueDelay,
                 unit_power: raw.atkBonus >= COMBAT_CAPS.atkBonus
             },
-            origin: originById(state.player.originId),
             seed: seedById(state.player.seedChoiceId),
             historicalCulture: state.player.historicalCulture
         };
@@ -788,7 +815,7 @@
         const availableMaterialQualities = getAvailableMaterialQualities(state);
         const materialQualityUnlocked = availableMaterialQualities.includes(materialQuality);
         // Качество ковки = сырьё + мастерство кузнеца (растёт от успешных ковок).
-        const qualityScore = Math.min(6, material.grade + state.player.craftLevel);
+        const qualityScore = Math.min(CARD_RARITY_ODDS.length - 1, material.grade + state.player.craftLevel);
         const baseOdds = CARD_RARITY_ODDS.find(row => qualityScore <= row.maxScore).odds;
         const rareLocked = state.player.era < RARE_CRAFT_MIN_ERA;
         const odds = rareLocked
@@ -945,7 +972,7 @@
             version: SAVE_VERSION,
             player: {
                 name: 'Безымянный народ', clan: 'Медный Ворон', era: 0,
-                onboardingComplete: false, originId: null, seedChoiceId: null, seedLine: '',
+                onboardingComplete: false, seedChoiceId: null, seedLine: '',
                 historicalCulture: null, culturalLineage: [],
                 glory: GLORY_START, gloryTotal: 0,
                 upgrades: emptyPerks(),
@@ -961,7 +988,7 @@
     }
 
     /**
-     * Приводит сохранение к текущей форме. Старые сейвы кампании (version < 5) не мигрируются:
+     * Приводит сохранение к текущей форме. Старые сейвы кампании (version < 6) не мигрируются:
      * прототип сменил модель целиком — экономика, карта и здания из них не нужны, поэтому
      * несовместимое сохранение заменяется новым состоянием.
      */
@@ -973,7 +1000,6 @@
         p.clan = typeof p.clan === 'string' && p.clan.trim() ? p.clan.trim().slice(0, 60) : 'Медный Ворон';
         p.era = clampInt(p.era, 0, ERAS.length - 1, 0);
         p.onboardingComplete = Boolean(p.onboardingComplete);
-        p.originId = originById(p.originId) ? p.originId : null;
         p.seedChoiceId = seedById(p.seedChoiceId) ? p.seedChoiceId : null;
         p.seedLine = typeof p.seedLine === 'string' ? p.seedLine.slice(0, 200) : '';
         p.historicalCulture = findCulture(p.historicalCulture);
@@ -1018,22 +1044,23 @@
     }
 
     /**
-     * Основание народа: три выбора — происхождение, наследие и замысел. Каждый даёт боевой
+     * Основание народа: два выбора — наследие (культура) и замысел (менталитет). Каждый даёт боевой
      * бонус, вместе они определяют вождя в первом бою. Никакой экономики и построек:
      * игрок сразу может выйти на поле.
+     *
+     * Третьего свойства нет: «Происхождение» дублировало замысел — земля «Ямная Степь» и замысел
+     * «Стадо и воля» давали один и тот же бонус (+1 к росту энергии), а имя народа земля определяла
+     * вместе с культурой. Теперь имя складывается из обоих свойств (peopleName): имён 30, а не шесть,
+     * и ни одно поле ввода игроку по-прежнему не нужно (options.name намеренно игнорируется).
      */
     function foundCampaignState(input, options = {}) {
         const state = normalizeState(input);
         if (state.player.onboardingComplete) return { state, error: 'Народ уже основан.' };
-        const origin = originById(options.originId);
-        if (!origin) return { state, error: 'Выберите происхождение народа.' };
         const seed = seedById(options.seedId);
         if (!seed) return { state, error: 'Выберите замысел народа.' };
         const culture = findCulture(options.historicalCultureId, 0);
         if (!culture) return { state, error: 'Выберите наследие эпохи «' + eraName(0) + '».' };
-        // Имя народа игрок не вводит: оно происходит из выбранной земли (options.name намеренно игнорируется).
-        const name = originPeopleName(origin);
-        state.player.originId = origin.id;
+        const name = peopleName(culture, seed);
         state.player.name = name;
         state.player.seedChoiceId = seed.id;
         state.player.seedLine = seed.line || '';
@@ -1044,7 +1071,7 @@
         state.player.onboardingComplete = true;
         const limit = getBattleConfig(state).deckLimit;
         state.player.deckCardIds = STARTER_DECK_IDS.slice(0, limit);
-        chroniclePush(state, 'Народ ' + name + ' вышел из земли «' + origin.name + '» (' + origin.place + ') с замыслом «' + seed.name + '»: ' + seed.line + '. Наследие — ' + culture.name + '. Боевой набор: ' + (describePerks(combatPerks(state)).join(', ') || 'обычные отряды племени') + '.');
+        chroniclePush(state, 'Народ «' + name + '» вышел из культуры ' + culture.name + ' с замыслом «' + seed.name + '»: ' + seed.line + '. Наследие даёт ' + (describePerks(cultureCombatBonus(culture)).join(', ') || 'ничего') + ', замысел — ' + (describePerks(seed.combat).join(', ') || 'ничего') + '. Боевой набор: ' + (describePerks(combatPerks(state)).join(', ') || 'обычные отряды племени') + '.');
         state.player.campaignNotice = 'Народ основан. Выберите соперника в лагере и выйдите в первый бой.';
         return { state, error: null, battle: getBattleConfig(state) };
     }
@@ -1061,7 +1088,7 @@
 
     const api = {
         // данные
-        ERAS, ERA_HISTORICAL, ERA_GLORY_THRESHOLDS, ORIGINS, SEED_CHOICES, HISTORICAL_CULTURES, STARTER_CARDS, STARTER_DECK_IDS,
+        ERAS, ERA_HISTORICAL, ERA_GLORY_THRESHOLDS, SEED_CHOICES, HISTORICAL_CULTURES, STARTER_CARDS, STARTER_DECK_IDS,
         COMBAT_KEYS, COMBAT_LABELS, COMBAT_CAPS, COMBAT_BASE, COMBAT_FIELD, CAMP_UPGRADES,
         GLORY_START, GLORY_WIN_BASE, GLORY_PER_ERA, GLORY_LEADER_BONUS, GLORY_LOSS, GLORY_STREAK_STEP, GLORY_STREAK_MAX,
         CARD_CRAFT_MATERIALS, CARD_RARITY_ODDS, CARD_MODEL_BY_RARITY, RARE_CRAFT_MIN_ERA, CRAFT_LEVEL_MAX, CRAFT_XP_PER_LEVEL,
@@ -1071,7 +1098,7 @@
         // утилиты
         clone, hashString, seededRandom, pickRandom, eraName, allowedCardEras, findCulture, describePerks, cultureCombatBonus,
         // народ и бой
-        createState, normalizeState, load, save, originPeopleName, foundCampaignState,
+        createState, normalizeState, load, save, peopleName, foundCampaignState,
         combatPerks, getBattleConfig, getOpponentBattleConfig, getOpponentBattleDeck,
         toggleDeckCardState: toggleDeckCard,
         // слава, эпохи, лагерь

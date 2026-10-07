@@ -7,10 +7,13 @@ import { Btn, Chip, Label } from "@/components/ui";
 import { LogoMark } from "@/components/Shell";
 import art from "../../assets/infinite-forge-battlefield.jpg";
 
-// Три осознанных выбора — и народ основан. Все три дают боевые бонусы (campaign.js → combatPerks):
+// Два осознанных выбора — и народ основан. Оба дают боевые бонусы (campaign.js → combatPerks):
 // экономика, постройки и науки из прототипа убраны, поэтому выбор сразу видно в параметрах вождя.
-// Шага «Имя» нет: имя народа происходит из выбранной земли (ORIGINS.people).
-const STEPS = ["Происхождение", "Наследие", "Замысел"];
+// Третьего свойства («Происхождение») больше нет: земля дублировала замысел — и тем же бонусом
+// (+1 к приросту энергии у степи и «Стада и воли»), и ролью в имени народа.
+// Шага «Имя» по-прежнему нет: имя складывается из двух свойств (M.peopleName — наследие даёт
+// основу, замысел судьбу), поэтому имён 30, а не шесть.
+const STEPS = ["Наследие", "Замысел"];
 
 /** Боевые бонусы выбора одной строкой: «+1 здоровье вождя». */
 function perksOf(bonus: any): string[] {
@@ -21,7 +24,6 @@ export default function Onboarding() {
   const { game, foundPeople, go, toast } = useStore();
   const p = game.player;
   const [step, setStep] = useState(0);
-  const [originId, setOriginId] = useState<string | null>(p.originId || null);
   // Наследие: культуры Каменного века лежат в игре целиком, и игрок выбирает одну сам.
   const startCultures: any[] = M.HISTORICAL_CULTURES.filter((c: any) => c.era === 0);
   const [cultureId, setCultureId] = useState<string | null>(() => {
@@ -31,24 +33,24 @@ export default function Onboarding() {
   const [seedId, setSeedId] = useState<string | null>(p.seedChoiceId || null);
   const [error, setError] = useState("");
 
-  const origin = M.ORIGINS.find((o: any) => o.id === originId) || null;
   const culture = startCultures.find((c: any) => c.id === cultureId) || null;
-  const people = origin ? M.originPeopleName(origin) : "";
+  const seed = (M.SEED_CHOICES || []).find((c: any) => c.id === seedId) || null;
+  const people = culture && seed ? (M.peopleName(culture, seed) as string) : "";
   const last = step === STEPS.length - 1;
-  const canNext = step === 0 ? !!originId : step === 1 ? !!cultureId : !!seedId;
+  const canNext = step === 0 ? !!cultureId : !!seedId;
 
-  // Живая сводка вождя: считается на настоящем состоянии, поэтому игрок видит итог трёх выборов
+  // Живая сводка вождя: считается на настоящем состоянии, поэтому игрок видит итог обоих выборов
   // до основания народа — ровно те числа, с которыми он выйдет в первый бой.
   const preview = useMemo(() => {
-    if (!originId || !cultureId || !seedId) return null;
-    const trial = M.foundCampaign(M.createState(), { originId, seedId, historicalCultureId: cultureId });
+    if (!cultureId || !seedId) return null;
+    const trial = M.foundCampaign(M.createState(), { seedId, historicalCultureId: cultureId });
     return trial.error ? null : M.getBattleConfig(trial.state);
-  }, [originId, cultureId, seedId]);
+  }, [cultureId, seedId]);
 
   /** Народ основан: игрок сразу в лагере, где военный стол и улучшения за славу. */
   const found = () => {
-    if (!originId || !seedId || !cultureId) return;
-    const res = foundPeople({ originId, seedId, historicalCultureId: cultureId });
+    if (!seedId || !cultureId) return;
+    const res = foundPeople({ seedId, historicalCultureId: cultureId });
     if (!res.ok) { setError(res.error || "Не удалось основать народ."); return; }
     setError("");
     go("camp");
@@ -65,8 +67,9 @@ export default function Onboarding() {
           <LogoMark size={44} />
           <h1 className="font-display mt-4 text-4xl font-semibold leading-tight text-parch">Основать народ и выйти в бой</h1>
           <p className="mt-3 max-w-md text-[15px] leading-relaxed text-dim">
-            Три выбора — происхождение, наследие и замысел. Каждый меняет вождя в бою: здоровье,
-            энергию, размер колоды и силу отрядов. Дальше — военный стол, лагерь и кузница карт.
+            Два выбора — наследие и замысел. Каждый меняет вождя в бою: здоровье, энергию, размер
+            колоды и силу отрядов. Вместе они дают народу имя. Дальше — военный стол, лагерь
+            и кузница карт.
           </p>
         </div>
       </div>
@@ -84,37 +87,6 @@ export default function Onboarding() {
 
         <div className="flex-1 animate-rise" key={step}>
           {step === 0 && (
-            <div>
-              <h2 className="font-display text-3xl font-semibold">Откуда пришёл ваш народ?</h2>
-              <p className="mt-2 max-w-2xl text-dim">
-                Земля задаёт характер войны: где-то держат строй за камнем, где-то живут налётом с седла.
-                Из неё же происходит имя народа — придумывать его не нужно.
-              </p>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                {M.ORIGINS.map((o: any) => (
-                  <button key={o.id} onClick={() => setOriginId(o.id)}
-                    className={cn("rounded-2xl border p-4 text-left transition-all", originId === o.id ? "border-bronze bg-raised" : "border-line bg-surface hover:border-line-strong hover:bg-raised/60")}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-3xl">{o.icon}</span>
-                      <span className="flex flex-wrap justify-end gap-1">{perksOf(o.combat).map((perk: string) => <Chip key={perk} tone="bronze">{perk}</Chip>)}</span>
-                    </div>
-                    <div className="font-display mt-2 text-lg font-semibold">{o.name}</div>
-                    <div className="text-xs text-faint">{o.place}</div>
-                    <p className="mt-2 text-[13px] leading-snug text-dim">{o.description}</p>
-                    <div className="mt-2 text-[11.5px] leading-snug text-bronze-soft">{o.historical}</div>
-                    <div className="mt-2 text-[11.5px] leading-snug text-faint">{o.combatNote}</div>
-                    <div className="mt-2 text-[11.5px] text-faint">Имя народа: <span className="text-parch">{M.originPeopleName(o)}</span></div>
-                  </button>
-                ))}
-              </div>
-              <p className="mt-4 text-xs leading-relaxed text-faint">
-                Все шесть земель настоящие: датировки и прототипы — из археологии. Происхождение попадёт в летопись
-                и в промпты кузнеца вместе с наследием и замыслом.
-              </p>
-            </div>
-          )}
-
-          {step === 1 && (
             <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Кем пришли в этот мир?</h2>
               <p className="mt-2 text-dim">
@@ -138,11 +110,12 @@ export default function Onboarding() {
               <p className="mt-4 text-xs text-faint">
                 Все шесть культур Каменного века настоящие: даты, места и находки — из археологии. Боевой бонус
                 выводится из того, чем культура жила: камень и металл идут в оружие, избыток еды — в выносливость вождя.
+                Наследие даёт и первую половину имени народа — вторую добавит замысел.
               </p>
             </div>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Чем живёт ваш народ?</h2>
               <p className="mt-2 text-dim">
@@ -154,11 +127,6 @@ export default function Onboarding() {
                 <Label>Ваш народ</Label>
                 <div className="mt-1.5 font-display text-2xl font-semibold text-parch">{people || "Безымянный народ"}</div>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {origin && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-dim">
-                      <span className="text-base">{origin.icon}</span>{origin.name} · {origin.place}
-                    </span>
-                  )}
                   {culture && (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-bronze/40 bg-bronze/10 px-3 py-1.5 text-parch">
                       <span className="text-base">{culture.icon}</span>{culture.name}

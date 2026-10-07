@@ -90,7 +90,6 @@ export default function Camp() {
               <Stat icon={<Swords size={15} className="text-clay" />} label="Атака отрядов" value={cfg.atkBonus ? `+${cfg.atkBonus}` : "—"} cap={`+${M.COMBAT_CAPS.atkBonus}`} />
             </div>
             <div className="mt-4 space-y-2 border-t border-line pt-4 text-[12.5px]">
-              <Source icon={cfg.origin?.icon || "🌍"} title={cfg.origin ? `Земля «${cfg.origin.name}»` : "Земля не выбрана"} note={cfg.origin?.combatNote || ""} perks={M.describePerks(cfg.origin?.combat || {})} />
               <Source icon={cfg.seed?.icon || "✨"} title={cfg.seed ? `Замысел «${cfg.seed.name}»` : "Замысел не выбран"} note={cfg.seed?.combatNote || ""} perks={M.describePerks(cfg.seed?.combat || {})} />
               <Source icon={p.historicalCulture?.icon || "🏺"} title={p.historicalCulture ? `Наследие «${p.historicalCulture.name}»` : "Наследие не выбрано"} note={p.historicalCulture?.desc || ""} perks={heritagePerks} />
               <Source icon={<Tent size={14} className="text-bronze" />} title="Лагерь" note="Постоянные улучшения за славу" perks={upgradePerks} />
