@@ -176,6 +176,34 @@ test('ветеранский слой поднимает цифры до ков�
   assert.deepEqual(Campaign.veteranCard(spell, steps, mult).effects, spell.effects, 'манёвры племени ветеранами не становятся: их сила считается отдельно');
 });
 
+test('соперники сохраняют каменный предел, а после него растут вместе с редкостью эпохи', () => {
+  const state = Campaign.foundCampaignState(Campaign.createState(17), { seedId: 'field', historicalCultureId: 'natufian' }).state;
+  const reed = state.opponents.find((opponent) => opponent.id === 'reed');
+
+  state.player.era = 0;
+  reed.era = 0;
+  const stoneBase = Campaign.BARBARIAN_DECK_PROFILES.reed.decks[0];
+  const stoneDeck = Campaign.getOpponentBattleDeck(state, 'reed');
+  assert.deepEqual(stoneDeck.map((card) => [card.atk, card.hp]), stoneBase.map((card) => [card.atk, card.hp]),
+    'в Каменном веке противник остаётся на честных пределах своей линии');
+  assert.ok(stoneDeck.every((card) => card.atk <= 2 && card.hp <= 3), 'ни одна каменная карта не получает лишнюю атаку или здоровье');
+
+  state.player.era = 1;
+  reed.era = 1;
+  const bronzeBase = Campaign.BARBARIAN_DECK_PROFILES.reed.decks[1];
+  const bronzeDeck = Campaign.getOpponentBattleDeck(state, 'reed');
+  const multiplier = Campaign.expectedCraftMultiplier(1);
+  assert.ok(bronzeDeck.some((card, index) => card.card_type !== 'spell' && card.atk + card.hp > bronzeBase[index].atk + bronzeBase[index].hp),
+    'у равного по эпохе соперника бюджет уже учитывает качество ковки');
+  for (let i = 0; i < bronzeDeck.length; i++) {
+    assert.equal(bronzeDeck[i].drop_cost, bronzeBase[i].drop_cost, 'усиление не делает карты дороже для вывода');
+    if (bronzeDeck[i].card_type !== 'spell') {
+      assert.ok(Campaign.cardValueOf(bronzeDeck[i]) <= Math.round(Campaign.cardBudgetOf(bronzeBase[i]) * multiplier) + 1,
+        `${bronzeDeck[i].name}: ветеран не выходит за ожидаемый бюджет эпохи`);
+    }
+  }
+});
+
 test('колода и конфиг племени считают одну и ту же колоду той же эпохи', () => {
   const state = Campaign.foundCampaignState(Campaign.createState(7), { seedId: 'field', historicalCultureId: 'natufian' }).state;
   state.player.era = 5;

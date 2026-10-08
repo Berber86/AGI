@@ -278,7 +278,7 @@ test('перегруженный эффект каменного отряда у
   const card = await cards.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(0));
   assert.equal(requests.length, 1, 'переизбыток не вызывает цикл браковки и повторную ковку');
   assert.equal(card.effects.length, 1);
-  assert.equal(card.effects[0].action.amount, 3, 'урон автоматически снижен до drop_cost + 1');
+  assert.equal(card.effects[0].action.amount, 2, 'эффект ужимается после резерва силы на ключевое слово и минимальные ATK/HP');
   assert.match(requests[0].messages[0].content, /0–2 простых эффекта/u, 'промпт заранее задаёт ограничение');
 });
 

@@ -14,7 +14,7 @@
 
   --color-parch: #f0e6d0;
   --color-dim: #b5a78d;
-  --color-faint: #7f735f;
+  --color-faint: #958973;
 
   --color-bronze: #d9a445;
   --color-bronze-soft: #e9c176;
@@ -63,7 +63,11 @@
 html, body, #root { height: 100%; }
 
 body {
-  background: var(--color-ground);
+  background:
+    radial-gradient(ellipse 46rem 32rem at 9% -12%, rgba(217, 164, 69, 0.09), transparent 72%),
+    radial-gradient(ellipse 34rem 28rem at 100% 38%, rgba(196, 98, 63, 0.045), transparent 76%),
+    var(--color-ground);
+  background-attachment: fixed;
   color: var(--color-parch);
   font-family: var(--font-sans);
   font-size: 15px;
@@ -88,6 +92,22 @@ body {
 
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(calc(-100% - 1rem));
+  border-radius: 0.75rem;
+  background: var(--color-bronze);
+  padding: 0.65rem 1rem;
+  color: var(--color-ground);
+  font-weight: 700;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transition: transform 150ms ease;
+}
+.skip-link:focus { transform: translateY(0); }
 
 .font-display { font-family: var(--font-serif); letter-spacing: -0.005em; }
 

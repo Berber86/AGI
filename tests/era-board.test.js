@@ -476,7 +476,7 @@ test('экран боя рисует столько рядов, сколько �
   assert.match(store, /threatEra: M\.getOpponentBattleConfig\(g, o\.id\)\.threatEra/u, 'бой получает эпоху угрозы');
 
   const system = fs.readFileSync(path.join(root, 'src', 'game', 'cards.ts'), 'utf8');
-  assert.match(system, /КАМЕННЫЙ ВЕК \/ стол в одну линию/u, 'кузнец знает об ограничениях раннего стола');
+  assert.match(system, /КАМЕННЫЙ ВЕК:/u, 'кузнец знает об ограничениях раннего стола');
   assert.match(system, /oneLineBoard\(state\)/u, 'формат подсказок зависит от текущей геометрии стола');
-  assert.match(system, /ровно один скромный эффект и затрагивать ровно одну цель/u, 'каменный манёвр ограничен одной целью');
+  assert.match(system, /Манёвр Каменного века: один полезный enter_play-эффект на одну цель/u, 'каменный манёвр ограничен одной целью');
 });

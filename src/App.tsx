@@ -32,9 +32,10 @@ function Root() {
   }
   return (
     <div className="min-h-dvh lg:pl-[216px]">
+      <a className="skip-link" href="#main-content">Перейти к содержимому</a>
       <SideNav />
       <TopBar />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {page === "camp" && <Camp />}
         {page === "army" && <Army />}
         {page === "forge" && <Forge />}

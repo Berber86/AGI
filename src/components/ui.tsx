@@ -39,7 +39,7 @@ export function Btn({ variant = "secondary", size = "md", className, ...rest }: 
 }
 
 export function Panel({ className, children, as: Tag = "section" }: { className?: string; children: ReactNode; as?: "section" | "div" | "article" }) {
-  return <Tag className={cn("rounded-2xl border border-line bg-surface", className)}>{children}</Tag>;
+  return <Tag className={cn("rounded-2xl border border-line bg-surface shadow-[0_16px_40px_-32px_rgba(0,0,0,0.95)]", className)}>{children}</Tag>;
 }
 
 export function Heading({ eyebrow, title, right, className }: { eyebrow?: string; title: string; right?: ReactNode; className?: string }) {

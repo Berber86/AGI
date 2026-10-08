@@ -104,13 +104,13 @@
        игрок выковывает у ИИ. Каменный пул остаётся NPC-контентом; в нём нет построек и дальних
        слов для однорядного стола, у отрядов 1–3 HP и умеренная базовая атака. */
     const MILITIA_CORE_CARDS = [
-        { id: 'militia-core-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 2, hp: 3, description: 'Сомкнутое копейное ополчение держит линию, но лёгкая защита не спасает от долгого боя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [] },
-        { id: 'militia-core-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 1, hp: 2, description: 'Молодые воины первыми бросаются в схватку: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [] },
-        { id: 'militia-core-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Каменные топоры и кожаные щиты: клин ломает строй, но боец уязвим.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [] },
+        { id: 'militia-core-spears', name: 'Копейщики', card_type: 'unit', emoji: '🔺', drop_cost: 1, action_cost: 1, atk: 1, hp: 1, description: 'Сомкнутое копейное ополчение держит линию, но лёгкая защита не спасает от долгого боя.', tags: ['копьё', 'пехота'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['phalanx'], effects: [] },
+        { id: 'militia-core-clubmen', name: 'Дубинщики', card_type: 'unit', emoji: '🪵', drop_cost: 1, action_cost: 1, atk: 1, hp: 1, description: 'Молодые воины первыми бросаются в схватку: дубина и натиск решают первый обмен.', tags: ['дубина', 'молодёжь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge'], effects: [] },
+        { id: 'militia-core-axes', name: 'Топорники', card_type: 'unit', emoji: '🪓', drop_cost: 2, action_cost: 1, atk: 1, hp: 2, description: 'Каменные топоры и кожаные щиты: клин ломает строй, но боец уязвим.', tags: ['топор', 'клин'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['wedge', 'armor:1'], effects: [] },
         { id: 'militia-core-shields', name: 'Щитоносцы', card_type: 'unit', emoji: '🛡️', drop_cost: 2, action_cost: 1, atk: 1, hp: 3, description: 'Плетёные щиты смягчают удар, пока щитоносцы удерживают линию.', tags: ['щит', 'строй'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['shieldwall'], effects: [] },
-        { id: 'militia-core-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 1, hp: 2, description: 'Лёгкая конница налетает первой и уносит припасы, но не держит долгий бой.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['charge', 'raider'], effects: [] },
+        { id: 'militia-core-riders', name: 'Всадники', card_type: 'unit', emoji: '🐎', drop_cost: 2, action_cost: 1, atk: 1, hp: 2, description: 'Лёгкая конница налетает первой и уносит припасы, но не держит долгий бой.', tags: ['конница', 'налёт'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['raider'], effects: [] },
         { id: 'militia-core-drivers', name: 'Загонщики', card_type: 'unit', emoji: '🦌', drop_cost: 2, action_cost: 1, atk: 2, hp: 2, description: 'Загонщики заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['flank'], effects: [] },
-        { id: 'militia-core-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 2, hp: 3, description: 'Отборные телохранители прикрывают вождя щитами и бьются до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [] },
+        { id: 'militia-core-retinue', name: 'Дружина вождя', card_type: 'unit', emoji: '⚔️', drop_cost: 3, action_cost: 2, atk: 2, hp: 2, description: 'Отборные телохранители прикрывают вождя щитами и бьются до последнего.', tags: ['дружина', 'вождь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: ['taunt', 'laststand', 'armor:1'], effects: [] },
         { id: 'militia-core-night-raid', name: 'Ночной набег', card_type: 'spell', emoji: '🌙', drop_cost: 2, action_cost: 0, atk: 0, hp: 0, description: 'Поджигает вражеский авангард: самый сильный отряд горит два хода.', tags: ['набег', 'огонь'], abilities: [], monkey_paw: '', era: 'ancient', keywords: [], effects: [{ event: 'enter_play', target: { side: 'enemy', entity: 'unit', zone: 'front', select: 'highest_attack', count: 1 }, action: { type: 'apply_status', status: 'burn', amount: 1, turns: 2 } }] }
     ];
 
@@ -287,7 +287,7 @@
      * (expectedCraftMultiplier): кузница игрока и колоды племён обязаны считать силу одинаково,
      * tests/card-balance.test.js сверяет обе таблицы.
      */
-    const CARD_RARITY_BUDGET_MULT = { ordinary: 1, uncommon: 1.3, rare: 1.7 };
+    const CARD_RARITY_BUDGET_MULT = { ordinary: 1, uncommon: 2, rare: 4 };
     const CARD_RARITY_ODDS = [
         { maxScore: 0, odds: { ordinary: 70, uncommon: 25, rare: 5 } },
         { maxScore: 1, odds: { ordinary: 60, uncommon: 30, rare: 10 } },
@@ -317,7 +317,7 @@
     }
     function barbarianDrawSpell(faction, slug, name, era, keywords, description) {
         return barbarianCard(faction, slug, {
-            name, card_type: 'spell', era, emoji: '📯', drop_cost: 2, action_cost: 0, atk: 0, hp: 0,
+            name, card_type: 'spell', era, emoji: '📯', drop_cost: 3, action_cost: 0, atk: 0, hp: 0,
             description, keywords,
             effects: [{ event: 'enter_play', target: { side: 'controller', entity: 'player' }, action: { type: 'draw', amount: 1 } }]
         });
@@ -331,85 +331,83 @@
        занимают место бойца. У каждого каменного отряда 1–3 HP: для эпохи это норма; обмен может
        закончиться взаимной гибелью, поэтому тактический ИИ теперь оценивает ответный удар. */
 
-    /* Цены колод. Все карты племён стоят по той же формуле, что и карты игрока из кузницы:
-       сила = atk + hp + вес ключевых слов обязана уложиться в 2*drop + action + 1 (обычная
-       редкость, см. cardPowerBudget в src/game/cards.ts). Раньше цифры племён были проставлены
-       на глаз: копейщики 2/3 с фалангой за одну энергию (сила 6 при бюджете 4), сержанты 2/5 с
-       двумя словами за одну (сила 9), тяжёлая конница 4/6 с тремя словами за три (сила 13 при
-       бюджете 8). Против честной карты игрока такой отряд выигрывал размен всегда, поэтому
-       кампания превращалась в стену. Ниже те же роли и имена, но цифры приведены к бюджету. */
+    /* Цены колод. Все карты племён стоят по той же формуле, что и карты игрока:
+       сила = atk + hp + стоимость ключевых слов + полезные эффекты; бюджет отряда =
+       2*drop + action + 1. Сильные тактические/энергетические слова и повторяемые эффекты
+       стоят дороже, а бюджет редкости игрока растёт ×2/×4. Шаблоны племён остаются обычными
+       картами: одна и та же цена силы применяется к ним до ветеранского масштабирования. */
 
     const REED_STONE_DECK = [
-        barbarianCard('reed', 'spearline', { name: 'Копьеносцы', emoji: '🔱', drop_cost: 1, atk: 1, hp: 2, description: 'Копьеносцы речного племени держат сомкнутый строй, хотя сами легко ранимы.', tags: ['копьё', 'строй'], keywords: ['phalanx'] }),
-        barbarianCard('reed', 'macebearers', { name: 'Булавоносцы', emoji: '🪨', drop_cost: 2, atk: 2, hp: 3, description: 'Каменные булавы пробивают толпу: клин идёт туда, где строй уже сомкнулся.', tags: ['булава', 'клин'], keywords: ['wedge'] }),
-        barbarianCard('reed', 'retinue', { name: 'Дружинники', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 2, description: 'Старшие воины с плетёными щитами принимают удар, пока строй не дрогнул.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
-        barbarianCard('reed', 'levy', { name: 'Ополченцы', emoji: '🧺', drop_cost: 1, atk: 1, hp: 2, description: 'Земледельцы с вилами и кольями слабы в одиночку, но поддерживают соседей.', tags: ['ополчение', 'поддержка'], keywords: ['rally'] })
+        barbarianCard('reed', 'spearline', { name: 'Копьеносцы', emoji: '🔱', drop_cost: 1, atk: 1, hp: 1, description: 'Копьеносцы речного племени держат сомкнутый строй, хотя сами легко ранимы.', tags: ['копьё', 'строй'], keywords: ['phalanx'] }),
+        barbarianCard('reed', 'macebearers', { name: 'Булавоносцы', emoji: '🪨', drop_cost: 2, atk: 2, hp: 2, description: 'Каменные булавы пробивают толпу: клин идёт туда, где строй уже сомкнулся.', tags: ['булава', 'клин'], keywords: ['wedge'] }),
+        barbarianCard('reed', 'retinue', { name: 'Дружинники', emoji: '🛡️', drop_cost: 2, atk: 1, hp: 1, description: 'Старшие воины с плетёными щитами принимают удар, пока строй не дрогнул.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('reed', 'levy', { name: 'Ополченцы', emoji: '🧺', drop_cost: 1, atk: 1, hp: 1, description: 'Земледельцы с вилами и кольями слабы в одиночку, но поддерживают соседей.', tags: ['ополчение', 'поддержка'], keywords: ['rally'] })
     ];
     const REED_ANTIQUITY_DECK = [
-        barbarianCard('reed', 'sarissophoroi', { name: 'Сариссофоры', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 2, hp: 2, description: 'Длинные пики в шесть метров: строй бьёт из-за спин переднего ряда, не открываясь для удара.', tags: ['бронза', 'пика'], keywords: ['phalanx', 'reach'] }),
-        barbarianCard('reed', 'hoplites', { name: 'Гоплиты', era: 'bronze', emoji: '🛡️', drop_cost: 2, atk: 1, hp: 2, description: 'Тяжёлая пехота в бронзовых доспехах и с круглым щитом: принимает удар и держит фалангу.', tags: ['бронза', 'фаланга'], keywords: ['shieldwall', 'taunt', 'armor:1'] }),
+        barbarianCard('reed', 'sarissophoroi', { name: 'Сариссофоры', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 1, hp: 1, description: 'Длинные пики в шесть метров: строй бьёт из-за спин переднего ряда, не открываясь для удара.', tags: ['бронза', 'пика'], keywords: ['phalanx', 'reach'] }),
+        barbarianCard('reed', 'hoplites', { name: 'Гоплиты', era: 'bronze', emoji: '🛡️', drop_cost: 2, atk: 1, hp: 1, description: 'Тяжёлая пехота в бронзовых доспехах и с круглым щитом: принимает удар и держит фалангу.', tags: ['бронза', 'фаланга'], keywords: ['shieldwall', 'taunt'] }),
         barbarianCard('reed', 'archers', { name: 'Лучники', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 2, description: 'Стрелки бьют через весь строй по самой опасной цели — ответа из глубины им нет.', tags: ['бронза', 'лук'], keywords: ['ranged'] }),
         barbarianCard('reed', 'peltasts', { name: 'Пельтасты', era: 'bronze', emoji: '🪖', drop_cost: 1, atk: 1, hp: 1, description: 'Лёгкие бойцы с плетёным щитом: ударят и уйдут вглубь, не принимая ближнего боя.', tags: ['бронза', 'лёгкая пехота'], keywords: ['skirmish'] }),
         barbarianCard('reed', 'watchtower', { name: 'Сторожевая башня', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 1, hp: 5, description: 'Башня из сырцового кирпича каждый ход обстреливает подошедших — броня гасит урон.', tags: ['бронза', 'укрепление'] }),
         barbarianDrawSpell('reed', 'signal-horn', 'Сигнальный рог', 'bronze', ['warcry'], 'Рог над поймой собирает обоз и помогает отрядам взять ещё одну карту.')
     ];
     const REED_MEDIEVAL_DECK = [
-        barbarianCard('reed', 'druzhina', { name: 'Дружинники', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 3, description: 'Тяжёлая дружина удерживает переправу под стеной щитов и принимает удар на себя.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('reed', 'druzhina', { name: 'Дружинники', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 2, hp: 2, description: 'Тяжёлая дружина удерживает переправу под стеной щитов и принимает удар на себя.', tags: ['дружина', 'щит'], keywords: ['shieldwall', 'taunt'] }),
         barbarianCard('reed', 'crossbowmen', { name: 'Арбалетчики', era: 'bronze', emoji: '🏹', drop_cost: 3, atk: 3, hp: 2, description: 'Арбалет пробивает доспех: стрелки бьют из-за строя и не получают ответа.', tags: ['арбалет', 'стрельба'], keywords: ['ranged', 'pierce:1'] }),
         barbarianCard('reed', 'sergeants', { name: 'Сержанты', era: 'bronze', emoji: '⚔️', drop_cost: 1, atk: 2, hp: 1, description: 'Строевая пехота в кольчугах держит линию и не даёт строю рассыпаться.', tags: ['пехота', 'кольчуга'], keywords: ['armor:1'] }),
-        barbarianCard('reed', 'halberdiers', { name: 'Алебардисты', era: 'bronze', emoji: '🪓', drop_cost: 3, atk: 3, hp: 3, description: 'Алебарда рубит и колет: клин взламывает доспех и доходит до задних рядов.', tags: ['алебарда', 'клин'], keywords: ['wedge', 'pierce:1'] }),
-        barbarianCard('reed', 'knights', { name: 'Рыцари', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 3, hp: 3, description: 'Тяжёлый всадник на бронированном коне: первый натиск сминает строй.', tags: ['конница', 'броня'], keywords: ['charge', 'armor:1'] }),
-        barbarianCard('reed', 'men-at-arms', { name: 'Латники', era: 'bronze', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 2, description: 'Пешие латники держат удар: первый за ход попадает по ним слабее.', tags: ['латы', 'пехота'], keywords: ['sturdy', 'armor:1'] }),
+        barbarianCard('reed', 'halberdiers', { name: 'Алебардисты', era: 'bronze', emoji: '🪓', drop_cost: 3, atk: 3, hp: 2, description: 'Алебарда рубит и колет: клин взламывает доспех и доходит до задних рядов.', tags: ['алебарда', 'клин'], keywords: ['wedge', 'pierce:1'] }),
+        barbarianCard('reed', 'knights', { name: 'Рыцари', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 3, hp: 2, description: 'Тяжёлый всадник на бронированном коне: первый натиск сминает строй.', tags: ['конница', 'броня'], keywords: ['charge', 'armor:1'] }),
+        barbarianCard('reed', 'men-at-arms', { name: 'Латники', era: 'bronze', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 1, description: 'Пешие латники держат удар: первый за ход попадает по ним слабее.', tags: ['латы', 'пехота'], keywords: ['sturdy', 'armor:1'] }),
         barbarianCard('reed', 'trebuchet', { name: 'Требушет', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 2, hp: 3, description: 'Метательная машина каждый ход бьёт по строю — урон гасит броня, ответа нет.', tags: ['осада', 'укрепление'] }),
         barbarianDrawSpell('reed', 'war-cry', 'Боевой клич', 'bronze', ['warcry'], 'Клич над строем поднимает дух и помогает взять ещё одну карту.')
     ];
 
     const STEPPE_STONE_DECK = [
-        barbarianCard('steppe', 'nomads', { name: 'Кочевники', emoji: '🐎', drop_cost: 2, atk: 2, hp: 2, description: 'Кочевники налетают стремительно и уносят припасы, но не держат долгий бой.', tags: ['конница', 'налёт'], keywords: ['charge', 'raider'] }),
-        barbarianCard('steppe', 'axe-bearers', { name: 'Секирники', emoji: '🪓', drop_cost: 2, atk: 2, hp: 2, description: 'Боевые секиры и кожаные доспехи: клин рубит строй соседей.', tags: ['секира', 'клин'], keywords: ['armor:1', 'wedge'] }),
-        barbarianCard('steppe', 'herders', { name: 'Табунщики', emoji: '🔺', drop_cost: 1, atk: 1, hp: 2, description: 'Пастухи держатся вокруг табуна и встречают налётчиков сомкнутыми копьями.', tags: ['копьё', 'табун'], keywords: ['phalanx'] }),
-        barbarianCard('steppe', 'kurgan-guard', { name: 'Курганная стража', emoji: '🛡️', drop_cost: 1, atk: 2, hp: 1, description: 'Старшие воины держатся вокруг знамени и принимают удар на себя.', tags: ['дружина', 'щит'], keywords: ['taunt'] })
+        barbarianCard('steppe', 'nomads', { name: 'Кочевники', emoji: '🐎', drop_cost: 2, action_cost: 2, atk: 1, hp: 1, description: 'Кочевники налетают стремительно и уносят припасы, но не держат долгий бой.', tags: ['конница', 'налёт'], keywords: ['charge', 'raider'] }),
+        barbarianCard('steppe', 'axe-bearers', { name: 'Секирники', emoji: '🪓', drop_cost: 2, atk: 2, hp: 1, description: 'Боевые секиры и кожаные доспехи: клин рубит строй соседей.', tags: ['секира', 'клин'], keywords: ['armor:1', 'wedge'] }),
+        barbarianCard('steppe', 'herders', { name: 'Табунщики', emoji: '🔺', drop_cost: 1, atk: 1, hp: 1, description: 'Пастухи держатся вокруг табуна и встречают налётчиков сомкнутыми копьями.', tags: ['копьё', 'табун'], keywords: ['phalanx'] }),
+        barbarianCard('steppe', 'kurgan-guard', { name: 'Курганная стража', emoji: '🛡️', drop_cost: 1, atk: 1, hp: 1, description: 'Старшие воины держатся вокруг знамени и принимают удар на себя.', tags: ['дружина', 'щит'], keywords: ['taunt'] })
     ];
     const STEPPE_ANTIQUITY_DECK = [
         barbarianCard('steppe', 'horse-archers', { name: 'Конные лучники', era: 'bronze', emoji: '🏹', drop_cost: 3, atk: 2, hp: 2, description: 'Стреляют на ходу и не принимают ближнего боя: ответа из глубины им нет.', tags: ['бронза', 'конница'], keywords: ['ranged', 'skirmish'] }),
-        barbarianCard('steppe', 'chariots', { name: 'Боевые колесницы', era: 'bronze', emoji: '🛞', drop_cost: 3, atk: 3, hp: 3, description: 'Пара коней и два бойца в кузове: первый натиск пробивает доспех.', tags: ['бронза', 'колесница'], keywords: ['charge', 'pierce:1'] }),
-        barbarianCard('steppe', 'heavy-riders', { name: 'Тяжёлые всадники', era: 'bronze', emoji: '🐎', drop_cost: 2, atk: 2, hp: 2, description: 'Всадник в бронзовой чешуе идёт в натиск и держит ответный удар.', tags: ['бронза', 'конница'], keywords: ['charge', 'armor:1'] }),
+        barbarianCard('steppe', 'chariots', { name: 'Боевые колесницы', era: 'bronze', emoji: '🛞', drop_cost: 3, atk: 3, hp: 2, description: 'Пара коней и два бойца в кузове: первый натиск пробивает доспех.', tags: ['бронза', 'колесница'], keywords: ['charge', 'pierce:1'] }),
+        barbarianCard('steppe', 'heavy-riders', { name: 'Тяжёлые всадники', era: 'bronze', emoji: '🐎', drop_cost: 2, atk: 2, hp: 1, description: 'Всадник в бронзовой чешуе идёт в натиск и держит ответный удар.', tags: ['бронза', 'конница'], keywords: ['charge', 'armor:1'] }),
         barbarianCard('steppe', 'raiders', { name: 'Налётчики', era: 'bronze', emoji: '🗡️', drop_cost: 1, atk: 1, hp: 1, description: 'Лёгкие отряды бьют по слабому месту, уходят вглубь и крадут припасы.', tags: ['бронза', 'налёт'], keywords: ['skirmish'] }),
-        barbarianCard('steppe', 'spearmen', { name: 'Копьеносцы', era: 'bronze', emoji: '🔱', drop_cost: 1, atk: 1, hp: 2, description: 'Сомкнутый строй прикрывает конницу от встречного натиска.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
+        barbarianCard('steppe', 'spearmen', { name: 'Копьеносцы', era: 'bronze', emoji: '🔱', drop_cost: 1, atk: 1, hp: 1, description: 'Сомкнутый строй прикрывает конницу от встречного натиска.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
         barbarianDrawSpell('steppe', 'signal-fires', 'Сигнальные костры', 'bronze', ['warcry'], 'Костры на курганах созывают всадников и передают приказ по степи.')
     ];
     const STEPPE_MEDIEVAL_DECK = [
         barbarianCard('steppe', 'horse-archers-vets', { name: 'Конные лучники', era: 'bronze', emoji: '🏹', drop_cost: 3, atk: 2, hp: 2, description: 'Ветераны налётов: стреляют через строй и уходят от ответа, не принимая ближнего боя.', tags: ['бронза', 'конница'], keywords: ['ranged', 'skirmish'] }),
-        barbarianCard('steppe', 'heavy-cavalry', { name: 'Тяжёлая конница', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 3, hp: 2, description: 'Закованные всадники прорывают строй и уносят припасы.', tags: ['бронза', 'конница'], keywords: ['charge', 'raider', 'armor:1'] }),
-        barbarianCard('steppe', 'raiders-vets', { name: 'Налётчики', era: 'bronze', emoji: '🗡️', drop_cost: 2, atk: 3, hp: 2, description: 'Лёгкие отряды бьют из засады, уходят вглубь и крадут энергию противника.', tags: ['бронза', 'налёт'], keywords: ['raider'] }),
-        barbarianCard('steppe', 'spearmen-vets', { name: 'Копьеносцы', era: 'bronze', emoji: '🔱', drop_cost: 1, atk: 1, hp: 2, description: 'Пехота союза держит линию, пока конница заходит во фланг.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
-        barbarianCard('steppe', 'tarhan-guard', { name: 'Стража тархана', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 3, description: 'Телохранители вождя принимают удар на себя и не отходят.', tags: ['бронза', 'дружина'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('steppe', 'heavy-cavalry', { name: 'Тяжёлая конница', era: 'bronze', emoji: '🐎', drop_cost: 3, atk: 1, hp: 1, description: 'Закованные всадники прорывают строй и уносят припасы.', tags: ['бронза', 'конница'], keywords: ['charge', 'raider', 'armor:1'] }),
+        barbarianCard('steppe', 'raiders-vets', { name: 'Налётчики', era: 'bronze', emoji: '🗡️', drop_cost: 2, atk: 2, hp: 1, description: 'Лёгкие отряды бьют из засады, уходят вглубь и крадут энергию противника.', tags: ['бронза', 'налёт'], keywords: ['raider'] }),
+        barbarianCard('steppe', 'spearmen-vets', { name: 'Копьеносцы', era: 'bronze', emoji: '🔱', drop_cost: 1, atk: 1, hp: 1, description: 'Пехота союза держит линию, пока конница заходит во фланг.', tags: ['бронза', 'копьё'], keywords: ['phalanx'] }),
+        barbarianCard('steppe', 'tarhan-guard', { name: 'Стража тархана', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 2, hp: 2, description: 'Телохранители вождя принимают удар на себя и не отходят.', tags: ['бронза', 'дружина'], keywords: ['shieldwall', 'taunt'] }),
         barbarianCard('steppe', 'foot-archers', { name: 'Пешие лучники', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 2, hp: 2, description: 'Стрелки бьют через все ряды по самой опасной цели — ответа им нет.', tags: ['бронза', 'лук'], keywords: ['ranged'] }),
-        barbarianCard('steppe', 'wagon-fort', { name: 'Обоз', era: 'bronze', card_type: 'structure', emoji: '⛺', drop_cost: 3, action_cost: 0, atk: 0, hp: 5, description: 'Составленные повозки: лагерь не стреляет, но подвозит припасы — +1 энергии, пока стоит в тылу.', tags: ['бронза', 'лагерь'], keywords: ['command'] }),
+        barbarianCard('steppe', 'wagon-fort', { name: 'Обоз', era: 'bronze', card_type: 'structure', emoji: '⛺', drop_cost: 3, action_cost: 0, atk: 0, hp: 4, description: 'Составленные повозки: лагерь не стреляет, но подвозит припасы — +1 энергии, пока стоит в тылу.', tags: ['бронза', 'лагерь'], keywords: ['command'] }),
         barbarianDrawSpell('steppe', 'courier', 'Гонец', 'bronze', ['warcry'], 'Гонец по степи передаёт приказ и помогает взять ещё одну карту.')
     ];
 
     const NORTH_STONE_DECK = [
-        barbarianCard('north', 'flint-axes', { name: 'Кремнёвые топорники', emoji: '🪓', drop_cost: 1, atk: 1, hp: 1, description: 'Каменные топоры и кожаные накладки: клин бьёт по строю, но боец уязвим.', tags: ['топор', 'лес'], keywords: ['armor:1', 'wedge'] }),
-        barbarianCard('north', 'trappers', { name: 'Ловчие', emoji: '🐺', drop_cost: 1, atk: 2, hp: 1, description: 'Охотники-ловчие стремительно выходят на зверя и врага.', tags: ['охота', 'лес'], keywords: ['charge'] }),
-        barbarianCard('north', 'wardens', { name: 'Стражи', emoji: '🛡️', drop_cost: 2, atk: 2, hp: 2, description: 'Стражи закрывают проход щитами и принимают удар на себя.', tags: ['щит', 'рубеж'], keywords: ['shieldwall', 'taunt'] }),
-        barbarianCard('north', 'hunters', { name: 'Охотники', emoji: '🌲', drop_cost: 2, atk: 2, hp: 3, description: 'Охотники заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], keywords: ['flank'] })
+        barbarianCard('north', 'flint-axes', { name: 'Кремнёвые топорники', emoji: '🪓', drop_cost: 1, atk: 1, hp: 1, description: 'Каменные топоры и кожаные накладки: клин бьёт по строю, но боец уязвим.', tags: ['топор', 'лес'], keywords: ['wedge'] }),
+        barbarianCard('north', 'trappers', { name: 'Ловчие', emoji: '🐺', drop_cost: 1, atk: 1, hp: 1, description: 'Охотники-ловчие стремительно выходят на зверя и врага.', tags: ['охота', 'лес'], keywords: ['charge'] }),
+        barbarianCard('north', 'wardens', { name: 'Стражи', emoji: '🛡️', drop_cost: 2, atk: 1, hp: 1, description: 'Стражи закрывают проход щитами и принимают удар на себя.', tags: ['щит', 'рубеж'], keywords: ['shieldwall', 'taunt'] }),
+        barbarianCard('north', 'hunters', { name: 'Охотники', emoji: '🌲', drop_cost: 2, atk: 2, hp: 2, description: 'Охотники заходят сбоку и бьют по открытому флангу.', tags: ['охота', 'охват'], keywords: ['flank'] })
     ];
     const NORTH_ANTIQUITY_DECK = [
-        barbarianCard('north', 'phalangites', { name: 'Фалангиты', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 1, hp: 3, description: 'Бронзовые наконечники и сомкнутый строй на перевале.', tags: ['бронза', 'фаланга'], keywords: ['phalanx', 'armor:1'] }),
+        barbarianCard('north', 'phalangites', { name: 'Фалангиты', era: 'bronze', emoji: '🔱', drop_cost: 2, atk: 1, hp: 2, description: 'Бронзовые наконечники и сомкнутый строй на перевале.', tags: ['бронза', 'фаланга'], keywords: ['phalanx', 'armor:1'] }),
         barbarianCard('north', 'bowmen', { name: 'Охотники с луками', era: 'bronze', emoji: '🏹', drop_cost: 2, atk: 1, hp: 3, description: 'Лесные стрелки бьют через весь строй по самой опасной цели.', tags: ['бронза', 'лук'], keywords: ['ranged'] }),
         barbarianCard('north', 'axe-bearers', { name: 'Секирники', era: 'bronze', emoji: '🪓', drop_cost: 2, atk: 2, hp: 2, description: 'Бронзовые секиры пробивают доспех, а кожаные щиты сохраняют строй.', tags: ['бронза', 'секира'], keywords: ['armor:1', 'pierce:1'] }),
-        barbarianCard('north', 'watchers', { name: 'Дозорные', era: 'bronze', emoji: '🏴', drop_cost: 1, atk: 2, hp: 1, description: 'Ночные дозоры срывают подготовку врага: его энергия приходит на круг позже.', tags: ['бронза', 'дозор'], keywords: ['harras'] }),
+        barbarianCard('north', 'watchers', { name: 'Дозорные', era: 'bronze', emoji: '🏴', drop_cost: 1, atk: 1, hp: 1, description: 'Ночные дозоры срывают подготовку врага: его энергия приходит на круг позже.', tags: ['бронза', 'дозор'], keywords: ['harras'] }),
         barbarianCard('north', 'watchtower', { name: 'Дозорная вышка', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 1, hp: 5, description: 'Деревянная вышка каждый ход обстреливает подошедших — броня гасит урон.', tags: ['бронза', 'укрепление'] }),
         barbarianDrawSpell('north', 'war-horn', 'Боевой рог', 'bronze', ['warcry'], 'Рог над перевалом собирает дозоры и помогает взять ещё одну карту.')
     ];
     const NORTH_MEDIEVAL_DECK = [
-        barbarianCard('north', 'huscarls', { name: 'Хускарлы', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 3, hp: 3, description: 'Домашняя дружина в кольчугах: стена щитов держит рубеж и первый удар слабее.', tags: ['бронза', 'щит'], keywords: ['shieldwall', 'sturdy'] }),
+        barbarianCard('north', 'huscarls', { name: 'Хускарлы', era: 'bronze', emoji: '🛡️', drop_cost: 3, atk: 2, hp: 2, description: 'Домашняя дружина в кольчугах: стена щитов держит рубеж и первый удар слабее.', tags: ['бронза', 'щит'], keywords: ['shieldwall', 'sturdy'] }),
         barbarianCard('north', 'archers', { name: 'Стрелки', era: 'bronze', emoji: '🏹', drop_cost: 3, atk: 3, hp: 2, description: 'Стрелки бьют через все ряды бронебойной стрелой — ответа из глубины им нет.', tags: ['бронза', 'лук'], keywords: ['ranged', 'pierce:1'] }),
-        barbarianCard('north', 'axe-bearers-vets', { name: 'Секирники', era: 'bronze', emoji: '🪓', drop_cost: 3, atk: 3, hp: 3, description: 'Ветераны с тяжёлыми секирами: клин взламывает доспех и задних рядов.', tags: ['бронза', 'секира'], keywords: ['wedge', 'pierce:1'] }),
-        barbarianCard('north', 'veterans', { name: 'Ветераны', era: 'bronze', emoji: '⛰️', drop_cost: 2, atk: 2, hp: 2, description: 'Ветераны сменяют дозор и держат сомкнутый строй на горных тропах.', tags: ['бронза', 'ветераны'], keywords: ['phalanx', 'armor:1'] }),
+        barbarianCard('north', 'axe-bearers-vets', { name: 'Секирники', era: 'bronze', emoji: '🪓', drop_cost: 3, atk: 3, hp: 2, description: 'Ветераны с тяжёлыми секирами: клин взламывает доспех и задних рядов.', tags: ['бронза', 'секира'], keywords: ['wedge', 'pierce:1'] }),
+        barbarianCard('north', 'veterans', { name: 'Ветераны', era: 'bronze', emoji: '⛰️', drop_cost: 2, atk: 2, hp: 1, description: 'Ветераны сменяют дозор и держат сомкнутый строй на горных тропах.', tags: ['бронза', 'ветераны'], keywords: ['phalanx', 'armor:1'] }),
         barbarianCard('north', 'skirmishers', { name: 'Застрельщики', era: 'bronze', emoji: '🌲', drop_cost: 2, atk: 2, hp: 2, description: 'Лёгкие бойцы начинают бой, бьют и уходят вглубь, не принимая ближнего удара.', tags: ['бронза', 'лёгкая пехота'], keywords: ['skirmish'] }),
-        barbarianCard('north', 'levy', { name: 'Ополченцы', era: 'bronze', emoji: '🧺', drop_cost: 1, atk: 1, hp: 2, description: 'Посошная рать: сами слабы, но держат соседей по строю.', tags: ['бронза', 'ополчение'], keywords: ['rally'] }),
+        barbarianCard('north', 'levy', { name: 'Ополченцы', era: 'bronze', emoji: '🧺', drop_cost: 1, atk: 1, hp: 1, description: 'Посошная рать: сами слабы, но держат соседей по строю.', tags: ['бронза', 'ополчение'], keywords: ['rally'] }),
         barbarianCard('north', 'siege-engine', { name: 'Порок', era: 'bronze', card_type: 'structure', emoji: '🗼', drop_cost: 3, action_cost: 0, atk: 2, hp: 3, description: 'Стенобитная машина каждый ход бьёт по строю — урон гасит броня, ответа нет.', tags: ['бронза', 'осада'] }),
         barbarianDrawSpell('north', 'beacon-fire', 'Дозорный костёр', 'bronze', ['warcry'], 'Костёр на рубеже созывает дозоры и помогает взять ещё одну карту.')
     ];
@@ -439,27 +437,77 @@
        повторена как данные для арифметики над колодами; tests/card-balance.test.js сверяет её с
        кузницей слово в слово, поэтому разойтись они не могут. */
     const CARD_KEYWORD_WEIGHT = {
-        ranged: 2, skirmish: 2, screen: 2, command: 2, spotter: 2, relentless: 2, suppress: 2,
-        cleave: 2, blast: 2, sweep: 2, column: 2
+        armor: 1, pierce: 1, ranged: 2, reach: 2, charge: 2, shieldwall: 2, wedge: 2, phalanx: 2,
+        skirmish: 2, taunt: 2, poison: 2, burn: 2, heal: 2, rally: 2, fear: 2, morale: 1,
+        siege: 2, sturdy: 2, holdground: 1, upkeep: 2, supply: 3, warcry: 2, loot: 2, raider: 3,
+        harras: 2, exhaustenemy: 2, cleave: 2, blast: 2, sweep: 2, column: 2, vengeance: 2,
+        relentless: 3, scavenger: 2, suppress: 2, unbreakable: 3, laststand: 2, flank: 2,
+        screen: 2, command: 3, spotter: 2, dispersed: 1, entrenched: 1
     };
-    const CARD_KEYWORD_SCALES = ['armor', 'pierce', 'cleave', 'vengeance', 'blast', 'sweep', 'column'];
+    const CARD_KEYWORD_SCALES = ['armor', 'pierce', 'heal', 'suppress', 'cleave', 'vengeance', 'blast', 'sweep', 'column'];
+    const CARD_EVENT_REPEAT = { enter_play: 1, death: 1, card_death: 1, card_enter_play: 1, attack: 2, damaged: 2, turn_start: 3, turn_end: 3 };
     function cardKeywordWeight(raw) {
         const parts = String(raw || '').toLowerCase().trim().split(':');
         const base = parts[0];
         const n = Math.max(1, parseInt(parts[1] || '1', 10) || 1);
         return (CARD_KEYWORD_WEIGHT[base] || 1) + (CARD_KEYWORD_SCALES.includes(base) ? n - 1 : 0);
     }
-    /** Сила карты: цифры плюс вес слов. Атака постройки — вдвойне: она бьёт без действия и энергии. */
+    function cardEffectPenalty(effect) {
+        const target = effect && effect.target || {};
+        const action = effect && effect.action || {};
+        const own = ['friendly', 'controller'].includes(target.side);
+        const foe = ['enemy', 'opponent'].includes(target.side);
+        return (own && (
+            action.type === 'damage' || action.type === 'apply_status' || action.type === 'destroy'
+            || action.type === 'modify_stat' && Number(action.amount) < 0
+            || action.type === 'modify_cost' && Number(action.amount) > 0
+            || action.type === 'modify_resource' && Number(action.amount) < 0
+            || ['discard', 'exchange'].includes(action.type)
+        )) || (foe && (
+            action.type === 'heal'
+            || action.type === 'modify_stat' && Number(action.amount) > 0
+            || action.type === 'modify_resource' && Number(action.amount) > 0
+            || action.type === 'draw'
+        ));
+    }
+    function cardActionPower(action) {
+        const amount = Math.abs(Number(action && action.amount) || 0);
+        switch (action && action.type) {
+            case 'damage': case 'heal': return amount;
+            case 'apply_status': return amount + Math.ceil(((Number(action.turns) || 1) - 1) / 2);
+            case 'modify_resource': return amount * 2;
+            case 'modify_stat': case 'modify_cost': return amount * (Number(action.turns) || 1);
+            case 'draw': case 'discard': case 'exchange': case 'scry': return amount * 2;
+            case 'destroy': return Number.POSITIVE_INFINITY;
+            default: return Number.POSITIVE_INFINITY;
+        }
+    }
+    /** Сила карты: характеристики, слова и полезные эффекты; цена постройки учитывает автоатаку. */
     function cardValueOf(card) {
         const atk = Math.max(0, Math.floor(card.atk || 0));
         const hp = Math.max(0, Math.floor(card.hp || 0));
-        const words = (card.keywords || []).reduce((sum, k) => sum + cardKeywordWeight(k), 0);
-        return atk * (card.card_type === 'structure' ? 2 : 1) + hp + words;
+        const words = (card.keywords || []).reduce((sum, raw) => {
+            const keyword = String(raw).split(':')[0];
+            if (keyword === 'upkeep' || keyword === 'morale' && card.monkey_paw) return sum;
+            return sum + cardKeywordWeight(raw);
+        }, 0);
+        const effects = (card.effects || []).reduce((sum, effect) => {
+            if (cardEffectPenalty(effect)) return sum;
+            const target = effect.target || {};
+            const action = effect.action || {};
+            if (card.card_type !== 'spell' && action.type === 'destroy' && !['friendly', 'controller'].includes(target.side)) return Number.POSITIVE_INFINITY;
+            if (card.card_type !== 'spell' && action.type === 'damage' && target.entity === 'player' && !['friendly', 'controller'].includes(target.side)) return Number.POSITIVE_INFINITY;
+            const count = Math.max(1, Number(target.count) || 1);
+            const repeats = card.card_type === 'spell' ? 1 : (CARD_EVENT_REPEAT[effect.event] || 2);
+            return sum + cardActionPower(action) * count * repeats;
+        }, 0);
+        return atk * (card.card_type === 'structure' ? 2 : 1) + hp + words + effects;
     }
-    /** Бюджет обычной (рядовой) карты: постройке — 2·цена+1, отряду — 2·цена+действие+1. */
+    /** Базовый бюджет карты: дорогой вывод и атака компенсируют цену силы; spell — одно действие. */
     function cardBudgetOf(card) {
         const drop = Math.max(1, Math.floor(card.drop_cost || 1));
-        const base = card.card_type === 'structure' ? 2 * drop + 1 : 2 * drop + Math.max(0, Math.floor(card.action_cost || 0)) + 1;
+        const action = Math.max(0, Math.floor(card.action_cost || 0));
+        const base = card.card_type === 'structure' ? 2 * drop + 1 : card.card_type === 'spell' ? drop + 1 : 2 * drop + action + 1;
         return Math.max(2, base);
     }
 
@@ -506,7 +554,7 @@
     /**
      * Ожидаемое качество ковки в эпоху: средний множитель редкости из CARD_RARITY_ODDS. Кузнец
      * приходит к поздним эпохам с отборным сырьём и мастерством, поэтому доля редких карт растёт,
-     * и колода игрока к шестой эпохе в среднем в 1.4 раза сильнее обычной карты той же цены.
+     * и колода игрока к шестой эпохе в среднем примерно в 2.65 раза сильнее обычной карты той же цены.
      * Числа берём из той же таблицы, что и кузница, а не из воздуха.
      */
     function expectedCraftMultiplier(era) {
@@ -519,12 +567,11 @@
     }
 
     /**
-     * Отставание ковки племени: цифры карт племени догоняют качество кузницы игрока с задержкой в две
-     * эпохи. Кузнец игрока поднимает редкость заказа сам, а племя живёт тем же составом и лишь
-     * постепенно подтягивает цифры — иначе к шестой эпохе племя приходило бы картами той же ковки
-     * плюс надбавка за эпоху, и честная колода игрока проигрывала 67 боёв из 100.
+     * Отставание ковки племени: после Каменного века качество его карт соответствует ожидаемой
+     * редкости текущей эпохи. При множителях ×2/×4 прежний лаг в две эпохи оставлял соперников
+     * далеко позади игрока, особенно после выхода колод на контентный потолок.
      */
-    const BARBARIAN_CRAFT_LAG = 2;
+    const BARBARIAN_CRAFT_LAG = 0;
 
     /**
      * Опыт племени: те же типы войск приходят ветеранами поздних эпох. Контент колод заканчивается
@@ -538,9 +585,16 @@
         const out = clone(card);
         const gain = Math.round(cardBudgetOf(card) * multiplier) - cardValueOf(out);
         if (gain <= 0) return out;
-        const addAtk = out.card_type === 'structure' ? Math.floor(gain / 3) : Math.floor(gain / 2);
-        out.atk += addAtk;
-        out.hp += gain - addAtk;
+        if (out.card_type === 'structure') {
+            // Постройка attack весит ×2, поэтому split gain/3 — atk получает 2·x, HP — остальное.
+            const addAtk = Math.floor(gain / 3);
+            out.atk += addAtk;
+            out.hp += gain - 2 * addAtk;
+        } else {
+            const addAtk = Math.floor(gain / 2);
+            out.atk += addAtk;
+            out.hp += gain - addAtk;
+        }
         return out;
     }
     function veteranDeck(deck, steps, multiplier) {
@@ -556,12 +610,17 @@
     }
     /**
      * Колода племени для боя: состав от эпохи племени, цифры — от эпохи угрозы (максимум эпохи
-     * племени и эпохи игрока) с отставанием ковки BARBARIAN_CRAFT_LAG. Одна функция на конфиг боя и
-     * на выдачу колоды: иначе бой и карточка соперника показывали бы разные отряды.
+     * племени и эпохи игрока), с ожидаемой редкостью этого же уровня. Одна функция на конфиг боя
+     * и на выдачу колоды: иначе бой и карточка соперника показывали бы разные отряды.
      */
     function barbarianDeckFor(state, opponent) {
         const threatEra = Math.max(clampInt(opponent.era, 0, BARBARIAN_ERA_CAP, 0), clampInt(state.player.era, 0, 99, 0));
-        const steps = threatEra - barbarianStage(opponent.era);
+        const stage = barbarianStage(opponent.era);
+        // Once the campaign leaves the Stone Age, even a tribe on its current deck stage has had
+        // at least one refinement step. Otherwise rarity ×2/×4 would power up the player while
+        // same-era opponents stayed permanently at their unscaled ordinary templates.
+        const eraSteps = Math.max(0, threatEra - stage);
+        const steps = Math.max(eraSteps, threatEra > 0 ? 1 : 0);
         return getBarbarianDeck(opponent.id, opponent.era, steps, expectedCraftMultiplier(Math.max(0, threatEra - BARBARIAN_CRAFT_LAG)));
     }
     function getOpponentBattleDeck(input, opponentId) {

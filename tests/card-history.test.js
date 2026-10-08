@@ -70,7 +70,7 @@ function stateAt(era, cultureId) {
 function unitCard(extra = {}) {
   return {
     name: 'Стражи брода', card_type: 'unit', era: 'ancient', emoji: '🛡️',
-    drop_cost: 2, action_cost: 1, hp: 4, atk: 2,
+    drop_cost: 2, action_cost: 1, hp: 22, atk: 2,
     description: 'Держат брод копьями, пока обоз переходит реку.',
     tags: ['копьё'], abilities: [], keywords: ['phalanx'], effects: [], monkey_paw: '',
     ...extra,

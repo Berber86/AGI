@@ -70,16 +70,21 @@ let rngState = SEED >>> 0;
 const rnd = () => { rngState = (rngState * 1103515245 + 12345) & 0x7fffffff; return rngState / 0x7fffffff; };
 const pick = (arr) => arr[Math.floor(rnd() * arr.length) % arr.length];
 
+// One representative progression mix per deck slot: cycling a short list silently changed the
+// intended rarity share when deckLimit grew, so every era now has exactly one entry per card.
 const RARITY_MIX = {
-  0: ['ordinary'], 1: ['ordinary', 'ordinary', 'ordinary', 'uncommon'], 2: ['ordinary', 'ordinary', 'uncommon', 'uncommon', 'rare'],
-  3: ['ordinary', 'ordinary', 'uncommon', 'uncommon', 'uncommon', 'rare', 'rare'],
-  4: ['ordinary', 'ordinary', 'uncommon', 'uncommon', 'uncommon', 'rare', 'rare', 'rare'],
-  5: ['ordinary', 'uncommon', 'uncommon', 'uncommon', 'rare', 'rare', 'rare'],
-  6: ['ordinary', 'uncommon', 'uncommon', 'rare', 'rare', 'rare'],
+  0: ['ordinary', 'ordinary', 'ordinary', 'ordinary', 'ordinary'],
+  1: ['ordinary', 'uncommon', 'rare', 'ordinary', 'ordinary', 'ordinary', 'ordinary'],
+  2: ['ordinary', 'uncommon', 'rare', 'ordinary', 'uncommon', 'ordinary', 'uncommon', 'ordinary'],
+  3: ['ordinary', 'uncommon', 'rare', 'ordinary', 'uncommon', 'ordinary', 'rare', 'uncommon', 'ordinary'],
+  4: ['ordinary', 'uncommon', 'rare', 'uncommon', 'ordinary', 'uncommon', 'rare', 'uncommon', 'ordinary', 'uncommon'],
+  5: ['ordinary', 'uncommon', 'rare', 'uncommon', 'rare', 'uncommon', 'ordinary', 'rare', 'uncommon', 'rare', 'uncommon'],
+  6: ['ordinary', 'uncommon', 'rare', 'rare', 'uncommon', 'rare', 'ordinary', 'rare', 'uncommon', 'rare', 'rare', 'uncommon'],
 };
 // Слова по эпохам: каменный стол рукопашный (одна линия — стрельба и глубина молчат).
 const POOL_STONE = [['phalanx'], ['shieldwall'], ['taunt'], ['charge'], ['wedge'], ['armor:1'], ['flank'], ['rally'], ['sturdy'], ['morale']];
 const POOL_BRONZE = [...POOL_STONE, ['ranged'], ['skirmish'], ['pierce:1'], ['raider'], ['reach'], ['laststand']];
+const STONE_ATTACK_BOOSTS = new Set(['charge', 'phalanx', 'wedge', 'rally', 'flank', 'scavenger', 'laststand', 'cleave', 'relentless']);
 const COST_PATTERN = [1, 2, 2, 3, 3, 4, 2, 3, 1, 4, 2, 3];
 let cardSeq = 0;
 
@@ -92,12 +97,16 @@ function makeCard(drop, rarity, bronze, wantKws) {
   for (const seed of wantKws) {
     if (keywords.length >= 2) break;
     const kw = pool[seed % pool.length][0];
+    if (keywords.includes(kw)) continue;
     const next = [...keywords, kw];
+    if (!bronze && next.filter((word) => STONE_ATTACK_BOOSTS.has(word.split(':')[0])).length > 1) continue;
     if (Campaign.cardValueOf({ atk: 0, hp: 0, keywords: next, card_type: 'unit' }) <= budget - 2) keywords.push(kw);
   }
   const room = budget - Campaign.cardValueOf({ atk: 0, hp: 0, keywords, card_type: 'unit' });
-  const hp = Math.max(1, Math.floor(room / 2));
-  const atk = Math.max(1, room - hp);
+  // The Stone Age limit is a real deck-building constraint, not just a forge prompt: unused
+  // budget cannot become an illegal third attack or fourth health point on a one-line board.
+  const hp = bronze ? Math.max(1, Math.floor(room / 2)) : Math.min(3, Math.max(1, Math.ceil(room / 2)));
+  const atk = bronze ? Math.max(1, room - hp) : Math.min(2, Math.max(1, room - hp));
   cardSeq++;
   return {
     id: `stand-${cardSeq}`, name: `Карта игрока ${cardSeq}`, card_type: 'unit', era: bronze ? 'bronze' : 'ancient',
@@ -130,6 +139,7 @@ function campaignState(era) {
 function playerDeck(state) {
   const cfg = Campaign.getBattleConfig(state);
   const mix = RARITY_MIX[state.player.era];
+  if (mix.length !== cfg.deckLimit) throw new Error(`RARITY_MIX эпохи ${state.player.era}: ${mix.length} карт для лимита колоды ${cfg.deckLimit}`);
   const cap = state.player.era === 0 ? Math.min(cfg.energyMax, 2) : cfg.energyMax;
   const costs = COST_PATTERN.filter((c) => c <= cap);
   const useCosts = costs.length ? costs : [Math.max(1, cap)];
