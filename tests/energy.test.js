@@ -87,6 +87,15 @@ test('the barbarian era decks pass the same card schema as crafted cards', () =>
           () => cards.validateCard(opponentCard, opponentCard.card_type, ['ancient', 'bronze']),
           `${id} era ${era}: ${opponentCard.name}`,
         );
+        // Та же цена силы, что в кузнице: колода племени не может быть сильнее честной
+        // карты игрока за те же деньги. Раньше валидатор молча подрезал такие карты при
+        // проверке схемы, а в бою играли исходные цифры — племя выигрывало размен всегда.
+        if (opponentCard.card_type === 'spell') continue;
+        const budget = cards.cardPowerBudget(opponentCard.drop_cost, opponentCard.action_cost || 0, opponentCard.card_type, 'ordinary');
+        assert.ok(
+          cards.cardPower(opponentCard) <= budget,
+          `${id} era ${era}: «${opponentCard.name}» силой ${cards.cardPower(opponentCard)} при бюджете ${budget}`,
+        );
       }
     }
   }
@@ -99,8 +108,10 @@ test('deployment and attacks spend from one energy pool in the React battle engi
   b.me.hand = [troop];
 
   assert.equal(api.deploy(b, 'me', 0, 'front', 0), true);
-  assert.equal(b.me.energy, 2, 'supply raises the maximum and supply plus warcry add to the same current pool');
-  assert.equal(b.me.energyMax, 2);
+  // Первый ход сразу даёт прирост энергии (см. createBattle), поэтому пул начинается с 2, а
+  // supply (+1 к пределу) и warcry (+1 к пулу) поднимают его до 3 — в одном и том же пуле.
+  assert.equal(b.me.energy, 3, 'supply raises the maximum and supply plus warcry add to the same current pool');
+  assert.equal(b.me.energyMax, 3);
   assert.equal(b.enemy.energy, 0, 'exhaustenemy spends from the opponent shared pool');
   assert.equal(b.enemy.energyGrowthBlockedNext, 1, 'harras delays the opponent shared-pool growth');
 
@@ -108,7 +119,7 @@ test('deployment and attacks spend from one energy pool in the React battle engi
   attacker.exhausted = false; // ready the unit to isolate the shared attack-cost check
   assert.equal(api.canAct(b, 'me', attacker), true);
   assert.equal(api.attackWith(b, 'me', attacker.iid), true);
-  assert.equal(b.me.energy, 1, 'the attack cost is deducted from the same pool left after deployment');
+  assert.equal(b.me.energy, 2, 'the attack cost is deducted from the same pool left after deployment');
 
   api.startTurn(b, 'enemy');
   assert.equal(b.enemy.energyMax, 1, 'harras blocks this turn’s energy-cap growth');
@@ -144,8 +155,8 @@ test('play-triggered energy keywords also apply to a spell played from hand', ()
   b.enemy.energy = 1;
 
   assert.equal(api.cast(b, 'me', 0), true);
-  assert.equal(b.me.energy, 2);
-  assert.equal(b.me.energyMax, 2);
+  assert.equal(b.me.energy, 3, 'первый ход даёт прирост, supply и warcry добавляют в тот же пул, ход манёвра вычитается');
+  assert.equal(b.me.energyMax, 3);
   assert.equal(b.enemy.energy, 0);
   assert.equal(b.enemy.energyGrowthBlockedNext, 1);
 });

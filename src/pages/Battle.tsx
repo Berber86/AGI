@@ -193,11 +193,21 @@ export default function BattleScreen() {
     // Соперник получает ровно столько карт, сколько реально есть у игрока; при одной выкованной карте
     // это одно-карточная колода с обеих сторон, даже если шаблон ополчения намного больше.
     const enemyDeck = mirrorDeckToPlayer(deck, m.tutorial ? withoutStructures(enemyPool) : enemyPool);
-    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus, openingHand: cfg.openingHand }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay }, m);
+    const battle = createBattle(deck, { hp: cfg.hp, energyMax: cfg.energyMax, energyGrowth: cfg.energyGrowth, fatigueDelay: cfg.fatigueDelay, atkBonus: cfg.atkBonus, openingHand: cfg.openingHand }, enemyDeck, { hp: ec.hp, energyMax: ec.energyMax, energyGrowth: ec.energyGrowth, fatigueDelay: ec.fatigueDelay, atkBonus: ec.atkBonus }, m);
     // Первый ход новичка начинается с энергии 2 (а не 1), чтобы в руке можно было сыграть карту за 2.
     // Берём фиксированное значение 2, а не текущий предел игрока: иначе бонусы эпохи/черты
     // характера (например, «Владыки Коней») поднимали бы старт сразу до 3 энергии.
-    if (m.tutorial) { const start = Math.min(2, battle.me.energyCap); battle.me.energyMax = start; battle.me.energy = start; }
+    if (m.tutorial) {
+      const start = Math.min(2, battle.me.energyCap);
+      battle.me.energyMax = start; battle.me.energy = start;
+      // Учебный бой идёт одной картой с каждой стороны, поэтому колоды пустеют на первом же ходу и
+      // исход решала гонка усталости, где первым умирает начинающий (замер стендом: 0 побед из 200
+      // против Речного Союза и Степного Круга при любой первой карте). Наставник не бьётся насмерть
+      // — у его вождя 3 HP вместо шести, — а новичок получает фору по припасам: +2 хода до усталости.
+      battle.enemy.hp = Math.min(battle.enemy.hp, 3);
+      battle.enemy.maxHp = battle.enemy.hp;
+      battle.me.fatigueStart += 2;
+    }
     return battle;
   };
   const bRef = useRef<Battle>(null as any);

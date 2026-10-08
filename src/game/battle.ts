@@ -193,6 +193,12 @@ export function createBattle(myDeck: Card[], myCfg: SideConfig, enemyDeck: Card[
   };
   const requested = Number.isFinite(myCfg.openingHand) ? Math.trunc(myCfg.openingHand as number) : START_HAND;
   const openingHand = Math.max(START_HAND, Math.min(MAX_OPENING_HAND, requested));
+  // Первый ход игрока раньше начинался с одной энергии, тогда как враг получал свой первый прирост
+  // в beginEnemyTurn. Теперь обе стороны входят в бой одинаково: прирост энергии за ход применяется
+  // к тому, кто ходит первым, ещё до выдачи руки. Иначе учебный бой и первые ходы кампании были
+  // проиграны в тот момент, когда игрок выкладывал 1 энергию против 2 у врага.
+  b.me.energyMax = Math.min(b.me.energyCap, b.me.energyMax + b.me.energyGrowth);
+  b.me.energy = b.me.energyMax;
   for (let i = 0; i < Math.min(openingHand, myDeck.length); i++) { drawOne(b, "me", true); }
   for (let i = 0; i < Math.min(START_HAND, enemyDeck.length); i++) { drawOne(b, "enemy", true); }
   log(b, "system", `Бой начался: у вас ${Math.min(openingHand, myDeck.length)} карт в руке, у соперника ${Math.min(START_HAND, enemyDeck.length)}. Вы ходите первым — темп боя изначально на вашей стороне.`);

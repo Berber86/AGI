@@ -297,12 +297,19 @@ test('плата оплачивает силу: карта с жёсткой п�
   const strong = { name: 'Тяжёлый кулак', card_type: 'unit', era: 'ancient', emoji: '🪓', drop_cost: 2, action_cost: 2, hp: 6, atk: 5, description: 'Бьёт тяжко.', tags: [], abilities: [], keywords: ['phalanx'], effects: [], monkey_paw: '' };
 
   const clean = api.validateCard(strong, 'unit', eras, 'ordinary', 'none');
-  assert.ok(clean.atk < strong.atk, 'без платы мощную карту урезают под бюджет');
+  // Бюджет удерживает не атаку, а силу карты целиком: пропорция ужимает цифры, а остаток бюджета
+  // добирается обратно — карта обязана остаться ровно на бюджете, а не ниже него.
+  assert.ok(clean.atk + clean.hp < strong.atk + strong.hp, 'без платы мощную карту урезают под бюджет');
 
   const paid = api.validateCard({ ...strong, monkey_paw: PAW_TEXT, history: HISTORY, effects: harshPaw().effects }, 'unit', eras, 'ordinary', 'harsh');
-  assert.equal(paid.atk, strong.atk, 'каждый пункт веса платы даёт +1 к бюджету силы');
-  assert.equal(paid.hp, strong.hp);
-  assert.ok(paid.atk + paid.hp > clean.atk + clean.hp, 'карта с платой сильнее чистой той же цены');
+  const payout = api.pawSeverity(paid);
+  // Каждый пункт веса платы даёт +1 к бюджету силы — и бюджет теперь потолок, а не пожелание:
+  // карта с платой ровно добирает вес платы и не выходит за него даже на пункт (баланс-ревизия).
+  assert.equal(payout, 4, 'жёсткая плата «сброс двух карт» весит 4');
+  assert.equal(api.cardPower(clean), api.cardPowerBudget(2, 2, 'unit', 'ordinary'), 'чистая карта укладывается в свой бюджет');
+  assert.equal(api.cardPower(paid), api.cardPowerBudget(2, 2, 'unit', 'ordinary', payout), 'плата покупает ровно свой вес силы');
+  assert.ok(api.cardPower(paid) > api.cardPower(clean), 'карта с платой сильнее чистой той же цены');
+  assert.ok(paid.atk + paid.hp > clean.atk + clean.hp, 'разница видна в цифрах на жетоне');
 });
 
 /* ---------------- кузнец: жребий уходит в промпт, брак стоит одной переделки ---------------- */
