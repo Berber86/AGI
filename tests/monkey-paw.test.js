@@ -429,6 +429,6 @@ test('🐾 видна на готовой карте: блок на лице и 
   assert.match(forge, /Лапа обезьяны сработала/, 'раскрытие сообщает о плате');
   assert.match(forge, /карта пришла чистой/iu);
   const quote = forge.slice(forge.indexOf('Смета ковки'), forge.indexOf('Ковать карту за'));
-  assert.match(quote, /треть карт приходит чистой/, 'правило жребия объяснено заранее');
+  assert.match(quote, /часть карт приходит с платой/, 'жребий лапы коротко объяснён заранее');
   assert.doesNotMatch(quote, /begin\.paw|quote\.paw|pawLabel/, 'но результат конкретной ковки до раскрытия не показывается');
 });

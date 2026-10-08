@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass, CircleHelp, Sparkles } from "lucide-react";
+import { Flag, Heart, Sword, Zap, ScrollText, Loader2, Shield, Skull, Flame, Trophy, X, Layers, Hourglass } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { allCards, withoutStructures, describeEffect, kwName, type Card } from "@/game/cards";
 import {
   atkOf, armorOf, attackWith, beginEnemyTurn, beginPlayerTurn, boardLabel, canAct, canStandInRow, cast, costOf, createBattle, deploy,
-  areaOf, AREA_NAMES, commandBonus, deepTable, endPlayerTurn, enemyAct, enemyDeckForEra, mirrorDeckToPlayer, findTarget, flankExposed, gapsOf,
-  hasGapAt, inactiveKeywords, MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf,
+  commandBonus, endPlayerTurn, enemyAct, enemyDeckForEra, mirrorDeckToPlayer, findTarget, gapsOf,
+  inactiveKeywords, MOVE_COST, moveTargets, moveUnit, rowsOf, rowName, spellHasTarget, splashTargets, unitsOf,
   type Battle, type Unit,
 } from "@/game/battle";
 import { useStore } from "@/game/store";
@@ -19,13 +19,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Ключевое слово без уровня: «armor:2» → «armor». */
 const kwBase = (k: string) => String(k).toLowerCase().split(":")[0].trim();
 
-/**
- * Почему «глубинные» слова молчат в этом бою: в Каменном веке стол — одна линия в три клетки,
- * тыла нет, поэтому стрелки и засада бьются врукопашную и получают ответный удар.
- */
-const ONE_LINE_NOTE = "Не действует на этом столе: в Каменном веке одна линия — тыла нет, отряд бьётся врукопашную и получает ответный удар.";
-/** Есть ли у отряда слова, которым нужна глубина стола. */
-const needsDepth = (b: Battle, keywords: string[]) => (keywords || []).some((k) => inactiveKeywords(b).includes(kwBase(k)));
+/** Пометка у ключевого слова карты, которое не работает на текущем столе (одна линия Каменного века). */
+const ONE_LINE_NOTE = "Не действует на этом столе.";
 
 function EnergyPips({ energy, max, cap, label }: { energy: number; max: number; cap: number; label?: string }) {
   return (
@@ -161,8 +156,8 @@ export function GapStrip({ b, side, compact }: { b: Battle; side: "me" | "enemy"
   const gaps = holds ? gapsOf(b, side) : [];
   if (!gaps.length) return null;
   const title = side === "enemy"
-    ? "Брешь в обороне врага: удар ближнего боя из этого столбца проходит вождю."
-    : "Ваша брешь: вражеский отряд из этого столбца бьёт вашего вождя.";
+    ? "Брешь: удар из этого столбца проходит вождю."
+    : "Ваша брешь: враг бьёт вождя из этого столбца.";
   return (
     <div className="flex items-stretch gap-1 sm:gap-1.5" title={title}>
       <div className={cn("shrink-0", compact ? "w-8 sm:w-10" : "w-10 sm:w-12")} />
@@ -220,7 +215,6 @@ export default function BattleScreen() {
   const [result, setResult] = useState<{ won: boolean; msg: string } | null>(null);
   const [confirmRetreat, setConfirmRetreat] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
   const alive = useRef(true);
   const busy = useRef(false);
   const finished = useRef(false);
@@ -254,13 +248,10 @@ export default function BattleScreen() {
   /** Клетки, куда выбранный отряд может перестроиться за энергию (см. moveTargets в движке). */
   const selMoves = selU && b.active === "me" && !b.over ? moveTargets(b, "me", selU) : [];
   const isMove = (ri: number, i: number) => selMoves.some((t) => t.ri === ri && t.i === i);
-  /** Радиус площадного удара выбранного отряда: показываем, кого ещё накроет, до самого удара. */
-  const selArea = selU ? areaOf(selU) : null;
-  const splashCells = selU && myTurn && target && selArea ? splashTargets(b, "me", selU, target) : [];
+  /** Клетки, которые накроет площадный удар выбранного отряда, — отмечаем до самого удара. */
+  const splashCells = selU && myTurn && target ? splashTargets(b, "me", selU, target) : [];
   const isSplashed = (side: "me" | "enemy", ri: number, i: number) =>
     splashCells.some((h) => h.side === side && h.ri === ri && h.i === i);
-  /** Позиция выбранного отряда: нужна словам столбца — прикрытию, штабу и корректировщику. */
-  const selPos = selU ? unitsOf(b, "me").find((s) => s.unit.iid === selU.iid) ?? null : null;
 
   const runEnemy = async () => {
     busy.current = true;
@@ -341,6 +332,24 @@ export default function BattleScreen() {
     bRef.current = build(); setB(bRef.current); setResult(null); finished.current = false; busy.current = false; setSelHand(null); setSelUnit(null); setInspectUnit(null);
   };
 
+  // Горячие клавиши: цифры 1–9 выбирают карту в руке, Enter завершает ход, Esc снимает выбор.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (b.over || confirmRetreat || logOpen || inspectUnit) return;
+      if (e.key === "Escape") { setSelHand(null); setSelUnit(null); return; }
+      if (b.active === "enemy" || busy.current) return;
+      if (e.key === "Enter") { endTurn(); return; }
+      if (/^[1-9]$/.test(e.key)) {
+        const i = Number(e.key) - 1;
+        if (i < hand.length) clickHand(i);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [b.over, b.active, confirmRetreat, logOpen, inspectUnit, hand.length, endTurn, clickHand]);
+
   // Слот подсвечивается, только если карта вообще может стоять в этом ряду: постройки — в тылу,
   // ближний бой без стрельбы — в авангарде (см. canStandInRow в движке).
   const validSlot = (ri: number, i: number) => !!selCard && selCard.card_type !== "spell" && selCard.drop_cost <= b.me.energy
@@ -351,81 +360,27 @@ export default function BattleScreen() {
     || hand.some((c) => c.drop_cost <= b.me.energy);
 
   const enemyName = `${m.name}`;
-  // Тренер ведёт первый бой по шагам: объясняет ровно то, что сейчас на экране.
-  const myUnits = unitsOf(b, "me").filter((s) => !s.unit.isStructure);
-  const anyReady = myUnits.some((s) => canAct(b, "me", s.unit));
-  /** Отряд, который прямо сейчас бьёт вождя через брешь в столбце врага: об этом стоит сказать вслух. */
-  const enemyHolds = unitsOf(b, "enemy").some((s) => s.unit.curHp > 0 && !s.unit.isStructure);
-  const breach = myTurn && enemyHolds
-    ? unitsOf(b, "me").find((s) => s.ri === 0 && !s.unit.isStructure && canAct(b, "me", s.unit) && hasGapAt(b, "enemy", s.i)) ?? null
-    : null;
-  const cheapestCard = hand.reduce((min, c) => Math.min(min, c.drop_cost), Infinity);
-  const coach = (() => {
-    if (b.over) return null;
-    if (!m.tutorial) return null;
-    if (b.active === "enemy") return "Сейчас ходит враг. Постройки с атакой обстреливают каждый свой ход, отряды бьют за энергию.";
-    if (selCard && selCard.drop_cost > b.me.energy) return `Не хватает энергии: на вывод нужно ${selCard.drop_cost}, а запас идёт и на вывод, и на атаку.`;
-    if (selCard) {
-      if (selCard.card_type === "spell") return "Манёвр разыгрывается сразу и не занимает слот.";
-      return deepTable(b)
-        ? "Поставьте отряд в авангард (бьёт врага и держит удар) или вглубь стола — туда ближний бой не дотянется, пока цел авангард."
-        : "Стол Каменного века — одна линия в три клетки: поставьте отряд в любой слот. Все бьются врукопашную, дальнего боя здесь нет.";
-    }
-    if (selU && !target && selMoves.length > 0) return "Цели нет: перестройтесь на подсвеченную клетку за 1 энергию — так закрывают свою брешь или заходят в чужую.";
-    if (selU && !target) return "Отсюда не достать: из глубины стола бьют только дальнобойные (через все ряды врага) и «длинное оружие» — по врагу напротив.";
-    if (selU) return "Нажмите на врага или на «Атаковать». Атака тоже тратит энергию из общего запаса.";
-    if (myUnits.length === 0 && hand.length > 0) return "Шаг 1: выберите карту в руке и поставьте её на поле.";
-    if (myUnits.length > 0 && !anyReady && b.turn === 1) return "Отряд вышел в этом ходу и пока не атакует — так у всех. Нажмите «Конец хода».";
-    if (breach) return `Брешь в обороне врага: в столбце ${breach.i + 1} у него не осталось отрядов — удар «${breach.unit.name}» пройдёт вождю.`;
-    if (anyReady) return "Шаг 2: отряд с золотой рамкой готов — нажмите на него, затем на цель.";
-    if (hand.length && cheapestCard > b.me.energy) return "Карты пока дороже вашей энергии: завершите ход, энергии станет больше.";
-    return "Завершите ход — отряды восстановятся, а энергия вырастет.";
-  })();
 
   const hint = (() => {
     if (b.over) return { text: b.over === "win" ? "Победа!" : "Поражение…", actions: null as React.ReactNode };
     if (b.active === "enemy" || busy.current) return { text: "Ход врага…", actions: <Loader2 size={16} className="animate-spin text-dim" /> };
     if (selU) {
-      const tName = !target ? "цели нет" : target.kind === "hero" ? "вражеского вождя" : `«${target.unit.name}»`;
-      const base = target ? `«${selU.name}» атакует ${tName}. Цена: ${costOf(b, selU)} энергии.` : `«${selU.name}» не может дотянуться до врага.`;
-      const note = needsDepth(b, selU.keywords) ? " На одной линии Каменного века дальний бой не работает: удар врукопашную и ответный." : "";
-      const moveNote = selMoves.length ? ` Перестроение на подсвеченную клетку — ${MOVE_COST} энергии.` : "";
-      const areaNote = selArea
-        ? ` ${AREA_NAMES[selArea.shape]} ${selArea.n}: ${splashCells.filter((h) => !h.own).length
-          ? `накроет ещё ${splashCells.filter((h) => !h.own).length} — клетки отмечены пунктиром` : "сейчас накрывать некого"
-        }${splashCells.some((h) => h.own) ? ", и заденет свой отряд в той же полосе" : ""}.`
-        : "";
-      // Слова столбца: коротко о том, что выбранный отряд делает для своей полосы прямо сейчас.
-      const support: string[] = [];
-      if (selPos) {
-        const rows = rowsOf(b.me);
-        if (selU.st.flank && target?.kind === "unit" && flankExposed(b, target.unit)) support.push("цель с открытым флангом: +1 к урону");
-        if (selU.st.screen) {
-          const ahead = rows[selPos.ri - 1]?.[selPos.i];
-          support.push(ahead && ahead.curHp > 0 ? `прикрывает «${ahead.name}» впереди: +1 брони` : "впереди в этом столбце прикрывать некого");
-        }
-        if (selU.st.command) support.push(selPos.ri === rows.length - 1 ? "штаб в тылу: +1 энергии в начале хода" : "штаб снабжает только из тыла — последнего ряда");
-        if (selU.st.spotter) support.push(`наводит дальний и площадный огонь по столбцу ${selPos.i + 1}: +1 урона`);
-      }
-      // Подавление видно по цене атаки на жетоне, но объяснить причину словами всё равно нужно.
-      const suppressNote = selU.st.suppress ? ` Отряд подавлен: атака стоит ${costOf(b, selU)} вместо ${selU.action_cost}.` : "";
-      const supportNote = support.length ? ` ${support.join("; ")}.` : "";
-      return { text: base + note + moveNote + areaNote + supportNote + suppressNote, actions: <><Btn size="sm" variant="primary" disabled={!target} onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
+      if (!target) return { text: `«${selU.name}» не достаёт до врага.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn> };
+      const tName = target.kind === "hero" ? "вражеского вождя" : `«${target.unit.name}»`;
+      return { text: `«${selU.name}» атакует ${tName} за ${costOf(b, selU)} энергии.`, actions: <><Btn size="sm" variant="primary" onClick={doAttack}><Sword size={14} />Атаковать</Btn><Btn size="sm" variant="ghost" onClick={() => setSelUnit(null)}>Отмена</Btn></> };
     }
     if (selCard) {
       if (selCard.drop_cost > b.me.energy) return { text: `«${selCard.name}» стоит ${selCard.drop_cost} — не хватает энергии.`, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
       if (selCard.card_type === "spell") {
         const ok = spellHasTarget(b, "me", selCard);
-        return { text: `Манёвр «${selCard.name}»: ${(selCard.effects || []).map(describeEffect).join("; ")}${ok ? "" : " — целей сейчас нет"}`, actions: <><Btn size="sm" variant="primary" onClick={doCast}><ScrollText size={14} />Разыграть</Btn><Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn></> };
+        return { text: `Манёвр «${selCard.name}»${ok ? "" : " — целей нет"}: ${(selCard.effects || []).map(describeEffect).join("; ")}`, actions: <><Btn size="sm" variant="primary" disabled={!ok} onClick={doCast}><ScrollText size={14} />Разыграть</Btn><Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn></> };
       }
-      const slotText = !deepTable(b)
-        ? `«${selCard.name}»: выберите слот на линии — в Каменном веке она одна, и она же тыл.`
-        : selCard.card_type === "structure"
-          ? `Постройка «${selCard.name}»: выберите слот в тылу (последний ряд).`
-          : `«${selCard.name}»: выберите слот. Ближний бой встаёт в авангард; стрелки, «длинное оружие» и слова обеспечения — в любой ряд.`;
+      const slotText = selCard.card_type === "structure"
+        ? `Постройка «${selCard.name}»: выберите слот в тылу.`
+        : `«${selCard.name}»: выберите свободный слот.`;
       return { text: slotText, actions: <Btn size="sm" variant="ghost" onClick={() => setSelHand(null)}>Отмена</Btn> };
     }
-    return { text: anyMove ? "Ваш ход. Выберите карту в руке или готовый отряд на поле." : "Действий не осталось — завершите ход.", actions: null };
+    return { text: anyMove ? "Ваш ход." : "Действий нет — «Конец хода».", actions: null };
   })();
 
   const rowsFor = (side: "me" | "enemy") => {
@@ -473,23 +428,9 @@ export default function BattleScreen() {
           <div className={cn("text-sm font-semibold", b.active === "me" ? "text-bronze-soft" : "text-clay")}>{b.over ? "Бой окончен" : `Ход ${b.turn} · ${b.active === "me" ? "ваш" : "врага"}`}</div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <Btn variant="ghost" size="sm" onClick={() => setRulesOpen(true)} title="Правила боя и значки"><CircleHelp size={14} /><span className="hidden sm:inline">Правила</span></Btn>
           <Btn variant="ghost" size="sm" className="lg:hidden" onClick={() => setLogOpen(true)}><ScrollText size={14} /><span className="hidden sm:inline">Журнал</span></Btn>
         </div>
       </header>
-
-      {(m.tutorial || coach) && (
-        <div className="relative z-10 mx-3 mb-1 shrink-0 rounded-xl border border-bronze/40 bg-bronze/10 px-3 py-2 sm:mx-6">
-          <div className="mx-auto flex max-w-[720px] items-start gap-2">
-            <Sparkles size={14} className="mt-0.5 shrink-0 text-bronze-soft" />
-            <div className="min-w-0 flex-1 text-[12px] leading-snug text-parch sm:text-[12.5px]">
-              {m.tutorial && <b className="mr-1 text-bronze-soft">Учебный бой.</b>}
-              {m.tutorial && !coach && "Ошибайтесь спокойно: первый бой объясняет правила по шагам. "}
-              {coach || "Подсказки будут меняться по ходу боя."}
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="relative z-10 flex min-h-0 flex-1 gap-4 px-3 pb-2 sm:px-6">
         <div className="no-scrollbar mx-auto flex min-h-0 w-full max-w-[720px] flex-1 flex-col justify-between gap-1 overflow-y-auto overscroll-contain">
@@ -509,7 +450,7 @@ export default function BattleScreen() {
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <EnergyPips energy={b.me.energy} max={b.me.energyMax + commandBonus(b, "me")} cap={b.me.energyCap} label="вы" />
-              <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad" title="С 6-го хода каждая попытка добрать из пустой колоды бьёт вождя нарастающим уроном"> · усталость {b.me.fatigue}</span>}</span>
+              <span className="inline-flex items-center gap-1 text-[11px] text-faint"><Layers size={12} />колода {b.me.deck.length} · сброс {b.me.discard.length}{b.me.fatigue > 0 && <span className="text-bad" title="Усталость: добор из пустой колоды бьёт вождя"> · усталость {b.me.fatigue}</span>}</span>
             </div>
             <Hero side="me" b={b} name={game.player.name} sub={`${game.player.clan} · ${M.eraName(game.player.era)}`} />
           </div>
@@ -533,7 +474,7 @@ export default function BattleScreen() {
               {hand.map((c, i) => {
                 const afford = c.drop_cost <= b.me.energy;
                 return (
-                  <button key={c.iid ?? i} onClick={() => clickHand(i)} disabled={!myTurn}
+                  <button key={c.iid ?? i} onClick={() => clickHand(i)} disabled={!myTurn} title={i < 9 ? `${c.name} — клавиша ${i + 1}` : c.name}
                     className={cn("relative flex h-[90px] w-[76px] shrink-0 flex-col items-center justify-between rounded-xl border bg-surface px-1.5 pb-1.5 pt-1.5 text-center transition-all sm:h-[116px] sm:w-[94px]",
                       selHand === i ? "-translate-y-2 border-bronze ring-2 ring-bronze" : afford && myTurn ? "border-line-strong hover:-translate-y-1 hover:border-bronze/60" : "border-line opacity-55")}>
                     <span className="absolute left-1 top-1 grid h-5 min-w-5 place-items-center rounded-full border border-bronze/60 bg-ground px-1 text-[11px] font-bold text-bronze-soft">{c.drop_cost}</span>
@@ -546,18 +487,13 @@ export default function BattleScreen() {
                 );
               })}
             </div>
-            <Btn variant="primary" size="lg" className="h-[90px] shrink-0 flex-col gap-1 px-3 sm:h-[116px] sm:px-6" onClick={endTurn} disabled={!myTurn}>
+            <Btn variant="primary" size="lg" className="h-[90px] shrink-0 flex-col gap-1 px-3 sm:h-[116px] sm:px-6" onClick={endTurn} disabled={!myTurn} title="Конец хода (Enter)">
               {b.active === "enemy" && !b.over ? <Hourglass size={20} /> : <Flag size={20} />}
               <span className="text-[13px] leading-tight">Конец<br />хода</span>
             </Btn>
           </div>
         </div>
       </footer>
-
-      <Modal open={rulesOpen} onClose={() => setRulesOpen(false)} title="Правила боя">
-        <h2 className="font-display mb-2 text-xl font-semibold">Как идёт бой</h2>
-        <BattleRules />
-      </Modal>
 
       <Modal open={logOpen} onClose={() => setLogOpen(false)} title="Журнал боя">
         <h2 className="font-display mb-3 text-xl font-semibold">Журнал боя</h2>
@@ -570,7 +506,7 @@ export default function BattleScreen() {
 
       <Modal open={confirmRetreat} onClose={() => setConfirmRetreat(false)} title="Отступить">
         <h2 className="font-display text-xl font-semibold">Отступить с поля боя?</h2>
-        <p className="mt-2 text-sm text-dim">Отступление засчитывается как поражение: серия побед прервётся, а славы достанется меньше.</p>
+        <p className="mt-2 text-sm text-dim">Засчитается как поражение.</p>
         <div className="mt-6 flex justify-end gap-3"><Btn variant="ghost" onClick={() => setConfirmRetreat(false)}>Продолжить бой</Btn><Btn variant="danger" onClick={retreat}>Отступить</Btn></div>
       </Modal>
 
@@ -580,7 +516,6 @@ export default function BattleScreen() {
             <div className={cn("mx-auto grid h-16 w-16 place-items-center rounded-full", result.won ? "bg-bronze/15 text-bronze" : "bg-bad/15 text-bad")}>{result.won ? <Trophy size={30} /> : <X size={30} />}</div>
             <h2 className="font-display mt-4 text-3xl font-semibold">{result.won ? "Победа" : "Поражение"}</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-dim">{result.msg}</p>
-            <p className="mt-1 text-xs text-faint">Ходов: {b.turn} · в колоде было {b.me.deck.length + b.me.discard.length + b.me.hand.length} карт</p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <Btn size="lg" className="flex-1" onClick={() => { closeBattle(); go("camp"); }}>В лагерь</Btn>
               <Btn variant="secondary" size="lg" className="flex-1" onClick={() => { closeBattle(); go("army"); }}>К составу</Btn>
@@ -626,56 +561,7 @@ export function Inspector({ inspect, b }: { inspect: { unit?: Unit; card?: Card 
     );
   }
   if (inspect.card) return <div className="w-[240px] self-center"><CardFace card={inspect.card} detailed inactiveKeywords={inactiveKeywords(b)} keywordNote={ONE_LINE_NOTE} /></div>;
-  return (
-    <div className="rounded-2xl border border-dashed border-line p-4 text-xs leading-relaxed text-faint">
-      <div className="mb-1 font-semibold text-dim">Как играть</div>
-      Выведите отряд из руки в свободный слот. Отряды с золотой рамкой готовы атаковать: выберите такой отряд и подтвердите цель. Энергия тратится и на выход, и на атаку. Нажмите на отряд, чтобы увидеть его свойства.
-      <Legend className="mt-3" />
-    </div>
-  );
-}
-
-/** Легенда значков: одинаково объясняет рамки, «свежих» бойцов и стрельбу зданий. */
-export function Legend({ className }: { className?: string }) {
-  const rows: [React.ReactNode, string][] = [
-    [<span key="k" className="mx-auto block h-5 w-5 rounded-md border-2 border-bronze bg-bronze/10 shadow-[0_0_0_1px_rgba(217,164,69,0.4)]" />, "Золотая рамка — отряд готов действовать: нажмите его, затем цель."],
-    [<span key="k" className="mx-auto block h-5 w-5 rounded-md border border-line-strong bg-[#241f17]" />, "Тонкая полоса снизу — отряд вышел в этом ходу и атаковать ещё не может."],
-    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-mat/40 bg-[#2a2016] text-[9px] text-mat">зд</span>, "Постройка с атакой обстреливает каждый ход, ответа на обстрел нет — сносить её стоит первыми. Стена без атаки не стреляет."],
-    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border border-line-strong text-[10px] font-bold text-bronze">2</span>, "Число на отряде — сколько энергии стоит его атака."],
-    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-xl border border-dashed border-know/70 bg-know/10 text-[9px] text-know">⇄</span>, "Подсветка со стрелкой — куда можно перестроить выбранный отряд за 1 энергию."],
-    [<span key="k" className="mx-auto block pt-1 text-[9px] font-semibold uppercase tracking-wide text-ok">брешь</span>, "Пометка на линии фронта: в этом столбце у стороны не осталось отрядов, и удар через него проходит вождю."],
-    [<span key="k" className="mx-auto grid h-5 w-5 place-items-center rounded-md border-2 border-dashed border-clay/80 text-[10px]">💥</span>, "Пунктир с отметкой — клетки, которые накрывает площадный удар выбранного отряда."],
-  ];
-  return (
-    <ul className={cn("space-y-1.5", className)}>
-      {rows.map(([icon, text], i) => (
-        <li key={i} className="flex items-start gap-2.5">
-          <span className="w-5 shrink-0 pt-0.5">{icon}</span>
-          <span className="leading-snug">{text}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Правила боя: короткий текст для мобильного модального окна и подсказки в бою. */
-export function BattleRules({ className }: { className?: string }) {
-  return (
-    <div className={cn("text-[13px] leading-relaxed text-dim", className)}>
-      <p>Один запас энергии платит и за вывод карты, и за её атаку. Энергия растёт в начале каждого вашего хода.</p>
-      <p className="mt-2">Стол растёт вместе с эпохами: Каменный век — одна линия в три клетки, Античный мир — вторые ряды, Средневековье — четвёртый столбец, Ренессанс — третий ряд, Эпоха Пара и Стали — четвёртый ряд, Новейшее время — пятый столбец, Будущее — пятый ряд. Размер общий для обеих сторон и берётся из эпохи угрозы — максимума вашей эпохи и эпохи племени.</p>
-      <p className="mt-2">Авангард бьёт отряд напротив, затем ближайшего. Обмен ударами одновременный: защитник отвечает, даже если погибает от этого удара, поэтому атаковать первым не значит атаковать безнаказанно. Не отвечают только постройка, уклонившаяся засада и вождь, а стрелка из глубины не достать; площадь ответных ударов не вызывает. Отряд с провокацией перехватывает удар первым. Ближний бой продвигается вглубь ряд за рядом: пока жив вражеский авангард, задние ряды для него недоступны. Когда ряды перед ним пусты, осада берётся за постройки в тылу, а вождя бьют только при полностью пустом столе.</p>
-      <p className="mt-2">Постройки встают только в последний ряд (тыл), ближний бой без стрельбы — только в авангард; дальнобойные, засадные, «длинное оружие» и слова обеспечения (прикрытие, штаб, корректировщик) могут стоять в любом ряду — их место как раз в глубине своего столбца. Стрелки бьют через все ряды врага по самому опасному отряду на поле и не получают ответа — их останавливает только провокация. «Длинное оружие» из глубины достаёт лишь врага напротив в авангарде. Манёвры разыгрываются сразу и слот не занимают. Постройка с атакой каждый ход обстреливает ближайший вражеский отряд или вождя: урон равен её атаке, броня его гасит, а ответа на обстрел нет — до чужого тыла не достать. Постройка без атаки не стреляет вовсе: это стена, склад или лагерь, она держит место в тылу и поддерживает войско словами.</p>
-      <p className="mt-2">В Каменном веке стол — одна линия, поэтому дальнего боя, засады, «длинного оружия» и прикрытия там нет: каждый отряд бьёт того, кто напротив, затем ближайшего в линии, а при пустой линии врага — вождя, и получает ответный удар. Ключевые слова, которые на этом столе молчат, перечёркнуты в описании отряда; нажмите на чип слова, чтобы прочитать, что оно делает.</p>
-      <p className="mt-2">Брешь в обороне — правило по умолчанию, а не особое свойство карт: столбец, в котором у стороны не осталось живых отрядов, открывает вождя. Удар ближнего боя из этого столбца проходит вождю, даже если чужой строй стоит в соседних столбцах; постройки строй не держат (их разбирает осада), а провокация перехватывает удар и через брешь. Поэтому линию держат по всей ширине, и крайние столбцы — не украшение стола.</p>
-      <p className="mt-2">Площадной удар бьёт не только по цели, но и по её окружению — это ответ на плотный строй. Три формы: «Фугас» накрывает соседей цели в её ряду и отряд прямо за ней, «Картечь» — весь ряд цели, «Обстрел столбца» — весь столбец цели во всех рядах. Дополнительных целей не больше трёх, урон по ним равен числу в слове (основная цель получает полный урон атаки), и ответных ударов площадь не вызывает. Удар с числом 2 считается тяжёлым и задевает ещё и ваш собственный отряд, стоящий напротив в том же столбце: полоса огня проходит через весь столбец. Отвечают на площадь «Рассредоточение» (−1 к площадному урону) и «Окоп» (в авангарде не получает «Картечь» и «Обстрел столбца»). Клетки, которые накроет выбранный отряд, отмечены пунктиром до удара.</p>
-      <p className="mt-2">Перестроение: свой отряд можно сдвинуть на одну соседнюю клетку — вбок по своему ряду или на ряд вперёд/назад — за 1 энергию, один раз за ход. Перестроение не истощает отряд: можно сдвинуться и ударить в тот же ход, если хватает энергии. Постройки не двигаются, а правила рядов действуют и здесь — ближний бой без стрельбы не уходит вглубь.</p>
-      <p className="mt-2">Слова столбца делают полосу этажом обеспечения боя. «Прикрытие» добавляет +1 брони отряду прямо перед собой в том же столбце — тыл реально бережёт передних, а не только стреляет. «Штаб», пока жив и стоит в последнем ряду, даёт +1 энергии в начале хода сверх текущего предела. «Корректировщик» наводит ваши дальние и площадные удары по целям своего столбца: +1 урона. «Охват» бьёт на 1 сильнее по цели с открытым флангом — у той нет живого соседа хотя бы с одной стороны, значит, она стоит в крайнем столбце или рядом с дырой в строю, — а если отряд напротив пал, идёт вверх по своему столбцу, а не вбок по чужому ряду.</p>
-      <p className="mt-2">Подавление — статус вместо урона: пулемёт и артиллерия не столько убивают, сколько заставляют залечь. Подавленный отряд не теряет права на атаку, но она дорожает на число в слове (потолок +3) на два хода: если энергии хватает, он всё равно ударит. Урона подавление не наносит и истекает само — в журнале это строка «приходит в себя». «Несокрушимый» не чувствует ни страха, ни морали, ни подавления.</p>
-      <p className="mt-2">Отряд, вышедший в этом ходу, помечен полосой и не атакует до следующего хода. В пустой колоде с 6-го хода начинается усталость: добор бьёт вождя.</p>
-      <Legend className="mt-3 text-faint" />
-    </div>
-  );
+  return null;
 }
 
 function LogList({ b, className, bare }: { b: Battle; className?: string; bare?: boolean }) {

@@ -65,12 +65,7 @@ export default function Onboarding() {
         <div className="absolute inset-0 bg-gradient-to-r from-transparent to-ground" />
         <div className="absolute bottom-10 left-10 right-16">
           <LogoMark size={44} />
-          <h1 className="font-display mt-4 text-4xl font-semibold leading-tight text-parch">Основать народ и выйти в бой</h1>
-          <p className="mt-3 max-w-md text-[15px] leading-relaxed text-dim">
-            Два выбора — наследие и замысел. Каждый меняет вождя в бою: здоровье, энергию, размер
-            колоды и стартовую руку. Вместе они дают народу имя. Первую карту выкует ИИ-кузнец;
-            затем можно выйти на военный стол.
-          </p>
+          <h1 className="font-display mt-4 text-4xl font-semibold leading-tight text-parch">Основать народ</h1>
         </div>
       </div>
 
@@ -89,11 +84,6 @@ export default function Onboarding() {
           {step === 0 && (
             <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Кем пришли в этот мир?</h2>
-              <p className="mt-2 text-dim">
-                Это наследие народа — древняя культура, чьи обычаи он несёт. Кузнец читает её в каждой карте,
-                а боевой бонус действует с первого боя. Сменить наследие можно при переходе в новую эпоху.
-              История культуры вдохновляет кузнеца, но не обязана повторяться в каждой карте.
-              </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {startCultures.map((c: any) => (
                   <button key={c.id} onClick={() => setCultureId(c.id)}
@@ -108,21 +98,12 @@ export default function Onboarding() {
                   </button>
                 ))}
               </div>
-              <p className="mt-4 text-xs text-faint">
-                Все шесть культур Каменного века настоящие: даты, места и находки — из археологии. Боевой бонус
-                выводится из того, чем культура жила: камень и металл идут в оружие, избыток еды — в выносливость вождя.
-                Наследие даёт и первую половину имени народа — вторую добавит замысел.
-              </p>
             </div>
           )}
 
           {step === 1 && (
             <div className="max-w-3xl">
               <h2 className="font-display text-3xl font-semibold">Чем живёт ваш народ?</h2>
-              <p className="mt-2 text-dim">
-                Замысел — это менталитет народа: что он считает богатством, во что верит и как воюет.
-                Он попадает в промпты кузнеца и даёт свой боевой бонус.
-              </p>
 
               <div className="mt-5 rounded-2xl border border-bronze/30 bg-bronze/8 p-4">
                 <Label>Ваш народ</Label>
@@ -166,13 +147,6 @@ export default function Onboarding() {
                 ))}
               </div>
 
-              <div className="mt-5 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed text-dim">
-                <div className="mb-1 flex items-center gap-2 font-semibold text-parch"><Swords size={15} className="text-bronze" />Что произойдёт дальше</div>
-                После основания вы сразу перейдёте к ИИ-кузнецу: выкуйте первую карту, и она автоматически попадёт
-                в пустую колоду. Затем в лагере можно выбрать соперника; обе стороны начинают с одной картой в руке,
-                а замысел «Знаки неба» открывает две. Победа даёт славу, поражение тоже приносит 2 славы; за неё
-                покупают улучшения лагеря и куют новые AI-карты. Состав и слоты настраиваются во вкладке <b className="text-parch">«Армия»</b>.
-              </div>
               {error && <p className="mt-3 text-sm text-bad">{error}</p>}
             </div>
           )}

@@ -228,8 +228,6 @@ test('лагерь показывает открытый выбор наслед
   assert.doesNotThrow(() => shell.SideNav({}));
   assert.doesNotThrow(() => shell.TopBar({}));
   assert.doesNotThrow(() => shell.MobileNav({}));
-  assert.doesNotThrow(() => shell.GoBattle({}));
-  assert.doesNotThrow(() => shell.GloryLine({}));
   assert.doesNotThrow(() => shell.PageFrame({ children: null }));
 });
 
@@ -349,15 +347,9 @@ test('инспектор боя объясняет ключевые слова �
   const deepText = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'Inspector', { inspect: { unit: deepUnit }, b: deep })).join(' ');
   assert.match(deepText, /Дальний бой/u);
   assert.doesNotMatch(deepText, /Не действует на этом столе/u);
-
-  // Правила боя объясняют и одну линию, и то, что чип можно нажать.
-  const rules = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'BattleRules', {})).join(' ');
-  assert.match(rules, /одна линия/u);
-  assert.match(rules, /перечёркнуты/u);
-  assert.match(rules, /нажмите на чип/u);
 });
 
-test('линия фронта помечает бреши, а правила объясняют прорыв и перестроение', () => {
+test('линия фронта помечает бреши, а инспектор объясняет ключевые слова', () => {
   const storage = makeStorage();
   const app = makeApp(storage);
   const game = foundedState({ glory: 40, era: 2 });
@@ -390,25 +382,6 @@ test('линия фронта помечает бреши, а правила о�
   assert.equal(held.split('брешь').length - 1, 2, 'помечены ровно открытые столбцы');
   assert.match(held, /·/u, 'закрытые столбцы остаются пустыми метками, чтобы полоса совпадала с сеткой');
 
-  // Правила и легенда объясняют новое: брешь как общее правило и манёвр за энергию.
-  const rules = textOf(render(app, storage, 'src/pages/Battle.tsx', store, derived, 'BattleRules', {})).join(' ');
-  assert.match(rules, /Брешь в обороне/u, 'правило прорыва объяснено');
-  assert.match(rules, /проходит вождю/u);
-  assert.match(rules, /Перестроение/u, 'манёвр объяснён');
-  assert.match(rules, /за 1 энергию/u);
-  assert.match(rules, /не истощает/u);
-  assert.match(rules, /Постройки не двигаются/u);
-
-  // Площадь: три формы, тяжёлый удар задевает своих, а контрмеры названы своими именами.
-  assert.match(rules, /Фугас/u);
-  assert.match(rules, /Картечь/u);
-  assert.match(rules, /Обстрел столбца/u);
-  assert.match(rules, /не больше трёх/u);
-  assert.match(rules, /ответных ударов площадь не вызывает/u);
-  assert.match(rules, /задевает ещё и ваш собственный отряд/u);
-  assert.match(rules, /Рассредоточение/u);
-  assert.match(rules, /Окоп/u);
-
   // Инспектор объясняет площадное слово отряда так же, как остальные.
   const gunCard = { ...foot, name: 'Мортира', keywords: ['blast:2'] };
   const gunBattle = app.battle.createBattle([gunCard], cfg, [], { ...cfg }, match);
@@ -420,7 +393,7 @@ test('линия фронта помечает бреши, а правила о�
   assert.match(gunText, /Фугас/u, 'площадное слово названо по-русски');
   assert.match(gunText, /накрывает ещё N урона/u, 'и объяснено');
 
-  // Слова столбца: те же требования — русское имя, пояснение, упоминание в правилах боя.
+  // Слова столбца: у каждого русское имя и пояснение в словаре карт.
   for (const kw of ['flank', 'screen', 'command', 'spotter']) {
     const supportCard = { ...foot, name: 'Поддержка', keywords: [kw] };
     const sb = app.battle.createBattle([supportCard], cfg, [], { ...cfg }, { ...match, threatEra: 2 });
@@ -435,12 +408,10 @@ test('линия фронта помечает бреши, а правила о�
   assert.equal(infos.length, names.length, 'все четыре слова столбца есть в словаре');
   for (const info of infos) {
     assert.ok(info.desc.length > 20, 'у каждого слова столбца есть пояснение');
-    assert.match(rules, new RegExp(info.name, 'u'), 'правила боя называют слово по-русски');
   }
-  assert.match(rules, /слова обеспечения/u, 'правила объясняют, кто может стоять в глубине');
 
-  // Подавление: слово объяснено в инспекторе, значок висит на жетоне подавленного отряда,
-  // а правила называют и цену, и контрмеру. Смысл ровно тот, что задуман: удорожание, а не запрет.
+  // Подавление: слово объяснено в инспекторе и значок висит на жетоне подавленного отряда.
+  // Смысл ровно тот, что задуман: удорожание, а не запрет.
   const mg = { ...foot, name: 'Пулемёт', atk: 2, keywords: ['suppress:2'] };
   const mgBattle = app.battle.createBattle([mg], cfg, [foot], { ...cfg }, { ...match, threatEra: 2 });
   mgBattle.active = 'me';
@@ -475,11 +446,6 @@ test('линия фронта помечает бреши, а правила о�
     onClick: () => {}, onHover: () => {}, onInspect: () => {},
   }));
   assert.ok(titles.some((t) => /Подавлен: атака дороже на 2/u.test(t)), 'на жетоне подавленного отряда значок с пояснением');
-
-  assert.match(rules, /Подавление/u, 'правила называют статус');
-  assert.match(rules, /дорожает/u, 'и объясняют, что атака дорожает');
-  assert.match(rules, /Несокрушимый/u, 'контрмера названа');
-  assert.match(rules, /потолок \+3/u, 'предел подавления виден игроку');
 });
 
 test('чипы ключевых слов кликабельны, а молчащие — перечёркнуты', () => {
@@ -517,7 +483,7 @@ test('оболочка и настройки рендерятся в любом 
   const game = foundedState({ glory: 15 });
   const { store, derived } = makeStore(app, game, { settingsOpen: true, toasts: [{ id: 1, text: 'Победа', tone: 'ok' }] });
   const shell = loadPage(app, storage, 'src/components/Shell.tsx', store, derived);
-  for (const name of ['SideNav', 'MobileNav', 'TopBar', 'Toasts', 'SettingsModal', 'CultureChoiceModal', 'GloryLine', 'GoBattle', 'LogoMark']) {
+  for (const name of ['SideNav', 'MobileNav', 'TopBar', 'Toasts', 'SettingsModal', 'CultureChoiceModal', 'LogoMark']) {
     assert.equal(typeof shell[name], 'function', `Shell не экспортирует ${name}`);
     app.react.reset();
     assert.doesNotThrow(() => shell[name]({}), `${name} упал при рендере`);
