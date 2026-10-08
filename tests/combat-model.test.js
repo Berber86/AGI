@@ -230,7 +230,7 @@ test('normalizeState приводит поля прототипа и отбра�
 test('сила племени растёт от эпохи игрока, а состав колоды — от эпохи племени', () => {
   const res = founded();
   const eraZero = Campaign.getOpponentBattleConfig(res.state, 'reed');
-  assert.equal(eraZero.hp, Campaign.COMBAT_BASE.hp);
+  assert.equal(eraZero.hp, Campaign.COMBAT_BASE.hp + 1, 'вождь племени крепче базового вождя игрока');
   assert.equal(eraZero.deckLimit, 4, 'колода каменного века');
 
   const late = Campaign.clone(res.state);
@@ -238,9 +238,18 @@ test('сила племени растёт от эпохи игрока, а со
   // племя подтягивается к эпохе игрока (bringBarbariansAlong вызывается при переходе эпохи)
   late.opponents.find(o => o.id === 'reed').era = Campaign.BARBARIAN_ERA_CAP;
   const eraTwo = Campaign.getOpponentBattleConfig(late, 'reed');
-  assert.equal(eraTwo.hp, Campaign.COMBAT_BASE.hp + 2);
-  assert.equal(eraTwo.energyMax, Campaign.COMBAT_BASE.energyMax + 2);
+  // Вождь племени крепче базового на единицу и дальше растёт на +1 за эпоху угрозы (см. campaign.js).
+  assert.equal(eraTwo.hp, Campaign.opponentHpFor(2));
+  assert.ok(eraTwo.hp > eraZero.hp, 'с ростом угрозы вождь племени крепче');
+  // Энергия врага растёт потолком (2, 3, 4, 5, 5, 5, 6 по эпохам угрозы), а прирост остаётся 1 до
+  // Будущего: прежняя кривая поднимала и потолок, и прирост, и племя выводило два отряда там, где
+  // игрок — один (см. комментарий в campaign.js и docs/BALANCE_REWORK_2026-10-08.md).
+  assert.deepEqual(Campaign.opponentEnergyFor(2), { energyMax: 4, energyGrowth: 1 });
+  assert.ok(eraTwo.energyMax > eraZero.energyMax, 'с ростом угрозы предел энергии врага выше');
   assert.ok(eraTwo.deckLimit > eraZero.deckLimit, 'к средневековью колода племени длиннее');
+  assert.equal(eraTwo.atkBonus, 0, 'доктрина племени появляется только в Новейшее время');
+  assert.equal(Campaign.opponentAtkBonusFor(5), 1);
+  assert.equal(Campaign.opponentAtkBonusFor(6), 1, 'доктрина племени слабее доктрины игрока (+2)');
 
   const deck = Campaign.getOpponentBattleDeck(late, 'reed');
   assert.ok(Array.isArray(deck) && deck.length > 0);

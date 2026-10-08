@@ -19,7 +19,10 @@ const DELETED = [
 
 test('файлы вырезанных механик удалены из дерева', () => {
   for (const file of DELETED) assert.equal(fs.existsSync(path.join(root, file)), false, `${file} должен быть удалён`);
-  assert.equal(fs.existsSync(path.join(root, 'tools')), false, 'каталог tools/ больше не нужен');
+  // Явное исключение: tools/balance — стенд баланса боя (честные колоды против колод племён).
+  // Это не вырезанная механика, а измерительный прибор; остальной tools/ по-прежнему не нужен.
+  const tools = fs.existsSync(path.join(root, 'tools')) ? fs.readdirSync(path.join(root, 'tools')).sort() : [];
+  assert.deepEqual(tools, ['balance'], 'в tools/ допустим только стенд баланса');
   // страницы — только боевой прототип
   assert.deepEqual(fs.readdirSync(path.join(root, 'src', 'pages')).sort(), ['Army.tsx', 'Battle.tsx', 'Camp.tsx', 'Forge.tsx', 'Onboarding.tsx']);
 });
