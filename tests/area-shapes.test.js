@@ -468,7 +468,7 @@ test('кузнец держит площадные слова в рамках, �
   }
 
   const base = {
-    name: 'Бомбарда', card_type: 'unit', era: 'ancient', emoji: '💥', drop_cost: 3, action_cost: 2, atk: 3, hp: 5,
+    name: 'Бомбарда', card_type: 'unit', era: 'ancient', emoji: '💥', drop_cost: 3, action_cost: 2, atk: 5, hp: 13,
     description: 'Накрывает строй ядрами.', tags: [], abilities: [], keywords: [], effects: [], monkey_paw: '',
   };
   const validate = (keywords, extra = {}, rarity = 'uncommon') =>

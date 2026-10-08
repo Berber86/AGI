@@ -185,15 +185,18 @@ test('каменный манёвр — один умеренный эффект
   });
   const validate = (effects, cost) => C.validateCard(spell(effects, cost), 'spell', ['ancient'], 'rare', 'none', { oneLine: true });
   assert.doesNotThrow(() => validate([damage(2)], 2), 'урон не выше двух по одной цели допустим');
-  assert.throws(() => validate([damage(3)], 2), /предел 2/u, 'камень не получает сильное заклинание даже из-за редкости');
+  assert.throws(() => validate([damage(3)], 2), /превышают бюджет/u, 'камень не получает сильное заклинание даже из-за редкости');
   assert.throws(() => validate([damage(1, { side: 'enemy', entity: 'unit', select: 'all' })], 2), /только одну цель/u);
   assert.throws(() => validate([damage(1, { side: 'enemy', entity: 'unit', count: 2 })], 2), /только одну цель/u);
-  assert.throws(() => validate([damage(1), damage(1)], 2), /ровно один скромный эффект/u);
+  assert.throws(() => validate([damage(1), damage(1)], 2), /ровно один полезный эффект/u);
 
-  const paid = spell([{
-    event: 'enter_play', target: { side: 'friendly', entity: 'unit', select: 'first' },
-    action: { type: 'apply_status', status: 'burn', amount: 2, turns: 3 },
-  }], 2);
+  const paid = spell([
+    damage(2),
+    {
+      event: 'enter_play', target: { side: 'friendly', entity: 'unit', select: 'first' },
+      action: { type: 'apply_status', status: 'burn', amount: 2, turns: 3 },
+    },
+  ], 2);
   paid.monkey_paw = 'Свой отряд горит три хода.';
   paid.history = { title: 'Пепельный обряд', text: 'Обряд требует сжечь припасы и терпеть жар в собственном строю.' };
   assert.doesNotThrow(() => C.validateCard(paid, 'spell', ['ancient'], 'ordinary', 'harsh', { oneLine: true }),

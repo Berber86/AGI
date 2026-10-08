@@ -74,7 +74,7 @@ function craftState(era, cultureId, glory = 900) {
 function cleanCard(extra = {}) {
   return {
     name: 'Стражи брода', card_type: 'unit', era: 'ancient', emoji: '🛡️',
-    drop_cost: 2, action_cost: 1, hp: 4, atk: 2,
+    drop_cost: 2, action_cost: 1, hp: 22, atk: 2,
     description: 'Держат брод копьями, пока обоз переходит реку.',
     tags: ['копьё'], abilities: [], keywords: ['phalanx'], effects: [], monkey_paw: '',
     ...extra,
@@ -84,7 +84,7 @@ function cleanCard(extra = {}) {
 const PAW_TEXT = 'Каждый раз, отряд выходя на поле, вождь платит кузнецу энергией: бросок не бесплатен.';
 const HISTORY = { title: 'Долг кузнецу', text: 'Оружие брали в долг у кузнецов брода и расплачивались каждым походом: долг висел на роде, пока отряд не отслужил своё.' };
 
-/** Небольшая плата: −1 энергии вождю при выходе на поле (вес 1). */
+/** Небольшая плата: −1 энергии вождю при выходе на поле (вес 2). */
 const minorPaw = () => cleanCard({
   monkey_paw: PAW_TEXT,
   history: HISTORY,
@@ -151,21 +151,22 @@ test('вес платы считают по механике: свои поте�
     const fx = (effect) => sev({ keywords: [], effects: [effect] });
     assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'damage', amount: 2 } }), 2, 'урон своим — по количеству');
     assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'apply_status', status: 'poison', amount: 1, turns: 3 } }), 3, 'яд на своих — урон плюс длительность');
-    assert.equal(fx({ event: 'death', target: { side: 'friendly', entity: 'unit', select: 'all' }, action: { type: 'destroy' } }), 4, 'уничтожение своего отряда — самое дорогое');
-    assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'modify_stat', stat: 'attack', amount: -2 } }), 3, 'постоянное ухудшение своих дороже временного');
-    assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'modify_stat', stat: 'attack', amount: -2, turns: 2 } }), 2);
-    assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'modify_cost', amount: 1 } }), 1, 'удорожание атаки своих');
-    assert.equal(fx({ event: 'enter_play', target: { side: 'controller', entity: 'player' }, action: { type: 'modify_resource', resource: 'energy', amount: -2 } }), 2, 'потеря энергии вождя');
+    assert.equal(fx({ event: 'death', target: { side: 'friendly', entity: 'unit', count: 1 }, action: { type: 'destroy' } }), 4, 'уничтожение одного своего отряда — самое дорогое');
+    assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'modify_stat', stat: 'attack', amount: -2 } }), 3, 'постоянное ухудшение своих включает надбавку');
+    assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'modify_stat', stat: 'attack', amount: -2, turns: 2 } }), 4, 'срок действия умножает силу');
+    assert.equal(fx({ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'modify_cost', amount: 1 } }), 2, 'удорожание атаки своих');
+    assert.equal(fx({ event: 'enter_play', target: { side: 'controller', entity: 'player' }, action: { type: 'modify_resource', resource: 'energy', amount: -2 } }), 4, 'потеря энергии вождя стоит вдвое');
     assert.equal(fx({ event: 'enter_play', target: { side: 'controller', entity: 'player' }, action: { type: 'discard', amount: 2 } }), 4, 'сброс своих карт — по две за карту');
     assert.equal(fx({ event: 'enter_play', target: { side: 'controller', entity: 'player' }, action: { type: 'exchange', amount: 1 } }), 2);
+    assert.equal(fx({ event: 'turn_start', target: { side: 'friendly', entity: 'unit', relation: 'self' }, action: { type: 'damage', amount: 1 } }), 3, 'повтор каждый ход стоит втрое');
   });
 
   await t.test('выгода врага тоже считается платой', () => {
     const fx = (effect) => sev({ keywords: [], effects: [effect] });
     assert.equal(fx({ event: 'enter_play', target: { side: 'enemy', entity: 'unit' }, action: { type: 'heal', amount: 2 } }), 2);
-    assert.equal(fx({ event: 'enter_play', target: { side: 'enemy', entity: 'unit' }, action: { type: 'modify_stat', stat: 'attack', amount: 1 } }), 1);
-    assert.equal(fx({ event: 'enter_play', target: { side: 'opponent', entity: 'player' }, action: { type: 'modify_resource', resource: 'energy', amount: 2 } }), 2);
-    assert.equal(fx({ event: 'enter_play', target: { side: 'opponent', entity: 'player' }, action: { type: 'draw', amount: 1 } }), 1);
+    assert.equal(fx({ event: 'enter_play', target: { side: 'enemy', entity: 'unit' }, action: { type: 'modify_stat', stat: 'attack', amount: 1 } }), 2);
+    assert.equal(fx({ event: 'enter_play', target: { side: 'opponent', entity: 'player' }, action: { type: 'modify_resource', resource: 'energy', amount: 2 } }), 4);
+    assert.equal(fx({ event: 'enter_play', target: { side: 'opponent', entity: 'player' }, action: { type: 'draw', amount: 1 } }), 2);
   });
 
   await t.test('боевые плюсы и обычный словарь весом не считаются', () => {
@@ -213,7 +214,7 @@ test('небольшая плата держится в пределах вес�
 
   const card = api.validateCard(minorPaw(), 'unit', eras, 'ordinary', 'minor');
   assert.equal(card.monkey_paw, PAW_TEXT.slice(0, 200));
-  assert.equal(api.pawSeverity(card, 'minor'), 1);
+  assert.equal(api.pawSeverity(card, 'minor'), 2);
 
   assert.throws(
     () => api.validateCard(harshPaw(), 'unit', eras, 'ordinary', 'minor'),
@@ -230,7 +231,7 @@ test('жёсткая плата требует вес от 4: карта сил�
 
   assert.throws(
     () => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'harsh'),
-    /Жёсткая плата — это вес от 4/iu,
+    /Жёсткая плата — это вес 4…8/iu,
   );
 });
 
@@ -262,57 +263,75 @@ test('плата обязана быть механикой и объяснен�
   );
 });
 
-test('последняя переделка принимает плату любой силы: ковка не падает из-за полосы', async () => {
+test('все попытки строго проверяют категорию платы: неправильная плата не получает множитель', async () => {
   const api = loadCards(async () => modelReply(minorPaw()));
   const eras = ['ancient', 'bronze'];
 
-  // Та же карта с мелкой платой: в строгом режиме для жёсткой трети это брак…
-  assert.throws(() => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'harsh'), /Жёсткая плата — это вес от 4/iu);
-  // …а с relaxBand плата остаётся настоящей, просто не той силы — карта принимается.
-  const relaxed = api.validateCard(minorPaw(), 'unit', eras, 'rare', 'harsh', { relaxBand: true });
-  assert.equal(api.pawSeverity(relaxed, 'harsh'), 1);
-  assert.equal(relaxed.monkey_paw, PAW_TEXT.slice(0, 200));
+  assert.throws(() => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'harsh'), /Жёсткая плата — это вес 4…8/iu);
+  assert.throws(() => api.validateCard(cleanCard({ monkey_paw: PAW_TEXT }), 'unit', eras, 'rare', 'harsh'), /требует настоящую плату/iu);
+  assert.throws(() => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'none'), /чистая карта, но кузнец добавил плату/iu);
 
-  // Плата обязана быть механикой и в мягком режиме, а чистый заказ послаблений не получает.
-  assert.throws(() => api.validateCard(cleanCard({ monkey_paw: PAW_TEXT }), 'unit', eras, 'rare', 'harsh', { relaxBand: true }), /требует настоящую плату/iu);
-  assert.throws(() => api.validateCard(minorPaw(), 'unit', eras, 'rare', 'none', { relaxBand: true }), /чистая карта, но кузнец добавил плату/iu);
-
-  // В кузнеце третья попытка идёт уже с послаблением: модель два раза дала мелкую плату — карта всё равно выкована.
   const requests = [];
   const smith = loadCards(async (url, init) => {
     requests.push(JSON.parse(init.body));
     return modelReply(minorPaw());
   });
-  const card = await smith.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh');
-  assert.equal(requests.length, 3, 'две строгие переделки, затем ковка принимается');
-  assert.ok(card.monkey_paw, 'игрок получил карту с настоящей платой, а не возврат славы');
-  // Кузнец знает, что постройка стреляет своей атакой: иначе он скуёт частокол с atk 0 и будет ждать обстрела.
-  assert.match(requests[0].messages[0].content, /atk от 0 до 4: 0 — стена \(не стреляет\), 1 и выше — обстрел каждый ход/u,
-    'системный промпт кузнеца объясняет атаку постройки');
+  const error = await smith.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh').then(() => null, (e) => e);
+  assert.ok(error, 'три неверные по весу платы отклоняются вместо выдачи неверного множителя');
+  assert.equal(requests.length, 3, 'две переделки, затем строгий отказ');
+  assert.match(error.message, /Жёсткая плата — это вес 4…8/iu);
+  assert.equal(error.pawRejected, true);
+  assert.ok(requests.every((request) => /4…8/u.test(request.messages[1].content)), 'каждая попытка видит одну и ту же строгую полосу');
+  assert.doesNotMatch(requests[2].messages[1].content, /послаблен|любую силу/iu, 'последняя попытка не размывает правило');
 });
 
-test('плата оплачивает силу: карта с жёсткой платой получает больший бюджет', () => {
+test('бюджет складывается из независимых множителей редкости и платы', () => {
   const api = loadCards(async () => modelReply(cleanCard()));
   const eras = ['ancient', 'bronze'];
   const strong = { name: 'Тяжёлый кулак', card_type: 'unit', era: 'ancient', emoji: '🪓', drop_cost: 2, action_cost: 2, hp: 6, atk: 5, description: 'Бьёт тяжко.', tags: [], abilities: [], keywords: ['phalanx'], effects: [], monkey_paw: '' };
 
-  const clean = api.validateCard(strong, 'unit', eras, 'ordinary', 'none');
-  // Бюджет удерживает не атаку, а силу карты целиком: пропорция ужимает цифры, а остаток бюджета
-  // добирается обратно — карта обязана остаться ровно на бюджете, а не ниже него.
-  assert.ok(clean.atk + clean.hp < strong.atk + strong.hp, 'без платы мощную карту урезают под бюджет');
+  const base = api.cardPowerBaseBudget(2, 2, 'unit');
+  assert.equal(base, 7, 'база учитывает вывод и цену атаки');
+  assert.equal(api.cardPowerBudget(2, 2, 'unit', 'ordinary'), base);
+  assert.equal(api.cardPowerBudget(2, 2, 'unit', 'uncommon'), base * 2);
+  assert.equal(api.cardPowerBudget(2, 2, 'unit', 'rare'), base * 4);
+  assert.equal(api.cardPowerBudget(2, 2, 'unit', 'ordinary', 'minor'), base * 2);
+  assert.equal(api.cardPowerBudget(2, 2, 'unit', 'ordinary', 'harsh'), base * 3);
+  assert.equal(api.cardPowerBudget(2, 2, 'unit', 'rare', 'harsh'), base * 12, 'редкая с жёсткой платой получает ×12');
+  assert.equal(api.cardPowerBudget(1, 1, 'unit', 'ordinary') < base, true, 'дешевле вывести и атаковать — меньше допустимой силы');
+  assert.equal(JSON.stringify(api.PAW_BUDGET_MULT), JSON.stringify({ none: 1, minor: 2, harsh: 3 }));
 
+  const clean = api.validateCard(strong, 'unit', eras, 'ordinary', 'none');
+  assert.equal(api.cardPower(clean), base, 'избыточные характеристики урезаются до базового бюджета');
   const paid = api.validateCard({ ...strong, monkey_paw: PAW_TEXT, history: HISTORY, effects: harshPaw().effects }, 'unit', eras, 'ordinary', 'harsh');
   const payout = api.pawSeverity(paid);
-  // Каждый пункт веса платы даёт +1 к бюджету силы — и бюджет теперь потолок, а не пожелание:
-  // карта с платой ровно добирает вес платы и не выходит за него даже на пункт (баланс-ревизия).
   assert.equal(payout, 4, 'жёсткая плата «сброс двух карт» весит 4');
-  assert.equal(api.cardPower(clean), api.cardPowerBudget(2, 2, 'unit', 'ordinary'), 'чистая карта укладывается в свой бюджет');
-  assert.equal(api.cardPower(paid), api.cardPowerBudget(2, 2, 'unit', 'ordinary', payout), 'плата покупает ровно свой вес силы');
-  assert.ok(api.cardPower(paid) > api.cardPower(clean), 'карта с платой сильнее чистой той же цены');
-  assert.ok(paid.atk + paid.hp > clean.atk + clean.hp, 'разница видна в цифрах на жетоне');
+  assert.ok(api.cardPower(paid) <= api.cardPowerBudget(2, 2, 'unit', 'ordinary', 'harsh'));
+  assert.ok(api.cardPower(paid) >= api.cardPower(clean), 'штрафная карта остаётся не слабее чистой обычной карты той же цены');
+  assert.ok(api.cardPower(paid) > api.cardPower(clean), 'множитель платы расширяет доступную силу');
 });
 
 /* ---------------- кузнец: жребий уходит в промпт, брак стоит одной переделки ---------------- */
+
+test('общая сила учитывает слова, эффекты, энергию, длительность и геометрию триггера', () => {
+  const api = loadCards(async () => modelReply(cleanCard()));
+  const base = { card_type: 'unit', atk: 1, hp: 1, keywords: [], effects: [] };
+  assert.equal(api.cardPower(base), 2);
+  assert.equal(api.cardPower({ ...base, keywords: ['command'] }), 5, 'повторяющееся снабжение стоит три пункта');
+  assert.equal(api.cardPower({ ...base, keywords: ['suppress:3'] }), 6, 'числовое слово N расходует бюджет');
+  assert.equal(api.cardPower({ ...base, keywords: ['armor:3'] }), 5, 'броня N весит N');
+  assert.equal(api.cardPower({ ...base, effects: [{ event: 'turn_start', target: { side: 'enemy', entity: 'unit' }, action: { type: 'damage', amount: 1 } }] }), 5,
+    'повторяемый ходовой эффект стоит в три раза дороже');
+  assert.equal(api.cardPower({ ...base, effects: [{ event: 'enter_play', target: { side: 'controller', entity: 'player' }, action: { type: 'modify_resource', resource: 'energy', amount: 1 } }] }), 4,
+    'полезная энергия тоже расходует бюджет');
+  assert.equal(api.cardPower({ ...base, effects: [{ event: 'enter_play', target: { side: 'friendly', entity: 'unit' }, action: { type: 'damage', amount: 3 } }] }), 2,
+    'штраф лапы не выдаётся за полезную силу');
+
+  const hard = { event: 'enter_play', target: { side: 'friendly', entity: 'unit', count: 3 }, action: { type: 'damage', amount: 3 } };
+  assert.equal(api.pawSeverity({ keywords: [], effects: [hard] }), 9, 'сила штрафа умножается на число целей');
+  assert.throws(() => api.validateCard({ ...cleanCard(), monkey_paw: PAW_TEXT, history: HISTORY, effects: [hard] }, 'unit', ['ancient'], 'ordinary', 'harsh'),
+    /Жёсткая плата — это вес 4…8/u, 'чрезмерная плата выше жёсткого потолка отклоняется');
+});
 
 test('промпт кузнеца объявляет жребий и таблицу весов, а для чистой карты запрещает плату', async () => {
   const prompts = [];
@@ -334,13 +353,14 @@ test('промпт кузнеца объявляет жребий и табли�
   assert.match(prompts[1], /history\.text — откуда эта цена взялась/iu, '…и историческая вставка тоже');
 
   await api.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(1, 'sumer'), 'harsh');
-  assert.match(prompts[2], /ЖЁСТКАЯ ПЛАТА: суммарный вес от 4/iu);
+  assert.match(prompts[2], /ЖЁСТКАЯ ПЛАТА: суммарный вес от 4 до 8/iu);
   assert.match(prompts[2], /карта сильная, но рискованная/iu);
   assert.notEqual(prompts[1], prompts[2], 'трети различаются в промпте');
   assert.match(prompts[1], /Готовые примеры небольшой платы/iu, 'у каждой трети свои рабочие примеры');
   assert.match(prompts[2], /Готовые примеры жёсткой платы/iu);
   assert.match(prompts[1], /сложи веса своих минусов и попади в полосу 1…3/iu);
-  assert.match(prompts[2], /сложи веса своих минусов и попади в полосу 4 и выше/iu);
+  assert.match(prompts[2], /сложи веса своих минусов и попади в полосу 4…8/iu);
+  assert.match(prompts[2], /Полезная сила оштрафованной карты должна быть не меньше/u, 'промпт требует оставить полезную часть не слабее чистой карты');
 });
 
 test('брак модели перековывается дважды, а третий брак отменяет ковку', async () => {
@@ -353,7 +373,7 @@ test('брак модели перековывается дважды, а тре
   const card = await api.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh');
   assert.equal(requests.length, 3, 'мелкая плата не прошла проверку жёсткой трети — кузнец перековал дважды');
   assert.match(requests[1].messages[1].content, /Предыдущий ответ не прошёл проверку игры: Жёсткая плата/iu);
-  assert.match(requests[2].messages[1].content, /пересчитай суммарный вес платы по таблице выше и попади в полосу от 4/iu, 'в переделку уходит точная инструкция');
+  assert.match(requests[2].messages[1].content, /пересчитай суммарный вес платы и попади в строгую полосу 4…8/iu, 'в переделку уходит точная инструкция');
   assert.equal(card.monkey_paw, PAW_TEXT.slice(0, 200));
   assert.equal(card.rarity, 'rare');
   assert.equal(card.history.era, Campaign.ERAS[1], 'справку по-прежнему подписывает эпоха кампании');
@@ -386,6 +406,7 @@ test('чистая карта куётся за один запрос, а жре
 
   for (const name of ['pawMarkers', 'pawSeverity', 'validateCard', 'llmCard']) assert.equal(typeof api[name], 'function', `cards.ts отдаёт ${name}`);
   assert.equal(api.PAW_MINOR_MAX, 3);
+  assert.equal(api.PAW_HARSH_MAX, 8);
   assert.equal(JSON.stringify(api.PAW_LABELS), JSON.stringify({ none: 'Чистая карта', minor: 'Небольшая плата', harsh: 'Жёсткая плата' }));
 });
 

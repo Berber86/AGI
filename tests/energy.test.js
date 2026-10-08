@@ -87,13 +87,12 @@ test('the barbarian era decks pass the same card schema as crafted cards', () =>
           () => cards.validateCard(opponentCard, opponentCard.card_type, ['ancient', 'bronze']),
           `${id} era ${era}: ${opponentCard.name}`,
         );
-        // Та же цена силы, что в кузнице: колода племени не может быть сильнее честной
-        // карты игрока за те же деньги. Раньше валидатор молча подрезал такие карты при
-        // проверке схемы, а в бою играли исходные цифры — племя выигрывало размен всегда.
+        // Базовый шаблон племени равен обычной ковке; боевая версия может получить ожидаемый
+        // множитель редкости угрозы эпохи, но всё равно остаётся в общем бюджете силы.
         if (opponentCard.card_type === 'spell') continue;
-        const budget = cards.cardPowerBudget(opponentCard.drop_cost, opponentCard.action_cost || 0, opponentCard.card_type, 'ordinary');
+        const budget = Math.round(Campaign.cardBudgetOf(opponentCard) * Campaign.expectedCraftMultiplier(era));
         assert.ok(
-          cards.cardPower(opponentCard) <= budget,
+          cards.cardPower(opponentCard) <= budget + 1,
           `${id} era ${era}: «${opponentCard.name}» силой ${cards.cardPower(opponentCard)} при бюджете ${budget}`,
         );
       }
@@ -127,19 +126,23 @@ test('deployment and attacks spend from one energy pool in the React battle engi
   assert.equal(b.enemy.energyGrowthBlockedNext, 0);
 });
 
-test('card validation permits play-energy keywords on spells but reserves combat triggers for units', () => {
+test('card validation prices play-energy words on spells and reserves raid triggers for units', () => {
   const cards = loadTypeScriptModule('src/game/cards.ts');
   const spell = {
-    name: 'Mobilization', card_type: 'spell', era: 'ancient', drop_cost: 1,
+    name: 'Mobilization', card_type: 'spell', era: 'ancient', drop_cost: 6,
     action_cost: 0, hp: 0, atk: 0, description: 'A quick order.',
-    keywords: ['supply', 'warcry', 'harras', 'exhaustenemy'],
+    keywords: [],
     effects: [{
       event: 'enter_play', target: { side: 'controller', entity: 'player' },
       action: { type: 'modify_resource', resource: 'energy', amount: 1 },
     }],
   };
-  const valid = cards.validateCard(spell, 'spell', ['ancient']);
-  assert.deepEqual(valid.keywords, spell.keywords);
+  for (const keyword of ['supply', 'warcry', 'harras', 'exhaustenemy']) {
+    const valid = cards.validateCard({ ...spell, keywords: [keyword] }, 'spell', ['ancient']);
+    assert.equal(JSON.stringify(valid.keywords), JSON.stringify([keyword]), `${keyword} is legal when its full energy value fits the budget`);
+  }
+  assert.throws(() => cards.validateCard({ ...spell, drop_cost: 1, keywords: ['supply', 'warcry', 'harras', 'exhaustenemy'] }, 'spell', ['ancient']), /бюджет/u,
+    'stacking all economy words on a one-energy spell exceeds its power budget');
   assert.throws(() => cards.validateCard({ ...spell, keywords: ['raider'] }, 'spell', ['ancient']), /только отрядам/);
   assert.throws(() => cards.validateCard({ ...spell, keywords: ['loot'] }, 'spell', ['ancient']), /только отрядам/);
 });

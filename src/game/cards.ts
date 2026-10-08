@@ -354,29 +354,24 @@ export function validateEffects(raw: any): any[] {
   });
 }
 
-// Бюджет силы карты от ИИ-Кузнеца. Раньше drop_cost/action_cost/hp/atk проверялись только независимо друг от
-// друга (int() проверяет лишь диапазон 0-99 для каждого поля отдельно) — ничто не мешало модели вернуть,
-// например, atk:99 и hp:99 при drop_cost:0, пройдя валидацию без единой ошибки. Системный промпт просит модель
-// соблюдать баланс сама, но это не гарантия: один "сорвавшийся" ответ создаёт карту вне всякого баланса.
-// Теперь суммарная сила (атака + здоровье + вес ключевых слов) ограничена бюджетом от заявленной
-// стоимости розыгрыша/действия и редкости заказа; излишек урезается, а не просто принимается
-// (баланс-ревизия).
-const RARITY_BUDGET_MULT: Record<string, number> = { ordinary: 1, uncommon: 1.3, rare: 1.7 };
+// Бюджет кузницы — один общий потолок для полезной силы карты: параметры, ключевые слова и полезные
+// эффекты расходуют одни и те же пункты. Энергия уже отражена в базовом бюджете: более дорогой вывод
+// и более дорогая атака дают больше очков силы; эффекты, возвращающие/крадущие энергию, отдельно
+// стоят как ключевое слово или эффект.
+const RARITY_BUDGET_MULT: Record<string, number> = { ordinary: 1, uncommon: 2, rare: 4 };
+export const PAW_BUDGET_MULT: Record<PawTier, number> = { none: 1, minor: 2, harsh: 3 };
 
-/**
- * Вес ключевого слова. Раньше все слова стоили по единице, из-за чего карта за одну славу могла нести
- * «дальний бой» и «засаду» — два слова-двигателя, которые сами по себе решают бой, — и всё равно
- * укладывалась в бюджет. Теперь удар без ответа, снабжение энергией и повторяемые эффекты стоят
- * вдвое дороже обычной тактики, а у числовых слов (броня, пробой, рассечение, месть, площадь)
- * каждый лишний пункт N — ещё одна единица силы. Те же числа использует колода племён:
- * tests/card-balance.test.js проверяет обе стороны одной формулой.
- */
+/** Вес слова. Повторяемые/геометрические способности стоят дороже; числовые N оплачиваются отдельно. */
 const KEYWORD_WEIGHT: Record<string, number> = {
-  ranged: 2, skirmish: 2, screen: 2, command: 2, spotter: 2, relentless: 2, suppress: 2,
-  cleave: 2, blast: 2, sweep: 2, column: 2,
+  armor: 1, pierce: 1, ranged: 2, reach: 2, charge: 2, shieldwall: 2, wedge: 2, phalanx: 2,
+  skirmish: 2, taunt: 2, poison: 2, burn: 2, heal: 2, rally: 2, fear: 2, morale: 1,
+  siege: 2, sturdy: 2, holdground: 1, upkeep: 2, supply: 3, warcry: 2, loot: 2, raider: 3,
+  harras: 2, exhaustenemy: 2, cleave: 2, blast: 2, sweep: 2, column: 2, vengeance: 2,
+  relentless: 3, scavenger: 2, suppress: 2, unbreakable: 3, laststand: 2, flank: 2,
+  screen: 2, command: 3, spotter: 2, dispersed: 1, entrenched: 1,
 };
-/** Слова с числовым N: каждый пункт сверх первого — ещё одна сила карты. */
-const KEYWORD_SCALES = new Set(["armor", "pierce", "cleave", "vengeance", "blast", "sweep", "column"]);
+/** Слова, в которых каждый пункт N сверх первого — ещё один пункт силы. */
+const KEYWORD_SCALES = new Set(["armor", "pierce", "heal", "suppress", "cleave", "vengeance", "blast", "sweep", "column"]);
 
 export function keywordWeight(raw: string): number {
   const [kw, arg] = String(raw).toLowerCase().trim().split(":");
@@ -385,32 +380,55 @@ export function keywordWeight(raw: string): number {
 }
 export const keywordPower = (keywords: string[] = []): number => keywords.reduce((sum, k) => sum + keywordWeight(k), 0);
 
-/**
- * pawWeight — надбавка за плату лапы обезьяны: вес платы покупает карте силу, пункт за пункт.
- * Но не безмерно: таблица весов считает число, а не то, чего оно стоит народу, поэтому «12 урона
- * по своим» на карте за одну славу покупало бы +12 силы. Потолок — цена карты плюс пункт: плата
- * может усилить карту на её собственный масштаб, но не превратить её в другую. Числа берутся из
- * самой карты (drop_cost), поэтому дешёвые карты с огромной платой больше не выходят за рамки.
- */
-const pawBudgetBonus = (pawWeight: number, dropCost: number): number =>
-  Math.min(Math.max(0, Math.floor(pawWeight)), Math.max(0, Math.floor(dropCost)) + 1);
-
-export function cardPowerBudget(dropCost: number, actionCost: number, cardType: string, rarity: string, pawWeight = 0): number {
-  const mult = RARITY_BUDGET_MULT[rarity] || 1;
-  const base = cardType === "structure" ? 2 * dropCost + 1 : 2 * dropCost + actionCost + 1;
-  return Math.max(2, Math.round(base * mult)) + pawBudgetBonus(pawWeight, dropCost);
+/** Обычный бюджет зависит от боевой цены: unit — вывод + атака, structure — вывод, spell — разовый вывод. */
+export function cardPowerBaseBudget(dropCost: number, actionCost: number, cardType: string, oneLine = false): number {
+  const drop = Math.max(1, Math.floor(Number(dropCost) || 1));
+  const action = Math.max(0, Math.floor(Number(actionCost) || 0));
+  let base: number;
+  if (cardType === "structure") base = 2 * drop + 1;
+  else if (cardType === "spell") base = oneLine ? Math.min(2, drop) : drop + 1;
+  else base = 2 * drop + action + 1;
+  return Math.max(2, base);
 }
 
 /**
- * Сила отряда или постройки: цифры плюс вес ключевых слов — то, что видно на жетоне в бою.
- * Атака постройки считается вдвойне: она стреляет каждый ход без действия и без энергии, тогда как
- * отряд платит за каждый удар. Иначе башня 2/5 за три славы (7 при бюджете 7) выигрывает размены,
- * в которых отряд за ту же цену обязан тратить энергию.
+ * Уровни редкости и риска перемножаются: необычная ×2, редкая ×4, небольшая лапа ×2,
+ * жёсткая ×3. Значит, редкая карта с жёсткой платой получает ровно ×12 базового бюджета.
  */
-export function cardPower(c: { atk?: number; hp?: number; keywords?: string[]; card_type?: string }): number {
+export function cardPowerBudget(
+  dropCost: number, actionCost: number, cardType: string, rarity: string,
+  paw: PawTier = "none", oneLine = false,
+): number {
+  const rarityMult = RARITY_BUDGET_MULT[rarity] || RARITY_BUDGET_MULT.ordinary;
+  const pawMult = PAW_BUDGET_MULT[paw] || PAW_BUDGET_MULT.none;
+  return Math.round(cardPowerBaseBudget(dropCost, actionCost, cardType, oneLine) * rarityMult * pawMult);
+}
+
+/** Цена эффекта зависит от силы действия, числа целей и частоты срабатывания. */
+function effectPower(effect: any, cardType = "unit"): number {
+  return cardType === "spell" ? spellEffectPower(effect) : unitEffectPower(effect);
+}
+
+/** Сильные штрафы не считаются полезной силой карты: их цена уже отражена множителем лапы. */
+const positiveEffectPower = (effects: any[] = [], cardType = "unit"): number => effects.reduce((sum, effect) => {
+  if (isPenaltyEffect(effect)) return sum;
+  try { return sum + effectPower(effect, cardType); } catch { return Number.POSITIVE_INFINITY; }
+}, 0);
+
+function usefulKeywordPower(card: { keywords?: string[]; monkey_paw?: string }): number {
+  return (card.keywords || []).reduce((sum, raw) => {
+    const key = keywordBase(raw);
+    if (key === "upkeep" || (key === "morale" && card.monkey_paw)) return sum;
+    return sum + keywordWeight(raw);
+  }, 0);
+}
+
+/** Полная сила, учитываемая тем же бюджетом кузницы: характеристики + слова + полезные эффекты. */
+export function cardPower(c: { atk?: number; hp?: number; keywords?: string[]; effects?: any[]; monkey_paw?: string; card_type?: string }): number {
   const atk = Math.max(0, Math.floor(c.atk || 0));
   const hp = Math.max(0, Math.floor(c.hp || 0));
-  return atk * (c.card_type === "structure" ? 2 : 1) + hp + keywordPower(c.keywords);
+  return atk * (c.card_type === "structure" ? 2 : 1) + hp
+    + usefulKeywordPower(c) + positiveEffectPower(c.effects || [], c.card_type);
 }
 
 /** Небольшой, проверяемый бюджет силы разовых манёвров; большие цели и уничтожение запрещены. */
@@ -459,7 +477,7 @@ function unitEffectPower(effect: any): number {
   try { return spellEffectPower(effect) * (EVENT_REPEAT[effect.event] ?? 2); } catch { return Number.POSITIVE_INFINITY; }
 }
 
-/** Бюджет эффектов отряда: не выше drop_cost + 1 — то же правило во всех эпохах, что и в промпте. */
+/** Жёсткий дополнительный потолок эффектов только для Каменного века: там действует одна линия и короткий бой. */
 export const unitEffectBudget = (dropCost: number): number => Math.max(1, Math.floor(dropCost)) + 1;
 
 /** Урезает числа эффекта под остаток бюджета: длительность и величина не обходят предел. */
@@ -478,10 +496,9 @@ function clampEffectToBudget(effect: any, budgetLeft: number): void {
 }
 
 /**
- * Эффекты отряда — необязательная часть ИИ-карты, не причина отменять ковку, но и не бесплатная
- * добавка: они входят в ту же цену, что и цифры. Оставляем максимум два простых действия, умещаем
- * их вес в drop_cost + 1 и убираем то, что не уместилось. На однорядном столе (stone) дополнительно
- * сужаем геометрию: одна цель, авангард, один ход статуса.
+ * Эффекты отряда — часть общей силы, а не бесплатная добавка. Оставляем только простые, исполнимые
+ * действия и расходуем на них рассчитанный остаток бюджета; число полезных действий растёт с этим
+ * остатком, но не выше четырёх. Каменный век сохраняет отдельный предел drop_cost+1 и одну цель.
  */
 function trimUnitEffects(effects: any[], allowance: number, stone: boolean): any[] {
   const simpleActions = new Set(["damage", "heal", "apply_status", "modify_stat", "modify_cost"]);
@@ -489,6 +506,7 @@ function trimUnitEffects(effects: any[], allowance: number, stone: boolean): any
   const out: any[] = [];
   let spent = 0;
   let useful = 0;
+  const maxUseful = stone ? 2 : Math.min(4, Math.max(2, Math.floor(allowance / 3)));
 
   for (const source of effects.slice(0, 6)) {
     if (simpleActions.has(source?.action?.type) === false) {
@@ -500,7 +518,7 @@ function trimUnitEffects(effects: any[], allowance: number, stone: boolean): any
     if (!simpleEvents.has(source?.event)) { if (isPenaltyEffect(source)) out.push(source); continue; }
     const penalty = isPenaltyEffect(source);
     // Плата не тратит бюджет эффектов: её вес уже оплачен надбавкой к силе карты.
-    if (!penalty && (useful >= 2 || spent >= allowance)) continue;
+    if (!penalty && (useful >= maxUseful || spent >= allowance)) continue;
 
     const effect = { ...source, target: { ...source.target }, action: { ...source.action } };
     const target = effect.target;
@@ -535,18 +553,35 @@ function trimUnitEffects(effects: any[], allowance: number, stone: boolean): any
 }
 
 function validateSpellPower(card: Card, rarity: Rarity, oneLine = false, paw: PawTier = "none"): void {
-  if (oneLine && card.effects.length !== 1) throw new Error("Манёвр Каменного века должен иметь ровно один скромный эффект.");
-  if (!oneLine && card.effects.length > 2) throw new Error("У манёвра не больше двух эффектов — не складывай несколько сильных действий.");
-  if (oneLine && card.effects.some((effect) => (effect.target.count || 1) !== 1 || effect.target.select === "all")) {
-    throw new Error("Манёвр Каменного века может затронуть только одну цель.");
+  const useful = card.effects.filter((effect) => !isPenaltyEffect(effect));
+  const penalties = card.effects.filter((effect) => isPenaltyEffect(effect));
+  if (!useful.length) throw new Error("Манёвр должен давать полезный тактический эффект: плата не может быть единственным действием карты.");
+  if (oneLine) {
+    const expectedCount = paw === "none" ? 1 : 2;
+    if (card.effects.length !== expectedCount || useful.length !== 1 || (paw !== "none" && penalties.length !== 1)) {
+      throw new Error(paw === "none"
+        ? "Манёвр Каменного века должен иметь ровно один полезный эффект."
+        : "Манёвр Каменного века должен иметь один полезный эффект и один эффект-плату.");
+    }
+    if (card.effects.some((effect) => (effect.target.count || 1) !== 1 || effect.target.select === "all")) {
+      throw new Error("Манёвр Каменного века может затронуть только одну цель каждым эффектом.");
+    }
+  } else if (card.effects.length > 2) {
+    throw new Error("У манёвра не больше двух эффектов — не складывай несколько сильных действий.");
   }
-  const power = card.effects.reduce((sum, effect) => sum + spellEffectPower(effect), 0);
-  const rarityBonus = rarity === "rare" ? 2 : rarity === "uncommon" ? 1 : 0;
-  // На однорядном столе редкость не разгоняет манёвр; реальная плата может вернуть не более двух
-  // пунктов эффекта, чтобы жёсткий жребий не делал первую AI-карту невыполнимой.
-  const paidAllowance = oneLine && paw !== "none" ? Math.min(2, pawSeverity(card, paw)) : 0;
-  const budget = oneLine ? Math.min(2, card.drop_cost) + paidAllowance : card.drop_cost + 1 + rarityBonus;
-  if (power > budget) throw new Error(`Манёвр слишком силён для цены: вес эффектов ${power}, предел ${budget}. Уменьши урон, длительность или число целей.`);
+  for (const effect of card.effects) {
+    if (effect.event !== "enter_play") throw new Error("Манёвр может использовать только enter_play.");
+    if (effect.target.select === "all") throw new Error("Манёвр не может целиться сразу во все подходящие отряды.");
+    if ((effect.target.count || 1) > 2) throw new Error("Манёвр может затронуть не более двух целей.");
+  }
+  const power = useful.reduce((sum, effect) => sum + spellEffectPower(effect), 0);
+  const budget = cardPowerBudget(card.drop_cost, 0, "spell", rarity, paw, oneLine);
+  const room = budget - usefulKeywordPower(card);
+  // Каменный век сохраняет силу чистого манёвра ≤2; заказанная плата даёт небольшое расширение до 4,
+  // но не снимает ограничение одной цели и не открывает area/target-all эффекты.
+  const eraCap = oneLine ? (paw === "none" ? 2 : 4) : budget;
+  const limit = Math.min(room, eraCap);
+  if (power > limit) throw new Error(`Полезные эффекты и ключевые слова манёвра превышают бюджет: эффект ${power}, остаток ${limit}. Уменьши силу действия или число целей.`);
 }
 
 /**
@@ -580,8 +615,9 @@ export const PAW_LABELS: Record<PawTier, string> = {
   harsh: "Жёсткая плата",
 };
 
-/** Небольшая плата — вес 1…3, жёсткая — от 4. */
+/** Небольшая плата — вес 1…3; жёсткая — 4…8, чтобы штраф не делал карту непригодной. */
 export const PAW_MINOR_MAX = 3;
+export const PAW_HARSH_MAX = 8;
 
 const isOwnSide = (side: string) => side === "friendly" || side === "controller";
 const isFoeSide = (side: string) => side === "enemy" || side === "opponent";
@@ -590,13 +626,37 @@ const isFoeSide = (side: string) => side === "enemy" || side === "opponent";
  * Настоящие минусы карты: эффекты против своей стороны и своего вождя, усиление врага,
  * а также ключевые слова-обременения. Возвращает и человекочитаемое описание, и вес.
  */
+function penaltyActionWeight(action: any): number {
+  const amount = Math.abs(Number(action?.amount) || 0);
+  switch (action?.type) {
+    case "damage": case "heal": return amount;
+    case "apply_status": return amount + Math.max(0, (Number(action.turns) || 1) - 1);
+    case "destroy": return 4;
+    case "modify_stat": case "modify_cost":
+      return amount * (Number(action.turns) || 1) + (action.turns ? 0 : 1);
+    case "modify_resource": return amount * 2;
+    case "discard": case "exchange": case "draw": case "scry": return amount * 2;
+    default: return 0;
+  }
+}
+
+function penaltyEffectWeight(effect: any): number {
+  const target = effect?.target || {};
+  const count = target.select === "all" ? 3 : Math.max(1, Math.min(3, Math.floor(Number(target.count) || 1)));
+  const repeat = EVENT_REPEAT[effect?.event] ?? 2;
+  return penaltyActionWeight(effect?.action) * count * repeat;
+}
+
+/**
+ * Настоящие минусы карты: эффекты против своей стороны и своего вождя, усиление врага,
+ * а также ключевые слова-обременения. Вес учитывает силу действия, число целей и повторяемость.
+ */
 export function pawMarkers(c: Pick<Card, "keywords" | "effects">, paw: PawTier = "none"): { text: string; weight: number }[] {
   const out: { text: string; weight: number }[] = [];
   for (const raw of c.keywords || []) {
     const key = String(raw).split(":")[0];
     // upkeep — чистое обременение, он считается всегда. morale на обычных картах — часть
-    // словаря («Дружина вождя» несёт её вместе со стеной щитов), поэтому в плату она идёт,
-    // только если плата заказана.
+    // словаря; в лапу он идёт только если игроку выпал штраф.
     if (key === "upkeep") out.push({ text: "содержание: без соседей теряет 1 HP за ход", weight: 2 });
     else if (key === "morale" && paw !== "none") out.push({ text: "мораль: при ранах может бежать с поля", weight: 2 });
   }
@@ -606,37 +666,39 @@ export function pawMarkers(c: Pick<Card, "keywords" | "effects">, paw: PawTier =
     const own = isOwnSide(t.side), foe = isFoeSide(t.side);
     const amount = Math.abs(Number(a.amount) || 0);
     const who = own ? "своим" : "врагу";
-    if (own && a.type === "damage") out.push({ text: `${amount} урона ${who}`, weight: amount });
-    else if (own && a.type === "apply_status") out.push({ text: `${a.status === "burn" ? "огонь" : a.status === "suppress" ? "подавление" : "яд"} на ${who} (${a.turns || 2} хода)`, weight: amount + Math.max(0, (a.turns || 2) - 1) });
-    else if (own && a.type === "destroy") out.push({ text: "уничтожает собственный отряд", weight: 4 });
-    else if (own && a.type === "modify_stat" && Number(a.amount) < 0) out.push({ text: `${a.amount} к «${a.stat}» ${who}`, weight: amount + (a.turns ? 0 : 1) });
-    else if (own && a.type === "modify_cost" && Number(a.amount) > 0) out.push({ text: `+${amount} к цене атаки ${who}`, weight: amount });
-    else if (own && a.type === "modify_resource" && Number(a.amount) < 0) out.push({ text: `${a.amount} энергии у вождя`, weight: amount });
-    else if (own && (a.type === "discard" || a.type === "exchange")) out.push({ text: `${a.type === "discard" ? "сброс" : "обмен"} ${amount} карт из руки`, weight: 2 * amount });
-    else if (foe && a.type === "heal") out.push({ text: `лечит врага на ${amount}`, weight: amount });
-    else if (foe && a.type === "modify_stat" && Number(a.amount) > 0) out.push({ text: `+${amount} к «${a.stat}» врага`, weight: amount });
-    else if (foe && a.type === "modify_resource" && Number(a.amount) > 0) out.push({ text: `+${amount} энергии врагу`, weight: amount });
-    else if (foe && a.type === "draw") out.push({ text: `враг добирает ${amount} карт`, weight: amount });
+    let text = "";
+    if (own && a.type === "damage") text = `${amount} урона ${who}`;
+    else if (own && a.type === "apply_status") text = `${a.status === "burn" ? "огонь" : a.status === "suppress" ? "подавление" : "яд"} на ${who} (${a.turns || 2} хода)`;
+    else if (own && a.type === "destroy") text = "уничтожает собственный отряд";
+    else if (own && a.type === "modify_stat" && Number(a.amount) < 0) text = `${a.amount} к «${a.stat}» ${who}`;
+    else if (own && a.type === "modify_cost" && Number(a.amount) > 0) text = `+${amount} к цене атаки ${who}`;
+    else if (own && a.type === "modify_resource" && Number(a.amount) < 0) text = `${a.amount} энергии у вождя`;
+    else if (own && (a.type === "discard" || a.type === "exchange")) text = `${a.type === "discard" ? "сброс" : "обмен"} ${amount} карт из руки`;
+    else if (foe && a.type === "heal") text = `лечит врага на ${amount}`;
+    else if (foe && a.type === "modify_stat" && Number(a.amount) > 0) text = `+${amount} к «${a.stat}» врага`;
+    else if (foe && a.type === "modify_cost" && Number(a.amount) < 0) text = `${a.amount} к цене атаки врага`;
+    else if (foe && a.type === "modify_resource" && Number(a.amount) > 0) text = `+${amount} энергии врагу`;
+    else if (foe && a.type === "draw") text = `враг добирает ${amount} карт`;
+    if (!text) continue;
+    const targets = t.select === "all" ? "по всем целям" : (t.count || 1) > 1 ? `по ${t.count} целям` : "";
+    const repeat = (EVENT_REPEAT[e.event] ?? 2) > 1 ? `, повторяемость ×${EVENT_REPEAT[e.event] ?? 2}` : "";
+    out.push({ text: [text, targets].filter(Boolean).join(" ") + repeat, weight: penaltyEffectWeight(e) });
   }
   return out;
 }
 
-/** Суммарный вес платы: им измеряют и силу платы, и надбавку к бюджету карты. */
+/** Суммарный вес платы: валидирует размер реального недостатка; бюджет растёт по категории, не по числу веса. */
 export const pawSeverity = (c: Pick<Card, "keywords" | "effects">, paw: PawTier = "none"): number =>
   pawMarkers(c, paw).reduce((sum, m) => sum + m.weight, 0);
 
 /** Таблица весов для промпта: модель обязана попасть в заказанный диапазон, а не угадать его. */
 const PAW_WEIGHT_TABLE = `Вес платы движок считает по карте сам:
-- damage по своим (side friendly|controller) — вес = amount;
-- apply_status poison|burn|suppress по своим — вес = amount + (turns − 1);
-- destroy своего отряда — вес 4;
-- modify_stat с отрицательным amount по своим — вес = |amount|, и ещё +1 если без turns (навсегда);
-- modify_cost с положительным amount по своим — вес = amount;
-- modify_resource energy с отрицательным amount по своим — вес = |amount|;
-- discard или exchange своих карт — вес = 2 × amount;
-- heal, modify_stat с плюсом, modify_resource с плюсом и draw по врагу (side enemy|opponent) — вес = amount;
-- ключевое слово upkeep — вес 2; ключевое слово morale — вес 2.
-Суммарный вес платы даёт карте столько же пунктов силы сверх её бюджета, но не больше 2×drop_cost + 2: плата удваивает карту, а не заменяет её собой.`;
+- сначала оцени действие: damage/heal — amount; apply_status — amount + (turns − 1); destroy своего отряда — 4;
+- modify_stat/modify_cost — |amount| × turns (навсегда: ×1 и ещё +1); modify_resource — 2 × |amount|;
+- discard/exchange/draw/scry — 2 × amount;
+- затем умножь на число целей (target.count) и частоту: enter_play/death — ×1, attack/damaged — ×2, turn_start/turn_end — ×3;
+- select=all для платы запрещён; не задавай больше двух целей. upkeep и morale — фиксированный вес 2.
+Небольшая плата имеет суммарный вес 1…${PAW_MINOR_MAX}, жёсткая — 4…${PAW_HARSH_MAX}. Вес определяет только категорию реального недостатка; бюджет растёт множителем уровня риска, а не прибавкой веса.`;
 
 function pawDirective(paw: PawTier): string {
   if (paw === "none") {
@@ -644,36 +706,32 @@ function pawDirective(paw: PawTier): string {
   }
   const band = paw === "minor"
     ? `НЕБОЛЬШАЯ ПЛАТА: суммарный вес от 1 до ${PAW_MINOR_MAX} — один скромный минус.`
-    : `ЖЁСТКАЯ ПЛАТА: суммарный вес от ${PAW_MINOR_MAX + 1} и выше — карта сильная, но рискованная; плата заметно дороже мелкой.`;
+    : `ЖЁСТКАЯ ПЛАТА: суммарный вес от ${PAW_MINOR_MAX + 1} до ${PAW_HARSH_MAX} — карта сильная, но рискованная; не делай штраф катастрофическим.`;
   const examples = paw === "minor"
     ? `Готовые примеры небольшой платы:
-- вес 1: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-1}} — вождь платит энергией за выход отряда;
+- вес 2: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-1}} — вождь теряет 1 энергию;
 - вес 2: ключевое слово upkeep — без соседей отряд теряет 1 HP за ход;
 - вес 2: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"adjacent"},"action":{"type":"damage","amount":2}} — отряд толкает своих же;
-- вес 3: {"event":"turn_start","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"modify_stat","stat":"attack","amount":-1}} — постоянное ухудшение своей атаки.`
+- вес 3: {"event":"turn_start","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"damage","amount":1}} — небольшой повторный урон своему бойцу.`
     : `Готовые примеры жёсткой платы:
 - вес 4: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"discard","amount":2,"choice":"highest_cost"}} — вождь сбрасывает две лучшие карты;
-- вес 4: {"event":"death","target":{"side":"friendly","entity":"unit","select":"all"},"action":{"type":"damage","amount":2}} — гибель отряда бьёт по своим;
-- вес 4: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"apply_status","status":"burn","amount":2,"turns":3}} — отряд поджигает сам себя;
-- вес 6: {"event":"turn_start","target":{"side":"controller","entity":"player"},"action":{"type":"modify_resource","resource":"energy","amount":-2}} вместе с ключевым словом upkeep.`;
+- вес 4: {"event":"enter_play","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"destroy"}} — отряд уничтожает себя при выходе;
+- вес 6: {"event":"turn_start","target":{"side":"friendly","entity":"unit","relation":"self"},"action":{"type":"damage","amount":2}} — повторный урон своему бойцу;
+- вес 8: {"event":"enter_play","target":{"side":"controller","entity":"player"},"action":{"type":"discard","amount":4,"choice":"highest_cost"}} — предельная, но всё ещё конечная жертва.`;
   return `ЛАПА ОБЕЗЬЯНЫ ОБЯЗАТЕЛЬНА. ${band}
 Плату придумываешь ты, но выражена она должна быть НАСТОЯЩЕЙ МЕХАНИКОЙ из разрешённого словаря: эффектами в effects[] против своей стороны/своего вождя (урон, яд, огонь, ухудшение характеристики, удорожание атаки, потеря энергии, сброс карт, уничтожение своего отряда) либо усилением врага, и/или ключевыми словами upkeep, morale. Текст в monkey_paw (до 200 знаков) называет плату по-человечески и точно совпадает с механикой — никаких штрафов, которых нет в effects[] и keywords[].
 ${PAW_WEIGHT_TABLE}
 ${examples}
-Перед ответом сложи веса своих минусов и попади в полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1} и выше`}: если выходит тяжелее — убери часть эффектов, легче — добавь.
-Плату платит владелец карты: цель таких эффектов — side friendly или controller (для вражеской выгоды — enemy/opponent). Плата не должна делать карту бесполезной: она мешает, но не отменяет боевую роль.
+Перед ответом сложи веса своих минусов и попади в полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}`}: если вышло тяжелее — уменьши число целей или силу штрафа.
+Плату платит владелец карты: цель таких эффектов — side friendly или controller (для вражеской выгоды — enemy/opponent). Плата не должна делать карту бесполезной: обязательно создай сильную полезную боевую часть. Полезная сила оштрафованной карты должна быть не меньше бюджета такой же чистой карты той же редкости.
 ОПИСАНИЕ И СПРАВКА ОБЪЯСНЯЮТ ПЛАТУ: description показывает, чем отряд расплачивается в бою, а history.text — откуда эта цена взялась у народа (обычай, долг обряда, скверное оружие, голод, клятва, болезнь, плата жрецам). Карта, у которой плата не обоснована текстом, не принимается.`;
 }
 
 /** Ошибка браковки платы: движок помечает её, чтобы UI не показывал игроку сам жребий. */
 const pawError = (message: string) => Object.assign(new Error(message), { pawRejected: true });
 
-/**
- * opts.relaxBand — последняя попытка ковки: плата обязана быть настоящей (вес ≥ 1, текст и справка
- * на месте), но её величину движок уже не бракует. Лучше карта с платой не той силы, чем отменённая
- * ковка: жребий задаёт ЗАКАЗ модели, а не повод вернуть игроку славу.
- */
-export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none", opts: { relaxBand?: boolean; oneLine?: boolean } = {}): Card {
+/** Валидатор исполняет бюджет и штраф жёстко на каждой попытке; неправильная категория платы не получает множитель. */
+export function validateCard(raw: any, expectedType: CardType, allowedEras: string[], rarity: Rarity = "ordinary", paw: PawTier = "none", opts: { oneLine?: boolean } = {}): Card {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Кузнец не вернул объект карты.");
   const c = { ...raw } as any;
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 80) throw new Error("У карты должно быть короткое название.");
@@ -687,16 +745,35 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     c.drop_cost = Math.min(2, c.drop_cost);
   }
   if (c.card_type === "spell") { c.hp = 0; c.atk = 0; c.action_cost = 0; }
-  // Постройка не ходит и не атакует как отряд, но может стрелять: atk 0 — это стена или склад,
-  // atk 1…4 — башня или орудие, которое каждый ход обстреливает врага (урон гасит броня, ответа нет).
-  if (c.card_type === "structure") { c.atk = Math.min(4, Math.max(0, c.atk)); c.action_cost = 0; if (c.hp < 1) throw new Error("У постройки нужно хотя бы 1 HP."); }
-  if (c.card_type === "unit" && c.hp < 1) throw new Error("У отряда должно быть хотя бы 1 HP.");
+  if (c.card_type === "structure") {
+    c.atk = Math.min(4, Math.max(0, c.atk));
+    c.action_cost = 0;
+    if (c.hp < 1) throw new Error("У постройки нужно хотя бы 1 HP.");
+  }
+  if (c.card_type === "unit") {
+    if (c.hp < 1) throw new Error("У отряда должно быть хотя бы 1 HP.");
+    if (!opts.oneLine && c.action_cost < 1) throw new Error("Атака отряда не бывает бесплатной: action_cost минимум 1.");
+    // Цена выше глобального потолка энергии не давала бы атаковать; stone выше отдельно зажимается до 2.
+    c.action_cost = opts.oneLine ? Math.min(2, Math.max(1, c.action_cost)) : Math.min(8, c.action_cost);
+  }
   if (typeof c.description !== "string" || !c.description.trim()) throw new Error("Нужно описание карты.");
   c.description = c.description.slice(0, 400);
-  const kws: string[] = Array.isArray(c.keywords) ? c.keywords : [];
-  c.keywords = kws
-    .map((k) => String(k).toLowerCase().trim())
-    .filter((k) => SUPPORTED_KEYWORDS.has(k.split(":")[0]))
+
+  const rawKeywords: string[] = Array.isArray(c.keywords) ? c.keywords : [];
+  c.keywords = rawKeywords
+    .map((rawKeyword) => {
+      const normalized = String(rawKeyword).toLowerCase().trim();
+      const [key, rawN] = normalized.split(":");
+      if (!SUPPORTED_KEYWORDS.has(key)) return "";
+      if (rawN === undefined || !KEYWORD_SCALES.has(key)) return key;
+      const n = Number(rawN);
+      const max = key === "blast" || key === "sweep" || key === "column" ? AREA_MAX_N : 3;
+      if (!Number.isInteger(n) || n < 1 || n > max) {
+        throw new Error(`Ключевое слово ${key} принимает N от 1 до ${max}.`);
+      }
+      return `${key}:${n}`;
+    })
+    .filter(Boolean)
     .slice(0, 8);
   if (c.card_type !== "unit" && c.keywords.some((k: string) => ["raider", "loot"].includes(k.split(":")[0]))) throw new Error("Ключевые слова raider и loot доступны только отрядам.");
   if (opts.oneLine && c.keywords.some((k: string) => AREA_KEYWORDS.includes(k.split(":")[0]))) {
@@ -709,22 +786,20 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
     c.action_cost = Math.min(2, Math.max(1, c.action_cost));
     c.keywords = c.keywords.map((k: string) => k.split(":")[0] === "cleave" ? "cleave:1" : k);
   }
-  // Площадь — самая сильная геометрия стола, поэтому рамки жёсткие и проверяются здесь, а не на глаз:
-  // одно площадное слово на карту, N не выше AREA_MAX_N, удар не бесплатный и карта не рядовая.
+
+  // Площадь — одна геометрия на карту, N не выше эрового потолка, удар не бесплатный.
   const areaKws = c.keywords.filter((k: string) => AREA_KEYWORDS.includes(k.split(":")[0]));
   if (areaKws.length > 1) throw new Error("Карте хватает одного площадного слова: «Фугас», «Картечь» и «Обстрел столбца» не складываются.");
-  for (const raw of areaKws) {
-    const [kw, ns] = String(raw).split(":");
+  for (const rawKeyword of areaKws) {
+    const [kw, ns] = String(rawKeyword).split(":");
     const n = parseInt(ns || "1", 10);
     if (!Number.isInteger(n) || n < 1 || n > AREA_MAX_N) throw new Error(`Площадное слово ${kw} принимает N от 1 до ${AREA_MAX_N}.`);
     if (c.card_type !== "unit") throw new Error("Площадные слова доступны только отрядам.");
     if (c.action_cost < 1) throw new Error("Площадной удар не бывает бесплатным: action_cost минимум 1.");
     if (rarity === "ordinary") throw new Error("Площадной удар — не рядовое свойство: карта с ним должна быть не ниже необычной.");
   }
-  // Эффекты отряда необязательны, но не бесплатны: они входят в ту же цену карты, что и цифры.
-  // Бракованный или перегруженный эффект упрощаем/убираем, а не отменяем оплаченный заказ:
-  // полезная карта остаётся, а сильные действия не попадают в бой. Манёвр и постройка по-прежнему
-  // проходят строгую проверку целиком: там ошибка — повод переделать заказ, а не тихо его ослабить.
+
+  // Сначала проверяем и нормализуем механику, сохраняя штрафы нетронутыми.
   if (c.card_type === "unit") {
     if (opts.oneLine) {
       const candidates = Array.isArray(c.effects) ? c.effects.slice(0, 6) : [];
@@ -732,92 +807,118 @@ export function validateCard(raw: any, expectedType: CardType, allowedEras: stri
       for (const rawEffect of candidates) {
         try { validated.push(...validateEffects([rawEffect])); } catch { /* снимаем только этот эффект */ }
       }
-      c.effects = trimUnitEffects(validated, unitEffectBudget(c.drop_cost), true);
+      c.effects = validated;
     } else {
-      // За пределами Каменного века ошибка в эффекте — повод переделать заказ (текст ошибки уходит
-      // модели), а бюджет режет уже проверенные эффекты по весу.
-      c.effects = trimUnitEffects(validateEffects(Array.isArray(c.effects) ? c.effects : []), unitEffectBudget(c.drop_cost), false);
+      c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
     }
   } else {
     c.effects = validateEffects(Array.isArray(c.effects) ? c.effects : []);
   }
   if (c.card_type === "spell") {
-    if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект.");
-    c.effects = c.effects.filter((e: any) => e.event === "enter_play");
-    if (!c.effects.length) throw new Error("Манёвр может использовать только enter_play.");
-    validateSpellPower(c as Card, rarity, Boolean(opts.oneLine), paw);
+    c.effects = c.effects.filter((effect: any) => effect.event === "enter_play");
+    if (!c.effects.length) throw new Error("Для манёвра нужен хотя бы один эффект enter_play.");
   }
+
   c.tags = Array.isArray(c.tags) ? c.tags.slice(0, 3).map((t: any) => String(t).slice(0, 40)) : [];
   c.abilities = [];
   c.emoji = typeof c.emoji === "string" && c.emoji.trim() ? c.emoji.slice(0, 8) : "⚒️";
   c.monkey_paw = typeof c.monkey_paw === "string" ? c.monkey_paw.trim().slice(0, 200) : "";
   c.history = sanitizeHistory(c.history);
 
-  // Лапа обезьяны: жребий, выпавший при заказе, обязателен к исполнению, а размер платы измеряется
-  // настоящей механикой карты — текстовый штраф без эффекта движок исполнить не сможет.
+  // Категория штрафа строго соответствует реальному весу; размывать её на последней попытке нельзя,
+  // иначе карта получила бы множитель harsh за фактически minor-плату.
   const markers = pawMarkers(c as Card, paw);
-  const severity = markers.reduce((sum, m) => sum + m.weight, 0);
-  const markerText = markers.map((m) => `${m.text} (вес ${m.weight})`).join("; ");
+  const severity = markers.reduce((sum, marker) => sum + marker.weight, 0);
+  const markerText = markers.map((marker) => `${marker.text} (вес ${marker.weight})`).join("; ");
   if (paw === "none") {
     if (severity > 0) throw pawError(`Заказана чистая карта, но кузнец добавил плату: ${markerText}.`);
     if (c.monkey_paw) throw pawError("У чистой карты не должно быть текста платы (monkey_paw).");
   } else {
     if (severity < 1) throw pawError(`Лапа обезьяны (${PAW_LABELS[paw]}) требует настоящую плату: эффект против своей стороны или ключевого слова, а не только текст.`);
-    if (!opts.relaxBand) {
-      if (paw === "minor" && severity > PAW_MINOR_MAX) throw pawError(`Небольшая плата — это вес 1…${PAW_MINOR_MAX}, а кузнец дал ${severity}: ${markerText}.`);
-      if (paw === "harsh" && severity <= PAW_MINOR_MAX) throw pawError(`Жёсткая плата — это вес от ${PAW_MINOR_MAX + 1}, а кузнец дал ${severity}: ${markerText}.`);
+    if (paw === "minor" && severity > PAW_MINOR_MAX) throw pawError(`Небольшая плата — это вес 1…${PAW_MINOR_MAX}, а кузнец дал ${severity}: ${markerText}.`);
+    if (paw === "harsh" && (severity <= PAW_MINOR_MAX || severity > PAW_HARSH_MAX)) {
+      throw pawError(`Жёсткая плата — это вес ${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}, а кузнец дал ${severity}: ${markerText}.`);
+    }
+    const penaltyEffects = c.effects.filter((effect: any) => isPenaltyEffect(effect));
+    if (penaltyEffects.some((effect: any) => effect.target.select === "all" || (effect.target.count || 1) > 2)) {
+      throw pawError("Плата не может задевать всех сразу или больше двух целей: её цена должна оставаться предсказуемой.");
     }
     if (c.monkey_paw.length < 20) throw pawError("Текст платы (monkey_paw) слишком короткий: назовите её по-человечески и точно как в механике.");
     if (!c.history || (c.history.text || "").length < 40) throw pawError("Справка карты обязана объяснять, откуда народ платит эту цену (history.text).");
   }
 
+  const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity, paw, Boolean(opts.oneLine));
+  if (c.card_type === "spell") {
+    validateSpellPower(c as Card, rarity, Boolean(opts.oneLine), paw);
+  } else if (c.card_type === "unit") {
+    // Эффекты отряда расходуют остаток того же бюджета, что слова и параметры. Каменный век сохраняет
+    // собственный предел эффектов drop_cost+1 и геометрию одной линии.
+    const effectAllowance = Math.max(0, budget - 1);
+    const stoneEffectCap = Math.max(0, budget - 2 - usefulKeywordPower(c)); // reserve ATK 1 + HP 1 on the melee line
+    const eraEffectCap = opts.oneLine ? Math.min(unitEffectBudget(c.drop_cost), stoneEffectCap) : effectAllowance;
+    c.effects = trimUnitEffects(c.effects, Math.min(effectAllowance, eraEffectCap), Boolean(opts.oneLine));
+  } else {
+    // У построек нет бесплатного кармана эффектов: их периодические эффекты входят в общую силу.
+    const usefulEffects = positiveEffectPower(c.effects, c.card_type);
+    if (usefulEffects > Math.max(0, budget - 1)) {
+      throw new Error(`Эффекты постройки весят ${usefulEffects}, а после минимального HP остаётся ${Math.max(0, budget - 1)}. Уменьши эффекты.`);
+    }
+  }
+
   if (c.card_type !== "spell") {
-    // Плата оплачивает силу: каждый пункт веса лапы даёт карте +1 к бюджету (до потолка самой цены).
-    const budget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity, severity);
-    // Ключевые слова стоят дороже пункта статов, и раньше они не ужимались вовсе: карта оставляла
-    // все слова и уходила за бюджет на величину их суммарного веса. Сначала снимаем самые дорогие
-    // слова, если одни только слова не влезают в бюджет, и лишь потом режем цифры.
-    while (c.keywords.length > 0 && keywordPower(c.keywords) > budget) {
-      let worst = 0;
-      for (let i = 1; i < c.keywords.length; i++) {
-        if (keywordWeight(c.keywords[i]) >= keywordWeight(c.keywords[worst])) worst = i;
+    const effectPowerSpent = positiveEffectPower(c.effects, c.card_type);
+    const minimumStats = 1; // unit и structure обязаны пережить проверку с хотя бы 1 HP.
+    const keywordPowerSpent = () => usefulKeywordPower(c);
+    // Сначала оставляем полезные эффекты и ключевые слова, затем подгоняем ATK/HP под остаток.
+    while (keywordPowerSpent() + effectPowerSpent + minimumStats > budget) {
+      let worst = -1;
+      for (let i = 0; i < c.keywords.length; i++) {
+        const key = keywordBase(c.keywords[i]);
+        if (key === "upkeep" || (key === "morale" && c.monkey_paw)) continue;
+        if (worst < 0 || keywordWeight(c.keywords[i]) >= keywordWeight(c.keywords[worst])) worst = i;
       }
+      if (worst < 0) break;
       c.keywords = c.keywords.filter((_: string, i: number) => i !== worst);
     }
-    const room = budget - keywordPower(c.keywords);
-    // Постройка бьёт без хода, без действия и без энергии, поэтому каждый пункт её атаки стоит в
-    // силе карты вдвое: иначе башня 2/5 за три славы (цена 7) стреляла бы всю игру бесплатно там,
-    // где отряд за ту же цену платит энергией за каждый удар. Замер изоляции колод показывал ровно
-    // это: с башнями племени игрок проигрывал 62% боёв, без них — 38%.
+    const room = Math.max(1, budget - keywordPowerSpent() - effectPowerSpent);
     const atkWeight = c.card_type === "structure" ? 2 : 1;
     const origAtk = c.atk;
     const origHp = c.hp;
     const force = () => c.atk * atkWeight + c.hp;
-    if (force() > Math.max(1, room)) {
+    if (force() > room) {
       if (c.card_type === "structure") {
-        // Орудие остаётся орудием: сначала ужимается каменная кладка, и лишь затем ствол. Иначе
-        // башня 2/6 превращалась бы в стену 1/5 и переставала делать то, ради чего её строили.
-        while (force() > Math.max(1, room) && c.hp > 1) c.hp--;
-        while (force() > Math.max(0, room) && c.atk > 0) c.atk--;
+        // Автоматическая атака постройки повторяется каждый ход и потому стоит вдвое дороже.
+        while (force() > room && c.hp > 1) c.hp--;
+        while (force() > room && c.atk > 0) c.atk--;
       } else {
-        // Пропорция сохраняет характер отряда (тяжёлый остаётся тяжёлым, стена — стеной).
-        const scale = Math.max(1, room) / Math.max(1, force());
+        const scale = room / Math.max(1, force());
         c.atk = Math.max(0, Math.floor(origAtk * scale));
         c.hp = Math.max(1, Math.round(origHp * scale));
-        while (force() > Math.max(1, room) && c.hp > 1) c.hp--;
-        while (force() > Math.max(0, room) && c.atk > 0) c.atk--;
+        while (force() > room && c.hp > 1) c.hp--;
+        while (force() > room && c.atk > 0) c.atk--;
       }
-      // Остаток бюджета добирается вверх: карта, пришедшая сильнее бюджета, обязана остаться ровно
-      // на бюджете, а не ниже — игрок платит за максимум.
+      // Не теряем остаток от округления, когда карта исходно была сильнее лимита.
       while (c.atk < origAtk && (c.atk + 1) * atkWeight + c.hp <= room) c.atk++;
       while (c.hp < origHp && force() + 1 <= room) c.hp++;
     }
   }
-  // Числа каменной рукопашной ограничены не только бюджетом стоимости: даже необычная редкая карта
-  // не поднимает базовую атаку выше 2 и здоровье выше 3. Бой отдельно ограничивает эффективный урон.
+
+  // Историческая экономика и геометрия важнее мультипликатора: Каменный век остаётся рукопашным
+  // и не получает характеристики выше ATK 2 / HP 3 даже для необычной карты с лапой.
   if (opts.oneLine && c.card_type === "unit") {
     c.atk = Math.max(1, Math.min(2, c.atk));
     c.hp = Math.max(1, Math.min(3, c.hp));
+  }
+
+  const finalPower = cardPower(c);
+  if (finalPower > budget) throw new Error(`Сила карты ${finalPower} превышает общий бюджет ${budget}. Уменьши характеристики, слова или эффекты.`);
+  if ((rarity !== "ordinary" && !opts.oneLine) || paw !== "none") {
+    const cleanBudget = cardPowerBudget(c.drop_cost, c.action_cost, c.card_type, rarity, "none", Boolean(opts.oneLine));
+    const stoneCap = opts.oneLine ? (c.card_type === "spell" ? 2 : 14) : Number.POSITIVE_INFINITY;
+    const minimumUsefulPower = Math.min(cleanBudget, stoneCap);
+    if (finalPower < minimumUsefulPower) {
+      throw new Error(`Карта использует полезную силу ${finalPower}, но для ${RARITY_INFO[rarity].label.toLowerCase()} редкости нужен минимум ${minimumUsefulPower} — сила чистой карты той же цены.`);
+    }
   }
   c.id = c.id || "card-" + uid();
   return c as Card;
@@ -962,11 +1063,13 @@ function parseAdvice(list: any, cardTypes: CardType[]): Advice[] {
 /** Общие для советника и кузнеца краткие правила: полная механика проверяется валидатором. */
 const CARD_SYSTEM = `Ты — ИИ-кузнец карточной стратегии Infinite Forge. Пиши исторические боевые карты без магии и фэнтези. Ответ — только JSON по схеме ниже, без пояснений.
 ЭПОХА: боевой тег карты — только ancient или bronze и не является календарной датой, но он бьёт по урону: бронзовая карта наносит каменной на 1 больше, а каменная по бронзовой — на 1 меньше. Помечай карту ancient, только если её прототип действительно каменного века; всё, что из мира металла, — bronze. Исторические предметы, названия, роли и справка должны соответствовать ЭПОХЕ КАМПАНИИ и реальным технологиям из контекста. Не переносить оружие и институты из будущей эпохи в прошлую.
-КАМЕННЫЙ ВЕК / стол в одну линию: только ближний бой, unit HP 1–3, ATK 1–2, цена 1–2; structure запрещена. Для unit не используй ranged, skirmish, reach, screen и не упоминай луки, пращи, стрелы, стреломёты, баллисты, арбалеты, катапульты, снаряды, залпы или обстрел — даже в имени, описании, тегах и history. Не маскируй метательное оружие другим названием. Эффекты каменного отряда — только 0–2 простых действия с суммарным весом не выше drop_cost+1; редкость этот предел не повышает. Если эффект не помещается, опусти его. Манёвр в этой эпохе должен содержать ровно один скромный эффект и затрагивать ровно одну цель; без платы вес эффекта не выше 2, а при заказанной плате допускается только небольшая проверяемая надбавка.
-БАЛАНС — считай до ответа, движок урежет лишнее: сила отряда = atk + hp + вес слов ≤ 2×drop_cost + action_cost + 1 (необычная ×1.3, редкая ×1.7). Вес: ranged/skirmish/screen/command/spotter/relentless/suppress/cleave/blast/sweep/column — 2; armor/pierce/cleave/vengeance/площадные — 1+(N−1); прочие — 1. У отряда 1–2 слова, не складывай натиск/клин/фалангу/охват. ЭФФЕКТЫ ОТРЯДА ВХОДЯТ В ТУ ЖЕ ЦЕНУ: вес ≤ drop_cost+1 (выход ×1, удар и «damaged» ×2, «каждый ход» ×3); уничтожение чужого отряда и урон по чужому вождю запрещены. Манёвр: цена минимум 1, 1–2 эффекта enter_play, ≤2 целей, без select=all и destroy; общий вес эффектов не выше drop_cost+1 с допуском за редкость. Никаких бесплатных ударов по всему столу, вечных блокировок и гарантированного уничтожения.
+КАМЕННЫЙ ВЕК: одна линия, только ближний бой; unit HP 1–3, ATK 1–2, drop_cost/action_cost 1–2; structure запрещена. Запрещены ranged, skirmish, reach, screen, area-слова и любые образы луков, пращ, стрел, метательных машин/снарядов (включая стреломёты, имя, текст, теги и history). Максимум 2 ключевых слова и 1 усилитель атаки. У unit — максимум 2 простых эффекта суммарной силой drop_cost+1; редкость/лапа этот предел не меняют. Манёвр Каменного века: один полезный enter_play-эффект на одну цель (плюс один эффект-плата); польза ≤2 clean / ≤4 paid.
+БЮДЖЕТ: сила unit = ATK+HP+полезные слова+эффекты; structure = 2×ATK+HP+слова+эффекты (автоатака); spell = слова+полезные эффекты. База: unit 2×drop+action+1; structure 2×drop+1; spell drop+1 (Каменный век: min(2,drop)). Умножь на rarity ordinary ×1 / uncommon ×2 / rare ×4 и независимо на paw none ×1 / minor ×2 / harsh ×3. Перемножай: rare+harsh = ×12. Дешёвый вывод/удар — преимущество, но уменьшает бюджет; не давай отдельный бонус. Плата не считается полезной силой; полезная часть paid-карты ≥ бюджета чистой карты той же редкости/цены.
+Вес слова: ×3 command/supply/raider/relentless/unbreakable; ×2 ranged/reach/charge/shieldwall/wedge/phalanx/skirmish/taunt/poison/burn/heal/rally/fear/siege/sturdy/upkeep/warcry/loot/harras/exhaustenemy/cleave/blast/sweep/column/vengeance/scavenger/suppress/laststand/flank/screen/spotter; ×1 armor/pierce/morale/holdground/dispersed/entrenched. armor:N, pierce:N = N; heal/suppress/cleave/vengeance/blast/sweep/column:N = базовый вес+N−1. Не дублируй сильные слова.
+ЭФФЕКТЫ — та же сила: damage/heal=amount; apply_status=amount+ceil((turns−1)/2); modify_resource=2×|amount|; modify_stat/cost=|amount|×turns (без turns ×1); draw/discard/exchange/scry=2×amount. Умножь на число целей и повтор: enter_play/death ×1, attack/damaged ×2, turn_start/end ×3. Unit/structure: ≤4 полезных эффектов, ≤2 целей; нельзя уничтожать врага или бить чужого вождя. Spell: 1–2 enter_play, ≤2 целей, без select=all/destroy. Манёвр: цена минимум 1; общий вес эффектов и энергетические бонусы входит в бюджет. Без бесплатных ударов по всему полю, вечных блокировок и гарантированного уничтожения.
 ПОСТРОЙКА возможна только при наличии тыла; action_cost=0, HP≥1, atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — обстрел каждый ход. Ответ на обстрел не приходит, броня его гасит. Не обещай эффектов, которых нет в механике.
-КЛЮЧЕВЫЕ СЛОВА: armor:N — снижает входящий урон; pierce:N — игнорирует броню; ranged — бьёт по опасной цели без ответа; reach — атакует авангард из тыла; charge — +2 к первой атаке; shieldwall — броня и защита соседями; wedge — атака за соседей; phalanx — +атака и броня; skirmish — отступление/атака из тыла; taunt — враг бьёт первым; poison/burn — статус при атаке; heal:N — лечит соседа; rally — +атака соседям; fear/morale — бегство; siege — урон строениям; sturdy — первый удар слабее; holdground — защита от страха/натиска; upkeep — урон без соседа; supply/warcry — энергия при розыгрыше; loot/raider — энергия за попадание/убийство; harras — задержка прироста энергии; exhaustenemy — отнять 1 энергию; cleave:N — соседям цели; blast/sweep/column:N — площадной урон, максимум одно слово на карту, N=1–2, не более трёх дополнительных целей, тяжёлый удар может задеть своего; vengeance:N — месть при гибели; relentless — вторая атака; scavenger — бонус за сброс; suppress:N — атака цели дорожает; unbreakable — иммунитет к бегству и подавлению; laststand — бонус одинокому отряду в ряду; flank — +1 урон по открытому флангу; screen — броня переднему соседу в столбце; command — энергия из тыла; spotter — +1 дальнему/площадному удару по своему столбцу; dispersed — защита от площади; entrenched — укрытие в авангарде.
-МЕХАНИКА effects: [{event,target,action,condition?,watch?}]. event: enter_play, attack, turn_start, turn_end, damaged, death, card_death или card_enter_play (последним двум нужен watch:{side:all|friendly|enemy}). target: {side:friendly|controller|enemy|opponent|either,entity:unit|structure|permanent|player,zone?:front|rear|flank|center|any,relation?:self|adjacent|attack_target|attack_target_row|attack_target_column,select?:first|lowest_hp|lowest_hp_ratio|highest_attack|attack_target|choose|all|random,count?:1–3}. action.type: damage, heal, apply_status(poison|burn|suppress), destroy, modify_resource(energy), modify_stat(attack|armor|max_hp), modify_cost(action), draw/discard/exchange/scry. Для spell разрешён только enter_play; все числа и цели проходят строгую проверку игры. Событие attack нужно только для реакций на удар.
+КЛЮЧЕВЫЕ СЛОВА: armor:N (снижает урон), pierce:N (игнорирует броню), ranged (без ответа), reach (из тыла), charge (+2 первой атаке), shieldwall (броня/защита), wedge (+атака за соседей), phalanx (+атака/броня), skirmish (отход и бой из тыла), taunt (враг бьёт первым), poison/burn (статус при атаке), heal:N (лечит соседа), rally (+атака соседям), fear/morale (бегство), siege (×2 по строениям), sturdy (первый удар слабее), holdground (защита в первый ход), upkeep (урон без соседа), supply/warcry (энергия при выходе), loot/raider (энергия за убийство/попадание), harras (задержка прироста), exhaustenemy (отнимает энергию), cleave:N (соседям цели), blast/sweep/column:N (площадь, одно слово, N=1–2, до 3 целей, N=2 может задеть своего), vengeance:N (ответ при гибели), relentless (вторая атака), scavenger (бонус за сброс), suppress:N (удорожание атаки), unbreakable (иммунитет к бегству/подавлению), laststand (одинокий ряд), flank (открытый фланг), screen (броня соседу впереди), command (+энергия из тыла), spotter (+1 дальнему/площадному удару в столбце), dispersed (защита от площади), entrenched (укрытие в авангарде).
+МЕХАНИКА effects: [{event,target,action,condition?,watch?}]. event: enter_play, attack, turn_start/end, damaged, death, card_death/card_enter_play (последним нужен watch.side). target: side/entity + необязательные zone/relation/select/count (1–3). action: damage, heal, apply_status, destroy, modify_resource/stat/cost, draw/discard/exchange/scry. Spell использует только enter_play; подробные значения и комбинации проверяет валидатор. event=attack — только реакция на удар.
 description: 1–2 коротких предложения об одном боевом образе. abilities всегда []. tags — до трёх кратких слов. Все боевые эффекты описывай в effects, не только в тексте.
 ИСТОРИЯ: поле history обязательно: {"title":"","text":""}. title — реальный прототип указанной эпохи (находка, обычай, тип отряда или звание); text — 2–3 коротких предложения о материале/технологии и связи прототипа с цифрами или ролью карты. Не выдумывай место, народ или находку. Культурное наследие — необязательный ориентир: не надо вставлять имя народа и его клише в каждую карту; чередуй военные, бытовые и технологические источники эпохи.
 Схема JSON: {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":1,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"текст заказанной платы или пустая строка","history":{"title":"","text":""}}. Для spell: hp=0, atk=0, action_cost=0. Для structure: action_cost=0. Для unit: hp≥1. Все названия и тексты — по-русски.`;
@@ -974,15 +1077,20 @@ description: 1–2 коротких предложения об одном бо�
 export async function llmCard(model: string, advice: Advice, rarity: Rarity, state: any, paw: PawTier = "none"): Promise<Card> {
   const allowed = allowedCardErasOf(state);
   const oneLine = oneLineBoard(state);
+  const rarityDirective = {
+    ordinary: "Обычная редкость: ×1 к базовому бюджету; одна ясная особенность.",
+    uncommon: "Необычная редкость: ×2 к базовому бюджету; используй добавочную силу в характеристиках, словах или эффектах.",
+    rare: "Редкая карта: ×4 к базовому бюджету; используй добавочную силу, сохранив ясную роль и игру по эпохе.",
+  }[rarity];
   const directive = oneLine && advice.cardType === "unit"
-    ? "Каменный век: рукопашный отряд, 0–2 простых эффекта; их общий вес не выше drop_cost+1, редкость не повышает предел."
-    : { ordinary: "Обычная редкость: 1–2 заметные особенности.", uncommon: "Необычная редкость: 2–3 интересно сочетающиеся особенности.", rare: "Редкая карта: 3–5 значимых особенностей, смелое сочетание." }[rarity];
+    ? `Каменный век: рукопашный отряд, ATK 1–2 / HP 1–3, 0–2 простых эффекта; их общий вес не выше drop_cost+1. ${rarityDirective}`
+    : rarityDirective;
   // Технологии и культурное наследие — контекст, но не обязательное повторяющееся клише.
   const era = eraContextOf(state);
   const cultureName = state.player?.historicalCulture?.name || "";
   const brief = `Боевой замысел: «${advice.title}». ${advice.pitch}
 Тип карты: ${advice.cardType}. ${directive}
-Бюджет силы: atk + hp + вес ключевых слов не выше 2×drop_cost + action_cost + 1 (необычная ×1.3, редкая ×1.7); эффекты отряда входят в ту же цену и весят не больше drop_cost+1.
+Бюджет силы: базовый unit = 2×drop_cost + action_cost + 1; structure = 2×drop_cost + 1; spell = drop_cost + 1 (на каменном столе min(2, drop_cost)). Умножь на редкость ordinary ×1 / uncommon ×2 / rare ×4 и независимо на чистую лапу ×1 / minor ×2 / harsh ×3 — эти множители перемножаются. В общий бюджет входят ATK + HP + вес ключевых слов + полезные эффекты; у structure ATK считается ×2. Низкая цена уже даёт темповое преимущество: чем дешевле вывод или атака, тем меньше базовый бюджет; не добавляй отдельный бонус за дешевизну и не создавай бесплатных действий. Для карты с платой полезная сила должна быть не меньше чистого бюджета той же цены и редкости.
 Создай простую, исторически правдоподобную карту для текущего сражения. Контекст народа — необязательное вдохновение: варьируй источник образа, не привязывай каждую карту к одной культуре или её стереотипам.
 
 Контекст цивилизации:
@@ -995,22 +1103,19 @@ ${contextOf(state)}
   const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
 
   // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
-  // Две переделки — чтобы брак модели не стоил игроку похода в кузницу: каждая следующая попытка
-  // получает точный текст ошибки с посчитанными весами. Если и третья не прошла проверку, ковка
-  // падает, а Forge возвращает славу через M.failCraft.
+  // Две переделки — каждая получает точный текст ошибки и те же жёсткие правила. Плата не ослабляется
+  // на последней попытке: иначе карта получила бы ×3 бюджета за штраф неправильной категории.
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const retry = lastError
-      ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы по таблице выше и попади в полосу${paw === "minor" ? ` 1…${PAW_MINOR_MAX}` : ` от ${PAW_MINOR_MAX + 1}`}` : ""} и верни ПОЛНЫЙ JSON карты заново.`
+      ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы и попади в строгую полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}`}; не ослабляй полезную часть карты` : ""} и верни ПОЛНЫЙ JSON карты заново.`
       : "";
-    // Третья попытка принимает плату любой силы: величина — заказ модели, а не повод отменять ковку.
-    const relaxBand = attempt === 2 && paw !== "none";
     const raw = await hydraChat({
       model, maxTokens: 3000, temperature, system,
       user: `${brief}\n\n${pawDirective(paw)}${retry}`,
     });
     try {
-      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { relaxBand, oneLine });
+      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { oneLine });
       if (oneLine) {
         const badKeywords = oneLineViolation(card);
         if (badKeywords.length) {
@@ -1035,7 +1140,7 @@ ${contextOf(state)}
 
 /**
  * Что показывать игроку, когда ковка не удалась. Текст браковки платы пересказывает жребий
- * («жёсткая плата — это вес от 4»), а жребий до раскрытия карты — сюрприз, поэтому наружу
+ * («жёсткая плата — это вес 4…8»), а жребий до раскрытия карты — сюрприз, поэтому наружу
  * уходит нейтральная формулировка; технические детали остаются в консоли разработчика.
  */
 export const CRAFT_REJECTED_TEXT = "Кузнец не совладал с заказом: карта не прошла проверку игры.";

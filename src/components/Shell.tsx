@@ -46,14 +46,17 @@ export function SideNav() {
           <div className="mt-1 text-[11px] text-faint">Боевой прототип</div>
         </div>
       </div>
-      <nav className="flex flex-col gap-1">
+      <nav aria-label="Основная навигация" className="flex flex-col gap-1">
         {NAV.map(({ id, label, Icon }) => (
           <button
             key={id}
             onClick={() => go(id)}
+            aria-current={page === id ? "page" : undefined}
             className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              page === id ? "bg-raised text-parch" : "text-dim hover:bg-raised/60 hover:text-parch",
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+              page === id
+                ? "bg-bronze/10 text-parch before:absolute before:bottom-2 before:left-0 before:top-2 before:w-0.5 before:rounded-full before:bg-bronze before:content-['']"
+                : "text-dim hover:bg-raised/60 hover:text-parch",
             )}
           >
             <Icon size={18} className={page === id ? "text-bronze" : "text-faint group-hover:text-dim"} />
@@ -79,10 +82,20 @@ export function MobileNav() {
   const { page, go } = useStore();
   const alerts = useAlerts();
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
+    <nav aria-label="Основная навигация" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur lg:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-3">
         {NAV.map(({ id, label, Icon }) => (
-          <button key={id} onClick={() => go(id)} className={cn("relative flex flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-medium", page === id ? "text-bronze" : "text-faint")}>
+          <button
+            key={id}
+            onClick={() => go(id)}
+            aria-current={page === id ? "page" : undefined}
+            className={cn(
+              "relative flex min-h-12 flex-col items-center gap-0.5 py-2.5 text-[10.5px] font-medium transition-colors",
+              page === id
+                ? "text-bronze before:absolute before:inset-x-8 before:top-0 before:h-0.5 before:rounded-full before:bg-bronze before:content-['']"
+                : "text-faint hover:text-parch",
+            )}
+          >
             <Icon size={20} />
             {label}
             {alerts[id] ? <span className="absolute right-[26%] top-1.5 h-2 w-2 rounded-full bg-bronze" /> : null}
@@ -104,7 +117,13 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-ground/90 backdrop-blur">
       <div className="flex items-center gap-3 px-4 py-2.5 lg:px-8">
-        <div className="flex items-center gap-2 lg:hidden"><LogoMark size={28} /></div>
+        <div className="flex min-w-0 max-w-[112px] shrink-0 items-center gap-2 lg:hidden sm:max-w-[150px]">
+          <LogoMark size={28} />
+          <div className="min-w-0">
+            <div className="truncate font-display text-[11px] font-semibold leading-tight text-parch sm:text-[13px]">{p.name}</div>
+            <div className="truncate text-[9px] leading-tight text-faint sm:text-[10px]">{M.eraName(p.era)}</div>
+          </div>
+        </div>
         <div className="hidden min-w-0 lg:block">
           <div className="truncate font-display text-[15px] font-semibold text-parch">{p.name}</div>
           <div className="truncate text-[11px] text-faint">{M.eraName(p.era)} · {p.clan}</div>
