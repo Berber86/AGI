@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Anvil, Sparkles, Loader2, Lock, Check, Trophy } from "lucide-react";
+import { Anvil, Sparkles, Loader2, Lock, Check } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { CARD_TYPE_INFO, RARITY_INFO, craftErrorMessage, llmAdvice, llmCard, oneLineBoard, type Advice, type Card, type Rarity } from "@/game/cards";
@@ -56,16 +56,15 @@ export default function Forge() {
     try {
       const list = await llmAdvice(model, game);
       setAdvice(list);
-      toast(`Советник предложил ${list.length} боевых замысла.`, "ok");
+      toast(`Советник предложил ${list.length} замысла.`, "ok");
     } catch (e: any) {
-      toast(`Советник недоступен: ${e?.message}. Попробуйте ещё раз — заготовок нет.`, "bad");
+      toast(`Советник недоступен: ${e?.message}`, "bad");
     }
     setPick(null); setAskLoading(false);
   };
 
   const forge = async () => {
     if (!selected || block || busy) return;
-    const advisorOrder = `${CARD_TYPE_INFO[selected.cardType].label}: ${selected.title} — ${selected.pitch}`;
     // Слава списывается через act() в АКТУАЛЬНОМ состоянии: двойной клик не спишет её дважды.
     const begin = act((s) => M.beginCraft(s, { materialQuality: material }, Math.random()), { silent: true });
     if (!begin) return; // act() уже показал тост с ошибкой
@@ -87,8 +86,8 @@ export default function Forge() {
         autoAdded = Boolean(act((s) => M.toggleDeckCard(s, card.id, [card.id]), { silent: true }));
       }
       const done = act((s) => M.completeCraft(s, { name: card.name, rarity: card.rarity || begin.rarity, monkeyPaw: card.monkey_paw }), { silent: true });
-      toast(`${advisorOrder} → карта «${card.name}» ${autoAdded ? "в коллекции и добавлена в пустую колоду" : "в коллекции"}.`, "ok");
-      if (done?.leveledUp) toast(`Кузнец поднял мастерство до уровня ${done.craftLevel}: шанс редкой карты вырос.`, "ok");
+      toast(`Карта «${card.name}» выкована${autoAdded ? " и добавлена в колоду" : ""}.`, "ok");
+      if (done?.leveledUp) toast(`Кузнец поднял мастерство до ур. ${done.craftLevel}.`, "ok");
       setReveal(card);
       setPick(null);
     } catch (e: any) {
@@ -105,35 +104,22 @@ export default function Forge() {
 
   return (
     <PageFrame wide>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Label>Кузница</Label>
-          <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">Выковать карту</h1>
-          <p className="mt-1 max-w-xl text-sm text-dim">Кузнец создаёт карту по историческому замыслу ИИ. Первая карта автоматически входит в колоду; следующие вы добавляете сами.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip tone="bronze"><Trophy size={12} />{glory} славы</Chip>
-          <Chip><Anvil size={12} />Кузнец ур. {quote.craftLevel}{quote.craftLevel < M.CRAFT_LEVEL_MAX ? ` · ${quote.craftXp}/${M.CRAFT_XP_PER_LEVEL}` : " · макс."}</Chip>
-        </div>
+      <div className="mb-6">
+        <h1 className="font-display text-3xl font-semibold sm:text-4xl">Выковать карту</h1>
+        <p className="mt-1 text-sm text-dim">{glory} славы · кузнец ур. {quote.craftLevel}</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           <Panel className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <StepTitle n={1} title="Замысел" hint="Что поможет победить в одном бою?" />
+              <StepTitle n={1} title="Замысел" />
               <Btn size="sm" onClick={askAdvisor} disabled={askLoading}>{askLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}{advice.length ? "Другие замыслы" : "Спросить ИИ-советника"}</Btn>
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-dim">Все идеи — для одного сражения. На Каменном веке советник предлагает рукопашного бойца и манёвр, без построек и метательного оружия. Наследие — лишь один из возможных источников вдохновения.</p>
-            {oneLineBoard(game) && (
-              <p className="mt-2 rounded-lg border border-line bg-ground/60 px-3 py-2 text-xs leading-relaxed text-dim">
-                Стол Каменного века — одна линия в три клетки: тыла нет, поэтому дальний бой, засада и «длинное оружие» здесь не действуют — все отряды бьются врукопашную. Кузнец не выдаст стрелков, пока стол не вырастет до второго ряда (Античный мир).
-              </p>
-            )}
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {advice.length === 0 && (
                 <p className="rounded-xl border border-dashed border-line-strong p-4 text-sm leading-relaxed text-dim md:col-span-3">
-                  Боевых замыслов пока нет: советник предложит {oneLineBoard(game) ? "рукопашный отряд и умеренный манёвр для одной цели" : "бойца, разовый манёвр и боевую постройку"}. Нажмите «Спросить ИИ-советника».
+                  Замыслов пока нет — нажмите «Спросить ИИ-советника».
                 </p>
               )}
               {advice.map((a) => (
@@ -141,14 +127,13 @@ export default function Forge() {
                   <div className="flex w-full items-center justify-between"><Chip tone={a.cardType === "unit" ? "clay" : a.cardType === "spell" ? "know" : "bronze"}>{CARD_TYPE_INFO[a.cardType].label}</Chip>{pick === a.id && <Check size={16} className="text-bronze" />}</div>
                   <div className="font-display mt-3 text-[17px] font-semibold leading-tight">{a.title}</div>
                   <p className="mt-1.5 text-[13px] leading-snug text-dim">{a.pitch}</p>
-                  <div className="mt-3 text-[11px] text-faint">{CARD_TYPE_INFO[a.cardType].blurb}</div>
                 </button>
               ))}
             </div>
           </Panel>
 
           <Panel className="p-5">
-            <StepTitle n={2} title="Сырьё" hint="Лучшее сырьё открывается с эпохой." />
+            <StepTitle n={2} title="Сырьё" />
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {materials.map(([id, m]) => {
                 const unlocked = quote.availableMaterialQualities.includes(id);
@@ -156,7 +141,7 @@ export default function Forge() {
                   <button key={id} disabled={!unlocked} onClick={() => setMaterial(id)} className={cn("rounded-xl border p-4 text-left transition-all disabled:cursor-not-allowed", material === id ? "border-bronze bg-raised" : "border-line hover:bg-raised/50", !unlocked && "opacity-60")}>
                     <div className="flex items-center justify-between"><span className="text-sm font-semibold">{m.label}</span>{!unlocked && <Lock size={14} className="text-faint" />}</div>
                     <div className="mt-2"><GloryCost cost={Math.ceil(m.cost * (1 + p.era * 0.4))} have={glory} /></div>
-                    <div className="mt-2 text-[11.5px] text-faint">{unlocked ? id === "standard" ? "Всегда доступно" : "Больше шанс редкой карты" : `Откроется в эпоху «${M.eraName(m.minEra)}»`}</div>
+                    {!unlocked && <div className="mt-2 text-[11.5px] text-faint">Откроется в эпоху «{M.eraName(m.minEra)}»</div>}
                   </button>
                 );
               })}
@@ -179,14 +164,11 @@ export default function Forge() {
               ))}
               {quote.rareLocked && quote.rareLockText && <p className="text-[11.5px] leading-relaxed text-dim">🔒 {quote.rareLockText}</p>}
               <p className="text-[11.5px] leading-relaxed text-dim">
-                🐾 <b className="text-parch">Лапа обезьяны.</b> Кузнец кует наудачу: треть карт приходит чистой,
-                треть — с небольшой платой, треть — с жёсткой. Плата настоящая (эффект против своих или обременение),
-                и она оплачивает силу карты. Какая выпала — видно только на готовой карте.
+                🐾 <b className="text-parch">Лапа обезьяны:</b> часть карт приходит с платой — она оплачивает силу карты.
               </p>
             </div>
             <dl className="mt-5 space-y-2 border-t border-line pt-4 text-sm">
               <div className="flex items-center justify-between"><dt className="text-dim">Цена</dt><dd><GloryCost cost={quote.cost} have={glory} /></dd></div>
-              <div className="flex items-center justify-between"><dt className="text-dim">Срок</dt><dd className="font-medium">сразу</dd></div>
               <div className="flex items-center justify-between"><dt className="text-dim">Мастерство кузнеца</dt><dd className="font-medium">ур. {quote.craftLevel}{quote.craftLevel < M.CRAFT_LEVEL_MAX ? ` · ${quote.craftXp}/${M.CRAFT_XP_PER_LEVEL}` : " · макс."}</dd></div>
               <div className="flex items-center justify-between gap-3"><dt className="text-dim">Историческая основа</dt><dd className="text-right text-xs text-dim">{M.eraName(p.era)}{p.historicalCulture ? ` · ${p.historicalCulture.icon} ${p.historicalCulture.name}` : ""}</dd></div>
             </dl>
@@ -194,12 +176,6 @@ export default function Forge() {
               {busy ? <><Loader2 size={18} className="animate-spin" />Кузнец за работой…</> : <><Anvil size={18} />Ковать карту за {quote.cost} славы</>}
             </Btn>
             {block && !busy && <p className="mt-2.5 text-xs leading-relaxed text-dim">{block}</p>}
-            <p className="mt-3 text-[11.5px] leading-relaxed text-faint">
-              Редкость выпадает до ковки, слава списывается сразу. Если ответ кузнеца некорректен — слава возвращается.
-            </p>
-            <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
-              Кузнец пишет карту под эпоху «{M.eraName(p.era)}»{p.historicalCulture ? ` и наследие «${p.historicalCulture.name}»` : ""}: это видно в описании, технологиях и в исторической справке карты.
-            </p>
           </Panel>
         </aside>
       </div>
@@ -217,17 +193,16 @@ export default function Forge() {
       >
         {reveal && (
           <div className="flex flex-col items-center">
-            <Label className="mb-1">Новая карта в коллекции</Label>
             <h2 className="font-display mb-2 text-center text-2xl font-semibold">{RARITY_INFO[reveal.rarity ?? "ordinary"].label} карта выкована</h2>
             <p className="mb-4 max-w-[330px] text-center text-[12.5px] leading-relaxed text-dim">
               {reveal.monkey_paw
-                ? <>🐾 <b className="text-bad">Лапа обезьяны сработала.</b> Кузнец взял плату — и она же сделала карту сильнее.</>
-                : "Кузнец не взял платы: карта пришла чистой."}
+                ? <>🐾 <b className="text-bad">Лапа обезьяны сработала.</b> Кузнец взял плату.</>
+                : "Карта пришла чистой."}
             </p>
             <div className="w-[270px] max-w-full"><CardFace card={reveal} detailed historyOpen /></div>
             {reveal.history && (
               <p className="mt-4 max-w-[330px] text-center text-[12px] leading-relaxed text-faint">
-                Справка привязана к эпохе «{reveal.history.era}»{reveal.history.culture ? ` и наследию «${reveal.history.culture}»` : ""} — она останется с картой в коллекции.
+                Справка «{reveal.history.era}»{reveal.history.culture ? ` · ${reveal.history.culture}` : ""} останется с картой.
               </p>
             )}
           </div>
@@ -237,12 +212,11 @@ export default function Forge() {
   );
 }
 
-function StepTitle({ n, title, hint }: { n: number; title: string; hint: string }) {
+function StepTitle({ n, title }: { n: number; title: string }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-center gap-3">
       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-bronze/50 bg-bronze/10 text-[13px] font-bold text-bronze-soft">{n}</span>
       <Heading title={title} className="[&_h2]:text-lg" />
-      <span className="hidden pt-1 text-[12.5px] text-faint md:block">{hint}</span>
     </div>
   );
 }

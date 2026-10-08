@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { Tent as CampIcon, Anvil, Swords, Settings, Trophy, ArrowRight, X, Check, CircleAlert, Info, Sparkles, Trash2, Flame } from "lucide-react";
+import { Tent as CampIcon, Anvil, Swords, Settings, Trophy, X, Check, CircleAlert, Info, Trash2, Flame } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { useDerived, useStore, type Page } from "@/game/store";
-import { Btn, Chip, GloryCost, Meter, Modal, Label } from "./ui";
+import { Btn, Chip, Meter, Modal, Label } from "./ui";
 
 export function LogoMark({ size = 32 }: { size?: number }) {
   return (
@@ -41,10 +41,7 @@ export function SideNav() {
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[216px] flex-col border-r border-line bg-surface/80 px-3 py-5 backdrop-blur lg:flex">
       <div className="mb-8 flex items-center gap-3 px-2">
         <LogoMark size={36} />
-        <div>
-          <div className="font-display text-[17px] font-semibold leading-none text-parch">Infinite Forge</div>
-          <div className="mt-1 text-[11px] text-faint">Боевой прототип</div>
-        </div>
+        <div className="font-display text-[17px] font-semibold leading-none text-parch">Infinite Forge</div>
       </div>
       <nav aria-label="Основная навигация" className="flex flex-col gap-1">
         {NAV.map(({ id, label, Icon }) => (
@@ -129,14 +126,14 @@ export function TopBar() {
           <div className="truncate text-[11px] text-faint">{M.eraName(p.era)} · {p.clan}</div>
         </div>
         <div className="no-scrollbar ml-1 flex flex-1 items-center gap-2 overflow-x-auto lg:ml-6">
-          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title="Слава — единственная валюта прототипа: добывается победами, тратится на лагерь и ковку карт.">
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5">
             <Trophy size={18} className="text-bronze" />
             <div className="leading-none">
               <div className="text-[15px] font-bold tabular-nums text-parch">{glory}</div>
               <div className="mt-0.5 text-[10.5px] text-faint">слава</div>
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5" title={`Побед: ${wins}, поражений: ${losses}. Серия побед подряд добавляет славы.`}>
+          <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5">
             <Swords size={18} className="text-dim" />
             <div className="leading-none">
               <div className="text-[15px] font-bold tabular-nums text-parch">{wins}<span className="font-normal text-faint"> / {losses}</span></div>
@@ -144,7 +141,7 @@ export function TopBar() {
             </div>
           </div>
           {streak > 1 && (
-            <div className="flex items-center gap-2 rounded-xl border border-bronze/40 bg-bronze/10 px-3 py-1.5" title="Серия побед подряд: каждая победа в серии даёт больше славы.">
+            <div className="flex items-center gap-2 rounded-xl border border-bronze/40 bg-bronze/10 px-3 py-1.5">
               <Flame size={18} className="text-bronze" />
               <div className="leading-none">
                 <div className="text-[15px] font-bold tabular-nums text-bronze-soft">{streak}</div>
@@ -190,10 +187,9 @@ export function SettingsModal() {
   return (
     <Modal open={settingsOpen} onClose={() => { openSettings(false); setConfirm(false); }} title="Настройки">
       <h2 className="font-display text-xl font-semibold">Настройки</h2>
-      <p className="mt-1 text-sm text-dim">Карты и боевые замыслы придумывает модель во время игры, готовых вариантов нет. Ключ ИИ настроен на сервере заранее — вводить его в игре не нужно.</p>
-      <div className="mt-5 space-y-4">
+      <div className="mt-5">
         <div className="rounded-xl border border-line bg-ground/50 p-3.5">
-          <Label className="mb-1.5 flex items-center gap-1.5"><Sparkles size={12} />Связь с ИИ-кузнецом</Label>
+          <Label className="mb-1.5">Связь с ИИ-кузнецом</Label>
           <div className="flex flex-wrap items-center gap-2">
             <span className={cn("inline-flex items-center gap-1.5 text-sm font-medium", aiStatus.status === "bad" ? "text-bad" : aiStatus.status === "ok" ? "text-ok" : "text-faint")}>
               <span className={cn("h-2 w-2 rounded-full", aiStatus.status === "bad" ? "bg-bad" : aiStatus.status === "ok" ? "bg-ok" : "bg-faint")} />
@@ -202,16 +198,6 @@ export function SettingsModal() {
             <Btn size="sm" variant="secondary" onClick={() => void checkAi()} disabled={aiStatus.status === "checking"}>Проверить связь</Btn>
           </div>
           {aiStatus.status === "bad" && aiStatus.message && <p className="mt-2 text-xs text-bad">{aiStatus.message}</p>}
-          <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
-            Без связи с ИИ нельзя выковать первую карту и начать бой, если своя колода ещё пуста.
-          </p>
-        </div>
-        <div className="rounded-xl border border-line bg-ground/50 p-3.5">
-          <Label className="mb-1.5">Модель</Label>
-          <p className="text-sm leading-relaxed text-dim">
-            Модель выбирает игра, а не игрок: боевые замыслы и обычные карты делает <span className="text-parch">GPT-6 Luna</span>,
-            а необычные и редкие карты кузница отдаёт <span className="text-parch">GLM-5.2</span>.
-          </p>
         </div>
       </div>
       <div className="mt-6 flex items-center justify-between gap-3 border-t border-line pt-5">
@@ -270,11 +256,6 @@ export function CultureChoiceModal() {
           {choice.eraTechnologies.map((t: string) => <Chip key={t} tone="bronze"><Anvil size={11} />{t}</Chip>)}
         </div>
       )}
-      <p className="mt-3 text-[13.5px] leading-relaxed text-dim">
-        Сила племён и доступные карты уже выросли вместе с эпохой. Здесь решается, чьи обычаи несёт
-        дальше ваш народ — и какой боевой бонус он получит.
-      </p>
-
       <div className="mt-5 grid gap-3 md:grid-cols-2">
         <div className="flex flex-col rounded-xl border border-line-strong bg-raised/50 p-4">
           <div className="flex items-start gap-3">
@@ -305,10 +286,6 @@ export function CultureChoiceModal() {
         ))}
       </div>
 
-      <p className="mt-4 text-[11.5px] leading-relaxed text-faint">
-        Выбор останется в летописи и в линии наследия; принятое наследие попадёт в промпты кузнеца —
-        карты будут придуманы под него. Передумать можно при следующем переходе эпохи.
-      </p>
       {blocked && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-bad/40 bg-bad/10 px-3 py-2.5">
           <span className="text-[12px] leading-relaxed text-dim">
@@ -326,16 +303,4 @@ export function CultureChoiceModal() {
 
 export function PageFrame({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return <div className={cn("mx-auto w-full animate-rise px-4 pb-28 pt-6 lg:px-8 lg:pb-16 lg:pt-8", wide ? "max-w-7xl" : "max-w-5xl")}>{children}</div>;
-}
-
-/** Строка славы для заголовков страниц. */
-export function GloryLine({ className }: { className?: string }) {
-  const { glory } = useDerived();
-  return <GloryCost cost={glory} className={cn("text-base", className)} />;
-}
-
-/** Кнопка «в бой» в шапке страницы: ведёт в лагерь, где стоит военный стол. */
-export function GoBattle({ label = "К соперникам" }: { label?: string }) {
-  const { go } = useStore();
-  return <Btn variant="primary" onClick={() => go("camp")}><Swords size={16} />{label}<ArrowRight size={15} className="opacity-60" /></Btn>;
 }

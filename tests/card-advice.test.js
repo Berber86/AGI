@@ -156,6 +156,4 @@ test('экран кузницы держит замыслы в своём кэш
   assert.match(forge, /raw\.era === era && Array\.isArray\(raw\.advice\) && raw\.advice\.length === count/);
   assert.match(forge, /localStorage\.setItem\(ADV_KEY, JSON\.stringify\(\{ era: p\.era, advice \}\)\)/);
   assert.match(forge, /cachedAdviceCount !== expectedAdviceCount/);
-  assert.match(forge, /Все идеи — для одного сражения/iu);
-  assert.match(forge, /Что поможет победить в одном бою/iu);
 });

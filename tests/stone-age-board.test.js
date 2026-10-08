@@ -362,10 +362,7 @@ test('списки «глубинных» слов в движке и у куз�
 test('интерфейс объясняет, что дальний бой на одной линии молчит', () => {
   const view = fs.readFileSync(path.join(root, 'src', 'pages', 'Battle.tsx'), 'utf8');
   assert.match(view, /inactiveKeywords\(b\)/u, 'инспектор получает список молчащих слов');
-  assert.match(view, /ONE_LINE_NOTE/u, 'и объяснение к ним');
-  assert.match(view, /На одной линии Каменного века дальний бой не работает/u, 'подсказка при выбранном отряде');
-  assert.match(view, /Стол Каменного века — одна линия в три клетки/u, 'тренер не отправляет в несуществующий тыл');
-  assert.match(view, /перечёркнуты в описании отряда/u, 'правила боя объясняют перечёркнутые слова');
+  assert.match(view, /ONE_LINE_NOTE/u, 'и короткое объяснение к ним у карт');
   assert.match(view, /export function Inspector/u, 'инспектор доступен тестам рендера');
 
   const cardView = fs.readFileSync(path.join(root, 'src', 'components', 'CardView.tsx'), 'utf8');

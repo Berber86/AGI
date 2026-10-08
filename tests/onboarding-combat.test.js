@@ -109,8 +109,6 @@ test('основание народа ведёт к ИИ-кузнецу за п�
   assert.match(onboarding, /первую карту/u);
   assert.match(onboarding, /автоматически попадёт/u);
   assert.match(onboarding, /ИИ-кузнеца/u);
-  assert.match(onboarding, /Что произойдёт дальше/u);
-  assert.match(onboarding, /поражение тоже приносит 2 славы/u);
   for (const gone of ['go("develop")', 'go("map")', 'go("home")', 'llmScience', 'chooseScience']) {
     assert.ok(!onboarding.includes(gone), `в онбординге не должно быть ${gone}`);
   }

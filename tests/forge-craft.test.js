@@ -187,8 +187,6 @@ test('успешная ковка растит мастерство кузнец
 
 test('экран кузницы работает со славой и не знает про дни, приказы и ресурсы', () => {
   assert.match(forgeSource, /iforge_advice_combat/);
-  assert.match(forgeSource, /Все идеи — для одного сражения/iu);
-  assert.match(forgeSource, /Что поможет победить в одном бою/iu);
   assert.match(forgeSource, /Ковать карту за \{quote\.cost\} славы/u);
   assert.match(forgeSource, /M\.beginCraft/);
   assert.match(forgeSource, /M\.failCraft/, 'при сбое слава возвращается');
