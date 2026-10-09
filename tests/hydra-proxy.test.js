@@ -143,7 +143,7 @@ test('нет связи с апстримом — 502 с понятной при
 test('клиент показывает причину из ответа прокси, а не общий «ИИ недоступен»', () => {
   const cards = fs.readFileSync(path.join(root, 'src', 'game', 'cards.ts'), 'utf8');
   assert.match(cards, /err\?\.error\?\.message \|\| `ИИ недоступен \(HTTP \$\{resp\.status\}\)\.`/u, 'probeApiKey отдаёт текст сервера');
-  assert.match(cards, /data\.error\) throw new Error\(data\.error\.message \|\| "Ошибка API"\)/u, 'hydraChat — тоже');
+  assert.match(cards, /if \(data\?\.error\) throw modelFailure\(data\.error\.message \|\| "Ошибка API"/u, 'hydraChat — тоже; ошибка несёт дамп для журнала, текст прежний');
   const forge = fs.readFileSync(path.join(root, 'src', 'pages', 'Forge.tsx'), 'utf8');
   assert.match(forge, /Советник недоступен: \$\{e\?\.message\}/u, 'сообщение доходит до игрока в тосте');
 });

@@ -960,7 +960,84 @@ export async function probeApiKey(model: string): Promise<void> {
    удалены вместе с экономикой, стройкой и картой: прототип сосредоточен на боевой системе
    (docs/COMBAT_PROTOTYPE_CUT.md). ИИ здесь отвечает только за кузницу — боевые замыслы и карты. */
 
-async function hydraChat(opts: { model: string; system: string; user: string; temperature: number; maxTokens: number }) {
+/* ---------- Журнал ответов ИИ ----------
+   Игрок видит короткую причину в тосте, а дословный ответ модели по каждой неудачной попытке выводится
+   на экране кузницы (панель «Журнал ответов ИИ»): до извлечения {…}, до JSON.parse и до проверки правил.
+   Отчёты собираются здесь и уходят наверх в error.journal, поэтому журнал показывает всю ковку целиком,
+   а не только последнюю попытку. Успешные попытки в журнал не попадают.
+   Панель видна игроку: в дословном ответе может быть текст лапы обезьяны, который до раскрытия карты
+   остаётся сюрпризом. Прятать её до релиза или за режимом отладки — отдельное решение. */
+
+/** Этап, на котором сломалась попытка: запрос до модели, разбор ответа или правила игры. */
+type LogPhase = "запрос" | "разбор" | "проверка";
+
+/** Что известно о неудачном ответе модели для журнала. */
+interface ModelDump {
+  /** Что показываем дословно: content модели, тело HTTP-ответа целиком или ничего. */
+  source: "content" | "body" | "none";
+  text: string;
+  status?: number;
+  finishReason?: string;
+  usage?: unknown;
+  model?: string;
+}
+
+/** Ошибка обращения к модели: прежний текст для игрока плюс дамп для журнала. */
+const modelFailure = (message: string, phase: LogPhase, dump: ModelDump) =>
+  Object.assign(new Error(message), { modelPhase: phase, modelDump: dump });
+
+/** Где в ковке случилась попытка — для строки заголовка в журнале. */
+interface AttemptContext {
+  stage: "Карта" | "Замыслы";
+  attempt: number;
+  attempts: number;
+  model: string;
+  /** Параметры заказа одной строкой: тип карты, редкость, лапа или типы замыслов. */
+  details: string;
+}
+
+/** Отчёт об одной неудачной попытке: заголовок, причина, метаданные и ответ модели дословно. */
+function attemptReport(ctx: AttemptContext, message: string, phase: LogPhase, dump: ModelDump | undefined, final: boolean): string {
+  const model = dump?.model && dump.model !== ctx.model ? `${ctx.model} (ответила ${dump.model})` : ctx.model;
+  const meta = [
+    dump?.status !== undefined && `HTTP ${dump.status}`,
+    dump?.finishReason && `finish_reason: ${dump.finishReason}`,
+    dump?.usage != null && `usage: ${JSON.stringify(dump.usage)}`,
+  ].filter(Boolean);
+  const lines = [
+    `${ctx.stage} · попытка ${ctx.attempt} из ${ctx.attempts} · этап: ${phase} · исход: ${final ? "провал" : "переделка"}`,
+    `Причина: ${message}`,
+    `модель: ${model} · ${ctx.details}`,
+  ];
+  if (meta.length) lines.push(meta.join(" · "));
+  if (dump?.finishReason === "length") lines.push("Ответ обрезан по max_tokens: JSON, скорее всего, не закрыт.");
+  if (!dump || dump.source === "none") {
+    lines.push("Дословного ответа нет: запрос не дошёл до модели или тело ответа не JSON.");
+  } else {
+    lines.push(dump.source === "content" ? "--- ответ модели дословно (choices[0].message.content) ---" : "--- тело ответа дословно ---", dump.text, "--- конец ---");
+  }
+  return lines.join("\n");
+}
+
+/** Ошибка несёт весь журнал ковки: все неудачные попытки подряд, в порядке их появления. */
+const withJournal = (error: any, journal: string[]) => Object.assign(error, { journal: journal.join("\n\n") });
+
+interface HydraOpts { model: string; system: string; user: string; temperature: number; maxTokens: number }
+
+/** Разобранный JSON и дословный ответ, из которого он извлечён: второе нужно журналу, если правила игры не пройдут. */
+interface ModelReply { json: any; dump: ModelDump }
+
+/** Один запрос к модели. Неудача запроса или разбора по-прежнему не переделывается, но её отчёт попадает в журнал. */
+async function askModel(ctx: AttemptContext, opts: HydraOpts, journal: string[]): Promise<ModelReply> {
+  try {
+    return await hydraChat(opts);
+  } catch (e: any) {
+    journal.push(attemptReport(ctx, String(e?.message ?? e), e?.modelPhase ?? "запрос", e?.modelDump, true));
+    throw withJournal(e, journal);
+  }
+}
+
+async function hydraChat(opts: HydraOpts): Promise<ModelReply> {
   const resp = await fetch(HYDRA_PROXY_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -971,15 +1048,34 @@ async function hydraChat(opts: { model: string; system: string; user: string; te
     }),
   });
   if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+    const err = await resp.json().catch(() => null);
+    throw modelFailure(err?.error?.message || `HTTP ${resp.status}`, "запрос", err === null
+      ? { source: "none", text: "", status: resp.status }
+      : { source: "body", text: JSON.stringify(err, null, 2), status: resp.status });
   }
-  const data = await resp.json();
-  if (data.error) throw new Error(data.error.message || "Ошибка API");
-  const content: string = data.choices?.[0]?.message?.content || "";
+  const data = await resp.json().catch((e: any) => {
+    throw modelFailure(String(e?.message ?? e), "разбор", { source: "none", text: "", status: resp.status });
+  });
+  const choice = data?.choices?.[0];
+  const meta = {
+    status: resp.status,
+    finishReason: typeof choice?.finish_reason === "string" ? choice.finish_reason : undefined,
+    usage: data?.usage,
+    model: typeof data?.model === "string" ? data.model : undefined,
+  };
+  if (data?.error) throw modelFailure(data.error.message || "Ошибка API", "запрос", { ...meta, source: "body", text: JSON.stringify(data, null, 2) });
+  const content = choice?.message?.content;
+  if (typeof content !== "string" || !content) {
+    throw modelFailure("Модель не вернула JSON.", "разбор", { ...meta, source: "body", text: JSON.stringify(data, null, 2) });
+  }
+  const dump: ModelDump = { ...meta, source: "content", text: content };
   const m = content.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error("Модель не вернула JSON.");
-  return JSON.parse(m[0]);
+  if (!m) throw modelFailure("Модель не вернула JSON.", "разбор", dump);
+  try {
+    return { json: JSON.parse(m[0]), dump };
+  } catch (e: any) {
+    throw modelFailure(String(e?.message ?? e), "разбор", dump);
+  }
 }
 
 /** Исторический контекст эпохи: строка ERA_HISTORICAL, индекс которой совпадает с ERAS. */
@@ -1031,16 +1127,19 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   // Советник ошибается редко, но раньше одна осечка (не тот тип, дубликат, лишняя идея) оставляла
   // игрока без замыслов вовсе: у кузнеца переделки были, у советника — нет. Теперь одна переделка есть
   // и здесь, с точным текстом ошибки.
+  const journal: string[] = [];
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const data = await hydraChat({ model, temperature: 0.85, maxTokens: 650, system, user: lastError ? `${user}\n\nПрошлый ответ не подошёл: ${lastError.message} Верни полный JSON заново.` : user });
+    const ctx: AttemptContext = { stage: "Замыслы", attempt: attempt + 1, attempts: 2, model, details: `типы ${cardTypes.join("|")}` };
+    const reply = await askModel(ctx, { model, temperature: 0.85, maxTokens: 650, system, user: lastError ? `${user}\n\nПрошлый ответ не подошёл: ${lastError.message} Верни полный JSON заново.` : user }, journal);
     try {
-      return parseAdvice(data?.choices, cardTypes);
+      return parseAdvice(reply.json?.choices, cardTypes);
     } catch (e: any) {
       lastError = e instanceof Error ? e : new Error(String(e));
+      journal.push(attemptReport(ctx, lastError.message, "проверка", reply.dump, attempt === 1));
     }
   }
-  throw lastError ?? new Error("Советник не справился.");
+  throw withJournal(lastError ?? new Error("Советник не справился."), journal);
 }
 
 function parseAdvice(list: any, cardTypes: CardType[]): Advice[] {
@@ -1105,17 +1204,19 @@ ${contextOf(state)}
   // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
   // Две переделки — каждая получает точный текст ошибки и те же жёсткие правила. Плата не ослабляется
   // на последней попытке: иначе карта получила бы ×3 бюджета за штраф неправильной категории.
+  const journal: string[] = [];
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const retry = lastError
       ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы и попади в строгую полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}`}; не ослабляй полезную часть карты` : ""} и верни ПОЛНЫЙ JSON карты заново.`
       : "";
-    const raw = await hydraChat({
+    const ctx: AttemptContext = { stage: "Карта", attempt: attempt + 1, attempts: 3, model, details: `тип ${advice.cardType} · редкость ${rarity} · лапа ${paw}` };
+    const reply = await askModel(ctx, {
       model, maxTokens: 3000, temperature, system,
       user: `${brief}\n\n${pawDirective(paw)}${retry}`,
-    });
+    }, journal);
     try {
-      const card = validateCard(raw, advice.cardType, allowed, rarity, paw, { oneLine });
+      const card = validateCard(reply.json, advice.cardType, allowed, rarity, paw, { oneLine });
       if (oneLine) {
         const badKeywords = oneLineViolation(card);
         if (badKeywords.length) {
@@ -1133,15 +1234,16 @@ ${contextOf(state)}
       return card;
     } catch (e: any) {
       lastError = e instanceof Error ? e : new Error(String(e));
+      journal.push(attemptReport(ctx, lastError.message, "проверка", reply.dump, attempt === 2));
     }
   }
-  throw lastError ?? new Error("Кузнец не смог выковать карту.");
+  throw withJournal(lastError ?? new Error("Кузнец не смог выковать карту."), journal);
 }
 
 /**
  * Что показывать игроку, когда ковка не удалась. Текст браковки платы пересказывает жребий
  * («жёсткая плата — это вес 4…8»), а жребий до раскрытия карты — сюрприз, поэтому наружу
- * уходит нейтральная формулировка; технические детали остаются в консоли разработчика.
+ * уходит нейтральная формулировка; технические детали (дословные ответы модели) выводит отдельная панель журнала.
  */
 export const CRAFT_REJECTED_TEXT = "Кузнец не совладал с заказом: карта не прошла проверку игры.";
 export function craftErrorMessage(e: any): string {
