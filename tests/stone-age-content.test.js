@@ -19,6 +19,9 @@ const ts = require('typescript');
 const Campaign = require('../campaign.js');
 
 const root = path.join(__dirname, '..');
+// Журнал кузницы пишет провалы в warn/error. Провалы этих тестов нарочные, поэтому консоль
+// для них приглушена: вывод npm test остаётся читаемым. Сам журнал проверяет forge-response-log.test.js.
+const quietConsole = { ...console, warn() {}, error() {} };
 
 function transpile(relativePath) {
   const file = path.join(root, relativePath);
@@ -31,7 +34,7 @@ function transpile(relativePath) {
 function runInVm(relativePath, javascript, sandboxExtra) {
   const mod = { exports: {} };
   const sandbox = {
-    module: mod, exports: mod.exports, console, setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number, Promise,
+    module: mod, exports: mod.exports, console: quietConsole, setTimeout, clearTimeout, Date, Math, JSON, Object, Array, String, Number, Promise,
     ...sandboxExtra,
   };
   vm.runInNewContext(javascript, sandbox, { filename: relativePath, timeout: 5000 });

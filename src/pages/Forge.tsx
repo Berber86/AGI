@@ -92,8 +92,8 @@ export default function Forge() {
       setPick(null);
     } catch (e: any) {
       // craftErrorMessage прячет текст браковки лапы: жребий до раскрытия карты остаётся сюрпризом.
+      // Подробности неудачи (включая дословный ответ модели) пишет журнал в cards.ts — здесь только игрок.
       const reason = craftErrorMessage(e);
-      if (e?.pawRejected) console.warn("[forge] карта не прошла проверку лапы обезьяны:", e.message);
       act((s) => M.failCraft(s, begin.cost, reason), { silent: true });
       toast(`Ковка не удалась: ${reason} Слава возвращена (${begin.cost}).`, "bad");
     } finally { setBusy(false); }
