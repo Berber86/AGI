@@ -960,12 +960,13 @@ export async function probeApiKey(model: string): Promise<void> {
    удалены вместе с экономикой, стройкой и картой: прототип сосредоточен на боевой системе
    (docs/COMBAT_PROTOTYPE_CUT.md). ИИ здесь отвечает только за кузницу — боевые замыслы и карты. */
 
-/* ---------- Журнал ответов кузницы ----------
-   Игрок видит короткую причину, а разработчику нужен сам ответ модели: что LLM вернул до извлечения
-   {…}, до JSON.parse и до проверки правил. Поэтому при каждой неудаче в консоль уходит весь текст
-   дословно (фильтр в DevTools: «ковка»). Успешные ответы не пишутся: журнал только про сбои.
-   В интерфейс журнал не выводится: в дословном ответе может быть текст лапы обезьяны, который до
-   раскрытия карты остаётся сюрпризом. */
+/* ---------- Журнал ответов ИИ ----------
+   Игрок видит короткую причину в тосте, а дословный ответ модели по каждой неудачной попытке выводится
+   на экране кузницы (панель «Журнал ответов ИИ»): до извлечения {…}, до JSON.parse и до проверки правил.
+   Отчёты собираются здесь и уходят наверх в error.journal, поэтому журнал показывает всю ковку целиком,
+   а не только последнюю попытку. Успешные попытки в журнал не попадают.
+   Панель видна игроку: в дословном ответе может быть текст лапы обезьяны, который до раскрытия карты
+   остаётся сюрпризом. Прятать её до релиза или за режимом отладки — отдельное решение. */
 
 /** Этап, на котором сломалась попытка: запрос до модели, разбор ответа или правила игры. */
 type LogPhase = "запрос" | "разбор" | "проверка";
@@ -987,7 +988,7 @@ const modelFailure = (message: string, phase: LogPhase, dump: ModelDump) =>
 
 /** Где в ковке случилась попытка — для строки заголовка в журнале. */
 interface AttemptContext {
-  stage: "карта" | "замыслы";
+  stage: "Карта" | "Замыслы";
   attempt: number;
   attempts: number;
   model: string;
@@ -995,7 +996,8 @@ interface AttemptContext {
   details: string;
 }
 
-function logModelFailure(ctx: AttemptContext, message: string, phase: LogPhase, dump: ModelDump | undefined, final: boolean): void {
+/** Отчёт об одной неудачной попытке: заголовок, причина, метаданные и ответ модели дословно. */
+function attemptReport(ctx: AttemptContext, message: string, phase: LogPhase, dump: ModelDump | undefined, final: boolean): string {
   const model = dump?.model && dump.model !== ctx.model ? `${ctx.model} (ответила ${dump.model})` : ctx.model;
   const meta = [
     dump?.status !== undefined && `HTTP ${dump.status}`,
@@ -1003,7 +1005,7 @@ function logModelFailure(ctx: AttemptContext, message: string, phase: LogPhase, 
     dump?.usage != null && `usage: ${JSON.stringify(dump.usage)}`,
   ].filter(Boolean);
   const lines = [
-    `[ковка] ${ctx.stage} · попытка ${ctx.attempt} из ${ctx.attempts} · этап: ${phase} · исход: ${final ? "провал" : "переделка"}`,
+    `${ctx.stage} · попытка ${ctx.attempt} из ${ctx.attempts} · этап: ${phase} · исход: ${final ? "провал" : "переделка"}`,
     `Причина: ${message}`,
     `модель: ${model} · ${ctx.details}`,
   ];
@@ -1014,23 +1016,24 @@ function logModelFailure(ctx: AttemptContext, message: string, phase: LogPhase, 
   } else {
     lines.push(dump.source === "content" ? "--- ответ модели дословно (choices[0].message.content) ---" : "--- тело ответа дословно ---", dump.text, "--- конец ---");
   }
-  const text = lines.join("\n");
-  if (final) console.error(text);
-  else console.warn(text);
+  return lines.join("\n");
 }
+
+/** Ошибка несёт весь журнал ковки: все неудачные попытки подряд, в порядке их появления. */
+const withJournal = (error: any, journal: string[]) => Object.assign(error, { journal: journal.join("\n\n") });
 
 interface HydraOpts { model: string; system: string; user: string; temperature: number; maxTokens: number }
 
 /** Разобранный JSON и дословный ответ, из которого он извлечён: второе нужно журналу, если правила игры не пройдут. */
 interface ModelReply { json: any; dump: ModelDump }
 
-/** Один запрос к модели. Неудача запроса или разбора по-прежнему не переделывается, но дословный ответ уходит в журнал. */
-async function askModel(ctx: AttemptContext, opts: HydraOpts): Promise<ModelReply> {
+/** Один запрос к модели. Неудача запроса или разбора по-прежнему не переделывается, но её отчёт попадает в журнал. */
+async function askModel(ctx: AttemptContext, opts: HydraOpts, journal: string[]): Promise<ModelReply> {
   try {
     return await hydraChat(opts);
   } catch (e: any) {
-    logModelFailure(ctx, String(e?.message ?? e), e?.modelPhase ?? "запрос", e?.modelDump, true);
-    throw e;
+    journal.push(attemptReport(ctx, String(e?.message ?? e), e?.modelPhase ?? "запрос", e?.modelDump, true));
+    throw withJournal(e, journal);
   }
 }
 
@@ -1124,18 +1127,19 @@ export async function llmAdvice(model: string, state: any): Promise<Advice[]> {
   // Советник ошибается редко, но раньше одна осечка (не тот тип, дубликат, лишняя идея) оставляла
   // игрока без замыслов вовсе: у кузнеца переделки были, у советника — нет. Теперь одна переделка есть
   // и здесь, с точным текстом ошибки.
+  const journal: string[] = [];
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const ctx: AttemptContext = { stage: "замыслы", attempt: attempt + 1, attempts: 2, model, details: `типы ${cardTypes.join("|")}` };
-    const reply = await askModel(ctx, { model, temperature: 0.85, maxTokens: 650, system, user: lastError ? `${user}\n\nПрошлый ответ не подошёл: ${lastError.message} Верни полный JSON заново.` : user });
+    const ctx: AttemptContext = { stage: "Замыслы", attempt: attempt + 1, attempts: 2, model, details: `типы ${cardTypes.join("|")}` };
+    const reply = await askModel(ctx, { model, temperature: 0.85, maxTokens: 650, system, user: lastError ? `${user}\n\nПрошлый ответ не подошёл: ${lastError.message} Верни полный JSON заново.` : user }, journal);
     try {
       return parseAdvice(reply.json?.choices, cardTypes);
     } catch (e: any) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      logModelFailure(ctx, lastError.message, "проверка", reply.dump, attempt === 1);
+      journal.push(attemptReport(ctx, lastError.message, "проверка", reply.dump, attempt === 1));
     }
   }
-  throw lastError ?? new Error("Советник не справился.");
+  throw withJournal(lastError ?? new Error("Советник не справился."), journal);
 }
 
 function parseAdvice(list: any, cardTypes: CardType[]): Advice[] {
@@ -1200,16 +1204,17 @@ ${contextOf(state)}
   // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
   // Две переделки — каждая получает точный текст ошибки и те же жёсткие правила. Плата не ослабляется
   // на последней попытке: иначе карта получила бы ×3 бюджета за штраф неправильной категории.
+  const journal: string[] = [];
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const retry = lastError
       ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы и попади в строгую полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}`}; не ослабляй полезную часть карты` : ""} и верни ПОЛНЫЙ JSON карты заново.`
       : "";
-    const ctx: AttemptContext = { stage: "карта", attempt: attempt + 1, attempts: 3, model, details: `тип ${advice.cardType} · редкость ${rarity} · лапа ${paw}` };
+    const ctx: AttemptContext = { stage: "Карта", attempt: attempt + 1, attempts: 3, model, details: `тип ${advice.cardType} · редкость ${rarity} · лапа ${paw}` };
     const reply = await askModel(ctx, {
       model, maxTokens: 3000, temperature, system,
       user: `${brief}\n\n${pawDirective(paw)}${retry}`,
-    });
+    }, journal);
     try {
       const card = validateCard(reply.json, advice.cardType, allowed, rarity, paw, { oneLine });
       if (oneLine) {
@@ -1229,16 +1234,16 @@ ${contextOf(state)}
       return card;
     } catch (e: any) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      logModelFailure(ctx, lastError.message, "проверка", reply.dump, attempt === 2);
+      journal.push(attemptReport(ctx, lastError.message, "проверка", reply.dump, attempt === 2));
     }
   }
-  throw lastError ?? new Error("Кузнец не смог выковать карту.");
+  throw withJournal(lastError ?? new Error("Кузнец не смог выковать карту."), journal);
 }
 
 /**
  * Что показывать игроку, когда ковка не удалась. Текст браковки платы пересказывает жребий
  * («жёсткая плата — это вес 4…8»), а жребий до раскрытия карты — сюрприз, поэтому наружу
- * уходит нейтральная формулировка; технические детали остаются в консоли разработчика.
+ * уходит нейтральная формулировка; технические детали (дословные ответы модели) выводит отдельная панель журнала.
  */
 export const CRAFT_REJECTED_TEXT = "Кузнец не совладал с заказом: карта не прошла проверку игры.";
 export function craftErrorMessage(e: any): string {

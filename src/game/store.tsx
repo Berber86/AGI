@@ -51,6 +51,12 @@ interface Store {
   closeBattle: () => void;
   /** Постоянное улучшение лагеря за славу. */
   buyUpgrade: (key: string) => void;
+  /**
+   * Дословный журнал последней неудачи ИИ (ковка или советник): панель на экране кузницы.
+   * Пустая строка — панель скрыта. Переживает переходы между экранами; очищается новой ковкой.
+   */
+  aiLog: string;
+  setAiLog: (text: string) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -81,6 +87,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [settingsOpen, openSettings] = useState(false);
   const [match, setMatch] = useState<Match | null>(null);
+  const [aiLog, setAiLog] = useState("");
   const toastId = useRef(0);
 
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
@@ -210,8 +217,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(() => ({
     game, collection, aiStatus, checkAi, model, foundPeople, page, go, toasts, toast, dismissToast, act, commit,
     addCard, removeCard, resetCampaign, settingsOpen, openSettings, match, startBattle, finishBattle, closeBattle, buyUpgrade,
+    aiLog, setAiLog,
   }), [game, collection, aiStatus, checkAi, model, foundPeople, page, go, toasts, toast, dismissToast, act, commit,
-    addCard, removeCard, resetCampaign, settingsOpen, match, startBattle, finishBattle, closeBattle, buyUpgrade]);
+    addCard, removeCard, resetCampaign, settingsOpen, match, startBattle, finishBattle, closeBattle, buyUpgrade, aiLog]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

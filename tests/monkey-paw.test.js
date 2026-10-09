@@ -7,9 +7,6 @@ const ts = require('typescript');
 const Campaign = require('../campaign.js');
 
 const root = path.join(__dirname, '..');
-// Журнал кузницы пишет провалы в warn/error. Провалы этих тестов нарочные, поэтому консоль
-// для них приглушена: вывод npm test остаётся читаемым. Сам журнал проверяет forge-response-log.test.js.
-const quietConsole = { ...console, warn() {}, error() {} };
 
 /**
  * «Лапа обезьяны» из самых ранних версий игры возвращается: выкованная карта может прийти с платой.
@@ -45,7 +42,7 @@ function loadCards(fetchImpl) {
       throw new Error(`Unexpected import ${name}`);
     },
     fetch: fetchImpl,
-    console: quietConsole, setTimeout, clearTimeout, Date, Math, JSON, Promise,
+    console, setTimeout, clearTimeout, Date, Math, JSON, Promise,
   };
   vm.runInNewContext(javascript, sandbox, { filename: file, timeout: 5000 });
   return mod.exports;

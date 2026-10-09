@@ -1,8 +1,7 @@
 /**
- * Журнал ответов кузницы: при неудаче весь ответ модели уходит в консоль разработчика дословно,
- * до извлечения {…} и до проверки правил, чтобы по нему настраивать разбор и авто-замену.
- * Игрок по-прежнему видит прежнюю короткую причину, текст ошибок не меняется, а успешная
- * ковка ничего в консоль не пишет.
+ * Журнал ответов ИИ: при неудаче дословный ответ модели по каждой неудачной попытке попадает в
+ * error.journal, а кузница выводит его игроку панелью на экране (не в консоль разработчика).
+ * Тост и текст ошибок прежние: игрок видит короткую причину, слава возвращается, ретраи не менялись.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -13,6 +12,7 @@ const ts = require('typescript');
 const Campaign = require('../campaign.js');
 
 const root = path.join(__dirname, '..');
+const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 function loadCards(fetchImpl, consoleImpl) {
   const file = path.join(root, 'src', 'game', 'cards.ts');
@@ -52,11 +52,11 @@ function loadCards(fetchImpl, consoleImpl) {
   return mod.exports;
 }
 
-/** Консоль-заглушка: журнал пишет в неё, тест читает записи по уровню. */
+/** Консоль-заглушка: журнал не должен в неё писать — он уходит в панель на экране. */
 function recorder() {
   const calls = [];
   const sink = {};
-  for (const level of ['log', 'info', 'warn', 'error']) {
+  for (const level of ['log', 'info', 'warn', 'error', 'debug']) {
     sink[level] = (...args) => calls.push({ level, text: args.map(String).join(' ') });
   }
   return { calls, console: sink };
@@ -98,23 +98,22 @@ function cleanCard(extra = {}) {
 const ADVICE = { id: 'unit-0-1', cardType: 'unit', title: 'Стражи брода', pitch: 'Держат брод.' };
 const PROSE = 'Конечно, вот карта. Кузнец советует: «копьё» — лучше всего.\nПусть отряд держит брод.';
 
-const craftFailure = (api, state, paw = 'none') => api.llmCard('gpt-6-luna', ADVICE, 'ordinary', state, paw)
+const craftFailure = (api, state, paw = 'none', rarity = 'ordinary') => api.llmCard('gpt-6-luna', ADVICE, rarity, state, paw)
   .then(() => null, (e) => e);
 
-test('ответ без JSON: дословный текст уходит в журнал, игрок видит прежнюю причину', async () => {
+test('ответ без JSON: журнал несёт дословный текст, игрок видит прежнюю причину, консоль молчит', async () => {
   const rec = recorder();
   const api = loadCards(async () => modelReply(PROSE), rec.console);
   const error = await craftFailure(api, stateAt(0));
 
   assert.equal(error.message, 'Модель не вернула JSON.', 'текст ошибки для игрока прежний');
-  assert.equal(rec.calls.length, 1, 'одна неудача — одна запись');
-  assert.equal(rec.calls[0].level, 'error', 'провал ковки — ошибка, а не предупреждение');
-  const log = rec.calls[0].text;
-  assert.match(log, /^\[ковка\] карта · попытка 1 из 3 · этап: разбор · исход: провал/u);
-  assert.match(log, /Причина: Модель не вернула JSON\./u);
-  assert.match(log, /finish_reason: stop/u);
-  assert.match(log, /usage: \{"prompt_tokens":1200,"completion_tokens":480\}/u);
-  assert.ok(log.includes(PROSE), 'ответ приведён дословно, включая текст вокруг скобок');
+  assert.equal(api.craftErrorMessage(error), 'Модель не вернула JSON.', 'в тост уходит та же причина');
+  assert.match(error.journal, /^Карта · попытка 1 из 3 · этап: разбор · исход: провал/u);
+  assert.match(error.journal, /Причина: Модель не вернула JSON\./u);
+  assert.match(error.journal, /finish_reason: stop/u);
+  assert.match(error.journal, /usage: \{"prompt_tokens":1200,"completion_tokens":480\}/u);
+  assert.ok(error.journal.includes(PROSE), 'ответ приведён дословно, включая текст вокруг скобок');
+  assert.deepEqual(rec.calls, [], 'журнал не пишет в консоль разработчика');
 });
 
 test('битый JSON: сообщение парсера прежнее, журнал показывает ответ целиком с ошибкой внутри', async () => {
@@ -124,46 +123,48 @@ test('битый JSON: сообщение парсера прежнее, жур�
   const error = await craftFailure(api, stateAt(0));
 
   assert.match(error.message, /JSON/u, 'сообщение парсера доходит до тоста, как и раньше');
-  assert.equal(rec.calls.length, 1);
-  assert.match(rec.calls[0].text, /этап: разбор/u);
-  assert.ok(rec.calls[0].text.includes(broken), 'обёртка ```json и лишняя запятая видны в журнале без правок');
+  assert.match(error.journal, /этап: разбор/u);
+  assert.ok(error.journal.includes(broken), 'обёртка ```json и лишняя запятая видны без правок');
+  assert.deepEqual(rec.calls, []);
 });
 
-test('неудачная проверка правил переделывается, и каждая неудачная попытка пишется дословно', async () => {
+test('переделки: журнал собирает все неудачные попытки подряд, в порядке их появления', async () => {
   const contents = [
     JSON.stringify(cleanCard({ name: '' })),
     JSON.stringify(cleanCard({ name: '   ' })),
-    JSON.stringify(cleanCard()),
+    JSON.stringify(cleanCard({ name: 'Стражи брода', description: '' })),
   ];
   let requests = 0;
   const rec = recorder();
   const api = loadCards(async () => modelReply(contents[requests++]), rec.console);
-  const card = await api.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(1, 'sumer'));
+  const error = await craftFailure(api, stateAt(1, 'sumer'));
 
-  assert.equal(card.name, 'Стражи брода');
-  assert.equal(requests, 3, 'две переделки, третья попытка проходит');
-  assert.deepEqual(rec.calls.map((c) => c.level), ['warn', 'warn'], 'переделки — предупреждения, удачная попытка молчит');
-  assert.match(rec.calls[0].text, /попытка 1 из 3 · этап: проверка · исход: переделка/u);
-  assert.match(rec.calls[0].text, /У карты должно быть короткое название/u);
-  assert.ok(rec.calls[0].text.includes(contents[0]), 'первый ответ дословно');
-  assert.match(rec.calls[1].text, /попытка 2 из 3 · этап: проверка · исход: переделка/u);
-  assert.ok(rec.calls[1].text.includes(contents[1]), 'второй ответ дословно');
-  assert.match(rec.calls[1].text, /тип unit · редкость ordinary · лапа none/u, 'в журнале видно параметры заказа');
+  assert.equal(requests, 3, 'три попытки, как и раньше');
+  assert.match(error.message, /короткое название|описание/u, 'текст ошибки последней проверки прежний');
+  const journal = error.journal;
+  const first = journal.indexOf('Карта · попытка 1 из 3 · этап: проверка · исход: переделка');
+  const second = journal.indexOf('Карта · попытка 2 из 3 · этап: проверка · исход: переделка');
+  const third = journal.indexOf('Карта · попытка 3 из 3 · этап: проверка · исход: провал');
+  assert.ok(first >= 0 && second > first && third > second, 'три отчёта в правильном порядке и с правильными исходами');
+  for (const content of contents) assert.ok(journal.includes(content), 'каждый ответ дословно');
+  assert.match(journal, /тип unit · редкость ordinary · лапа none/u, 'в журнале видны параметры заказа');
+  assert.deepEqual(rec.calls, []);
 });
 
-test('все попытки провалились: журнал заканчивается провалом, игрок получает нейтральный текст', async () => {
+test('все попытки лапы провалились: игроку по-прежнему нейтральный текст, журнал полный', async () => {
   const content = JSON.stringify(cleanCard());
   const rec = recorder();
   const api = loadCards(async () => modelReply(content), rec.console);
-  const error = await craftFailure(api, stateAt(1, 'sumer'), 'harsh');
+  const error = await craftFailure(api, stateAt(1, 'sumer'), 'harsh', 'rare');
 
   assert.match(error.message, /требует настоящую плату/u, 'причина в ошибке та же, что и раньше');
-  assert.equal(error.pawRejected, true);
-  assert.equal(api.craftErrorMessage(error), api.CRAFT_REJECTED_TEXT, 'игроку по-прежнему нейтральный текст');
-  assert.deepEqual(rec.calls.map((c) => c.level), ['warn', 'warn', 'error']);
-  assert.match(rec.calls[2].text, /попытка 3 из 3 · этап: проверка · исход: провал/u);
-  assert.ok(rec.calls.every((c) => c.text.includes(content)), 'каждая попытка дословно, и последняя тоже');
+  assert.equal(error.pawRejected, true, 'признак отказа лапы сохранён');
+  assert.equal(api.craftErrorMessage(error), api.CRAFT_REJECTED_TEXT, 'в тост по-прежнему нейтральный текст');
   assert.doesNotMatch(api.craftErrorMessage(error), /[{}"]/u, 'в тост не утекает ни JSON, ни журнал');
+  assert.equal(error.journal.split('\n\n').length, 3, 'все три попытки в журнале');
+  assert.match(error.journal, /попытка 3 из 3 · этап: проверка · исход: провал/u);
+  assert.ok(error.journal.includes(content), 'ответ дословно');
+  assert.deepEqual(rec.calls, []);
 });
 
 test('ошибка прокси: журнал показывает тело ответа, текст ошибки прежний', async () => {
@@ -173,12 +174,11 @@ test('ошибка прокси: журнал показывает тело от
   const error = await craftFailure(api, stateAt(0));
 
   assert.equal(error.message, body.error.message);
-  assert.equal(rec.calls.length, 1);
-  assert.equal(rec.calls[0].level, 'error');
-  assert.match(rec.calls[0].text, /этап: запрос/u);
-  assert.match(rec.calls[0].text, /HTTP 500/u);
-  assert.ok(rec.calls[0].text.includes('--- тело ответа дословно ---'));
-  assert.ok(rec.calls[0].text.includes(JSON.stringify(body, null, 2)), 'тело ответа целиком, без пересказа');
+  assert.match(error.journal, /этап: запрос/u);
+  assert.match(error.journal, /HTTP 500/u);
+  assert.ok(error.journal.includes('--- тело ответа дословно ---'));
+  assert.ok(error.journal.includes(JSON.stringify(body, null, 2)), 'тело ответа целиком, без пересказа');
+  assert.deepEqual(rec.calls, []);
 });
 
 test('сбой внутри успешного конверта: журнал показывает весь конверт, включая id запроса', async () => {
@@ -188,8 +188,9 @@ test('сбой внутри успешного конверта: журнал п
   const error = await craftFailure(api, stateAt(0));
 
   assert.equal(error.message, 'Лимит запросов исчерпан, попробуйте позже.');
-  assert.match(rec.calls[0].text, /этап: запрос/u);
-  assert.ok(rec.calls[0].text.includes(JSON.stringify(envelope, null, 2)));
+  assert.match(error.journal, /этап: запрос/u);
+  assert.ok(error.journal.includes(JSON.stringify(envelope, null, 2)));
+  assert.deepEqual(rec.calls, []);
 });
 
 test('ответ, обрезанный по max_tokens, помечен в журнале', async () => {
@@ -199,52 +200,89 @@ test('ответ, обрезанный по max_tokens, помечен в жур
   const error = await craftFailure(api, stateAt(0));
 
   assert.equal(error.message, 'Модель не вернула JSON.');
-  assert.match(rec.calls[0].text, /finish_reason: length/u);
-  assert.match(rec.calls[0].text, /обрезан по max_tokens/u, 'причину обрыва видно сразу, без догадок');
-  assert.ok(rec.calls[0].text.includes(cut));
+  assert.match(error.journal, /finish_reason: length/u);
+  assert.match(error.journal, /обрезан по max_tokens/u, 'причину обрыва видно сразу, без догадок');
+  assert.ok(error.journal.includes(cut));
+  assert.deepEqual(rec.calls, []);
 });
 
-test('сеть недоступна: запись есть, и в ней честно сказано, что дословного ответа не было', async () => {
+test('сеть недоступна: журнал честно говорит, что дословного ответа не было', async () => {
   const rec = recorder();
   const api = loadCards(async () => { throw new TypeError('Failed to fetch'); }, rec.console);
   const error = await craftFailure(api, stateAt(0));
 
   assert.equal(error.message, 'Failed to fetch', 'сетевая ошибка проходит как есть');
-  assert.equal(rec.calls.length, 1);
-  assert.match(rec.calls[0].text, /этап: запрос/u);
-  assert.match(rec.calls[0].text, /Дословного ответа нет/u);
-});
-
-test('успешная ковка ничего не пишет в консоль: журнал только про сбои', async () => {
-  const rec = recorder();
-  const api = loadCards(async () => modelReply(JSON.stringify(cleanCard())), rec.console);
-  await api.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(1, 'sumer'));
+  assert.match(error.journal, /этап: запрос/u);
+  assert.match(error.journal, /Дословного ответа нет/u);
   assert.deepEqual(rec.calls, []);
 });
 
-test('советник: неудачный разбор и переделка проверки тоже попадают в журнал', async () => {
+test('сбой запроса после неудачной проверки: журнал сохраняет предыдущие попытки', async () => {
+  const first = JSON.stringify(cleanCard({ name: '' }));
+  let requests = 0;
+  const rec = recorder();
+  const api = loadCards(async () => {
+    requests += 1;
+    if (requests === 1) return modelReply(first);
+    return { ok: false, status: 502, json: async () => ({ error: { message: 'Шлюз недоступен.' } }) };
+  }, rec.console);
+  const error = await craftFailure(api, stateAt(1, 'sumer'));
+
+  assert.equal(error.message, 'Шлюз недоступен.');
+  assert.ok(error.journal.includes(first), 'отказ первой попытки на месте');
+  assert.match(error.journal, /попытка 2 из 3 · этап: запрос · исход: провал/u);
+  assert.deepEqual(rec.calls, []);
+});
+
+test('успешная ковка не требует журнала и ничего не пишет в консоль', async () => {
+  const rec = recorder();
+  const api = loadCards(async () => modelReply(JSON.stringify(cleanCard())), rec.console);
+  const card = await api.llmCard('gpt-6-luna', ADVICE, 'ordinary', stateAt(1, 'sumer'));
+  assert.equal(card.name, 'Стражи брода');
+  assert.equal(card.journal, undefined);
+  assert.deepEqual(rec.calls, []);
+});
+
+test('советник: журнал несёт неудачный разбор и обе неудачные проверки', async () => {
+  const rec = recorder();
+  const silent = loadCards(async () => modelReply('Извините, советов сегодня нет.'), rec.console);
+  const parseError = await silent.llmAdvice('gpt-6-luna', stateAt(0)).then(() => null, (e) => e);
+  assert.equal(parseError.message, 'Модель не вернула JSON.');
+  assert.match(parseError.journal, /^Замыслы · попытка 1 из 2 · этап: разбор · исход: провал/u);
+  assert.ok(parseError.journal.includes('Извините, советов сегодня нет.'));
+
   const pair = [
     { card_type: 'unit', title: 'Стражи переправы', pitch: 'Копейщики держат авангард.' },
     { card_type: 'spell', title: 'Каменный заслон', pitch: 'Манёвр замедляет один отряд.' },
   ];
-
-  const prose = 'Извините, советов сегодня нет.';
-  const rec = recorder();
-  const silent = loadCards(async () => modelReply(prose), rec.console);
-  const error = await silent.llmAdvice('gpt-6-luna', stateAt(0)).then(() => null, (e) => e);
-  assert.equal(error.message, 'Модель не вернула JSON.');
-  assert.equal(rec.calls.length, 1);
-  assert.match(rec.calls[0].text, /^\[ковка\] замыслы · попытка 1 из 2 · этап: разбор · исход: провал/u);
-  assert.ok(rec.calls[0].text.includes(prose));
-
   const wrong = JSON.stringify({ choices: [pair[0], pair[0]] });
-  const right = JSON.stringify({ choices: pair });
-  const retry = recorder();
-  let requests = 0;
-  const retrying = loadCards(async () => modelReply(requests++ === 0 ? wrong : right), retry.console);
-  const advice = await retrying.llmAdvice('gpt-6-luna', stateAt(0));
-  assert.deepEqual(advice.map((a) => a.cardType), ['unit', 'spell']);
-  assert.equal(retry.calls.length, 1, 'удачная вторая попытка молчит');
-  assert.match(retry.calls[0].text, /попытка 1 из 2 · этап: проверка · исход: переделка/u);
-  assert.ok(retry.calls[0].text.includes(wrong), 'неудачный ответ советника дословно');
+  const checked = recorder();
+  const checking = loadCards(async () => modelReply(wrong), checked.console);
+  const checkError = await checking.llmAdvice('gpt-6-luna', stateAt(0)).then(() => null, (e) => e);
+  assert.match(checkError.journal, /попытка 1 из 2 · этап: проверка · исход: переделка/u);
+  assert.match(checkError.journal, /попытка 2 из 2 · этап: проверка · исход: провал/u);
+  assert.equal(checkError.journal.split('\n\n').length, 2);
+  assert.ok(checkError.journal.includes(wrong), 'неудачный ответ советника дословно');
+  assert.deepEqual(checked.calls, []);
+  assert.deepEqual(rec.calls, []);
+});
+
+test('кузница выводит журнал на экран, а не в консоль: источники без console и с панелью', () => {
+  const cards = read('src/game/cards.ts');
+  const forge = read('src/pages/Forge.tsx');
+  const store = read('src/game/store.tsx');
+
+  assert.doesNotMatch(cards, /console\./u, 'в cards.ts нет вывода в консоль');
+  assert.doesNotMatch(forge, /console\./u, 'в Forge.tsx нет вывода в консоль');
+
+  assert.match(store, /const \[aiLog, setAiLog\] = useState\(""\)/u, 'журнал хранится в сторе и переживает переходы');
+  assert.match(store, /aiLog, setAiLog,/u, 'стор отдаёт журнал экрану');
+
+  assert.match(forge, /if \(e\?\.journal\) setAiLog\(e\.journal\);/u, 'неудача ковки кладёт журнал на экран');
+  assert.match(forge, /setAiLog\(""\); \/\/ новая ковка/u, 'новая ковка очищает прошлый журнал');
+  assert.match(forge, /\{aiLog && \(/u, 'панель рисуется, пока журнал не пуст');
+  assert.match(forge, /<pre [^>]*>\{aiLog\}<\/pre>/u, 'текст выводится дословно, как текст (не как HTML)');
+  assert.match(forge, /Копировать/u);
+  assert.match(forge, /onClick=\{\(\) => setAiLog\(""\)\}>Скрыть/u, 'панель закрывается по кнопке, а не по таймеру');
+  assert.doesNotMatch(forge + store, /setTimeout\([^;]*setAiLog/u, 'панель не гаснет сама');
 });

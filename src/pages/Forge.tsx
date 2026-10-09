@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Anvil, Sparkles, Loader2, Lock, Check } from "lucide-react";
+import { Anvil, Sparkles, Loader2, Lock, Check, Copy } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { M } from "@/game/model";
 import { CARD_TYPE_INFO, RARITY_INFO, craftErrorMessage, llmAdvice, llmCard, oneLineBoard, type Advice, type Card, type Rarity } from "@/game/cards";
@@ -26,7 +26,7 @@ function readAdvice(era: number, count: number): Advice[] | null {
  * слава возвращается.
  */
 export default function Forge() {
-  const { game, collection, act, addCard, model, toast, go } = useStore();
+  const { game, collection, act, addCard, model, toast, go, aiLog, setAiLog } = useStore();
   const { glory } = useDerived();
   const p = game.player;
   const expectedAdviceCount = oneLineBoard(game) ? 2 : 3;
@@ -58,9 +58,19 @@ export default function Forge() {
       setAdvice(list);
       toast(`Советник предложил ${list.length} замысла.`, "ok");
     } catch (e: any) {
+      if (e?.journal) setAiLog(e.journal);
       toast(`Советник недоступен: ${e?.message}`, "bad");
     }
     setPick(null); setAskLoading(false);
+  };
+
+  const copyAiLog = async () => {
+    try {
+      await navigator.clipboard.writeText(aiLog);
+      toast("Журнал скопирован.", "ok");
+    } catch {
+      toast("Не удалось скопировать: выделите текст журнала вручную.", "bad");
+    }
   };
 
   const forge = async () => {
@@ -68,6 +78,7 @@ export default function Forge() {
     // Слава списывается через act() в АКТУАЛЬНОМ состоянии: двойной клик не спишет её дважды.
     const begin = act((s) => M.beginCraft(s, { materialQuality: material }, Math.random()), { silent: true });
     if (!begin) return; // act() уже показал тост с ошибкой
+    setAiLog(""); // новая ковка: журнал прошлой неудачи к ней уже не относится
     setBusy(true);
     const started = Date.now();
     try {
@@ -91,9 +102,10 @@ export default function Forge() {
       setReveal(card);
       setPick(null);
     } catch (e: any) {
-      // craftErrorMessage прячет текст браковки лапы: жребий до раскрытия карты остаётся сюрпризом.
-      // Подробности неудачи (включая дословный ответ модели) пишет журнал в cards.ts — здесь только игрок.
+      // craftErrorMessage прячет текст браковки лапы из тоста: жребий до раскрытия карты остаётся сюрпризом.
+      // Дословные ответы модели уходят в панель журнала на этом экране: там они видны целиком и не пропадают.
       const reason = craftErrorMessage(e);
+      if (e?.journal) setAiLog(e.journal);
       act((s) => M.failCraft(s, begin.cost, reason), { silent: true });
       toast(`Ковка не удалась: ${reason} Слава возвращена (${begin.cost}).`, "bad");
     } finally { setBusy(false); }
@@ -147,6 +159,22 @@ export default function Forge() {
               })}
             </div>
           </Panel>
+
+          {aiLog && (
+            <Panel className="p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Label>Журнал ответов ИИ</Label>
+                <div className="flex gap-2">
+                  <Btn size="sm" onClick={copyAiLog}><Copy size={14} />Копировать</Btn>
+                  <Btn size="sm" variant="ghost" onClick={() => setAiLog("")}>Скрыть</Btn>
+                </div>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-dim">
+                Дословный ответ модели по каждой неудачной попытке. Панель остаётся на экране, пока её не скроют или не начнётся новая ковка.
+              </p>
+              <pre className="mt-3 max-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-xl bg-ground/60 p-3.5 font-mono text-[12px] leading-relaxed text-parch">{aiLog}</pre>
+            </Panel>
+          )}
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
