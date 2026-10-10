@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111b20" />
+    <meta
+      name="description"
+      content="PALIMPSEST — интерактивная археологическая экспедиция на границе изученного космоса."
+    />
+    <title>PALIMPSEST — Экспедиция «Эребус»</title>
+    <link rel="icon" href="/favicon.svg" />
+  </head>
+  <body>
+    <div id="world" aria-label="Трёхмерная поверхность планеты Эребус"></div>
+    <div class="cinema-overlay"></div>
+    <div class="scan-overlay" id="scan-overlay"></div>
+    <div id="boot">
+      <div class="boot-mark">P<span> / </span></div>
+      <div class="boot-title">PALIMPSEST</div>
+      <div class="boot-line"><span></span></div>
+      <p id="boot-text">УСТАНАВЛИВАЕМ СВЯЗЬ С ЭРЕБУСОМ</p>
+    </div>
+    <div id="app">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Об экспедиции" id="brand"
+          ><svg viewBox="0 0 36 38" fill="none">
+            <path
+              d="M4 33V5h16l12 10-12 10H12V13h7l5 3-5 3h-7"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path d="M25 27l7 6" stroke="currentColor" stroke-width="2" /></svg
+          ><span>PALIMPSEST<small>ПОМНИТЬ ТО, ЧЕГО НЕ БЫЛО</small></span></a
+        >
+        <div class="location">
+          <span class="live-dot"></span><span>ЭРЕБУС <b>/</b> СЕКТОР 07</span
+          ><span class="location-divider"></span
+          ><span class="local-time" id="local-time">17:42:08 LST</span>
+        </div>
+        <nav class="header-actions" aria-label="Системные действия">
+          <span class="connection"><i></i> СВЯЗЬ СТАБИЛЬНА</span
+          ><button
+            class="icon-button"
+            id="audio-toggle"
+            aria-label="Включить звук"
+            title="Звук"
+          >
+            <i data-lucide="volume-x"></i></button
+          ><button
+            class="icon-button"
+            id="help-button"
+            aria-label="Управление и справка"
+            title="Управление"
+          >
+            <i data-lucide="circle-help"></i></button
+          ><button
+            class="icon-button"
+            id="settings-button"
+            aria-label="Настройки"
+            title="Настройки"
+          >
+            <i data-lucide="sliders-horizontal"></i>
+          </button>
+        </nav>
+      </header>
+      <main>
+        <section class="mission-heading">
+          <div class="eyebrow">
+            <span class="tiny-line"></span> ЭКСПЕДИЦИЯ 001
+          </div>
+          <h1>За пределами<br />памяти<span>.</span></h1>
+          <p>Некоторые миры ждут, чтобы их вспомнили.</p>
+          <div class="planet-meta">
+            <span><i data-lucide="orbit"></i> KEPLER–186F</span
+            ><span>31.6 СВ. ЛЕТ ОТ БАЗЫ</span>
+          </div>
+        </section>
+        <section class="objective glass" aria-label="Текущая задача">
+          <div class="panel-topline">
+            <span><span class="live-dot amber"></span> АКТИВНАЯ ЗАДАЧА</span
+            ><span id="task-number">01 / 03</span>
+          </div>
+          <div class="objective-main">
+            <div class="objective-symbol"><i data-lucide="scan-line"></i></div>
+            <div>
+              <h2 id="objective-title">Голоса под песком</h2>
+              <p id="objective-copy">
+                Просканируйте руины.<br />Найдите следы исчезнувшей цивилизации.
+              </p>
+            </div>
+          </div>
+          <div class="objective-footer">
+            <span id="objective-progress">Обнаружено реликвий</span
+            ><b id="relic-count">0 <span>/ 3</span></b>
+          </div>
+          <div class="progress-track"><span id="mission-progress"></span></div>
+        </section>
+        <div class="compass" aria-hidden="true">
+          <span>СЗ</span><i></i><span>300</span><i></i><b id="heading">С</b
+          ><i></i><span>30</span><i></i><span>СВ</span>
+          <div class="compass-pointer"></div>
+        </div>
+        <div class="landmark-tag">
+          <span class="tag-line"></span
+          ><span
+            >НЕКРОПОЛЬ ЭХА<small>ОБЪЕКТ E–07 · ВОЗРАСТ НЕИЗВЕСТЕН</small></span
+          >
+        </div>
+        <div id="world-markers"></div>
+        <div class="reticle" aria-hidden="true">
+          <span></span><i></i><span></span>
+        </div>
+        <div id="scan-status" class="scan-status" hidden>
+          <i data-lucide="radar"></i><span>АНАЛИЗ СПЕКТРАЛЬНОГО ОТКЛИКА</span
+          ><b id="scan-percent">0%</b>
+        </div>
+        <section class="environment">
+          <div class="environment-top">
+            <i data-lucide="sun"></i><span>МЕСТНЫЕ УСЛОВИЯ</span>
+          </div>
+          <div class="temp">−64<span>°C</span></div>
+          <div class="environment-detail">
+            <span>АТМОСФЕРА</span><b>0.08 атм</b>
+          </div>
+          <div class="environment-detail">
+            <span>ВЕТЕР</span><b>12 м/с <i data-lucide="arrow-up-right"></i></b>
+          </div>
+          <div class="env-rule"></div>
+          <div class="suit-line">
+            <i data-lucide="shield-check"></i><span>СКАФАНДР ГЕРМЕТИЧЕН</span>
+          </div>
+        </section>
+        <div class="view-label">
+          <span class="live-dot"></span> ПОЛЕВОЙ ВИД
+          <span class="view-bracket">[ 01 ]</span>
+        </div>
+        <section class="bottom-left">
+          <button
+            class="minimap"
+            id="minimap-button"
+            aria-label="Открыть карту сектора"
+          >
+            <svg viewBox="0 0 126 126">
+              <defs>
+                <clipPath id="map-clip">
+                  <circle cx="63" cy="63" r="49" />
+                </clipPath>
+              </defs>
+              <circle cx="63" cy="63" r="60" class="map-outer" />
+              <circle cx="63" cy="63" r="49" class="map-inner" />
+              <g clip-path="url(#map-clip)" class="contours">
+                <path
+                  d="M-5 73Q30 0 72 40T141 28M-4 82Q30 9 72 49T141 37M-2 93Q30 20 72 60T141 48M0 102Q30 29 72 69T141 57M3 112Q30 39 72 79T141 67M-9 50Q28-13 72 21T141 9M-7 61Q28-2 72 32T141 20"
+                />
+                <path d="M3 116Q33 51 75 90T144 78" />
+              </g>
+              <path d="M63 50l6 21-6-4-6 4z" class="map-player" />
+              <circle cx="84" cy="44" r="3" class="map-target" />
+              <circle cx="37" cy="42" r="2" class="map-target" />
+              <path d="M63 0v9M63 117v9M0 63h9M117 63h9" class="map-tick" />
+              <text x="63" y="21">N</text></svg
+            ><span class="map-key">M</span>
+          </button>
+          <div class="position-label">
+            <span>ПЛАТО ЗАБВЕНИЯ</span
+            ><b id="coordinates">24° 18′ N &nbsp; 08° 42′ E</b
+            ><small
+              ><span class="live-dot"></span> ВЫСОТА
+              <span id="altitude">128</span> М</small
+            >
+          </div>
+        </section>
+        <section class="tool-dock" aria-label="Инструменты">
+          <button id="scan-button" class="scan-button">
+            <span class="scan-icon"><i data-lucide="scan"></i></span
+            ><span
+              ><strong>Сканировать</strong
+              ><small id="scanner-subtitle">СПЕКТРАЛЬНЫЙ СКАНЕР</small></span
+            ><kbd>Q</kbd>
+          </button>
+          <div class="dock-divider"></div>
+          <button
+            id="journal-button"
+            class="dock-tool"
+            title="Полевой журнал [J]"
+            aria-label="Полевой журнал"
+          >
+            <i data-lucide="book-open"></i><span>Журнал</span
+            ><b id="journal-badge" hidden>1</b></button
+          ><button
+            id="map-button"
+            class="dock-tool"
+            title="Карта сектора [M]"
+            aria-label="Карта сектора"
+          >
+            <i data-lucide="map"></i><span>Карта</span></button
+          ><button
+            id="photo-button"
+            class="dock-tool"
+            title="Фоторежим [P]"
+            aria-label="Фоторежим"
+          >
+            <i data-lucide="aperture"></i><span>Обзор</span>
+          </button>
+        </section>
+        <section class="suit-status">
+          <div class="oxygen-icon">O<sub>2</sub></div>
+          <div class="oxygen-data">
+            <div>
+              <span>КИСЛОРОД</span><b>98<span>%</span></b>
+            </div>
+            <div class="oxygen-bars"></div>
+            <small>АВТОНОМНОСТЬ <b>04 Ч 32 М</b></small>
+          </div>
+        </section>
+        <div class="movement-hint">
+          <span
+            ><kbd>W</kbd
+            ><span class="key-row"
+              ><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span
+            ></span
+          ><span>Перемещение</span><span class="hint-divider"></span
+          ><i data-lucide="mouse"></i><span>Зажмите и тяните для обзора</span>
+        </div>
+      </main>
+      <footer class="bottom-bar">
+        <div>
+          <span class="footer-cross">+</span> АРХЕОЛОГ <b>А. ВОЛКОВ</b
+          ><span class="footer-separator">/</span> ПОЗЫВНОЙ <b>«СТРАННИК»</b>
+        </div>
+        <span class="footer-center">НЕ ОСТАВЛЯЙТЕ СЛЕДОВ. КРОМЕ ОТКРЫТИЙ.</span>
+        <div>
+          <span class="live-dot"></span>
+          <span id="save-status">ТЕЛЕМЕТРИЯ АКТИВНА</span
+          ><span class="footer-cross">+</span>
+        </div>
+      </footer>
+    </div>
+    <div
+      class="notification"
+      id="notification"
+      role="status"
+      aria-live="polite"
+    >
+      <span class="notification-icon"><i data-lucide="radio"></i></span>
+      <div>
+        <b id="notification-title"></b>
+        <p id="notification-text"></p>
+      </div>
+    </div>
+    <button id="exit-photo" class="exit-photo" hidden>
+      <i data-lucide="arrow-left"></i> Вернуться к экспедиции <kbd>Esc</kbd>
+    </button>
+    <div class="modal-backdrop" id="modal-backdrop" hidden>
+      <section
+        class="modal"
+        id="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
+      >
+        <div class="modal-header">
+          <div>
+            <div class="eyebrow" id="modal-eyebrow">
+              БОРТОВАЯ СИСТЕМА / ЭРЕБУС
+            </div>
+            <h2 id="modal-title"></h2>
+          </div>
+          <button
+            class="icon-button"
+            id="close-modal"
+            aria-label="Закрыть окно"
+          >
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div id="modal-content"></div>
+      </section>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
