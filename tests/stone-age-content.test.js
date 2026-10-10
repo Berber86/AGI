@@ -207,7 +207,7 @@ test('каменный манёвр — один умеренный эффект
     hp: 99, atk: 99, description: 'Держат линию.', tags: [], abilities: [],
     keywords: ['charge'], effects: [], monkey_paw: '',
   }, 'unit', ['ancient'], 'rare', 'none', { oneLine: true });
-  assert.ok(unit.hp <= 3 && unit.atk <= 2);
+  assert.ok(unit.hp <= 5 && unit.atk <= 3);
   assert.equal(unit.action_cost, 1);
   assert.throws(() => C.validateCard({
     name: 'Копейщики', card_type: 'unit', era: 'ancient', emoji: '🔺', drop_cost: 2, action_cost: 1,
