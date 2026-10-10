@@ -286,3 +286,143 @@ test('кузница выводит журнал на экран, а не в к�
   assert.match(forge, /onClick=\{\(\) => setAiLog\(""\)\}>Скрыть/u, 'панель закрывается по кнопке, а не по таймеру');
   assert.doesNotMatch(forge + store, /setTimeout\([^;]*setAiLog/u, 'панель не гаснет сама');
 });
+
+/* Регрессия: три реальных ответа glm-5.2 с action-строкой вместо вложенного объекта. */
+const INVALID_STATUS_CARDS = require('./fixtures/forge-invalid-status.json');
+const SPELL_ADVICE = { id: 'spell-0-1', cardType: 'spell', title: 'Сбить с шага', pitch: 'Удорожает атаку одного врага.' };
+const statusEffect = () => ({
+  event: 'enter_play',
+  target: { side: 'enemy', entity: 'unit', zone: 'front', select: 'highest_attack', count: 1 },
+  action: { type: 'apply_status', status: 'suppress', amount: 1, turns: 1 },
+});
+const repairedSpell = () => ({
+  ...INVALID_STATUS_CARDS[0], drop_cost: 1, keywords: [], effects: [statusEffect()],
+  description: 'Подсечка нарушает стойку: атака сильнейшего вражеского бойца авангарда дорожает на 1 на один ход.',
+});
+
+for (const [i, invalid] of INVALID_STATUS_CARDS.entries()) {
+  test(`ответ из лога ${i + 1}: одновременно видны неверные action, entity и select; ничего не угадываем`, () => {
+    const api = loadCards(async () => { throw new Error('Сеть не нужна'); }, recorder().console);
+    const before = JSON.stringify(invalid);
+    assert.throws(() => api.validateCard(invalid, 'spell', ['ancient'], 'uncommon', 'none', { oneLine: true }), (error) => {
+      const details = error.validationIssues.join('\n');
+      assert.match(error.message, /effects\[0\]\.action: ожидался объект действия/u);
+      assert.doesNotMatch(error.message, /неизвестное действие/u);
+      assert.match(details, /effects\[0\]\.target\.entity.*unit.*отсутствует/u);
+      assert.match(details, /effects\[0\]\.target\.select.*target\.count.*highest_attack/u);
+      assert.match(details, /"type":"apply_status","status":"suppress","amount":1,"turns":1/u);
+      assert.match(details, i === 2 ? /effects\[0\]\.amount/u : /effects\[0\]\.value/u);
+      return true;
+    });
+    assert.equal(JSON.stringify(invalid), before, 'проверка не мутирует и не ремонтирует исходный JSON');
+  });
+
+  test(`ответ из лога ${i + 1}: переделка получает исходный ответ и все ошибки, исправленная карта принимается`, async () => {
+    const requests = [];
+    // Сохраняем не только JSON, но и его исходное форматирование / обёртку модели.
+    const original = '```json\n' + JSON.stringify(invalid, null, 2) + '\n```';
+    const api = loadCards(async (_url, init) => {
+      requests.push(JSON.parse(init.body));
+      return modelReply(requests.length === 1 ? original : JSON.stringify(repairedSpell()));
+    }, recorder().console);
+    const card = await api.llmCard('glm-5.2', SPELL_ADVICE, 'uncommon', stateAt(0));
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].messages.length, 2, 'первый запрос без фиктивной истории');
+    const messages = requests[1].messages;
+    assert.deepEqual(messages.map((m) => m.role), ['system', 'user', 'assistant', 'user']);
+    assert.equal(messages[2].content, original, 'модель видит свой ответ дословно');
+    assert.deepEqual(messages.slice(0, 2), requests[0].messages, 'правила и исходный заказ не меняются');
+    for (const field of ['action', 'target.entity', 'target.select']) {
+      assert.ok(messages[3].content.includes(`effects[0].${field}`));
+    }
+    assert.match(messages[3].content, /Исправь все перечисленные ошибки/u);
+    assert.match(messages[3].content, /ПОЛНЫЙ JSON/u);
+    assert.deepEqual(JSON.parse(JSON.stringify(card.effects)), [statusEffect()]);
+    assert.equal(card.rarity, 'uncommon');
+  });
+}
+
+test('промпт даёт вложенную схему: все примеры действий и полный пример эффекта проходят валидатор', async () => {
+  let request;
+  const api = loadCards(async (_url, init) => {
+    request = JSON.parse(init.body);
+    return modelReply(JSON.stringify(repairedSpell()));
+  }, recorder().console);
+  await api.llmCard('glm-5.2', SPELL_ADVICE, 'uncommon', stateAt(0));
+  const prompt = request.messages[0].content;
+  assert.match(prompt, /action всегда объект с полем type, никогда строка/u);
+  assert.match(prompt, /select:1 и select:"any" запрещены/u);
+  assert.match(prompt, /НЕ уменьшает ATK/u);
+  const sample = JSON.parse(prompt.match(/Полный пример эффекта манёвра: (\{[^\n]+\})\./u)[1]);
+  assert.deepEqual(JSON.parse(JSON.stringify(api.validateEffects([sample]))), [statusEffect()]);
+  const examples = prompt.split('\n').find((line) => line.startsWith('Примеры структуры действий'));
+  const actions = examples.match(/\{[^{}]+\}/gu).map((json) => JSON.parse(json));
+  assert.equal(actions.length, 11, 'есть пример каждого действия, не только apply_status');
+  for (const action of actions) {
+    const entity = ['modify_resource', 'draw', 'discard', 'exchange', 'scry'].includes(action.type) ? 'player' : 'unit';
+    assert.doesNotThrow(() => api.validateEffects([{ event: 'enter_play', target: { side: 'friendly', entity }, action }]), action.type);
+  }
+});
+
+test('валидатор различает неверную структуру action, неизвестный type и ошибки параметров', () => {
+  const api = loadCards(async () => {}, recorder().console);
+  for (const action of [undefined, null, [], 1, 'apply_status']) {
+    assert.throws(() => api.validateEffects([{ ...statusEffect(), action }]), /action: ожидался объект действия/u);
+  }
+  for (const type of [undefined, 'not_an_action']) {
+    assert.throws(() => api.validateEffects([{ ...statusEffect(), action: { type } }]), /action\.type: неизвестное действие.*apply_status/u);
+  }
+  assert.throws(() => api.validateEffects([{
+    ...statusEffect(), action: { type: 'apply_status', status: 'panic', amount: 0, turns: 4 },
+    target: { side: 'enemy', entity: 'unit', count: 0 }, condition: { type: 'unknown' },
+  }, { ...statusEffect(), action: { type: 'damage' } }]), (error) => {
+    const details = error.validationIssues.join('\n');
+    for (const field of ['action.status', 'action.amount', 'action.turns', 'target.count', 'condition']) {
+      assert.ok(details.includes(`effects[0].${field}`), field);
+    }
+    assert.ok(details.includes('effects[1].action.amount'), 'ошибки следующих эффектов тоже собираются');
+    return true;
+  });
+  assert.throws(() => api.validateEffects([{ ...statusEffect(), value: 'suppress' }]), /effects\[0\]\.value/u,
+    'даже при правильном action плоские параметры не должны молча теряться');
+});
+
+test('полный список не разрешает недопустимые сочетания и сохраняет существующие значения по умолчанию', () => {
+  const api = loadCards(async () => {}, recorder().console);
+  const cases = [
+    [{ ...statusEffect(), target: { side: 'enemy', entity: 'player' } }, /статус только на отряд/u],
+    [{ ...statusEffect(), target: { side: 'enemy', entity: 'unit', relation: 'attack_target' } }, /только для события attack/u],
+    [{ ...statusEffect(), action: { type: 'modify_stat', stat: 'max_hp', amount: -1, turns: 1 } }, /max_hp не может быть временным/u],
+    [{ ...statusEffect(), action: { type: 'modify_resource', resource: 'energy', amount: 1 } }, /цель player/u],
+    [{ ...statusEffect(), event: 'card_death' }, /watch.side/u],
+    [{ ...statusEffect(), target: [] }, /target.*объект/u],
+  ];
+  for (const [effect, message] of cases) assert.throws(() => api.validateEffects([effect]), message);
+  const normalized = api.validateEffects([{
+    event: 'enter_play', target: { side: 'enemy', entity: 'unit' },
+    action: { type: 'apply_status', status: 'suppress', amount: 1 },
+  }, { event: 'enter_play', action: { type: 'modify_resource', resource: 'drop', amount: 1 } }]);
+  assert.equal(normalized[0].action.turns, 2);
+  assert.equal(normalized[0].target.count, 1);
+  assert.equal(normalized[1].action.resource, 'energy', 'совместимость со старой энергией сохранена');
+  assert.equal(normalized[1].target.entity, 'player');
+});
+
+test('на третью попытку передаётся последняя карта, а не первая; три ошибки остаются в журнале', async () => {
+  const requests = [];
+  const originals = INVALID_STATUS_CARDS.map((card) => JSON.stringify(card));
+  const api = loadCards(async (_url, init) => {
+    requests.push(JSON.parse(init.body));
+    return modelReply(originals[requests.length - 1]);
+  }, recorder().console);
+  const error = await api.llmCard('glm-5.2', SPELL_ADVICE, 'uncommon', stateAt(0)).then(() => null, (e) => e);
+  assert.equal(requests.length, 3, 'лимит попыток не увеличен');
+  assert.equal(requests[1].messages[2].content, originals[0]);
+  assert.equal(requests[2].messages[2].content, originals[1]);
+  assert.equal(requests[2].messages.length, 4, 'нет накопления старых ответов и ошибок');
+  assert.match(requests[2].messages[3].content, /effects\[0\]\.turns/u, 'ошибка специфична для второй карты');
+  for (const original of originals) assert.ok(error.journal.includes(original));
+  assert.equal((error.journal.match(/target\.entity неизвестен/gu) || []).length, 3, 'журнал содержит весь список, не только первую причину');
+  assert.match(error.journal, /попытка 3 из 3.*провал/u);
+  assert.doesNotMatch(api.craftErrorMessage(error), /\n/u, 'в тост уходит первая причина, не весь список');
+});

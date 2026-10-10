@@ -270,6 +270,29 @@ export function allCards(collection: Card[]): Card[] {
 const EVENTS = ["enter_play", "attack", "turn_start", "turn_end", "death", "card_death", "card_enter_play", "damaged"];
 const ACTIONS = ["damage", "heal", "apply_status", "destroy", "modify_resource", "modify_stat", "modify_cost", "draw", "discard", "exchange", "scry"];
 const CMP = ["eq", "ne", "lt", "lte", "gt", "gte"];
+const TARGET_SIDES = ["friendly", "enemy", "controller", "opponent", "either"];
+const TARGET_ENTITIES = ["unit", "structure", "permanent", "player"];
+const TARGET_ZONES = ["front", "rear", "flank", "center", "any"];
+const TARGET_RELATIONS = ["any", "self", "adjacent", "attack_target", "attack_target_row", "attack_target_column"];
+const TARGET_SELECTS = ["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose", "all", "random"];
+// Одна справка для промпта и диагностики: параметры находятся ВНУТРИ action, не рядом с ним.
+const ACTION_SHAPES: Record<string, string> = {
+  damage: '{"type":"damage","amount":1}',
+  heal: '{"type":"heal","amount":1}',
+  apply_status: '{"type":"apply_status","status":"suppress","amount":1,"turns":1}',
+  destroy: '{"type":"destroy"}',
+  modify_resource: '{"type":"modify_resource","resource":"energy","amount":-1}',
+  modify_stat: '{"type":"modify_stat","stat":"attack","amount":-1,"turns":1}',
+  modify_cost: '{"type":"modify_cost","cost":"action","amount":1,"turns":1}',
+  draw: '{"type":"draw","amount":1}',
+  discard: '{"type":"discard","amount":1,"choice":"choose"}',
+  exchange: '{"type":"exchange","amount":1,"choice":"choose"}',
+  scry: '{"type":"scry","amount":1}',
+};
+
+type EffectValidationError = Error & { validationIssues: string[] };
+const validationDetails = (error: Error): string =>
+  (error as Partial<EffectValidationError>).validationIssues?.join("\n") || error.message;
 
 function int(v: any, min: number, max: number, name: string) {
   if (!Number.isInteger(v) || v < min || v > max) throw new Error(`Параметр ${name} должен быть целым числом от ${min} до ${max}.`);
@@ -292,66 +315,122 @@ function validateCondition(node: any, depth = 0): any {
   throw new Error("Неизвестный тип условия.");
 }
 
+/** Собираем независимые ошибки всех эффектов; не возвращаем частично исправленную механику. */
 export function validateEffects(raw: any): any[] {
   if (!Array.isArray(raw)) throw new Error("Поле effects должно быть массивом.");
   if (raw.length > 6) throw new Error("Не более 6 эффектов на карте.");
-  return raw.map((e, idx) => {
-    const fail = (m: string): never => { throw new Error(`Эффект ${idx + 1}: ${m}`); };
-    if (!e || typeof e !== "object" || Array.isArray(e)) fail("ожидался объект.");
-    if (!EVENTS.includes(e.event)) fail("неизвестное событие.");
+  const issues: string[] = [];
+  const isObject = (value: any): boolean => Boolean(value && typeof value === "object" && !Array.isArray(value));
+  const received = (value: any): string => value === undefined ? "отсутствует" : JSON.stringify(value);
+  const effects = raw.map((e, idx) => {
+    const fail = (field: string, message: string): void => {
+      issues.push(`Эффект ${idx + 1}: effects[${idx}]${field ? "." + field : ""}: ${message}`);
+    };
+    const enumValue = (field: string, value: any, allowed: string[], message = "неизвестное значение"): boolean => {
+      if (allowed.includes(value)) return true;
+      fail(field, `${message}; допустимы ${allowed.join(", ")}; получено ${received(value)}.`);
+      return false;
+    };
+    const integer = (field: string, value: any, min: number, max: number): number | undefined => {
+      try { return int(value, min, max, field); }
+      catch (error) { fail(field, `${(error as Error).message} Получено ${received(value)}.`); return undefined; }
+    };
+    if (!isObject(e)) { fail("", "ожидался объект эффекта."); return undefined; }
+    enumValue("event", e.event, EVENTS, "неизвестное событие");
     let watch: any = undefined;
     if (e.event === "card_death" || e.event === "card_enter_play") {
-      if (!e.watch || !["all", "friendly", "enemy"].includes(e.watch.side)) fail("нужен watch.side.");
-      watch = { side: e.watch.side };
+      enumValue("watch.side", e.watch?.side, ["all", "friendly", "enemy"], "нужен watch.side");
+      watch = { side: e.watch?.side };
     }
+
     const a = e.action;
-    if (!a || !ACTIONS.includes(a.type)) fail("неизвестное действие.");
-    const action: any = { type: a.type };
-    if (["damage", "heal", "apply_status"].includes(a.type)) action.amount = int(a.amount, 1, a.type === "damage" ? 12 : a.type === "apply_status" ? 5 : 8, "amount");
-    if (a.type === "apply_status") {
-      if (!["poison", "burn", "suppress"].includes(a.status)) fail("только poison, burn или suppress.");
-      action.status = a.status;
-      action.turns = a.turns === undefined ? 2 : int(a.turns, 1, 3, "turns");
+    const action: any = {};
+    // Неверный action не мешает проверить target и condition того же эффекта.
+    if (!isObject(a)) {
+      const example = typeof a === "string" && Object.prototype.hasOwnProperty.call(ACTION_SHAPES, a)
+        ? ACTION_SHAPES[a] : ACTION_SHAPES.damage;
+      fail("action", `ожидался объект действия с полем type, не строка/массив/null; получено ${received(a)}. Пример структуры: ${example}. Параметры действия должны быть внутри action; значения примера не подставляй автоматически.`);
+    } else if (enumValue("action.type", a.type, ACTIONS, "неизвестное действие")) {
+      action.type = a.type;
+      if (["damage", "heal", "apply_status"].includes(a.type)) {
+        action.amount = integer("action.amount", a.amount, 1, a.type === "damage" ? 12 : a.type === "apply_status" ? 5 : 8);
+      }
+      if (a.type === "apply_status") {
+        enumValue("action.status", a.status, ["poison", "burn", "suppress"], "только poison, burn или suppress");
+        action.status = a.status;
+        action.turns = a.turns === undefined ? 2 : integer("action.turns", a.turns, 1, 3);
+      }
+      if (a.type === "modify_resource") {
+        enumValue("action.resource", a.resource, ["energy", "drop", "action"], "resource: energy (drop/action — совместимые старые значения)");
+        action.resource = "energy";
+        action.amount = integer("action.amount", a.amount, -5, 5);
+        if (action.amount === 0) fail("action.amount", "amount не может быть 0.");
+      }
+      if (a.type === "modify_stat") {
+        enumValue("action.stat", a.stat, ["attack", "armor", "max_hp"], "stat: attack, armor или max_hp");
+        action.stat = a.stat;
+        action.amount = integer("action.amount", a.amount, -3, 3);
+        if (action.amount === 0) fail("action.amount", "amount не может быть 0.");
+        if (a.turns !== undefined) {
+          if (a.stat === "max_hp") fail("action.turns", "max_hp не может быть временным.");
+          action.turns = integer("action.turns", a.turns, 1, 3);
+        }
+      }
+      if (a.type === "modify_cost") {
+        action.cost = "action";
+        action.amount = integer("action.amount", a.amount, -3, 3);
+        if (action.amount === 0) fail("action.amount", "amount не может быть 0.");
+        if (a.turns !== undefined) action.turns = integer("action.turns", a.turns, 1, 3);
+      }
+      if (["draw", "discard", "exchange", "scry"].includes(a.type)) {
+        action.amount = integer("action.amount", a.amount, 1, 5);
+        if (["discard", "exchange"].includes(a.type)) action.choice = ["choose", "highest_cost", "lowest_cost"].includes(a.choice) ? a.choice : "choose";
+      }
     }
-    if (a.type === "modify_resource") {
-      if (!["energy", "drop", "action"].includes(a.resource)) fail("resource: energy (drop/action — совместимые старые значения).");
-      action.resource = "energy"; action.amount = int(a.amount, -5, 5, "amount"); if (!action.amount) fail("amount не может быть 0.");
+    // Ловим плоскую схему даже при action-объекте: иначе лишние поля молча теряются.
+    for (const field of ["value", "amount", "turns", "status", "resource", "stat", "cost", "choice"]) {
+      if (e[field] !== undefined) fail(field, field === "value"
+        ? "value не является параметром эффекта. Для статуса используй action.status, для величины — action.amount."
+        : `параметр действия должен находиться в action.${field}, не на уровне эффекта.`);
     }
-    if (a.type === "modify_stat") {
-      if (!["attack", "armor", "max_hp"].includes(a.stat)) fail("stat: attack, armor или max_hp.");
-      action.stat = a.stat; action.amount = int(a.amount, -3, 3, "amount"); if (!action.amount) fail("amount не может быть 0.");
-      if (a.turns !== undefined) { if (a.stat === "max_hp") fail("max_hp не может быть временным."); action.turns = int(a.turns, 1, 3, "turns"); }
-    }
-    if (a.type === "modify_cost") {
-      action.cost = "action"; action.amount = int(a.amount, -3, 3, "amount"); if (!action.amount) fail("amount не может быть 0.");
-      if (a.turns !== undefined) action.turns = int(a.turns, 1, 3, "turns");
-    }
-    if (["draw", "discard", "exchange", "scry"].includes(a.type)) {
-      action.amount = int(a.amount, 1, 5, "amount");
-      if (["discard", "exchange"].includes(a.type)) action.choice = ["choose", "highest_cost", "lowest_cost"].includes(a.choice) ? a.choice : "choose";
-    }
+
     let t = e.target;
-    if (!t && a.type === "modify_resource") t = { side: "controller", entity: "player" };
-    if (!t || typeof t !== "object") fail("нужно задать target.");
-    if (!["friendly", "enemy", "controller", "opponent", "either"].includes(t.side)) fail("target.side неизвестен.");
-    if (!["unit", "structure", "permanent", "player"].includes(t.entity)) fail("target.entity неизвестен.");
-    const target: any = { side: t.side, entity: t.entity };
-    if (t.zone !== undefined) { if (!["front", "rear", "flank", "center", "any"].includes(t.zone)) fail("zone неизвестна."); target.zone = t.zone; }
-    if (t.relation !== undefined) { if (!["any", "self", "adjacent", "attack_target", "attack_target_row", "attack_target_column"].includes(t.relation)) fail("relation неизвестен."); target.relation = t.relation; }
-    if (t.select !== undefined) { if (!["first", "lowest_hp", "lowest_hp_ratio", "highest_attack", "attack_target", "choose", "all", "random"].includes(t.select)) fail("select неизвестен."); target.select = t.select; }
-    const targetRelations = ["attack_target", "attack_target_row", "attack_target_column"];
-    if ((target.select === "attack_target" || targetRelations.includes(target.relation)) && e.event !== "attack") fail("attack_target только для события attack.");
-    if ((target.relation === "adjacent" || targetRelations.includes(target.relation)) && target.entity === "player") fail("это отношение неприменимо к игроку.");
-    if (e.event === "death" && target.relation === "self") fail("погибший источник не может быть целью.");
-    target.count = t.count === undefined ? 1 : int(t.count, 1, 3, "count");
-    if (["apply_status"].includes(a.type) && target.entity !== "unit") fail("статус только на отряд.");
-    if (["modify_stat", "modify_cost", "destroy"].includes(a.type) && target.entity === "player") fail("действие требует цель на поле.");
-    if (["modify_resource", "draw", "discard", "exchange", "scry"].includes(a.type) && target.entity !== "player") fail("действие требует цель player.");
+    if (!t && action.type === "modify_resource") t = { side: "controller", entity: "player" };
+    const target: any = {};
+    if (!isObject(t)) {
+      fail("target", 'нужно задать target — объект с side и entity, например {"side":"enemy","entity":"unit","count":1}.');
+    } else {
+      enumValue("target.side", t.side, TARGET_SIDES, "target.side неизвестен");
+      const validEntity = enumValue("target.entity", t.entity, TARGET_ENTITIES, "target.entity неизвестен");
+      target.side = t.side; target.entity = t.entity;
+      if (t.zone !== undefined) { enumValue("target.zone", t.zone, TARGET_ZONES, "zone неизвестна"); target.zone = t.zone; }
+      if (t.relation !== undefined) { enumValue("target.relation", t.relation, TARGET_RELATIONS, "relation неизвестен"); target.relation = t.relation; }
+      if (t.select !== undefined) {
+        enumValue("target.select", t.select, TARGET_SELECTS, "select неизвестен (это способ выбора, количество задаётся target.count)");
+        target.select = t.select;
+      }
+      const targetRelations = ["attack_target", "attack_target_row", "attack_target_column"];
+      if ((target.select === "attack_target" || targetRelations.includes(target.relation)) && e.event !== "attack") fail("target", "attack_target только для события attack.");
+      if ((target.relation === "adjacent" || targetRelations.includes(target.relation)) && target.entity === "player") fail("target.relation", "это отношение неприменимо к игроку.");
+      if (e.event === "death" && target.relation === "self") fail("target.relation", "погибший источник не может быть целью.");
+      target.count = t.count === undefined ? 1 : integer("target.count", t.count, 1, 3);
+      if (validEntity) {
+        if (action.type === "apply_status" && target.entity !== "unit") fail("target.entity", "статус только на отряд.");
+        if (["modify_stat", "modify_cost", "destroy"].includes(action.type) && target.entity === "player") fail("target.entity", "действие требует цель на поле.");
+        if (["modify_resource", "draw", "discard", "exchange", "scry"].includes(action.type) && target.entity !== "player") fail("target.entity", "действие требует цель player.");
+      }
+    }
     const out: any = { event: e.event, target, action };
     if (watch) out.watch = watch;
-    if (e.condition !== undefined) out.condition = validateCondition(e.condition);
+    if (e.condition !== undefined) {
+      try { out.condition = validateCondition(e.condition); }
+      catch (error) { fail("condition", (error as Error).message); }
+    }
     return out;
   });
+  // Короткая первая причина идёт в тост, полный список — в журнал и запрос переделки.
+  if (issues.length) throw Object.assign(new Error(issues[0]), { validationIssues: issues });
+  return effects;
 }
 
 // Бюджет кузницы — один общий потолок для полезной силы карты: параметры, ключевые слова и полезные
@@ -1022,7 +1101,11 @@ function attemptReport(ctx: AttemptContext, message: string, phase: LogPhase, du
 /** Ошибка несёт весь журнал ковки: все неудачные попытки подряд, в порядке их появления. */
 const withJournal = (error: any, journal: string[]) => Object.assign(error, { journal: journal.join("\n\n") });
 
-interface HydraOpts { model: string; system: string; user: string; temperature: number; maxTokens: number }
+interface HydraOpts {
+  model: string; system: string; user: string; temperature: number; maxTokens: number;
+  /** Только последняя неудачная попытка: не раздуваем историю, но даём конкретный объект для ремонта. */
+  repair?: { response: string; feedback: string };
+}
 
 /** Разобранный JSON и дословный ответ, из которого он извлечён: второе нужно журналу, если правила игры не пройдут. */
 interface ModelReply { json: any; dump: ModelDump }
@@ -1043,7 +1126,13 @@ async function hydraChat(opts: HydraOpts): Promise<ModelReply> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: opts.model,
-      messages: [{ role: "system", content: opts.system }, { role: "user", content: opts.user }],
+      messages: [
+        { role: "system", content: opts.system }, { role: "user", content: opts.user },
+        ...(opts.repair ? [
+          { role: "assistant", content: opts.repair.response },
+          { role: "user", content: opts.repair.feedback },
+        ] : []),
+      ],
       temperature: opts.temperature, max_tokens: opts.maxTokens, response_format: { type: "json_object" },
     }),
   });
@@ -1168,7 +1257,14 @@ const CARD_SYSTEM = `Ты — ИИ-кузнец карточной страте�
 ЭФФЕКТЫ — та же сила: damage/heal=amount; apply_status=amount+ceil((turns−1)/2); modify_resource=2×|amount|; modify_stat/cost=|amount|×turns (без turns ×1); draw/discard/exchange/scry=2×amount. Умножь на число целей и повтор: enter_play/death ×1, attack/damaged ×2, turn_start/end ×3. Unit/structure: ≤4 полезных эффектов, ≤2 целей; нельзя уничтожать врага или бить чужого вождя. Spell: 1–2 enter_play, ≤2 целей, без select=all/destroy. Манёвр: цена минимум 1; общий вес эффектов и энергетические бонусы входит в бюджет. Без бесплатных ударов по всему полю, вечных блокировок и гарантированного уничтожения.
 ПОСТРОЙКА возможна только при наличии тыла; action_cost=0, HP≥1, atk от 0 до 4: 0 — стена (не стреляет), 1 и выше — обстрел каждый ход. Ответ на обстрел не приходит, броня его гасит. Не обещай эффектов, которых нет в механике.
 КЛЮЧЕВЫЕ СЛОВА: armor:N (снижает урон), pierce:N (игнорирует броню), ranged (без ответа), reach (из тыла), charge (+2 первой атаке), shieldwall (броня/защита), wedge (+атака за соседей), phalanx (+атака/броня), skirmish (отход и бой из тыла), taunt (враг бьёт первым), poison/burn (статус при атаке), heal:N (лечит соседа), rally (+атака соседям), fear/morale (бегство), siege (×2 по строениям), sturdy (первый удар слабее), holdground (защита в первый ход), upkeep (урон без соседа), supply/warcry (энергия при выходе), loot/raider (энергия за убийство/попадание), harras (задержка прироста), exhaustenemy (отнимает энергию), cleave:N (соседям цели), blast/sweep/column:N (площадь, одно слово, N=1–2, до 3 целей, N=2 может задеть своего), vengeance:N (ответ при гибели), relentless (вторая атака), scavenger (бонус за сброс), suppress:N (удорожание атаки), unbreakable (иммунитет к бегству/подавлению), laststand (одинокий ряд), flank (открытый фланг), screen (броня соседу впереди), command (+энергия из тыла), spotter (+1 дальнему/площадному удару в столбце), dispersed (защита от площади), entrenched (укрытие в авангарде).
-МЕХАНИКА effects: [{event,target,action,condition?,watch?}]. event: enter_play, attack, turn_start/end, damaged, death, card_death/card_enter_play (последним нужен watch.side). target: side/entity + необязательные zone/relation/select/count (1–3). action: damage, heal, apply_status, destroy, modify_resource/stat/cost, draw/discard/exchange/scry. Spell использует только enter_play; подробные значения и комбинации проверяет валидатор. event=attack — только реакция на удар.
+МЕХАНИКА effects: массив объектов {event,target,action,condition?,watch?}. event: ${EVENTS.join(", ")}; card_death/card_enter_play требуют watch:{"side":"all|friendly|enemy"}. Spell использует только enter_play; event=attack — только реакция на удар.
+ОБЯЗАТЕЛЬНАЯ СТРУКТУРА: action всегда объект с полем type, никогда строка. Допустимые action.type: ${ACTIONS.join(", ")}. Параметры status/amount/turns/resource/stat/cost/choice размещай ВНУТРИ action. Поле value не используется; статус — action.status, величина — action.amount.
+Примеры структуры действий (числа и значения подбирай по замыслу и бюджету, не копируй механически): ${ACTIONS.map((type) => ACTION_SHAPES[type]).join("; ")}.
+damage.amount: целое 1–12; heal.amount: 1–8; apply_status.amount: 1–5, status только poison/burn/suppress, turns 1–3 (по умолчанию 2). suppress удорожает атаку, НЕ уменьшает ATK и НЕ перемещает цель. Для снижения ATK используй modify_stat со stat=attack и отрицательным amount. keywords suppress:N/poison/burn — источники статуса при попадании, не замена enter_play-эффекта манёвра.
+modify_resource: resource=energy, amount целое −5…5 кроме 0. modify_stat: stat=attack/armor/max_hp, amount целое −3…3 кроме 0, turns необязателен (1–3), но запрещён для max_hp. modify_cost: cost=action, amount целое −3…3 кроме 0, turns необязателен (1–3). Без turns modify_stat/modify_cost постоянны. draw/discard/exchange/scry: amount целое 1–5; discard/exchange.choice: choose/highest_cost/lowest_cost (по умолчанию choose). destroy без параметров, но запрещён для манёвра и против врага.
+target — объект: обязательные side (${TARGET_SIDES.join(", ")}) и entity (${TARGET_ENTITIES.join(", ")}); необязательные zone (${TARGET_ZONES.join(", ")}), relation (${TARGET_RELATIONS.join(", ")}), select (${TARGET_SELECTS.join(", ")}), count (целое 1–3, по умолчанию 1). select — способ выбора, НЕ количество: select:1 и select:"any" запрещены. В текущем движке choose — автоматический выбор, не ручной. apply_status требует entity=unit; modify_resource/draw/discard/exchange/scry требуют entity=player; modify_stat/modify_cost/destroy требуют цель на поле. relation/select=attack_target и relation=attack_target_row/attack_target_column — только для event=attack; adjacent/attack_target* неприменимы к player; death не может целиться в self. Ограничения эпохи и типа карты на число целей строже общего count 1–3.
+Полный пример эффекта манёвра: {"event":"enter_play","target":{"side":"enemy","entity":"unit","zone":"front","select":"highest_attack","count":1},"action":{"type":"apply_status","status":"suppress","amount":1,"turns":1}}.
+condition необязательно: {"type":"target_wounded"}; {"type":"target_status","status":"poison|burn|suppress"}; {"type":"target_stat","stat":"hp|attack|armor","op":"eq|ne|lt|lte|gt|gte","value":1}; {"type":"resource","side":"controller|opponent","resource":"energy","op":"gte","value":1}; {"type":"board_count","side":"controller|opponent","op":"gte","value":1}. В условиях value — целое 0–99 (board_count 0–8). Комбинации: {"all":[условия]} / {"any":[условия]} (1–4) / {"not":условие}, глубина не больше 3. Запись с | в примерах означает выбор ОДНОГО значения, не буквальную строку с |.
 description: 1–2 коротких предложения об одном боевом образе. abilities всегда []. tags — до трёх кратких слов. Все боевые эффекты описывай в effects, не только в тексте.
 ИСТОРИЯ: поле history обязательно: {"title":"","text":""}. title — реальный прототип указанной эпохи (находка, обычай, тип отряда или звание); text — 2–3 коротких предложения о материале/технологии и связи прототипа с цифрами или ролью карты. Не выдумывай место, народ или находку. Культурное наследие — необязательный ориентир: не надо вставлять имя народа и его клише в каждую карту; чередуй военные, бытовые и технологические источники эпохи.
 Схема JSON: {"name":"","card_type":"unit|spell|structure","era":"ancient|bronze","emoji":"один эмодзи","drop_cost":1,"action_cost":0,"hp":0,"atk":0,"description":"","tags":[],"abilities":[],"keywords":[],"effects":[],"monkey_paw":"текст заказанной платы или пустая строка","history":{"title":"","text":""}}. Для spell: hp=0, atk=0, action_cost=0. Для structure: action_cost=0. Для unit: hp≥1. Все названия и тексты — по-русски.`;
@@ -1202,18 +1298,20 @@ ${contextOf(state)}
   const temperature = rarity === "rare" ? 1 : rarity === "uncommon" ? 0.9 : 0.75;
 
   // Жребий лапы обезьяны известен только кузнецу: игрок увидит плату уже на готовой карте.
-  // Две переделки — каждая получает точный текст ошибки и те же жёсткие правила. Плата не ослабляется
+  // Две переделки — каждая получает предыдущий ответ, список ошибок и те же жёсткие правила. Плата не ослабляется
   // на последней попытке: иначе карта получила бы ×3 бюджета за штраф неправильной категории.
   const journal: string[] = [];
   let lastError: Error | null = null;
+  let lastResponse = "";
   for (let attempt = 0; attempt < 3; attempt++) {
     const retry = lastError
-      ? `\n\nПредыдущий ответ не прошёл проверку игры: ${lastError.message}\nИсправь ровно это${paw !== "none" ? `, пересчитай суммарный вес платы и попади в строгую полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}`}; не ослабляй полезную часть карты` : ""} и верни ПОЛНЫЙ JSON карты заново.`
+      ? `Предыдущий ответ не прошёл проверку игры: ${validationDetails(lastError)}\nИсправь все перечисленные ошибки в предыдущей карте по схеме из системного сообщения; проверь связанные поля. Сохрани замысел и корректные части карты${paw !== "none" ? `, пересчитай суммарный вес платы и попади в строгую полосу ${paw === "minor" ? `1…${PAW_MINOR_MAX}` : `${PAW_MINOR_MAX + 1}…${PAW_HARSH_MAX}`}; не ослабляй полезную часть карты` : ""}. Не обходи проверку удалением обязательного эффекта. Верни ПОЛНЫЙ JSON карты заново, не патч и не пояснение.`
       : "";
     const ctx: AttemptContext = { stage: "Карта", attempt: attempt + 1, attempts: 3, model, details: `тип ${advice.cardType} · редкость ${rarity} · лапа ${paw}` };
     const reply = await askModel(ctx, {
       model, maxTokens: 3000, temperature, system,
-      user: `${brief}\n\n${pawDirective(paw)}${retry}`,
+      user: `${brief}\n\n${pawDirective(paw)}`,
+      repair: lastError ? { response: lastResponse, feedback: retry } : undefined,
     }, journal);
     try {
       const card = validateCard(reply.json, advice.cardType, allowed, rarity, paw, { oneLine });
@@ -1234,7 +1332,8 @@ ${contextOf(state)}
       return card;
     } catch (e: any) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      journal.push(attemptReport(ctx, lastError.message, "проверка", reply.dump, attempt === 2));
+      lastResponse = reply.dump.text;
+      journal.push(attemptReport(ctx, validationDetails(lastError), "проверка", reply.dump, attempt === 2));
     }
   }
   throw withJournal(lastError ?? new Error("Кузнец не смог выковать карту."), journal);
