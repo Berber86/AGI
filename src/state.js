@@ -1,12 +1,15 @@
+import { initialBase, validateBase } from "./base-state.js";
+import { readSectors, sectorProgress, applyCleaning } from "./excavation.js";
 export const SAVE_KEY = "palimpsest-expedition-v1";
 export const GLYPHS = ["⌁", "⋈", "◇", "⟁"];
 export function initialState() {
   return {
     scanned: false,
+    base: initialBase(),
     relics: [
-      { clean: 0, decoded: false },
-      { clean: 0, decoded: false },
-      { clean: 0, decoded: false },
+      { clean: 0, sectors: [0, 0, 0], decoded: false },
+      { clean: 0, sectors: [0, 0, 0], decoded: false },
+      { clean: 0, sectors: [0, 0, 0], decoded: false },
     ],
     completed: false,
   };
@@ -19,17 +22,16 @@ export function validateState(raw) {
   state.relics = state.relics.map((r, i) => {
     const item = raw.relics[i];
     if (!item || typeof item !== "object") return r;
-    const clean =
-      typeof item.clean === "number" && Number.isFinite(item.clean)
-        ? Math.min(100, Math.max(0, item.clean))
-        : 0;
+    const sectors = readSectors(item);
+    const clean = sectorProgress(sectors);
     const decoded = item.decoded === true && clean === 100 && state.scanned;
-    return { clean, decoded };
+    return { clean, sectors, decoded };
   });
   state.completed = state.relics.every((r) => r.decoded);
+  state.base = validateBase(raw.base, state.relics);
   return state;
 }
-export function cleanRelic(state, index, amount) {
+export function cleanRelic(state, index, amount, sector = -1) {
   const relic = state.relics[index];
   if (
     !state.scanned ||
@@ -39,8 +41,7 @@ export function cleanRelic(state, index, amount) {
     amount <= 0
   )
     return false;
-  relic.clean = Math.min(100, relic.clean + amount);
-  return relic.clean === 100;
+  return applyCleaning(relic, amount, sector);
 }
 export function decodeRelic(state, index, answer, solution) {
   const relic = state.relics[index];

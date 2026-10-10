@@ -32,6 +32,7 @@ try {
   await page.locator("#map-button").click({ force: true });
   await page.locator('[data-site="0"]').click({ force: true });
   await expect(page.locator("#clean-button")).toBeVisible({ timeout: 30000 });
+  await page.locator("#clean-button").scrollIntoViewIfNeeded();
   const box = await page.locator("#clean-button").boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();

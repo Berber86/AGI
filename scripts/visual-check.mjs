@@ -22,7 +22,12 @@ try {
   console.log(
     "RENDER METRICS",
     await page.evaluate(async () =>
-      (await import("/src/main.js")).getDiagnostics(),
+      (
+        await import(
+          document.querySelector('script[type="module"][src*="/src/main.js"]')
+            .src
+        )
+      ).getDiagnostics(),
     ),
   );
   await page.locator("#settings-button").click({ force: true });

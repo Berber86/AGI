@@ -1,4 +1,13 @@
 import * as THREE from "three";
+import {
+  createBaseInterior,
+  createLander,
+  BASE_POSITION,
+} from "./base-world.js";
+import { erodedRock, sandTexture } from "./landscape.js";
+import { RenderPipeline } from "./render-pipeline.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { createRelicModel } from "./relic-model.js";
 import { resolveMovement } from "./navigation.js";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
@@ -70,7 +79,7 @@ export class World {
     this.enabled = true;
     this.scanning = false;
     this.scanTime = -100;
-    this.quality = "high";
+    this.quality = innerWidth < 760 ? "low" : "high";
     this.sensitivity = 1;
     this.reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
@@ -78,7 +87,7 @@ export class World {
     this.colliders = [];
     this.rand = random(717);
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x9da79e, 0.007);
+    this.scene.fog = new THREE.FogExp2(0x8eaaa9, 0.0048);
     try {
       this.renderer = new THREE.WebGLRenderer({
         antialias: true,
@@ -93,7 +102,7 @@ export class World {
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.12;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
@@ -126,10 +135,24 @@ export class World {
     this.buildGround();
     this.buildMountains();
     this.buildArchitecture();
+    const lander = createLander();
+    lander.position.set(
+      BASE_POSITION[0],
+      groundHeight(BASE_POSITION[0], BASE_POSITION[2]) + 1.5,
+      BASE_POSITION[2],
+    );
+    this.scene.add(lander);
+    this.colliders.push({
+      x: BASE_POSITION[0],
+      z: BASE_POSITION[2],
+      radius: 6,
+    });
     this.mergeStatic();
     this.buildRocks();
     this.buildRelics();
     this.buildAtmosphere();
+    this.pipeline = new RenderPipeline(this.renderer, this.scene, this.camera);
+    this.setQuality(this.quality);
     this.bindControls();
     this.clock = new THREE.Clock();
     this.resize = () => {
@@ -137,6 +160,7 @@ export class World {
       this.camera.aspect = innerWidth / innerHeight;
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(innerWidth, innerHeight);
+      this.pipeline.configure(this.quality, innerWidth, innerHeight);
     };
     window.addEventListener("resize", this.resize);
     this.renderer.domElement.addEventListener("webglcontextlost", (e) => {
@@ -153,8 +177,8 @@ export class World {
       side: THREE.BackSide,
       depthWrite: false,
       uniforms: {
-        top: { value: new THREE.Color("#294653") },
-        bottom: { value: new THREE.Color("#a3aaa1") },
+        top: { value: new THREE.Color("#19394e") },
+        bottom: { value: new THREE.Color("#b9c4b7") },
         sunDir: { value: new THREE.Vector3(-0.65, 0.17, -0.65).normalize() },
       },
       vertexShader: `varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
@@ -191,7 +215,7 @@ export class World {
       ),
     );
     const planet = new THREE.Group();
-    planet.position.set(165, 175, -450);
+    planet.position.set(145, 153, -510);
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(74, 72, 48),
       new THREE.ShaderMaterial({
@@ -199,7 +223,10 @@ export class World {
           light: { value: new THREE.Vector3(-1, 0.25, 0.65).normalize() },
         },
         vertexShader: `varying vec3 vN;varying vec3 vP;void main(){vN=normal;vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-        fragmentShader: `varying vec3 vN;varying vec3 vP;uniform vec3 light;void main(){float f=sin(vP.y*.21+sin(vP.x*.08)*1.2)+sin(vP.y*.57+cos(vP.z*.08))*.25;vec3 c=mix(vec3(.27,.31,.31),vec3(.66,.66,.52),f*.23+.5);float l=pow(max(dot(vN,light),0.),.65);float rim=pow(1.-max(vN.z,0.),3.);c=c*(l*.85+.13)+vec3(.10,.16,.17)*rim;gl_FragColor=vec4(c,1.);}`,
+        fragmentShader: `varying vec3 vN;varying vec3 vP;uniform vec3 light;void main(){float f=sin(vP.y*.21+sin(vP.x*.08)*1.2)+sin(vP.y*.57+cos(vP.z*.08))*.25;vec3 c=mix(vec3(.27,.31,.31),vec3(.66,.66,.52),f*.23+.5);float l=pow(max(dot(vN,light),0.),.65);float rim=pow(1.-max(vN.z,0.),3.);c=c*(l*.85+.13)+vec3(.10,.16,.17)*rim;gl_FragColor=vec4(c,1.);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
       }),
     );
     planet.add(sphere);
@@ -210,7 +237,10 @@ export class World {
         side: THREE.DoubleSide,
         depthWrite: false,
         vertexShader: `varying vec3 p;void main(){p=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-        fragmentShader: `varying vec3 p;void main(){float r=length(p.xy);float n=sin(r*7.)*.15+sin(r*22.)*.1+.55;float gaps=smoothstep(0.,2.,abs(r-112.));float a=n*gaps*smoothstep(136.,127.,r)*smoothstep(88.,93.,r);gl_FragColor=vec4(vec3(.68,.66,.50)*(.65+n*.3),a*.9);}`,
+        fragmentShader: `varying vec3 p;void main(){float r=length(p.xy);float n=sin(r*7.)*.15/(1.+fwidth(r)*7.)+sin(r*22.)*.1/(1.+fwidth(r)*22.)+.55;float gaps=smoothstep(0.,2.,abs(r-112.));float a=n*gaps*(1.-smoothstep(127.,136.,r))*smoothstep(88.,93.,r);gl_FragColor=vec4(vec3(.68,.66,.50)*(.65+n*.3),a*.65);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}`,
       }),
     );
     ring.rotation.set(1.12, 0.28, -0.27);
@@ -225,9 +255,9 @@ export class World {
     this.scene.add(moon);
   }
   buildLights() {
-    this.scene.add(new THREE.HemisphereLight(0xc1d6d3, 0x494438, 1.45));
-    const sun = new THREE.DirectionalLight(0xffd0a1, 3.8);
-    sun.position.set(-65, 65, -35);
+    this.scene.add(new THREE.HemisphereLight(0xc0dfef, 0x5b4831, 1.65));
+    const sun = new THREE.DirectionalLight(0xffd5a6, 4.5);
+    sun.position.set(-55, 38, 18);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, {
@@ -238,11 +268,12 @@ export class World {
       near: 1,
       far: 220,
     });
-    sun.shadow.normalBias = 0.1;
+    sun.shadow.normalBias = 0.045;
+    sun.shadow.radius = 2;
     sun.shadow.bias = -0.0003;
     sun.target.position.set(0, 0, -12);
     this.scene.add(sun, sun.target);
-    const fill = new THREE.DirectionalLight(0x8eaeb5, 0.8);
+    const fill = new THREE.DirectionalLight(0x8ec5de, 0.65);
     fill.position.set(40, 18, 60);
     this.scene.add(fill);
   }
@@ -255,34 +286,19 @@ export class World {
       const x = p.getX(i),
         z = p.getZ(i);
       p.setY(i, groundHeight(x, z));
-      const v = 0.45 + noise(x * 2, z * 2) * 0.028;
+      const v = 0.68 + noise(x * 2, z * 2) * 0.038;
       colors.push(v * 1.06, v * 1.03, v * 0.89);
     }
     g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     g.computeVertexNormals();
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 256;
-    const ctx = canvas.getContext("2d");
-    const data = ctx.createImageData(256, 256);
-    for (let i = 0; i < data.data.length; i += 4) {
-      const v = 120 + this.rand() * 90;
-      data.data[i] = v;
-      data.data[i + 1] = v;
-      data.data[i + 2] = v;
-      data.data[i + 3] = 255;
-    }
-    ctx.putImageData(data, 0, 0);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(190, 190);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = sandTexture();
     const mat = new THREE.MeshStandardMaterial({
-      color: 0xc5b99e,
+      color: 0xd2b693,
       vertexColors: true,
       roughness: 1,
       map: tex,
       bumpMap: tex,
-      bumpScale: 0.18,
+      bumpScale: 0.095,
     });
     mat.onBeforeCompile = (s) => {
       Object.assign(s.uniforms, this.uniforms);
@@ -294,6 +310,28 @@ export class World {
       s.fragmentShader =
         "varying vec3 vWorld;uniform float scanRadius;uniform vec3 scanOrigin;uniform float scanActive;\n" +
         s.fragmentShader;
+      s.uniforms.footings = {
+        value: Array.from({ length: 12 }, (_, i) => {
+          const c = this.colliders[i];
+          return c
+            ? new THREE.Vector3(c.x, c.z, c.radius)
+            : new THREE.Vector3(10000, 10000, 0);
+        }),
+      };
+      s.fragmentShader = "uniform vec3 footings[12];\n" + s.fragmentShader;
+      s.fragmentShader = s.fragmentShader.replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        float weather = sin(vWorld.x*.065 + sin(vWorld.z*.047)*2.) * sin(vWorld.z*.09);
+        diffuseColor.rgb *= .94 + weather*.09;
+        float contact = 1.;
+        for(int i=0;i<12;i++) {
+          float d = length(vWorld.xz-footings[i].xy) / max(.1,footings[i].z);
+          contact *= 1.-.36*exp(-d*d*.9);
+        }
+        diffuseColor.rgb *= contact;
+      `,
+      );
       s.fragmentShader = s.fragmentShader.replace(
         "#include <dithering_fragment>",
         `#include <dithering_fragment>\nfloat d=distance(vWorld.xz,scanOrigin.xz);float band=exp(-pow((d-scanRadius)*.5,2.))*scanActive;float grid=pow(abs(sin(vWorld.x*.8)*sin(vWorld.z*.8)),18.);gl_FragColor.rgb+=vec3(.28,.65,.47)*band*(.5+grid*.9);`,
@@ -428,16 +466,7 @@ export class World {
       const x = -130 + i * 10,
         z = -118 + Math.sin(i * 0.6) * 15,
         h = 8 + this.rand() * 20;
-      const g = new THREE.IcosahedronGeometry(1, 2),
-        p = g.attributes.position;
-      for (let k = 0; k < p.count; k++) {
-        const xx = p.getX(k),
-          yy = p.getY(k),
-          zz = p.getZ(k);
-        const d = 1 + Math.sin(xx * 16 + yy * 13) * Math.cos(zz * 14) * 0.13;
-        p.setXYZ(k, xx * d, yy * d, zz * d);
-      }
-      g.computeVertexNormals();
+      const g = erodedRock(6, i * 0.83);
       const m = new THREE.Mesh(g, cliffMat);
       m.scale.set(11 + this.rand() * 9, h, 12);
       m.position.set(x, h * 0.25 - 1, z);
@@ -476,7 +505,12 @@ export class World {
     }
   }
   block(parent, dimensions, position, material, rotation = 0) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(...dimensions), material);
+    const m = new THREE.Mesh(
+      Math.min(...dimensions) > 0.45
+        ? new RoundedBoxGeometry(...dimensions, 1, 0.075)
+        : new THREE.BoxGeometry(...dimensions),
+      material,
+    );
     m.position.set(...position);
     m.rotation.y = rotation;
     m.castShadow = true;
@@ -660,7 +694,7 @@ export class World {
     distant.position.set(-63, 0, -65);
     this.scene.add(distant);
     for (let i = 0; i < 5; i++) {
-      let h = 9 + this.rand() * 17;
+      const h = i === 0 || i === 4 ? 21 : 10 + this.rand() * 11;
       this.block(
         distant,
         [4, h, 4],
@@ -685,8 +719,8 @@ export class World {
   }
   buildRocks() {
     const count = 1700;
-    const geo = new THREE.IcosahedronGeometry(1, 1);
-    const mat = this.stone(0x636b5c);
+    const geo = erodedRock(2, 3);
+    const mat = this.stone(0x7b8275);
     const rocks = new THREE.InstancedMesh(geo, mat, count);
     const dummy = new THREE.Object3D();
     const color = new THREE.Color();
@@ -704,7 +738,7 @@ export class World {
       dummy.rotation.set(this.rand() * 3, this.rand() * 6, this.rand() * 2);
       dummy.updateMatrix();
       rocks.setMatrixAt(i, dummy.matrix);
-      const v = 0.47 + this.rand() * 0.2;
+      const v = 0.65 + this.rand() * 0.24;
       color.setRGB(v * 0.92, v, v * 0.89);
       rocks.setColorAt(i, color);
     }
@@ -719,7 +753,7 @@ export class World {
       [43, 48, 5],
       [-2, 55, 3.3],
     ]) {
-      const m = new THREE.Mesh(geo, this.stone(0x4b574e));
+      const m = new THREE.Mesh(erodedRock(5, x), this.stone(0x64746d));
       m.scale.set(s * 1.5, s * 0.75, s);
       m.position.set(x, groundHeight(x, z), z);
       m.rotation.set(0.3, x, 0.2);
@@ -731,30 +765,12 @@ export class World {
   buildRelics() {
     this.relics = [];
     const stone = this.stone(0x425a51);
-    const glow = new THREE.MeshStandardMaterial({
-      color: 0xc4d9ad,
-      emissive: 0xb6dca2,
-      emissiveIntensity: 1.8,
-      metalness: 0.5,
-      roughness: 0.3,
-    });
     for (let i = 0; i < SITES.length; i++) {
       const s = SITES[i];
       const group = new THREE.Group();
       group.position.set(...s.position);
       this.scene.add(group);
-      let core;
-      if (i === 0) {
-        core = new THREE.Mesh(new THREE.OctahedronGeometry(0.65), glow);
-        core.scale.set(0.65, 1.6, 0.55);
-      } else if (i === 1) {
-        core = new THREE.Mesh(new THREE.TorusGeometry(0.64, 0.09, 6, 32), glow);
-        core.rotation.x = 0.5;
-        group.add(new THREE.Mesh(new THREE.OctahedronGeometry(0.25), glow));
-      } else {
-        core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.62, 0), glow);
-      }
-      core.castShadow = true;
+      const core = createRelicModel(i);
       group.add(core);
       const pedestal = new THREE.Mesh(
         new THREE.CylinderGeometry(1.2, 1.8, 1.4, 6),
@@ -882,7 +898,8 @@ export class World {
       stop();
     });
   }
-  scan() {
+  scan(duration = 4.2) {
+    this.scanDuration = duration;
     this.scanTime = this.elapsed;
     this.uniforms.scanOrigin.value.copy(this.camera.position);
     this.scanning = true;
@@ -903,6 +920,47 @@ export class World {
       time: 0,
     };
   }
+  enterBase(base) {
+    if (this.inBase) return;
+    this.fieldView = {
+      position: this.camera.position.clone(),
+      yaw: this.targetY,
+      pitch: this.targetP,
+      fov: this.camera.fov,
+    };
+    this.baseInterior ??= createBaseInterior(this.renderer);
+    this.baseInterior.setQuality(this.quality);
+    this.renderer.shadowMap.needsUpdate = true;
+    this.baseInterior.sync(base);
+    this.inBase = true;
+    this.travel = null;
+    this.keys.clear();
+    this.camera.position.set(0, 2.15, 5.5);
+    this.camera.fov = 65;
+    this.camera.updateProjectionMatrix();
+    this.targetY = this.yaw = 0;
+    this.targetP = this.pitch = -0.015;
+    this.pipeline.setScene(this.baseInterior.scene);
+    this.needsRender = true;
+  }
+  exitBase() {
+    if (!this.inBase) return;
+    this.inBase = false;
+    this.keys.clear();
+    this.camera.position.copy(this.fieldView.position);
+    this.targetY = this.yaw = this.fieldView.yaw;
+    this.targetP = this.pitch = this.fieldView.pitch;
+    this.camera.fov = this.fieldView.fov;
+    this.camera.updateProjectionMatrix();
+    this.pipeline.setScene(this.scene);
+    this.renderer.shadowMap.needsUpdate = true;
+    this.needsRender = true;
+  }
+  syncBase(base) {
+    this.baseInterior?.sync(base);
+    if (this.inBase) this.renderer.shadowMap.needsUpdate = true;
+    this.needsRender = true;
+  }
   resetView() {
     this.camera.position.copy(this.startPosition);
     this.targetY = this.startYaw;
@@ -912,12 +970,14 @@ export class World {
   setQuality(q) {
     this.needsRender = true;
     this.quality = q;
+    this.baseInterior?.setQuality(q);
     this.renderer.setPixelRatio(
       Math.min(devicePixelRatio, q === "high" ? 1.65 : 1),
     );
     this.renderer.shadowMap.enabled = q === "high";
     this.renderer.shadowMap.needsUpdate = true;
     this.dust.visible = q === "high";
+    this.pipeline.configure(q, innerWidth, innerHeight);
     this.scene.traverse((o) => {
       if (o.material) {
         const mats = Array.isArray(o.material) ? o.material : [o.material];
@@ -976,7 +1036,7 @@ export class World {
           Number(k.has("KeyD") || k.has("ArrowRight")) -
           Number(k.has("KeyA") || k.has("ArrowLeft"));
         if (f || s) {
-          const speed = (k.has("ShiftLeft") ? 12 : 6) * dt;
+          const speed = (this.inBase ? 2.8 : k.has("ShiftLeft") ? 12 : 6) * dt;
           const n = Math.hypot(f, s);
           const next = resolveMovement(
             this.camera.position,
@@ -990,12 +1050,18 @@ export class World {
                   speed) /
                 n,
             },
-            this.colliders,
+            this.inBase ? [] : this.colliders,
           );
-          this.camera.position.x = next.x;
-          this.camera.position.z = next.z;
-          const gy =
-            groundHeight(this.camera.position.x, this.camera.position.z) + 4.5;
+          this.camera.position.x = this.inBase
+            ? THREE.MathUtils.clamp(next.x, -2.8, 2.8)
+            : next.x;
+          this.camera.position.z = this.inBase
+            ? THREE.MathUtils.clamp(next.z, -3.1, 5.5)
+            : next.z;
+          const gy = this.inBase
+            ? 2.15
+            : groundHeight(this.camera.position.x, this.camera.position.z) +
+              4.5;
           this.camera.position.y = THREE.MathUtils.lerp(
             this.camera.position.y,
             gy,
@@ -1009,11 +1075,14 @@ export class World {
     this.pitch = THREE.MathUtils.lerp(this.pitch, this.targetP, blend);
     this.camera.rotation.set(this.pitch, this.yaw, 0, "YXZ");
     const st = t - this.scanTime;
-    this.uniforms.scanRadius.value = st * 27;
+    this.uniforms.scanRadius.value = st * (113.4 / (this.scanDuration || 4.2));
     this.uniforms.scanActive.value =
-      st < 4.2 ? Math.min(1, st * 4) * Math.min(1, (4.2 - st) * 2) : 0;
-    if (st > 4.2) this.scanning = false;
-    if (!this.reducedMotion && this.enabled) {
+      st < (this.scanDuration || 4.2)
+        ? Math.min(1, st * 4) *
+          Math.min(1, ((this.scanDuration || 4.2) - st) * 2)
+        : 0;
+    if (st > (this.scanDuration || 4.2)) this.scanning = false;
+    if (!this.reducedMotion && this.enabled && !this.inBase) {
       for (let i = 0; i < this.relics.length; i++) {
         const r = this.relics[i];
         r.core.rotation.y = t * 0.2 + i;
@@ -1029,7 +1098,7 @@ export class World {
       pos.needsUpdate = true;
     }
     if (this.enabled || this.scanning || this.needsRender) {
-      this.renderer.render(this.scene, this.camera);
+      this.pipeline.render();
       this.needsRender = false;
     }
     this.onFrame?.(t, dt);

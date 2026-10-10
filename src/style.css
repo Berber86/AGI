@@ -2293,3 +2293,756 @@ kbd {
     white-space: nowrap;
   }
 }
+
+/* Research station: a real, on-demand 3D viewport, with a resilient SVG fallback. */
+.artifact-inspection {
+  grid-template-columns: minmax(220px, 1.15fr) 1fr;
+  align-items: center;
+}
+.artifact-visual {
+  height: 280px;
+  background: radial-gradient(ellipse at 50% 40%, #33544b70, #0b1415 76%);
+}
+.artifact-visual.has-3d > svg,
+.artifact-visual.has-3d .artifact-dust {
+  display: none;
+}
+.artifact-visual canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.artifact-visual canvas:active {
+  cursor: grabbing;
+}
+.artifact-visual canvas:focus-visible {
+  outline: 2px solid #c8d6a6;
+  outline-offset: -5px;
+}
+.artifact-visual::after,
+.artifact-visual small {
+  pointer-events: none;
+}
+.inspection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 22px;
+}
+.inspection-toolbar > span {
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1px;
+  color: #9eb5a7;
+  line-height: 1.8;
+}
+.inspection-toolbar button {
+  font-size: 10px;
+  min-height: 36px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+.research-stages {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+.research-stages li {
+  flex: 1;
+  border-top: 1px solid #adc8b32b;
+  padding-top: 10px;
+  color: #72877c;
+  font:
+    10px Space,
+    Manrope,
+    sans-serif;
+}
+.research-stages li span {
+  margin-left: 5px;
+}
+.research-stages .current {
+  border-color: #d6c49a;
+  color: #e2d3ac;
+}
+.research-stages .done {
+  border-color: #8fbba0;
+  color: #a8cab4;
+}
+@media (max-width: 600px) {
+  .artifact-inspection {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .artifact-visual {
+    height: 235px;
+  }
+  .artifact-info .relic-meta {
+    font-size: 8px;
+  }
+  .artifact-info p {
+    font-size: 12px;
+  }
+  .artifact-info h3 {
+    font-size: 17px;
+  }
+  .inspection-toolbar > span {
+    font-size: 7px;
+  }
+  .research-stages li {
+    font-size: 9px;
+  }
+}
+@media (max-height: 500px) and (min-width: 601px) {
+  .artifact-visual {
+    height: 190px;
+  }
+}
+.inscription-glyph {
+  width: 25px;
+  height: 25px;
+  display: inline-block;
+  vertical-align: middle;
+}
+.glyph-clue {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+.glyph-clue .inscription-glyph {
+  width: 21px;
+  height: 21px;
+}
+.glyph-button {
+  display: grid;
+  place-items: center;
+}
+
+/* Iteration 02: regional excavation and evidence. */
+.inspection-toolbar {
+  flex-wrap: wrap;
+}
+.inspection-toolbar > span {
+  flex: 1 1 130px;
+}
+.inspection-tools {
+  display: flex;
+  border: 1px solid #adc8b32b;
+}
+.inspection-tools button {
+  padding: 9px 13px;
+  min-height: 38px;
+  color: #9eb5a7;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.inspection-tools button.active {
+  background: #c7dcbf;
+  color: #142f29;
+}
+.inspection-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.surface-evidence {
+  border-top: 1px solid #adc8b324;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+.evidence-title {
+  display: flex;
+  justify-content: space-between;
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1px;
+  color: #9eb5a7;
+  margin-bottom: 10px;
+}
+.evidence-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  color: #82958b;
+}
+.evidence-symbol {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #9cb39730;
+}
+.evidence-symbol .inscription-glyph {
+  width: 18px;
+  height: 18px;
+}
+.evidence-row b {
+  font-size: 10px;
+  font-weight: 500;
+}
+.evidence-row p {
+  font-size: 9px;
+  line-height: 1.6;
+  margin: 3px 0 0;
+}
+.evidence-row.revealed {
+  color: #cbdabd;
+}
+.evidence-row.revealed .evidence-symbol {
+  border-color: #acc39780;
+  background: #a3c3920b;
+}
+.sector-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 16px 0 12px;
+}
+.sector-selector button {
+  border: 1px solid #acc39730;
+  background: transparent;
+  padding: 10px 4px;
+  color: #aebdae;
+  cursor: pointer;
+  font:
+    10px Manrope,
+    sans-serif;
+  min-height: 42px;
+}
+.sector-selector button[aria-pressed="true"] {
+  border-color: #cfbf93;
+  background: #cfbf9310;
+  color: #e2d3ac;
+}
+.sector-selector span {
+  display: block;
+  font:
+    8px Space,
+    sans-serif;
+  margin-top: 5px;
+  opacity: 0.8;
+}
+.artifact-visual.brush-mode canvas {
+  cursor: crosshair;
+}
+.brush-cursor {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e3d4a9;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px #e3d4a917;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.brush-cursor::after {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  background: #e3d4a9;
+  border-radius: 50%;
+}
+@media (max-width: 600px) {
+  .artifact-inspection {
+    gap: 12px;
+  }
+  .surface-evidence {
+    margin-top: 12px;
+  }
+  .evidence-row p {
+    font-size: 10px;
+  }
+  .artifact-visual {
+    height: 210px;
+  }
+  .inspection-toolbar {
+    gap: 8px;
+  }
+}
+.surface-evidence summary {
+  cursor: pointer;
+  min-height: 28px;
+  align-items: center;
+}
+.surface-evidence summary::before {
+  content: "+";
+  margin-right: 8px;
+  font-size: 14px;
+}
+.surface-evidence[open] summary::before {
+  content: "−";
+}
+.surface-evidence summary span {
+  margin-left: auto;
+}
+.research-stages {
+  margin-top: 20px;
+}
+@media (max-width: 600px) {
+  .inspection-toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+  .inspection-toolbar > span {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .inspection-tools {
+    width: max-content;
+  }
+  .inspection-toolbar #inspection-reset {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* Expedition module: field entry, cabin HUD, research stations. */
+.in-base #app main {
+  display: none;
+}
+.in-base .touch-controls {
+  visibility: visible;
+}
+.in-base .cinema-overlay {
+  background: linear-gradient(
+    180deg,
+    #06151bc9,
+    transparent 28%,
+    transparent 65%,
+    #07191bdd
+  );
+  box-shadow: inset 0 0 100px #03131855;
+}
+#base-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #dfece2;
+}
+#base-hud button {
+  pointer-events: auto;
+}
+.base-heading {
+  position: absolute;
+  top: 118px;
+  left: 48px;
+}
+.base-heading h1 {
+  font-size: 39px;
+  font-weight: 400;
+  margin: 12px 0 5px;
+  letter-spacing: -1.5px;
+}
+.base-heading h1 span {
+  color: #aabdb5;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+.base-heading p {
+  font-size: 12px;
+  color: #a5bfb9;
+}
+.base-telemetry {
+  display: flex;
+  gap: 18px;
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  color: #a1bcb6;
+  margin-top: 22px;
+}
+.base-manifest {
+  position: absolute;
+  right: 48px;
+  top: 130px;
+  padding: 19px 22px;
+  max-width: 310px;
+}
+.base-manifest small {
+  color: #b8c9be;
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1.5px;
+}
+.base-manifest strong {
+  display: block;
+  margin: 12px 0;
+  font-size: 19px;
+  font-weight: 400;
+}
+.base-manifest > span {
+  display: block;
+  font-size: 10px;
+  line-height: 1.7;
+  color: #a4bbb4;
+}
+.base-bottom {
+  position: absolute;
+  bottom: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(740px, calc(100% - 48px));
+  text-align: center;
+}
+.base-walk-hint {
+  font-size: 10px;
+  color: #b6c9bf;
+  text-shadow: 0 1px 4px #06171c;
+}
+.base-stations {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #142c2fe8;
+  border: 1px solid #a7c5b74a;
+  backdrop-filter: blur(12px);
+}
+.base-stations button {
+  text-align: left;
+  background: transparent;
+  padding: 17px;
+  border-right: 1px solid #a7c5b729;
+  color: #d4e4d8;
+}
+.base-stations button:last-child {
+  border-right: none;
+}
+.base-stations button:hover {
+  background: #b6d1b818;
+}
+.base-stations button > span {
+  display: block;
+  font:
+    9px Space,
+    sans-serif;
+  color: #c4ad7f;
+}
+.base-stations strong {
+  display: block;
+  margin: 8px 0;
+  font-size: 12px;
+  font-weight: 500;
+}
+.base-stations small {
+  font:
+    6px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 0.7px;
+  color: #a6bbb1;
+}
+#leave-base {
+  margin-top: 14px;
+  background: #152c2de0;
+}
+#leave-base kbd {
+  margin-left: 12px;
+}
+.photo-mode #base-hud {
+  opacity: 0;
+  visibility: hidden;
+}
+.base-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid #acc5b32c;
+  margin-bottom: 24px;
+  padding-bottom: 12px;
+}
+.base-tabs button {
+  background: transparent;
+  color: #91ada3;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  font-size: 11px;
+}
+.base-tabs button[aria-current="page"] {
+  color: #dce8ce;
+  border-color: #b4c7a44d;
+  background: #9eb88e12;
+}
+.base-label {
+  color: #bfa777;
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1px;
+  line-height: 1.8;
+}
+.base-intro {
+  border: 1px solid #b2c8ab30;
+  padding: 20px;
+  background: #8ab09409;
+  margin-bottom: 24px;
+}
+.base-intro h3,
+.base-research-card h3,
+.upgrade-card h3,
+.collection-card h3,
+.base-uplink h3 {
+  font-size: 16px;
+  font-weight: 400;
+  margin: 9px 0;
+}
+.base-intro p,
+.base-research-card p,
+.upgrade-card p,
+.collection-card p,
+.base-uplink p {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #a6bbb1;
+}
+.base-intro button {
+  margin-top: 12px;
+}
+.base-research-card {
+  display: flex;
+  gap: 18px;
+  padding: 20px 0;
+  border-bottom: 1px solid #adc9b124;
+}
+.base-card-number {
+  flex-shrink: 0;
+  padding-top: 3px;
+  font:
+    17px Space,
+    sans-serif;
+  color: #79938b;
+}
+.base-research-card.done .base-card-number {
+  color: #c8d6aa;
+}
+.base-research-card button {
+  margin-top: 8px;
+}
+.base-research-list button:disabled,
+.base-intro button:disabled,
+.upgrade-card button:disabled,
+.collection-card button:disabled,
+.base-uplink button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.base-credit-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid #9eb89940;
+  margin-bottom: 20px;
+  background: #7297860c;
+}
+.base-credit-bar > span {
+  font:
+    9px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1px;
+}
+.base-credit-bar strong {
+  font:
+    32px Space,
+    sans-serif;
+  color: #d8d4ae;
+}
+.base-upgrades {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.upgrade-card {
+  padding: 20px;
+  border: 1px solid #a6c29e30;
+  display: flex;
+  flex-direction: column;
+}
+.upgrade-card p {
+  flex: 1;
+}
+.equipment-readout {
+  font-size: 9px !important;
+  color: #b7c9ac !important;
+  margin: 20px 0 !important;
+}
+.base-uplink {
+  border-top: 1px solid #b3c6a936;
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.collection-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 24px;
+}
+.collection-card {
+  border: 1px solid #9db99b2d;
+  padding: 16px;
+}
+.collection-card.filled {
+  background: radial-gradient(ellipse at top, #729d7e20, transparent 70%);
+  border-color: #b5c8a35c;
+}
+.collection-emblem {
+  height: 70px;
+  display: grid;
+  place-items: center;
+  color: #6f8b7c;
+  font-size: 33px;
+}
+.collection-card.filled .collection-emblem {
+  color: #d4d9ae;
+}
+.collection-card .secondary-button {
+  font-size: 10px;
+  padding: 10px;
+}
+@media (max-width: 760px) {
+  .tool-dock .dock-tool {
+    width: 41px;
+    flex-shrink: 0;
+  }
+  .tool-dock .scan-button {
+    padding: 0 7px;
+    gap: 5px;
+  }
+  .tool-dock .scan-icon {
+    display: none;
+  }
+  .base-heading {
+    top: 95px;
+    left: 22px;
+  }
+  .base-heading h1 {
+    font-size: 28px;
+  }
+  .base-heading h1 span {
+    font-size: 17px;
+  }
+  .base-heading p {
+    font-size: 10px;
+  }
+  .base-telemetry {
+    display: none;
+  }
+  .base-manifest {
+    top: 205px;
+    left: 22px;
+    right: auto;
+    padding: 10px 14px;
+    max-width: 275px;
+  }
+  .base-manifest small {
+    font-size: 6px;
+  }
+  .base-manifest strong {
+    font-size: 14px;
+    margin: 6px 0;
+  }
+  .base-manifest > span {
+    font-size: 9px;
+  }
+  .base-bottom {
+    bottom: 62px;
+    width: calc(100% - 32px);
+  }
+  .base-walk-hint {
+    font-size: 8px;
+  }
+  .base-stations button {
+    padding: 11px 7px;
+  }
+  .base-stations strong {
+    font-size: 9px;
+    margin: 6px 0;
+  }
+  .base-stations small {
+    display: none;
+  }
+  #leave-base {
+    margin-top: 8px;
+    font-size: 10px;
+    padding: 9px 16px;
+  }
+  .in-base .touch-controls {
+    bottom: 205px;
+  }
+  .base-upgrades,
+  .collection-grid {
+    grid-template-columns: 1fr;
+  }
+  .collection-card {
+    display: grid;
+    grid-template-columns: 42px 1fr;
+    column-gap: 12px;
+  }
+  .collection-emblem {
+    grid-row: 1 / 5;
+    height: 100%;
+  }
+  .base-tabs button {
+    padding: 9px 10px;
+    font-size: 10px;
+  }
+}
+@media (max-height: 560px) and (orientation: landscape) {
+  .base-heading {
+    top: 85px;
+    left: 25px;
+  }
+  .base-heading h1 {
+    font-size: 23px;
+  }
+  .base-heading p,
+  .base-telemetry,
+  .base-manifest,
+  .base-walk-hint {
+    display: none;
+  }
+  .base-bottom {
+    bottom: 36px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    width: min(650px, 80%);
+  }
+  .base-stations {
+    flex: 1;
+  }
+  .base-stations button {
+    padding: 9px;
+  }
+  .base-stations small {
+    display: none;
+  }
+  #leave-base {
+    margin: 0;
+    padding: 10px;
+    font-size: 10px;
+  }
+  .in-base .touch-controls {
+    bottom: 115px;
+  }
+}
+
+.collection-emblem .inscription-glyph {
+  width: 38px;
+  height: 38px;
+}
+.base-heading h1 {
+  text-shadow: 0 2px 12px #00171e;
+}
