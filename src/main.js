@@ -32,7 +32,6 @@ import {
 } from "lucide";
 import { World, SITES } from "./world.js";
 import {
-  GLYPHS,
   initialState,
   readSave,
   saveState,
@@ -41,6 +40,10 @@ import {
   countRelics,
 } from "./state.js";
 import { ExpeditionAudio } from "./audio.js";
+import { glyphSVG, GLYPH_NAMES } from "./glyphs.js";
+import { SECTORS, readSectors } from "./excavation.js";
+import { EVIDENCE } from "./evidence.js";
+import { RelicInspection } from "./inspection.js";
 
 const icons = {
   VolumeX,
@@ -97,6 +100,7 @@ let lastFocus;
 let activeRelic = -1;
 let cleaningTimer;
 let cleanHeld = false;
+let selectedSector = -1;
 let scanStart = 0;
 let scanRunning = false;
 let pendingInspection = -1;
@@ -104,6 +108,7 @@ let notificationTimer;
 let markers = [];
 let lastUiUpdate = 0;
 const audio = new ExpeditionAudio();
+const inspection = new RelicInspection();
 function notify(title, text, duration = 5000) {
   $("notification-title").textContent = title;
   $("notification-text").textContent = text;
@@ -255,6 +260,7 @@ function frame(t) {
 }
 function showModal(title, type, html, eyebrow = "БОРТОВАЯ СИСТЕМА / ЭРЕБУС") {
   stopCleaning();
+  inspection.unmount();
   if (!modalOpen) lastFocus = document.activeElement;
   modalOpen = true;
   modalType = type;
@@ -271,6 +277,7 @@ function showModal(title, type, html, eyebrow = "БОРТОВАЯ СИСТЕМА
 }
 function closeModal() {
   stopCleaning();
+  inspection.unmount();
   modalOpen = false;
   modalType = "";
   activeRelic = -1;
@@ -332,17 +339,54 @@ function artifactSVG(index) {
   return `<svg viewBox="0 0 116 165" aria-hidden="true">${shapes[index]}</svg>`;
 }
 function openArtifact(index) {
+  selectedSector = -1;
   activeRelic = index;
   const site = SITES[index],
     r = state.relics[index];
   showModal(
     site.name,
     "artifact",
-    `<div class="artifact-inspection"><div class="artifact-visual ${r.clean >= 100 ? "clean" : ""}">${artifactSVG(index)}<div class="artifact-dust" id="artifact-dust" style="opacity:${1 - r.clean / 100}"></div><small>${site.code} / ОБЪЕКТ ${index + 1}</small></div><div class="artifact-info"><div class="relic-meta">${site.code} · ВОЗРАСТ ${site.age}<br>СТАТУС: ${r.decoded ? "АРХИВИРОВАНО" : r.clean >= 100 ? "ГОТОВ К ДЕШИФРОВКЕ" : "МИНЕРАЛЬНЫЕ ОТЛОЖЕНИЯ"}</div><h3>${r.decoded ? "Голос из прошлого" : r.clean >= 100 ? "Услышать прошлое" : "Под слоем времени"}</h3><p>${r.decoded ? site.story : site.description}</p></div></div><div id="artifact-step"></div>`,
+    `<div class="inspection-toolbar"><div class="inspection-tools" role="group" aria-label="Инструмент осмотра"><button id="tool-orbit" class="active" aria-pressed="true">Обзор</button><button id="tool-brush" aria-pressed="false" ${r.clean >= 100 ? "disabled" : ""}>Кисть</button></div><span id="inspection-hint">3D-ОСМОТР · ТЯНИТЕ ДЛЯ ВРАЩЕНИЯ · КОЛЕСО: МАСШТАБ</span><button class="secondary-button" id="inspection-reset" aria-label="Сбросить ракурс реликвии">Сброс ракурса</button></div><div class="artifact-inspection"><div class="artifact-visual ${r.clean >= 100 ? "clean" : ""}" id="inspection-viewport">${artifactSVG(index)}<div class="artifact-dust" id="artifact-dust" style="opacity:${1 - r.clean / 100}"></div><small>${site.code} / ОБЪЕКТ ${index + 1}</small></div><div class="artifact-info"><div class="relic-meta">${site.code} · ВОЗРАСТ ${site.age}<br>СТАТУС: ${r.decoded ? "АРХИВИРОВАНО" : r.clean >= 100 ? "ГОТОВ К ДЕШИФРОВКЕ" : "МИНЕРАЛЬНЫЕ ОТЛОЖЕНИЯ"}</div><h3>${r.decoded ? "Голос из прошлого" : r.clean >= 100 ? "Услышать прошлое" : "Под слоем времени"}</h3><p>${r.decoded ? site.story : site.description}</p><details id="surface-evidence" class="surface-evidence" ${innerWidth > 600 ? "open" : ""}></details></div></div><ol class="research-stages" aria-label="Этапы исследования"><li class="${r.clean < 100 ? "current" : "done"}">01 <span>Очистка</span></li><li class="${r.decoded ? "done" : r.clean >= 100 ? "current" : ""}">02 <span>Дешифровка</span></li><li class="${r.decoded ? "current" : ""}">03 <span>Архив</span></li></ol><div id="artifact-step"></div>`,
     "ПОЛЕВАЯ ЛАБОРАТОРИЯ / ИССЛЕДОВАНИЕ",
   );
   activeRelic = index;
+  try {
+    inspection.mount($("inspection-viewport"), index, r, {
+      onBrush: (sector, amount) => advanceCleaning(amount, sector),
+      onBrushEnd: save,
+      onUnavailable: inspectionFallback,
+    });
+    for (const tool of ["orbit", "brush"])
+      $("tool-" + tool).onclick = () => {
+        stopCleaning();
+        inspection.setTool(tool);
+        for (const name of ["orbit", "brush"]) {
+          $("tool-" + name).classList.toggle("active", name === tool);
+          $("tool-" + name).setAttribute("aria-pressed", String(name === tool));
+        }
+        $("inspection-hint").textContent =
+          tool === "brush"
+            ? "УДЕРЖИВАЙТЕ НА ПОВЕРХНОСТИ · ПУСТОТА НЕ ОЧИЩАЕТСЯ"
+            : "ТЯНИТЕ ДЛЯ ВРАЩЕНИЯ · КОЛЕСО: МАСШТАБ";
+      };
+    $("inspection-viewport").classList.add("has-3d");
+    $("inspection-reset").onclick = () => inspection.reset();
+  } catch {
+    inspectionFallback();
+  }
   renderArtifactStep();
+  syncSurfaceEvidence();
+}
+function inspectionFallback() {
+  inspection.unmount();
+  if (!$("inspection-viewport")) return;
+  $("inspection-viewport").classList.remove("has-3d", "brush-mode");
+  $("inspection-hint").textContent =
+    "3D НЕДОСТУПЕН · КНОПОЧНАЯ ОЧИСТКА РАБОТАЕТ";
+  $("inspection-hint").setAttribute("role", "status");
+  $("inspection-reset").hidden = true;
+  $("tool-brush").disabled = true;
+  $("tool-orbit").disabled = true;
 }
 function renderArtifactStep() {
   const index = activeRelic,
@@ -357,8 +401,17 @@ function renderArtifactStep() {
   }
   if (r.clean < 100) {
     $("artifact-step").innerHTML =
-      `<div class="excavation-progress"><div><span>01 / МИКРОАБРАЗИВНАЯ ОЧИСТКА</span><span id="clean-percent">${Math.floor(r.clean)}%</span></div><div class="progress-track"><span id="clean-progress" style="width:${r.clean}%"></span></div></div><button class="primary-button clean-button" id="clean-button"><i data-lucide="brush"></i> Удерживайте, чтобы очистить</button><p class="subtle">Удалите минеральный слой, не повреждая поверхность. Можно удерживать кнопку, Enter или нажимать несколько раз.</p>`;
+      `<div class="excavation-progress"><div><span>01 / МИКРОАБРАЗИВНАЯ ОЧИСТКА</span><span id="clean-percent">${Math.floor(r.clean)}%</span></div><div class="progress-track"><span id="clean-progress" style="width:${r.clean}%"></span></div></div><div class="sector-selector" role="group" aria-label="Участок для кнопочной очистки"><button data-sector="-1" aria-pressed="true">Все участки</button>${SECTORS.map((name, i) => `<button data-sector="${i}" aria-pressed="false">${["Верх", "Центр", "Низ"][i]} <span id="sector-progress-${i}">${Math.floor(readSectors(r)[i])}%</span></button>`).join("")}</div><button class="primary-button clean-button" id="clean-button"><i data-lucide="brush"></i> Удерживайте, чтобы очистить</button><p class="subtle">Кисть очищает участок под указателем. Альтернатива: выберите участок выше и удерживайте кнопку или Enter.</p>`;
     refreshIcons();
+    document.querySelectorAll("[data-sector]").forEach((button) => {
+      button.onclick = () => {
+        stopCleaning();
+        selectedSector = Number(button.dataset.sector);
+        document
+          .querySelectorAll("[data-sector]")
+          .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+      };
+    });
     const b = $("clean-button");
     b.addEventListener("pointerdown", (e) => {
       if (e.button !== 0) return;
@@ -371,6 +424,7 @@ function renderArtifactStep() {
       stopCleaning();
     });
     b.addEventListener("pointercancel", stopCleaning);
+    b.addEventListener("blur", stopCleaning);
     b.addEventListener("keydown", (e) => {
       if (["Enter", "Space"].includes(e.code)) {
         e.preventDefault();
@@ -389,15 +443,18 @@ function renderArtifactStep() {
   } else {
     const values = [0, 0, 0];
     $("artifact-step").innerHTML =
-      `<div class="excavation-progress"><div><span>02 / ДЕШИФРОВКА ПАМЯТИ</span><span>ТРИАДА СИМВОЛОВ</span></div></div><p>Сопоставьте символы с сохранившейся надписью. Нажимайте на ячейки, чтобы менять знаки.</p><div class="glyph-clue" aria-label="Надпись: ${site.glyphs.map((v) => GLYPHS[v]).join(" ")}">${site.glyphs.map((v) => GLYPHS[v]).join(" ")}</div><div class="glyph-puzzle">${values.map((v, i) => `<button class="glyph-button" data-glyph="${i}" aria-label="Символ ${i + 1}: ${GLYPHS[v]}">${GLYPHS[v]}</button>`).join("")}</div><div class="decode-feedback" id="decode-feedback" role="status">Восстановите последовательность слева направо.</div><div class="modal-actions"><button class="primary-button" id="decode-button"><i data-lucide="sparkles"></i> Восстановить запись</button></div>`;
+      `<div class="excavation-progress"><div><span>02 / ДЕШИФРОВКА ПАМЯТИ</span><span>ТРИАДА СИМВОЛОВ</span></div></div><p>Сопоставьте символы с сохранившейся надписью. Нажимайте на ячейки, чтобы менять знаки.</p><div class="glyph-clue" role="img" aria-label="Надпись: ${site.glyphs.map((v) => GLYPH_NAMES[v]).join(", ")}">${site.glyphs.map(glyphSVG).join("")}</div><div class="glyph-puzzle">${values.map((v, i) => `<button class="glyph-button" data-glyph="${i}" aria-label="Символ ${i + 1}: ${GLYPH_NAMES[v]}">${glyphSVG(v)}</button>`).join("")}</div><div class="decode-feedback" id="decode-feedback" role="status">Восстановите последовательность слева направо.</div><div class="modal-actions"><button class="primary-button" id="decode-button"><i data-lucide="sparkles"></i> Восстановить запись</button></div>`;
     refreshIcons();
     document.querySelectorAll("[data-glyph]").forEach(
       (b) =>
         (b.onclick = () => {
           const n = Number(b.dataset.glyph);
           values[n] = (values[n] + 1) % 4;
-          b.textContent = GLYPHS[values[n]];
-          b.setAttribute("aria-label", `Символ ${n + 1}: ${GLYPHS[values[n]]}`);
+          b.innerHTML = glyphSVG(values[n]);
+          b.setAttribute(
+            "aria-label",
+            `Символ ${n + 1}: ${GLYPH_NAMES[values[n]]}`,
+          );
           audio.tone(260 + values[n] * 80, 0.12);
         }),
     );
@@ -426,20 +483,37 @@ function renderArtifactStep() {
     };
   }
 }
+function syncSurfaceEvidence() {
+  if (activeRelic < 0 || !$("surface-evidence")) return;
+  const index = activeRelic;
+  const sectors = readSectors(state.relics[index]);
+  // Only rebuild when a finding unlocks, not on every brush tick.
+  const key = sectors.map((v) => (v === 100 ? "1" : "0")).join("");
+  if ($("surface-evidence").dataset.key === key) return;
+  $("surface-evidence").dataset.key = key;
+  $("surface-evidence").innerHTML =
+    `<summary class="evidence-title">АНАЛИЗ ПОВЕРХНОСТИ <span>${sectors.filter((v) => v === 100).length} / 3</span></summary>${sectors.map((v, i) => `<div class="evidence-row ${v === 100 ? "revealed" : ""}"><span class="evidence-symbol" role="img" aria-label="${v === 100 ? GLYPH_NAMES[SITES[index].glyphs[i]] : "Символ скрыт"}">${v === 100 ? glyphSVG(SITES[index].glyphs[i]) : "·"}</span><div><b>${v === 100 ? EVIDENCE[index][i][0] : SECTORS[i]}</b><p>${v === 100 ? EVIDENCE[index][i][1] : "Надпись скрыта минеральным слоем."}</p></div></div>`).join("")}`;
+}
 function startCleaning() {
   if (cleanHeld) return;
   cleanHeld = true;
   audio.tone(180, 0.3);
   cleaningTimer = setInterval(() => advanceCleaning(1.8), 65);
 }
-function advanceCleaning(amount) {
+function advanceCleaning(amount, sector = selectedSector) {
   if (activeRelic < 0 || modalType !== "artifact") return;
-  const complete = cleanRelic(state, activeRelic, amount),
+  const complete = cleanRelic(state, activeRelic, amount, sector),
     r = state.relics[activeRelic];
   if ($("clean-percent"))
     $("clean-percent").textContent = `${Math.floor(r.clean)}%`;
   if ($("clean-progress")) $("clean-progress").style.width = `${r.clean}%`;
   if ($("artifact-dust")) $("artifact-dust").style.opacity = 1 - r.clean / 100;
+  inspection.setClean(r);
+  syncSurfaceEvidence();
+  readSectors(r).forEach((value, i) => {
+    if ($("sector-progress-" + i))
+      $("sector-progress-" + i).textContent = `${Math.floor(value)}%`;
+  });
   if (complete) {
     stopCleaning();
     audio.tone(550, 0.4);
@@ -559,7 +633,7 @@ window.addEventListener("keydown", (e) => {
   }
   if (modalOpen && e.code === "Tab") {
     const focusables = $("modal").querySelectorAll(
-      'button:not([disabled]),input,select,[tabindex="0"]',
+      'button:not([disabled]),input,select,summary,[tabindex="0"]',
     );
     const first = focusables[0],
       last = focusables[focusables.length - 1];
@@ -659,5 +733,13 @@ export function getDiagnostics() {
     geometries: info.memory.geometries,
     textures: info.memory.textures,
     quality: world.quality,
+    inspection: inspection.host
+      ? {
+          drawCalls: inspection.renderer.info.render.calls,
+          geometries: inspection.renderer.info.memory.geometries,
+          rotation: inspection.model.rotation.toArray().slice(0, 3),
+          camera: inspection.camera.position.toArray(),
+        }
+      : null,
   };
 }

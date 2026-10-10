@@ -2293,3 +2293,315 @@ kbd {
     white-space: nowrap;
   }
 }
+
+/* Research station: a real, on-demand 3D viewport, with a resilient SVG fallback. */
+.artifact-inspection {
+  grid-template-columns: minmax(220px, 1.15fr) 1fr;
+  align-items: center;
+}
+.artifact-visual {
+  height: 280px;
+  background: radial-gradient(ellipse at 50% 40%, #33544b70, #0b1415 76%);
+}
+.artifact-visual.has-3d > svg,
+.artifact-visual.has-3d .artifact-dust {
+  display: none;
+}
+.artifact-visual canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+.artifact-visual canvas:active {
+  cursor: grabbing;
+}
+.artifact-visual canvas:focus-visible {
+  outline: 2px solid #c8d6a6;
+  outline-offset: -5px;
+}
+.artifact-visual::after,
+.artifact-visual small {
+  pointer-events: none;
+}
+.inspection-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 22px;
+}
+.inspection-toolbar > span {
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1px;
+  color: #9eb5a7;
+  line-height: 1.8;
+}
+.inspection-toolbar button {
+  font-size: 10px;
+  min-height: 36px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+.research-stages {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+.research-stages li {
+  flex: 1;
+  border-top: 1px solid #adc8b32b;
+  padding-top: 10px;
+  color: #72877c;
+  font:
+    10px Space,
+    Manrope,
+    sans-serif;
+}
+.research-stages li span {
+  margin-left: 5px;
+}
+.research-stages .current {
+  border-color: #d6c49a;
+  color: #e2d3ac;
+}
+.research-stages .done {
+  border-color: #8fbba0;
+  color: #a8cab4;
+}
+@media (max-width: 600px) {
+  .artifact-inspection {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .artifact-visual {
+    height: 235px;
+  }
+  .artifact-info .relic-meta {
+    font-size: 8px;
+  }
+  .artifact-info p {
+    font-size: 12px;
+  }
+  .artifact-info h3 {
+    font-size: 17px;
+  }
+  .inspection-toolbar > span {
+    font-size: 7px;
+  }
+  .research-stages li {
+    font-size: 9px;
+  }
+}
+@media (max-height: 500px) and (min-width: 601px) {
+  .artifact-visual {
+    height: 190px;
+  }
+}
+.inscription-glyph {
+  width: 25px;
+  height: 25px;
+  display: inline-block;
+  vertical-align: middle;
+}
+.glyph-clue {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+.glyph-clue .inscription-glyph {
+  width: 21px;
+  height: 21px;
+}
+.glyph-button {
+  display: grid;
+  place-items: center;
+}
+
+/* Iteration 02: regional excavation and evidence. */
+.inspection-toolbar {
+  flex-wrap: wrap;
+}
+.inspection-toolbar > span {
+  flex: 1 1 130px;
+}
+.inspection-tools {
+  display: flex;
+  border: 1px solid #adc8b32b;
+}
+.inspection-tools button {
+  padding: 9px 13px;
+  min-height: 38px;
+  color: #9eb5a7;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.inspection-tools button.active {
+  background: #c7dcbf;
+  color: #142f29;
+}
+.inspection-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.surface-evidence {
+  border-top: 1px solid #adc8b324;
+  margin-top: 18px;
+  padding-top: 12px;
+}
+.evidence-title {
+  display: flex;
+  justify-content: space-between;
+  font:
+    8px Space,
+    Manrope,
+    sans-serif;
+  letter-spacing: 1px;
+  color: #9eb5a7;
+  margin-bottom: 10px;
+}
+.evidence-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  color: #82958b;
+}
+.evidence-symbol {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #9cb39730;
+}
+.evidence-symbol .inscription-glyph {
+  width: 18px;
+  height: 18px;
+}
+.evidence-row b {
+  font-size: 10px;
+  font-weight: 500;
+}
+.evidence-row p {
+  font-size: 9px;
+  line-height: 1.6;
+  margin: 3px 0 0;
+}
+.evidence-row.revealed {
+  color: #cbdabd;
+}
+.evidence-row.revealed .evidence-symbol {
+  border-color: #acc39780;
+  background: #a3c3920b;
+}
+.sector-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 16px 0 12px;
+}
+.sector-selector button {
+  border: 1px solid #acc39730;
+  background: transparent;
+  padding: 10px 4px;
+  color: #aebdae;
+  cursor: pointer;
+  font:
+    10px Manrope,
+    sans-serif;
+  min-height: 42px;
+}
+.sector-selector button[aria-pressed="true"] {
+  border-color: #cfbf93;
+  background: #cfbf9310;
+  color: #e2d3ac;
+}
+.sector-selector span {
+  display: block;
+  font:
+    8px Space,
+    sans-serif;
+  margin-top: 5px;
+  opacity: 0.8;
+}
+.artifact-visual.brush-mode canvas {
+  cursor: crosshair;
+}
+.brush-cursor {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e3d4a9;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px #e3d4a917;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.brush-cursor::after {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  background: #e3d4a9;
+  border-radius: 50%;
+}
+@media (max-width: 600px) {
+  .artifact-inspection {
+    gap: 12px;
+  }
+  .surface-evidence {
+    margin-top: 12px;
+  }
+  .evidence-row p {
+    font-size: 10px;
+  }
+  .artifact-visual {
+    height: 210px;
+  }
+  .inspection-toolbar {
+    gap: 8px;
+  }
+}
+.surface-evidence summary {
+  cursor: pointer;
+  min-height: 28px;
+  align-items: center;
+}
+.surface-evidence summary::before {
+  content: "+";
+  margin-right: 8px;
+  font-size: 14px;
+}
+.surface-evidence[open] summary::before {
+  content: "−";
+}
+.surface-evidence summary span {
+  margin-left: auto;
+}
+.research-stages {
+  margin-top: 20px;
+}
+@media (max-width: 600px) {
+  .inspection-toolbar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+  .inspection-toolbar > span {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .inspection-tools {
+    width: max-content;
+  }
+  .inspection-toolbar #inspection-reset {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

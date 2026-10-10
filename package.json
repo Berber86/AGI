@@ -12,7 +12,10 @@
     "test:visual": "node scripts/visual-check.mjs",
     "test:interaction": "node scripts/interaction-check.mjs",
     "format": "prettier --write src scripts tests index.html vite.config.js",
-    "format:check": "prettier --check src scripts tests index.html vite.config.js"
+    "format:check": "prettier --check src scripts tests index.html vite.config.js",
+    "test:inspection": "node scripts/inspection-check.mjs",
+    "test:excavation": "node scripts/excavation-check.mjs",
+    "test:graphics": "node scripts/graphics-check.mjs"
   },
   "dependencies": {
     "lucide": "^0.468.0",
