@@ -282,7 +282,7 @@ test('все попытки строго проверяют категорию �
   assert.match(error.message, /Жёсткая плата — это вес 4…8/iu);
   assert.equal(error.pawRejected, true);
   assert.ok(requests.every((request) => /4…8/u.test(request.messages[1].content)), 'каждая попытка видит одну и ту же строгую полосу');
-  assert.doesNotMatch(requests[2].messages[1].content, /послаблен|любую силу/iu, 'последняя попытка не размывает правило');
+  assert.doesNotMatch(requests[2].messages.at(-1).content, /послаблен|любую силу/iu, 'последняя попытка не размывает правило');
 });
 
 test('бюджет складывается из независимых множителей редкости и платы', () => {
@@ -372,8 +372,8 @@ test('брак модели перековывается дважды, а тре
 
   const card = await api.llmCard('gpt-6-luna', ADVICE, 'rare', stateAt(1, 'sumer'), 'harsh');
   assert.equal(requests.length, 3, 'мелкая плата не прошла проверку жёсткой трети — кузнец перековал дважды');
-  assert.match(requests[1].messages[1].content, /Предыдущий ответ не прошёл проверку игры: Жёсткая плата/iu);
-  assert.match(requests[2].messages[1].content, /пересчитай суммарный вес платы и попади в строгую полосу 4…8/iu, 'в переделку уходит точная инструкция');
+  assert.match(requests[1].messages.at(-1).content, /Предыдущий ответ не прошёл проверку игры: Жёсткая плата/iu);
+  assert.match(requests[2].messages.at(-1).content, /пересчитай суммарный вес платы и попади в строгую полосу 4…8/iu, 'в переделку уходит точная инструкция');
   assert.equal(card.monkey_paw, PAW_TEXT.slice(0, 200));
   assert.equal(card.rarity, 'rare');
   assert.equal(card.history.era, Campaign.ERAS[1], 'справку по-прежнему подписывает эпоха кампании');

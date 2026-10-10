@@ -254,8 +254,8 @@ test('кузнец Каменного века отклоняет дальний
   assert.equal(requests.length, 3, 'две перековки, затем ковка падает');
   assert.match(requests[0].messages[0].content, /Стол Каменного века — одна линия из трёх клеток/iu, 'заказ сразу говорит про одну линию');
   assert.match(requests[0].messages[0].content, /стреломёты/u, 'промпт запрещает анахроничные снаряды');
-  assert.match(requests[1].messages[1].content, /одной линии/u, 'в переделку уходит точный текст ошибки');
-  assert.match(requests[1].messages[1].content, /ranged/u);
+  assert.match(requests[1].messages.at(-1).content, /одной линии/u, 'в переделку уходит точный текст ошибки');
+  assert.match(requests[1].messages.at(-1).content, /ranged/u);
 });
 
 test('перегруженный эффект каменного отряда упрощается, а ковка не отменяется', async () => {
