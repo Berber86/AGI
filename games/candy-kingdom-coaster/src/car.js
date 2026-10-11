@@ -177,6 +177,56 @@ export function createCar() {
     body.add(b);
   });
 
+  // rear wing (spoiler) — candy style
+  const wing = new THREE.Mesh(new RoundedBoxGeometry(1.78, 0.11, 0.46, 2, 0.05), cream);
+  wing.position.set(0, 1.26, -2.0);
+  const wingStripe = new THREE.Mesh(new RoundedBoxGeometry(1.78, 0.045, 0.2, 2, 0.02), pinkDark);
+  wingStripe.position.set(0, 1.315, -2.0);
+  const wSupL = new THREE.Mesh(new RoundedBoxGeometry(0.1, 0.3, 0.12, 2, 0.03), pinkDark);
+  wSupL.position.set(-0.6, 1.1, -1.96);
+  const wSupR = wSupL.clone(); wSupR.position.x = 0.6;
+  body.add(wing, wingStripe, wSupL, wSupR);
+
+  // full-width tail light bar across the trunk
+  const bar = new THREE.Mesh(new RoundedBoxGeometry(1.55, 0.09, 0.06, 2, 0.03), tailGlow);
+  bar.position.set(0, 1.02, -2.17);
+  body.add(bar);
+
+  // license plate "★7" (the Star Racer number)
+  const plateTex = (() => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff6fa'; g.fillRect(0, 0, 256, 128);
+    g.strokeStyle = '#ff4f96'; g.lineWidth = 10; g.strokeRect(8, 8, 240, 112);
+    g.fillStyle = '#e8358c'; g.font = '900 78px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('★ 7', 128, 70);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.26), new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.4 }));
+  plate.position.set(0, 0.72, -2.185);
+  plate.rotation.y = Math.PI;
+  body.add(plate);
+
+  // exhaust pipes + boost flames
+  const flames = [];
+  [-0.55, 0.55].forEach((x) => {
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.115, 0.3, 12), chrome);
+    pipe.rotation.x = Math.PI / 2;
+    pipe.position.set(x, 0.42, -2.12);
+    body.add(pipe);
+    const f = new THREE.Mesh(
+      new THREE.ConeGeometry(0.13, 0.6, 10),
+      new THREE.MeshBasicMaterial({ color: '#ffd45e', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    f.rotation.x = -Math.PI / 2;
+    f.position.set(x, 0.42, -2.55);
+    f.visible = false;
+    body.add(f);
+    flames.push(f);
+  });
+
   // wheels
   const wheels = [];
   const wheelPos = [
@@ -326,6 +376,14 @@ export function createCar() {
       body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, -sway, 0.1);
       body.rotation.x = THREE.MathUtils.lerp(body.rotation.x, offRoad ? Math.sin(wheelSpin * 0.7) * 0.02 : 0, 0.08);
       body.position.y = Math.sin(wheelSpin * 0.35) * 0.012 * Math.min(1, speed / 12);
+      // boost flames flicker at the exhausts
+      flames.forEach((f, i) => {
+        f.visible = !!boost;
+        if (boost) {
+          const k = 0.75 + Math.abs(Math.sin(wheelSpin * 1.7 + i * 1.3)) * 0.5;
+          f.scale.set(k, k * 1.2, k);
+        }
+      });
       const targetTilt = steer * 0.05;
       root.rotation.x = THREE.MathUtils.lerp(root.rotation.x, targetTilt * 0, 0.1);
 

@@ -418,7 +418,7 @@ html, body {
 /* ============ fx overlays ============ */
 #vignette {
   position: absolute; inset: 0; pointer-events: none; z-index: 3;
-  background: radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(96, 16, 60, 0.30) 100%);
+  background: radial-gradient(ellipse at 50% 42%, transparent 60%, rgba(96, 16, 60, 0.22) 100%);
 }
 #speed-lines {
   position: absolute; inset: -12%; pointer-events: none; z-index: 3; opacity: 0;

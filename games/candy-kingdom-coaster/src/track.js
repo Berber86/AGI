@@ -248,6 +248,15 @@ export function createTrack(scene) {
     grd.addColorStop(0.55, '#b7e4c6');
     grd.addColorStop(1, '#f7cfe3');
     g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
+    // big candy-farm fields (soft patches like patchwork countryside)
+    const fieldCols = ['#ff9ec9', '#ffd977', '#8fe3b0', '#9fd8ff', '#c9a3ff', '#ffb28a', '#ff8f9e'];
+    for (let i = 0; i < 15; i++) {
+      g.globalAlpha = 0.42;
+      g.fillStyle = fieldCols[i % fieldCols.length];
+      const r = 36 + Math.random() * 85;
+      g.beginPath(); g.arc(Math.random() * 512, Math.random() * 512, r, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
     for (let i = 0; i < 260; i++) {
       g.fillStyle = ['#a8dd8f', '#f2b8d4', '#ffe08a', '#9fd8ff'][i % 4];
       g.globalAlpha = 0.35;

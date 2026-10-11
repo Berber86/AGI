@@ -252,6 +252,47 @@ export function createWorld(scene, track, renderer) {
     clouds.push({ sprite: m, drift: 1.2 + Math.random() * 2.2 });
   }
 
+  // ---------- 3D puff-cloud clusters (cotton-candy volumes near the horizon) ----------
+  const puffMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.92 });
+  for (let i = 0; i < 8; i++) {
+    const cluster = new THREE.Group();
+    const n = 4 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < n; j++) {
+      const r = 7 + Math.random() * 11;
+      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), puffMat);
+      p.position.set((Math.random() - 0.5) * 32, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 15);
+      p.scale.y = 0.55;
+      cluster.add(p);
+    }
+    const a = Math.random() * Math.PI * 2;
+    const rr = 170 + Math.random() * 260;
+    cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 75, track.bounds.center.z + Math.sin(a) * rr);
+    world.add(cluster);
+    clouds.push({ sprite: cluster, drift: 0.8 + Math.random() * 1.6 });
+  }
+
+  // ---------- rainbows arching over the road (plus the castle one) ----------
+  const rainbowCols = ['#ff6b81', '#ffb14e', '#ffe66d', '#6bd96b', '#56c8ff', '#a06bff'];
+  [0.18, 0.55, 0.86].forEach((u, ri) => {
+    const p = track.getPose(track.length * u, 0);
+    const rainbow = new THREE.Group();
+    rainbowCols.forEach((c, i) => {
+      const t = new THREE.Mesh(
+        new THREE.TorusGeometry(10.5 - i * 1.15, 0.62, 8, 26, Math.PI),
+        new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, emissive: new THREE.Color(c), emissiveIntensity: 0.12 })
+      );
+      rainbow.add(t);
+    });
+    rainbow.position.copy(p.pos);
+    rainbow.position.y += 1.2;
+    rainbow.lookAt(
+      p.pos.x + Math.sin(p.heading),
+      p.pos.y + 1.2,
+      p.pos.z + Math.cos(p.heading)
+    );
+    world.add(rainbow);
+  });
+
   // ---------- distant mountains (ring around the course) ----------
   const mountainMat = new THREE.MeshStandardMaterial({ color: '#e8d6f2', roughness: 0.9, flatShading: true });
   const capMat = new THREE.MeshStandardMaterial({ color: '#fff6fa', roughness: 0.85, flatShading: true });
@@ -430,10 +471,17 @@ export function createWorld(scene, track, renderer) {
       else if (roll < 0.88) placements.marsh.push(slot);
       else placements.ice.push(slot);
     }
-    // roadside candy fence + spectator gummy-bears (like the reference crowd)
-    if (rand() < 0.55) {
-      const fp = track.getPose(s + 2, -side * (6.1 + rand() * 0.8));
-      placements.cane.push({ x: fp.pos.x, y: fp.pos.y - 0.28, z: fp.pos.z, ry: rand() * Math.PI, sc: 0.55 + rand() * 0.3 });
+    // roadside candy walls both sides (reference-like density at the shoulder)
+    for (const wallSide of [-1, 1]) {
+      if (rand() < 0.72) {
+        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (5.7 + rand() * 1.1));
+        const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.6 };
+        const roll2 = rand();
+        if (roll2 < 0.36) placements[`lolli${Math.floor(rand() * 3)}`].push(slotW);
+        else if (roll2 < 0.62) placements.cane.push(slotW);
+        else if (roll2 < 0.82) placements.marsh.push(slotW);
+        else placements.bear.push({ ...slotW, sc: 0.7 + rand() * 0.5, ry: wp.heading + Math.PI });
+      }
     }
     if (rand() < 0.38) {
       const bp = track.getPose(s + 1, side * (6.3 + rand() * 1.4));
