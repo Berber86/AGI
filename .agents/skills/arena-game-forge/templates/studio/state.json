@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "phase": "discovery",
+  "activeRole": "director",
+  "currentTask": null,
+  "lastAction": "Initialized durable studio state",
+  "nextAction": "Run the first structured brainstorm stage",
+  "blockers": [],
+  "latestHandoff": null,
+  "sessionBenchmark": null,
+  "createdAt": null,
+  "updatedAt": null
+}

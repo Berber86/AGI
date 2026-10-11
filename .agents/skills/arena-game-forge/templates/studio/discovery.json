@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "status": "collecting",
+  "plannedStages": 3,
+  "completedStages": [],
+  "answers": {},
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": null,
+  "updatedAt": null
+}

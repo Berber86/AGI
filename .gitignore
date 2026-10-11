@@ -1,7 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# JavaScript game projects created while testing the skill
 node_modules/
 dist/
+coverage/
 .playwright/
 test-results/
-playwright-report/
-*.log
+
+# OS/editor files
 .DS_Store
+.idea/
+.vscode/
+
+# Large/transient project evidence and benchmark scratch
+.studio/evidence/videos/
+.studio/evidence/traces/
+.studio/benchmarks/runs/
+.studio/benchmarks/active.json
