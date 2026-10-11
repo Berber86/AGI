@@ -10,7 +10,7 @@
  *      used to serve index.html in place of a missing bundle, which left the
  *      game stuck on «Заводим машинку…» with no error at all.
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `quiet-race-${VERSION}`;
 const SHELL = ['./', './index.html', './manifest.webmanifest'];
 const MEDIA = /\.(png|jpg|jpeg|webp|gif|svg|ico|woff2?|ttf|mp3|ogg|wav)$/i;
@@ -27,10 +27,21 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
+      await self.clients.claim();
+
+      // One-time migration: a page that is still showing an old, half-cached
+      // build (that is the «Заводим машинку…» hang) is reloaded once as soon as
+      // this worker takes over, so nobody has to know about clearing caches.
+      const clients = await self.clients.matchAll({ type: 'window' });
+      for (const client of clients) {
+        if (typeof client.navigate === 'function') {
+          client.navigate(client.url).catch(() => undefined);
+        }
+      }
+    })(),
   );
 });
 
