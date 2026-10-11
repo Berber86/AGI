@@ -15,12 +15,13 @@
   "cleanRun": {
     "ok": true,
     "seed": 777,
-    "theme": "meadow",
-    "steps": 2864,
-    "drivingMs": 43517,
-    "totalMs": 47717,
-    "balloons": 11,
+    "theme": "candy",
+    "steps": 2725,
+    "drivingMs": 41200,
+    "totalMs": 45400,
+    "balloons": 15,
     "overtakes": 3,
+    "boosts": 3,
     "onGrass": false,
     "progress": 3600
   },

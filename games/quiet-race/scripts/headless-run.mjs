@@ -250,23 +250,23 @@ async function runLandscape() {
   const session = boot(LANDSCAPE.width, LANDSCAPE.height);
   await session.waitFor(() => bridgeOf(session)?.scene, 20000, 'game boot');
   await sleep(1000);
+  // Deterministic seed for the whole evidence run: the same race every time.
+  bridgeOf(session).forceSeed = 4321;
   report.steps.push({ step: 'garage', scene: bridgeOf(session)?.scene, screenshot: session.shoot('headless-01-garage') });
 
-  // Choose a colour and a sticker, then press the big green button.
-  session.touch('down', 360, 320);
-  session.touch('up', 360, 320);
-  session.touch('down', 360, 660);
-  session.touch('up', 360, 660);
-  await sleep(150);
-  session.touch('down', 1330, 520);
-  session.touch('up', 1330, 520);
+  // Garage rows of pictures: colour, flag, sticker. Tap one of each, then «Едем!».
+  const tap = (x, y) => {
+    session.touch('down', x, y);
+    session.touch('up', x, y);
+  };
+  tap(556, 470);
+  tap(668, 580);
+  tap(556, 690);
+  await sleep(200);
+  tap(1250, 270);
   await session.waitFor(() => bridgeOf(session)?.scene === 'race', 20000, 'race scene');
   // Wait until the first traffic-light digit is actually lit before the screenshot.
-  await session.waitFor(
-    () => (stateOf(session)?.countdownMs ?? 9999) <= 3100,
-    20000,
-    'first countdown digit',
-  );
+  await session.waitFor(() => (stateOf(session)?.countdownMs ?? 9999) <= 3100, 20000, 'first countdown digit');
   await sleep(250);
   report.steps.push({
     step: 'countdown',
@@ -275,10 +275,11 @@ async function runLandscape() {
     screenshot: session.shoot('headless-02-countdown'),
   });
 
-  // Fast-forward safely: a 45-second race inside a slow jsdom loop.
+  // The chase view with the traffic light behind: the start line screenshot.
   bridgeOf(session).timeScale = 15;
   await session.waitFor(() => stateOf(session)?.status === 'racing', 40000, 'racing status');
   await sleep(300);
+  report.steps.push({ step: 'go', scene: bridgeOf(session)?.scene, screenshot: session.shoot('headless-03-race') });
 
   // Hold the left pad: the car leaves the asphalt and the grass rule slows it down.
   session.touch('down', 230, 600);
@@ -291,7 +292,7 @@ async function runLandscape() {
     onGrass: onGrass?.onGrass,
     lateral: Math.round((onGrass?.lateral ?? 0) * 100) / 100,
     speed: Math.round(onGrass?.speed ?? 0),
-    screenshot: session.shoot('headless-03-grass'),
+    screenshot: session.shoot('headless-04-grass'),
   });
 
   // Hold the right pad until the car is back on the road, then let go.
@@ -309,7 +310,36 @@ async function runLandscape() {
     speed: Math.round(onRoad?.speed ?? 0),
     balloons: onRoad?.balloonsTaken,
     overtakes: onRoad?.overtakes,
-    screenshot: session.shoot('headless-04-race'),
+    screenshot: session.shoot('headless-05-road'),
+  });
+
+  // Cupcake boost: wait for a full meter, then tap the cupcake.
+  let boostChargesBefore = null;
+  try {
+    await session.waitFor(() => (stateOf(session)?.boostCharges ?? 0) >= 4, 20000, 'full boost meter');
+    boostChargesBefore = stateOf(session)?.boostCharges ?? null;
+    tap(1415, 706);
+    await session.waitFor(() => (stateOf(session)?.boostMs ?? 0) > 0, 8000, 'boost fired');
+    await sleep(250);
+    // The traffic light also refills the cup; the boost itself is the cue here.
+  } catch (error) {
+    report.boostNote = String(error);
+  }
+  report.steps.push({
+    step: 'boost',
+    chargesBefore: boostChargesBefore,
+    boostMs: Math.round(stateOf(session)?.boostMs ?? 0),
+    boostsUsed: stateOf(session)?.boostsUsed ?? 0,
+    screenshot: session.shoot('headless-06-boost'),
+  });
+
+  // Second lap: the HUD must read «КРУГ 2/3» while the castle loop scrolls.
+  await session.waitFor(() => (stateOf(session)?.lap ?? 1) >= 2, 20000, 'second lap');
+  await sleep(200);
+  report.steps.push({
+    step: 'lap-two',
+    lap: stateOf(session)?.lap ?? null,
+    screenshot: session.shoot('headless-07-lap-two'),
   });
 
   await session.waitFor(() => bridgeOf(session)?.scene === 'finish', 90000, 'finish scene');
@@ -317,30 +347,29 @@ async function runLandscape() {
   report.steps.push({
     step: 'finish',
     scene: bridgeOf(session)?.scene,
-    screenshot: session.shoot('headless-05-finish'),
+    screenshot: session.shoot('headless-08-finish'),
   });
 
   const metrics = bridgeOf(session)?.metrics ?? null;
+  const boostStep = report.steps.find((step) => step.step === 'boost');
   // A fresh deterministic clean run from a built-in seed: 40-60 s and always finished.
   const cleanRun = bridgeOf(session)?.skipToFinish?.(4321) ?? null;
 
   // The blue car button leads back to the garage…
-  session.touch('down', 1040, 300);
-  session.touch('up', 1040, 300);
+  tap(1300, 470);
   const backToGarage = await session.waitFor(() => bridgeOf(session)?.scene === 'garage', 20000, 'back to garage')
     .then(() => 'garage')
     .catch(() => 'timeout');
   await sleep(400);
-  report.steps.push({ step: 'back-to-garage', scene: backToGarage });
+  report.steps.push({ step: 'back-to-garage', scene: backToGarage, screenshot: session.shoot('headless-09-garage-again') });
 
   // …and «Едем!» starts another playable race (the same path as «Ещё раз»).
-  session.touch('down', 1330, 520);
-  session.touch('up', 1330, 520);
+  tap(1250, 270);
   const restarted = await session.waitFor(() => bridgeOf(session)?.scene === 'race', 20000, 'restart')
     .then(() => 'race')
     .catch(() => 'timeout');
   await sleep(600);
-  report.steps.push({ step: 'restart', scene: restarted, screenshot: session.shoot('headless-06-restart') });
+  report.steps.push({ step: 'restart', scene: restarted, screenshot: session.shoot('headless-10-restart') });
 
   report.metrics = metrics;
   report.cleanRun = cleanRun;
@@ -349,6 +378,7 @@ async function runLandscape() {
 
   const grassStep = report.steps.find((step) => step.step === 'grass-slowdown');
   const roadStep = report.steps.find((step) => step.step === 'back-on-road');
+  const lapStep = report.steps.find((step) => step.step === 'lap-two');
   return {
     noRuntimeErrors: session.runtimeErrors.length === 0,
     noConsoleErrors: session.consoleErrors.length === 0,
@@ -356,6 +386,8 @@ async function runLandscape() {
     grassSlowsCar: grassStep?.onGrass === true && grassStep.speed <= 84,
     backOnRoadSpeedsUp:
       roadStep?.onGrass === false && roadStep.speed > (grassStep?.speed ?? 999) - 1 && roadStep.speed >= 60,
+    boostWorks: (boostStep?.boostsUsed ?? 0) >= 1,
+    lapProgressWorks: lapStep?.lap === 2,
     cleanRunInRange:
       cleanRun?.ok === true &&
       cleanRun?.drivingMs >= 40000 &&
@@ -389,8 +421,8 @@ async function runOffline() {
   await sleep(900);
   report.steps.push({ step: 'garage', scene: bridgeOf(session)?.scene, screenshot: session.shoot('offline-01-garage') });
 
-  session.touch('down', 1330, 520);
-  session.touch('up', 1330, 520);
+  session.touch('down', 1250, 270);
+  session.touch('up', 1250, 270);
   await session.waitFor(() => bridgeOf(session)?.scene === 'race', 25000, 'offline race scene');
   bridgeOf(session).timeScale = 15;
   await session.waitFor(() => stateOf(session)?.status === 'racing', 40000, 'offline racing');

@@ -35,6 +35,9 @@ const game = new Phaser.Game({
 game.registry.set('portrait', false);
 game.registry.set('paused', false);
 game.registry.set('themeIndex', 0);
+game.registry.set('colorId', 'rose');
+game.registry.set('flagId', 'star');
+game.registry.set('stickerId', 'star');
 
 game.events.once(Phaser.Core.Events.READY, () => {
   document.getElementById('boot-hint')?.classList.add('hidden');
@@ -59,7 +62,13 @@ bridge.restart = (seed?: number) => {
   for (const scene of game.scene.getScenes(true)) {
     if (scene.scene.key !== 'overlay') scene.scene.stop();
   }
-  game.scene.start('race', { seed: seed ?? Math.floor(Math.random() * 1_000_000), theme });
+  game.scene.start('race', {
+    seed: seed ?? Math.floor(Math.random() * 1_000_000),
+    theme,
+    colorId: game.registry.get('colorId') ?? 'rose',
+    flagId: game.registry.get('flagId') ?? 'star',
+    stickerId: game.registry.get('stickerId') ?? 'star',
+  });
 };
 
 /**
@@ -70,12 +79,12 @@ bridge.restart = (seed?: number) => {
  */
 bridge.skipToFinish = (seed?: number): Record<string, unknown> => {
   const useSeed = seed ?? bridge.seed ?? 1;
-  const theme = (bridge.theme as Theme | undefined) ?? 'meadow';
+  const theme = (bridge.theme as Theme | undefined) ?? 'candy';
   let state: RaceState = createRace(useSeed, theme);
   const limit = Math.round(180_000 / (1000 / 60));
   let steps = 0;
   while (state.status !== 'finished' && steps < limit) {
-    state = stepRace(state, 1000 / 60, { steer: 0 }).state;
+    state = stepRace(state, 1000 / 60, { steer: 0, boost: true }).state;
     steps += 1;
   }
   const drivingMs = state.finishMs ?? 0;
@@ -88,6 +97,7 @@ bridge.skipToFinish = (seed?: number): Record<string, unknown> => {
     totalMs: drivingMs + CFG.countdownMs,
     balloons: state.balloonsTaken,
     overtakes: state.overtakes,
+    boosts: state.boostsUsed,
     onGrass: state.onGrass,
     progress: state.progress,
   };

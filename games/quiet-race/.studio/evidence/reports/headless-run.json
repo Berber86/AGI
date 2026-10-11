@@ -1,6 +1,6 @@
 {
   "harness": "jsdom + @napi-rs/canvas, Phaser Canvas renderer",
-  "generatedAt": "2026-10-11T10:04:00.711Z",
+  "generatedAt": "2026-10-11T11:32:03.485Z",
   "landscape": {
     "width": 915,
     "height": 412
@@ -18,8 +18,13 @@
     {
       "step": "countdown",
       "scene": "race",
-      "countdownMs": 3017,
+      "countdownMs": 2908,
       "screenshot": ".studio/evidence/screenshots/headless-02-countdown.png"
+    },
+    {
+      "step": "go",
+      "scene": "race",
+      "screenshot": ".studio/evidence/screenshots/headless-03-race.png"
     },
     {
       "step": "grass-slowdown",
@@ -27,31 +32,44 @@
       "onGrass": true,
       "lateral": -0.62,
       "speed": 60,
-      "screenshot": ".studio/evidence/screenshots/headless-03-grass.png"
+      "screenshot": ".studio/evidence/screenshots/headless-04-grass.png"
     },
     {
       "step": "back-on-road",
       "status": "racing",
       "onGrass": false,
-      "lateral": -0.16,
-      "speed": 84,
-      "balloons": 0,
+      "lateral": 1.63,
+      "speed": 76,
+      "balloons": 4,
       "overtakes": 0,
-      "screenshot": ".studio/evidence/screenshots/headless-04-race.png"
+      "screenshot": ".studio/evidence/screenshots/headless-05-road.png"
+    },
+    {
+      "step": "boost",
+      "chargesBefore": 4,
+      "boostMs": 0,
+      "boostsUsed": 1,
+      "screenshot": ".studio/evidence/screenshots/headless-06-boost.png"
+    },
+    {
+      "step": "lap-two",
+      "lap": 2,
+      "screenshot": ".studio/evidence/screenshots/headless-07-lap-two.png"
     },
     {
       "step": "finish",
       "scene": "finish",
-      "screenshot": ".studio/evidence/screenshots/headless-05-finish.png"
+      "screenshot": ".studio/evidence/screenshots/headless-08-finish.png"
     },
     {
       "step": "back-to-garage",
-      "scene": "garage"
+      "scene": "garage",
+      "screenshot": ".studio/evidence/screenshots/headless-09-garage-again.png"
     },
     {
       "step": "restart",
       "scene": "race",
-      "screenshot": ".studio/evidence/screenshots/headless-06-restart.png"
+      "screenshot": ".studio/evidence/screenshots/headless-10-restart.png"
     },
     {
       "step": "portrait-hint",
@@ -61,19 +79,23 @@
     }
   ],
   "metrics": {
-    "frames": 325,
-    "fps": 46,
-    "worstFrameMs": 21.5
+    "frames": 311,
+    "fps": 34,
+    "worstFrameMs": 32.6,
+    "avgFrameMs": 29.59,
+    "renderMs": 0.39,
+    "simMs": 0.27
   },
   "cleanRun": {
     "ok": true,
     "seed": 4321,
-    "theme": "meadow",
-    "steps": 2864,
-    "drivingMs": 43517,
-    "totalMs": 47717,
-    "balloons": 9,
+    "theme": "candy",
+    "steps": 2775,
+    "drivingMs": 42033,
+    "totalMs": 46233,
+    "balloons": 10,
     "overtakes": 3,
+    "boosts": 2,
     "onGrass": false,
     "progress": 3600
   },
@@ -86,6 +108,8 @@
     "reachedFinish": true,
     "grassSlowsCar": true,
     "backOnRoadSpeedsUp": true,
+    "boostWorks": true,
+    "lapProgressWorks": true,
     "cleanRunInRange": true,
     "garageReturnWorks": true,
     "restartWorks": true,
