@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arena Game Forge — игры</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0; min-height: 100dvh; display: grid; place-items: center;
+        background: linear-gradient(180deg, #cdeeff 0%, #fff3d6 100%);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #5a4632;
+      }
+      main { text-align: center; padding: 32px; }
+      h1 { font-size: 40px; margin: 0 0 8px; }
+      p { color: #6b8f5a; margin: 0 0 28px; }
+      a.play {
+        display: inline-block; padding: 22px 46px; border-radius: 999px;
+        background: #7ed957; color: #2f5c1f; font-size: 26px; font-weight: 700;
+        text-decoration: none; box-shadow: 0 6px 0 #4fae33;
+      }
+      a.play:active { transform: translateY(3px); box-shadow: 0 3px 0 #4fae33; }
+      footer { margin-top: 26px; font-size: 15px; }
+      footer a { color: #4d9fd1; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Тихая гонка 🏁</h1>
+      <p>Неспешная гонка для маленькой гонщицы: без проигрыша, с обгонами и финишем-праздником</p>
+      <a class="play" href="./quiet-race/">Играть</a>
+      <footer>
+        Сделано скиллом <a href="https://github.com/Berber86/AGI">arena-game-forge</a> ·
+        <a href="https://github.com/Berber86/AGI/tree/main/games/quiet-race">исходники игры</a>
+      </footer>
+    </main>
+  </body>
+</html>
