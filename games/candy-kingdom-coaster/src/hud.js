@@ -10,7 +10,6 @@ export class HUD {
     this.el = {
       sweets: this.$('#hud-sweets'),
       sweetsFill: this.$('#hud-sweets-fill'),
-      speedFill: this.$('#hud-speed-fill'),
       cakeRow: this.$('#hud-cakes'),
       popupLayer: this.$('#popup-layer'),
       minimap: this.$('#minimap'),
@@ -55,7 +54,6 @@ export class HUD {
       this.el.sweets.classList.add('bump');
     }
     this.el.sweetsFill.style.width = `${Math.min(100, total ? (sweets / total) * 100 : 0)}%`;
-    this.el.speedFill.style.width = `${Math.max(8, Math.min(100, (speedKmh / 95) * 100))}%`;
     this.cakes.forEach((c, i) => c.classList.toggle('charged', boostActive || i < boostCharges));
     this.el.cakeRow.classList.toggle('is-boosting', !!boostActive);
     document.body.classList.toggle('is-boosting', !!boostActive);

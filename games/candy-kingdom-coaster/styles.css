@@ -135,8 +135,8 @@ html, body {
   pointer-events: auto;
   cursor: pointer;
 }
-#btn-left { left: max(168px, 15vw); }
-#btn-right { right: max(168px, 15vw); }
+#btn-left { left: max(8px, 1.5vw); }
+#btn-right { right: max(8px, 1.5vw); }
 .ctl-btn.is-pressed {
   background: rgba(255, 80, 160, 0.85);
   transform: scale(0.93);

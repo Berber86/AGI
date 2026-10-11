@@ -227,14 +227,7 @@ window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 
 // ---------------------------------------------------------------- zone toast
 let toastTimer = 0;
-function showZoneToast(name) {
-  // emoji-only: zone identity without letters (kid-friendly HUD)
-  el.zoneToast.textContent = name;
-  el.zoneToast.classList.remove('show');
-  void el.zoneToast.offsetWidth; // restart animation
-  el.zoneToast.classList.add('show');
-  toastTimer = 2.4;
-}
+function showZoneToast() { /* zone toasts removed — distracting for kids */ }
 
 // ---------------------------------------------------------------- gameplay
 function updateGameplay(dt) {
@@ -246,11 +239,11 @@ function updateGameplay(dt) {
       game.countdownN = n;
       if (n > 0) { el.countdownNum.textContent = String(n); SFX.play('beep'); }
       else {
-        el.countdownNum.textContent = 'GO!';
+        el.countdownNum.textContent = 'СТАРТ!';
         SFX.play('go');
         game.state = 'racing';
         window.__GAME_STATE__ = 'racing';
-        game.goHideT = 0.85; // hide the GO! overlay shortly after (runs every frame)
+        game.goHideT = 1.5; // «СТАРТ!» убираем через 1.5 секунды (runs every frame)
       }
     }
     if (game.state === 'countdown') {
@@ -369,7 +362,7 @@ function updateGameplay(dt) {
   const z = zoneAt(u);
   if (z.id !== game.zoneIndex) {
     game.zoneIndex = z.id;
-    if (game.state === 'racing' || game.state === 'countdown') showZoneToast(['🍭', '🐻', '🍫', '☁️', '🏰'][z.id] || '🍭');
+    // (no zone toast — removed as a distraction)
   }
 
   // HUD
@@ -384,11 +377,8 @@ function updateGameplay(dt) {
   });
   hud.drawMinimap(u, sweets.list);
 
-  world.update(dt, camera.position, u, performance.now() * 0.001);
-  if (toastTimer > 0) {
-    toastTimer -= dt;
-    if (toastTimer <= 0) el.zoneToast.classList.remove('show');
-  }
+  const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
+  if (knocked > 0) SFX.play('bump');
 }
 
 // ---------------------------------------------------------------- loop
@@ -435,6 +425,7 @@ window.__TEST__ = {
   toMenu,
   finishNow() { if (game.state !== 'racing') startRace(); game.s = track.length - 2; game.timeS = Math.min(game.timeS, 97.2); },
   fastForwardCountdown() { game.countdownT = 2.3; },
+  dbg() { return { goHideT: game.goHideT, cdT: game.countdownT, st: game.state, hid: el.countdown.classList.contains('hidden') }; },
   setProgress(u, lateral = 0, freeze = false) {
     game.s = track.length * u;
     game.lateral = lateral;
@@ -493,7 +484,6 @@ window.__TEST__ = {
     document.getElementById('portrait-hint').style.display = 'none';
     for (const n of Object.values(screens)) n.classList.add('hidden');
     el.countdown.classList.add('hidden');
-    el.zoneToast.classList.remove('show');
   },
   // Diagnose what is under/behind given NDC pixel + the road mesh state.
   diagScene(ndcX = 0, ndcY = -0.5) {
@@ -629,6 +619,7 @@ window.__TEST__ = {
   hideChild(i, hide = true) {
     if (scene.children[i]) scene.children[i].visible = !hide;
   },
+  knockedCount() { return world.knockedCount(); },
   worldChildren() {
     const world = scene.children.find((o) => o.type === 'Group' && o.children.length > 50);
     if (!world) return [];

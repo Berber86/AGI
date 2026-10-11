@@ -298,9 +298,9 @@ export function createWorld(scene, track, renderer) {
   const capMat = new THREE.MeshStandardMaterial({ color: '#fff6fa', roughness: 0.85, flatShading: true });
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + 0.35;
-    const r = 420 + (i % 3) * 110;
-    const h = 110 + (i * 37) % 110;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(100 + (i % 4) * 40, h, 6), mountainMat);
+    const r = 560 + (i % 3) * 160;
+    const h = 90 + (i * 37) % 90;
+    const m = new THREE.Mesh(new THREE.ConeGeometry(90 + (i % 4) * 35, h, 6), mountainMat);
     m.position.set(
       track.bounds.center.x + Math.cos(a) * r,
       h / 2 - 20,
@@ -438,10 +438,12 @@ export function createWorld(scene, track, renderer) {
     const u = s / L;
     const z = zoneAt(u);
     const side = Math.floor(s / 4.2) % 2 ? 1 : -1;
-    const far = 6.8 + rand() * 18;
+    // keep the road corridor clear: props never closer than 8.2 m, big scale only far away
+    const far = 8.2 + rand() * 17;
     const lateral = side * far;
     const { pos, heading } = track.getPose(s + (rand() - 0.5) * 4, lateral);
-    const slot = { x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.1 + rand() * 1.9 };
+    const scMax = Math.min(2.8, 0.9 + far * 0.11);
+    const slot = { x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.0 + rand() * (scMax - 1.0) };
 
     const roll = rand();
     if (z.id === 0) {
@@ -471,21 +473,21 @@ export function createWorld(scene, track, renderer) {
       else if (roll < 0.88) placements.marsh.push(slot);
       else placements.ice.push(slot);
     }
-    // roadside candy walls both sides (reference-like density at the shoulder)
+    // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
       if (rand() < 0.72) {
-        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (5.7 + rand() * 1.1));
-        const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.6 };
+        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (7.0 + rand() * 1.1));
+        const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
         const roll2 = rand();
         if (roll2 < 0.36) placements[`lolli${Math.floor(rand() * 3)}`].push(slotW);
         else if (roll2 < 0.62) placements.cane.push(slotW);
         else if (roll2 < 0.82) placements.marsh.push(slotW);
-        else placements.bear.push({ ...slotW, sc: 0.7 + rand() * 0.5, ry: wp.heading + Math.PI });
+        else placements.bear.push({ ...slotW, sc: 0.65 + rand() * 0.35, ry: wp.heading + Math.PI });
       }
     }
     if (rand() < 0.38) {
-      const bp = track.getPose(s + 1, side * (6.3 + rand() * 1.4));
-      placements.bear.push({ x: bp.pos.x, y: bp.pos.y - 0.3, z: bp.pos.z, ry: bp.heading + Math.PI + (rand() - 0.5) * 0.8, sc: 0.95 + rand() * 0.7 });
+      const bp = track.getPose(s + 1, side * (7.2 + rand() * 1.4));
+      placements.bear.push({ x: bp.pos.x, y: bp.pos.y - 0.3, z: bp.pos.z, ry: bp.heading + Math.PI + (rand() - 0.5) * 0.8, sc: 0.95 + rand() * 0.5 });
     }
   }
 
@@ -493,11 +495,43 @@ export function createWorld(scene, track, renderer) {
   const heroSpots = [0.05, 0.10, 0.16, 0.22, 0.28, 0.35, 0.42, 0.49, 0.56, 0.63, 0.70, 0.77, 0.84, 0.90, 0.95];
   heroSpots.forEach((u, i) => {
     const side = i % 2 ? 1 : -1;
-    const p = track.getPose(track.length * u, side * (12 + (i % 3) * 3.5));
+    const p = track.getPose(track.length * u, side * (14.5 + (i % 3) * 3.5));
     if (i % 3 === 0) placements.lolli0.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.6 + (i % 2) * 1.3 });
     else if (i % 3 === 1) placements.lolli1.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.9 + (i % 2) });
     else placements.cane.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.7 + (i % 2) * 1.2 });
   });
+
+  // ---------- knockable candy-cane fence (topples when the car hits it) ----------
+  const KNOCK = 300;
+  const knockMesh = new THREE.InstancedMesh(caneGeometry(), propMats.cane, KNOCK);
+  knockMesh.castShadow = true;
+  knockMesh.receiveShadow = true;
+  const knockItems = [];
+  for (let i = 0; i < KNOCK; i++) {
+    const s = 8 + (i / KNOCK) * (L - 20);
+    const kSide = i % 2 ? 1 : -1;
+    const lat = kSide * (6.1 + rand() * 0.9);
+    const p = track.getPose(s + (rand() - 0.5) * 2, lat);
+    knockItems.push({
+      x: p.pos.x, y: p.pos.y - 0.25, z: p.pos.z,
+      ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.28,
+      s, lateral: lat, state: 0, t: 0, dir: kSide,
+    });
+  }
+  world.add(knockMesh);
+  const knockDummy = new THREE.Object3D();
+  function knockSync(i) {
+    const it = knockItems[i];
+    const k = Math.min(1, it.t);
+    const slide = it.state ? k * 1.5 : 0;
+    knockDummy.position.set(it.x + it.dir * slide * 0.6, it.y + (it.state ? Math.sin(k * Math.PI) * 0.22 : 0), it.z + it.dir * slide * 0.35);
+    knockDummy.rotation.set(0, it.ry, it.state ? it.dir * k * 1.42 : 0);
+    knockDummy.scale.setScalar(it.sc);
+    knockDummy.updateMatrix();
+    knockMesh.setMatrixAt(i, knockDummy.matrix);
+  }
+  for (let i = 0; i < KNOCK; i++) knockSync(i);
+  knockMesh.instanceMatrix.needsUpdate = true;
 
   const dummy = new THREE.Object3D();
   function makeInstanced(geo, mat, list, colorFn) {
@@ -607,7 +641,8 @@ export function createWorld(scene, track, renderer) {
 
   return {
     sky, sun,
-    update(dt, cameraPos, u, time) {
+    knockedCount: () => knockItems.reduce((n, it) => n + (it.state ? 1 : 0), 0),
+    update(dt, cameraPos, u, time, carS = -1, carLateral = 0) {
       // Sky stays candy-blue; only the horizon warms up with the zone tint.
       const z = zoneAt(u);
       const fogC = tmpColor.copy(zoneFog[z.id]).lerp(zoneSky[z.id], 0.45);
@@ -618,6 +653,29 @@ export function createWorld(scene, track, renderer) {
       // sun follows the car for tight shadows
       sun.position.set(cameraPos.x + 60, cameraPos.y + 95, cameraPos.z - 50);
       sun.target.position.copy(cameraPos);
+
+      // knockable candy canes: hit → topple & slide away
+      let knocked = 0;
+      let knockDirty = false;
+      if (carS >= 0) {
+        for (let i = 0; i < knockItems.length; i++) {
+          const it = knockItems[i];
+          if (it.state === 0) {
+            if (Math.abs(it.s - carS) < 2.6 && Math.abs(it.lateral - carLateral) < 2.5) {
+              it.state = 1;
+              it.t = 0;
+              it.dir = (it.lateral - carLateral) >= 0 ? 1 : -1;
+              knocked++;
+              knockDirty = true;
+            }
+          } else if (it.t < 1) {
+            it.t = Math.min(1, it.t + dt * 1.7);
+            knockSync(i);
+            knockDirty = true;
+          }
+        }
+        if (knockDirty) knockMesh.instanceMatrix.needsUpdate = true;
+      }
 
       // clouds drift
       for (const c of clouds) {
@@ -645,6 +703,7 @@ export function createWorld(scene, track, renderer) {
         b.g.position.y = b.baseY + Math.sin(time * 0.8 + b.phase) * 1.6;
         b.g.rotation.y = time * 0.25 + b.phase;
       }
+      return knocked;
     },
     setQuality(tier) {
       const shadows = tier > 0;

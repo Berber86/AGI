@@ -172,7 +172,7 @@ export function createTrack(scene) {
   mkStrip(0.0025);
   mkStrip(0.9975);
 
-  // ---- Finish arch ----
+  // ---- Finish arch (faces the oncoming car so the text reads correctly) ----
   const arch = new THREE.Group();
   const poleGeo = new THREE.CylinderGeometry(0.35, 0.42, 6.4, 12);
   const poleMat = new THREE.MeshStandardMaterial({ color: '#ff5f9e', roughness: 0.35, metalness: 0.15, emissive: '#7a1640', emissiveIntensity: 0.25 });
@@ -193,13 +193,13 @@ export function createTrack(scene) {
   const fu = 0.9975;
   const fp = curve.getPointAt(fu), ft = curve.getTangentAt(fu);
   arch.position.copy(fp);
-  arch.rotation.y = Math.atan2(ft.x, ft.z);
+  arch.rotation.y = Math.atan2(ft.x, ft.z) + Math.PI; // face the driver (was mirrored)
   scene.add(arch);
 
   // ---- Start gate (small candy arch) ----
   const startArch = arch.clone();
   startArch.position.copy(curve.getPointAt(0.0025));
-  startArch.rotation.y = Math.atan2(curve.getTangentAt(0.0025).x, curve.getTangentAt(0.0025).z);
+  startArch.rotation.y = Math.atan2(curve.getTangentAt(0.0025).x, curve.getTangentAt(0.0025).z) + Math.PI; // face the driver
   const b2 = startArch.children[2];
   b2.material = b2.material.clone();
   const sc = document.createElement('canvas');
