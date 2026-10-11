@@ -1,0 +1,32 @@
+{
+  "task": "CORE-005",
+  "checkedAt": "2026-10-11T09:27:56.587498Z",
+  "checks": [
+    {
+      "name": "perspective projection",
+      "passed": true,
+      "detail": "cameraDepth = 1/tan(fov/2), scale = depth/z"
+    },
+    {
+      "name": "curves",
+      "passed": true,
+      "detail": "segments with curve -2..2, dx accumulation, camera follows carX"
+    },
+    {
+      "name": "toy table world",
+      "passed": true,
+      "detail": "decor sprites 🧸🧱🎲 projected at roadside"
+    },
+    {
+      "name": "drift physics",
+      "passed": true,
+      "detail": "carVelocity with inertia 0.92 friction, curve pushes, soft bounce at edges"
+    },
+    {
+      "name": "3D stickers",
+      "passed": true,
+      "detail": "stickers at world Z, projected, collection when n<8 and |x-carX|<0.5"
+    }
+  ],
+  "verdict": "pass"
+}

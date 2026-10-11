@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Runtime shell and PWA foundation",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Vite+TS+Phaser scaffold boots",
+        "PWA manifest present",
+        "index.html loads without console errors"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-001.json",
+        "dist/index.html"
+      ],
+      "updatedAt": "2026-10-11T08:42:52.380295Z"
+    },
+    {
+      "id": "CORE-002",
+      "title": "Vertical slice solo lane driving",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "auto-forward road scroll",
+        "one-thumb drag lane change",
+        "3 lanes clamped, no opponents"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-002.json"
+      ],
+      "updatedAt": "2026-10-11T08:42:52.380295Z"
+    },
+    {
+      "id": "CORE-003",
+      "title": "Sticker collection and cozy house finish",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-002"
+      ],
+      "acceptanceCriteria": [
+        "stickers spawn and collect with feedback",
+        "album shows collected",
+        "house spawns after 5 and triggers celebration",
+        "no Game Over"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-003.json"
+      ],
+      "updatedAt": "2026-10-11T08:42:52.380295Z"
+    },
+    {
+      "id": "CORE-004",
+      "title": "Animal+car selection screen",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "3 racers with emoji and car colors",
+        "tap selects and starts race",
+        "test bridge select works"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-004.json"
+      ],
+      "updatedAt": "2026-10-11T08:42:52.380295Z"
+    },
+    {
+      "id": "QA-001",
+      "title": "Mobile QA and viewports",
+      "ownerRole": "qa",
+      "status": "ready",
+      "dependencies": [
+        "CORE-002",
+        "CORE-003",
+        "CORE-004"
+      ],
+      "acceptanceCriteria": [
+        "touch-only playable",
+        "360x800 and 412x915 layouts",
+        "pause/resume on visibilitychange",
+        "no blocking console errors",
+        "win reachable by touch"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/360x800-selection.png",
+        ".studio/evidence/screenshots/412x915-race.png"
+      ],
+      "updatedAt": "2026-10-11T08:43:17.944419Z"
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Production build and release",
+      "ownerRole": "release",
+      "status": "ready",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "npm run build succeeds",
+        "relative paths work",
+        "manifest and icons resolve",
+        "offline cache works"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json"
+      ],
+      "updatedAt": "2026-10-11T08:43:17.944419Z"
+    },
+    {
+      "id": "CORE-005",
+      "title": "Pseudo-3D OutRun road with toy table world and drift",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-002"
+      ],
+      "acceptanceCriteria": [
+        "road perspective projection OutRun style",
+        "curves left/right with gentle hills",
+        "toy table decor with cubes and plush toys",
+        "drift-free steering with inertia and soft return",
+        "stickers projected in 3D and collectible"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-005.json"
+      ],
+      "updatedAt": "2026-10-11T09:27:56.587498Z"
+    }
+  ],
+  "updatedAt": "2026-10-11T09:27:56.587498Z"
+}
