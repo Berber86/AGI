@@ -1,6 +1,6 @@
 {
   "harness": "jsdom + @napi-rs/canvas, Phaser Canvas renderer",
-  "generatedAt": "2026-10-11T11:32:03.485Z",
+  "generatedAt": "2026-10-11T12:51:42.718Z",
   "landscape": {
     "width": 915,
     "height": 412
@@ -18,7 +18,7 @@
     {
       "step": "countdown",
       "scene": "race",
-      "countdownMs": 2908,
+      "countdownMs": 3000,
       "screenshot": ".studio/evidence/screenshots/headless-02-countdown.png"
     },
     {
@@ -38,16 +38,16 @@
       "step": "back-on-road",
       "status": "racing",
       "onGrass": false,
-      "lateral": 1.63,
-      "speed": 76,
-      "balloons": 4,
+      "lateral": 0.23,
+      "speed": 84,
+      "balloons": 2,
       "overtakes": 0,
       "screenshot": ".studio/evidence/screenshots/headless-05-road.png"
     },
     {
       "step": "boost",
       "chargesBefore": 4,
-      "boostMs": 0,
+      "boostMs": 1117,
       "boostsUsed": 1,
       "screenshot": ".studio/evidence/screenshots/headless-06-boost.png"
     },
@@ -79,12 +79,12 @@
     }
   ],
   "metrics": {
-    "frames": 311,
-    "fps": 34,
-    "worstFrameMs": 32.6,
-    "avgFrameMs": 29.59,
-    "renderMs": 0.39,
-    "simMs": 0.27
+    "frames": 341,
+    "fps": 55,
+    "worstFrameMs": 18.3,
+    "avgFrameMs": 18.04,
+    "renderMs": 0.81,
+    "simMs": 0.18
   },
   "cleanRun": {
     "ok": true,

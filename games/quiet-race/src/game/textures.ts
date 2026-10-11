@@ -30,6 +30,27 @@ function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: numb
   ctx.closePath();
 }
 
+/** Vertical linear gradient between two colours. */
+function lg(ctx: Ctx, x0: number, y0: number, x1: number, y1: number, stops: Array<[number, string]>): CanvasGradient {
+  const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+  for (const [at, color] of stops) gradient.addColorStop(at, color);
+  return gradient;
+}
+
+/** Radial gradient, used for the soft light of every candy shape. */
+function rg(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  inner: number,
+  outer: number,
+  stops: Array<[number, string]>,
+): CanvasGradient {
+  const gradient = ctx.createRadialGradient(x, y, inner, x, y, outer);
+  for (const [at, color] of stops) gradient.addColorStop(at, color);
+  return gradient;
+}
+
 function circle(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -80,19 +101,27 @@ function makeTexture(
 function skyTexture(scene: Phaser.Scene, theme: Theme): string {
   const palette = PALETTES[theme];
   return makeTexture(scene, `sky-${theme}`, VIEW_SIZE.w, VIEW_SIZE.h, (ctx, w, h) => {
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, css(palette.skyTop));
-    gradient.addColorStop(0.45, css(palette.skyMid));
-    gradient.addColorStop(0.78, css(palette.skyHorizon));
-    gradient.addColorStop(1, css(shade(palette.skyHorizon, -8)));
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = lg(ctx, 0, 0, 0, h, [
+      [0, css(shade(palette.skyTop, 8))],
+      [0.28, css(palette.skyTop)],
+      [0.58, css(palette.skyMid)],
+      [0.8, css(palette.skyHorizon)],
+      [1, css(shade(palette.skyHorizon, -10))],
+    ]);
     ctx.fillRect(0, 0, w, h);
 
-    // Soft candy haze just above the horizon.
-    ctx.fillStyle = css(0xffffff, 0.35);
-    ctx.beginPath();
-    ctx.ellipse(w * 0.5, h * 0.42, w * 0.75, h * 0.09, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // Warm light spilling from the horizon, and a cool wash at the very top.
+    ctx.fillStyle = rg(ctx, w * 0.52, h * 0.42, 40, w * 0.62, [
+      [0, css(0xfff3d6, 0.55)],
+      [0.6, css(0xffe9f4, 0.22)],
+      [1, css(0xffffff, 0)],
+    ]);
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = lg(ctx, 0, 0, 0, h * 0.35, [
+      [0, css(0xffffff, 0.28)],
+      [1, css(0xffffff, 0)],
+    ]);
+    ctx.fillRect(0, 0, w, h);
   });
 }
 
@@ -101,32 +130,66 @@ function mountainsTexture(scene: Phaser.Scene, theme: Theme): string {
   const w = 2400;
   const h = 420;
   return makeTexture(scene, `mountains-${theme}`, w, h, (ctx) => {
-    const peaks: Array<[number, number, number]> = [
-      [260, 300, 210],
-      [560, 380, 250],
-      [900, 250, 190],
-      [1240, 340, 260],
-      [1620, 300, 220],
-      [2000, 360, 240],
-      [2320, 260, 200],
+    // Two ranges: a far one washed out by haze, and a near one in full colour.
+    const ranges: Array<{ peaks: Array<[number, number, number]>; alpha: number; lift: number; light: number }> = [
+      {
+        peaks: [
+          [140, 280, 230],
+          [520, 350, 260],
+          [880, 250, 210],
+          [1280, 320, 270],
+          [1700, 300, 240],
+          [2100, 340, 250],
+          [2380, 250, 200],
+        ],
+        alpha: 0.5,
+        lift: -70,
+        light: 26,
+      },
+      {
+        peaks: [
+          [300, 300, 220],
+          [700, 380, 250],
+          [1080, 260, 200],
+          [1500, 340, 260],
+          [1900, 300, 220],
+          [2260, 360, 230],
+        ],
+        alpha: 0.95,
+        lift: 0,
+        light: 0,
+      },
     ];
-    for (const [x, height, width] of peaks) {
-      ctx.fillStyle = css(palette.mountain, 0.85);
-      ctx.beginPath();
-      ctx.moveTo(x - width, h);
-      ctx.quadraticCurveTo(x - width * 0.35, h - height * 0.9, x, h - height);
-      ctx.quadraticCurveTo(x + width * 0.35, h - height * 0.9, x + width, h);
-      ctx.closePath();
-      ctx.fill();
-      // Snow cap.
-      ctx.fillStyle = css(0xffffff, 0.85);
-      ctx.beginPath();
-      ctx.moveTo(x - width * 0.3, h - height * 0.62);
-      ctx.quadraticCurveTo(x - width * 0.12, h - height * 0.95, x, h - height);
-      ctx.quadraticCurveTo(x + width * 0.12, h - height * 0.95, x + width * 0.3, h - height * 0.62);
-      ctx.quadraticCurveTo(x, h - height * 0.74, x - width * 0.3, h - height * 0.62);
-      ctx.fill();
+    for (const range of ranges) {
+      for (const [x, height, width] of range.peaks) {
+        const top = h - height + range.lift;
+        ctx.fillStyle = lg(ctx, x - width, top, x + width * 0.6, h, [
+          [0, css(shade(palette.mountain, range.light + 30), range.alpha)],
+          [0.55, css(shade(palette.mountain, range.light), range.alpha)],
+          [1, css(shade(palette.mountain, range.light - 34), range.alpha)],
+        ]);
+        ctx.beginPath();
+        ctx.moveTo(x - width, h);
+        ctx.quadraticCurveTo(x - width * 0.35, h - (height - range.lift) * 0.9, x, top);
+        ctx.quadraticCurveTo(x + width * 0.35, h - (height - range.lift) * 0.9, x + width, h);
+        ctx.closePath();
+        ctx.fill();
+        // Snow cap with a soft edge.
+        ctx.fillStyle = css(0xffffff, range.alpha * 0.92);
+        ctx.beginPath();
+        ctx.moveTo(x - width * 0.28, h - (height - range.lift) * 0.6);
+        ctx.quadraticCurveTo(x - width * 0.12, top + (height - range.lift) * 0.05, x, top);
+        ctx.quadraticCurveTo(x + width * 0.12, top + (height - range.lift) * 0.05, x + width * 0.28, h - (height - range.lift) * 0.6);
+        ctx.quadraticCurveTo(x, h - (height - range.lift) * 0.72, x - width * 0.28, h - (height - range.lift) * 0.6);
+        ctx.fill();
+      }
     }
+    // A touch of haze in front of the far range.
+    ctx.fillStyle = lg(ctx, 0, h * 0.5, 0, h, [
+      [0, css(0xffffff, 0)],
+      [1, css(0xffffff, 0.34)],
+    ]);
+    ctx.fillRect(0, 0, w, h);
   });
 }
 
@@ -138,13 +201,25 @@ function castleTexture(scene: Phaser.Scene, theme: Theme): string {
   const h = 780;
   return makeTexture(scene, `castle-${theme}`, w, h, (ctx) => {
     const tower = (cx: number, top: number, width: number, roofHeight: number, flag: boolean) => {
-      ctx.fillStyle = css(wall);
+      ctx.fillStyle = lg(ctx, cx - width / 2, top, cx + width / 2, h - 40, [
+        [0, css(shade(wall, 26))],
+        [0.5, css(wall)],
+        [1, css(shade(wall, -26))],
+      ]);
       roundRect(ctx, cx - width / 2, top, width, h - top - 40, 14);
       ctx.fill();
+      ctx.strokeStyle = css(shade(wall, -46), 0.55);
+      ctx.lineWidth = 6;
+      roundRect(ctx, cx - width / 2, top, width, h - top - 40, 14);
+      ctx.stroke();
       ctx.fillStyle = css(shade(wall, -22), 0.5);
       ctx.fillRect(cx - width / 2, top, width * 0.16, h - top - 40);
       // Roof.
-      ctx.fillStyle = css(roof);
+      ctx.fillStyle = lg(ctx, cx - width * 0.6, top - roofHeight, cx + width * 0.6, top + 10, [
+        [0, css(shade(roof, 40))],
+        [0.55, css(roof)],
+        [1, css(shade(roof, -30))],
+      ]);
       ctx.beginPath();
       ctx.moveTo(cx - width * 0.62, top + 6);
       ctx.quadraticCurveTo(cx, top - roofHeight, cx + width * 0.62, top + 6);
@@ -160,7 +235,10 @@ function castleTexture(scene: Phaser.Scene, theme: Theme): string {
       for (let row = 0; row < 3; row += 1) {
         const wy = top + 90 + row * 120;
         if (wy > h - 120) break;
-        ctx.fillStyle = css(0x9fd8ff, 0.9);
+        ctx.fillStyle = rg(ctx, cx, wy + 31, 4, width * 0.36, [
+          [0, css(0xfff6d8, 0.98)],
+          [1, css(0x9fd8ff, 0.9)],
+        ]);
         roundRect(ctx, cx - width * 0.16, wy, width * 0.32, 62, 30);
         ctx.fill();
         ctx.strokeStyle = css(0xfff0b8);
@@ -190,14 +268,42 @@ function castleTexture(scene: Phaser.Scene, theme: Theme): string {
     };
 
     // Back wall.
-    ctx.fillStyle = css(shade(wall, -12));
+    ctx.fillStyle = lg(ctx, 200, 380, 900, h - 40, [
+      [0, css(shade(wall, 12))],
+      [0.5, css(shade(wall, -6))],
+      [1, css(shade(wall, -30))],
+    ]);
     roundRect(ctx, 200, 380, 700, h - 420, 22);
     ctx.fill();
+    // Crenellations along the top of the back wall.
+    for (let i = 0; i < 11; i += 1) {
+      ctx.fillStyle = css(shade(wall, i % 2 === 0 ? 8 : -14));
+      roundRect(ctx, 206 + i * 62, 356, 46, 44, 10);
+      ctx.fill();
+    }
     // Towers.
     tower(200, 300, 190, 150, false);
     tower(900, 300, 190, 150, false);
     tower(550, 150, 250, 210, true);
-    // Candy dots on the walls.
+    // Candy dots, streamers and bunting ropes.
+    ctx.strokeStyle = css(0xfff0b8, 0.75);
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(230, 400);
+    ctx.quadraticCurveTo(550, 470, 870, 400);
+    ctx.stroke();
+    for (let i = 0; i < 10; i += 1) {
+      const t = (i + 0.5) / 10;
+      const x = 230 + t * 640;
+      const y = 400 + Math.sin(t * Math.PI) * 52;
+      ctx.fillStyle = css([0xff8fc0, 0xffd166, 0x8fd0f5, 0xb388ff][i % 4]);
+      ctx.beginPath();
+      ctx.moveTo(x - 16, y);
+      ctx.lineTo(x + 16, y);
+      ctx.lineTo(x, y + 34);
+      ctx.closePath();
+      ctx.fill();
+    }
     for (let i = 0; i < 26; i += 1) {
       const x = 220 + ((i * 137) % 660);
       const y = 400 + ((i * 91) % 300);
@@ -205,6 +311,162 @@ function castleTexture(scene: Phaser.Scene, theme: Theme): string {
       circle(ctx, x, y, 9);
       ctx.fill();
     }
+  });
+}
+
+/** Rolling candy hills that sit behind the road, just above the horizon. */
+function hillsBandTexture(scene: Phaser.Scene, theme: Theme): string {
+  const palette = PALETTES[theme];
+  const w = 2600;
+  const h = 420;
+  return makeTexture(scene, `hills-band-${theme}`, w, h, (ctx) => {
+    const domes: Array<[number, number, number]> = [
+      [240, 300, 330],
+      [760, 380, 420],
+      [1320, 260, 360],
+      [1900, 400, 400],
+      [2400, 320, 340],
+    ];
+    for (const [cx, ry, rx] of domes) {
+      ctx.fillStyle = lg(ctx, cx - rx, h - ry, cx + rx * 0.7, h, [
+        [0, css(shade(palette.ground, 16))],
+        [0.5, css(palette.ground)],
+        [1, css(shade(palette.groundAlt, -30))],
+      ]);
+      ctx.beginPath();
+      ctx.ellipse(cx, h, rx, ry, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = css(0xffffff, 0.22);
+      for (let i = 0; i < 9; i += 1) {
+        const angle = Math.PI * (1.12 + (i / 9) * 0.76);
+        circle(ctx, cx + Math.cos(angle) * rx * 0.8, h + Math.sin(angle) * ry * 0.8, 7);
+        ctx.fill();
+      }
+    }
+    // Lollipop trees standing on the slopes.
+    for (let i = 0; i < 22; i += 1) {
+      const x = 60 + ((i * 271) % (w - 120));
+      const dome = domes[Math.floor((x / w) * domes.length) % domes.length];
+      const offset = (x - dome[0]) / dome[2];
+      if (Math.abs(offset) > 0.92) continue;
+      const y = h - dome[1] * Math.sqrt(Math.max(0, 1 - offset * offset));
+      const size = 1 - Math.abs(offset) * 0.35;
+      // Trunk.
+      ctx.fillStyle = css(0xc9a07a);
+      roundRect(ctx, x - 5 * size, y - 34 * size, 10 * size, 36 * size, 4);
+      ctx.fill();
+      // Candy crown.
+      ctx.fillStyle = css([0xffb3d1, 0xa8f0c8, 0xd9c4ff, 0xffe0a3][i % 4]);
+      circle(ctx, x, y - 48 * size, 26 * size);
+      ctx.fill();
+      ctx.fillStyle = css(0xffffff, 0.5);
+      circle(ctx, x - 8 * size, y - 54 * size, 8 * size);
+      ctx.fill();
+    }
+  });
+}
+
+/** A little candy house for the verge: pastel walls, a striped candy roof. */
+/** A clump of grass for the verge, so the green is not a flat wash. */
+function grassTuftTexture(scene: Phaser.Scene): string {
+  return makeTexture(scene, 'grass-tuft', 160, 130, (ctx, w, h) => {
+    const blades = [
+      [0.5, 0.18, 0.42],
+      [0.3, 0.4, 0.3],
+      [0.7, 0.42, 0.26],
+      [0.16, 0.6, 0.2],
+      [0.86, 0.62, 0.22],
+    ] as const;
+    for (const [x, top, halfWidth] of blades) {
+      ctx.fillStyle = css(0x7cc95f, 0.9);
+      ctx.beginPath();
+      ctx.moveTo(w * x - w * halfWidth * 0.35, h);
+      ctx.quadraticCurveTo(w * x - w * halfWidth * 0.2, h * top, w * x, h * top * 0.72);
+      ctx.quadraticCurveTo(w * x + w * halfWidth * 0.2, h * top, w * x + w * halfWidth * 0.35, h);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = css(0x9ade7c, 0.85);
+    ctx.beginPath();
+    ctx.moveTo(w * 0.42, h);
+    ctx.quadraticCurveTo(w * 0.4, h * 0.34, w * 0.5, h * 0.2);
+    ctx.quadraticCurveTo(w * 0.56, h * 0.42, w * 0.56, h);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+function candyHouseTexture(scene: Phaser.Scene, variant: number): string {
+  return makeTexture(scene, `candyhouse-${variant}`, 420, 420, (ctx, w, h) => {
+    const roofColors = [0xff9ec4, 0x9be3c0, 0xb388ff, 0xffd166];
+    const wallTint = 0xfff6fb;
+    // Soft shadow under the house.
+    ctx.fillStyle = rg(ctx, w * 0.5, h * 0.92, 4, w * 0.46, [
+      [0, 'rgba(61,43,31,0.22)'],
+      [1, 'rgba(61,43,31,0)'],
+    ]);
+    ctx.save();
+    ctx.translate(w * 0.5, h * 0.92);
+    ctx.scale(1, 0.22);
+    ctx.beginPath();
+    ctx.arc(0, 0, w * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // Walls with a gentle vertical gradient.
+    ctx.fillStyle = lg(ctx, w * 0.2, h * 0.4, w * 0.8, h * 0.86, [
+      [0, css(shade(wallTint, 8))],
+      [1, css(shade(wallTint, -34))],
+    ]);
+    roundRect(ctx, w * 0.18, h * 0.46, w * 0.64, h * 0.4, 22);
+    ctx.fill();
+    ctx.strokeStyle = css(0xe3c8dc, 0.8);
+    ctx.lineWidth = 6;
+    roundRect(ctx, w * 0.18, h * 0.46, w * 0.64, h * 0.4, 22);
+    ctx.stroke();
+    // Candy roof.
+    const roof = roofColors[variant % roofColors.length];
+    ctx.fillStyle = lg(ctx, w * 0.1, h * 0.12, w * 0.9, h * 0.5, [
+      [0, css(shade(roof, 40))],
+      [0.55, css(roof)],
+      [1, css(shade(roof, -30))],
+    ]);
+    ctx.beginPath();
+    ctx.moveTo(w * 0.08, h * 0.5);
+    ctx.quadraticCurveTo(w * 0.5, h * 0.06, w * 0.92, h * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Roof stripes.
+    ctx.strokeStyle = css(0xffffff, 0.5);
+    ctx.lineWidth = 12;
+    for (let i = 1; i < 5; i += 1) {
+      const t = i / 5;
+      ctx.beginPath();
+      ctx.moveTo(w * (0.08 + t * 0.84), h * (0.5 - Math.sin(t * Math.PI) * 0.42));
+      ctx.lineTo(w * (0.08 + t * 0.84) - 14, h * 0.5);
+      ctx.stroke();
+    }
+    // Window with a warm glow.
+    ctx.fillStyle = rg(ctx, w * 0.37, h * 0.63, 3, 52, [
+      [0, css(0xfff6d8)],
+      [1, css(0x9fd8ff)],
+    ]);
+    circle(ctx, w * 0.37, h * 0.63, 34);
+    ctx.fill();
+    ctx.strokeStyle = css(0xffffff, 0.9);
+    ctx.lineWidth = 8;
+    circle(ctx, w * 0.37, h * 0.63, 34);
+    ctx.stroke();
+    // Door.
+    ctx.fillStyle = css(0xd9a3c0);
+    roundRect(ctx, w * 0.55, h * 0.64, w * 0.17, h * 0.22, 12);
+    ctx.fill();
+    // Chimney with a candy swirl.
+    ctx.fillStyle = css(shade(roof, -20));
+    roundRect(ctx, w * 0.7, h * 0.2, w * 0.12, h * 0.16, 10);
+    ctx.fill();
+    ctx.fillStyle = css(0xffffff, 0.75);
+    circle(ctx, w * 0.76, h * 0.18, 16);
+    ctx.fill();
   });
 }
 
@@ -281,17 +543,31 @@ function coasterTexture(scene: Phaser.Scene, theme: Theme): string {
 function candyHillTexture(scene: Phaser.Scene, theme: Theme): string {
   const palette = PALETTES[theme];
   return makeTexture(scene, `hill-${theme}`, 900, 380, (ctx, w, h) => {
-    ctx.fillStyle = css(shade(palette.ground, 18), 0.95);
-    ctx.beginPath();
-    ctx.ellipse(w * 0.3, h, w * 0.42, h * 0.62, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = css(palette.groundAlt, 0.95);
-    ctx.beginPath();
-    ctx.ellipse(w * 0.72, h, w * 0.4, h * 0.78, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = css(0xfff0f6, 0.5);
-    for (let i = 0; i < 18; i += 1) {
-      circle(ctx, (i * 97) % w, h - ((i * 53) % 120) - 20, 10);
+    const mound = (cx: number, rx: number, ry: number, base: number, tint: number) => {
+      ctx.fillStyle = lg(ctx, cx - rx, h - ry, cx + rx, h, [
+        [0, css(shade(base, 34), 0.98)],
+        [0.45, css(shade(base, tint), 0.98)],
+        [1, css(shade(base, -22), 0.98)],
+      ]);
+      ctx.beginPath();
+      ctx.ellipse(cx, h, rx, ry, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      // Light rim along the top of the mound.
+      ctx.strokeStyle = css(0xffffff, 0.4);
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.ellipse(cx, h, rx * 0.97, ry * 0.97, 0, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+    };
+    mound(w * 0.32, w * 0.44, h * 0.6, palette.ground, 18);
+    mound(w * 0.74, w * 0.4, h * 0.78, palette.groundAlt, -6);
+    // Candy sprinkles and blossoms on the slopes.
+    for (let i = 0; i < 26; i += 1) {
+      const x = (i * 137) % w;
+      const y = h - ((i * 71) % 150) - 24;
+      const colors = [0xfff0f6, 0xffb3d1, 0xb8e8ff, 0xffe0a3, 0xd9c4ff];
+      ctx.fillStyle = css(colors[i % colors.length], 0.75);
+      circle(ctx, x, y, 9 + (i % 3) * 4);
       ctx.fill();
     }
   });
@@ -533,11 +809,19 @@ function rearCarBase(
   driver: (ctx: Ctx, w: number, h: number) => void,
   decals?: (ctx: Ctx, w: number, h: number) => void,
 ): void {
-  // Ground shadow.
-  ctx.fillStyle = 'rgba(61, 43, 31, 0.16)';
+  // Ground shadow: soft, so the car looks planted on the road.
+  ctx.fillStyle = rg(ctx, w / 2, h * 0.94, 4, w * 0.5, [
+    [0, 'rgba(61, 43, 31, 0.34)'],
+    [0.55, 'rgba(61, 43, 31, 0.16)'],
+    [1, 'rgba(61, 43, 31, 0)'],
+  ]);
+  ctx.save();
+  ctx.translate(w / 2, h * 0.94);
+  ctx.scale(1, 0.2);
   ctx.beginPath();
-  ctx.ellipse(w / 2, h * 0.94, w * 0.42, h * 0.07, 0, 0, Math.PI * 2);
+  ctx.arc(0, 0, w * 0.5, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 
   // Rear tyres: wide, dark and low, so they read as wheels below the body.
   for (const cx of [w * 0.17, w * 0.83]) {
@@ -568,11 +852,19 @@ function rearCarBase(
   ctx.fillStyle = css(dark);
   roundRect(ctx, w * 0.1, h * 0.42, w * 0.8, h * 0.46, 44);
   ctx.fill();
-  ctx.fillStyle = css(body);
+  ctx.fillStyle = lg(ctx, 0, h * 0.44, 0, h * 0.86, [
+    [0, css(shade(body, 42))],
+    [0.4, css(body)],
+    [1, css(shade(body, -24))],
+  ]);
   roundRect(ctx, w * 0.115, h * 0.44, w * 0.77, h * 0.42, 40);
   ctx.fill();
-  ctx.fillStyle = css(shade(body, 26), 0.85);
-  roundRect(ctx, w * 0.13, h * 0.46, w * 0.74, h * 0.12, 30);
+  // Chrome strip and glossy highlight along the boot lid.
+  ctx.fillStyle = css(shade(body, 40), 0.75);
+  roundRect(ctx, w * 0.13, h * 0.455, w * 0.74, h * 0.1, 30);
+  ctx.fill();
+  ctx.fillStyle = css(0xffffff, 0.32);
+  roundRect(ctx, w * 0.19, h * 0.5, w * 0.3, h * 0.05, 20);
   ctx.fill();
 
   // Bumper and tail lights.
@@ -1202,28 +1494,106 @@ function confettiAndSparkles(scene: Phaser.Scene): void {
   });
 }
 
+/**
+ * Full-screen atmosphere passes drawn on top of the road: a warm haze that sits
+ * on the horizon line, a candy sheen that glides along the tarmac and a soft
+ * vignette that frames the picture.
+ */
+function atmosphereTextures(scene: Phaser.Scene): void {
+  makeTexture(scene, 'fog', 1600, 200, (ctx, w, h) => {
+    ctx.fillStyle = lg(ctx, 0, 0, 0, h, [
+      [0, 'rgba(255, 240, 250, 0.95)'],
+      [0.35, 'rgba(255, 246, 252, 0.6)'],
+      [1, 'rgba(255, 255, 255, 0)'],
+    ]);
+    ctx.fillRect(0, 0, w, h);
+  });
+
+  makeTexture(scene, 'road-sheen', 900, 300, (ctx, w, h) => {
+    ctx.fillStyle = rg(ctx, w * 0.5, h * 0.34, 4, w * 0.5, [
+      [0, 'rgba(255, 255, 255, 0.5)'],
+      [0.55, 'rgba(255, 246, 252, 0.18)'],
+      [1, 'rgba(255, 255, 255, 0)'],
+    ]);
+    ctx.save();
+    ctx.translate(w * 0.5, h * 0.36);
+    ctx.scale(1, 0.42);
+    ctx.beginPath();
+    ctx.arc(0, 0, w * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  makeTexture(scene, 'vignette', 1600, 800, (ctx, w, h) => {
+    ctx.fillStyle = rg(ctx, w * 0.5, h * 0.52, w * 0.34, w * 0.7, [
+      [0, 'rgba(90, 47, 74, 0)'],
+      [0.72, 'rgba(90, 47, 74, 0.05)'],
+      [1, 'rgba(90, 47, 74, 0.16)'],
+    ]);
+    ctx.fillRect(0, 0, w, h);
+    // Warm light bloom in the upper left, where the sun usually sits.
+    ctx.fillStyle = rg(ctx, w * 0.16, h * 0.0, 20, w * 0.26, [
+      [0, 'rgba(255, 246, 214, 0.09)'],
+      [1, 'rgba(255, 246, 214, 0)'],
+    ]);
+    ctx.fillRect(0, 0, w, h);
+  });
+}
+
 function cloudsAndSun(scene: Phaser.Scene): void {
   makeTexture(scene, 'cloud', 420, 220, (ctx, w, h) => {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-    circle(ctx, w * 0.3, h * 0.62, 62);
+    const puffs: Array<[number, number, number]> = [
+      [w * 0.24, h * 0.66, 58],
+      [w * 0.44, h * 0.44, 78],
+      [w * 0.68, h * 0.58, 66],
+      [w * 0.84, h * 0.7, 44],
+    ];
+    // Soft body.
+    ctx.fillStyle = lg(ctx, 0, h * 0.3, 0, h, [
+      [0, css(0xffffff, 0.98)],
+      [0.6, css(0xfff6fb, 0.94)],
+      [1, css(0xdfe6f5, 0.9)],
+    ]);
+    for (const [x, y, r] of puffs) {
+      circle(ctx, x, y, r);
+      ctx.fill();
+    }
+    roundRect(ctx, w * 0.16, h * 0.58, w * 0.72, h * 0.32, 38);
     ctx.fill();
-    circle(ctx, w * 0.5, h * 0.44, 76);
+    // Bright rim on the sunny side.
+    ctx.fillStyle = css(0xffffff, 0.9);
+    circle(ctx, w * 0.4, h * 0.36, 46);
     ctx.fill();
-    circle(ctx, w * 0.72, h * 0.64, 56);
-    ctx.fill();
-    roundRect(ctx, w * 0.2, h * 0.58, w * 0.6, h * 0.32, 34);
+    circle(ctx, w * 0.6, h * 0.46, 40);
     ctx.fill();
   });
 
   makeTexture(scene, 'sun', 360, 360, (ctx, w, h) => {
-    ctx.fillStyle = css(0xfff3c4, 0.45);
-    circle(ctx, w / 2, h / 2, w * 0.48);
+    ctx.fillStyle = rg(ctx, w / 2, h / 2, w * 0.1, w * 0.5, [
+      [0, css(0xfff3c4, 0.85)],
+      [0.45, css(0xfff3c4, 0.4)],
+      [1, css(0xfff3c4, 0)],
+    ]);
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = css(0xffe9a8, 0.75);
+    for (let i = 0; i < 12; i += 1) {
+      const angle = (i / 12) * Math.PI * 2;
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(angle);
+      roundRect(ctx, w * 0.3, -8, w * 0.16, 16, 8);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = rg(ctx, w * 0.44, h * 0.42, 6, w * 0.36, [
+      [0, css(0xfffdf0)],
+      [0.7, css(0xffe9a8)],
+      [1, css(0xffd166)],
+    ]);
+    circle(ctx, w / 2, h / 2, w * 0.32);
     ctx.fill();
-    ctx.fillStyle = css(0xffe9a8);
-    circle(ctx, w / 2, h / 2, w * 0.34);
-    ctx.fill();
-    ctx.fillStyle = css(0xffffff, 0.5);
-    circle(ctx, w * 0.4, h * 0.38, w * 0.12);
+    ctx.fillStyle = css(0xffffff, 0.65);
+    circle(ctx, w * 0.42, h * 0.4, w * 0.1);
     ctx.fill();
   });
 }
@@ -1243,6 +1613,8 @@ export function buildTextures(scene: Phaser.Scene): TextureBundle {
   candyTreeTexture(scene, 'candytree-pink', 0xffb3d1);
   candyTreeTexture(scene, 'candytree-mint', 0xa8f0c8);
   candyTreeTexture(scene, 'candytree-lilac', 0xd9c4ff);
+  for (let variant = 0; variant < 4; variant += 1) candyHouseTexture(scene, variant);
+  grassTuftTexture(scene);
   cupcakeTexture(scene);
   heartBalloonTexture(scene);
   syrupPuddleTexture(scene);
@@ -1252,6 +1624,7 @@ export function buildTextures(scene: Phaser.Scene): TextureBundle {
   uiBasics(scene);
   confettiAndSparkles(scene);
   cloudsAndSun(scene);
+  atmosphereTextures(scene);
   CAR_COLORS.forEach((color) => heroCarKey(scene, color.id));
   for (let i = 0; i < 3; i += 1) rivalCarKey(scene, i);
   return { themes: [...THEMES] };
@@ -1260,6 +1633,7 @@ export function buildTextures(scene: Phaser.Scene): TextureBundle {
 /** Builds the textures of one theme (sky, mountains, castle, skyline, hills). */
 export function buildThemeTextures(scene: Phaser.Scene, theme: Theme): void {
   skyTexture(scene, theme);
+  hillsBandTexture(scene, theme);
   mountainsTexture(scene, theme);
   castleTexture(scene, theme);
   ferrisTexture(scene, theme);
@@ -1268,5 +1642,17 @@ export function buildThemeTextures(scene: Phaser.Scene, theme: Theme): void {
 }
 
 /** Candy sprinkles that decorate the verge beside the road. */
-export const VERGE_PROPS = ['lollipop', 'candycane', 'gumdrop-pink', 'gumdrop-mint', 'candytree-pink', 'candytree-mint'] as const;
+export const VERGE_PROPS = [
+  'lollipop',
+  'candycane',
+  'gumdrop-pink',
+  'gumdrop-mint',
+  'candytree-pink',
+  'candytree-mint',
+  'candytree-lilac',
+  'candyhouse-0',
+  'candyhouse-1',
+  'candyhouse-2',
+  'candyhouse-3',
+] as const;
 export const WALL_PROPS = ['gumdrop-sun', 'gumdrop-sky', 'gumdrop-pink', 'gumdrop-mint'] as const;

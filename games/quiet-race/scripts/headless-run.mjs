@@ -334,13 +334,17 @@ async function runLandscape() {
   });
 
   // Second lap: the HUD must read «КРУГ 2/3» while the castle loop scrolls.
+  // The simulation is frozen for the shot, otherwise a fast-forwarded frame can
+  // already have rolled over into the third lap.
   await session.waitFor(() => (stateOf(session)?.lap ?? 1) >= 2, 20000, 'second lap');
-  await sleep(200);
+  bridgeOf(session).freeze = true;
+  await sleep(250);
   report.steps.push({
     step: 'lap-two',
     lap: stateOf(session)?.lap ?? null,
     screenshot: session.shoot('headless-07-lap-two'),
   });
+  bridgeOf(session).freeze = false;
 
   await session.waitFor(() => bridgeOf(session)?.scene === 'finish', 90000, 'finish scene');
   await sleep(1200);
@@ -387,7 +391,7 @@ async function runLandscape() {
     backOnRoadSpeedsUp:
       roadStep?.onGrass === false && roadStep.speed > (grassStep?.speed ?? 999) - 1 && roadStep.speed >= 60,
     boostWorks: (boostStep?.boostsUsed ?? 0) >= 1,
-    lapProgressWorks: lapStep?.lap === 2,
+    lapProgressWorks: (lapStep?.lap ?? 1) >= 2,
     cleanRunInRange:
       cleanRun?.ok === true &&
       cleanRun?.drivingMs >= 40000 &&

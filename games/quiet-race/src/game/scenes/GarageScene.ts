@@ -48,7 +48,7 @@ export class GarageScene extends Phaser.Scene {
     const cloudB = this.add.image(900, 250, 'cloud').setScale(0.55).setAlpha(0.8).setDepth(2);
     this.tweens.add({ targets: cloudA, x: 1420, duration: 26000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.tweens.add({ targets: cloudB, x: 720, duration: 19000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.add.image(1420, 352, 'castle-candy').setOrigin(0.5, 1).setScale(0.5).setDepth(2);
+    this.add.image(1385, 356, 'castle-candy').setOrigin(0.5, 1).setScale(0.44).setDepth(2);
     this.add.image(250, 396, 'hill-candy').setOrigin(0.5, 1).setScale(0.62).setDepth(2);
     this.add.image(700, 388, 'hill-candy').setOrigin(0.5, 1).setScale(0.4).setDepth(2).setAlpha(0.9);
 
@@ -128,7 +128,7 @@ export class GarageScene extends Phaser.Scene {
       .setDepth(10)
       .setStroke('#5a2f4a', 10);
     ids.forEach((id, index) => {
-      const x = labelX + 266 + index * 112;
+      const x = labelX + 300 + index * 112;
       const container = this.add.container(x, rowY).setDepth(10);
       const ring = this.add.circle(0, 0, 46, 0xffffff, 0.72).setStrokeStyle(8, 0xffffff, 0.9);
       container.add(ring);

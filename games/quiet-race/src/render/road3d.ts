@@ -24,7 +24,7 @@ const WALL_GROUP = 3;
 const WALL_MIN_Z = 620;
 const CAR_BASE_Y: number = CFG.carBaseY;
 const HOP_MS = CFG.hopMs;
-const KERB_COLORS = [0xff9ec4, 0xfffdf5, 0xff9ec4, 0xfffdf5, 0xffd166, 0xfffdf5, 0x8fd0f5, 0xfffdf5];
+const KERB_COLORS = [0xff5f9e, 0xfffdf5, 0xffc93c, 0xfffdf5, 0x4fb0e8, 0xfffdf5, 0x5fd39a, 0xfffdf5];
 /** Sprinkles scattered on the tarmac, only a couple of pixels each. */
 const SPRINKLE_COLORS = [0xffffff, 0xffd166, 0xff9ec4, 0x8fd0f5, 0xb388ff];
 
@@ -53,12 +53,14 @@ export class Road3D {
   private sky!: Phaser.GameObjects.Image;
   private sun!: Phaser.GameObjects.Image;
   private clouds: Phaser.GameObjects.Image[] = [];
+  private hillsBand!: Phaser.GameObjects.Image;
   private mountains!: Phaser.GameObjects.Image;
-  private hills!: Phaser.GameObjects.Image;
   private ferris!: Phaser.GameObjects.Image;
   private coaster!: Phaser.GameObjects.Image;
   private castle!: Phaser.GameObjects.Image;
 
+  private fog!: Phaser.GameObjects.Image;
+  private sheen!: Phaser.GameObjects.Image;
   private ground: Phaser.GameObjects.Graphics;
   private road: Phaser.GameObjects.Graphics;
   private walls: Phaser.GameObjects.Graphics;
@@ -92,6 +94,25 @@ export class Road3D {
       .ellipse(VIEW.w / 2, CAR_BASE_Y + 16, 420, 90, 0x3d2b1f, 0.2)
       .setDepth(9000);
     this.hero = scene.add.image(VIEW.w / 2, CAR_BASE_Y, 'hero-rear-rose-star-star').setOrigin(0.5, 1).setDepth(9001);
+    // Atmosphere: a haze band on the horizon, a sheen sliding over the tarmac and
+    // a vignette on top of the whole picture.
+    this.fog = scene.add
+      .image(VIEW.w / 2, HORIZON + 34, 'fog')
+      .setOrigin(0.5, 1)
+      .setDisplaySize(VIEW.w * 1.1, 130)
+      .setDepth(2000)
+      .setAlpha(0.3);
+    this.sheen = scene.add
+      .image(VIEW.w / 2, 640, 'road-sheen')
+      .setOrigin(0.5, 0.5)
+      .setDisplaySize(1500, 520)
+      .setDepth(3)
+      .setAlpha(0.3);
+    scene.add
+      .image(0, 0, 'vignette')
+      .setOrigin(0, 0)
+      .setDisplaySize(VIEW.w, VIEW.h)
+      .setDepth(99989);
   }
 
   setTheme(theme: Theme, track: Track): void {
@@ -99,7 +120,7 @@ export class Road3D {
     this.theme = theme;
     this.sky.setTexture(`sky-${theme}`).setDisplaySize(VIEW.w, VIEW.h);
     this.mountains.setTexture(`mountains-${theme}`);
-    this.hills.setTexture(`hill-${theme}`);
+    this.hillsBand.setTexture(`hills-band-${theme}`);
     this.ferris.setTexture(`ferris-${theme}`);
     this.coaster.setTexture(`coaster-${theme}`);
     this.castle.setTexture(`castle-${theme}`);
@@ -127,11 +148,15 @@ export class Road3D {
       scene.add.image(1180, 210, 'cloud').setDepth(1).setScale(0.45).setAlpha(0.8),
       scene.add.image(1500, 90, 'cloud').setDepth(1).setScale(0.6).setAlpha(0.85),
     ];
-    this.mountains = scene.add.image(800, HORIZON + 16, 'mountains-candy').setOrigin(0.5, 1).setDepth(2).setScale(0.52);
-    this.hills = scene.add.image(800, HORIZON + 30, 'hill-candy').setOrigin(0.5, 1).setDepth(3).setScale(0.46);
-    this.ferris = scene.add.image(250, HORIZON + 22, 'ferris-candy').setOrigin(0.5, 1).setDepth(4).setScale(0.5);
-    this.coaster = scene.add.image(1320, HORIZON + 8, 'coaster-candy').setOrigin(0.5, 1).setDepth(4).setScale(0.55);
-    this.castle = scene.add.image(830, HORIZON + 14, 'castle-candy').setOrigin(0.5, 1).setDepth(5).setScale(0.36);
+    this.mountains = scene.add.image(800, HORIZON + 10, 'mountains-candy').setOrigin(0.5, 1).setDepth(2).setScale(0.6);
+    this.hillsBand = scene.add
+      .image(800, HORIZON + 36, 'hills-band-candy')
+      .setOrigin(0.5, 1)
+      .setDepth(3)
+      .setScale(0.6);
+    this.ferris = scene.add.image(470, HORIZON + 30, 'ferris-candy').setOrigin(0.5, 1).setDepth(4).setScale(0.6);
+    this.coaster = scene.add.image(1230, HORIZON + 20, 'coaster-candy').setOrigin(0.5, 1).setDepth(4).setScale(0.62);
+    this.castle = scene.add.image(830, HORIZON + 30, 'castle-candy').setOrigin(0.5, 1).setDepth(4).setScale(0.34);
   }
 
   private scaleAt(z: number): number {
@@ -233,8 +258,13 @@ export class Road3D {
     this.clouds.forEach((cloud, index) => {
       cloud.setX(cloudBase[index] + this.parallaxX * (0.12 + index * 0.02));
     });
-    this.mountains.setX(800 + this.parallaxX * 0.25);
-    this.hills.setX(800 + this.parallaxX * 0.5);
+    // The sheen glides down the tarmac with the road, fading with speed.
+    const sheenPhase = ((this.pWorld * 0.06) % 320) / 320;
+    this.sheen.setY(420 + sheenPhase * 900);
+    this.sheen.setAlpha(0.1 + sheenPhase * 0.16);
+    this.fog.setAlpha(0.26 + Math.sin(this.frameCount / 90) * 0.04);
+    this.mountains.setX(800 + this.parallaxX * 0.22);
+    this.hillsBand.setX(800 + this.parallaxX * 0.55);
     this.ferris.setX(230 + this.parallaxX * 0.45);
     this.coaster.setX(1290 + this.parallaxX * 0.45);
     this.castle.setX(840 + this.parallaxX * 0.4);
@@ -409,17 +439,41 @@ export class Road3D {
         if (screenB < -wallMargin || screenB > VIEW.w + wallMargin) continue;
         const groupIndex = Math.floor((a.z + pWorld) / (WALL_GROUP * SEG));
         const color = palette.wall[((groupIndex % palette.wall.length) + palette.wall.length) % palette.wall.length];
+        const topA = py(a.z) - WALL_TOP * this.scaleAt(a.z);
+        const topB = py(b.z) - WALL_TOP * this.scaleAt(b.z);
         this.walls.fillStyle(color, 1);
         this.walls.fillPoints(
           [
             { x: screenA, y: py(a.z) },
             { x: screenB, y: py(b.z) },
-            { x: screenB, y: py(b.z) - WALL_TOP * this.scaleAt(b.z) },
-            { x: screenA, y: py(a.z) - WALL_TOP * this.scaleAt(a.z) },
+            { x: screenB, y: topB },
+            { x: screenA, y: topA },
           ],
           true,
           true,
         );
+        // A darker lip at the foot of each block gives the fence depth.
+        this.walls.fillStyle(0x8f7f9a, 0.18);
+        this.walls.fillPoints(
+          [
+            { x: screenA, y: py(a.z) },
+            { x: screenB, y: py(b.z) },
+            { x: screenB, y: py(b.z) - WALL_TOP * this.scaleAt(b.z) * 0.28 },
+            { x: screenA, y: py(a.z) - WALL_TOP * this.scaleAt(a.z) * 0.28 },
+          ],
+          true,
+          true,
+        );
+        // Candy post every few blocks, with a gumdrop on the top.
+        if (groupIndex % 3 === 0 && a.z > WALL_MIN_Z) {
+          const postWidth = 18 * this.scaleAt(a.z);
+          const postTop = topA - 26 * this.scaleAt(a.z);
+          this.walls.fillStyle(0xfffdf8, 0.95);
+          this.walls.fillRect(screenA - postWidth * 0.5, postTop, postWidth, py(a.z) - postTop);
+          this.walls.fillStyle(0xfffdf8, 1);
+          circlePath(this.walls, screenA, postTop, postWidth * 1.5);
+          this.walls.fillPath();
+        }
       }
 
       // White cap along the wall top.
@@ -471,6 +525,33 @@ export class Road3D {
     const baseSegF = this.pWorld / SEG;
     const baseSeg = Math.floor(baseSegF);
     const baseOffset = (baseSegF - baseSeg) * SEG;
+    // Tidy rows of the candy kingdom. Their regular rhythm is what makes the
+    // verge read as a park rather than an empty field.
+    for (let i = 1; i < DRAW; i += 2) {
+      const segIndex = (((baseSeg + i) % total) + total) % total;
+      const z = i * SEG - baseOffset + SEG * 0.5;
+      if (z < 700 || z > 7000) continue;
+      const x = this.roadXAt(z);
+      const side: -1 | 1 = segIndex % 2 === 0 ? -1 : 1;
+      // Bright topiary row, close to the fence.
+      if (i % 4 === 1) {
+        const key = ['candytree-pink', 'candytree-mint', 'candytree-lilac'][(segIndex / 2) % 3 | 0];
+        const size = 420 + ((segIndex * 41) % 160);
+        this.place(key, x + side * (WALL_X + 420 + ((segIndex * 17) % 200)), z, { worldWidth: size });
+        this.place(['gumdrop-pink', 'gumdrop-mint', 'gumdrop-sun', 'gumdrop-sky'][segIndex % 4], x - side * (WALL_X + 260), z + SEG * 0.5, {
+          worldWidth: 220,
+        });
+      }
+      // Second row, further out, a touch smaller so the depth reads.
+      if (i % 6 === 3) {
+        const key = ['candytree-mint', 'candytree-lilac', 'candytree-pink'][(segIndex / 3) % 3 | 0];
+        this.place(key, x - side * (WALL_X + 1500 + ((segIndex * 23) % 500)), z, { worldWidth: 520, alpha: 0.95 });
+        this.place(['lollipop', 'candycane'][segIndex % 2], x + side * (WALL_X + 1200 + ((segIndex * 31) % 400)), z + SEG, {
+          worldWidth: 320,
+        });
+      }
+    }
+
     for (let i = 2; i < DRAW; i += 2) {
       const segIndex = (((baseSeg + i) % total) + total) % total;
       const z = i * SEG - baseOffset + SEG * 0.5;
@@ -480,18 +561,41 @@ export class Road3D {
       if (z > 5200) continue;
       const x = this.roadXAt(z);
 
-      if (i % 8 === 0) {
+      // Lumps of grass right beside the fence: this is what the child sees when
+      // she leans out to the shoulder, so it must never be flat green.
+      if (i % 2 === 0) {
+        const side = segIndex % 2 === 0 ? -1 : 1;
+        const tuftZ = z + SEG * 0.3;
+        if (tuftZ < 4200) {
+          this.place('grass-tuft', x + side * (WALL_X + 180 + ((segIndex * 29) % 380)), tuftZ, {
+            worldWidth: 260,
+            alpha: 0.95,
+          });
+        }
+      }
+
+      // Candy kingdom along the road: houses, lollipop trees and canes on both
+      // sides. Big props are kept away from the camera, so nothing explodes into
+      // a giant close-up at the bottom of the screen.
+      if (i % 3 === 0) {
         const side = segIndex % 2 === 0 ? -1 : 1;
         const prop = VERGE_PROPS[(segIndex * 7) % VERGE_PROPS.length];
-        this.place(prop, x + side * (WALL_X + 300 + ((segIndex * 37) % 620)), z, {
-          worldWidth: prop === 'lollipop' ? 300 : prop === 'candycane' ? 260 : 380,
-        });
-      }
-      if (i % 12 === 6) {
-        const prop = VERGE_PROPS[(segIndex * 11 + 3) % VERGE_PROPS.length];
-        this.place(prop, x - (WALL_X + 420 + ((segIndex * 53) % 700)), z + SEG, {
-          worldWidth: prop === 'lollipop' ? 300 : prop === 'candycane' ? 260 : 380,
-        });
+        const width = propWidth(prop);
+        const minZ = width > 700 ? 2200 : 300;
+        if (z > minZ) {
+          const near = 200 + ((segIndex * 37) % 520);
+          this.place(prop, x + side * (WALL_X + near), z, { worldWidth: width });
+        }
+        if (segIndex % 6 === 0) {
+          const other = VERGE_PROPS[(segIndex * 11 + 5) % VERGE_PROPS.length];
+          const otherWidth = propWidth(other);
+          const otherZ = z + SEG * 0.6;
+          if (otherZ > (otherWidth > 700 ? 2400 : 320)) {
+            this.place(other, x - side * (WALL_X + 380 + ((segIndex * 53) % 760)), otherZ, {
+              worldWidth: otherWidth,
+            });
+          }
+        }
       }
 
       if (i % 6 === 0) {
@@ -511,20 +615,14 @@ export class Road3D {
         });
       }
 
-      // Bunting strung across the road, the way the reference picture has it.
-      if (i % 16 === 8) {
-        this.place('bunting', x, z, { worldWidth: 3000, lift: 560, alpha: 0.95 });
+      // Bunting strung across the road, but only in the distance: up close the
+      // rope would cut straight across the picture.
+      if (i % 16 === 8 && z > 2600) {
+        const lift = 420 + (z - 2600) * 0.06;
+        this.place('bunting', x, z, { worldWidth: 2400, lift, alpha: 0.9 });
       }
 
-      // Rolling candy hills fill the kingdom on both sides.
-      if (i % 14 === 0) {
-        const hillSide = segIndex % 2 === 0 ? -1 : 1;
-        this.place(`hill-${this.theme}`, x + hillSide * (WALL_X + 3400 + ((segIndex * 71) % 1200)), z + 1600, {
-          worldWidth: 2600,
-          alpha: 0.8,
-        });
-        this.place(`hill-${this.theme}`, x - hillSide * (WALL_X + 3000), z + 3200, { worldWidth: 2200, alpha: 0.65 });
-      }
+
     }
   }
 
@@ -583,4 +681,20 @@ export class Road3D {
     image.setDisplaySize(width, width * aspect);
     image.setPosition(this.screenX(-this.camX, z), this.groundY(z) + 8);
   }
+}
+
+/** World-space width of a verge prop, so nothing looks glued to the road. */
+function propWidth(key: string): number {
+  if (key === 'lollipop') return 340;
+  if (key === 'candycane') return 280;
+  if (key.startsWith('candyhouse')) return 900;
+  if (key.startsWith('candytree')) return 460;
+  return 320;
+}
+
+/** Adds a circle to a Graphics path (Phaser has no path-mode circle fill). */
+function circlePath(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number): void {
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2, false);
+  g.closePath();
 }

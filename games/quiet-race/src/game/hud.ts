@@ -49,7 +49,7 @@ export class RaceHud {
   private depth = 100000;
   private mapBox = { x: 34, y: 122, w: 300, h: 232 };
   private boostBox = { x: 1250, y: 592, w: 330, h: 180 };
-  private driverBox = { x: 20, y: 592, w: 330, h: 180 };
+  private driverBox = { x: 20, y: 592, w: 356, h: 180 };
 
   constructor(scene: Phaser.Scene, theme: Theme, track: Track, callbacks: HudCallbacks) {
     this.track = track;
@@ -78,12 +78,12 @@ export class RaceHud {
 
     // ---- bottom left: the driver and her speed ----
     plate(scene, this.driverBox.x, this.driverBox.y, this.driverBox.w, this.driverBox.h, 30, 0.6).setDepth(this.depth);
-    scene.add.image(98, 654, 'avatar').setDisplaySize(112, 112).setDepth(this.depth + 1);
+    scene.add.image(92, 654, 'avatar').setDisplaySize(104, 104).setDepth(this.depth + 1);
     const ring = scene.add.graphics().setDepth(this.depth + 2);
     ring.lineStyle(9, 0xffffff, 0.95);
-    ring.strokeCircle(98, 654, 58);
-    text(scene, 98, 730, 'Лиля', { size: 30, color: INK }).setDepth(this.depth + 2);
-    this.speedText = text(scene, 336, 640, '0 км/ч', { size: 40, color: INK })
+    ring.strokeCircle(92, 654, 54);
+    text(scene, 92, 728, 'Лиля', { size: 30, color: INK }).setDepth(this.depth + 2);
+    this.speedText = text(scene, 340, 640, '0 км/ч', { size: 38, color: INK })
       .setOrigin(1, 0.5)
       .setDepth(this.depth + 1);
     this.detail = scene.add.graphics().setDepth(this.depth + 1);
@@ -162,9 +162,9 @@ export class RaceHud {
     this.detail.clear();
     // Speed bar under the driver.
     this.detail.fillStyle(0x2b2340, 0.28);
-    this.detail.fillRoundedRect(186, 678, 152, 22, 11);
+    this.detail.fillRoundedRect(170, 678, 178, 22, 11);
     this.detail.fillStyle(0x7ed957, 1);
-    this.detail.fillRoundedRect(186, 678, Math.max(14, 152 * Phaser.Math.Clamp(kmh / 160, 0, 1)), 22, 11);
+    this.detail.fillRoundedRect(170, 678, Math.max(14, 178 * Phaser.Math.Clamp(kmh / 160, 0, 1)), 22, 11);
     // Cupcake meter: four cells that fill up with balloons.
     const cellW = 56;
     const cellH = 26;

@@ -80,20 +80,20 @@ export class FinishScene extends Phaser.Scene {
 
     // Everyone parks at the finish line: the hero and all three friends.
     const hero = this.add
-      .image(400, 764, heroCarKey(this, data.colorId, data.flagId, data.stickerId))
+      .image(540, 772, heroCarKey(this, data.colorId, data.flagId, data.stickerId))
       .setOrigin(0.5, 1)
       .setDisplaySize(440, 235)
       .setDepth(6);
-    this.tweens.add({ targets: hero, y: 748, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: hero, y: 756, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     RIVAL_NAMES.forEach((_name, index) => {
       const rival = this.add
-        .image(700 + index * 250, 770, rivalCarKey(this, index))
+        .image(880 + index * 260, 778, rivalCarKey(this, index))
         .setOrigin(0.5, 1)
         .setDisplaySize(330, 176)
         .setDepth(5);
       this.tweens.add({
         targets: rival,
-        y: 754,
+        y: 762,
         duration: 1000 + index * 180,
         yoyo: true,
         repeat: -1,
@@ -102,10 +102,10 @@ export class FinishScene extends Phaser.Scene {
     });
 
     // The cup and the medals are for everyone who reached the flag.
-    const cup = this.add.image(168, 646, 'cup').setDisplaySize(150, 172).setDepth(8);
-    this.tweens.add({ targets: cup, y: 628, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.add.image(74, 754, 'medal').setDisplaySize(98, 116).setAngle(-14).setDepth(8);
-    this.add.image(300, 760, 'medal').setDisplaySize(98, 116).setAngle(12).setDepth(8);
+    const cup = this.add.image(150, 700, 'cup').setDisplaySize(150, 172).setDepth(8);
+    this.tweens.add({ targets: cup, y: 682, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.add.image(62, 782, 'medal').setDisplaySize(98, 116).setAngle(-14).setDepth(8);
+    this.add.image(284, 786, 'medal').setDisplaySize(98, 116).setAngle(12).setDepth(8);
 
     this.add.image(VIEW.w / 2, 96, 'banner').setDisplaySize(900, 180).setDepth(9);
     text(this, VIEW.w / 2, 100, 'Ты приехала! Молодец!', { size: 62 }).setDepth(10);
@@ -125,16 +125,16 @@ export class FinishScene extends Phaser.Scene {
       .setStroke('#5a2f4a', 10);
 
     // Both big buttons carry their own label, so the party stays tappable.
-    const again = circleButton(this, 300, 470, 'btn-again', 'icon-again', {
-      size: 280,
+    const again = circleButton(this, 250, 420, 'btn-again', 'icon-again', {
+      size: 260,
       iconScale: 0.36,
       label: 'Ещё раз',
       labelColor: '#7a5a12',
       onTap: () => this.playAgain(),
     });
     again.setDepth(12);
-    const garage = circleButton(this, VIEW.w - 300, 470, 'btn-car', 'icon-car', {
-      size: 280,
+    const garage = circleButton(this, VIEW.w - 250, 420, 'btn-car', 'icon-car', {
+      size: 260,
       iconScale: 0.36,
       label: 'В гараж',
       labelColor: '#23527a',
