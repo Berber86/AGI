@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "status": "draft",
+  "title": null,
+  "elevatorPitch": null,
+  "playerFantasy": null,
+  "genre": null,
+  "audience": null,
+  "coreLoop": [],
+  "perspective": null,
+  "orientation": null,
+  "sessionLength": null,
+  "controls": [],
+  "progression": null,
+  "difficulty": null,
+  "visualDirection": null,
+  "audioDirection": null,
+  "winCondition": null,
+  "loseCondition": null,
+  "mustHave": [],
+  "outOfScope": [],
+  "acceptanceCriteria": [],
+  "platform": {
+    "primary": "mobile-browser",
+    "device": "Android",
+    "installablePwa": true,
+    "offline": "to-be-decided"
+  },
+  "technical": {
+    "profile": "to-be-decided",
+    "rendererDprCap": 2,
+    "targetFps": 60,
+    "fallbackFps": 30,
+    "maxInitialAssetMb": 10,
+    "deployment": "GitHub Pages"
+  },
+  "approvedAt": null,
+  "updatedAt": null
+}
