@@ -236,18 +236,18 @@ export function createWorld(scene, track, renderer) {
   sunSprite.position.set(track.bounds.center.x + 320, 380, track.bounds.center.z - 420);
   world.add(sunSprite);
 
-  // ---------- clouds (sparse, high, so the blue sky stays readable) ----------
+  // ---------- clouds (soft, puffy — candy-cotton sky) ----------
   const cloudTex = cloudTexture();
   const clouds = [];
-  for (let i = 0; i < 13; i++) {
+  for (let i = 0; i < 22; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: cloudTex, transparent: true, opacity: 0.55 + Math.random() * 0.25, depthWrite: false,
+      map: cloudTex, transparent: true, opacity: 0.62 + Math.random() * 0.28, depthWrite: false,
     }));
-    const s = 70 + Math.random() * 90;
-    m.scale.set(s * 1.7, s, 1);
+    const s = 80 + Math.random() * 110;
+    m.scale.set(s * 1.8, s, 1);
     const a = Math.random() * Math.PI * 2;
-    const r = 320 + Math.random() * 340;
-    m.position.set(track.bounds.center.x + Math.cos(a) * r, 130 + Math.random() * 120, track.bounds.center.z + Math.sin(a) * r);
+    const r = 300 + Math.random() * 380;
+    m.position.set(track.bounds.center.x + Math.cos(a) * r, 110 + Math.random() * 140, track.bounds.center.z + Math.sin(a) * r);
     world.add(m);
     clouds.push({ sprite: m, drift: 1.2 + Math.random() * 2.2 });
   }
@@ -393,14 +393,14 @@ export function createWorld(scene, track, renderer) {
   const rand = (() => { let s = 1234567; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
   const L = track.length;
-  for (let s = 10; s < L - 14; s += 5.2) {
+  for (let s = 10; s < L - 14; s += 4.2) {
     const u = s / L;
     const z = zoneAt(u);
-    const side = Math.floor(s / 5.2) % 2 ? 1 : -1;
-    const far = 7.6 + rand() * 20;
+    const side = Math.floor(s / 4.2) % 2 ? 1 : -1;
+    const far = 6.8 + rand() * 18;
     const lateral = side * far;
     const { pos, heading } = track.getPose(s + (rand() - 0.5) * 4, lateral);
-    const slot = { x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.0 + rand() * 1.7 };
+    const slot = { x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.1 + rand() * 1.9 };
 
     const roll = rand();
     if (z.id === 0) {
@@ -442,13 +442,13 @@ export function createWorld(scene, track, renderer) {
   }
 
   // giant hero lollipops & canes lining the course
-  const heroSpots = [0.06, 0.14, 0.27, 0.38, 0.51, 0.62, 0.73, 0.83, 0.91];
+  const heroSpots = [0.05, 0.10, 0.16, 0.22, 0.28, 0.35, 0.42, 0.49, 0.56, 0.63, 0.70, 0.77, 0.84, 0.90, 0.95];
   heroSpots.forEach((u, i) => {
     const side = i % 2 ? 1 : -1;
-    const p = track.getPose(track.length * u, side * (13 + (i % 3) * 4));
-    if (i % 3 === 0) placements.lolli0.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.1 + (i % 2) * 1.2 });
-    else if (i % 3 === 1) placements.lolli1.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.4 + (i % 2) });
-    else placements.cane.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.2 + (i % 2) * 1.1 });
+    const p = track.getPose(track.length * u, side * (12 + (i % 3) * 3.5));
+    if (i % 3 === 0) placements.lolli0.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.6 + (i % 2) * 1.3 });
+    else if (i % 3 === 1) placements.lolli1.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.9 + (i % 2) });
+    else placements.cane.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.7 + (i % 2) * 1.2 });
   });
 
   const dummy = new THREE.Object3D();

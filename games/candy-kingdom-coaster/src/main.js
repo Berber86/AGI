@@ -62,6 +62,7 @@ const game = {
   zoneIndex: -1,
   countdownT: 0,
   countdownN: 3,
+  goHideT: 0,
   bumpCooldown: 0,
   camPos: new THREE.Vector3(0, 6, -12),
   camTarget: new THREE.Vector3(0, 2, 20),
@@ -127,6 +128,7 @@ function startRace() {
   game.zoneIndex = -1;
   game.countdownT = 0;
   game.countdownN = 3;
+  game.goHideT = 0;
   game.freeze = false;
   game.camSnap = true;
   sweets.reset();
@@ -172,8 +174,7 @@ function finishRace() {
     medalsEarned, starsEarned: game.stars,
   });
   el.finishTime.textContent = formatTime(game.timeS);
-  el.finishSweets.textContent = `${collected} / ${total}`;
-  el.finishScore.textContent = `${game.score}`;
+  el.finishSweets.textContent = `${collected}`;
   el.finishStars.textContent = `${game.stars}`;
   el.medalsList.innerHTML = hud.renderMedals({ sweets: collected, total, timeMs, score: game.score });
   fillRecordsPanel(el.recordsFinish, records);
@@ -227,6 +228,7 @@ window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 // ---------------------------------------------------------------- zone toast
 let toastTimer = 0;
 function showZoneToast(name) {
+  // emoji-only: zone identity without letters (kid-friendly HUD)
   el.zoneToast.textContent = name;
   el.zoneToast.classList.remove('show');
   void el.zoneToast.offsetWidth; // restart animation
@@ -248,6 +250,7 @@ function updateGameplay(dt) {
         SFX.play('go');
         game.state = 'racing';
         window.__GAME_STATE__ = 'racing';
+        game.goHideT = 0.85; // hide the GO! overlay shortly after (runs every frame)
       }
     }
     if (game.state === 'countdown') {
@@ -255,9 +258,12 @@ function updateGameplay(dt) {
       game.speed = THREE.MathUtils.lerp(game.speed, TUNING.cruiseSpeed * 0.55, dt * 1.2);
       game.s += game.speed * dt * 0.35;
     }
-    if (game.countdownT > 2.3) {
-      el.countdown.classList.add('hidden');
-    }
+  }
+
+  // GO! fade-out — independent of state so it can never get stuck
+  if (game.goHideT > 0) {
+    game.goHideT -= dt;
+    if (game.goHideT <= 0) el.countdown.classList.add('hidden');
   }
 
   const racing = game.state === 'racing';
@@ -275,7 +281,7 @@ function updateGameplay(dt) {
       game.boostT = TUNING.boostDuration;
       game.boostCharges = 0;
       SFX.play('boost');
-      hud.popup('CUPCAKE BOOST!', '#ffd45e');
+      hud.popup('🚀');
     }
     if (game.boostActive) {
       game.boostT -= dt;
@@ -316,22 +322,17 @@ function updateGameplay(dt) {
   const events = sweets.update(dt, game.s, game.lateral, performance.now() * 0.001);
   for (const ev of events) {
     game.score += ev.points;
-    if (ev.type === 'star') { game.stars += 1; SFX.play('star'); hud.popup('+25 ⭐', '#ffd45e'); }
+    if (ev.type === 'star') { game.stars += 1; SFX.play('star'); hud.popup('⭐', '#ffd45e'); }
     else if (ev.type === 'cupcake') {
       game.boostCharges = Math.min(TUNING.boostCharges, game.boostCharges + 1);
       game.stars += 1;
       SFX.play('cupcake');
-      hud.popup('+15 🧁', '#ff9ed2');
+      hud.popup('🧁', '#ff9ed2');
     } else {
       SFX.play('candy');
-      hud.popup('+10 🍬', '#fff');
+      hud.popup('🍬', '#fff');
     }
-    if (game.boostCharges >= TUNING.boostCharges && !game.boostActive) {
-      el.boostCount.textContent = '4/4';
-    }
-    el.boostCount.textContent = `${game.boostCharges}/4`;
   }
-  if (!events.length) el.boostCount.textContent = `${game.boostCharges}/4`;
 
   // car pose
   const pose = track.getPose(game.s, game.lateral);
@@ -368,7 +369,7 @@ function updateGameplay(dt) {
   const z = zoneAt(u);
   if (z.id !== game.zoneIndex) {
     game.zoneIndex = z.id;
-    if (game.state === 'racing' || game.state === 'countdown') showZoneToast(z.name);
+    if (game.state === 'racing' || game.state === 'countdown') showZoneToast(['🍭', '🐻', '🍫', '☁️', '🏰'][z.id] || '🍭');
   }
 
   // HUD
@@ -377,8 +378,6 @@ function updateGameplay(dt) {
     speedKmh: game.speed * 3.6,
     sweets: sweets.collected,
     total: sweets.total,
-    zoneName: z.name,
-    zoneIndex: z.id,
     boostCharges: game.boostCharges,
     boostActive: game.boostActive,
     score: game.score,
@@ -435,6 +434,7 @@ window.__TEST__ = {
   startRace,
   toMenu,
   finishNow() { if (game.state !== 'racing') startRace(); game.s = track.length - 2; game.timeS = Math.min(game.timeS, 97.2); },
+  fastForwardCountdown() { game.countdownT = 2.3; },
   setProgress(u, lateral = 0, freeze = false) {
     game.s = track.length * u;
     game.lateral = lateral;
@@ -449,7 +449,7 @@ window.__TEST__ = {
     const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
     const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22);
     game.camPos.copy(back.pos).add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
-    game.camTarget.copy(ahead.pos).add(new THREE.Vector3(0, 1.65, 0));
+    game.camTarget.copy(ahead.pos).add(new THREE.Vector3(0, 1.05, 0));
     camera.position.copy(game.camPos);
     camera.lookAt(game.camTarget);
   },

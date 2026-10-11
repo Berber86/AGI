@@ -347,3 +347,97 @@ html, body {
   .records { margin: 6px 0; }
   .rec { padding: 4px 10px; }
 }
+
+/* ============ icon-first HUD (few words for young players) ============ */
+.driver-info { width: clamp(110px, 20vw, 190px); }
+.speed-bar {
+  height: clamp(11px, 2.2vw, 17px);
+  background: rgba(30, 12, 40, 0.35);
+  border: 3px solid #fff;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(60, 10, 40, 0.35);
+}
+#hud-speed-fill {
+  height: 100%; width: 30%;
+  background: linear-gradient(90deg, #7ef29b, #ffe082, #ff8fc6);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+.sweets-big {
+  display: flex; align-items: center; gap: 8px;
+  font-size: clamp(28px, 5.6vw, 44px);
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 3px 0 rgba(160, 20, 90, 0.55), 0 8px 22px rgba(80, 10, 50, 0.5);
+}
+.sweets-big span { min-width: 1.3em; }
+.sweets-bar {
+  width: clamp(110px, 20vw, 190px);
+  height: clamp(9px, 1.8vw, 13px);
+  background: rgba(30, 12, 40, 0.35);
+  border: 3px solid #fff;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+  box-shadow: 0 4px 14px rgba(60, 10, 40, 0.35);
+}
+#hud-sweets-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #ffd45e, #ff8fc6);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.cake-row {
+  display: flex; gap: clamp(3px, 0.9vw, 8px);
+  margin-top: 8px;
+}
+.cake {
+  font-size: clamp(24px, 4.8vw, 38px);
+  line-height: 1;
+  filter: grayscale(1) brightness(0.7);
+  opacity: 0.8;
+  transition: transform 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
+}
+.cake.charged {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.14);
+  text-shadow: 0 0 16px #ffd45e, 0 3px 0 rgba(160, 20, 90, 0.45);
+}
+.cake-row.is-boosting .cake { animation: cakePulse 0.5s ease-in-out infinite alternate; }
+@keyframes cakePulse { to { transform: scale(1.25) rotate(-7deg); } }
+
+/* finish tiles: icon + number only */
+.finish-grid .fin {
+  flex-direction: row; gap: 10px; align-items: center; justify-content: center;
+}
+.finish-grid .fin span { font-size: clamp(22px, 4.6vw, 34px); }
+.finish-grid .fin b { font-size: clamp(18px, 3.8vw, 30px); }
+
+/* ============ fx overlays ============ */
+#vignette {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: radial-gradient(ellipse at 50% 42%, transparent 52%, rgba(96, 16, 60, 0.30) 100%);
+}
+#speed-lines {
+  position: absolute; inset: -12%; pointer-events: none; z-index: 3; opacity: 0;
+  background: repeating-radial-gradient(circle at 50% 46%, transparent 0 46px, rgba(255, 255, 255, 0.15) 48px 51px, transparent 53px 92px);
+  -webkit-mask-image: radial-gradient(circle at 50% 46%, transparent 28%, #000 78%);
+  mask-image: radial-gradient(circle at 50% 46%, transparent 28%, #000 78%);
+  transition: opacity 0.35s ease;
+}
+body.is-boosting #speed-lines {
+  opacity: 1;
+  animation: lineRush 0.55s linear infinite;
+}
+@keyframes lineRush {
+  from { transform: scale(1); }
+  to { transform: scale(1.22); }
+}
+.sweets-big span.bump { animation: bumpPop 0.35s ease; display: inline-block; }
+@keyframes bumpPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}

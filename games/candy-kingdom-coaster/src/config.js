@@ -54,8 +54,8 @@ export function zoneAt(u) {
 }
 
 export function formatTime(t) {
+  // compact m:ss — fewer digits for young players
   const m = Math.floor(t / 60);
   const s = Math.floor(t % 60);
-  const cs = Math.floor((t % 1) * 100);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}:${String(cs).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }

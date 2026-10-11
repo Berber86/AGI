@@ -8,18 +8,16 @@ export class HUD {
     this.$ = (sel) => root.querySelector(sel);
 
     this.el = {
-      timer: this.$('#hud-timer'),
-      zone: this.$('#hud-zone'),
-      speed: this.$('#hud-speed'),
       sweets: this.$('#hud-sweets'),
-      boost: this.$('#hud-boost-fill'),
-      boostWrap: this.$('#hud-boost'),
-      score: this.$('#hud-score'),
+      sweetsFill: this.$('#hud-sweets-fill'),
+      speedFill: this.$('#hud-speed-fill'),
+      cakeRow: this.$('#hud-cakes'),
       popupLayer: this.$('#popup-layer'),
       minimap: this.$('#minimap'),
       btnSound: this.$('#btn-sound'),
       btnPause: this.$('#btn-pause'),
     };
+    this.cakes = [...root.querySelectorAll('#hud-cakes .cake')];
     this.mm = this.el.minimap.getContext('2d');
     this._popupTimer = 0;
 
@@ -47,17 +45,20 @@ export class HUD {
     setTimeout(() => div.remove(), 950);
   }
 
-  update({ timeS, speedKmh, sweets, total, zoneName, zoneIndex, boostCharges, boostActive, score }) {
-    this.el.timer.textContent = formatTime(timeS);
-    this.el.zone.textContent = zoneName || 'Candy Kingdom';
-    this.el.zone.dataset.zone = zoneIndex ?? 0;
-    this.el.speed.textContent = `${Math.round(speedKmh)}`;
-    this.el.sweets.textContent = `${sweets}/${total}`;
-    this.el.score.textContent = `${score}`;
-    const pct = Math.min(1, boostCharges / 4) * 100;
-    this.el.boost.style.width = `${boostActive ? 100 : pct}%`;
-    this.el.boostWrap.classList.toggle('is-boosting', !!boostActive);
-    this.el.boostWrap.classList.toggle('is-full', !boostActive && boostCharges >= 4);
+  update({ timeS, speedKmh, sweets, total, boostCharges, boostActive, score }) {
+    // icon-first HUD: big candy count + bars + cupcake charges (no words)
+    const s = `${sweets}`;
+    if (this.el.sweets.textContent !== s) {
+      this.el.sweets.textContent = s;
+      this.el.sweets.classList.remove('bump');
+      void this.el.sweets.offsetWidth;
+      this.el.sweets.classList.add('bump');
+    }
+    this.el.sweetsFill.style.width = `${Math.min(100, total ? (sweets / total) * 100 : 0)}%`;
+    this.el.speedFill.style.width = `${Math.max(8, Math.min(100, (speedKmh / 95) * 100))}%`;
+    this.cakes.forEach((c, i) => c.classList.toggle('charged', boostActive || i < boostCharges));
+    this.el.cakeRow.classList.toggle('is-boosting', !!boostActive);
+    document.body.classList.toggle('is-boosting', !!boostActive);
   }
 
   drawMinimap(carU, sweetsList) {
