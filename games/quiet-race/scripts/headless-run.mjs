@@ -437,11 +437,16 @@ async function runOffline() {
   report.cleanRun = cleanRun;
   report.runtimeErrors = session.runtimeErrors;
   report.consoleErrors = session.consoleErrors;
+  // The plain «Заводим машинку…» hint must be gone once the game runs: an
+  // infinite hint was the exact symptom reported from a real browser.
+  const hint = session.window.document.getElementById('boot-hint');
+  report.bootHint = hint ? { classes: hint.className, text: hint.textContent?.slice(0, 60) } : null;
   report.checks = {
     offlineBoots: report.steps[0].scene === 'garage',
     offlinePlays: report.steps[1].step === 'finish',
     offlineCleanRun: cleanRun?.ok === true,
     offlineNoErrors: session.runtimeErrors.length === 0 && session.consoleErrors.length === 0,
+    offlineHintCleared: !hint || hint.className.includes('hidden'),
   };
   report.pass = Object.values(report.checks).every(Boolean);
   writeFileSync(

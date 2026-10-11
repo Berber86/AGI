@@ -1,6 +1,6 @@
 {
   "harness": "jsdom + @napi-rs/canvas, Phaser Canvas renderer",
-  "generatedAt": "2026-10-11T12:51:42.718Z",
+  "generatedAt": "2026-10-11T13:00:00.898Z",
   "landscape": {
     "width": 915,
     "height": 412
@@ -47,7 +47,7 @@
     {
       "step": "boost",
       "chargesBefore": 4,
-      "boostMs": 1117,
+      "boostMs": 867,
       "boostsUsed": 1,
       "screenshot": ".studio/evidence/screenshots/headless-06-boost.png"
     },
@@ -79,12 +79,12 @@
     }
   ],
   "metrics": {
-    "frames": 341,
-    "fps": 55,
-    "worstFrameMs": 18.3,
-    "avgFrameMs": 18.04,
-    "renderMs": 0.81,
-    "simMs": 0.18
+    "frames": 340,
+    "fps": 56,
+    "worstFrameMs": 18.1,
+    "avgFrameMs": 17.89,
+    "renderMs": 0.88,
+    "simMs": 0.21
   },
   "cleanRun": {
     "ok": true,

@@ -34,6 +34,9 @@ function inlineEverything(): Plugin {
         .replace(/<link rel="icon"[^>]*>\s*/g, '')
         .replace(/<link rel="apple-touch-icon"[^>]*>\s*/g, '')
         .replace('</body>', () => `<script>\n${engine}\n</script>\n</body>`);
+      if (!inlined.includes('__quietRaceBootClear')) {
+        throw new Error('boot guard script was lost while inlining the offline build');
+      }
       writeFileSync(htmlPath, inlined, 'utf8');
     },
   };

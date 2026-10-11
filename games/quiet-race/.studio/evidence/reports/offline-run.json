@@ -27,11 +27,13 @@
   },
   "runtimeErrors": [],
   "consoleErrors": [],
+  "bootHint": null,
   "checks": {
     "offlineBoots": true,
     "offlinePlays": true,
     "offlineCleanRun": true,
-    "offlineNoErrors": true
+    "offlineNoErrors": true,
+    "offlineHintCleared": true
   },
   "pass": true
 }

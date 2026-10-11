@@ -6,14 +6,15 @@
   "description": "Тихая гонка — неспешная гонка для маленькой гонщицы: без проигрыша, с обгонами друзей и финишем-праздником",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/check-build.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "qa": "vite build --config vite.headless.config.ts && node scripts/headless-run.mjs",
     "qa:offline": "vite build --config vite.offline.config.ts && node scripts/headless-run.mjs --offline",
     "build:offline": "vite build --config vite.offline.config.ts",
-    "deploy": "npm run build && node scripts/deploy-pages.mjs"
+    "deploy": "npm run build && node scripts/deploy-pages.mjs",
+    "check:build": "node scripts/check-build.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

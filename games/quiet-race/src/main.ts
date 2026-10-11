@@ -9,8 +9,25 @@ import { GarageScene } from './game/scenes/GarageScene';
 import { OverlayScene } from './game/scenes/OverlayScene';
 import { RaceScene } from './game/scenes/RaceScene';
 
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
+/**
+ * The Canvas renderer is chosen deliberately: it is the renderer the automated
+ * run exercises, it draws this game (flat candy shapes, gradients, text) at
+ * 60 fps on phones, and it removes a whole class of WebGL-only boot failures
+ * that the headless run cannot see.
+ */
+/** Reports a boot failure on the plain HTML hint, so the parent sees the reason. */
+function reportBootFailure(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const detail = document.getElementById('boot-detail');
+  const retry = document.getElementById('boot-retry');
+  if (detail) detail.textContent = `Ошибка при запуске: ${message}`;
+  retry?.classList.add('show');
+}
+
+let game: Phaser.Game;
+try {
+  game = new Phaser.Game({
+  type: Phaser.CANVAS,
   parent: 'game',
   backgroundColor: '#bfe6a2',
   banner: false,
@@ -30,7 +47,11 @@ const game = new Phaser.Game({
   input: { activePointers: 3 },
   audio: { noAudio: true },
   scene: [GarageScene, RaceScene, FinishScene, OverlayScene],
-});
+  });
+} catch (error) {
+  reportBootFailure(error);
+  throw error;
+}
 
 game.registry.set('portrait', false);
 game.registry.set('paused', false);
@@ -39,10 +60,21 @@ game.registry.set('colorId', 'rose');
 game.registry.set('flagId', 'star');
 game.registry.set('stickerId', 'star');
 
-game.events.once(Phaser.Core.Events.READY, () => {
-  document.getElementById('boot-hint')?.classList.add('hidden');
-  window.setTimeout(() => document.getElementById('boot-hint')?.remove(), 800);
-});
+function hideBootHint(): void {
+  const guard = (window as unknown as { __quietRaceBootClear?: () => void }).__quietRaceBootClear;
+  if (typeof guard === 'function') {
+    guard();
+    return;
+  }
+  const hint = document.getElementById('boot-hint');
+  hint?.classList.add('hidden');
+  window.setTimeout(() => hint?.remove(), 800);
+}
+
+// The hint goes away as soon as the engine is up, and again when the first scene
+// has drawn its first frame — whichever comes last, the child never sees it.
+game.events.once(Phaser.Core.Events.READY, () => hideBootHint());
+game.events.once(Phaser.Core.Events.POST_RENDER, () => hideBootHint());
 
 function pauseForParents(): void {
   game.registry.set('paused', true);
