@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Тихая гонка</title>
+    <meta name="description" content="Неспешная гонка для маленькой гонщицы: светофор, обгоны друзей и финиш-праздник для всех." />
+    <meta name="theme-color" content="#bfe6a2" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Тихая гонка" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background: #bfe6a2;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #game {
+        position: fixed;
+        inset: 0;
+        display: block;
+      }
+      #game canvas {
+        display: block;
+        touch-action: none;
+      }
+      /* The plain HTML hint is visible before the canvas boots and if WebGL/Canvas fails. */
+      #boot-hint {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #4a6b3a;
+        font-size: 20px;
+        pointer-events: none;
+        transition: opacity 300ms ease;
+      }
+      #boot-hint.hidden {
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="boot-hint">Заводим машинку…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

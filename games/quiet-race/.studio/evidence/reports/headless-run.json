@@ -1,0 +1,96 @@
+{
+  "harness": "jsdom + @napi-rs/canvas, Phaser Canvas renderer",
+  "generatedAt": "2026-10-11T10:04:00.711Z",
+  "landscape": {
+    "width": 915,
+    "height": 412
+  },
+  "portrait": {
+    "width": 360,
+    "height": 800
+  },
+  "steps": [
+    {
+      "step": "garage",
+      "scene": "garage",
+      "screenshot": ".studio/evidence/screenshots/headless-01-garage.png"
+    },
+    {
+      "step": "countdown",
+      "scene": "race",
+      "countdownMs": 3017,
+      "screenshot": ".studio/evidence/screenshots/headless-02-countdown.png"
+    },
+    {
+      "step": "grass-slowdown",
+      "status": "racing",
+      "onGrass": true,
+      "lateral": -0.62,
+      "speed": 60,
+      "screenshot": ".studio/evidence/screenshots/headless-03-grass.png"
+    },
+    {
+      "step": "back-on-road",
+      "status": "racing",
+      "onGrass": false,
+      "lateral": -0.16,
+      "speed": 84,
+      "balloons": 0,
+      "overtakes": 0,
+      "screenshot": ".studio/evidence/screenshots/headless-04-race.png"
+    },
+    {
+      "step": "finish",
+      "scene": "finish",
+      "screenshot": ".studio/evidence/screenshots/headless-05-finish.png"
+    },
+    {
+      "step": "back-to-garage",
+      "scene": "garage"
+    },
+    {
+      "step": "restart",
+      "scene": "race",
+      "screenshot": ".studio/evidence/screenshots/headless-06-restart.png"
+    },
+    {
+      "step": "portrait-hint",
+      "scene": "garage",
+      "portraitFlag": true,
+      "screenshot": ".studio/evidence/screenshots/headless-07-portrait-hint.png"
+    }
+  ],
+  "metrics": {
+    "frames": 325,
+    "fps": 46,
+    "worstFrameMs": 21.5
+  },
+  "cleanRun": {
+    "ok": true,
+    "seed": 4321,
+    "theme": "meadow",
+    "steps": 2864,
+    "drivingMs": 43517,
+    "totalMs": 47717,
+    "balloons": 9,
+    "overtakes": 3,
+    "onGrass": false,
+    "progress": 3600
+  },
+  "runtimeErrors": [],
+  "consoleErrors": [],
+  "portraitErrors": [],
+  "checks": {
+    "noRuntimeErrors": true,
+    "noConsoleErrors": true,
+    "reachedFinish": true,
+    "grassSlowsCar": true,
+    "backOnRoadSpeedsUp": true,
+    "cleanRunInRange": true,
+    "garageReturnWorks": true,
+    "restartWorks": true,
+    "portraitHint": true,
+    "portraitNoErrors": true
+  },
+  "pass": true
+}
