@@ -1,0 +1,61 @@
+// Candy Kingdom Coaster — central configuration.
+// Medal thresholds are EXPLICIT and shown verbatim on the finish screen.
+
+export const GAME = {
+  title: 'Candy Kingdom Coaster',
+  driverName: 'Lily',
+  storagePrefix: 'ckc_v1_',
+};
+
+// --- Tuning (meters, m/s) ---
+export const TUNING = {
+  cruiseSpeed: 16.5,          // ~59 km/h
+  maxSpeed: 21.5,             // ~77 km/h
+  boostSpeed: 29.0,           // ~104 km/h
+  accel: 6.0,
+  brakeDrag: 3.0,
+  steerSpeed: 6.2,            // lateral m/s at full input
+  steerReturn: 1.6,           // gentle auto-center for little hands
+  roadHalfWidth: 4.4,
+  shoulderLimit: 6.4,         // |lateral| clamp before soft wall
+  offRoadSlow: 0.55,          // speed multiplier on the grass
+  camBack: 7.0,
+  camUp: 3.1,
+  camAhead: 15.5,
+  camLerp: 5.2,
+  collectRadius: 2.55,
+  boostDuration: 3.4,
+  boostCharges: 4,            // cupcake boost: 4/4 like the reference
+  raceTimeLimitS: 240,        // finish is always reachable; this is only a soft target
+};
+
+// --- Zones along the ride (u = 0..1 of track length) ---
+export const ZONES = [
+  { id: 0, name: 'Lollipop Meadows',  u0: 0.00, u1: 0.22, fog: 0x9fd8ff, sky: 0x7ec9f2 },
+  { id: 1, name: 'Gummy Bear Grove',  u0: 0.22, u1: 0.46, fog: 0xffd9a8, sky: 0x86cdf2 },
+  { id: 2, name: 'Cocoa Canyon',      u0: 0.46, u1: 0.68, fog: 0xffc9b0, sky: 0x8cc6ee },
+  { id: 3, name: 'Marshmallow Valley',u0: 0.68, u1: 0.88, fog: 0xffd6ec, sky: 0x93c9f4 },
+  { id: 4, name: 'Sugar Castle Run',  u0: 0.88, u1: 1.001, fog: 0xffd2e8, sky: 0x8fc9f2 },
+];
+
+// --- Medals: explicit counters over sweets collected in ONE ride ---
+export const MEDALS = [
+  { id: 'bronze', icon: '🍬', name: 'Sweet Tooth',    requirement: 'Собери ≥ 35% сладостей',   minFraction: 0.35 },
+  { id: 'silver', icon: '⭐', name: 'Candy Star',     requirement: 'Собери ≥ 65% сладостей',   minFraction: 0.65 },
+  { id: 'gold',   icon: '🏆', name: 'Unicorn Legend', requirement: 'Собери ≥ 92% сладостей',   minFraction: 0.92 },
+];
+
+// Bonus time medal (explicit threshold in seconds)
+export const TIME_MEDAL = { id: 'speed', icon: '⏱️', name: 'Speed Racer', requirement: 'Финиш быстрее 105 секунд', maxSeconds: 105 };
+
+export function zoneAt(u) {
+  for (const z of ZONES) if (u >= z.u0 && u < z.u1) return z;
+  return ZONES[ZONES.length - 1];
+}
+
+export function formatTime(t) {
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  const cs = Math.floor((t % 1) * 100);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}:${String(cs).padStart(2, '0')}`;
+}

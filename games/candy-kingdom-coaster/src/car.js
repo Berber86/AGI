@@ -1,0 +1,347 @@
+// The friendly pink "Star Racer 7" convertible with Lily at the wheel.
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from '../vendor/three/jsm/geometries/RoundedBoxGeometry.js';
+
+function decalTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ff77b8'; g.fillRect(0, 0, 512, 256);
+  // white racing stripe
+  g.fillStyle = '#fff4fa'; g.fillRect(0, 96, 512, 26);
+  // unicorn silhouette
+  g.fillStyle = '#fff4fa';
+  g.beginPath();
+  g.arc(352, 120, 58, 0, Math.PI * 2); g.fill();               // head
+  g.beginPath(); g.moveTo(330, 72); g.lineTo(344, 18); g.lineTo(356, 72); g.closePath(); g.fill(); // horn
+  g.beginPath(); g.moveTo(382, 74); g.lineTo(414, 46); g.lineTo(398, 92); g.closePath(); g.fill(); // ear
+  g.fillStyle = '#ff77b8';
+  g.beginPath(); g.arc(336, 112, 8, 0, Math.PI * 2); g.fill();  // eye
+  // text
+  g.fillStyle = '#fff4fa';
+  g.font = 'bold 56px sans-serif';
+  g.fillText('STAR RACER', 48, 210);
+  g.font = 'bold 72px sans-serif';
+  g.fillText('7', 402, 214);
+  // sparkles
+  g.fillStyle = '#ffe9a8';
+  for (let i = 0; i < 14; i++) {
+    const x = Math.random() * 512, y = Math.random() * 256, r = 2 + Math.random() * 4;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function sparkleTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,214,240,0.85)');
+  grd.addColorStop(1, 'rgba(255,150,210,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  // 4-point star
+  g.fillStyle = 'rgba(255,255,255,0.95)';
+  g.beginPath();
+  g.moveTo(32, 4); g.lineTo(38, 26); g.lineTo(60, 32); g.lineTo(38, 38); g.lineTo(32, 60); g.lineTo(26, 38); g.lineTo(4, 32); g.lineTo(26, 26);
+  g.closePath(); g.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+function diceTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fffaf4'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#4a2a3a';
+  const pip = (x, y) => { g.beginPath(); g.arc(x, y, 14, 0, Math.PI * 2); g.fill(); };
+  pip(32, 32); pip(96, 96); pip(96, 32); pip(32, 96); pip(64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+export function createCar() {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+
+  const pink = new THREE.MeshPhysicalMaterial({
+    color: '#f5489b', roughness: 0.42, metalness: 0.22,
+    clearcoat: 1, clearcoatRoughness: 0.32, sheen: 1, sheenColor: '#ff9ed2',
+  });
+  const pinkDark = new THREE.MeshStandardMaterial({ color: '#c22b72', roughness: 0.45, metalness: 0.25 });
+  const cream = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4, metalness: 0.12 });
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: '#bfe9ff', roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.32,
+  });
+  const chrome = new THREE.MeshStandardMaterial({ color: '#f6eaf2', roughness: 0.16, metalness: 1 });
+  const rubber = new THREE.MeshStandardMaterial({ color: '#3b2c3f', roughness: 0.85 });
+  const glow = new THREE.MeshStandardMaterial({ color: '#fff3c4', emissive: '#ffd977', emissiveIntensity: 1.4, roughness: 0.3 });
+  const tailGlow = new THREE.MeshStandardMaterial({ color: '#ff4f7e', emissive: '#ff2a64', emissiveIntensity: 1.2, roughness: 0.35 });
+
+  const chassis = new THREE.Mesh(new RoundedBoxGeometry(2.05, 0.72, 4.15, 4, 0.34), pink);
+  chassis.position.y = 0.62;
+  body.add(chassis);
+
+  const skirt = new THREE.Mesh(new RoundedBoxGeometry(2.14, 0.34, 3.9, 3, 0.14), pinkDark);
+  skirt.position.y = 0.36;
+  body.add(skirt);
+
+  // hood & trunk humps
+  const hood = new THREE.Mesh(new RoundedBoxGeometry(1.72, 0.3, 1.15, 3, 0.16), pink);
+  hood.position.set(0, 1.02, 1.42);
+  body.add(hood);
+  const trunk = new THREE.Mesh(new RoundedBoxGeometry(1.8, 0.34, 1.05, 3, 0.16), pink);
+  trunk.position.set(0, 1.05, -1.5);
+  body.add(trunk);
+
+  // windshield frame + glass
+  const wFrame = new THREE.Mesh(new RoundedBoxGeometry(1.62, 0.1, 0.12, 2, 0.05), chrome);
+  wFrame.position.set(0, 1.55, 0.62);
+  wFrame.rotation.x = -0.42;
+  body.add(wFrame);
+  const wGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.55, 0.62), glass);
+  wGlass.position.set(0, 1.32, 0.68);
+  wGlass.rotation.x = -0.42 + Math.PI / 2;
+  body.add(wGlass);
+
+  // cockpit opening (darker inset)
+  const cockpit = new THREE.Mesh(new RoundedBoxGeometry(1.55, 0.2, 1.9, 2, 0.1), new THREE.MeshStandardMaterial({ color: '#7c1c4c', roughness: 0.7 }));
+  cockpit.position.set(0, 0.99, -0.18);
+  body.add(cockpit);
+
+  // seats
+  const seatMat = new THREE.MeshStandardMaterial({ color: '#ffe2ee', roughness: 0.55 });
+  [-0.42, 0.42].forEach((x) => {
+    const base = new THREE.Mesh(new RoundedBoxGeometry(0.52, 0.16, 0.55, 2, 0.07), seatMat);
+    base.position.set(x, 1.06, -0.35);
+    const back = new THREE.Mesh(new RoundedBoxGeometry(0.52, 0.62, 0.16, 2, 0.07), seatMat);
+    back.position.set(x, 1.32, -0.62);
+    back.rotation.x = -0.22;
+    body.add(base, back);
+  });
+
+  // steering wheel
+  const wheelHub = new THREE.Group();
+  const sw = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.045, 10, 24), pinkDark);
+  sw.rotation.x = 0.5;
+  wheelHub.add(sw);
+  wheelHub.position.set(-0.42, 1.28, 0.28);
+  body.add(wheelHub);
+
+  // headlights + taillights
+  [-0.66, 0.66].forEach((x) => {
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.1, 18), chrome);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(x, 0.86, 2.08);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 12), glow);
+    lamp.position.set(x, 0.86, 2.12);
+    body.add(ring, lamp);
+    const tail = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.16, 0.08, 2, 0.05), tailGlow);
+    tail.position.set(x, 0.95, -2.12);
+    body.add(tail);
+  });
+
+  // hood bow (like the reference)
+  const bow = new THREE.Group();
+  const knot = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), pinkDark);
+  const loopL = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), pinkDark);
+  loopL.scale.set(1.25, 0.75, 0.8); loopL.position.x = -0.2; loopL.rotation.z = 0.5;
+  const loopR = loopL.clone(); loopR.position.x = 0.2; loopR.rotation.z = -0.5;
+  bow.add(knot, loopL, loopR);
+  bow.position.set(0, 1.24, 1.62);
+  body.add(bow);
+
+  // dice hanging from windshield
+  const diceMat = new THREE.MeshStandardMaterial({ map: diceTexture(), roughness: 0.5 });
+  const diceGeo = new RoundedBoxGeometry(0.16, 0.16, 0.16, 2, 0.03);
+  const d1 = new THREE.Mesh(diceGeo, diceMat); d1.position.set(0.38, 1.32, 0.52); d1.rotation.set(0.4, 0.6, 0.2);
+  const d2 = new THREE.Mesh(diceGeo, diceMat); d2.position.set(0.5, 1.14, 0.5); d2.rotation.set(0.9, 0.2, 0.5);
+  body.add(d1, d2);
+
+  // door decals
+  const decalMat = new THREE.MeshStandardMaterial({ map: decalTexture(), roughness: 0.42, metalness: 0.12 });
+  [-1, 1].forEach((side) => {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.62, 0.81), decalMat);
+    p.position.set(side * 1.035, 0.86, -0.15);
+    p.rotation.y = side * Math.PI / 2;
+    body.add(p);
+  });
+
+  // bumpers
+  [-2.18, 2.18].forEach((z, i) => {
+    const b = new THREE.Mesh(new RoundedBoxGeometry(1.95, 0.18, 0.18, 2, 0.08), chrome);
+    b.position.set(0, 0.52, z);
+    body.add(b);
+  });
+
+  // wheels
+  const wheels = [];
+  const wheelPos = [
+    [-1.02, 0.46, 1.32], [1.02, 0.46, 1.32],
+    [-1.02, 0.46, -1.38], [1.02, 0.46, -1.38],
+  ];
+  for (const [x, y, z] of wheelPos) {
+    const w = new THREE.Group();
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.47, 0.34, 22), rubber);
+    tire.rotation.z = Math.PI / 2;
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.36, 18), pink);
+    rim.rotation.z = Math.PI / 2;
+    const hub = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), cream);
+    hub.position.x = Math.sign(x) * 0.2;
+    w.add(tire, rim, hub);
+    w.position.set(x, y, z);
+    root.add(w);
+    wheels.push({ group: w, front: z > 0, hub: rim });
+  }
+
+  // Lily — chibi driver
+  const lily = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color: '#ffd2b8', roughness: 0.55 });
+  const suit = new THREE.MeshStandardMaterial({ color: '#ff7fb8', roughness: 0.5 });
+  const suitWhite = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.5 });
+  const hairM = new THREE.MeshStandardMaterial({ color: '#7a4a33', roughness: 0.7 });
+  const helmetM = new THREE.MeshPhysicalMaterial({ color: '#ff4f9e', roughness: 0.25, metalness: 0.3, clearcoat: 1 });
+
+  const torso = new THREE.Mesh(new RoundedBoxGeometry(0.52, 0.55, 0.32, 3, 0.14), suit);
+  torso.position.y = 0.32;
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.53, 0.1, 0.33), suitWhite);
+  stripe.position.y = 0.36;
+  lily.add(torso, stripe);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.27, 18, 16), skin);
+  head.position.y = 0.86;
+  head.scale.set(1, 1.06, 0.98);
+  lily.add(head);
+
+  // hair fringe + ponytail
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.285, 16, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM);
+  hair.position.y = 0.9;
+  hair.rotation.x = -0.25;
+  const tail = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), hairM);
+  tail.scale.set(1, 1.7, 1);
+  tail.position.set(0, 0.78, -0.3);
+  tail.rotation.x = 0.7;
+  lily.add(hair, tail);
+
+  // face: big eyes + smile
+  const eyeW = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.35 }));
+  const eyeB = new THREE.Mesh(new THREE.SphereGeometry(0.052, 12, 10), new THREE.MeshStandardMaterial({ color: '#43221c', roughness: 0.3 }));
+  const glint = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+  [-0.105, 0.105].forEach((x) => {
+    const w = eyeW.clone(); w.position.set(x, 0.87, 0.225);
+    const b = eyeB.clone(); b.position.set(x * 0.95, 0.865, 0.272);
+    const g2 = glint.clone(); g2.position.set(x * 0.85, 0.895, 0.31);
+    lily.add(w, b, g2);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.016, 0.016), hairM);
+    brow.position.set(x, 0.975, 0.245);
+    brow.rotation.z = x > 0 ? -0.18 : 0.18;
+    lily.add(brow);
+  });
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.014, 8, 14, Math.PI), new THREE.MeshStandardMaterial({ color: '#b0455e', roughness: 0.4 }));
+  mouth.position.set(0, 0.78, 0.255);
+  mouth.rotation.x = 0.15;
+  mouth.rotation.z = Math.PI;
+  lily.add(mouth);
+
+  // cheeks
+  [-0.16, 0.16].forEach((x) => {
+    const ch = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshStandardMaterial({ color: '#ff9d9d', roughness: 0.6, transparent: true, opacity: 0.8 }));
+    ch.position.set(x, 0.82, 0.22);
+    lily.add(ch);
+  });
+
+  // helmet with unicorn horn + ears + goggles band
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.315, 20, 16), helmetM);
+  helmet.position.y = 0.93;
+  helmet.scale.set(1, 0.92, 1.02);
+  const brim = new THREE.Mesh(new THREE.TorusGeometry(0.29, 0.035, 10, 24), helmetM);
+  brim.position.set(0, 0.83, 0.02);
+  brim.rotation.x = Math.PI / 2 - 0.12;
+  const horn = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.22, 10), new THREE.MeshStandardMaterial({ color: '#ffe066', roughness: 0.3, metalness: 0.4 }));
+  horn.position.set(0, 1.28, 0.1);
+  horn.rotation.x = -0.25;
+  const earL = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 8), helmetM);
+  earL.position.set(-0.16, 1.18, 0.05); earL.rotation.z = 0.5;
+  const earR = earL.clone(); earR.position.x = 0.16; earR.rotation.z = -0.5;
+  const goggle = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.028, 8, 24, Math.PI), chrome);
+  goggle.position.set(0, 1.02, 0.12);
+  goggle.rotation.x = Math.PI / 2 + 0.25;
+  goggle.rotation.z = Math.PI;
+  lily.add(helmet, brim, horn, earL, earR, goggle);
+
+  // arms to the wheel
+  [-0.42, 0.3].forEach((x, i) => {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.065, 0.42, 10), suit);
+    arm.position.set(x * 1.18 - 0.04, 0.42, 0.3);
+    arm.rotation.x = 1.15;
+    arm.rotation.z = x > 0 ? -0.35 : 0.35;
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), suitWhite);
+    glove.position.set(x * 1.05 - 0.04, 0.31, 0.55);
+    lily.add(arm, glove);
+  });
+
+  lily.position.set(0, 1.02, -0.32);
+  body.add(lily);
+
+  // sparkle glitter around the body
+  const sparkTex = sparkleTexture();
+  const sparks = [];
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: sparkTex, transparent: true, opacity: 0.0, depthWrite: false,
+      blending: THREE.AdditiveBlending, color: new THREE.Color().setHSL(0.92 + Math.random() * 0.1, 0.7, 0.75),
+    }));
+    const s = 0.12 + Math.random() * 0.22;
+    m.scale.set(s, s, s);
+    body.add(m);
+    sparks.push({ sprite: m, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.9 + Math.random() * 1.1, y: 0.3 + Math.random() * 1.2 });
+  }
+
+  root.traverse((o) => {
+    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
+  });
+
+  const shadowBlob = new THREE.Mesh(
+    new THREE.CircleGeometry(1.9, 24),
+    new THREE.MeshBasicMaterial({ color: 0x2a1030, transparent: true, opacity: 0.22, depthWrite: false })
+  );
+  shadowBlob.rotation.x = -Math.PI / 2;
+  shadowBlob.position.y = 0.03;
+  root.add(shadowBlob);
+
+  let wheelSpin = 0;
+  return {
+    root,
+    update(dt, { speed = 0, steer = 0, boost = false, offRoad = false } = {}) {
+      wheelSpin += speed * dt * 2.1;
+      for (const w of wheels) {
+        w.hub.rotation.x = wheelSpin;
+        if (w.front) w.group.rotation.y = THREE.MathUtils.lerp(w.group.rotation.y, steer * 0.42, 0.16);
+      }
+      // body sway & bob
+      const sway = THREE.MathUtils.clamp(steer, -1, 1) * 0.075;
+      body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, -sway, 0.1);
+      body.rotation.x = THREE.MathUtils.lerp(body.rotation.x, offRoad ? Math.sin(wheelSpin * 0.7) * 0.02 : 0, 0.08);
+      body.position.y = Math.sin(wheelSpin * 0.35) * 0.012 * Math.min(1, speed / 12);
+      const targetTilt = steer * 0.05;
+      root.rotation.x = THREE.MathUtils.lerp(root.rotation.x, targetTilt * 0, 0.1);
+
+      // sparkles
+      const t = performance.now() * 0.001;
+      for (const sp of sparks) {
+        const a = t * sp.speed + sp.phase;
+        sp.sprite.position.set(Math.cos(a) * sp.r, sp.y + Math.sin(a * 1.7) * 0.25, Math.sin(a * 1.3) * sp.r * 1.6);
+        const tw = 0.5 + 0.5 * Math.sin(a * 3.1 + t * 2);
+        sp.sprite.material.opacity = (boost ? 0.85 : 0.28) * tw;
+        const sc = (boost ? 0.3 : 0.16) * (0.7 + 0.6 * tw);
+        sp.sprite.scale.set(sc, sc, sc);
+      }
+      pink.emissive = pink.emissive || new THREE.Color();
+      pink.emissive.setHex(boost ? 0x66103a : 0x1c0410);
+      pink.emissiveIntensity = boost ? 0.55 + Math.sin(t * 18) * 0.15 : 0.22;
+    },
+  };
+}

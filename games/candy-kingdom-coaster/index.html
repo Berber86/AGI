@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#ff5fa2">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Candy Kingdom Coaster</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="game-root">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ============ HUD ============ -->
+    <div id="hud">
+      <div id="hud-top-left">
+        <div class="title-chip">Candy Kingdom Coaster</div>
+        <canvas id="minimap" width="228" height="150"></canvas>
+      </div>
+
+      <div id="hud-top-right">
+        <div class="chip timer-chip">⏱ <span id="hud-timer">00:00:00</span></div>
+        <div class="chip zone-chip" id="hud-zone">Lollipop Meadows</div>
+        <div class="chip score-chip">⭐ <span id="hud-score">0</span></div>
+        <div class="hud-buttons">
+          <button id="btn-sound" class="icon-btn" aria-label="Звук">🔊</button>
+          <button id="btn-pause" class="icon-btn" aria-label="Пауза">⏸</button>
+        </div>
+      </div>
+
+      <div id="hud-bottom-left">
+        <div class="avatar"><img src="./assets/lily.png" alt="Lily"></div>
+        <div class="driver-info">
+          <div class="name-chip">Lily</div>
+          <div class="speed-chip"><span id="hud-speed">0</span><small> km/h</small></div>
+          <div class="boost-bar" id="hud-boost"><div id="hud-boost-fill"></div></div>
+        </div>
+      </div>
+
+      <div id="hud-bottom-right">
+        <div class="sweets-chip">🍬 <span id="hud-sweets">0/0</span></div>
+        <div class="cupcake-meter">
+          <div class="cupcake-icon">🧁</div>
+          <div class="cupcake-text">
+            <div class="cupcake-count" id="hud-boost-count">0/4</div>
+            <div class="cupcake-label">Cupcake Boost</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="popup-layer"></div>
+
+      <button id="btn-left" class="ctl-btn" aria-label="Влево">◀</button>
+      <button id="btn-right" class="ctl-btn" aria-label="Вправо">▶</button>
+
+      <div id="countdown" class="hidden"><span id="countdown-num">3</span></div>
+      <div id="zone-toast"></div>
+    </div>
+
+    <!-- ============ MENU ============ -->
+    <div id="screen-menu" class="screen">
+      <div class="menu-card">
+        <h1 class="game-title">Candy Kingdom<br>Coaster</h1>
+        <p class="game-subtitle">Сладкое приключение Лили 🍭</p>
+        <button id="btn-play" class="big-btn">▶ ИГРАТЬ</button>
+        <div class="records" id="records-menu"></div>
+        <p class="hint">Управление: две кнопки ◀ ▶ · клавиши ← → · M — звук</p>
+      </div>
+    </div>
+
+    <!-- ============ PAUSE ============ -->
+    <div id="screen-pause" class="screen hidden">
+      <div class="menu-card small">
+        <h2>Пауза</h2>
+        <button id="btn-resume" class="big-btn">▶ ПРОДОЛЖИТЬ</button>
+        <button id="btn-restart" class="mid-btn">🔄 Начать заново</button>
+        <button id="btn-menu" class="mid-btn">🏠 В меню</button>
+        <button id="btn-sound2" class="mid-btn">🔊 Звук включён</button>
+      </div>
+    </div>
+
+    <!-- ============ FINISH ============ -->
+    <div id="screen-finish" class="screen hidden">
+      <div class="menu-card finish-card">
+        <h2 class="finish-title">ФИНИШ! 🎉</h2>
+        <div class="finish-grid">
+          <div class="fin"><span>⏱️ Время</span><b id="finish-time">00:00:00</b></div>
+          <div class="fin"><span>🍬 Сладости</span><b id="finish-sweets">0/0</b></div>
+          <div class="fin"><span>✨ Очки</span><b id="finish-score">0</b></div>
+          <div class="fin"><span>⭐ Звёзды</span><b id="finish-stars">0</b></div>
+        </div>
+        <div class="medals-title">Медали заездa</div>
+        <div id="medals-list"></div>
+        <div class="records" id="records-finish"></div>
+        <div class="finish-btns">
+          <button id="btn-restart2" class="big-btn">🔄 ЕЩЁ РАЗ</button>
+          <button id="btn-menu2" class="mid-btn">🏠 В меню</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PORTRAIT HINT ============ -->
+    <div id="portrait-hint">
+      <div class="phone-rotate"></div>
+      <p>Поверните устройство<br>горизонтально 🎮</p>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
