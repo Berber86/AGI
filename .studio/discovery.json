@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 3,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "completedAt": "2026-10-11T08:36:35.560976Z",
+      "optionsUsed": true,
+      "questions": [
+        "player_fantasy",
+        "racer_identity",
+        "no_lose_design"
+      ],
+      "answers": {
+        "player_fantasy": "joyful_ride",
+        "racer_identity": "animals",
+        "no_lose_design": "parade_collect"
+      },
+      "summary": "Радость от движения вместо соревнования: зверята на машинках, гонка как праздничный парад со сбором наклеек/звёздочек, без последних мест."
+    },
+    {
+      "stage": 2,
+      "name": "play-experience",
+      "completedAt": "2026-10-11T08:37:49.946264Z",
+      "optionsUsed": true,
+      "questions": [
+        "orientation_camera",
+        "controls",
+        "session_structure"
+      ],
+      "answers": {
+        "orientation_camera": "landscape_follow",
+        "controls": "auto_drag",
+        "session_structure": "open_ended"
+      },
+      "summary": "Ландшафт с камерой сзади, авто-езда с перетаскиванием влево-вправо одним пальцем, бесконечная прогулка без таймера для максимального спокойствия."
+    },
+    {
+      "stage": 3,
+      "name": "contract-lock",
+      "completedAt": "2026-10-11T08:40:12.662927Z",
+      "optionsUsed": true,
+      "questions": [
+        "contract_approval"
+      ],
+      "answers": {
+        "contract_approval": "approve-edits",
+        "customEdits": "Никаких других зверят. Можно выбрать своего зверенка с машиной на старте и всё. Нет ощущения что кто-то обогнал. Нет финиша на котором все празднуют"
+      },
+      "summary": "Утверждён с правками: только один игрок на трассе, выбор зверёнка с машиной на старте, без соперников и без ощущения обгона, без общего финиша-праздника."
+    }
+  ],
+  "answers": {
+    "player_fantasy": "joyful_ride",
+    "racer_identity": "animals",
+    "no_lose_design": "parade_collect",
+    "player_fantasy_label": "Радость от движения",
+    "racer_identity_label": "Зверята на машинках",
+    "no_lose_design_label": "Гонка-парад со стикерами",
+    "orientation_camera": "landscape_follow",
+    "controls": "auto_drag",
+    "session_structure": "open_ended",
+    "orientation_camera_label": "Ландшафт, камера сзади",
+    "controls_label": "Авто-езда + перетаскивание",
+    "session_structure_label": "Бесконечная прогулка без таймера",
+    "contract_approval": "approve-edits",
+    "customEdits": "Никаких других зверят. Можно выбрать своего зверенка с машиной на старте и всё. Нет ощущения что кто-то обогнал. Нет финиша на котором все празднуют",
+    "solo_only": true,
+    "no_other_racers": true,
+    "no_competitive_finish": true
+  },
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-11T08:34:59Z",
+  "updatedAt": "2026-10-11T08:40:12.662927Z"
+}

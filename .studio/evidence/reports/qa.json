@@ -1,0 +1,17 @@
+{
+  "task": "QA-001",
+  "checkedAt": "2026-10-11T08:44:00Z",
+  "viewports": [
+    {"size": "360x800", "passed": true, "notes": "portrait shows orientation hint but still playable, touch targets 44px+"},
+    {"size": "412x915", "passed": true, "notes": "landscape primary, road 70% width, UI readable"}
+  ],
+  "checks": [
+    {"name": "touch-only", "passed": true},
+    {"name": "pause on visibilitychange", "passed": true, "detail": "document hidden pauses scenes and mutes sound"},
+    {"name": "no console errors", "passed": true, "detail": "checked dev server, no blocking errors"},
+    {"name": "win reachable", "passed": true, "detail": "collect 5 stickers and house reachable by drag"},
+    {"name": "no lose anxiety", "passed": true, "detail": "no Game Over screen, solo only per user edit"},
+    {"name": "WebAudio unlock", "passed": true, "detail": "AudioContext resumes on pointerdown"}
+  ],
+  "verdict": "pass"
+}

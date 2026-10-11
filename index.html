@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#FFD6E7" />
+  <title>Дружные Гонки — нежная гонка для малышей</title>
+  <link rel="manifest" href="./manifest.json" />
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body {
+      width:100%; height:100%; overflow:hidden; background:#FFF6F9;
+      touch-action:none;
+      overscroll-behavior:none;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    #game {
+      width:100%; height:100%;
+      display:flex; align-items:center; justify-content:center;
+      background: linear-gradient(180deg, #FFF6F9 0%, #FFE4EC 100%);
+    }
+    canvas {
+      touch-action:none;
+      display:block;
+      max-width:100%; max-height:100%;
+    }
+    #orientation-hint {
+      position:fixed; inset:0; z-index:9999;
+      background:#FFF6F9; display:none;
+      align-items:center; justify-content:center; flex-direction:column;
+      text-align:center; padding:24px;
+      font-size:18px; color:#6B4A5A;
+    }
+    @media (orientation: portrait) {
+      #orientation-hint.landscape-only { display:flex; }
+    }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="orientation-hint" class="landscape-only">
+    <div style="font-size:48px; margin-bottom:16px;">📱↔️</div>
+    <div>Поверни телефон горизонтально, так удобнее рулить!</div>
+    <div style="font-size:14px; margin-top:8px; opacity:0.7;">Но можно играть и так 💖</div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

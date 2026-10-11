@@ -1,0 +1,10 @@
+{
+  "task": "CORE-004",
+  "checkedAt": "2026-10-11T08:44:00Z",
+  "checks": [
+    {"name": "3 racers", "passed": true, "detail": "cat, bunny, fox with colors"},
+    {"name": "selection interaction", "passed": true, "detail": "pointerdown triggers flash and scene start"},
+    {"name": "test bridge", "passed": true, "detail": "window.__GAME_TEST__.simulateInput select works"}
+  ],
+  "verdict": "pass"
+}

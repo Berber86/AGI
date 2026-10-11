@@ -1,0 +1,12 @@
+{
+  "task": "CORE-003",
+  "checkedAt": "2026-10-11T08:44:00Z",
+  "checks": [
+    {"name": "sticker spawn", "passed": true, "detail": "spawn every 0.9-1.6s, max 6 on screen"},
+    {"name": "collection", "passed": true, "detail": "distance <60 triggers pop animation and blip"},
+    {"name": "album UI", "passed": true, "detail": "top bar shows count and emoji strip"},
+    {"name": "house finish", "passed": true, "detail": "spawns after 5 stickers, triggers album with confetti, no Game Over"},
+    {"name": "no lose", "passed": true, "detail": "no fail state, soft return at edges"}
+  ],
+  "verdict": "pass"
+}

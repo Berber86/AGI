@@ -1,0 +1,11 @@
+{
+  "task": "CORE-002",
+  "checkedAt": "2026-10-11T08:44:00Z",
+  "checks": [
+    {"name": "auto-forward", "passed": true, "detail": "road scrolls at 2.5px/frame gentle"},
+    {"name": "drag controls", "passed": true, "detail": "pointer drag anywhere moves car, clamped to road"},
+    {"name": "3 lanes", "passed": true, "detail": "lane centers calculated, no wrapping"},
+    {"name": "no opponents", "passed": true, "detail": "collectibles only, no other cars per user edit"}
+  ],
+  "verdict": "pass"
+}

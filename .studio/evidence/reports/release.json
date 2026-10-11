@@ -1,0 +1,14 @@
+{
+  "task": "RELEASE-001",
+  "checkedAt": "2026-10-11T08:44:00Z",
+  "checks": [
+    {"name": "build", "passed": true, "command": "npm run build"},
+    {"name": "relative paths", "passed": true, "base": "./"},
+    {"name": "manifest", "passed": true, "path": "dist/manifest.json"},
+    {"name": "icons", "passed": true, "sizes": ["192","512"]},
+    {"name": "sw", "passed": true, "path": "dist/sw.js"},
+    {"name": "offline", "passed": true, "strategy": "cache-first"}
+  ],
+  "bundle": {"js": "1495KB", "gzip": "345KB"},
+  "verdict": "pass"
+}

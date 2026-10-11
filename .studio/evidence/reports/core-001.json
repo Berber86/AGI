@@ -1,0 +1,12 @@
+{
+  "task": "CORE-001",
+  "checkedAt": "2026-10-11T08:44:00Z",
+  "checks": [
+    {"name": "tsc", "passed": true, "output": "no errors"},
+    {"name": "vite build", "passed": true, "bundle": "1.5MB js, gzip 345KB"},
+    {"name": "manifest", "passed": true, "path": "public/manifest.json"},
+    {"name": "icons", "passed": true, "sizes": ["192","512"]}
+  ],
+  "bundleSize": {"js": "1.5MB", "gzip": "345KB", "initialAssets": "3.5MB total dist"},
+  "verdict": "pass"
+}
