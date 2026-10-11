@@ -16,7 +16,7 @@
         ".studio/evidence/reports/core-001.json",
         "dist/index.html"
       ],
-      "updatedAt": "2026-10-11T08:42:52.380295Z"
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
     },
     {
       "id": "CORE-002",
@@ -34,7 +34,7 @@
       "evidence": [
         ".studio/evidence/reports/core-002.json"
       ],
-      "updatedAt": "2026-10-11T08:42:52.380295Z"
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
     },
     {
       "id": "CORE-003",
@@ -53,7 +53,7 @@
       "evidence": [
         ".studio/evidence/reports/core-003.json"
       ],
-      "updatedAt": "2026-10-11T08:42:52.380295Z"
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
     },
     {
       "id": "CORE-004",
@@ -71,49 +71,7 @@
       "evidence": [
         ".studio/evidence/reports/core-004.json"
       ],
-      "updatedAt": "2026-10-11T08:42:52.380295Z"
-    },
-    {
-      "id": "QA-001",
-      "title": "Mobile QA and viewports",
-      "ownerRole": "qa",
-      "status": "ready",
-      "dependencies": [
-        "CORE-002",
-        "CORE-003",
-        "CORE-004"
-      ],
-      "acceptanceCriteria": [
-        "touch-only playable",
-        "360x800 and 412x915 layouts",
-        "pause/resume on visibilitychange",
-        "no blocking console errors",
-        "win reachable by touch"
-      ],
-      "evidence": [
-        ".studio/evidence/screenshots/360x800-selection.png",
-        ".studio/evidence/screenshots/412x915-race.png"
-      ],
-      "updatedAt": "2026-10-11T08:43:17.944419Z"
-    },
-    {
-      "id": "RELEASE-001",
-      "title": "Production build and release",
-      "ownerRole": "release",
-      "status": "ready",
-      "dependencies": [
-        "QA-001"
-      ],
-      "acceptanceCriteria": [
-        "npm run build succeeds",
-        "relative paths work",
-        "manifest and icons resolve",
-        "offline cache works"
-      ],
-      "evidence": [
-        ".studio/evidence/reports/release.json"
-      ],
-      "updatedAt": "2026-10-11T08:43:17.944419Z"
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
     },
     {
       "id": "CORE-005",
@@ -133,8 +91,51 @@
       "evidence": [
         ".studio/evidence/reports/core-005.json"
       ],
-      "updatedAt": "2026-10-11T09:27:56.587498Z"
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
+    },
+    {
+      "id": "QA-001",
+      "title": "Mobile QA and viewports",
+      "ownerRole": "qa",
+      "status": "done",
+      "dependencies": [
+        "CORE-002",
+        "CORE-003",
+        "CORE-004",
+        "CORE-005"
+      ],
+      "acceptanceCriteria": [
+        "touch-only playable",
+        "360x800 and 412x915 layouts",
+        "pause/resume on visibilitychange",
+        "no blocking console errors",
+        "win reachable by touch"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/360x800-selection.png",
+        ".studio/evidence/screenshots/412x915-race.png"
+      ],
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Production build and release",
+      "ownerRole": "release",
+      "status": "done",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "npm run build succeeds",
+        "relative paths work",
+        "manifest and icons resolve",
+        "offline cache works"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json"
+      ],
+      "updatedAt": "2026-10-11T09:28:29.285250Z"
     }
   ],
-  "updatedAt": "2026-10-11T09:27:56.587498Z"
+  "updatedAt": "2026-10-11T09:28:29.285250Z"
 }
