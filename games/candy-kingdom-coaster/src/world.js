@@ -12,9 +12,9 @@ function skyDome() {
     side: THREE.BackSide,
     depthWrite: false,
     uniforms: {
-      topColor: { value: new THREE.Color('#1f8ae6') },
-      midColor: { value: new THREE.Color('#6fc6f6') },
-      bottomColor: { value: new THREE.Color('#ffc6e0') },
+      topColor: { value: new THREE.Color('#0f7fd4') },
+      midColor: { value: new THREE.Color('#5cb8f5') },
+      bottomColor: { value: new THREE.Color('#ffd0e8') },
     },
     vertexShader: `
       varying vec3 vWorld;
@@ -225,11 +225,11 @@ export function createWorld(scene, track, renderer) {
   sunGlow.position.set(60, 95, -50).normalize().multiplyScalar(640);
   sky.add(sunGlow);
   world.add(sky);
-  scene.fog = new THREE.Fog(0x9fd8ff, 90, 460);
+  scene.fog = new THREE.Fog(0x9fd8ff, 150, 620);
 
-  const hemi = new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.82);
+  const hemi = new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.92);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffedc9, 1.62);
+  const sun = new THREE.DirectionalLight(0xffedc9, 1.78);
   sun.position.set(60, 95, -50);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -318,9 +318,10 @@ export function createWorld(scene, track, renderer) {
   });
 
   // ---------- distant mountains (ring around the course) ----------
-  const mountainMat = new THREE.MeshStandardMaterial({ color: '#e8d6f2', roughness: 0.9, flatShading: true });
-  const mountainMatB = new THREE.MeshStandardMaterial({ color: '#f2c9e0', roughness: 0.9, flatShading: true });
-  const capMat = new THREE.MeshStandardMaterial({ color: '#fff6fa', roughness: 0.85, flatShading: true });
+  // cool lavender-blue mountains: aerial perspective, distant like the reference
+  const mountainMat = new THREE.MeshStandardMaterial({ color: '#c3b3e6', roughness: 0.9, flatShading: true });
+  const mountainMatB = new THREE.MeshStandardMaterial({ color: '#d8c4ea', roughness: 0.9, flatShading: true });
+  const capMat = new THREE.MeshStandardMaterial({ color: '#f2f6ff', roughness: 0.85, flatShading: true });
   // helper: nearest track sample distance (XZ) so a mountain can NEVER overlap the road
   const tSamples = track.samples;
   const mountainDebug = [];
@@ -1007,7 +1008,7 @@ export function createWorld(scene, track, renderer) {
   makeInstanced(gummyBearGeometry(), propMats.bear, crowd, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
 
   // ---------- air confetti ----------
-  const CONFETTI = 520;
+  const CONFETTI = 680;
   const confGeo = new THREE.BufferGeometry();
   const confPos = new Float32Array(CONFETTI * 3);
   const confCol = new Float32Array(CONFETTI * 3);
@@ -1032,8 +1033,8 @@ export function createWorld(scene, track, renderer) {
     return new THREE.CanvasTexture(c);
   })();
   const confMat = new THREE.PointsMaterial({
-    size: 0.42, map: confTex, vertexColors: true, transparent: true,
-    opacity: 0.85, depthWrite: false, sizeAttenuation: true,
+    size: 0.95, map: confTex, vertexColors: true, transparent: true,
+    opacity: 0.95, depthWrite: false, sizeAttenuation: true,
   });
   const confetti = new THREE.Points(confGeo, confMat);
   world.add(confetti);

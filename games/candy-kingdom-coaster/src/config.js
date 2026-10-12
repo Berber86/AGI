@@ -19,9 +19,9 @@ export const TUNING = {
   roadHalfWidth: 4.4,
   shoulderLimit: 6.4,         // |lateral| clamp before soft wall
   offRoadSlow: 0.55,          // speed multiplier on the grass
-  camBack: 7.0,
-  camUp: 3.1,
-  camAhead: 15.5,
+  camBack: 5.8,
+  camUp: 2.55,
+  camAhead: 14.5,
   camLerp: 5.2,
   collectRadius: 2.55,
   boostDuration: 3.4,

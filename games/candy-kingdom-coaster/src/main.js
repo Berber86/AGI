@@ -326,7 +326,7 @@ function updateGameplay(dt) {
     game.camTarget.copy(tgt);
     camera.position.copy(game.camPos);
     camera.lookAt(game.camTarget);
-    camera.fov = THREE.MathUtils.lerp(camera.fov, 58, dt * 2);
+    camera.fov = THREE.MathUtils.lerp(camera.fov, 54, dt * 2);
     camera.updateProjectionMatrix();
     car.root.position.copy(pose.pos);
     car.root.position.y += 0.02;
@@ -474,7 +474,7 @@ function updateGameplay(dt) {
   camera.position.copy(game.camPos);
   camera.lookAt(game.camTarget);
   // subtle FOV kick on boost
-  const targetFov = game.boostActive ? 63 : 55;
+  const targetFov = game.boostActive ? 59 : 52;
   camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 2.2);
   camera.updateProjectionMatrix();
 
