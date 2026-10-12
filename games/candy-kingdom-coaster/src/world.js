@@ -255,7 +255,7 @@ export function createWorld(scene, track, renderer) {
     })(),
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   }));
-  sunSprite.scale.set(150, 150, 1);
+  sunSprite.scale.set(190, 190, 1);
   sunSprite.position.set(track.bounds.center.x + 320, 380, track.bounds.center.z - 420);
   world.add(sunSprite);
 

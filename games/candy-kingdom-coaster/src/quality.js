@@ -22,13 +22,13 @@ export class QualityGovernor {
       r.shadowMap.enabled = true;
       r.shadowMap.type = 2; // PCFSoftShadowMap
       this.composer.passes.forEach((p) => {
-        if (p.constructor.name === 'UnrealBloomPass') { p.enabled = true; p.strength = 0.52; }
+        if (p.constructor.name === 'UnrealBloomPass') { p.enabled = true; p.strength = 0.62; }
       });
     } else if (this.tier === 1) {
       r.setPixelRatio(Math.min(this.dpr, 1.4));
       r.shadowMap.enabled = true;
       this.composer.passes.forEach((p) => {
-        if (p.constructor.name === 'UnrealBloomPass') { p.enabled = true; p.strength = 0.32; }
+        if (p.constructor.name === 'UnrealBloomPass') { p.enabled = true; p.strength = 0.4; }
       });
     } else {
       r.setPixelRatio(1);
