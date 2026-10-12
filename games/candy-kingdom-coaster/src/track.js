@@ -29,37 +29,49 @@ function roadTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 512;
   const g = c.getContext('2d');
-  // strawberry-cream icing road (candy track, not asphalt)
+  // Real UV mapping: x = ALONG track (1 tile = 12 m), y = ACROSS ribbon
+  // (road band = y 226..285 between the road vertices at k=4..5 of 0..9).
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, 256, 512); // neutral outside road -> grass/curb keep vertex colors
+  // strawberry road band
   g.fillStyle = '#efa3c4';
-  g.fillRect(0, 0, 256, 512);
-  // soft icing mottling
-  for (let i = 0; i < 700; i++) {
-    g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(214,96,150,0.10)';
-    g.fillRect(Math.random() * 256, Math.random() * 512, 3 + Math.random() * 5, 3 + Math.random() * 5);
-  }
-  // candy sprinkles (bright little capsules)
+  g.fillRect(0, 226, 256, 59);
+  // candy sprinkles inside the road band (tile every 12 m along the track)
   const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
-  for (let i = 0; i < 150; i++) {
-    const x = Math.random() * 256, y = Math.random() * 512;
-    const a = Math.random() * Math.PI;
+  for (let i = 0; i < 72; i++) {
+    const x = Math.random() * 256, y = 239 + Math.random() * 34;
+    const a = (Math.random() - 0.5) * 0.7;
     g.save();
     g.translate(x, y);
     g.rotate(a);
     g.fillStyle = conf[i % conf.length];
-    g.globalAlpha = 0.8;
+    g.globalAlpha = 0.78;
     g.beginPath();
-    g.roundRect(-2.8, -1.1, 5.6, 2.2, 1.1);
+    g.roundRect(-2.4, -0.9, 4.8, 1.8, 0.9);
     g.fill();
     g.restore();
   }
   g.globalAlpha = 1;
-  // edge lines (white chocolate)
+  // soft depth shading just inside both road edges (runs ALONG the road)
+  const shadeY = (y0, y1) => {
+    const gr = g.createLinearGradient(0, y0, 0, y1);
+    gr.addColorStop(0, 'rgba(150,50,95,0.28)');
+    gr.addColorStop(1, 'rgba(150,50,95,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, Math.min(y0, y1), 256, Math.abs(y1 - y0));
+  };
+  shadeY(226, 248);
+  shadeY(285, 263);
+  // thick cream border lines along both road edges
   g.fillStyle = '#fff6ec';
-  g.fillRect(10, 0, 11, 512);
-  g.fillRect(235, 0, 11, 512);
-  // dashed center line (golden sugar)
+  g.fillRect(0, 226, 256, 9);
+  g.fillRect(0, 276, 256, 9);
+  // golden candy dash down the middle (once per 12 m tile)
   g.fillStyle = '#ffe082';
-  for (let y = 0; y < 512; y += 64) g.fillRect(121, y, 14, 34);
+  g.beginPath();
+  g.roundRect(28, 251, 62, 11, 5);
+  g.fill();
+
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -137,7 +149,7 @@ export function createTrack(scene) {
         col.lerp(grassEdge, away * 0.35);
       }
       colArr.push(col.r, col.g, col.b);
-      uvArr.push(u * (length / 12) * (pr.kind === 'road' ? 1 : 0), (k / (K - 1)));
+      uvArr.push(u * (length / 12), (k / (K - 1)));
     }
   }
   for (let i = 0; i < SAMPLES; i++) {

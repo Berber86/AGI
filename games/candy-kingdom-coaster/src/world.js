@@ -36,6 +36,20 @@ function skyDome() {
   return new THREE.Mesh(geo, mat);
 }
 
+function sunTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(128, 128, 4, 128, 128, 128);
+  grd.addColorStop(0, 'rgba(255,252,238,1)');
+  grd.addColorStop(0.16, 'rgba(255,242,196,0.92)');
+  grd.addColorStop(0.42, 'rgba(255,212,150,0.34)');
+  grd.addColorStop(1, 'rgba(255,192,140,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+
 function cloudTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
@@ -202,6 +216,14 @@ export function createWorld(scene, track, renderer) {
   // ---------- sky & lights ----------
   const sky = skyDome();
   sky.traverse((o) => { o.userData.noCollide = true; }); // the dome wraps the world
+  // warm sun glow high in the sky — fixed direction, rides with the dome
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: sunTexture(), transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, opacity: 0.95,
+  }));
+  sunGlow.scale.setScalar(430);
+  sunGlow.position.set(60, 95, -50).normalize().multiplyScalar(640);
+  sky.add(sunGlow);
   world.add(sky);
   scene.fog = new THREE.Fog(0x9fd8ff, 90, 460);
 
@@ -671,6 +693,40 @@ export function createWorld(scene, track, renderer) {
   const zoneSky = ZONES.map((z) => new THREE.Color(z.sky));
   const tmpColor = new THREE.Color();
   const WHITE = new THREE.Color('#fff2f7');
+
+  // ---------- candy field dressing: gumdrop pebbles scattered on the grass ----
+  {
+    const pebbleGeo = new THREE.SphereGeometry(0.42, 8, 6);
+    pebbleGeo.scale(1, 0.72, 1);
+    const pebbleMat = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0, flatShading: true });
+    const N = 520;
+    const field = new THREE.InstancedMesh(pebbleGeo, pebbleMat, N);
+    const d2 = new THREE.Object3D();
+    const cTmp = new THREE.Color();
+    const COLS = ['#ff8fc6', '#ffd45e', '#8ef07e', '#56c8ff', '#b18aff', '#fff2f7', '#ff6b81'];
+    let fi = 0;
+    let fs = 12;
+    while (fi < N && fs < L - 12) {
+      for (const side of [-1, 1]) {
+        if (fi >= N) break;
+        const far = 9.8 + rand() * 14;
+        const p = track.getPose(fs + (rand() - 0.5) * 3, side * far);
+        const sc = 1.1 + rand() * 2.1;
+        d2.position.set(p.pos.x, p.pos.y - far * 0.13 - 0.3, p.pos.z);
+        d2.rotation.set(0, rand() * Math.PI * 2, 0);
+        d2.scale.setScalar(sc);
+        d2.updateMatrix();
+        field.setMatrixAt(fi, d2.matrix);
+        field.setColorAt(fi, cTmp.set(COLS[Math.floor(rand() * COLS.length)]));
+        fi++;
+      }
+      fs += 3.2;
+    }
+    field.count = fi;
+    field.instanceMatrix.needsUpdate = true;
+    if (field.instanceColor) field.instanceColor.needsUpdate = true;
+    world.add(field);
+  }
 
   // ---------- final corridor safety sweep ------------------------------------
   // No scenery may reach into the drivable corridor: anything whose world
