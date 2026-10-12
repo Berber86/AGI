@@ -441,3 +441,9 @@ body.is-boosting #speed-lines {
   40% { transform: scale(1.35); }
   100% { transform: scale(1); }
 }
+
+/* sweets/cakes move under the top-right buttons — steer buttons own the bottom corners */
+#hud-bottom-right {
+  top: max(78px, 13vh);
+  bottom: auto;
+}

@@ -95,6 +95,11 @@ const el = {
   boostCount: document.getElementById('hud-boost-count'),
 };
 
+// gentle haptics where supported (Android Chrome) — silent no-op elsewhere
+const HAPTIC = {
+  buzz(p) { try { navigator.vibrate && navigator.vibrate(p); } catch { /* ignore */ } },
+};
+
 function showScreen(name) {
   for (const [k, node] of Object.entries(screens)) node.classList.toggle('hidden', k !== name);
 }
@@ -181,6 +186,7 @@ function finishRace() {
   showScreen('finish');
   setSoundIcons();
   SFX.play('finish');
+  HAPTIC.buzz([50, 70, 50, 70, 120]);
   window.__GAME_STATE__ = 'finish';
   window.__SHOT_INFO__ = { timeMs, sweets: collected, total, score: game.score, medalsEarned, stars: game.stars };
 }
@@ -274,6 +280,7 @@ function updateGameplay(dt) {
       game.boostT = TUNING.boostDuration;
       game.boostCharges = 0;
       SFX.play('boost');
+      HAPTIC.buzz([25, 35, 45]);
       hud.popup('🚀');
     }
     if (game.boostActive) {
@@ -315,14 +322,16 @@ function updateGameplay(dt) {
   const events = sweets.update(dt, game.s, game.lateral, performance.now() * 0.001);
   for (const ev of events) {
     game.score += ev.points;
-    if (ev.type === 'star') { game.stars += 1; SFX.play('star'); hud.popup('⭐', '#ffd45e'); }
+    if (ev.type === 'star') { game.stars += 1; SFX.play('star'); HAPTIC.buzz(15); hud.popup('⭐', '#ffd45e'); }
     else if (ev.type === 'cupcake') {
       game.boostCharges = Math.min(TUNING.boostCharges, game.boostCharges + 1);
       game.stars += 1;
       SFX.play('cupcake');
+      HAPTIC.buzz(20);
       hud.popup('🧁', '#ff9ed2');
     } else {
       SFX.play('candy');
+      HAPTIC.buzz(8);
       hud.popup('🍬', '#fff');
     }
   }
@@ -378,7 +387,7 @@ function updateGameplay(dt) {
   hud.drawMinimap(u, sweets.list);
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
-  if (knocked > 0) SFX.play('bump');
+  if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
 }
 
 // ---------------------------------------------------------------- loop

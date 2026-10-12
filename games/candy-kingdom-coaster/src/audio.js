@@ -84,6 +84,12 @@ const SOUNDS = {
     tone({ f0: 180, f1: 90, t: 0.1, type: 'sine', gain: 0.16 });
     noise({ t: 0.08, gain: 0.08, filterFrom: 380, filterTo: 160 });
   },
+  knock() {
+    // woody candy-cane topple
+    tone({ f0: 420, f1: 160, t: 0.09, type: 'triangle', gain: 0.2 });
+    noise({ t: 0.12, gain: 0.1, filterFrom: 900, filterTo: 220 });
+    tone({ f0: 240, f1: 110, t: 0.14, type: 'sine', gain: 0.12, when: 0.05 });
+  },
   finish() {
     const seq = [523, 659, 784, 1047, 784, 1047];
     seq.forEach((f, i) => tone({ f0: f, t: i < 3 ? 0.16 : 0.32, type: 'triangle', gain: 0.22, when: i * 0.12 }));

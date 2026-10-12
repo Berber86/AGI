@@ -295,12 +295,13 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- distant mountains (ring around the course) ----------
   const mountainMat = new THREE.MeshStandardMaterial({ color: '#e8d6f2', roughness: 0.9, flatShading: true });
+  const mountainMatB = new THREE.MeshStandardMaterial({ color: '#f2c9e0', roughness: 0.9, flatShading: true });
   const capMat = new THREE.MeshStandardMaterial({ color: '#fff6fa', roughness: 0.85, flatShading: true });
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + 0.35;
     const r = 560 + (i % 3) * 160;
     const h = 90 + (i * 37) % 90;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(90 + (i % 4) * 35, h, 6), mountainMat);
+    const m = new THREE.Mesh(new THREE.ConeGeometry(90 + (i % 4) * 35, h, 7), i % 2 ? mountainMat : mountainMatB);
     m.position.set(
       track.bounds.center.x + Math.cos(a) * r,
       h / 2 - 20,
@@ -475,7 +476,7 @@ export function createWorld(scene, track, renderer) {
     }
     // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
-      if (rand() < 0.72) {
+      if (rand() < 0.85) {
         const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (7.0 + rand() * 1.1));
         const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
         const roll2 = rand();
@@ -483,6 +484,17 @@ export function createWorld(scene, track, renderer) {
         else if (roll2 < 0.62) placements.cane.push(slotW);
         else if (roll2 < 0.82) placements.marsh.push(slotW);
         else placements.bear.push({ ...slotW, sc: 0.65 + rand() * 0.35, ry: wp.heading + Math.PI });
+      }
+      // mid-field filler band (8.6-12 m) — fills the frame edges, clear of the corridor
+      if (rand() < 0.55) {
+        const mp = track.getPose(s + (rand() - 0.5) * 4, wallSide * (8.6 + rand() * 3.2));
+        const slotM = { x: mp.pos.x, y: mp.pos.y - 0.5, z: mp.pos.z, ry: rand() * Math.PI * 2, sc: 0.55 + rand() * 0.6 };
+        const roll3 = rand();
+        if (roll3 < 0.3) placements[`lolli${Math.floor(rand() * 3)}`].push(slotM);
+        else if (roll3 < 0.5) placements.cane.push(slotM);
+        else if (roll3 < 0.68) placements.marsh.push(slotM);
+        else if (roll3 < 0.84) placements.ice.push(slotM);
+        else placements.tree.push(slotM);
       }
     }
     if (rand() < 0.38) {

@@ -320,7 +320,11 @@ export function createCar() {
   goggle.position.set(0, 1.02, 0.12);
   goggle.rotation.x = Math.PI / 2 + 0.25;
   goggle.rotation.z = Math.PI;
-  lily.add(helmet, brim, horn, earL, earR, goggle);
+  // star badge on the back of the helmet (visible in chase view)
+  const badge = new THREE.Mesh(new THREE.CircleGeometry(0.1, 5), new THREE.MeshStandardMaterial({ color: '#fff6c8', emissive: '#ffd45e', emissiveIntensity: 0.55, roughness: 0.35, side: THREE.DoubleSide }));
+  badge.position.set(0, 1.02, -0.29);
+  badge.rotation.x = 0.35;
+  lily.add(helmet, brim, horn, earL, earR, goggle, badge);
 
   // arms to the wheel
   [-0.42, 0.3].forEach((x, i) => {
@@ -386,6 +390,15 @@ export function createCar() {
       });
       const targetTilt = steer * 0.05;
       root.rotation.x = THREE.MathUtils.lerp(root.rotation.x, targetTilt * 0, 0.1);
+
+      // Lily feels the drive: ponytail & head sway, steering wheel turns
+      tail.rotation.x = 0.7 + Math.sin(wheelSpin * 0.35) * 0.12 * Math.min(1, speed / 14) - steer * 0.18;
+      tail.rotation.z = -steer * 0.22;
+      lily.rotation.z = THREE.MathUtils.lerp(lily.rotation.z, -sway * 0.55, 0.08);
+      lily.rotation.y = THREE.MathUtils.lerp(lily.rotation.y, steer * 0.16, 0.08);
+      wheelHub.rotation.z = THREE.MathUtils.lerp(wheelHub.rotation.z, -steer * 0.85, 0.12);
+      // taillights flare on boost
+      tailGlow.emissiveIntensity = boost ? 1.9 + Math.sin(wheelSpin * 3.1) * 0.4 : 1.2;
 
       // sparkles
       const t = performance.now() * 0.001;
