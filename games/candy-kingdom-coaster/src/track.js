@@ -110,28 +110,38 @@ export function createTrack(scene) {
 
   // ---- Road ribbon + curbs + shoulders in one vertex-colored mesh ----
   // Across-profile offsets (meters) and heights relative to road plane.
+  // The curb is a 6-band RAINBOW ribbon hugging both road edges (reference
+  // look): vivid longitudinal stripes from the road edge outward —
+  // red → orange → yellow → green → blue → violet.
+  const RAINBOW = ['#ff4d6d', '#ff9f43', '#ffd93d', '#6bd96b', '#56c8ff', '#a06bff'].map((h) => new THREE.Color(h));
   const profile = [
     { off: -22.0, dy: -3.1, kind: 'grass' },
     { off: -13.0, dy: -1.35, kind: 'grass' },
     { off: -7.6, dy: -0.32, kind: 'grass' },
-    { off: -5.15, dy: -0.02, kind: 'curb' },
+    { off: -6.62, dy: -0.075, kind: 'curb', band: 5 },
+    { off: -6.29, dy: -0.06, kind: 'curb', band: 4 },
+    { off: -5.96, dy: -0.045, kind: 'curb', band: 3 },
+    { off: -5.63, dy: -0.03, kind: 'curb', band: 2 },
+    { off: -5.30, dy: -0.015, kind: 'curb', band: 1 },
     { off: -4.42, dy: 0.0, kind: 'road' },
     { off: 4.42, dy: 0.0, kind: 'road' },
-    { off: 5.15, dy: -0.02, kind: 'curb' },
+    { off: 5.30, dy: -0.015, kind: 'curb', band: 1 },
+    { off: 5.63, dy: -0.03, kind: 'curb', band: 2 },
+    { off: 5.96, dy: -0.045, kind: 'curb', band: 3 },
+    { off: 6.29, dy: -0.06, kind: 'curb', band: 4 },
+    { off: 6.62, dy: -0.075, kind: 'curb', band: 5 },
     { off: 7.6, dy: -0.32, kind: 'grass' },
     { off: 13.0, dy: -1.35, kind: 'grass' },
     { off: 22.0, dy: -3.1, kind: 'grass' },
   ];
   const K = profile.length;
   const posArr = [], colArr = [], uvArr = [], idxArr = [];
-  const RAINBOW = ['#ff6b81', '#ffb14e', '#ffe66d', '#6bd96b', '#56c8ff', '#a06bff', '#ff8ad0'].map((h) => new THREE.Color(h));
   const grassEdge = new THREE.Color('#b8e6a0');
 
   for (let i = 0; i <= SAMPLES; i++) {
     const u = i / SAMPLES;
     const zc = zoneAt(u);
     const base = centers[i], right = rights[i], tan = tangents[i];
-    const stripe = RAINBOW[Math.floor(i / 3) % RAINBOW.length];
     for (let k = 0; k < K; k++) {
       const pr = profile[k];
       posArr.push(
@@ -140,7 +150,7 @@ export function createTrack(scene) {
         base.z + right.z * pr.off
       );
       let col;
-      if (pr.kind === 'curb') col = stripe;
+      if (pr.kind === 'curb') col = RAINBOW[pr.band].clone();
       else if (pr.kind === 'road') col = new THREE.Color('#ffffff');
       else {
         // candy grass with zone tint, fading to a soft universal green-pink at distance

@@ -746,7 +746,7 @@ export function createWorld(scene, track, renderer) {
     // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
       if (rand() < 0.85) {
-        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (9.2 + rand() * 3.3));
+        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (13.6 + rand() * 3.4));
         const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
         const roll2 = rand();
         if (roll2 < 0.36) placements[`lolli${Math.floor(rand() * 3)}`].push(slotW);
@@ -756,7 +756,7 @@ export function createWorld(scene, track, renderer) {
       }
       // mid-field filler band (8.6-12 m) — fills the frame edges, clear of the corridor
       if (rand() < 0.55) {
-        const mp = track.getPose(s + (rand() - 0.5) * 4, wallSide * (8.6 + rand() * 3.2));
+        const mp = track.getPose(s + (rand() - 0.5) * 4, wallSide * (13.8 + rand() * 3.2));
         const slotM = { x: mp.pos.x, y: mp.pos.y - 0.5, z: mp.pos.z, ry: rand() * Math.PI * 2, sc: 0.55 + rand() * 0.6 };
         const roll3 = rand();
         if (roll3 < 0.3) placements[`lolli${Math.floor(rand() * 3)}`].push(slotM);
@@ -802,7 +802,8 @@ export function createWorld(scene, track, renderer) {
     const tot = isCane ? KNOCK_C : KNOCK_L;
     const s = 7 + ((n + (isCane ? 0 : 0.5)) / tot) * (L - 16);
     const kSide = (n + (isCane ? 0 : 1)) % 2 ? 1 : -1;
-    const lat = kSide * (5.85 + rand() * 1.95);
+    // fence sits just OUTSIDE the new 6-band rainbow curb (curb ends at 6.62 m)
+    const lat = kSide * (6.8 + rand() * 1.6);
     const p = track.getPose(s + (rand() - 0.5) * 1.6, lat);
     knockItems.push({
       mesh: isCane ? knockMeshC : knockMeshL,
@@ -867,6 +868,133 @@ export function createWorld(scene, track, renderer) {
   heroCane.scale.setScalar(4.4);
   heroCane.position.copy(track.getPose(L * 0.55, 17).pos).add(new THREE.Vector3(0, -1, 0));
   world.add(heroCane);
+
+  // ---------- cheering spectator crowds behind candy fences (reference look) --
+  // A low striped fence runs along both shoulders; chibi animals bob and
+  // "cheer" behind it. Everything is instanced: 3 draw calls for ~300 animals.
+  const crowdItems = [];
+  const crowdDummy = new THREE.Object3D();
+  function crowdSync(c, hop) {
+    const sq = 1 + (1 - hop) * 0.14;
+    crowdDummy.position.set(c.x, c.y + hop * c.amp, c.z);
+    crowdDummy.rotation.set(0, c.ry, Math.sin(hop * Math.PI) * 0.12);
+    crowdDummy.scale.set(c.sc * sq, c.sc * (2 - sq), c.sc * sq);
+    crowdDummy.updateMatrix();
+    c.mesh.setMatrixAt(c.idx, crowdDummy.matrix);
+  }
+  {
+    const crowdGeo = {
+      bear: gummyBearGeometry(),
+      kitty: mergeParts([
+        { geo: new THREE.SphereGeometry(0.46, 12, 10), pos: [0, 0.6, 0], scale: [1, 0.92, 0.88] }, // body
+        { geo: new THREE.SphereGeometry(0.4, 14, 12), pos: [0, 1.28, 0.02] },                     // head
+        { geo: new THREE.ConeGeometry(0.15, 0.32, 6), pos: [-0.19, 1.63, 0], rot: [0, 0, -0.16] }, // ear L
+        { geo: new THREE.ConeGeometry(0.15, 0.32, 6), pos: [0.19, 1.63, 0], rot: [0, 0, 0.16] },   // ear R
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [-0.14, 1.32, 0.33] },                   // eye L
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [0.14, 1.32, 0.33] },                    // eye R
+        { geo: new THREE.SphereGeometry(0.045, 6, 6), pos: [0, 1.2, 0.36] },                       // nose
+        { geo: new THREE.CylinderGeometry(0.07, 0.05, 0.5, 6), pos: [0, 0.62, -0.42], rot: [-0.9, 0, 0] }, // tail
+      ]),
+      bunny: mergeParts([
+        { geo: new THREE.SphereGeometry(0.44, 12, 10), pos: [0, 0.58, 0], scale: [1, 0.95, 0.9] },
+        { geo: new THREE.SphereGeometry(0.38, 14, 12), pos: [0, 1.22, 0.02] },
+        { geo: new THREE.SphereGeometry(0.1, 8, 8), pos: [-0.13, 1.78, 0], scale: [0.85, 1.9, 0.85] }, // ear L
+        { geo: new THREE.SphereGeometry(0.1, 8, 8), pos: [0.13, 1.78, 0], scale: [0.85, 1.9, 0.85] },  // ear R
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [-0.13, 1.26, 0.32] },
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [0.13, 1.26, 0.32] },
+        { geo: new THREE.SphereGeometry(0.045, 6, 6), pos: [0, 1.14, 0.34] },
+        { geo: new THREE.SphereGeometry(0.13, 8, 8), pos: [0, 0.42, -0.36], scale: [1, 0.8, 1] },   // puff tail
+      ]),
+    };
+    const crowdMats = {
+      bear: new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.05 }),
+      kitty: new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.02 }),
+      bunny: new THREE.MeshStandardMaterial({ roughness: 0.62, metalness: 0.0 }),
+    };
+    const CROWD_COLORS = {
+      bear: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#ff8ad0', '#b18aff'],
+      kitty: ['#ff9f43', '#fff2f7', '#c9c3d9', '#ff8fc6', '#8fd6ff'],
+      bunny: ['#fff2f7', '#ffd6e8', '#c8b6ff', '#ffe08a'],
+    };
+
+    // ---- the fence itself: merged striped units (2 posts + 2 rails), 5.6 m long
+    const fenceUnit = mergeParts([
+      { geo: new THREE.CylinderGeometry(0.09, 0.11, 1.15, 8), pos: [-2.7, 0.575, 0] },
+      { geo: new THREE.CylinderGeometry(0.09, 0.11, 1.15, 8), pos: [2.7, 0.575, 0] },
+      { geo: new THREE.SphereGeometry(0.15, 8, 6), pos: [-2.7, 1.2, 0] },
+      { geo: new THREE.SphereGeometry(0.15, 8, 6), pos: [2.7, 1.2, 0] },
+      { geo: new THREE.BoxGeometry(5.6, 0.11, 0.11), pos: [0, 1.04, 0] },
+      { geo: new THREE.BoxGeometry(5.6, 0.09, 0.09), pos: [0, 0.6, 0] },
+    ]);
+    const FENCE_STEP = 5.6, FENCE_LAT = 9.1;
+    const fenceCount = Math.floor((L - 30) / FENCE_STEP) * 2;
+    const fence = new THREE.InstancedMesh(fenceUnit, propMats.cane, fenceCount);
+    fence.castShadow = false; // thin trim: receive only
+    fence.receiveShadow = true;
+    fence.userData.noCollide = true; // decorative shoulder dressing
+    {
+      const fd = new THREE.Object3D();
+      let fi = 0;
+      for (let s = 15; s < L - 15 && fi < fenceCount; s += FENCE_STEP) {
+        for (const side of [-1, 1]) {
+          if (fi >= fenceCount) break;
+          const p = track.getPose(s, side * FENCE_LAT);
+          fd.position.set(p.pos.x, p.pos.y - 0.12, p.pos.z);
+          fd.rotation.set(0, p.heading, 0);
+          fd.scale.setScalar(1);
+          fd.updateMatrix();
+          fence.setMatrixAt(fi++, fd.matrix);
+        }
+      }
+      fence.count = fi;
+      fence.instanceMatrix.needsUpdate = true;
+    }
+    world.add(fence);
+
+    // ---- the crowd: clusters of 3-5 animals behind the fence, facing the road
+    const crowdItems = [];
+    for (let s = 24; s < L - 34; s += 30 + rand() * 16) {
+      const side = (Math.round(s / 30) % 2) ? 1 : -1;
+      const n = 3 + Math.floor(rand() * 3);
+      for (let k = 0; k < n; k++) {
+        const far = 10.4 + rand() * 2.6;
+        const ss = s + (rand() - 0.5) * 14;
+        const p = track.getPose(ss, side * far);
+        const type = ['bear', 'kitty', 'bunny'][Math.floor(rand() * 3)];
+        crowdItems.push({
+          type, s: ss,
+          x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z,
+          ry: p.heading + Math.PI + (rand() - 0.5) * 0.8,
+          phase: rand() * Math.PI * 2,
+          amp: 0.16 + rand() * 0.3,
+          sc: 0.85 + rand() * 0.45,
+        });
+      }
+    }
+    const crowdMeshes = {};
+    for (const type of ['bear', 'kitty', 'bunny']) {
+      const list = crowdItems.filter((c) => c.type === type);
+      if (!list.length) continue;
+      const im = new THREE.InstancedMesh(crowdGeo[type], crowdMats[type], list.length);
+      im.castShadow = false;
+      im.receiveShadow = true;
+      im.userData.noCollide = true;
+      list.forEach((c, i) => {
+        c.mesh = im;
+        c.idx = i;
+        im.setColorAt(i, new THREE.Color(CROWD_COLORS[type][i % CROWD_COLORS[type].length]));
+      });
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.instanceMatrix.neUpdate = true;
+      world.add(im);
+      crowdMeshes[type] = im;
+    }
+    for (const c of crowdItems) crowdSync(c, 0);
+    for (const im of Object.values(crowdMeshes)) im.instanceMatrix.needsUpdate = true;
+
+    // keep the roadside dressing clear of the new fence/spectator band
+    // (handled by moving those bands outward below)
+  }
 
   // grandstand gummy-bears near the finish (like the reference crowd)
   const crowd = [];
@@ -1276,6 +1404,13 @@ export function createWorld(scene, track, renderer) {
         const sq = 1 + (1 - hop) * 0.16;
         bn.m.scale.set(bn.sc * sq, bn.sc * (2 - sq), bn.sc * sq);
         bn.m.rotation.y += bn.spin * dt;
+      }
+      // spectator crowd cheers near the camera (only nearby clusters animate)
+      const cheerS = carS >= 0 ? carS : 14; // menu attract mode: cheer at the grid
+      for (const c of crowdItems) {
+        if (Math.abs(c.s - cheerS) > 110) continue;
+        crowdSync(c, Math.abs(Math.sin(time * 2.6 + c.phase)));
+        c.mesh.instanceMatrix.needsUpdate = true;
       }
       return knocked;
     },

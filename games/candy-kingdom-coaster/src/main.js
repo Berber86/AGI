@@ -10,7 +10,7 @@ import { Storage } from './storage.js';
 import { SFX } from './audio.js';
 import { Input } from './input.js';
 import { createTrack } from './track.js';
-import { createCar } from './car.js';
+import { createCar, createTrail } from './car.js';
 import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { HUD, fillRecordsPanel } from './hud.js';
@@ -42,6 +42,7 @@ const track = createTrack(scene);
 const world = createWorld(scene, track, renderer);
 const car = createCar();
 scene.add(car.root);
+const trail = createTrail(scene);
 const sweets = createSweets(scene, track);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
@@ -451,6 +452,7 @@ function updateGameplay(dt) {
     boost: game.boostActive,
     offRoad: Math.abs(game.lateral) > TUNING.roadHalfWidth + 0.6,
   });
+  trail.update(dt, car.root, game.speed, game.boostActive);
 
   // camera: readable chase view
   const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
@@ -524,8 +526,14 @@ function animate(now) {
     car.root.position.copy(track.getPose(12, 0).pos);
     car.root.rotation.y = track.getPose(12, 0).heading;
     car.update(dt, { speed: 6, steer: 0, boost: false });
+    trail.update(dt, car.root, 6, false);
     world.update(dt, camera.position, 0.01, now * 0.001);
     hud.drawMinimap(0.02, sweets.list);
+    // the attract scene MUST render too — otherwise the menu card floats on a
+    // black void instead of the living candy world behind it
+    if (governor.frame(dt)) composer.render();
+    window.__FPS__ = Math.round(governor.fps);
+    window.__GAME_STATE__ = 'menu';
     return;
   }
 
@@ -578,6 +586,13 @@ window.__TEST__ = {
     camera.lookAt(game.camTarget);
   },
   collectAll() { sweets.collectAllDemo(); game.score = sweets.total * 10; },
+  // Visual QA: pin the quality tier so a slow headless GPU cannot silently
+  // downgrade shadows/bloom while taking reference screenshots.
+  pinQuality(tier = 2) {
+    governor.tier = tier;
+    governor.apply();
+    return governor.describe();
+  },
   state: () => game.state,
   // Acceptance helper: project the road ahead to screen space (px).
   roadScreenPoints(aheadFrom = 20, aheadTo = 110, step = 10) {
