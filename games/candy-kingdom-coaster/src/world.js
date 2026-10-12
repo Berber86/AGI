@@ -276,15 +276,15 @@ export function createWorld(scene, track, renderer) {
   }
 
   // ---------- 3D puff-cloud clusters (cotton-candy volumes near the horizon) ----------
-  const puffMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.92 });
+  const puffMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.94 });
   for (let i = 0; i < 8; i++) {
     const cluster = new THREE.Group();
-    const n = 4 + Math.floor(Math.random() * 4);
+    const n = 5 + Math.floor(Math.random() * 4);
     for (let j = 0; j < n; j++) {
       const r = 7 + Math.random() * 11;
       const p = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), puffMat);
       p.position.set((Math.random() - 0.5) * 32, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 15);
-      p.scale.y = 0.55;
+      p.scale.y = 0.68;
       cluster.add(p);
     }
     const a = Math.random() * Math.PI * 2;
@@ -292,6 +292,24 @@ export function createWorld(scene, track, renderer) {
     cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 75, track.bounds.center.z + Math.sin(a) * rr);
     world.add(cluster);
     clouds.push({ sprite: cluster, drift: 0.8 + Math.random() * 1.6 });
+  }
+
+  // ---------- hero clouds: big soft volumes near the course (frame the sky) --
+  for (let i = 0; i < 7; i++) {
+    const cluster = new THREE.Group();
+    const n = 8 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < n; j++) {
+      const r = 10 + Math.random() * 14;
+      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), puffMat);
+      p.position.set((Math.random() - 0.5) * 44, (Math.random() - 0.5) * 11, (Math.random() - 0.5) * 20);
+      p.scale.y = 0.66;
+      cluster.add(p);
+    }
+    const a = (i / 7) * Math.PI * 2 + 0.7;
+    const rr = 150 + Math.random() * 150;
+    cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 42, track.bounds.center.z + Math.sin(a) * rr);
+    world.add(cluster);
+    clouds.push({ sprite: cluster, drift: 0.5 + Math.random() * 0.9 });
   }
 
   // ---------- rainbows arching over the road (plus the castle one) ----------
