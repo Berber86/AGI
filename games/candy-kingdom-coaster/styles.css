@@ -342,7 +342,7 @@ html, body {
 }
 #speed-lines {
   position: absolute; inset: -12%; pointer-events: none; z-index: 3; opacity: 0;
-  background: repeating-radial-gradient(circle at 50% 46%, transparent 0 46px, rgba(255, 255, 255, 0.15) 48px 51px, transparent 53px 92px);
+  background: repeating-radial-gradient(circle at 50% 46%, transparent 0 40px, rgba(255, 255, 255, 0.24) 42px 46px, transparent 48px 88px);
   -webkit-mask-image: radial-gradient(circle at 50% 46%, transparent 28%, #000 78%);
   mask-image: radial-gradient(circle at 50% 46%, transparent 28%, #000 78%);
   transition: opacity 0.35s ease;

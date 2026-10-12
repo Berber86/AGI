@@ -468,6 +468,15 @@ function updateGameplay(dt) {
   game.camTarget.lerp(desiredTgt, k);
   camera.position.copy(game.camPos);
   camera.lookAt(game.camTarget);
+  // speed feel: micro shake that grows with speed, lean into the steering
+  const spdK = Math.min(1, game.speed / TUNING.maxSpeed);
+  const shake = (game.boostActive ? 0.055 : 0.013) * spdK;
+  if (shake > 0.001) {
+    const tn = performance.now() * 0.001;
+    camera.position.x += Math.sin(tn * 37.1) * shake;
+    camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
+  }
+  camera.rotateZ(-(input.steer || 0) * 0.02);
   // subtle FOV kick on boost
   const targetFov = game.boostActive ? 59 : 52;
   camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 2.2);
