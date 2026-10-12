@@ -580,6 +580,93 @@ export function createWorld(scene, track, renderer) {
   castleFar.lookAt(midPose.pos.x, castleFar.position.y + 6, midPose.pos.z);
   world.add(castleFar);
 
+  // ---------- drive-under candy gates (car passes beneath) ------------------
+  {
+    const gateMat = new THREE.MeshStandardMaterial({ map: stripeTexture('#ff4b6e', '#fff6f0'), roughness: 0.42 });
+    const gumdropMat = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.35, emissive: '#2c1270', emissiveIntensity: 0.25 });
+    for (const u of [0.18, 0.50, 0.78]) {
+      const gp = track.getPose(track.length * u, 0);
+      const gate = new THREE.Group();
+      const R = 8.9;
+      for (const s of [-1, 1]) {
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.35, 8.6, 14), gateMat);
+        pillar.position.set(s * R, 4.3, 0);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 1.1, 14), gumdropMat);
+        foot.position.set(s * R, 0.55, 0);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 10), gumdropMat);
+        cap.position.set(s * R, 9.2, 0);
+        gate.add(pillar, foot, cap);
+      }
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(R, 1.2, 10, 30, Math.PI), gateMat);
+      arc.position.y = 8.6;
+      gate.add(arc);
+      // hanging gummy drops along the beam
+      for (let k = 0; k < 5; k++) {
+        const a = Math.PI * (0.18 + k * 0.16);
+        const hx = Math.cos(a) * R, hy = 8.6 + Math.sin(a) * R;
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(0.85, 10, 8), new THREE.MeshStandardMaterial({ color: ['#ff6b81', '#ffd45e', '#6bd96b', '#56c8ff', '#ff8ad0'][k], roughness: 0.32 }));
+        drop.position.set(hx, hy - 1.35, 0);
+        const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 5), gateMat);
+        cord.position.set(hx, hy - 0.55, 0);
+        gate.add(drop, cord);
+      }
+      gate.position.copy(gp.pos);
+      gate.rotation.y = gp.heading;
+      gate.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; });
+      world.add(gate);
+    }
+  }
+
+  // ---------- castle grounds: chocolate apron, candy bridge, royal garden ----
+  // All pieces are groups sized to stay >= 12 m off the track centerline.
+  {
+    const chocMat = new THREE.MeshStandardMaterial({ color: '#5a2f1a', roughness: 0.35, metalness: 0.12 });
+    const stoneMat = new THREE.MeshStandardMaterial({ color: '#ffd7ea', roughness: 0.55 });
+    const grounds = (pos, toward, sc) => {
+      const dir = toward.clone().sub(pos).setY(0).normalize(); // toward the track
+      const side = new THREE.Vector3(-dir.z, 0, dir.x);
+      const grp = new THREE.Group();
+      // chocolate apron under the terrace (stays inside the platform footprint)
+      const apron = new THREE.Mesh(new RoundedBoxGeometry(57 * sc, 1.4, 39 * sc, 3, 0.7), chocMat);
+      apron.position.y = -0.9;
+      grp.add(apron);
+      // candy bridge from the gate out over the apron (never reaches the road)
+      const bridge = new THREE.Group();
+      const deck = new THREE.Mesh(new RoundedBoxGeometry(8 * sc, 1.0 * sc, 14 * sc, 3, 0.4), stoneMat);
+      deck.position.y = 0.25;
+      bridge.add(deck);
+      for (const s of [-1, 1]) {
+        for (let k = 0; k < 4; k++) {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.45 * sc, 0.45 * sc, 2.1 * sc, 8), stoneMat);
+          post.position.set(s * 3.7 * sc, 1.15 * sc, (-4.5 + k * 3) * sc);
+          const ball = new THREE.Mesh(new THREE.SphereGeometry(0.58 * sc, 10, 8), new THREE.MeshStandardMaterial({ color: k % 2 ? '#ff6b9e' : '#fff2f7', roughness: 0.4 }));
+          ball.position.set(s * 3.7 * sc, 2.5 * sc, (-4.5 + k * 3) * sc);
+          bridge.add(post, ball);
+        }
+      }
+      bridge.position.copy(dir).multiplyScalar(15.5 * sc);
+      bridge.position.y = -1.2;
+      bridge.rotation.y = Math.atan2(dir.x, dir.z);
+      grp.add(bridge);
+      // royal garden: swirl lollipop topiary flanking the approach
+      for (let k = 0; k < 8; k++) {
+        const s = k % 2 ? 1 : -1;
+        const along = -24 + Math.floor(k / 2) * 7.5;
+        const base = dir.clone().multiplyScalar(along * sc).addScaledVector(side, s * 15.5 * sc);
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.62, 5.2, 8), stoneMat);
+        trunk.position.set(base.x, 1.2, base.z);
+        const crown = new THREE.Mesh(new THREE.SphereGeometry(2.5, 12, 10), new THREE.MeshStandardMaterial({ map: swirlTexture(k % 2 ? '#ff5fa2' : '#8f6bff', '#fff2f7'), roughness: 0.42 }));
+        crown.position.set(base.x, 5.4, base.z);
+        grp.add(trunk, crown);
+      }
+      grp.position.copy(pos);
+      grp.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      world.add(grp);
+    };
+    grounds(castleMain.position, finPose.pos, 1.5);
+    grounds(castleFar.position, midPose.pos, 1.2);
+  }
+
   // ---------- rollercoaster rails (background fun, near mid-course) ----------
   const c0 = track.getPose(track.length * 0.62, 0);
   const sideDir = new THREE.Vector3(Math.cos(c0.heading), 0, -Math.sin(c0.heading));
@@ -990,6 +1077,15 @@ export function createWorld(scene, track, renderer) {
       groveList.push({ x: p.pos.x, y: p.pos.y - far * 0.1 - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.5 + rand() * 1.6 });
     }
     makeInstanced(treeGeometry(), propMats.tree, groveList, (i) => new THREE.Color(['#7ddf9a', '#8fe0c8', '#c6e87d', '#9adcff', '#ffb7d9'][i % 5]));
+    // cherry toppers on every other grove tree
+    const cherryGeo = mergeParts([
+      { geo: new THREE.SphereGeometry(0.42, 10, 8), pos: [0, 0, 0] },
+      { geo: new THREE.CylinderGeometry(0.055, 0.055, 0.55, 6), pos: [0.14, 0.42, 0], rot: [0, 0, -0.35] },
+    ]);
+    const cherryList = groveList.filter((_, i) => i % 2 === 0).map((p) => ({
+      x: p.x, y: p.y + 3.35 * p.sc, z: p.z, ry: p.ry, sc: p.sc * 0.95,
+    }));
+    makeInstanced(cherryGeo, new THREE.MeshStandardMaterial({ color: '#ff3b5c', roughness: 0.32, emissive: '#7a0e22', emissiveIntensity: 0.22 }), cherryList);
 
     // --- ground balloon bunches (tied with strings, sway in update) ---
     for (let i = 0; i < 7; i++) {

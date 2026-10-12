@@ -68,8 +68,8 @@ export function createCar() {
   root.add(body);
 
   const pink = new THREE.MeshPhysicalMaterial({
-    color: '#f5489b', roughness: 0.42, metalness: 0.22,
-    clearcoat: 1, clearcoatRoughness: 0.32, sheen: 1, sheenColor: '#ff9ed2',
+    color: '#f5489b', roughness: 0.38, metalness: 0.22,
+    clearcoat: 1, clearcoatRoughness: 0.1, sheen: 1, sheenColor: '#ff9ed2',
   });
   const pinkDark = new THREE.MeshStandardMaterial({ color: '#c22b72', roughness: 0.45, metalness: 0.25 });
   const cream = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4, metalness: 0.12 });
@@ -229,6 +229,20 @@ export function createCar() {
 
   // wheels
   const wheels = [];
+  const hubTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff2f7'; g.fillRect(0, 0, 64, 64);
+    g.strokeStyle = '#ff6b9e'; g.lineWidth = 7; g.lineCap = 'round';
+    g.beginPath();
+    for (let a = 0; a < Math.PI * 4.4; a += 0.12) {
+      const r = 2 + a * 2.1;
+      const x = 32 + Math.cos(a) * r, y = 32 + Math.sin(a) * r;
+      if (a === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.stroke();
+    return new THREE.CanvasTexture(c);
+  })();
   const wheelPos = [
     [-1.02, 0.46, 1.32], [1.02, 0.46, 1.32],
     [-1.02, 0.46, -1.38], [1.02, 0.46, -1.38],
@@ -239,13 +253,52 @@ export function createCar() {
     tire.rotation.z = Math.PI / 2;
     const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.36, 18), pink);
     rim.rotation.z = Math.PI / 2;
+    // candy-swirl hubcap on the outer face
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.265, 0.265, 0.02, 18),
+      new THREE.MeshStandardMaterial({ map: hubTex, roughness: 0.35 })
+    );
+    cap.rotation.z = Math.PI / 2;
+    cap.position.x = Math.sign(x) * 0.195;
     const hub = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), cream);
-    hub.position.x = Math.sign(x) * 0.2;
-    w.add(tire, rim, hub);
+    hub.position.x = Math.sign(x) * 0.22;
+    w.add(tire, rim, cap, hub);
     w.position.set(x, y, z);
     root.add(w);
     wheels.push({ group: w, front: z > 0, hub: rim });
   }
+
+  // lollipop antenna on the rear deck
+  const antenna = new THREE.Group();
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.85, 8), cream);
+  stick.position.y = 0.42;
+  const lolli = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.21, 0.21, 0.06, 18),
+    new THREE.MeshStandardMaterial({ map: hubTex, roughness: 0.38 })
+  );
+  lolli.rotation.x = Math.PI / 2;
+  lolli.position.y = 0.92;
+  antenna.add(stick, lolli);
+  antenna.position.set(0.68, 1.18, -1.55);
+  antenna.rotation.z = -0.18;
+  body.add(antenna);
+
+  // gummy star gem on the hood
+  const starShape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 0.1 : 0.21;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const px = Math.cos(a) * r, py = Math.sin(a) * r;
+    if (i === 0) starShape.moveTo(px, py); else starShape.lineTo(px, py);
+  }
+  starShape.closePath();
+  const star = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(starShape, { depth: 0.07, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2 }),
+    new THREE.MeshPhysicalMaterial({ color: '#ffd45e', roughness: 0.25, clearcoat: 1, emissive: '#7a5c10', emissiveIntensity: 0.3 })
+  );
+  star.rotation.x = -Math.PI / 2;
+  star.position.set(0, 1.16, 1.72);
+  body.add(star);
 
   // Lily — chibi driver
   const lily = new THREE.Group();
