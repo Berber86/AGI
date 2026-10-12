@@ -4,6 +4,7 @@ import { Storage } from './storage.js';
 let ctx = null;
 let master = null;
 let muted = Storage.getMuted();
+let engine = null;
 
 function ensure() {
   if (!ctx) {
@@ -100,6 +101,44 @@ const SOUNDS = {
 export const SFX = {
   unlock() { ensure(); },
   play(name) { if (!muted && SOUNDS[name]) SOUNDS[name](); },
+  // ---- continuous driving layer: soft engine hum + airy wind (kid-friendly, subtle) ----
+  engineStart() {
+    const c = ensure(); if (!c || engine) return;
+    const osc = c.createOscillator(); osc.type = 'triangle'; osc.frequency.value = 62;
+    const filter = c.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 260;
+    const gain = c.createGain(); gain.gain.value = 0;
+    osc.connect(filter); filter.connect(gain); gain.connect(master);
+    const len = Math.floor(c.sampleRate * 1.2);
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.55;
+    const wind = c.createBufferSource(); wind.buffer = buf; wind.loop = true;
+    const wf = c.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 640; wf.Q.value = 0.55;
+    const wg = c.createGain(); wg.gain.value = 0;
+    wind.connect(wf); wf.connect(wg); wg.connect(master);
+    osc.start(); wind.start();
+    engine = { osc, gain, filter, wind, wg, wf };
+  },
+  engineUpdate(speedNorm, boost = false) {
+    if (!engine) return;
+    const t = engine.gain.context.currentTime;
+    const s = Math.max(0, Math.min(1.2, speedNorm));
+    engine.osc.frequency.setTargetAtTime(56 + s * 72 + (boost ? 26 : 0), t, 0.16);
+    engine.filter.frequency.setTargetAtTime(230 + s * 520, t, 0.22);
+    engine.gain.gain.setTargetAtTime(muted ? 0 : 0.024 + s * 0.04 + (boost ? 0.026 : 0), t, 0.22);
+    engine.wg.gain.setTargetAtTime(muted ? 0 : 0.01 + s * 0.045 + (boost ? 0.05 : 0), t, 0.28);
+    engine.wf.frequency.setTargetAtTime(480 + s * 950 + (boost ? 650 : 0), t, 0.3);
+  },
+  engineStop() {
+    if (!engine) return;
+    const e = engine; engine = null;
+    try {
+      const t = e.gain.context.currentTime;
+      e.gain.gain.setTargetAtTime(0, t, 0.12);
+      e.wg.gain.setTargetAtTime(0, t, 0.12);
+      setTimeout(() => { try { e.osc.stop(); e.wind.stop(); } catch { /* already stopped */ } }, 500);
+    } catch { /* context gone */ }
+  },
   isMuted() { return muted; },
   setMuted(m) {
     muted = !!m;

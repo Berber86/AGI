@@ -204,9 +204,9 @@ export function createWorld(scene, track, renderer) {
   world.add(sky);
   scene.fog = new THREE.Fog(0x9fd8ff, 90, 460);
 
-  const hemi = new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.78);
+  const hemi = new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.82);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff0dd, 1.55);
+  const sun = new THREE.DirectionalLight(0xffedc9, 1.62);
   sun.position.set(60, 95, -50);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);

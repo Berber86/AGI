@@ -12,7 +12,7 @@ import { Input } from './input.js';
 import { createTrack } from './track.js';
 import { createCar } from './car.js';
 import { createWorld } from './world.js';
-import { createSweets } from './sweets.js';
+import { createSweets, Burst } from './sweets.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 
@@ -43,6 +43,7 @@ const world = createWorld(scene, track, renderer);
 const car = createCar();
 scene.add(car.root);
 const sweets = createSweets(scene, track);
+const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
 const input = new Input();
 const governor = new QualityGovernor(renderer, composer, world);
@@ -117,6 +118,7 @@ function toMenu() {
   el.countdown.classList.add('hidden');
   fillRecordsPanel(el.recordsMenu, Storage.getRecords());
   setSoundIcons();
+  SFX.engineStop();
   window.__GAME_STATE__ = 'menu';
 }
 
@@ -143,6 +145,8 @@ function startRace() {
   el.countdownNum.textContent = '3';
   game.state = 'countdown';
   window.__GAME_STATE__ = 'countdown';
+  SFX.unlock();
+  SFX.engineStart();
 }
 
 function pauseGame() {
@@ -153,6 +157,7 @@ function pauseGame() {
     setSoundIcons();
     window.__GAME_STATE__ = 'paused';
     SFX.play('click');
+    SFX.engineStop();
   } else if (game.state === 'paused') {
     resumeGame();
   }
@@ -162,13 +167,23 @@ function resumeGame() {
   game.state = 'racing';
   input.releaseAll();
   showScreen(null);
+  el.countdown.classList.add('hidden'); // a countdown digit must not survive the pause
+  game.goHideT = 0;
   window.__GAME_STATE__ = 'racing';
   SFX.play('click');
+  SFX.unlock();
+  SFX.engineStart();
 }
 
 function finishRace() {
   game.state = 'finish';
   input.releaseAll();
+  SFX.engineStop();
+  // candy-confetti celebration around the car
+  const fp = car.root.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+  finishFx.spawn(fp, '#ffd45e', 34, 8.5);
+  finishFx.spawn(fp, '#ff8fc6', 30, 7.5);
+  finishFx.spawn(fp, '#8fd8ff', 26, 8);
   const timeMs = game.timeS * 1000;
   const total = sweets.total;
   const collected = sweets.collected;
@@ -388,6 +403,9 @@ function updateGameplay(dt) {
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
+  finishFx.update(dt);
+  // driving sound layer follows speed
+  SFX.engineUpdate(game.speed / TUNING.cruiseSpeed, game.boostActive);
 }
 
 // ---------------------------------------------------------------- loop
