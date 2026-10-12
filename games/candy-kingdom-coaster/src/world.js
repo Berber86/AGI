@@ -1074,6 +1074,39 @@ export function createWorld(scene, track, renderer) {
     makeInstanced(caneGeometry(), propMats.cane, strip.cane);
   }
 
+  // ---------- close framing candy: big pieces that sweep past the camera edges
+  // (the reference frames every shot with a foreground lollipop/cane)
+  {
+    const spots = [];
+    for (let s = 34; s < L - 40; s += 44 + rand() * 26) {
+      spots.push({ s, side: (Math.round(s / 44) % 2) ? 1 : -1 });
+    }
+    const kinds = [
+      { geo: lollipopGeometry(), mat: propMats.lolli[0] },
+      { geo: caneGeometry(), mat: propMats.cane },
+      { geo: lollipopGeometry(), mat: propMats.lolli[2] },
+    ];
+    for (let k = 0; k < kinds.length; k++) {
+      const list = spots.filter((_, i) => i % kinds.length === k);
+      if (!list.length) continue;
+      const im = new THREE.InstancedMesh(kinds[k].geo, kinds[k].mat, list.length);
+      im.castShadow = true;
+      im.receiveShadow = true;
+      im.userData.noCollide = true; // shoulder dressing, clear of the corridor
+      const d = new THREE.Object3D();
+      list.forEach((spot, i) => {
+        const p = track.getPose(spot.s, spot.side * (12.2 + rand() * 1.6));
+        d.position.set(p.pos.x, p.pos.y - 0.4, p.pos.z);
+        d.rotation.set(0, p.heading + rand() * 0.6, 0);
+        d.scale.setScalar(2.6 + rand() * 0.9);
+        d.updateMatrix();
+        im.setMatrixAt(i, d.matrix);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      world.add(im);
+    }
+  }
+
   // grandstand gummy-bears near the finish (like the reference crowd)
   const crowd = [];
   for (let i = 0; i < 58; i++) {
