@@ -1398,6 +1398,48 @@ export function createWorld(scene, track, renderer) {
     }
   }
 
+  // ---------- living details: butterflies in the meadows, birds in the sky ---
+  const butterflies = [];
+  {
+    const wingGeo = new THREE.PlaneGeometry(0.24, 0.17);
+    for (let i = 0; i < 16; i++) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({
+        color: ['#ff8fc6', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7', '#ff9f43'][i % 6],
+        roughness: 0.5, side: THREE.DoubleSide,
+      });
+      const wl = new THREE.Mesh(wingGeo, mat); wl.position.x = -0.12;
+      const wr = new THREE.Mesh(wingGeo, mat); wr.position.x = 0.12;
+      g.add(wl, wr);
+      g.scale.setScalar(2.6); // visible as colorful flutters over the grass
+      const u = 0.005 + (i / 16) * 0.21;
+      const side = i % 2 ? 1 : -1;
+      const p = track.getPose(L * u, side * (8.5 + rand() * 10));
+      g.position.set(p.pos.x, p.pos.y + 1.1 + rand() * 1.8, p.pos.z);
+      g.traverse((o) => { o.userData.noCollide = true; });
+      world.add(g);
+      butterflies.push({ g, wl, wr, base: g.position.clone(), phase: rand() * 6.28, r: 1.6 + rand() * 2.6, speed: 0.45 + rand() * 0.65, flap: 9 + rand() * 7 });
+    }
+  }
+  const birds = [];
+  {
+    const wingGeo = new THREE.PlaneGeometry(1.5, 0.42);
+    const birdMat = new THREE.MeshStandardMaterial({ color: '#8f7fb8', roughness: 0.9, side: THREE.DoubleSide });
+    for (let i = 0; i < 9; i++) {
+      const g = new THREE.Group();
+      const wl = new THREE.Mesh(wingGeo, birdMat); wl.position.x = -0.75;
+      const wr = new THREE.Mesh(wingGeo, birdMat); wr.position.x = 0.75;
+      g.add(wl, wr);
+      const a = (i / 9) * Math.PI * 2;
+      const rr = 130 + rand() * 180;
+      g.position.set(track.bounds.center.x + Math.cos(a) * rr, 46 + rand() * 30, track.bounds.center.z + Math.sin(a) * rr);
+      g.scale.setScalar(1.6 + rand() * 1.0);
+      g.traverse((o) => { o.userData.noCollide = true; });
+      world.add(g);
+      birds.push({ g, wl, wr, cx: g.position.x, cz: g.position.z, y: g.position.y, r: 40 + rand() * 70, phase: rand() * 6.28, speed: 0.1 + rand() * 0.12, flap: 3.5 + rand() * 2.5 });
+    }
+  }
+
   // ---------- zone identity: each stretch gets its own hero dressing -------
   {
     // 0. Lollipop Meadows — candy flower fields on the grass
@@ -1700,6 +1742,24 @@ export function createWorld(scene, track, renderer) {
         coasterCurve.getTangentAt(ct, coasterTan);
         coasterCars[i].position.set(coasterPt.x, coasterPt.y - 0.55, coasterPt.z);
         coasterCars[i].lookAt(coasterPt.x + coasterTan.x, coasterPt.y - 0.55 + coasterTan.y, coasterPt.z + coasterTan.z);
+      }
+      // butterflies drift and flap over the meadows
+      for (const bf of butterflies) {
+        const t2 = time * bf.speed + bf.phase;
+        bf.g.position.set(bf.base.x + Math.cos(t2) * bf.r, bf.base.y + Math.sin(t2 * 1.7) * 0.55, bf.base.z + Math.sin(t2) * bf.r);
+        bf.g.rotation.y = -t2;
+        const flap = Math.sin(time * bf.flap + bf.phase) * 0.95;
+        bf.wl.rotation.y = flap;
+        bf.wr.rotation.y = -flap;
+      }
+      // birds wheel in slow circles high above the kingdom
+      for (const bd of birds) {
+        const a = time * bd.speed + bd.phase;
+        bd.g.position.set(bd.cx + Math.cos(a) * bd.r, bd.y + Math.sin(a * 0.7) * 4, bd.cz + Math.sin(a) * bd.r);
+        bd.g.rotation.y = -a + Math.PI / 2;
+        const flap = Math.sin(time * bd.flap) * 0.5;
+        bd.wl.rotation.y = flap;
+        bd.wr.rotation.y = -flap;
       }
       // marzipan bears hop with a squash-and-stretch
       for (const bn of bounceList) {
