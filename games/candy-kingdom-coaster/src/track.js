@@ -29,26 +29,35 @@ function roadTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = '#6a6478';
+  // strawberry-cream icing road (candy track, not asphalt)
+  g.fillStyle = '#efa3c4';
   g.fillRect(0, 0, 256, 512);
-  // asphalt noise
-  for (let i = 0; i < 900; i++) {
-    g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.10)';
-    g.fillRect(Math.random() * 256, Math.random() * 512, 2 + Math.random() * 3, 2 + Math.random() * 3);
+  // soft icing mottling
+  for (let i = 0; i < 700; i++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.10)' : 'rgba(214,96,150,0.10)';
+    g.fillRect(Math.random() * 256, Math.random() * 512, 3 + Math.random() * 5, 3 + Math.random() * 5);
   }
-  // confetti specks on the road
-  const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0'];
-  for (let i = 0; i < 46; i++) {
+  // candy sprinkles (bright little capsules)
+  const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
+  for (let i = 0; i < 150; i++) {
+    const x = Math.random() * 256, y = Math.random() * 512;
+    const a = Math.random() * Math.PI;
+    g.save();
+    g.translate(x, y);
+    g.rotate(a);
     g.fillStyle = conf[i % conf.length];
-    g.globalAlpha = 0.5;
-    g.fillRect(Math.random() * 256, Math.random() * 512, 3, 5);
+    g.globalAlpha = 0.8;
+    g.beginPath();
+    g.roundRect(-2.8, -1.1, 5.6, 2.2, 1.1);
+    g.fill();
+    g.restore();
   }
   g.globalAlpha = 1;
-  // edge lines
-  g.fillStyle = '#fffaf4';
+  // edge lines (white chocolate)
+  g.fillStyle = '#fff6ec';
   g.fillRect(10, 0, 11, 512);
   g.fillRect(235, 0, 11, 512);
-  // dashed center line
+  // dashed center line (golden sugar)
   g.fillStyle = '#ffe082';
   for (let y = 0; y < 512; y += 64) g.fillRect(121, y, 14, 34);
   const tex = new THREE.CanvasTexture(c);
@@ -64,7 +73,7 @@ function checkerTexture() {
   const g = c.getContext('2d');
   const n = 8, s = 128 / n;
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    g.fillStyle = (x + y) % 2 ? '#2c2233' : '#fff6f8';
+    g.fillStyle = (x + y) % 2 ? '#6b3f2a' : '#fff6ec'; // chocolate & cream
     g.fillRect(x * s, y * s, s, s);
   }
   const t = new THREE.CanvasTexture(c);
@@ -123,7 +132,7 @@ export function createTrack(scene) {
       else if (pr.kind === 'road') col = new THREE.Color('#ffffff');
       else {
         // candy grass with zone tint, fading to a soft universal green-pink at distance
-        col = new THREE.Color(zc.fog).lerp(new THREE.Color('#b6e698'), 0.62);
+        col = new THREE.Color(zc.fog).lerp(new THREE.Color('#8fe096'), 0.74); // fresh mint field — pink road pops against it
         const away = (Math.abs(pr.off) - 7.6) / 14.4;
         col.lerp(grassEdge, away * 0.35);
       }
@@ -194,6 +203,7 @@ export function createTrack(scene) {
   const fp = curve.getPointAt(fu), ft = curve.getTangentAt(fu);
   arch.position.copy(fp);
   arch.rotation.y = Math.atan2(ft.x, ft.z) + Math.PI; // face the driver (was mirrored)
+  arch.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead: car passes under
   scene.add(arch);
 
   // ---- Start gate (small candy arch) ----
@@ -211,6 +221,7 @@ export function createTrack(scene) {
   const st = new THREE.CanvasTexture(sc);
   st.colorSpace = THREE.SRGBColorSpace;
   b2.material.map = st;
+  startArch.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead
   scene.add(startArch);
 
   // ---- Pose helpers ----

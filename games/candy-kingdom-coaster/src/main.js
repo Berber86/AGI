@@ -260,11 +260,12 @@ function updateGameplay(dt) {
       game.countdownN = n;
       if (n > 0) { el.countdownNum.textContent = String(n); SFX.play('beep'); }
       else {
-        el.countdownNum.textContent = 'СТАРТ!';
+        // 3,2,1 → digits vanish at zero; the race just begins
+        el.countdown.classList.add('hidden');
         SFX.play('go');
         game.state = 'racing';
         window.__GAME_STATE__ = 'racing';
-        game.goHideT = 1.5; // «СТАРТ!» убираем через 1.5 секунды (runs every frame)
+        game.goHideT = 0;
       }
     }
     if (game.state === 'countdown') {
@@ -641,12 +642,185 @@ window.__TEST__ = {
     return scene.children.map((o, i) => ({
       i, type: o.type, name: o.name || '(anon)', visible: o.visible,
       kids: o.children ? o.children.length : 0,
+      pos: o.position.toArray().map((v) => +v.toFixed(2)),
+      rot: [o.rotation.x, o.rotation.y, o.rotation.z].map((v) => +v.toFixed(2)),
+      scale: o.scale.toArray().map((v) => +v.toFixed(2)),
     }));
   },
   hideChild(i, hide = true) {
     if (scene.children[i]) scene.children[i].visible = !hide;
   },
   knockedCount() { return world.knockedCount(); },
+  mountainDebug() { return world.mountainDebug(); },
+  sweetPeek(i) {
+    const it = sweets.list[i % sweets.list.length];
+    return it ? { s: +it.s.toFixed(1), lateral: +it.lateral.toFixed(2), collected: it.collected, total: sweets.list.length } : null;
+  },
+  matrixFlags(x, y, z, r = 1.5) {
+    const out = [];
+    scene.traverse((o) => {
+      if (!o.isMesh && !o.isGroup && !o.isInstancedMesh) return;
+      const d = Math.hypot(o.position.x - x, o.position.y - y, o.position.z - z);
+      if (d < r) {
+        out.push({
+          type: o.type + '/' + (o.geometry ? o.geometry.type : ''), uuid: o.uuid.slice(0, 8),
+          pos: o.position.toArray().map((q) => +q.toFixed(1)),
+          mAuto: o.matrixAutoUpdate, mwAuto: o.matrixWorldAutoUpdate,
+          mw: Array.from(o.matrixWorld.elements).slice(12, 15).map((q) => +q.toFixed(1)),
+          parent: o.parent ? o.parent.type + '@' + o.parent.position.toArray().map((q) => +q.toFixed(0)).join(',') : '?',
+        });
+      }
+    });
+    return out;
+  },
+  forceMW() {
+    scene.updateMatrixWorld(true);
+    return scene.children.length;
+  },
+  rayProbe(s, lat = 0) {
+    const rc = new THREE.Raycaster();
+    rc.camera = camera;
+    const p = track.getPose(s, lat).pos;
+    rc.set(new THREE.Vector3(p.x, p.y + 4, p.z), new THREE.Vector3(0, -1, 0));
+    const hits = rc.intersectObjects(scene.children, true).slice(0, 8);
+    return {
+      origin: [p.x, p.y + 4, p.z].map((q) => +q.toFixed(2)),
+      hits: hits.map((h) => {
+        const local = h.point.clone().applyMatrix4(h.object.matrixWorld.clone().invert());
+        return {
+          d: +h.distance.toFixed(2), wpt: h.point.toArray().map((q) => +q.toFixed(1)),
+          lpt: local.toArray().map((q) => +q.toFixed(1)),
+          type: h.object.geometry ? h.object.geometry.type : h.object.type,
+          uuid: h.object.uuid.slice(0, 8), inst: !!h.object.isInstancedMesh,
+          mat: h.object.material && h.object.material.color ? '#' + h.object.material.color.getHexString() : '?',
+          objPos: h.object.position.toArray().map((q) => +q.toFixed(1)),
+        };
+      }),
+    };
+  },
+  worldScanNear(x, y, z, r = 80) {
+    const out = [];
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      o.updateMatrixWorld(true);
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      const bs = o.geometry.boundingSphere;
+      const c = bs.center.clone().applyMatrix4(o.matrixWorld);
+      const sc = o.scale ? Math.max(o.scale.x, o.scale.y, o.scale.z) : 1;
+      const d = c.distanceTo(new THREE.Vector3(x, y, z)) - bs.radius * sc;
+      if (d < r) {
+        out.push({
+          type: o.geometry.type, dTo: +d.toFixed(1),
+          wc: c.toArray().map((q) => +q.toFixed(1)), wr: +(bs.radius * sc).toFixed(1),
+          mat: o.material.color ? '#' + o.material.color.getHexString() : '?',
+          name: o.name || '(anon)', uuid: o.uuid.slice(0, 8),
+          pos: o.position.toArray().map((q) => +q.toFixed(1)),
+          scl: o.scale.toArray().map((q) => +q.toFixed(2)),
+          vis: o.visible, par: o.parent ? o.parent.type + '@' + o.parent.position.toArray().map((q) => +q.toFixed(0)).join(',') : '?',
+        });
+      }
+    });
+    out.sort((a, b) => a.dTo - b.dTo);
+    return out.slice(0, 15);
+  },
+  findNear(x, y, z, r = 1.5) {
+    const out = [];
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const p = o.position;
+      const d = Math.hypot(p.x - x, p.y - y, p.z - z);
+      if (d < r) {
+        o.geometry.computeBoundingSphere();
+        const bs = o.geometry.boundingSphere;
+        const v0 = o.geometry.attributes.position ? o.geometry.attributes.position.array.slice(0, 9).map((q) => +q.toFixed(1)) : null;
+        const idx = o.geometry.index;
+        let idxInfo = null;
+        if (idx) {
+          let mx = 0, bad = 0;
+          const cnt = o.geometry.attributes.position.count;
+          for (let i = 0; i < idx.array.length; i++) { if (idx.array[i] > mx) mx = idx.array[i]; if (idx.array[i] >= cnt) bad++; }
+          idxInfo = { count: idx.array.length, max: mx, verts: cnt, bad };
+        }
+        out.push({
+          type: o.geometry.type, d: +d.toFixed(2),
+          mat: o.material.color ? '#' + o.material.color.getHexString() : '?',
+          bs: bs ? [+bs.center.x.toFixed(1), +bs.center.y.toFixed(1), +bs.center.z.toFixed(1), +bs.radius.toFixed(1)] : null,
+          v0, idxInfo, inst: !!o.isInstancedMesh, uuid: o.uuid.slice(0, 8),
+          parent: o.parent ? (o.parent.type + '/' + (o.parent.position ? o.parent.position.toArray().map((q) => +q.toFixed(1)) : '')) : '?',
+        });
+      }
+    });
+    return out;
+  },
+  // QA: cast rays down onto the drivable corridor along the whole track.
+  // Normal first hit ≈ 3.9-4.05 (road under a 4m ray). Smaller = object ON the
+  // road (the "texture hill" bug); larger/none = road missing there.
+  corridorScan(step = 16) {
+    scene.updateMatrixWorld(true); // matrices may be stale before the first render
+    const rc = new THREE.Raycaster();
+    rc.camera = camera; // sprites require raycaster.camera or they crash
+    const down = new THREE.Vector3(0, -1, 0);
+    const out = [];
+    for (let s = 6; s < track.length - 6; s += step) {
+      for (const lat of [-3.2, -1.6, 0, 1.6, 3.2]) {
+        const p = track.getPose(s, lat).pos;
+        rc.set(new THREE.Vector3(p.x, p.y + 4, p.z), down);
+        const hits = rc.intersectObjects(scene.children, true);
+        // sweets float above the road on purpose — skip them (userData.noCollide on any ancestor)
+        const noCol = (o) => { for (let q = o; q; q = q.parent) if (q.userData && q.userData.noCollide) return true; return false; };
+        const h = hits.find((x) => x.object.isMesh && x.object.visible !== false && !noCol(x.object));
+        const d = h ? h.distance : 99;
+        if (d < 3.3 || d > 4.6) {
+          let instPos = null, instSc = null;
+          if (h && h.object.isInstancedMesh && h.instanceId !== undefined) {
+            const nm = new THREE.Matrix4();
+            h.object.getMatrixAt(h.instanceId, nm);
+            instPos = new THREE.Vector3().setFromMatrixPosition(nm).toArray().map((v) => +v.toFixed(1));
+            instSc = +new THREE.Vector3().setFromMatrixScale(nm).x.toFixed(2);
+          }
+          out.push({
+            s: Math.round(s), lat, d: +d.toFixed(2),
+            name: h ? (h.object.name || h.object.type) : 'NONE',
+            mat: h && h.object.material ? h.object.material.type + '/' + (h.object.material.color ? '#' + h.object.material.color.getHexString() : '') : '',
+            hitY: h ? +h.point.y.toFixed(1) : null,
+            objPos: h ? h.object.position.toArray().map((v) => +v.toFixed(1)) : null,
+            instPos, instSc,
+          });
+        }
+      }
+    }
+    return out;
+  },
+  // QA: look FORWARD along the driving line — catches vertical "walls" (hills,
+  // oversized props) that a downward ray passes over. Flags anything that is
+  // not scenery-beside-the-road but straight AHEAD within 45 m.
+  corridorScanAhead(step = 16) {
+    scene.updateMatrixWorld(true);
+    const rc = new THREE.Raycaster();
+    rc.camera = camera;
+    const out = [];
+    const noCol = (o) => { for (let q = o; q; q = q.parent) if (q.userData && q.userData.noCollide) return true; return false; };
+    for (let s = 6; s < track.length - 20; s += step) {
+      const p = track.getPose(s, 0);
+      // aim along the CURVE (at a point 30 m ahead), not the local tangent
+      const ahead = track.getPose(Math.min(track.length - 1, s + 30), 0);
+      const dir = ahead.pos.clone().sub(p.pos).normalize();
+      // eye height, slight downward pitch like the real camera
+      const origin = p.pos.clone().add(new THREE.Vector3(0, 1.6, 0));
+      rc.set(origin, dir);
+      const hits = rc.intersectObjects(scene.children, true);
+      const h = hits.find((x) => x.object.isMesh && x.object.visible !== false && !noCol(x.object));
+      if (h && h.distance < 45) {
+        out.push({
+          s: Math.round(s), d: +h.distance.toFixed(1),
+          name: h.object.name || h.object.type,
+          mat: h.object.material && h.object.material.color ? '#' + h.object.material.color.getHexString() : '?',
+          hit: h.point.toArray().map((v) => +v.toFixed(1)),
+        });
+      }
+    }
+    return out;
+  },
   worldChildren() {
     const world = scene.children.find((o) => o.type === 'Group' && o.children.length > 50);
     if (!world) return [];

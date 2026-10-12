@@ -365,6 +365,7 @@ export function createCar() {
   shadowBlob.rotation.x = -Math.PI / 2;
   shadowBlob.position.y = 0.03;
   root.add(shadowBlob);
+  root.traverse((o) => { o.userData.noCollide = true; }); // the car belongs on the road
 
   let wheelSpin = 0;
   return {

@@ -157,6 +157,7 @@ export function createSweets(scene, track) {
     mesh.add(glow);
     mesh.position.copy(pose.pos).add(new THREE.Vector3(0, type === 'cupcake' ? 1.35 : 1.55, 0));
     mesh.scale.setScalar(type === 'candy' ? 1.3 : 1.18);
+    mesh.traverse((o) => { o.userData.noCollide = true; }); // pickups float over the road on purpose
     group.add(mesh);
     list.push({
       mesh, type, s, lateral,

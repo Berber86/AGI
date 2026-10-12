@@ -201,6 +201,7 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- sky & lights ----------
   const sky = skyDome();
+  sky.traverse((o) => { o.userData.noCollide = true; }); // the dome wraps the world
   world.add(sky);
   scene.fog = new THREE.Fog(0x9fd8ff, 90, 460);
 
@@ -290,6 +291,7 @@ export function createWorld(scene, track, renderer) {
       p.pos.y + 1.2,
       p.pos.z + Math.cos(p.heading)
     );
+    rainbow.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead: car passes under
     world.add(rainbow);
   });
 
@@ -297,20 +299,39 @@ export function createWorld(scene, track, renderer) {
   const mountainMat = new THREE.MeshStandardMaterial({ color: '#e8d6f2', roughness: 0.9, flatShading: true });
   const mountainMatB = new THREE.MeshStandardMaterial({ color: '#f2c9e0', roughness: 0.9, flatShading: true });
   const capMat = new THREE.MeshStandardMaterial({ color: '#fff6fa', roughness: 0.85, flatShading: true });
+  // helper: nearest track sample distance (XZ) so a mountain can NEVER overlap the road
+  const tSamples = track.samples;
+  const mountainDebug = [];
+  const minDistToTrack = (x, z) => {
+    let m = Infinity;
+    for (const p of tSamples) {
+      const dx = p.x - x, dz = p.z - z;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < m) m = d2;
+    }
+    return Math.sqrt(m);
+  };
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + 0.35;
     const r = 560 + (i % 3) * 160;
-    const h = 90 + (i * 37) % 90;
-    const m = new THREE.Mesh(new THREE.ConeGeometry(90 + (i % 4) * 35, h, 7), i % 2 ? mountainMat : mountainMatB);
+    const h = 52 + (i * 29) % 48; // soft candy hills, not giant pyramids
+    const mx = track.bounds.center.x + Math.cos(a) * r;
+    const mz = track.bounds.center.z + Math.sin(a) * r;
+    // clamp base radius so the cone keeps clear of the track (bug: slopes on the road)
+    const mdist = minDistToTrack(mx, mz);
+    const rMax = Math.max(45, mdist - 90);
+    const baseR = Math.min(90 + (i % 4) * 35, rMax);
+    mountainDebug.push({ mx: Math.round(mx), mz: Math.round(mz), mdist: Math.round(mdist), baseR: Math.round(baseR), h });
+    const m = new THREE.Mesh(new THREE.ConeGeometry(baseR, h, 10), i % 2 ? mountainMat : mountainMatB);
     m.position.set(
-      track.bounds.center.x + Math.cos(a) * r,
+      mx,
       h / 2 - 20,
-      track.bounds.center.z + Math.sin(a) * r
+      mz
     );
     world.add(m);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry(42 + (i % 3) * 14, h * 0.32, 6), capMat);
-    cap.position.set(m.position.x, h - 20 - h * 0.14, m.position.z);
-    world.add(cap);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.42, h * 0.32, 10), capMat);
+    cap.position.set(0, h * 0.36, 0); // local to the mountain — moves with it
+    m.add(cap);
   }
 
   // ---------- the Sugar Castle ----------
@@ -651,8 +672,78 @@ export function createWorld(scene, track, renderer) {
   const tmpColor = new THREE.Color();
   const WHITE = new THREE.Color('#fff2f7');
 
+  // ---------- final corridor safety sweep ------------------------------------
+  // No scenery may reach into the drivable corridor: anything whose world
+  // bounding sphere comes closer than 12 m to the track centerline is shrunk
+  // and/or pushed away. Covers wide props at big scale (ice cream, bears,
+  // cookies) on bends — the "drove into the hill texture" bug.
+  world.updateMatrixWorld(true);
+  const fixReach = (geometry, mw, sc, apply) => {
+    if (!geometry.boundingSphere) geometry.computeBoundingSphere();
+    const bs = geometry.boundingSphere;
+    const c = bs.center.clone().applyMatrix4(mw);
+    const reach = bs.radius * sc;
+    const dist = minDistToTrack(c.x, c.z);
+    // breathing room scales with the prop: mountains keep 90 m so the road
+    // never visually "drives into" their silhouette on bends; big props (ice
+    // cream, bears, cookies) 15 m; roadside lollipops/canes 9.5 m surface
+    // (car outer edge reaches 8.1 m from the centerline).
+    const need = reach > 20 ? 90 : reach > 6 ? 15 : 9.5;
+    if (dist - reach >= need) return;
+    let newSc = sc;
+    if (reach > 20) {
+      newSc = sc; // push-only: keep mountains big, move them away
+    } else if (reach > 0) {
+      newSc = Math.min(sc, Math.max(0.3, sc * (dist - need) / reach));
+    }
+    let nx = c.x, nz = c.z;
+    const rr = bs.radius * newSc;
+    if (dist - rr < need) {
+      let best = null, bestD = Infinity;
+      for (const p of tSamples) {
+        const dx = c.x - p.x, dz = c.z - p.z, d2 = dx * dx + dz * dz;
+        if (d2 < bestD) { bestD = d2; best = p; }
+      }
+      if (best && bestD > 1e-6) {
+        const inv = 1 / Math.sqrt(bestD);
+        const want = rr + need;
+        nx = best.x + (c.x - best.x) * inv * want;
+        nz = best.z + (c.z - best.z) * inv * want;
+      }
+    }
+    apply(newSc, nx - c.x, nz - c.z);
+  };
+  const dmPos = new THREE.Vector3(), dmQuat = new THREE.Quaternion(), dmSc = new THREE.Vector3();
+  for (const ch of world.children) {
+    if (!ch.isMesh && !ch.isInstancedMesh) continue;
+    if (ch.userData.noCollide) continue;
+    if (ch.isInstancedMesh) {
+      const m = new THREE.Matrix4();
+      for (let i = 0; i < ch.count; i++) {
+        ch.getMatrixAt(i, m);
+        m.decompose(dmPos, dmQuat, dmSc);
+        const sc = Math.max(dmSc.x, dmSc.y, dmSc.z) || 1;
+        fixReach(ch.geometry, m, sc, (newSc, dx, dz) => {
+          dmPos.x += dx; dmPos.z += dz;
+          dmSc.multiplyScalar(newSc / sc);
+          m.compose(dmPos, dmQuat, dmSc);
+          ch.setMatrixAt(i, m);
+        });
+      }
+      ch.instanceMatrix.needsUpdate = true;
+    } else {
+      const sc = Math.max(ch.scale.x, ch.scale.y, ch.scale.z) || 1;
+      fixReach(ch.geometry, ch.matrixWorld, sc, (newSc, dx, dz) => {
+        ch.position.x += dx; ch.position.z += dz;
+        ch.scale.multiplyScalar(newSc / sc);
+      });
+    }
+  }
+  world.updateMatrixWorld(true);
+
   return {
     sky, sun,
+    mountainDebug: () => mountainDebug,
     knockedCount: () => knockItems.reduce((n, it) => n + (it.state ? 1 : 0), 0),
     update(dt, cameraPos, u, time, carS = -1, carLateral = 0) {
       // Sky stays candy-blue; only the horizon warms up with the zone tint.
