@@ -707,6 +707,44 @@ export function createWorld(scene, track, renderer) {
     world.add(post);
   }
 
+  // ---------- a candy coaster train riding the loop (living background) -----
+  const coasterCars = [];
+  {
+    const CAR_COLORS = ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff', '#ff8a5c'];
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new RoundedBoxGeometry(1.5, 0.85, 2.3, 3, 0.3),
+        new THREE.MeshStandardMaterial({ color: CAR_COLORS[i % CAR_COLORS.length], roughness: 0.32, metalness: 0.18, clearcoat: 0.6 })
+      );
+      body.position.y = 0.5;
+      const roof = new THREE.Mesh(
+        new RoundedBoxGeometry(1.25, 0.42, 1.95, 3, 0.2),
+        new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4 })
+      );
+      roof.position.y = 1.12;
+      const canopy = new THREE.Mesh(
+        new THREE.SphereGeometry(0.48, 10, 8),
+        new THREE.MeshPhysicalMaterial({ color: '#bfe9ff', roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.42 })
+      );
+      canopy.position.y = 1.24;
+      canopy.scale.set(1, 0.72, 1.15);
+      // little waving rider bunny ears poking out
+      for (const sx of [-0.35, 0.35]) {
+        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.34, 6), new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.6 }));
+        ear.position.set(sx, 1.55, -0.2);
+        ear.rotation.z = sx > 0 ? -0.18 : 0.18;
+        g.add(ear);
+      }
+      g.add(body, roof, canopy);
+      g.scale.setScalar(2.3); // readable from the track: a real train, not dots
+      g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.userData.noCollide = true; } });
+      world.add(g);
+      coasterCars.push(g);
+    }
+  }
+  const coasterPt = new THREE.Vector3(), coasterTan = new THREE.Vector3();
+
   // ---------- instanced props along the track ----------
   const propMats = {
     lolli: ['#ff5fa2', '#56c8ff', '#ffd45e'].map((c) => new THREE.MeshStandardMaterial({ map: swirlTexture(c, '#fff2f7'), roughness: 0.42, metalness: 0.05 })),
@@ -1654,6 +1692,14 @@ export function createWorld(scene, track, renderer) {
       for (const b of balloons) {
         b.g.position.y = b.baseY + Math.sin(time * 0.8 + b.phase) * 1.6;
         b.g.rotation.y = time * 0.25 + b.phase;
+      }
+      // coaster train circles the loop, cars spaced along the curve
+      for (let i = 0; i < coasterCars.length; i++) {
+        const ct = (time * 0.042 + i * 0.042) % 1;
+        coasterCurve.getPointAt(ct, coasterPt);
+        coasterCurve.getTangentAt(ct, coasterTan);
+        coasterCars[i].position.set(coasterPt.x, coasterPt.y - 0.55, coasterPt.z);
+        coasterCars[i].lookAt(coasterPt.x + coasterTan.x, coasterPt.y - 0.55 + coasterTan.y, coasterPt.z + coasterTan.z);
       }
       // marzipan bears hop with a squash-and-stretch
       for (const bn of bounceList) {
