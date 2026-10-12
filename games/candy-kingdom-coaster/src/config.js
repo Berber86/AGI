@@ -22,6 +22,7 @@ export const TUNING = {
   camBack: 5.8,
   camUp: 2.55,
   camAhead: 14.5,
+  camSide: 1.7,             // slight 3/4 offset: the car's livery stays visible
   camLerp: 5.2,
   collectRadius: 2.55,
   boostDuration: 3.4,

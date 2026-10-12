@@ -79,7 +79,6 @@ const screens = {
 const el = {
   countdown: document.getElementById('countdown'),
   countdownNum: document.getElementById('countdown-num'),
-  zoneToast: document.getElementById('zone-toast'),
   portrait: document.getElementById('portrait-hint'),
   btnPlay: document.getElementById('btn-play'),
   btnResume: document.getElementById('btn-resume'),
@@ -293,10 +292,6 @@ function onResize() {
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 
-// ---------------------------------------------------------------- zone toast
-let toastTimer = 0;
-function showZoneToast() { /* zone toasts removed — distracting for kids */ }
-
 // ---------------------------------------------------------------- gameplay
 function updateGameplay(dt) {
   // cinematic intro: camera starts front-top, sweeps around, settles behind
@@ -306,7 +301,7 @@ function updateGameplay(dt) {
     const p = Math.min(1, game.introT / T);
     const e = p * p * (3 - 2 * p); // smoothstep
     const pose = track.getPose(game.s, game.lateral);
-    const chase = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
+    const chase = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
     if (game.s < TUNING.camBack) {
       const p0 = track.getPose(0, game.lateral * 0.55);
       const t0 = track.getPose(Math.min(track.length, 8), game.lateral * 0.55);
@@ -454,8 +449,8 @@ function updateGameplay(dt) {
   });
   trail.update(dt, car.root, game.speed, game.boostActive);
 
-  // camera: readable chase view
-  const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
+  // camera: readable chase view with a slight 3/4 flank offset
+  const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
   if (game.s < TUNING.camBack) {
     // before the start line extrapolate along the initial tangent so the car
     // is framed normally from the very first frame (no s=0 clamp pile-up)
@@ -464,7 +459,7 @@ function updateGameplay(dt) {
     const dir = t0.pos.clone().sub(p0.pos).normalize();
     back.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
   }
-  const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22);
+  const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
   const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
   const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
   const k = game.camSnap ? 1 : 1 - Math.exp(-TUNING.camLerp * dt);
@@ -578,14 +573,19 @@ window.__TEST__ = {
     el.countdown.classList.add('hidden');
   },
   snapCamera() {
-    const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
-    const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22);
+    const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
+    const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
     game.camPos.copy(back.pos).add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
     game.camTarget.copy(ahead.pos).add(new THREE.Vector3(0, 1.05, 0));
     camera.position.copy(game.camPos);
     camera.lookAt(game.camTarget);
   },
   collectAll() { sweets.collectAllDemo(); game.score = sweets.total * 10; },
+  // Visual QA: pull the chase camera in for paint/detail close-ups
+  pinCam(back, up, ahead) {
+    TUNING.camBack = back; TUNING.camUp = up; TUNING.camAhead = ahead;
+    return [TUNING.camBack, TUNING.camUp, TUNING.camAhead];
+  },
   // Visual QA: pin the quality tier so a slow headless GPU cannot silently
   // downgrade shadows/bloom while taking reference screenshots.
   pinQuality(tier = 2) {

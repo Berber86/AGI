@@ -34,6 +34,32 @@ function decalTexture() {
   return t;
 }
 
+function glitterTexture() {
+  // subtle roughness variation: dark dots read as glossy glitter flakes in the
+  // clearcoat under the sun — the "candy glitter paint" of the reference car
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#b8b8c8'; // mid roughness base
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 900; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    const r = 0.6 + Math.random() * 1.6;
+    g.fillStyle = Math.random() < 0.72 ? 'rgba(30,14,34,0.85)' : 'rgba(255,255,255,0.5)';
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // a few bigger star flakes
+  for (let i = 0; i < 26; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 2.4 + Math.random() * 3.2;
+    g.fillStyle = 'rgba(255,246,252,0.9)';
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 1);
+  return tex;
+}
+
 function sparkleTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -125,8 +151,9 @@ export function createCar() {
   root.add(body);
 
   const pink = new THREE.MeshPhysicalMaterial({
-    color: '#f5489b', roughness: 0.38, metalness: 0.22,
+    color: '#f5489b', roughness: 0.34, metalness: 0.22,
     clearcoat: 1, clearcoatRoughness: 0.1, sheen: 1, sheenColor: '#ff9ed2',
+    roughnessMap: glitterTexture(),
   });
   const pinkDark = new THREE.MeshStandardMaterial({ color: '#c22b72', roughness: 0.45, metalness: 0.25 });
   const cream = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4, metalness: 0.12 });
@@ -453,15 +480,15 @@ export function createCar() {
   // sparkle glitter around the body
   const sparkTex = sparkleTexture();
   const sparks = [];
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 26; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({
       map: sparkTex, transparent: true, opacity: 0.0, depthWrite: false,
       blending: THREE.AdditiveBlending, color: new THREE.Color().setHSL(0.92 + Math.random() * 0.1, 0.7, 0.75),
     }));
-    const s = 0.12 + Math.random() * 0.22;
+    const s = 0.1 + Math.random() * 0.2;
     m.scale.set(s, s, s);
     body.add(m);
-    sparks.push({ sprite: m, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.9 + Math.random() * 1.1, y: 0.3 + Math.random() * 1.2 });
+    sparks.push({ sprite: m, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.85 + Math.random() * 0.85, y: 0.3 + Math.random() * 1.2 });
   }
 
   root.traverse((o) => {

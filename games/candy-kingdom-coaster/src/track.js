@@ -33,8 +33,8 @@ function roadTexture() {
   // (road band = y 226..285 between the road vertices at k=4..5 of 0..9).
   g.fillStyle = '#ffffff';
   g.fillRect(0, 0, 256, 512); // neutral outside road -> grass/curb keep vertex colors
-  // strawberry road band
-  g.fillStyle = '#efa3c4';
+  // strawberry road band — bright, so the track pops against the candy fields
+  g.fillStyle = '#ffc9dd';
   g.fillRect(0, 226, 256, 59);
   // candy sprinkles inside the road band (tile every 12 m along the track)
   const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
@@ -45,7 +45,7 @@ function roadTexture() {
     g.translate(x, y);
     g.rotate(a);
     g.fillStyle = conf[i % conf.length];
-    g.globalAlpha = 0.78;
+    g.globalAlpha = 0.92;
     g.beginPath();
     g.roundRect(-2.4, -0.9, 4.8, 1.8, 0.9);
     g.fill();
@@ -63,13 +63,13 @@ function roadTexture() {
   shadeY(226, 248);
   shadeY(285, 263);
   // thick cream border lines along both road edges
-  g.fillStyle = '#fff6ec';
-  g.fillRect(0, 226, 256, 9);
-  g.fillRect(0, 276, 256, 9);
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 224, 256, 12);
+  g.fillRect(0, 275, 256, 12);
   // golden candy dash down the middle (once per 12 m tile)
-  g.fillStyle = '#ffe082';
+  g.fillStyle = '#ffd23e';
   g.beginPath();
-  g.roundRect(28, 251, 62, 11, 5);
+  g.roundRect(24, 249, 70, 13, 6);
   g.fill();
 
   const tex = new THREE.CanvasTexture(c);
@@ -154,7 +154,7 @@ export function createTrack(scene) {
       else if (pr.kind === 'road') col = new THREE.Color('#ffffff');
       else {
         // candy grass with zone tint, fading to a soft universal green-pink at distance
-        col = new THREE.Color(zc.fog).lerp(new THREE.Color('#8fe096'), 0.74); // fresh mint field — pink road pops against it
+        col = new THREE.Color(zc.fog).lerp(new THREE.Color('#9fe3a8'), 0.62); // soft mint field — the pink road pops against it
         const away = (Math.abs(pr.off) - 7.6) / 14.4;
         col.lerp(grassEdge, away * 0.35);
       }

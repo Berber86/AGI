@@ -61,6 +61,17 @@ for (const spec of specs) {
     await page.evaluate(() => { window.__TEST__.startRace(); window.__TEST__.setIntro(parseFloat(a)); });
     if (!hud) await page.evaluate(() => window.__TEST__.hideHUD());
     await waitFrames(8, 25000);
+  } else if (kind === 'close') {
+    // QA close-up: pull the chase camera in on the car (u, lateral)
+    const u = parseFloat(a);
+    const lat = parseFloat(b || '0');
+    await page.evaluate(([u, lat]) => {
+      window.__TEST__.pinCam(2.1, 1.15, 5.5);
+      window.__TEST__.setProgress(u, lat, true);
+      window.__TEST__.snapCamera();
+    }, [u, lat]);
+    if (!hud) await page.evaluate(() => window.__TEST__.hideHUD());
+    await waitFrames(10, 25000);
   } else {
     const u = parseFloat(a);
     const lat = parseFloat(b || '0');
