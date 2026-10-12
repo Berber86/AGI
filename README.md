@@ -25,9 +25,22 @@
 .agents/skills/arena-game-forge/
 ├── SKILL.md
 ├── references/
+│   ├── discovery.md
+│   ├── mobile-web.md
+│   ├── quality-gates.md
+│   ├── session-benchmark.md
+│   ├── state-contracts.md
+│   ├── workflow.md
+│   ├── headless-browser-setup.md      ← как ставить headless-браузер для скриншотов/тестов
+│   └── workspace-resets-and-recovery.md ← что теряется при сбросах окружения и как восстанавливаться
 ├── scripts/
 └── templates/
 ```
+
+Эксплуатационные руководства (браузер, сбросы) — обязательное чтение перед визуальными проверками и после любого «исчезновения» файлов/истории:
+
+- [Установка headless-браузера](.agents/skills/arena-game-forge/references/headless-browser-setup.md)
+- [Сбросы окружения и восстановление](.agents/skills/arena-game-forge/references/workspace-resets-and-recovery.md)
 
 ## Использование в Arena
 
