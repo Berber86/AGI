@@ -218,6 +218,31 @@ el.btnMenu2.addEventListener('click', () => { SFX.play('click'); toMenu(); });
 document.getElementById('btn-sound').addEventListener('click', () => {
   SFX.unlock(); SFX.toggleMute(); setSoundIcons(); SFX.play('click');
 });
+// fullscreen toggle — hides the browser UI (Android Chrome: user gesture required)
+document.getElementById('btn-full').addEventListener('click', () => {
+  SFX.unlock(); SFX.play('click');
+  try {
+    const d = document;
+    const root = d.documentElement;
+    const isFs = d.fullscreenElement || d.webkitFullscreenElement;
+    if (!isFs) {
+      const req = root.requestFullscreen || root.webkitRequestFullscreen;
+      if (req) {
+        const p = req.call(root);
+        if (p && p.catch) p.catch(() => { /* e.g. iOS Safari — ignore */ });
+        try {
+          if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
+        } catch { /* ignore */ }
+      }
+    } else {
+      const exit = d.exitFullscreen || d.webkitExitFullscreen;
+      if (exit) {
+        const p = exit.call(d);
+        if (p && p.catch) p.catch(() => {});
+      }
+    }
+  } catch { /* ignore */ }
+});
 el.btnSound2.addEventListener('click', () => {
   SFX.unlock(); SFX.toggleMute(); setSoundIcons(); SFX.play('click');
 });
