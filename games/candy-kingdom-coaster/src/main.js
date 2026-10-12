@@ -63,6 +63,7 @@ const game = {
   zoneIndex: -1,
   countdownT: 0,
   countdownN: 3,
+  introT: 0,
   goHideT: 0,
   bumpCooldown: 0,
   camPos: new THREE.Vector3(0, 6, -12),
@@ -138,15 +139,31 @@ function startRace() {
   game.goHideT = 0;
   game.freeze = false;
   game.camSnap = true;
+  game.introT = 0;
   sweets.reset();
   input.releaseAll();
+  showScreen(null);
+  el.countdown.classList.add('hidden');
+  game.state = 'intro'; // 6s cinematic sweep before the 3-2-1
+  window.__GAME_STATE__ = 'intro';
+  SFX.unlock();
+  SFX.engineStart();
+}
+
+function beginCountdown() {
+  game.countdownT = 0;
+  game.countdownN = 3;
+  game.goHideT = 0;
+  game.camSnap = true;
   showScreen(null);
   el.countdown.classList.remove('hidden');
   el.countdownNum.textContent = '3';
   game.state = 'countdown';
   window.__GAME_STATE__ = 'countdown';
-  SFX.unlock();
-  SFX.engineStart();
+}
+
+function skipIntro() {
+  if (game.state === 'intro') beginCountdown();
 }
 
 function pauseGame() {
@@ -255,10 +272,14 @@ window.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'm') { SFX.toggleMute(); setSoundIcons(); }
   if (e.key === ' ' || e.key === 'Enter') {
     if (game.state === 'menu') { SFX.unlock(); startRace(); }
+    else if (game.state === 'intro') skipIntro();
     else if (game.state === 'finish') startRace();
     else if (game.state === 'paused') resumeGame();
   }
 });
+
+// any tap during the cinematic intro jumps straight to the 3-2-1
+window.addEventListener('pointerdown', () => { if (game.state === 'intro') skipIntro(); }, { capture: true });
 
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -277,6 +298,46 @@ function showZoneToast() { /* zone toasts removed — distracting for kids */ }
 
 // ---------------------------------------------------------------- gameplay
 function updateGameplay(dt) {
+  // cinematic intro: camera starts front-top, sweeps around, settles behind
+  if (game.state === 'intro') {
+    game.introT += dt;
+    const T = 6;
+    const p = Math.min(1, game.introT / T);
+    const e = p * p * (3 - 2 * p); // smoothstep
+    const pose = track.getPose(game.s, game.lateral);
+    const chase = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
+    if (game.s < TUNING.camBack) {
+      const p0 = track.getPose(0, game.lateral * 0.55);
+      const t0 = track.getPose(Math.min(track.length, 8), game.lateral * 0.55);
+      const dir = t0.pos.clone().sub(p0.pos).normalize();
+      chase.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
+    }
+    const chaseAhead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22);
+    const w0 = track.getPose(Math.min(track.length, game.s + 15), 0).pos.clone().add(new THREE.Vector3(0, 9.5, 0));
+    const w1 = track.getPose(game.s + 7, -12).pos.clone().add(new THREE.Vector3(0, 6.5, 0));
+    const w2 = track.getPose(Math.max(0, game.s - 2), -11).pos.clone().add(new THREE.Vector3(0, 5, 0));
+    const w3 = chase.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
+    const camCurve = new THREE.CatmullRomCurve3([w0, w1, w2, w3], false, 'catmullrom', 0.5);
+    game.camPos.copy(camCurve.getPoint(e));
+    // keep the car in frame throughout; by the end we look just over the hood
+    const tgt = pose.pos.clone().add(new THREE.Vector3(0, 1.75, 0))
+      .lerp(chaseAhead.pos.clone().add(new THREE.Vector3(0, 1.15, 0)), e * e * 0.55);
+    game.camTarget.copy(tgt);
+    camera.position.copy(game.camPos);
+    camera.lookAt(game.camTarget);
+    camera.fov = THREE.MathUtils.lerp(camera.fov, 58, dt * 2);
+    camera.updateProjectionMatrix();
+    car.root.position.copy(pose.pos);
+    car.root.position.y += 0.02;
+    car.root.rotation.y = pose.heading;
+    car.update(dt, { speed: 0, steer: 0, boost: false });
+    const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
+    finishFx.update(dt);
+    hud.drawMinimap(0, sweets.list);
+    if (game.introT >= T && game.state === 'intro') beginCountdown();
+    return;
+  }
+
   // countdown
   if (game.state === 'countdown') {
     game.countdownT += dt;
@@ -393,6 +454,14 @@ function updateGameplay(dt) {
 
   // camera: readable chase view
   const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55);
+  if (game.s < TUNING.camBack) {
+    // before the start line extrapolate along the initial tangent so the car
+    // is framed normally from the very first frame (no s=0 clamp pile-up)
+    const p0 = track.getPose(0, game.lateral * 0.55);
+    const t0 = track.getPose(Math.min(track.length, 8), game.lateral * 0.55);
+    const dir = t0.pos.clone().sub(p0.pos).normalize();
+    back.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
+  }
   const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22);
   const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
   const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
@@ -476,8 +545,19 @@ if ('serviceWorker' in navigator) {
 window.__TEST__ = {
   startRace,
   toMenu,
-  finishNow() { if (game.state !== 'racing') startRace(); game.s = track.length - 2; game.timeS = Math.min(game.timeS, 97.2); },
-  fastForwardCountdown() { game.countdownT = 2.3; },
+  finishNow() {
+    if (game.state !== 'racing') { startRace(); skipIntro(); game.countdownT = 2.3; }
+    game.s = track.length - 2;
+    game.timeS = Math.min(game.timeS, 97.2);
+  },
+  fastForwardCountdown() {
+    if (game.state === 'intro') { skipIntro(); game.countdownT = 2.3; }
+    else game.countdownT = 2.3;
+  },
+  setIntro(p) {
+    if (game.state !== 'intro') startRace();
+    game.introT = 6 * p;
+  },
   dbg() { return { goHideT: game.goHideT, cdT: game.countdownT, st: game.state, hid: el.countdown.classList.contains('hidden') }; },
   setProgress(u, lateral = 0, freeze = false) {
     game.s = track.length * u;

@@ -122,7 +122,7 @@ const record = (name, pass, detail) => {
         window.__TEST__.setProgress(target.s / window.__TEST__.gameInfo().trackLength, target.lateral, false);
       }, it);
       // wait until THIS sweet flips collected (SwiftShader can be ~0.3 fps)
-      for (let k = 0; k < 24; k++) {
+      for (let k = 0; k < 48; k++) {
         await sleep(500);
         const st2 = await page.evaluate((i) => window.__TEST__.sweetPeek(i), idx);
         if (st2 && st2.collected) { collected++; break; }

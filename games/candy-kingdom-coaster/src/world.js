@@ -361,54 +361,172 @@ export function createWorld(scene, track, renderer) {
     const castle = new THREE.Group();
     const wall = new THREE.MeshStandardMaterial({ color: '#ffb7d9', roughness: 0.55, metalness: 0.05 });
     const wallB = new THREE.MeshStandardMaterial({ color: '#ff8fc6', roughness: 0.55 });
+    const wallC = new THREE.MeshStandardMaterial({ color: '#ffd7ea', roughness: 0.5 });
     const roof = new THREE.MeshStandardMaterial({ color: '#ff4f96', roughness: 0.4, metalness: 0.12, emissive: '#7a1044', emissiveIntensity: 0.22 });
     const roofB = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.4, metalness: 0.12, emissive: '#2c1270', emissiveIntensity: 0.22 });
+    const roofC = new THREE.MeshStandardMaterial({ color: '#56c8ff', roughness: 0.4, metalness: 0.12, emissive: '#0d3a66', emissiveIntensity: 0.22 });
     const gold = new THREE.MeshStandardMaterial({ color: '#ffd45e', roughness: 0.3, metalness: 0.85, emissive: '#7a5c10', emissiveIntensity: 0.35 });
+    const winMat = new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.85, roughness: 0.3 });
+    const doorMat = new THREE.MeshStandardMaterial({ color: '#a3562e', roughness: 0.55, metalness: 0.15 });
 
-    const base = new THREE.Mesh(new RoundedBoxGeometry(30, 7, 20, 3, 1.2), wall);
-    base.position.y = 3.5;
-    castle.add(base);
+    // ---- candy-rock platform + terraces ----
+    const plat = new THREE.Mesh(new RoundedBoxGeometry(54, 5, 38, 3, 1.6), wallC);
+    plat.position.y = 2.5;
+    castle.add(plat);
+    const terrace = new THREE.Mesh(new RoundedBoxGeometry(46, 3.4, 30, 3, 1.3), wall);
+    terrace.position.y = 6.4;
+    castle.add(terrace);
+    // front stairs (3 wide steps down from the gate terrace)
+    for (let i = 0; i < 3; i++) {
+      const st = new THREE.Mesh(new RoundedBoxGeometry(14 - i * 1.2, 1.15, 2.4, 2, 0.35), wallC);
+      st.position.set(0, 6.9 - i * 1.15, 16.2 + i * 1.35);
+      castle.add(st);
+    }
 
-    const tower = (x, z, r, h, mat, rmat, flag = true) => {
+    // ---- curtain wall ring (10 segments) with crenellations ----
+    const WRX = 19.5, WRZ = 11.5;
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const a2 = ((i + 1) / 10) * Math.PI * 2;
+      const x1 = Math.cos(a) * WRX, z1 = Math.sin(a) * WRZ;
+      const x2 = Math.cos(a2) * WRX, z2 = Math.sin(a2) * WRZ;
+      const mx = (x1 + x2) / 2, mz = (z1 + z2) / 2;
+      const len = Math.hypot(x2 - x1, z2 - z1) + 1.2;
+      const w = new THREE.Mesh(new RoundedBoxGeometry(len, 8.2, 2.3, 2, 0.5), i % 2 ? wall : wallB);
+      w.position.set(mx, 12.2, mz);
+      w.rotation.y = -Math.atan2(z2 - z1, x2 - x1);
+      castle.add(w);
+      // crenellations (sugar cubes)
+      for (let k = 0; k < 4; k++) {
+        const t = (k + 0.5) / 4;
+        const cx = x1 + (x2 - x1) * t, cz = z1 + (z2 - z1) * t;
+        const cube = new THREE.Mesh(new RoundedBoxGeometry(len / 7.2, 1.5, 2.9, 2, 0.3), wallC);
+        cube.position.set(cx, 17.05, cz);
+        cube.rotation.y = w.rotation.y;
+        castle.add(cube);
+      }
+      // banner poles on the wall between towers
+      if (i % 2 === 1) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 5.4, 6), gold);
+        pole.position.set(mx, 20.2, mz);
+        const pen = new THREE.Mesh(new THREE.ConeGeometry(0.85, 2.4, 4), i % 4 === 1 ? roof : roofC);
+        pen.rotation.z = Math.PI / 2;
+        pen.position.set(mx + 1.15, 21.6, mz);
+        castle.add(pole, pen);
+      }
+    }
+
+    // ---- towers ----
+    const tower = (x, z, r, h, mat, rmat, flag = true, tiers = 1) => {
       const t = new THREE.Group();
       const body = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.12, h, 14), mat);
       body.position.y = h / 2;
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.22, r * 1.22, 1.1, 14), wallB);
-      top.position.y = h + 0.2;
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(r * 1.32, r * 2.6, 14), rmat);
-      cone.position.y = h + r * 1.3 + 0.8;
-      t.add(body, top, cone);
-      // windows
+      t.add(body);
+      // gold trim ring + crown parapet
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r * 1.12, 0.32, 8, 20), gold);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = h - 0.4;
+      t.add(ring);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.24, r * 1.24, 1.3, 14), wallB);
+      top.position.y = h + 0.35;
+      t.add(top);
+      // little parapet teeth
+      for (let k = 0; k < 7; k++) {
+        const aa = (k / 7) * Math.PI * 2;
+        const tooth = new THREE.Mesh(new RoundedBoxGeometry(r * 0.42, 1.15, r * 0.42, 2, 0.18), wallC);
+        tooth.position.set(Math.cos(aa) * r * 1.1, h + 1.45, Math.sin(aa) * r * 1.1);
+        t.add(tooth);
+      }
+      let yTop = h + 1.2;
+      for (let tt = 0; tt < tiers; tt++) {
+        const rr = r * (1.32 - tt * 0.26);
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(rr, r * (2.5 - tt * 0.35), 14), tt === 0 ? rmat : (tt % 2 ? roofB : roofC));
+        cone.position.y = yTop + r * (1.25 - tt * 0.17);
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(rr * 0.22, 10, 8), gold);
+        ball.position.y = yTop + r * (2.5 - tt * 0.35) + r * (1.25 - tt * 0.17) - r * 0.15;
+        t.add(cone, ball);
+        yTop += r * (1.55 - tt * 0.1);
+      }
+      // window rows (3 rows x 2 sides)
       for (let k = 0; k < 3; k++) {
-        const w = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.28, r * 0.28, 0.7, 10), new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.7, roughness: 0.3 }));
-        w.rotation.x = Math.PI / 2;
-        w.position.set(0, h * (0.35 + k * 0.2), r * 0.98);
-        t.add(w);
+        for (const side of [0, Math.PI / 2]) {
+          const w = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.24, r * 0.24, 0.7, 10), winMat);
+          w.rotation.x = Math.PI / 2;
+          w.position.set(Math.sin(side) * r * 0.98, h * (0.32 + k * 0.2), Math.cos(side) * r * 0.98);
+          t.add(w);
+        }
       }
       if (flag) {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.2, 6), gold);
-        pole.position.y = h + r * 2.8;
-        const f = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), new THREE.MeshStandardMaterial({ color: ['#ff4f96', '#ffd45e', '#56c8ff'][Math.floor(Math.abs(x)) % 3], side: THREE.DoubleSide, roughness: 0.5 }));
-        f.position.set(1.35, h + r * 2.8 + 1.1, 0);
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 4.6, 6), gold);
+        pole.position.y = yTop + r * 2.2;
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), new THREE.MeshStandardMaterial({ color: ['#ff4f96', '#ffd45e', '#56c8ff'][Math.floor(Math.abs(x)) % 3], side: THREE.DoubleSide, roughness: 0.5 }));
+        f.position.set(1.45, yTop + r * 2.2 + 1.2, 0);
         t.add(pole, f);
       }
       t.position.set(x, 0, z);
       return t;
     };
 
-    castle.add(tower(-11, 5, 3.4, 16, wall, roof));
-    castle.add(tower(11, 5, 3.4, 16, wall, roof));
-    castle.add(tower(-11, -5, 3.0, 13, wallB, roofB));
-    castle.add(tower(11, -5, 3.0, 13, wallB, roofB));
-    const keep = tower(0, -2, 4.6, 24, wall, roof);
-    castle.add(keep);
+    // wall-joint towers
+    for (let i = 0; i < 10; i += 2) {
+      const a = (i / 10) * Math.PI * 2 + 0.314;
+      castle.add(tower(Math.cos(a) * WRX, Math.sin(a) * WRZ, 2.7, 13.5 + (i % 4) * 1.3, i % 4 ? wall : wallB, i % 4 ? roof : roofB, true, 1));
+    }
+    // gate towers (front, taller)
+    castle.add(tower(-7.6, 10.2, 3.2, 16.5, wall, roof, true, 1));
+    castle.add(tower(7.6, 10.2, 3.2, 16.5, wall, roof, true, 1));
 
-    // gate
-    const gate = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 2.2, 16, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: '#7a3c66', roughness: 0.6 }));
-    gate.rotation.z = Math.PI / 2;
-    gate.rotation.y = Math.PI / 2;
-    gate.position.set(0, 3.1, 10.2);
-    castle.add(gate);
+    // ---- grand keep (3 tiers + crown spire) ----
+    const keep = tower(0, -2.2, 5.2, 25, wall, roof, true, 2);
+    castle.add(keep);
+    const keepTop = new THREE.Mesh(new THREE.CylinderGeometry(3.3, 3.9, 6.4, 14), wallB);
+    keepTop.position.set(0, 30.2, -2.2);
+    castle.add(keepTop);
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(3.7, 9.5, 14), roofB);
+    crown.position.set(0, 38.1, -2.2);
+    castle.add(crown);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(1.15, 12, 10), gold);
+    orb.position.set(0, 43.6, -2.2);
+    castle.add(orb);
+    // keep window columns (4 sides x 4 rows)
+    for (let row = 0; row < 4; row++) {
+      for (let s2 = 0; s2 < 4; s2++) {
+        const aa = (s2 / 4) * Math.PI * 2 + Math.PI / 4;
+        const w = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.75, 10), winMat);
+        w.rotation.x = Math.PI / 2;
+        w.position.set(Math.sin(aa) * 5.15, 9.5 + row * 4.1, -2.2 + Math.cos(aa) * 5.15);
+        castle.add(w);
+      }
+    }
+    // keep side turrets
+    castle.add(tower(-6.8, -6.2, 2.2, 19, wallB, roofC, true, 1));
+    castle.add(tower(6.8, -6.2, 2.2, 19, wallB, roofC, true, 1));
+
+    // ---- gatehouse: arch + gold doors + portcullis ----
+    const gateBox = new THREE.Mesh(new RoundedBoxGeometry(15, 10.5, 3.4, 3, 0.9), wallB);
+    gateBox.position.set(0, 13.3, 11.6);
+    castle.add(gateBox);
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(3.6, 1.15, 10, 22, Math.PI), gold);
+    arch.position.set(0, 10.6, 13.35);
+    castle.add(arch);
+    const doorL = new THREE.Mesh(new THREE.BoxGeometry(3.35, 6.6, 0.55), doorMat);
+    doorL.position.set(-1.72, 8.4, 13.15);
+    const doorR = doorL.clone();
+    doorR.position.x = 1.72;
+    castle.add(doorL, doorR);
+    for (let k = 0; k < 3; k++) {
+      for (const sx of [-1.72, 1.72]) {
+        const stud = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), gold);
+        stud.position.set(sx, 6.4 + k * 2.1, 13.5);
+        castle.add(stud);
+      }
+    }
+    // portcullis bars (gold)
+    for (let k = 0; k < 5; k++) {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 6.2, 6), gold);
+      bar.position.set(-2.55 + k * 1.28, 8.6, 13.48);
+      castle.add(bar);
+    }
 
     // rainbow over the gate
     const rainbow = new THREE.Group();
@@ -418,10 +536,31 @@ export function createWorld(scene, track, renderer) {
       rainbow.add(t);
     });
     rainbow.position.set(0, 2.5, 11.2);
+    rainbow.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; });
     castle.add(rainbow);
 
+    // balloon bunches at the gate corners
+    for (const sx of [-11.5, 11.5]) {
+      const bunch = new THREE.Group();
+      for (let k = 0; k < 5; k++) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(1.15 - k * 0.09, 12, 10), new THREE.MeshStandardMaterial({ color: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#b18aff'][k], roughness: 0.3 }));
+        b.position.set(Math.sin(k * 2.1) * 1.5, 20.2 + k * 1.35, Math.cos(k * 2.1) * 1.5);
+        bunch.add(b);
+      }
+      bunch.position.set(sx, 0, 12.4);
+      castle.add(bunch);
+    }
+
     castle.scale.setScalar(scale);
-    castle.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    // big masses cast shadows; tiny trim (windows, studs, teeth, flags) does not —
+    // keeps the shadow pass affordable on mobile GPUs
+    castle.traverse((o) => {
+      if (!o.isMesh) return;
+      o.receiveShadow = true;
+      o.geometry.computeBoundingSphere();
+      const r = o.geometry.boundingSphere.radius * Math.max(o.scale.x, o.scale.y, o.scale.z, 1);
+      o.castShadow = r > 1.2;
+    });
     return castle;
   }
 
@@ -520,7 +659,7 @@ export function createWorld(scene, track, renderer) {
     // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
       if (rand() < 0.85) {
-        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (7.0 + rand() * 1.1));
+        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (9.2 + rand() * 3.3));
         const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
         const roll2 = rand();
         if (roll2 < 0.36) placements[`lolli${Math.floor(rand() * 3)}`].push(slotW);
@@ -556,24 +695,36 @@ export function createWorld(scene, track, renderer) {
     else placements.cane.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.7 + (i % 2) * 1.2 });
   });
 
-  // ---------- knockable candy-cane fence (topples when the car hits it) ----------
-  const KNOCK = 300;
-  const knockMesh = new THREE.InstancedMesh(caneGeometry(), propMats.cane, KNOCK);
-  knockMesh.castShadow = true;
-  knockMesh.receiveShadow = true;
+  // ---------- knockable candy fence: canes + lollipops on the shoulder ----------
+  // Sits on the grass strip just off the curb (5.8-8.2 m from the centerline):
+  // outside the road, inside the fun. Topples & flies when the car clips it.
+  // Marked noCollide so the corridor sweep leaves the fringe alone.
+  const KNOCK_C = 430, KNOCK_L = 230;
+  const knockMeshC = new THREE.InstancedMesh(caneGeometry(), propMats.cane, KNOCK_C);
+  const knockMeshL = new THREE.InstancedMesh(lollipopGeometry(), propMats.lolli[1], KNOCK_L);
+  for (const km of [knockMeshC, knockMeshL]) {
+    km.castShadow = true;
+    km.receiveShadow = true;
+    km.userData.noCollide = true;
+    world.add(km);
+  }
   const knockItems = [];
-  for (let i = 0; i < KNOCK; i++) {
-    const s = 8 + (i / KNOCK) * (L - 20);
-    const kSide = i % 2 ? 1 : -1;
-    const lat = kSide * (6.1 + rand() * 0.9);
-    const p = track.getPose(s + (rand() - 0.5) * 2, lat);
+  for (let i = 0; i < KNOCK_C + KNOCK_L; i++) {
+    const isCane = i < KNOCK_C;
+    const n = isCane ? i : i - KNOCK_C;
+    const tot = isCane ? KNOCK_C : KNOCK_L;
+    const s = 7 + ((n + (isCane ? 0 : 0.5)) / tot) * (L - 16);
+    const kSide = (n + (isCane ? 0 : 1)) % 2 ? 1 : -1;
+    const lat = kSide * (5.85 + rand() * 1.95);
+    const p = track.getPose(s + (rand() - 0.5) * 1.6, lat);
     knockItems.push({
-      x: p.pos.x, y: p.pos.y - 0.25, z: p.pos.z,
-      ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.28,
+      mesh: isCane ? knockMeshC : knockMeshL,
+      idx: isCane ? i : n,
+      x: p.pos.x, y: p.pos.y - 0.3, z: p.pos.z,
+      ry: rand() * Math.PI * 2, sc: isCane ? 0.55 + rand() * 0.32 : 0.6 + rand() * 0.38,
       s, lateral: lat, state: 0, t: 0, dir: kSide,
     });
   }
-  world.add(knockMesh);
   const knockDummy = new THREE.Object3D();
   function knockSync(i) {
     const it = knockItems[i];
@@ -583,10 +734,11 @@ export function createWorld(scene, track, renderer) {
     knockDummy.rotation.set(0, it.ry, it.state ? it.dir * k * 1.42 : 0);
     knockDummy.scale.setScalar(it.sc);
     knockDummy.updateMatrix();
-    knockMesh.setMatrixAt(i, knockDummy.matrix);
+    it.mesh.setMatrixAt(it.idx, knockDummy.matrix);
   }
-  for (let i = 0; i < KNOCK; i++) knockSync(i);
-  knockMesh.instanceMatrix.needsUpdate = true;
+  for (let i = 0; i < knockItems.length; i++) knockSync(i);
+  knockMeshC.instanceMatrix.needsUpdate = true;
+  knockMeshL.instanceMatrix.needsUpdate = true;
 
   const dummy = new THREE.Object3D();
   function makeInstanced(geo, mat, list, colorFn) {
@@ -728,6 +880,165 @@ export function createWorld(scene, track, renderer) {
     world.add(field);
   }
 
+  // ---------- living candy world: villages, donut gardens, ponds, groves ------
+  const bounceList = []; // gummy bears that hop forever
+  {
+    const icing = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 });
+    const choc = new THREE.MeshStandardMaterial({ color: '#7a4526', roughness: 0.6 });
+    const dark = new THREE.MeshStandardMaterial({ color: '#5a2f1a', roughness: 0.45 });
+    const gumMat = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2, emissive: 0x301018, emissiveIntensity: 0.25 });
+    const gumShared = BEAR_COLORS.map((c) => {
+      const m = gumMat.clone();
+      m.color.set(c);
+      return m;
+    });
+
+    // --- gingerbread house factory ---
+    const house = (hue) => {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(new RoundedBoxGeometry(6.2, 4.6, 5.4, 3, 0.5), propMats.cookie);
+      body.position.y = 2.3;
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(4.9, 3.6, 4), new THREE.MeshStandardMaterial({ color: hue, roughness: 0.42 }));
+      roof.position.y = 6.4;
+      roof.rotation.y = Math.PI / 4;
+      const trim = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.34, 8, 4), icing);
+      trim.rotation.x = Math.PI / 2;
+      trim.rotation.z = Math.PI / 4;
+      trim.position.y = 4.75;
+      const door = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.3, 0.35), dark);
+      door.position.set(0, 1.15, 2.75);
+      const win = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.3, 10), new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.8, roughness: 0.3 }));
+      win.rotation.x = Math.PI / 2;
+      win.position.set(1.85, 2.7, 2.72);
+      const win2 = win.clone();
+      win2.position.x = -1.85;
+      const choc1 = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 6), choc);
+      choc1.position.set(1.5, 4.2, 2.78);
+      const choc2 = choc1.clone();
+      choc2.position.x = -1.5;
+      g.add(body, roof, trim, door, win, win2, choc1, choc2);
+      return g;
+    };
+
+    // 3 gingerbread villages beside the track
+    [[0.14, -1], [0.52, 1], [0.79, -1]].forEach(([u, side], vi) => {
+      const base = track.getPose(track.length * u, side * 30);
+      for (let k = 0; k < 4; k++) {
+        const h = house(['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'][(vi + k) % 4]);
+        const ang = (k / 4) * Math.PI * 2 + vi;
+        h.position.copy(base.pos).add(new THREE.Vector3(Math.cos(ang) * (7 + k * 2.4), -1.2, Math.sin(ang) * (7 + k * 2.2)));
+        h.rotation.y = ang * 1.3;
+        h.scale.setScalar(0.9 + (k % 3) * 0.22);
+        world.add(h);
+      }
+    });
+
+    // --- donut gardens (big leaning rings) ---
+    const donutGeo = new THREE.TorusGeometry(3.2, 1.35, 12, 22);
+    for (let i = 0; i < 5; i++) {
+      const u = 0.08 + i * 0.19;
+      const side = i % 2 ? 1 : -1;
+      const base = track.getPose(track.length * u, side * (24 + (i % 3) * 6));
+      for (let k = 0; k < 3; k++) {
+        const d = new THREE.Mesh(donutGeo, new THREE.MeshStandardMaterial({ map: stripeTexture(i % 2 ? '#ff8ad0' : '#b18aff', '#fff2f7'), roughness: 0.45 }));
+        d.position.copy(base.pos).add(new THREE.Vector3((k - 1) * 8.5 + i, 2.6 + k * 0.4, (k % 2) * 5 - 2.5));
+        d.rotation.set((rand() - 0.5) * 0.5, rand() * Math.PI, (rand() - 0.5) * 0.55);
+        d.scale.setScalar(0.85 + k * 0.3);
+        world.add(d);
+      }
+    }
+
+    // --- macaron stacks ---
+    for (let i = 0; i < 8; i++) {
+      const u = 0.05 + i * 0.12;
+      const side = i % 2 ? -1 : 1;
+      const base = track.getPose(track.length * u, side * (17 + (i % 4) * 5));
+      const stack = new THREE.Group();
+      const cols = ['#ff8fc6', '#c8b6ff', '#8fd6ff', '#ffe08a'];
+      for (let k = 0; k < 3; k++) {
+        const shell = new THREE.Mesh(new THREE.CylinderGeometry(2.6 - k * 0.35, 2.6 - k * 0.35, 1.15, 14), new THREE.MeshStandardMaterial({ color: cols[(i + k) % 4], roughness: 0.5 }));
+        shell.position.y = 0.6 + k * 1.85;
+        const cream = new THREE.Mesh(new THREE.CylinderGeometry(2.45 - k * 0.35, 2.45 - k * 0.35, 0.75, 14), icing);
+        cream.position.y = 1.55 + k * 1.85;
+        stack.add(shell, cream);
+      }
+      stack.position.copy(base.pos).add(new THREE.Vector3(0, -0.6, 0));
+      stack.scale.setScalar(0.8 + (i % 3) * 0.28);
+      world.add(stack);
+    }
+
+    // --- chocolate ponds with cookie-crumb rim ---
+    for (let i = 0; i < 4; i++) {
+      const u = 0.18 + i * 0.22;
+      const side = i % 2 ? 1 : -1;
+      const base = track.getPose(track.length * u, side * (36 + (i % 2) * 10));
+      const pond = new THREE.Mesh(new THREE.CylinderGeometry(9 + i * 1.6, 9 + i * 1.6, 0.45, 22), dark);
+      pond.position.copy(base.pos).add(new THREE.Vector3(0, -1.4, 0));
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(9 + i * 1.6, 1.15, 8, 26), choc);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.copy(pond.position).add(new THREE.Vector3(0, 0.35, 0));
+      world.add(pond, rim);
+    }
+
+    // --- extra tree groves mid-field ---
+    const groveList = [];
+    for (let i = 0; i < 34; i++) {
+      const u = 0.04 + (i / 34) * 0.92;
+      const side = i % 2 ? 1 : -1;
+      const far = 20 + rand() * 26;
+      const p = track.getPose(track.length * u + (rand() - 0.5) * 20, side * far);
+      groveList.push({ x: p.pos.x, y: p.pos.y - far * 0.1 - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.5 + rand() * 1.6 });
+    }
+    makeInstanced(treeGeometry(), propMats.tree, groveList, (i) => new THREE.Color(['#7ddf9a', '#8fe0c8', '#c6e87d', '#9adcff', '#ffb7d9'][i % 5]));
+
+    // --- ground balloon bunches (tied with strings, sway in update) ---
+    for (let i = 0; i < 7; i++) {
+      const u = 0.06 + i * 0.14;
+      const side = i % 2 ? 1 : -1;
+      const base = track.getPose(track.length * u, side * (14 + (i % 3) * 6));
+      const bunch = new THREE.Group();
+      for (let k = 0; k < 4; k++) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(1.25 - k * 0.1, 12, 10), new THREE.MeshStandardMaterial({ color: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e'][k], roughness: 0.3 }));
+        b.position.set(Math.sin(k * 1.9) * 1.2, 6.4 + k * 1.5, Math.cos(k * 1.9) * 1.2);
+        bunch.add(b);
+      }
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 6.2, 5), icing);
+      stick.position.y = 3.1;
+      bunch.add(stick);
+      bunch.position.copy(base.pos).add(new THREE.Vector3(0, -0.5, 0));
+      world.add(bunch);
+      balloons.push({ g: bunch, phase: i * 1.1, baseY: bunch.position.y, sway: 0.55 });
+    }
+
+    // --- bouncing gummy-bear groups (the marzipan cheer squad) ---
+    // start-festival squad: flanks the grid, on screen during the intro sweep
+    for (let k = 0; k < 8; k++) {
+      const side = k % 2 ? 1 : -1;
+      const far = 11.5 + (k % 4) * 2.9 + rand() * 1.6;
+      const p = track.getPose(2.5 + k * 1.55 + rand() * 1.2, side * far);
+      const bear = new THREE.Mesh(gummyBearGeometry(), gumShared[k % gumShared.length]);
+      bear.position.set(p.pos.x, p.pos.y - far * 0.1 + 1.7, p.pos.z);
+      bear.rotation.y = p.heading + Math.PI + (rand() - 0.5) * 1.4;
+      bear.scale.setScalar(1.3 + rand() * 0.8);
+      world.add(bear);
+      bounceList.push({ m: bear, sc: bear.scale.x, baseY: bear.position.y, phase: k * 1.13, amp: 0.7 + rand() * 0.7, spin: (rand() - 0.5) * 0.7 });
+    }
+    for (let gi = 0; gi < 7; gi++) {
+      const u = 0.015 + gi * 0.145;
+      const side = gi % 2 ? 1 : -1;
+      for (let k = 0; k < 3; k++) {
+        const far = 10.5 + k * 3.4 + rand() * 2.2;
+        const p = track.getPose(track.length * u + (k - 1) * 3.2 + (rand() - 0.5) * 2.5, side * far);
+        const bear = new THREE.Mesh(gummyBearGeometry(), gumShared[(gi * 3 + k) % gumShared.length]);
+        bear.position.set(p.pos.x, p.pos.y - far * 0.1 + 1.7, p.pos.z);
+        bear.rotation.y = p.heading + Math.PI + (rand() - 0.5) * 1.2;
+        bear.scale.setScalar(1.25 + rand() * 0.75);
+        world.add(bear);
+        bounceList.push({ m: bear, sc: bear.scale.x, baseY: bear.position.y, phase: gi * 1.7 + k * 0.9, amp: 0.55 + rand() * 0.55, spin: (rand() - 0.5) * 0.6 });
+      }
+    }
+  }
+
   // ---------- final corridor safety sweep ------------------------------------
   // No scenery may reach into the drivable corridor: anything whose world
   // bounding sphere comes closer than 12 m to the track centerline is shrunk
@@ -833,7 +1144,7 @@ export function createWorld(scene, track, renderer) {
             knockDirty = true;
           }
         }
-        if (knockDirty) knockMesh.instanceMatrix.needsUpdate = true;
+        if (knockDirty) { knockMeshC.instanceMatrix.needsUpdate = true; knockMeshL.instanceMatrix.needsUpdate = true; }
       }
 
       // clouds drift
@@ -861,6 +1172,14 @@ export function createWorld(scene, track, renderer) {
       for (const b of balloons) {
         b.g.position.y = b.baseY + Math.sin(time * 0.8 + b.phase) * 1.6;
         b.g.rotation.y = time * 0.25 + b.phase;
+      }
+      // marzipan bears hop with a squash-and-stretch
+      for (const bn of bounceList) {
+        const hop = Math.abs(Math.sin(time * 2.1 + bn.phase));
+        bn.m.position.y = bn.baseY + hop * bn.amp;
+        const sq = 1 + (1 - hop) * 0.16;
+        bn.m.scale.set(bn.sc * sq, bn.sc * (2 - sq), bn.sc * sq);
+        bn.m.rotation.y += bn.spin * dt;
       }
       return knocked;
     },
