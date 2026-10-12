@@ -1360,6 +1360,167 @@ export function createWorld(scene, track, renderer) {
     }
   }
 
+  // ---------- zone identity: each stretch gets its own hero dressing -------
+  {
+    // 0. Lollipop Meadows — candy flower fields on the grass
+    const flowerGeo = mergeParts([
+      { geo: new THREE.CylinderGeometry(0.035, 0.045, 0.55, 5), pos: [0, 0.27, 0] },
+      { geo: new THREE.SphereGeometry(0.17, 8, 6), pos: [0, 0.62, 0], scale: [1, 0.85, 1] },
+      { geo: new THREE.SphereGeometry(0.07, 6, 5), pos: [0, 0.78, 0] },
+    ]);
+    const flowerMat = new THREE.MeshStandardMaterial({ roughness: 0.5 });
+    {
+      const list = [];
+      let fs = 8;
+      while (fs < L * 0.22) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.8) {
+            const far = 12 + rand() * 14;
+            const p = track.getPose(fs + (rand() - 0.5) * 4, side * far);
+            list.push({ x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.8 + rand() * 0.9, c: ['#ff6b9e', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7'][Math.floor(rand() * 5)] });
+          }
+        }
+        fs += 2.6;
+      }
+      const im = new THREE.InstancedMesh(flowerGeo, flowerMat, list.length);
+      im.receiveShadow = true;
+      im.castShadow = false;
+      const d = new THREE.Object3D();
+      list.forEach((f, i) => {
+        d.position.set(f.x, f.y, f.z); d.rotation.set(0, f.ry, 0); d.scale.setScalar(f.sc);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+        im.setColorAt(i, new THREE.Color(f.c));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 1. Gummy Bear Grove — big gumdrop bushes
+    const gumGeo = new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62);
+    const gumMat2 = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2 });
+    {
+      const list = [];
+      let gs = L * 0.22;
+      while (gs < L * 0.46) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.5) {
+            const far = 13 + rand() * 15;
+            const p = track.getPose(gs + (rand() - 0.5) * 6, side * far);
+            list.push({ x: p.pos.x, y: p.pos.y - 0.25, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.4 + rand() * 1.6, c: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#b18aff', '#ff8ad0'][Math.floor(rand() * 6)] });
+          }
+        }
+        gs += 7;
+      }
+      const im = new THREE.InstancedMesh(gumGeo, gumMat2, list.length);
+      im.castShadow = true; im.receiveShadow = true;
+      const d = new THREE.Object3D();
+      list.forEach((g, i) => {
+        d.position.set(g.x, g.y, g.z); d.rotation.set(0, g.ry, 0); d.scale.set(g.sc, g.sc * (0.8 + rand() * 0.5), g.sc);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+        im.setColorAt(i, new THREE.Color(g.c));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 2. Cocoa Canyon — dark chocolate crystals & boulders
+    const chocGeo = new THREE.OctahedronGeometry(1, 0);
+    const chocMat2 = new THREE.MeshStandardMaterial({ color: '#6b3a1e', roughness: 0.42, metalness: 0.1, flatShading: true });
+    {
+      const list = [];
+      let cs = L * 0.46;
+      while (cs < L * 0.68) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.55) {
+            const far = 13 + rand() * 16;
+            const p = track.getPose(cs + (rand() - 0.5) * 7, side * far);
+            list.push({ x: p.pos.x, y: p.pos.y - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.6 + rand() * 2.6 });
+          }
+        }
+        cs += 6.5;
+      }
+      const im = new THREE.InstancedMesh(chocGeo, chocMat2, list.length);
+      im.castShadow = true; im.receiveShadow = true;
+      const d = new THREE.Object3D();
+      list.forEach((c2, i) => {
+        d.position.set(c2.x, c2.y, c2.z);
+        d.rotation.set((rand() - 0.5) * 0.5, c2.ry, (rand() - 0.5) * 0.5);
+        d.scale.set(c2.sc, c2.sc * (0.7 + rand() * 0.9), c2.sc);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 3. Marshmallow Valley — big soft mounds on the horizon
+    const marshGeo = new THREE.SphereGeometry(1, 14, 10);
+    const marshMat2 = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+    {
+      const list = [];
+      for (let i = 0; i < 16; i++) {
+        const u = 0.68 + (i / 16) * 0.2 + (rand() - 0.5) * 0.01;
+        const side = i % 2 ? 1 : -1;
+        const far = 22 + rand() * 26;
+        const p = track.getPose(L * u, side * far);
+        list.push({ x: p.pos.x, y: p.pos.y - far * 0.12 - 1.2, z: p.pos.z, sc: 5 + rand() * 6, c: ['#fff2f7', '#ffd6e8', '#f2e8ff', '#fff0d8'][i % 4] });
+      }
+      const im = new THREE.InstancedMesh(marshGeo, marshMat2, list.length);
+      im.receiveShadow = true; im.castShadow = false;
+      const d = new THREE.Object3D();
+      list.forEach((m2, i) => {
+        d.position.set(m2.x, m2.y, m2.z);
+        d.rotation.set(0, rand() * Math.PI, 0);
+        d.scale.set(m2.sc, m2.sc * 0.52, m2.sc * 0.9);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+        im.setColorAt(i, new THREE.Color(m2.c));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 4. Sugar Castle Run — bunting flag rows leading to the finish
+    const flagGeo = new THREE.PlaneGeometry(0.9, 1.15);
+    const flagMat = new THREE.MeshStandardMaterial({ roughness: 0.6, side: THREE.DoubleSide });
+    const poleGeo = new THREE.CylinderGeometry(0.07, 0.09, 3.4, 6);
+    const poleMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.5 });
+    {
+      const poles = [], flags = [];
+      let bs = L * 0.88;
+      while (bs < L - 26) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.9) {
+            const far = 13 + rand() * 4;
+            const p = track.getPose(bs + (rand() - 0.5) * 3, side * far);
+            poles.push({ x: p.pos.x, y: p.pos.y - 0.1, z: p.pos.z, ry: p.heading });
+            flags.push({ x: p.pos.x, y: p.pos.y + 3.0, z: p.pos.z, ry: p.heading, c: ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff'][Math.floor(rand() * 5)] });
+          }
+        }
+        bs += 5.2;
+      }
+      const pim = new THREE.InstancedMesh(poleGeo, poleMat, poles.length);
+      const fim = new THREE.InstancedMesh(flagGeo, flagMat, flags.length);
+      const d = new THREE.Object3D();
+      poles.forEach((p2, i) => {
+        d.position.set(p2.x, p2.y + 1.7, p2.z); d.rotation.set(0, p2.ry, 0); d.scale.setScalar(1);
+        d.updateMatrix(); pim.setMatrixAt(i, d.matrix);
+      });
+      flags.forEach((f2, i) => {
+        d.position.set(f2.x, f2.y, f2.z); d.rotation.set(0, f2.ry, 0); d.scale.setScalar(1);
+        d.updateMatrix(); fim.setMatrixAt(i, d.matrix);
+        fim.setColorAt(i, new THREE.Color(f2.c));
+      });
+      pim.instanceMatrix.needsUpdate = true;
+      fim.instanceMatrix.needsUpdate = true;
+      if (fim.instanceColor) fim.instanceColor.needsUpdate = true;
+      pim.userData.noCollide = true; // shoulder dressing, clear of the corridor
+      fim.userData.noCollide = true;
+      world.add(pim, fim);
+    }
+  }
+
   // ---------- final corridor safety sweep ------------------------------------
   // No scenery may reach into the drivable corridor: anything whose world
   // bounding sphere comes closer than 12 m to the track centerline is shrunk
