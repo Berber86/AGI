@@ -148,3 +148,5 @@ The final report should separate:
 - **Visually inspected** — named screenshots/viewports;
 - **Device-tested** — actual device/browser, only if true;
 - **Not verified** — honest limitations.
+
+Executable gates must be deterministic under a slow headless GPU (teleport-based, polling, single-shot transitions). Known flake patterns and their fixes: `references/lifehacks-and-pitfalls.md`.

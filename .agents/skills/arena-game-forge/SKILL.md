@@ -122,3 +122,6 @@ Do not mark work complete if the preview was not exercised or required evidence 
 - Android/mobile browser requirements: `references/mobile-web.md`
 - Test, playability, visual, and release gates: `references/quality-gates.md`
 - Persistent state contracts: `references/state-contracts.md`
+- Sandbox resets and git recovery: `references/workspace-resets-and-recovery.md`
+- Headless browser setup (no GPU, no apt): `references/headless-browser-setup.md`
+- Field-tested lifehacks and pitfalls (UV traps, corridor sweep, perf, camera, test flakes): `references/lifehacks-and-pitfalls.md`
