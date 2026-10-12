@@ -52,6 +52,12 @@ function roadTexture() {
     g.restore();
   }
   g.globalAlpha = 1;
+  // sugar glitter specks on the asphalt (catch the sun like the reference)
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * 256, y = 228 + Math.random() * 55;
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.arc(x, y, 0.7 + Math.random() * 1.1, 0, Math.PI * 2); g.fill();
+  }
   // soft depth shading just inside both road edges (runs ALONG the road)
   const shadeY = (y0, y1) => {
     const gr = g.createLinearGradient(0, y0, 0, y1);
@@ -178,7 +184,7 @@ export function createTrack(scene) {
   const roadTex = roadTexture();
   roadTex.repeat.set(1, 1);
   const roadMat = new THREE.MeshStandardMaterial({
-    map: roadTex, vertexColors: true, roughness: 0.72, metalness: 0.06,
+    map: roadTex, vertexColors: true, roughness: 0.58, metalness: 0.08,
   });
   const road = new THREE.Mesh(roadGeo, roadMat);
   road.receiveShadow = true;

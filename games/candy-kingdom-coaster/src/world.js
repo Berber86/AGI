@@ -954,11 +954,11 @@ export function createWorld(scene, track, renderer) {
 
     // ---- the crowd: clusters of 3-5 animals behind the fence, facing the road
     const crowdItems = [];
-    for (let s = 24; s < L - 34; s += 30 + rand() * 16) {
-      const side = (Math.round(s / 30) % 2) ? 1 : -1;
-      const n = 3 + Math.floor(rand() * 3);
+    for (let s = 24; s < L - 34; s += 22 + rand() * 12) {
+      const side = (Math.round(s / 22) % 2) ? 1 : -1;
+      const n = 3 + Math.floor(rand() * 4);
       for (let k = 0; k < n; k++) {
-        const far = 10.4 + rand() * 2.6;
+        const far = 9.6 + rand() * 2.2;
         const ss = s + (rand() - 0.5) * 14;
         const p = track.getPose(ss, side * far);
         const type = ['bear', 'kitty', 'bunny'][Math.floor(rand() * 3)];
@@ -967,8 +967,8 @@ export function createWorld(scene, track, renderer) {
           x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z,
           ry: p.heading + Math.PI + (rand() - 0.5) * 0.8,
           phase: rand() * Math.PI * 2,
-          amp: 0.16 + rand() * 0.3,
-          sc: 0.85 + rand() * 0.45,
+          amp: 0.2 + rand() * 0.38,
+          sc: 1.15 + rand() * 0.6,
         });
       }
     }
@@ -992,20 +992,67 @@ export function createWorld(scene, track, renderer) {
     }
     for (const c of crowdItems) crowdSync(c, 0);
     for (const im of Object.values(crowdMeshes)) im.instanceMatrix.needsUpdate = true;
+  }
 
-    // keep the roadside dressing clear of the new fence/spectator band
-    // (handled by moving those bands outward below)
+  // ---------- dense candy strip just behind the spectator fence -------------
+  // The reference frames the fence line with solid candy: mini lollipops,
+  // gumdrops and canes packed shoulder-to-shoulder. Fills the grass strip
+  // between the animals and the mid-field dressing band.
+  {
+    const strip = { lolli: [], gum: [], cane: [] };
+    for (let s = 18; s < L - 20; s += 4.6) {
+      for (const side of [-1, 1]) {
+        if (rand() < 0.22) continue; // small breathing gaps
+        const far = 11.6 + rand() * 2.1;
+        const p = track.getPose(s + (rand() - 0.5) * 3, side * far);
+        const slot = { x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.42 + rand() * 0.34 };
+        const roll = rand();
+        if (roll < 0.4) strip.lolli.push(slot);
+        else if (roll < 0.72) strip.gum.push(slot);
+        else strip.cane.push(slot);
+      }
+    }
+    makeInstanced(lollipopGeometry(), propMats.lolli[2], strip.lolli);
+    makeInstanced(marshGeometry(), propMats.marsh, strip.gum,
+      (i) => new THREE.Color(['#fff2f7', '#ffd6e8', '#fff0d8', '#e8d6ff', '#ffc9dd'][i % 5]));
+    makeInstanced(caneGeometry(), propMats.cane, strip.cane);
   }
 
   // grandstand gummy-bears near the finish (like the reference crowd)
   const crowd = [];
-  for (let i = 0; i < 26; i++) {
-    const u = 0.94 + (i % 5) * 0.009;
-    const side = i % 2 ? 7.2 : -7.2;
-    const p = track.getPose(track.length * u, side + (i % 3) * 1.1);
-    crowd.push({ x: p.pos.x, y: p.pos.y - 0.35, z: p.pos.z, ry: p.heading + Math.PI, sc: 1.15 + (i % 3) * 0.18 });
+  for (let i = 0; i < 58; i++) {
+    const u = 0.935 + (i % 7) * 0.008;
+    const side = i % 2 ? 7.0 : -7.0;
+    const p = track.getPose(track.length * u, side + (i % 3) * 1.15);
+    crowd.push({ x: p.pos.x, y: p.pos.y - 0.35, z: p.pos.z, ry: p.heading + Math.PI, sc: 1.15 + (i % 3) * 0.2 });
   }
   makeInstanced(gummyBearGeometry(), propMats.bear, crowd, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
+
+  // ---------- finish festival: flag border + confetti curtain -------------
+  let curtainData = null;
+  {
+    const fin = track.getPose(track.length * 0.9975, 0);
+    const FLAG_COLS = ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff', '#ff8a5c'];
+    const poleMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4 });
+    for (let k = 0; k < 12; k++) {
+      const side = k % 2 ? 1 : -1;
+      const p = track.getPose(track.length - 30 + Math.floor(k / 2) * 5.2, side * 12.8);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 4.8, 8), poleMat);
+      pole.position.set(p.pos.x, p.pos.y + 2.3, p.pos.z);
+      const flag = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.8, 1.05),
+        new THREE.MeshStandardMaterial({ color: FLAG_COLS[k % FLAG_COLS.length], side: THREE.DoubleSide, roughness: 0.55 })
+      );
+      flag.position.set(
+        p.pos.x + Math.cos(p.heading) * 1.0,
+        p.pos.y + 4.15,
+        p.pos.z - Math.sin(p.heading) * 1.0
+      );
+      flag.rotation.y = p.heading;
+      pole.castShadow = false;
+      world.add(pole, flag);
+    }
+  }
 
   // ---------- air confetti ----------
   const CONFETTI = 680;
@@ -1038,6 +1085,37 @@ export function createWorld(scene, track, renderer) {
   });
   const confetti = new THREE.Points(confGeo, confMat);
   world.add(confetti);
+
+  // confetti curtain over the finish line: the car drives through a party cloud
+  {
+    const fin = track.getPose(track.length * 0.9975, 0);
+    const CURTAIN = 180;
+    const curGeo = new THREE.BufferGeometry();
+    const curPos = new Float32Array(CURTAIN * 3);
+    const curVel = new Float32Array(CURTAIN * 3);
+    const curCol = new Float32Array(CURTAIN * 3);
+    const cpal = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff2f7'].map((h) => new THREE.Color(h));
+    for (let i = 0; i < CURTAIN; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 10.5;
+      curPos[i * 3] = fin.pos.x + Math.cos(a) * r;
+      curPos[i * 3 + 1] = 1.5 + Math.random() * 7.5;
+      curPos[i * 3 + 2] = fin.pos.z + Math.sin(a) * r;
+      curVel[i * 3] = (Math.random() - 0.5) * 1.5;
+      curVel[i * 3 + 1] = -0.5 - Math.random() * 0.9;
+      curVel[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+      const c = cpal[i % cpal.length];
+      curCol[i * 3] = c.r; curCol[i * 3 + 1] = c.g; curCol[i * 3 + 2] = c.b;
+    }
+    curGeo.setAttribute('position', new THREE.BufferAttribute(curPos, 3));
+    curGeo.setAttribute('color', new THREE.BufferAttribute(curCol, 3));
+    const curtain = new THREE.Points(curGeo, new THREE.PointsMaterial({
+      size: 0.6, map: confTex, vertexColors: true, transparent: true,
+      opacity: 0.95, depthWrite: false, sizeAttenuation: true,
+    }));
+    world.add(curtain);
+    curtainData = { geo: curGeo, vel: curVel, count: CURTAIN, center: fin.pos.clone() };
+  }
 
   // ---------- floating balloons ----------
   const balloonMat = new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.12 });
@@ -1405,6 +1483,25 @@ export function createWorld(scene, track, renderer) {
         const sq = 1 + (1 - hop) * 0.16;
         bn.m.scale.set(bn.sc * sq, bn.sc * (2 - sq), bn.sc * sq);
         bn.m.rotation.y += bn.spin * dt;
+      }
+      // finish confetti curtain swirls and falls, wrapping around the line
+      if (curtainData) {
+        const arr = curtainData.geo.attributes.position.array;
+        const vel = curtainData.vel;
+        for (let i = 0; i < curtainData.count; i++) {
+          const ix = i * 3;
+          arr[ix] += (vel[ix] + Math.sin(time * 1.6 + i) * 0.4) * dt;
+          arr[ix + 1] += vel[ix + 1] * dt;
+          arr[ix + 2] += (vel[ix + 2] + Math.cos(time * 1.2 + i * 0.8) * 0.4) * dt;
+          if (arr[ix + 1] < 1.2) {
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.random() * 10.5;
+            arr[ix] = curtainData.center.x + Math.cos(a) * r;
+            arr[ix + 1] = 8.5 + Math.random() * 1.5;
+            arr[ix + 2] = curtainData.center.z + Math.sin(a) * r;
+          }
+        }
+        curtainData.geo.attributes.position.needsUpdate = true;
       }
       // spectator crowd cheers near the camera (only nearby clusters animate)
       const cheerS = carS >= 0 ? carS : 14; // menu attract mode: cheer at the grid
