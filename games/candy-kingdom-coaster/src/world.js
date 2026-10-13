@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../vendor/three/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from '../vendor/three/jsm/utils/BufferGeometryUtils.js';
 import { ZONES, zoneAt, TUNING } from './config.js';
+import { TEX, photoTexture } from './textures.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -108,22 +109,6 @@ function stripeTexture(c1 = '#ff4b6e', c2 = '#fff6f0') {
     g.rotate(-0.5);
     g.fillRect(i * 24, -80, 12, 260);
     g.restore();
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
-function cookieTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#d9995a'; g.fillRect(0, 0, 128, 128);
-  g.fillStyle = '#8a5122';
-  for (let i = 0; i < 14; i++) {
-    g.beginPath();
-    g.arc(Math.random() * 128, Math.random() * 128, 5 + Math.random() * 8, 0, Math.PI * 2);
-    g.fill();
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -799,7 +784,7 @@ export function createWorld(scene, track, renderer) {
     tree: new THREE.MeshStandardMaterial({ roughness: 0.6 }),
     marsh: new THREE.MeshStandardMaterial({ roughness: 0.7 }),
     ice: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
-    cookie: new THREE.MeshStandardMaterial({ map: cookieTexture(), roughness: 0.7 }),
+    cookie: new THREE.MeshStandardMaterial({ map: photoTexture(TEX.cookie), roughness: 0.7 }),
     stick: new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 }),
   };
 

@@ -1,6 +1,7 @@
 // Spline track: road mesh, curbs, terrain shoulders, start/finish, pose queries.
 import * as THREE from 'three';
 import { TUNING, zoneAt } from './config.js';
+import { TEX, photoTexture } from './textures.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -25,63 +26,60 @@ function buildWaypoints() {
   return pts;
 }
 
+// Road = real candy-sprinkle texture inside the strawberry band, with the
+// procedural cream edge lines and golden dash on top. Canvas is 4x the original
+// 256x512 layout (drawn in the same units via g.scale) for crisper detail.
 function roadTexture() {
   const c = document.createElement('canvas');
-  c.width = 256; c.height = 512;
+  c.width = 1024; c.height = 2048;
   const g = c.getContext('2d');
-  // Real UV mapping: x = ALONG track (1 tile = 12 m), y = ACROSS ribbon
-  // (road band = y 226..285 between the road vertices at k=4..5 of 0..9).
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 0, 256, 512); // neutral outside road -> grass/curb keep vertex colors
-  // strawberry road band — bright, so the track pops against the candy fields
-  g.fillStyle = '#ffc9dd';
-  g.fillRect(0, 226, 256, 59);
-  // candy sprinkles inside the road band (tile every 12 m along the track)
-  const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
-  for (let i = 0; i < 72; i++) {
-    const x = Math.random() * 256, y = 239 + Math.random() * 34;
-    const a = (Math.random() - 0.5) * 0.7;
-    g.save();
-    g.translate(x, y);
-    g.rotate(a);
-    g.fillStyle = conf[i % conf.length];
-    g.globalAlpha = 0.92;
-    g.beginPath();
-    g.roundRect(-2.4, -0.9, 4.8, 1.8, 0.9);
-    g.fill();
-    g.restore();
-  }
-  g.globalAlpha = 1;
-  // sugar glitter specks on the asphalt (catch the sun like the reference)
-  for (let i = 0; i < 60; i++) {
-    const x = Math.random() * 256, y = 228 + Math.random() * 55;
-    g.fillStyle = 'rgba(255,255,255,0.85)';
-    g.beginPath(); g.arc(x, y, 0.7 + Math.random() * 1.1, 0, Math.PI * 2); g.fill();
-  }
-  // soft depth shading just inside both road edges (runs ALONG the road)
-  const shadeY = (y0, y1) => {
-    const gr = g.createLinearGradient(0, y0, 0, y1);
-    gr.addColorStop(0, 'rgba(150,50,95,0.28)');
-    gr.addColorStop(1, 'rgba(150,50,95,0)');
-    g.fillStyle = gr;
-    g.fillRect(0, Math.min(y0, y1), 256, Math.abs(y1 - y0));
-  };
-  shadeY(226, 248);
-  shadeY(285, 263);
-  // thick cream border lines along both road edges
-  g.fillStyle = '#ffffff';
-  g.fillRect(0, 224, 256, 12);
-  g.fillRect(0, 275, 256, 12);
-  // golden candy dash down the middle (once per 12 m tile)
-  g.fillStyle = '#ffd23e';
-  g.beginPath();
-  g.roundRect(24, 249, 70, 13, 6);
-  g.fill();
-
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
+
+  const paint = (img) => {
+    g.setTransform(4, 0, 0, 4, 0, 0); // draw in 256x512 "texture units"
+    // Real UV mapping: x = ALONG track (1 tile = 12 m), y = ACROSS ribbon
+    // (road band = y 226..285 between the road vertices at k=4..5 of 0..9).
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, 256, 512); // neutral outside road -> grass/curb keep vertex colors
+    // strawberry road band — bright, so the track pops against the candy fields
+    g.fillStyle = '#ffc9dd';
+    g.fillRect(0, 226, 256, 59);
+    if (img) {
+      // photo asphalt: keep its real aspect ratio (no stretching of sprinkles)
+      const pat = g.createPattern(img, 'repeat');
+      pat.setTransform(new DOMMatrix().translate(0, 226).scale(59 / img.height));
+      g.fillStyle = pat;
+      g.fillRect(0, 226, 256, 59);
+    }
+    // soft depth shading just inside both road edges (runs ALONG the road)
+    const shadeY = (y0, y1) => {
+      const gr = g.createLinearGradient(0, y0, 0, y1);
+      gr.addColorStop(0, 'rgba(150,50,95,0.28)');
+      gr.addColorStop(1, 'rgba(150,50,95,0)');
+      g.fillStyle = gr;
+      g.fillRect(0, Math.min(y0, y1), 256, Math.abs(y1 - y0));
+    };
+    shadeY(226, 248);
+    shadeY(285, 263);
+    // thick cream border lines along both road edges
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 224, 256, 12);
+    g.fillRect(0, 275, 256, 12);
+    // golden candy dash down the middle (once per 12 m tile)
+    g.fillStyle = '#ffd23e';
+    g.beginPath();
+    g.roundRect(24, 249, 70, 13, 6);
+    g.fill();
+    tex.needsUpdate = true;
+  };
+
+  paint(null); // immediate fallback while the photo loads
+  const img = new Image();
+  img.onload = () => paint(img);
+  img.src = TEX.road;
   return tex;
 }
 
@@ -278,34 +276,8 @@ export function createTrack(scene) {
   };
 
   // Zone-lighted far ground disc (large, receives no shadow for perf)
-  const groundTex = (() => {
-    const c = document.createElement('canvas');
-    c.width = c.height = 512;
-    const g = c.getContext('2d');
-    const grd = g.createRadialGradient(256, 256, 40, 256, 256, 256);
-    grd.addColorStop(0, '#c8ecb4');
-    grd.addColorStop(0.55, '#b7e4c6');
-    grd.addColorStop(1, '#f7cfe3');
-    g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
-    // big candy-farm fields (soft patches like patchwork countryside)
-    const fieldCols = ['#ff9ec9', '#ffd977', '#8fe3b0', '#9fd8ff', '#c9a3ff', '#ffb28a', '#ff8f9e'];
-    for (let i = 0; i < 15; i++) {
-      g.globalAlpha = 0.42;
-      g.fillStyle = fieldCols[i % fieldCols.length];
-      const r = 36 + Math.random() * 85;
-      g.beginPath(); g.arc(Math.random() * 512, Math.random() * 512, r, 0, Math.PI * 2); g.fill();
-    }
-    g.globalAlpha = 1;
-    for (let i = 0; i < 260; i++) {
-      g.fillStyle = ['#a8dd8f', '#f2b8d4', '#ffe08a', '#9fd8ff'][i % 4];
-      g.globalAlpha = 0.35;
-      const r = 3 + Math.random() * 10;
-      g.beginPath(); g.arc(Math.random() * 512, Math.random() * 512, r, 0, Math.PI * 2); g.fill();
-    }
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  })();
+  // Candy meadow photo texture, tiled every 40 m across the 2200 m disc.
+  const groundTex = photoTexture(TEX.ground, { repeat: [55, 55] });
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(1100, 64),
     new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1 })
