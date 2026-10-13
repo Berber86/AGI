@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Тихая гонка</title>
+    <meta name="description" content="Неспешная гонка для маленькой гонщицы: светофор, обгоны друзей и финиш-праздник для всех." />
+    <meta name="theme-color" content="#bfe6a2" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Тихая гонка" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background: #bfe6a2;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #game {
+        position: fixed;
+        inset: 0;
+        display: block;
+      }
+      #game canvas {
+        display: block;
+        touch-action: none;
+      }
+      /* The plain HTML hint is visible before the canvas boots and if WebGL/Canvas fails. */
+      #boot-hint {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        align-items: center;
+        justify-content: center;
+        color: #4a6b3a;
+        font-size: 22px;
+        text-align: center;
+        padding: 24px;
+        pointer-events: none;
+        transition: opacity 300ms ease;
+      }
+      #boot-hint.hidden {
+        opacity: 0;
+      }
+      #boot-retry {
+        display: none;
+        pointer-events: auto;
+        border: 0;
+        border-radius: 999px;
+        padding: 16px 34px;
+        font-size: 22px;
+        font-family: inherit;
+        background: #7ed957;
+        color: #2f5c1f;
+        box-shadow: 0 8px 0 rgba(79, 174, 51, 0.6);
+      }
+      #boot-retry.show {
+        display: inline-block;
+      }
+      #boot-detail {
+        max-width: 620px;
+        font-size: 14px;
+        color: #7b5a49;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="boot-hint">
+      <div>Заводим машинку…</div>
+      <div id="boot-detail"></div>
+      <button id="boot-retry" type="button">Загрузить заново</button>
+    </div>
+    <script>
+      /*
+       * Boot guard for parents: the game must never stay on «Заводим машинку…»
+       * without saying why. Any boot error is shown in plain words, together with
+       * a reload button, and a watchdog catches the silent case.
+       */
+      (function () {
+        var hint = document.getElementById('boot-hint');
+        var detail = document.getElementById('boot-detail');
+        var retry = document.getElementById('boot-retry');
+        var solved = false;
+
+        function fail(message) {
+          if (solved) return;
+          detail.textContent = message;
+          retry.classList.add('show');
+        }
+
+        function clear() {
+          solved = true;
+          hint.classList.add('hidden');
+          window.setTimeout(function () {
+            if (hint.parentNode) hint.parentNode.removeChild(hint);
+          }, 800);
+        }
+
+        window.__quietRaceBootClear = clear;
+        retry.addEventListener('click', function () {
+          if ('caches' in window) {
+            caches
+              .keys()
+              .then(function (keys) {
+                return Promise.all(keys.map(function (key) {
+                  return caches.delete(key);
+                }));
+              })
+              .catch(function () {})
+              .then(reload);
+          } else {
+            reload();
+          }
+        });
+        function reload() {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker
+              .getRegistrations()
+              .then(function (list) {
+                return Promise.all(list.map(function (registration) { return registration.unregister(); }));
+              })
+              .catch(function () {})
+              .then(function () {
+                window.location.reload();
+              });
+          } else {
+            window.location.reload();
+          }
+        }
+
+        window.addEventListener('error', function (event) {
+          var source = event.filename || '';
+          fail('Ошибка при запуске: ' + (event.message || 'неизвестная') + (source ? ' (' + source.split('/').pop() + ')' : ''));
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          fail('Ошибка при запуске: ' + String((event.reason && event.reason.message) || event.reason || ''));
+        });
+
+        // The game clears the hint itself as soon as it is running.
+        window.setTimeout(function () {
+          if (!solved && !window.__GAME__) {
+            fail('Игра не запустилась за 12 секунд. Попробуй ещё раз — обычно помогает одно нажатие.');
+          }
+        }, 12000);
+
+        // A freshly deployed service worker takes over an old page: reload once so
+        // the browser never keeps playing a half-cached build.
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (!window.__quietRaceReloaded) {
+              window.__quietRaceReloaded = true;
+              window.location.reload();
+            }
+          });
+          navigator.serviceWorker
+            .getRegistration()
+            .then(function (registration) {
+              if (!registration) return;
+              // Ask for an update check on every load, so a new build is noticed.
+              registration.update().catch(function () {});
+            })
+            .catch(function () {});
+        }
+      })();
+    </script>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

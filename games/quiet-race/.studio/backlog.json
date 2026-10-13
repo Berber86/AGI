@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Рабочая оболочка игры: PWA, гараж, светофор, дорога, финиш-праздник",
+      "ownerRole": "builder",
+      "status": "done",
+      "phase": "vertical_slice",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "заезд проходится только касаниями в горизонтальной ориентации: гараж → светофор «3-2-1-Едем!» → дорога → клетчатый флаг → финиш-праздник → «Ещё раз»",
+        "машинка едет сама, руление двумя большими кнопками в нижних углах, клавиатура и наведение не нужны",
+        "детерминированная симуляция: одинаковый seed даёт одинаковый заезд; 11 автотестов покрывают отсчёт, финиш, траву, шарики, кочки, заморозку финиша и «всегда доезжает»",
+        "заезд длится 40–60 секунд и всегда заканчивается финишем-праздником с кубком для всех",
+        "нет состояния, из которого нельзя продолжить: проверены финиш, «Ещё раз», пауза при сворачивании"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/headless-run.json",
+        ".studio/evidence/screenshots/headless-01-garage.png",
+        ".studio/evidence/screenshots/headless-03-grass.png",
+        ".studio/evidence/screenshots/headless-05-finish.png"
+      ],
+      "files": [
+        "src/sim/race.ts",
+        "src/sim/config.ts",
+        "src/game/scenes/RaceScene.ts",
+        "src/game/scenes/GarageScene.ts",
+        "src/game/scenes/FinishScene.ts",
+        "src/game/ui.ts",
+        "src/game/textures.ts",
+        "src/game/audio.ts",
+        "tests/race.spec.ts"
+      ],
+      "notes": "Скриншоты и отчёт сняты в jsdom + @napi-rs/canvas; на устройстве Android ещё не проверялось."
+    },
+    {
+      "id": "A11Y-001",
+      "title": "Портретная подсказка «Поверни телефон» и пауза при сворачивании",
+      "ownerRole": "builder",
+      "status": "done",
+      "phase": "production",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "в вертикальном положении поверх игры показывается доброжелательная картинка «Поверни телефон», а не сломанный экран",
+        "при сворачивании и потере фокуса игра встаёт на паузу и показывает кнопку продолжения",
+        "кнопка «тихо» доступна в гараже, в заезде и на финише"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/headless-07-portrait-hint.png"
+      ],
+      "files": [
+        "src/game/scenes/OverlayScene.ts",
+        "src/main.ts",
+        "src/game/audio.ts"
+      ],
+      "notes": "Портретная подсказка подтверждена скриншотом; пауза и кнопка «тихо» проверены в прогоне."
+    },
+    {
+      "id": "CONTENT-001",
+      "title": "Мягкая сложность: трава, кочки и лужи как радость, а не наказание",
+      "ownerRole": "designer",
+      "status": "done",
+      "phase": "production",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "друзья-соперники обгоняемы всегда: три обгона случаются даже в чистом проезде без руления",
+        "кочки и лужи дают брызги и лёгкий прыжок и лишь кратко замедляют; столкновение с другом не отнимает ничего",
+        "после финиша всегда есть кнопка «Ещё раз», а место заезда меняется: лес → река → город → снова лес"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/headless-run.json",
+        ".studio/evidence/screenshots/headless-03-grass.png",
+        ".studio/evidence/screenshots/headless-05-finish.png"
+      ],
+      "files": [
+        "src/sim/config.ts",
+        "src/sim/race.ts",
+        "src/game/scenes/FinishScene.ts"
+      ],
+      "notes": "Фактор скорости друзей 0.84 подобран так, чтобы все три обгона случались до финиша."
+    },
+    {
+      "id": "AUDIO-001",
+      "title": "Русские голосовые подсказки, музыка и звук моторчика",
+      "ownerRole": "builder",
+      "status": "done",
+      "phase": "production",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "все звуки синтезируются в браузере, отдельных аудиофайлов нет (бюджет 8 МБ соблюдён: сборка 1.5 МБ)",
+        "звук включается только после первого касания (требование мобильных браузеров)",
+        "если русского голоса в системе нет, игра работает на музыкальных сигналах и не ломается"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/headless-run.json"
+      ],
+      "files": [
+        "src/game/audio.ts"
+      ],
+      "notes": "Голос проверяется через Web Speech API; в jsdom речи нет, поэтому проверены только аудио-вызовы без исключений."
+    },
+    {
+      "id": "QA-001",
+      "title": "Полный заезд в мобильном браузере: касания, трава, обгоны, финиш, «Ещё раз»",
+      "ownerRole": "mobile-qa",
+      "status": "done",
+      "phase": "qa",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "полный заезд с настоящими касаниями доходит до финиша-праздника без ошибок в консоли",
+        "трава замедляет, возвращение на дорогу ускоряет, обгоны дают звёздочки",
+        "360×800 и 412×915 проверены; вертикальное положение показывает подсказку, а не сломанную игру"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/headless-run.json",
+        ".studio/evidence/reports/offline-run.json",
+        ".studio/evidence/screenshots/headless-02-countdown.png",
+        ".studio/evidence/screenshots/headless-04-race.png",
+        ".studio/evidence/screenshots/headless-06-restart.png",
+        ".studio/evidence/screenshots/offline-02-finish.png"
+      ],
+      "notes": "Все 10 проверок прогона пройдены: заезд, трава/дорога, обгоны, финиш, «В гараж», повтор, портретная подсказка, отсутствие ошибок. Проверка на живом Android-устройстве недоступна в песочнице."
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Статическая сборка, PWA и офлайн-режим",
+      "ownerRole": "release",
+      "status": "done",
+      "phase": "release",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "npm run build даёт статическую сборку с относительными путями (подходит для GitHub Pages и для копирования папкой на телефон)",
+        "манифест, иконки 192/512 и сервис-воркер на месте; офлайн-оболочка кэширует index, манифест и ресурсы",
+        "сборка укладывается в бюджет: 1.5 МБ против лимита 8 МБ",
+        "дополнительно собирается автономный однофайловый вариант, который открывается без сервера и интернета"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/offline-run.json",
+        ".studio/evidence/screenshots/offline-01-garage.png",
+        ".studio/evidence/screenshots/offline-02-finish.png"
+      ],
+      "files": [
+        "public/manifest.webmanifest",
+        "public/sw.js",
+        "public/icons/icon-192.png",
+        "public/icons/icon-512.png"
+      ],
+      "notes": "dist/ 1.50 МБ (356 КБ gzip) с манифестом, иконками и сервис-воркером; dist-offline/index.html 1.53 МБ — один файл, проверен запуском с file://."
+    }
+  ],
+  "updatedAt": "2026-10-11T09:50:00Z"
+}

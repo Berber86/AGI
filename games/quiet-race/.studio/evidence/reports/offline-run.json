@@ -1,0 +1,39 @@
+{
+  "build": "dist-offline/index.html",
+  "steps": [
+    {
+      "step": "garage",
+      "scene": "garage",
+      "screenshot": ".studio/evidence/screenshots/offline-01-garage.png"
+    },
+    {
+      "step": "finish",
+      "scene": "finish",
+      "screenshot": ".studio/evidence/screenshots/offline-02-finish.png"
+    }
+  ],
+  "cleanRun": {
+    "ok": true,
+    "seed": 777,
+    "theme": "candy",
+    "steps": 2725,
+    "drivingMs": 41200,
+    "totalMs": 45400,
+    "balloons": 15,
+    "overtakes": 3,
+    "boosts": 3,
+    "onGrass": false,
+    "progress": 3600
+  },
+  "runtimeErrors": [],
+  "consoleErrors": [],
+  "bootHint": null,
+  "checks": {
+    "offlineBoots": true,
+    "offlinePlays": true,
+    "offlineCleanRun": true,
+    "offlineNoErrors": true,
+    "offlineHintCleared": true
+  },
+  "pass": true
+}
