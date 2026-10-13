@@ -1,5 +1,5 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v2';
+const CACHE = 'ckc-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const ASSETS = [
   './src/sweets.js',
   './src/hud.js',
   './src/quality.js',
+  './src/textures.js',
   './vendor/three/three.module.js',
   './vendor/three/jsm/postprocessing/EffectComposer.js',
   './vendor/three/jsm/postprocessing/RenderPass.js',
@@ -32,7 +33,18 @@ const ASSETS = [
   './assets/icon-192.png',
   './assets/icon-512.png',
   './assets/icon-512-maskable.png',
-  './assets/lily.png'
+  './assets/lily.png',
+  './assets/textures/road.jpg',
+  './assets/textures/meadow.jpg',
+  './assets/textures/fields.jpg',
+  './assets/textures/lollipop-pink.jpg',
+  './assets/textures/lollipop-blue.jpg',
+  './assets/textures/lollipop-yellow.jpg',
+  './assets/textures/cane.jpg',
+  './assets/textures/cookie.jpg',
+  './assets/textures/wall.jpg',
+  './assets/textures/donut-pink.jpg',
+  './assets/textures/donut-lilac.jpg'
 ];
 
 self.addEventListener('install', (e) => {

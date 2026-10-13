@@ -248,8 +248,10 @@ function cookieGeometry() {
   ]);
 }
 
-export function createWorld(scene, track, renderer) {
+export function createWorld(scene, track, renderer, TEX = {}) {
   const world = new THREE.Group();
+  // real image textures (assets/textures) with the procedural canvases as fallback
+  const mapOr = (tex, fallback) => tex || fallback();
   scene.add(world);
 
   // ---------- sky & lights ----------
@@ -422,8 +424,10 @@ export function createWorld(scene, track, renderer) {
   // ---------- the Sugar Castle ----------
   function buildCastle(scale = 1) {
     const castle = new THREE.Group();
-    const wall = new THREE.MeshStandardMaterial({ color: '#ffb7d9', roughness: 0.55, metalness: 0.05 });
-    const wallB = new THREE.MeshStandardMaterial({ color: '#ff8fc6', roughness: 0.55 });
+    // wafer-brick map (assets/textures/wall.jpg) tinted by the pink wall colours;
+    // the cream trim (wallC: crenellations, teeth, stairs) stays smooth icing
+    const wall = new THREE.MeshStandardMaterial({ color: '#ffb7d9', map: TEX.wall || null, roughness: 0.55, metalness: 0.05 });
+    const wallB = new THREE.MeshStandardMaterial({ color: '#ff8fc6', map: TEX.wall || null, roughness: 0.55 });
     const wallC = new THREE.MeshStandardMaterial({ color: '#ffd7ea', roughness: 0.5 });
     const roof = new THREE.MeshStandardMaterial({ color: '#ff4f96', roughness: 0.4, metalness: 0.12, emissive: '#7a1044', emissiveIntensity: 0.22 });
     const roofB = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.4, metalness: 0.12, emissive: '#2c1270', emissiveIntensity: 0.22 });
@@ -647,7 +651,7 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- drive-under candy gates (car passes beneath) ------------------
   {
-    const gateMat = new THREE.MeshStandardMaterial({ map: stripeTexture('#ff4b6e', '#fff6f0'), roughness: 0.42 });
+    const gateMat = new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture('#ff4b6e', '#fff6f0')), roughness: 0.42 });
     const gumdropMat = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.35, emissive: '#2c1270', emissiveIntensity: 0.25 });
     for (const u of [0.18, 0.50, 0.78]) {
       const gp = track.getPose(track.length * u, 0);
@@ -793,13 +797,14 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- instanced props along the track ----------
   const propMats = {
-    lolli: ['#ff5fa2', '#56c8ff', '#ffd45e'].map((c) => new THREE.MeshStandardMaterial({ map: swirlTexture(c, '#fff2f7'), roughness: 0.42, metalness: 0.05 })),
-    cane: new THREE.MeshStandardMaterial({ map: stripeTexture(), roughness: 0.45 }),
+    lolli: [['#ff5fa2', TEX.lolliPink], ['#56c8ff', TEX.lolliBlue], ['#ffd45e', TEX.lolliYellow]].map(([c, tex]) =>
+      new THREE.MeshStandardMaterial({ map: mapOr(tex, () => swirlTexture(c, '#fff2f7')), roughness: 0.36, metalness: 0.05 })),
+    cane: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture()), roughness: 0.42 }),
     bear: new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2, emissive: 0x301018, emissiveIntensity: 0.25 }),
     tree: new THREE.MeshStandardMaterial({ roughness: 0.6 }),
     marsh: new THREE.MeshStandardMaterial({ roughness: 0.7 }),
     ice: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
-    cookie: new THREE.MeshStandardMaterial({ map: cookieTexture(), roughness: 0.7 }),
+    cookie: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cookie, cookieTexture), roughness: 0.75 }),
     stick: new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 }),
   };
 
@@ -1375,7 +1380,8 @@ export function createWorld(scene, track, renderer) {
 
     // --- donut gardens (big leaning rings) ---
     const donutGeo = new THREE.TorusGeometry(3.2, 1.35, 12, 22);
-    const donutMats = [0, 1].map((k) => new THREE.MeshStandardMaterial({ map: stripeTexture(k ? '#ff8ad0' : '#b18aff', '#fff2f7'), roughness: 0.45 }));
+    const donutMats = [[TEX.donutLilac, '#b18aff'], [TEX.donutPink, '#ff8ad0']].map(([tex, c]) =>
+      new THREE.MeshStandardMaterial({ map: mapOr(tex, () => stripeTexture(c, '#fff2f7')), roughness: 0.4 }));
     const donutGroup = new THREE.Group();
     world.add(donutGroup);
     for (let i = 0; i < 5; i++) {

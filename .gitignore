@@ -20,3 +20,6 @@ test-results/
 .studio/evidence/traces/
 .studio/benchmarks/runs/
 .studio/benchmarks/active.json
+
+# Generated texture source art (multi-MB PNGs); the game ships the processed JPGs
+games/*/assets/textures/_raw/

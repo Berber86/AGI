@@ -15,6 +15,7 @@ import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
+import { loadTextures, countLoaded } from './textures.js';
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('game-canvas');
@@ -38,9 +39,22 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.in
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
+// ---------------------------------------------------------------- textures
+// Real image textures are fetched before the world is built so every material
+// starts with its final map. Missing files fall back to procedural canvases.
+const loadingHint = document.getElementById('loading-hint');
+const TEX = await loadTextures({
+  renderer,
+  onProgress: (n, total) => {
+    if (loadingHint) loadingHint.textContent = `Загружаем сладости… ${Math.round((n / total) * 100)}%`;
+  },
+});
+if (loadingHint) loadingHint.remove();
+document.getElementById('btn-play').disabled = false;
+
 // ---------------------------------------------------------------- world
-const track = createTrack(scene);
-const world = createWorld(scene, track, renderer);
+const track = createTrack(scene, TEX);
+const world = createWorld(scene, track, renderer, TEX);
 const car = createCar();
 scene.add(car.root);
 const trail = createTrail(scene);
@@ -580,6 +594,9 @@ if ('serviceWorker' in navigator) {
 }
 
 window.__TEST__ = {
+  textures() {
+    return { loaded: countLoaded(TEX), keys: Object.keys(TEX).filter((k) => TEX[k]) };
+  },
   startRace,
   toMenu,
   finishNow() {
@@ -1135,4 +1152,4 @@ onResize();
 requestAnimationFrame(animate);
 window.__READY__ = true;
 window.__GL__ = renderer.getContext().getParameter(renderer.getContext().VERSION);
-console.log('[CKC] Candy Kingdom Coaster ready — track', Math.round(track.length), 'm, sweets', sweets.total);
+console.log('[CKC] Candy Kingdom Coaster ready — track', Math.round(track.length), 'm, sweets', sweets.total, ', textures', countLoaded(TEX) + '/' + Object.keys(TEX).length);
