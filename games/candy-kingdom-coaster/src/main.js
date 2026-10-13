@@ -60,7 +60,7 @@ const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
 const world = createWorld(scene, track, renderer, TEX, bridge);
-const car = createCar();
+const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Star Racer 7 — car lab</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #9fd8ff; font: 13px system-ui, sans-serif; }
+    canvas { display: block; }
+    #info { position: fixed; left: 8px; top: 6px; color: #5a1a44; background: rgba(255,255,255,.7); padding: 4px 8px; border-radius: 8px; }
+  </style>
+  <script type="importmap">
+  { "imports": { "three": "../vendor/three/three.module.js" } }
+  </script>
+</head>
+<body>
+<div id="info">car lab</div>
+<script type="module">
+// Car showroom for visual QA of src/car.js (no world, deterministic views).
+//   ?view=front34|rear34|side|chase|top|front|rear|wheel|cockpit|lily|orbit
+//   &steer=-1..1  &boost=1  &tex=0 (procedural fallbacks)
+// window.__CARLAB__ = { ready, stats, setView(name), frame() }
+import * as THREE from 'three';
+import { createCar } from '../src/car.js';
+import { loadTextures } from '../src/textures.js';
+
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#a9dcff');
+scene.fog = new THREE.Fog(0x9fd8ff, 30, 90);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 200);
+
+// lights as in world.js
+scene.add(new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.92));
+const sun = new THREE.DirectionalLight(0xffedc9, 1.78);
+sun.position.set(6, 9.5, -5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -5, right: 5, top: 5, bottom: -5, near: 1, far: 30 });
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+// candy road + meadow
+const road = new THREE.Mesh(new THREE.PlaneGeometry(9, 60), new THREE.MeshStandardMaterial({ color: '#f7b6cf', roughness: 0.8 }));
+road.rotation.x = -Math.PI / 2; road.receiveShadow = true;
+scene.add(road);
+const grass = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshStandardMaterial({ color: '#bdf0c8', roughness: 1 }));
+grass.rotation.x = -Math.PI / 2; grass.position.y = -0.01; grass.receiveShadow = true;
+scene.add(grass);
+
+const TEX = q.get('tex') === '0' ? {} : await loadTextures({ renderer });
+const t0 = performance.now();
+const car = createCar({ renderer, TEX });
+const buildMs = Math.round(performance.now() - t0);
+scene.add(car.root);
+
+const VIEWS = {
+  front34: [[4.6, 2.2, 5.4], [0, 0.75, 0.2]],
+  rear34: [[-4.4, 2.6, -5.6], [0, 0.8, -0.2]],
+  side: [[7.2, 1.3, 0], [0, 0.7, 0]],
+  sideL: [[-7.2, 1.3, 0], [0, 0.7, 0]],
+  front: [[0, 1.3, 7], [0, 0.75, 0]],
+  rear: [[0, 1.5, -7], [0, 0.75, 0]],
+  top: [[0, 9, 0.01], [0, 0, 0]],
+  chase: [[-1.7, 3.15, -5.8], [1.95, 1.05, 14.5]],
+  wheel: [[2.6, 0.7, 2.6], [0.95, 0.5, 1.3]],
+  cockpit: [[1.6, 2.6, -2.2], [-0.2, 1.0, 0.0]],
+  lily: [[0.6, 1.75, 1.6], [-0.37, 1.5, -0.3]],
+  face: [[-0.25, 1.62, 0.75], [-0.37, 1.58, -0.35]],
+  hero: [[3.4, 1.15, 4.6], [0, 0.85, 0.3]],
+  bow: [[1.1, 1.55, 2.0], [0.34, 1.08, 0.86]],
+  arch: [[3.0, 0.9, 1.0], [0.9, 0.6, 1.1]],
+};
+let view = q.get('view') || 'front34';
+function setView(name) {
+  view = name;
+  const v = VIEWS[name] || VIEWS.front34;
+  camera.position.set(...v[0]);
+  camera.lookAt(...v[1]);
+  camera.fov = name === 'chase' ? 55 : 40;
+  camera.updateProjectionMatrix();
+}
+setView(view);
+
+const steer = parseFloat(q.get('steer') || '0');
+const boost = q.get('boost') === '1';
+function frame(dt = 1 / 60) {
+  if (view === 'orbit') {
+    const a = performance.now() * 0.0004;
+    camera.position.set(Math.cos(a) * 6.5, 2.2, Math.sin(a) * 6.5);
+    camera.lookAt(0, 0.7, 0);
+  }
+  car.update(dt, { speed: q.get('speed') ? +q.get('speed') : 0, steer, boost });
+  renderer.render(scene, camera);
+}
+const st = car.stats();
+document.getElementById('info').textContent = `build ${buildMs} ms · ${st.triangles} tris · ${st.meshes} meshes`;
+const breakdown = () => {
+  const rows = [];
+  car.root.traverse((o) => {
+    if (!o.isMesh) return;
+    const g = o.geometry;
+    let path = o.name || g.type; let p = o.parent;
+    while (p && p !== car.root) { if (p.name) { path = p.name + '/' + path; break; } p = p.parent; }
+    rows.push([path, Math.round((g.index ? g.index.count : g.attributes.position.count) / 3)]);
+  });
+  const agg = {};
+  for (const [k, v] of rows) agg[k] = (agg[k] || 0) + v;
+  return Object.entries(agg).sort((a, b) => b[1] - a[1]).slice(0, 25);
+};
+window.__CARLAB__ = { breakdown, ready: true, stats: { ...st, buildMs }, setView, frame, info: () => renderer.info.render };
+renderer.setAnimationLoop(() => frame());
+</script>
+</body>
+</html>
