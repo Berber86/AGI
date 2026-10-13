@@ -58,7 +58,7 @@ for (const spec of specs) {
     if (!hud) await page.evaluate(() => window.__TEST__.hideHUD());
     await waitFrames(10, 25000);
   } else if (kind === 'intro') {
-    await page.evaluate(() => { window.__TEST__.startRace(); window.__TEST__.setIntro(parseFloat(a)); });
+    await page.evaluate((p) => { window.__TEST__.startRace(); window.__TEST__.setIntro(p); }, parseFloat(a));
     if (!hud) await page.evaluate(() => window.__TEST__.hideHUD());
     await waitFrames(8, 25000);
   } else if (kind === 'boost') {

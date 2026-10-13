@@ -125,7 +125,7 @@ export class Burst {
   }
 }
 
-export function createSweets(scene, track) {
+export function createSweets(scene, track, ramps = null) {
   const group = new THREE.Group();
   scene.add(group);
   const burst = new Burst(scene);
@@ -165,12 +165,18 @@ export function createSweets(scene, track) {
     glow.scale.setScalar(type === 'candy' ? 2.3 : 3.2);
     mesh.add(glow);
     mesh.position.copy(pose.pos).add(new THREE.Vector3(0, type === 'cupcake' ? 1.35 : 1.55, 0));
+    // pickups over a jump ramp ride on its surface instead of hiding inside it
+    if (ramps) {
+      const rs = ramps.sample(s, lateral);
+      if (rs.ramp && rs.inside) mesh.position.y += rs.h;
+    }
     mesh.scale.setScalar(type === 'candy' ? 1.3 : 1.18);
     mesh.traverse((o) => { o.userData.noCollide = true; }); // pickups float over the road on purpose
     group.add(mesh);
     list.push({
       mesh, type, s, lateral,
       baseY: mesh.position.y,
+      hover: mesh.position.y - pose.pos.y, // height above the road (ramp included)
       phase: (seed * 0.63) % (Math.PI * 2),
       collected: false,
     });
@@ -186,7 +192,7 @@ export function createSweets(scene, track) {
 
   const collectedEvents = [];
 
-  function update(dt, carS, carX, time) {
+  function update(dt, carS, carX, time, carAir = 0) {
     collectedEvents.length = 0;
     for (const it of list) {
       if (it.collected) continue;
@@ -200,7 +206,9 @@ export function createSweets(scene, track) {
       const dx = it.mesh.position.x - (carX === null ? it.mesh.position.x : 0);
       // distance check in world space happens via car position passed as (s, lateral)
       const lateralDiff = Math.abs(it.lateral - carX);
-      if (ds < 3.6 && lateralDiff < TUNING.collectRadius) {
+      // a car flying well above the pickups does not scoop them up
+      const dy = Math.abs(carAir - it.hover);
+      if (ds < 3.6 && lateralDiff < TUNING.collectRadius && dy < 2.4) {
         it.collected = true;
         it.mesh.visible = false;
         burst.spawn(it.mesh.position, it.type === 'star' ? '#ffe9a8' : it.type === 'cupcake' ? '#ffc6e2' : '#ff9ed2', it.type === 'candy' ? 8 : 14, it.type === 'candy' ? 3.6 : 5.2);

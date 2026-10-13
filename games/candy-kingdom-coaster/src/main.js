@@ -5,7 +5,7 @@ import { RenderPass } from '../vendor/three/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/three/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three/jsm/postprocessing/OutputPass.js';
 
-import { GAME, TUNING, ZONES, zoneAt, formatTime, MEDALS, TIME_MEDAL } from './config.js';
+import { GAME, TUNING, JUMP, ZONES, zoneAt, formatTime, MEDALS, TIME_MEDAL } from './config.js';
 import { Storage } from './storage.js';
 import { SFX } from './audio.js';
 import { Input } from './input.js';
@@ -13,8 +13,12 @@ import { createTrack } from './track.js';
 import { createCar, createTrail } from './car.js';
 import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
+import { createRamps } from './ramps.js';
+import { createBridge } from './bridge.js';
+import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
+import { loadTextures, countLoaded } from './textures.js';
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('game-canvas');
@@ -38,13 +42,29 @@ const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.in
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
+// ---------------------------------------------------------------- textures
+// Real image textures are fetched before the world is built so every material
+// starts with its final map. Missing files fall back to procedural canvases.
+const loadingHint = document.getElementById('loading-hint');
+const TEX = await loadTextures({
+  renderer,
+  onProgress: (n, total) => {
+    if (loadingHint) loadingHint.textContent = `Загружаем сладости… ${Math.round((n / total) * 100)}%`;
+  },
+});
+if (loadingHint) loadingHint.remove();
+document.getElementById('btn-play').disabled = false;
+
 // ---------------------------------------------------------------- world
-const track = createTrack(scene);
-const world = createWorld(scene, track, renderer);
+const track = createTrack(scene, TEX);
+const ramps = createRamps(scene, track, TEX);
+const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
+const world = createWorld(scene, track, renderer, TEX, bridge);
 const car = createCar();
+car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);
-const sweets = createSweets(scene, track);
+const sweets = createSweets(scene, track, ramps);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
 const input = new Input();
@@ -68,6 +88,19 @@ const game = {
   introT: 0,
   goHideT: 0,
   bumpCooldown: 0,
+  // jump ramps: height above the road, vertical speed, phase, airtime
+  air: 0,
+  vy: 0,
+  jump: 'ground', // ground | ramp | air | drop
+  jumpRamp: null,
+  jumpT: 0,
+  carPitch: 0,
+  landSquash: 0,
+  camKick: 0,
+  bigAir: false,
+  dropSide: 0,
+  bounces: 0,
+  carRoll: 0,
   camPos: new THREE.Vector3(0, 6, -12),
   camTarget: new THREE.Vector3(0, 2, 20),
 };
@@ -94,7 +127,6 @@ const el = {
   finishStars: document.getElementById('finish-stars'),
   medalsList: document.getElementById('medals-list'),
   recordsMenu: document.getElementById('records-menu'),
-  recordsFinish: document.getElementById('records-finish'),
   boostCount: document.getElementById('hud-boost-count'),
 };
 
@@ -121,6 +153,7 @@ function toMenu() {
   fillRecordsPanel(el.recordsMenu, Storage.getRecords());
   setSoundIcons();
   SFX.engineStop();
+  if (MUSIC.isPlaying()) MUSIC.setMode('menu');
   window.__GAME_STATE__ = 'menu';
 }
 
@@ -141,6 +174,7 @@ function startRace() {
   game.freeze = false;
   game.camSnap = true;
   game.introT = 0;
+  resetJump();
   sweets.reset();
   input.releaseAll();
   showScreen(null);
@@ -149,6 +183,7 @@ function startRace() {
   window.__GAME_STATE__ = 'intro';
   SFX.unlock();
   SFX.engineStart();
+  MUSIC.start('menu');
 }
 
 function beginCountdown() {
@@ -176,6 +211,7 @@ function pauseGame() {
     window.__GAME_STATE__ = 'paused';
     SFX.play('click');
     SFX.engineStop();
+    MUSIC.stop(0.2);
   } else if (game.state === 'paused') {
     resumeGame();
   }
@@ -191,12 +227,14 @@ function resumeGame() {
   SFX.play('click');
   SFX.unlock();
   SFX.engineStart();
+  MUSIC.start(game.boostActive ? 'boost' : 'race');
 }
 
 function finishRace() {
   game.state = 'finish';
   input.releaseAll();
   SFX.engineStop();
+  MUSIC.setMode('menu'); // the band takes a breather under the fanfare
   // candy-confetti celebration around the car
   const fp = car.root.position.clone().add(new THREE.Vector3(0, 1.6, 0));
   finishFx.spawn(fp, '#ffd45e', 34, 8.5);
@@ -207,7 +245,7 @@ function finishRace() {
   const collected = sweets.collected;
   const frac = total ? collected / total : 0;
   const medalsEarned = MEDALS.filter((m) => frac >= m.minFraction).length + (game.timeS < TIME_MEDAL.maxSeconds ? 1 : 0);
-  const records = Storage.commitRun({
+  Storage.commitRun({ // records live in the menu panel; the finish card stays focused on "play again"
     timeMs, sweets: collected, total, score: game.score,
     medalsEarned, starsEarned: game.stars,
   });
@@ -215,7 +253,6 @@ function finishRace() {
   el.finishSweets.textContent = `${collected}`;
   el.finishStars.textContent = `${game.stars}`;
   el.medalsList.innerHTML = hud.renderMedals({ sweets: collected, total, timeMs, score: game.score });
-  fillRecordsPanel(el.recordsFinish, records);
   showScreen('finish');
   setSoundIcons();
   SFX.play('finish');
@@ -225,7 +262,11 @@ function finishRace() {
 }
 
 // ---------------------------------------------------------------- UI wiring
-document.addEventListener('pointerdown', () => SFX.unlock(), { once: true });
+document.addEventListener('pointerdown', () => {
+  // first touch unlocks audio: the tune starts here (browsers forbid earlier)
+  SFX.unlock();
+  MUSIC.start(game.state === 'racing' ? 'race' : 'menu');
+}, { once: true });
 
 el.btnPlay.addEventListener('click', () => { SFX.unlock(); SFX.play('click'); startRace(); });
 el.btnResume.addEventListener('click', () => resumeGame());
@@ -302,6 +343,117 @@ window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 
 // ---------------------------------------------------------------- gameplay
+// ---------------------------------------------------------------- jump ramps
+function resetJump() {
+  game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
+  game.jumpT = 0; game.carPitch = 0; game.landSquash = 0; game.camKick = 0; game.bigAir = false;
+  game.dropSide = 0; game.bounces = 0; game.carRoll = 0;
+  car.root.scale.setScalar(1);
+  car.root.rotation.z = 0;
+}
+
+function launchFromRamp(r) {
+  // arcade parabola: lift comes from the ramp angle and the current speed;
+  // with the rocket boost on, the car is both faster and gets extra lift,
+  // so the jump is noticeably higher and longer
+  const boosted = game.boostActive;
+  game.jump = 'air';
+  game.air = r.height;
+  game.vy = game.speed * Math.sin(r.angle) * JUMP.launchK * (boosted ? JUMP.boostK : 1);
+  game.jumpT = 0;
+  game.bigAir = boosted;
+  SFX.play('jump');
+  HAPTIC.buzz(boosted ? [20, 30, 40] : 18);
+  hud.popup(boosted ? '🚀✨' : '✨', boosted ? '#ffd166' : '#fff6a8');
+  // sparkle puff off the lip
+  const lip = car.root.position.clone();
+  lip.y -= 0.3;
+  finishFx.spawn(lip, boosted ? '#ffd166' : '#fff6a8', boosted ? 22 : 12, boosted ? 6.5 : 4.5);
+  if (boosted) finishFx.spawn(lip, '#ff8fc6', 14, 5.5);
+}
+
+function dropOffRamp(r) {
+  // more than half the car slid off the ramp's side: it tips over the edge
+  // and falls from the current height, loses a bit of speed, bounces on its
+  // wheels once or twice and drives on
+  game.jump = 'drop';
+  game.vy = 0;
+  game.jumpT = 0;
+  game.bounces = 0;
+  game.dropSide = game.lateral > r.center ? 1 : -1; // which side it tipped to
+  game.speed *= JUMP.dropSlow;
+  SFX.play('bump');
+  HAPTIC.buzz(20);
+}
+
+function bounceCar(floor) {
+  // wheels hit the ground hard: squash and pop back up a little
+  game.bounces += 1;
+  game.air = floor;
+  game.vy = -game.vy * JUMP.bounce;
+  game.landSquash = 0.3;
+  game.camKick = 0.25;
+  SFX.play('land');
+  HAPTIC.buzz(30);
+}
+
+function landCar(onWedge) {
+  const hard = game.vy < -4;
+  const big = game.bigAir && game.jumpT > 1.6;
+  if (onWedge) {
+    // came down on a ramp surface: ride it like a normal entry
+    game.air = onWedge.h; game.vy = 0; game.jump = 'ramp'; game.jumpRamp = onWedge.ramp;
+  } else {
+    game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
+  }
+  game.dropSide = 0;
+  game.landSquash = hard ? 0.42 : 0.26;
+  game.camKick = hard ? 0.35 : 0.18;
+  game.bigAir = false;
+  SFX.play('land');
+  HAPTIC.buzz(hard ? [35, 25, 45] : 25);
+  if (big) {
+    // a long boosted flight ends with a little celebration
+    hud.popup('🌟', '#ffd45e');
+    finishFx.spawn(car.root.position.clone(), '#ffd45e', 18, 5);
+  }
+}
+
+function updateJump(dt) {
+  const rs = ramps.sample(game.s, game.lateral);
+  const onWedge = !!(rs.ramp && rs.inside && !rs.past);
+  if (game.jump === 'ground' || game.jump === 'ramp') {
+    if (onWedge) {
+      // climbing the run-up: ride the wedge surface
+      game.jump = 'ramp';
+      game.jumpRamp = rs.ramp;
+      game.air = THREE.MathUtils.lerp(game.air, rs.h, 1 - Math.exp(-14 * dt)); // snaps up quickly when entering from the side
+      game.vy = 0;
+    } else if (game.jump === 'ramp') {
+      const r = game.jumpRamp;
+      if (game.s >= r.s1 - 0.35) launchFromRamp(r); // over the lip
+      else dropOffRamp(r);                          // slid off the side
+    } else {
+      game.air = 0;
+    }
+  }
+  if (game.jump === 'air' || game.jump === 'drop') {
+    game.vy -= JUMP.gravity * dt;
+    game.air += game.vy * dt;
+    game.jumpT += dt;
+    const floor = onWedge ? rs.h : 0; // steering back over a wedge lands on it
+    if (game.air <= floor) {
+      if (game.jump === 'drop' && game.vy < -2.2 && game.bounces < 2) bounceCar(floor);
+      else landCar(onWedge ? rs : null);
+    }
+  }
+  // roll: tips toward the side it fell off, settles back once on the wheels
+  const rollTarget = game.jump === 'drop' ? game.dropSide * 0.3 : 0;
+  game.carRoll = THREE.MathUtils.lerp(game.carRoll, rollTarget, 1 - Math.exp(-(game.jump === 'drop' ? 7 : 5) * dt));
+  if (game.landSquash > 0) game.landSquash = Math.max(0, game.landSquash - dt);
+  if (game.camKick > 0) game.camKick = Math.max(0, game.camKick - dt * 1.6);
+}
+
 function updateGameplay(dt) {
   // cinematic intro: camera starts front-top, sweeps around, settles behind
   if (game.state === 'intro') {
@@ -337,8 +489,8 @@ function updateGameplay(dt) {
     car.root.rotation.y = pose.heading;
     car.update(dt, { speed: 0, steer: 0, boost: false });
     const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
+    bridge.update(dt, performance.now() * 0.001);
     finishFx.update(dt);
-    hud.drawMinimap(0, sweets.list);
     if (game.introT >= T && game.state === 'intro') beginCountdown();
     return;
   }
@@ -354,6 +506,7 @@ function updateGameplay(dt) {
         // 3,2,1 → digits vanish at zero; the race just begins
         el.countdown.classList.add('hidden');
         SFX.play('go');
+        MUSIC.setMode('race', { restart: true }); // band kicks in on the downbeat
         game.state = 'racing';
         window.__GAME_STATE__ = 'racing';
         game.goHideT = 0;
@@ -389,16 +542,18 @@ function updateGameplay(dt) {
       SFX.play('boost');
       HAPTIC.buzz([25, 35, 45]);
       hud.popup('🚀');
+      MUSIC.setMode('boost');
     }
     if (game.boostActive) {
       game.boostT -= dt;
-      if (game.boostT <= 0) game.boostActive = false;
+      if (game.boostT <= 0) { game.boostActive = false; MUSIC.setMode('race'); }
     }
 
-    // steering
-    const steer = input.steer;
-    game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed));
-    if (steer === 0) {
+    // steering (only a little authority while airborne)
+    const steer = qaSteer !== null ? qaSteer : input.steer;
+    const airborne = game.jump === 'air' || game.jump === 'drop';
+    game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed)) * (airborne ? JUMP.airSteer : 1);
+    if (steer === 0 && !airborne) {
       // gentle auto-center so the road always guides home
       const center = Math.sin(game.s * 0.021) * 1.15; // visual drift line
       game.lateral = THREE.MathUtils.lerp(game.lateral, center * 0.35, dt * TUNING.steerReturn * 0.35);
@@ -425,8 +580,11 @@ function updateGameplay(dt) {
     }
   }
 
+  // ramps: climb, launch, fly, land
+  updateJump(dt);
+
   // sweets collection (also works in countdown-roll-in, harmless)
-  const events = sweets.update(dt, game.s, game.lateral, performance.now() * 0.001);
+  const events = sweets.update(dt, game.s, game.lateral, performance.now() * 0.001, game.air);
   for (const ev of events) {
     game.score += ev.points;
     if (ev.type === 'star') { game.stars += 1; SFX.play('star'); HAPTIC.buzz(15); hud.popup('⭐', '#ffd45e'); }
@@ -446,10 +604,20 @@ function updateGameplay(dt) {
   // car pose
   const pose = track.getPose(game.s, game.lateral);
   car.root.position.copy(pose.pos);
-  car.root.position.y += 0.02;
+  car.root.position.y += 0.02 + game.air;
   car.root.rotation.y = pose.heading;
-  // lean into the road slope
-  car.root.rotation.x = -pose.pitch * 0.65;
+  // lean into the road slope; nose up on the ramp, follow the arc in the air
+  let pitch = -pose.pitch * 0.65;
+  if (game.jump === 'ramp') pitch -= game.jumpRamp.angle;
+  else if (game.jump === 'air' || game.jump === 'drop') pitch -= Math.atan2(game.vy, Math.max(4, game.speed)) * 0.55;
+  game.carPitch = THREE.MathUtils.lerp(game.carPitch, pitch, 1 - Math.exp(-9 * dt));
+  car.root.rotation.x = game.carPitch;
+  car.root.rotation.z = game.carRoll;
+  // landing squash: a quick jelly bounce of the whole car
+  if (game.landSquash > 0) {
+    const k = Math.sin((game.landSquash / 0.42) * Math.PI) * Math.min(1, game.landSquash / 0.42 + 0.4);
+    car.root.scale.set(1 + k * 0.10, 1 - k * 0.20, 1 + k * 0.06);
+  } else car.root.scale.setScalar(1);
   car.update(dt, {
     speed: game.speed,
     steer: input.steer || (game.lateral < -0.3 ? -0.25 : game.lateral > 0.3 ? 0.25 : 0),
@@ -459,18 +627,12 @@ function updateGameplay(dt) {
   trail.update(dt, car.root, game.speed, game.boostActive);
 
   // camera: readable chase view with a slight 3/4 flank offset
-  const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
-  if (game.s < TUNING.camBack) {
-    // before the start line extrapolate along the initial tangent so the car
-    // is framed normally from the very first frame (no s=0 clamp pile-up)
-    const p0 = track.getPose(0, game.lateral * 0.55);
-    const t0 = track.getPose(Math.min(track.length, 8), game.lateral * 0.55);
-    const dir = t0.pos.clone().sub(p0.pos).normalize();
-    back.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
-  }
-  const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
-  const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
-  const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
+  // (getPose extrapolates along the pseudo road behind the start, so the
+  // camera is framed normally from the very first frame)
+  const back = track.getPose(game.s - TUNING.camBack, game.lateral * 0.55 - TUNING.camSide);
+  const ahead = track.getPose(game.s + TUNING.camAhead, game.lateral * 0.22 + TUNING.camSide * 1.15);
+  const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6 + game.air * 0.35, 0));
+  const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05 + game.air * 0.7, 0));
   const k = game.camSnap ? 1 : 1 - Math.exp(-TUNING.camLerp * dt);
   game.camSnap = false;
   game.camPos.lerp(desiredPos, k);
@@ -479,7 +641,7 @@ function updateGameplay(dt) {
   camera.lookAt(game.camTarget);
   // speed feel: micro shake that grows with speed, lean into the steering
   const spdK = Math.min(1, game.speed / TUNING.maxSpeed);
-  const shake = (game.boostActive ? 0.055 : 0.013) * spdK;
+  const shake = (game.boostActive ? 0.055 : 0.013) * spdK + game.camKick * 0.5;
   if (shake > 0.001) {
     const tn = performance.now() * 0.001;
     camera.position.x += Math.sin(tn * 37.1) * shake;
@@ -489,6 +651,10 @@ function updateGameplay(dt) {
   // subtle FOV kick on boost
   const targetFov = game.boostActive ? 59 : 52;
   camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 2.2);
+  if (qaCamFixed) { // QA: absolute camera for scenery screenshots
+    camera.position.set(qaCamFixed[0], qaCamFixed[1], qaCamFixed[2]);
+    camera.lookAt(qaCamFixed[3], qaCamFixed[4], qaCamFixed[5]);
+  }
   camera.updateProjectionMatrix();
 
   // zone tracking
@@ -509,9 +675,9 @@ function updateGameplay(dt) {
     boostActive: game.boostActive,
     score: game.score,
   });
-  hud.drawMinimap(u, sweets.list);
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
+  bridge.update(dt, performance.now() * 0.001);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
   finishFx.update(dt);
   // driving sound layer follows speed
@@ -527,6 +693,8 @@ let qaForceRender = false;
 // while stepping frames from a test, the FPS governor must not judge or pace:
 // its real-time accounting would fight the fixed dt and force needless renders
 let qaNoGovernor = false;
+let qaSteer = null; // QA override for input.steer (-1..1), null = real input
+let qaCamFixed = null; // QA absolute camera [x,y,z, tx,ty,tz] or null
 function frame(now, dt) {
   if (game.state === 'menu') {
     // pretty attract-mode camera drift around the start area
@@ -544,7 +712,7 @@ function frame(now, dt) {
     car.update(dt, { speed: 6, steer: 0, boost: false });
     trail.update(dt, car.root, 6, false);
     world.update(dt, camera.position, 0.01, now * 0.001);
-    hud.drawMinimap(0.02, sweets.list);
+    bridge.update(dt, now * 0.001);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
     if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
@@ -580,6 +748,9 @@ if ('serviceWorker' in navigator) {
 }
 
 window.__TEST__ = {
+  textures() {
+    return { loaded: countLoaded(TEX), keys: Object.keys(TEX).filter((k) => TEX[k]) };
+  },
   startRace,
   toMenu,
   finishNow() {
@@ -599,6 +770,7 @@ window.__TEST__ = {
   setProgress(u, lateral = 0, freeze = false) {
     game.s = track.length * u;
     game.lateral = lateral;
+    resetJump();
     game.state = 'racing';
     game.speed = freeze ? 0 : TUNING.cruiseSpeed;
     game.freeze = freeze;
@@ -615,6 +787,13 @@ window.__TEST__ = {
     camera.lookAt(game.camTarget);
   },
   collectAll() { sweets.collectAllDemo(); game.score = sweets.total * 10; },
+  // Visual QA: park the camera at a world position looking at a target (null = release).
+  // Arguments may also be track coordinates: fixCamTrack(s, lateral, up, ts, tlat, tup).
+  fixCam(x, y, z, tx, ty, tz) { qaCamFixed = x === null ? null : [x, y, z, tx, ty, tz]; return qaCamFixed; },
+  fixCamTrack(s, lateral, up, ts, tlat, tup) {
+    const a = track.getPose(s, lateral).pos, b = track.getPose(ts, tlat).pos;
+    return this.fixCam(a.x, a.y + up, a.z, b.x, b.y + tup, b.z);
+  },
   // Visual QA: pull the chase camera in for paint/detail close-ups
   pinCam(back, up, ahead) {
     TUNING.camBack = back; TUNING.camUp = up; TUNING.camAhead = ahead;
@@ -643,6 +822,48 @@ window.__TEST__ = {
     governor.tier = tier;
     governor.apply();
     return governor.describe();
+  },
+  // Milk river + arched bridge facts for QA: deck hump, arch, river under it, sea.
+  bridge() {
+    const s = bridge.crossing.s;
+    const deck = track.getPose(s, 0).pos.y, before = track.getPose(s - 60, 0).pos.y, after = track.getPose(s + 60, 0).pos.y;
+    const names = {};
+    bridge.group.traverse((o) => { if (o.isMesh) names[o.name || 'part'] = (names[o.name || 'part'] || 0) + 1; });
+    const river = bridge.group.getObjectByName('milkRiver');
+    river.geometry.computeBoundingBox();
+    return { crossingS: s, deckY: +deck.toFixed(2), deckBefore: +before.toFixed(2), deckAfter: +after.toFixed(2),
+      archApexY: +bridge.archApexY.toFixed(2), riverY: +river.geometry.boundingBox.max.y.toFixed(2),
+      riverLength: +bridge.riverLength.toFixed(0), sea: bridge.sea, parts: names };
+  },
+  // Music sequencer facts (mode, bar position, note count).
+  music() { return MUSIC.info(); },
+  // QA: hold the steering at v (-1..1) for step() runs; null releases.
+  holdSteer(v = null) { qaSteer = v === null ? null : Math.max(-1, Math.min(1, +v)); return qaSteer; },
+  // Jump state for physics QA (drive with step() and sample this).
+  jumpInfo() {
+    return { jump: game.jump, air: +game.air.toFixed(3), vy: +game.vy.toFixed(3), s: +game.s.toFixed(2), lateral: +game.lateral.toFixed(2), speed: +game.speed.toFixed(2), t: +game.jumpT.toFixed(2), boost: game.boostActive, roll: +game.carRoll.toFixed(3), pitch: +game.carPitch.toFixed(3), bounces: game.bounces };
+  },
+  // Jump ramps: placement + lane span (config.js RAMPS resolved by ramps.js).
+  ramps() {
+    return ramps.list.map((r) => ({ id: r.id, s0: +r.s0.toFixed(1), s1: +r.s1.toFixed(1), latMin: +r.latMin.toFixed(2), latMax: +r.latMax.toFixed(2), height: r.height, angleDeg: +(r.angle * 180 / Math.PI).toFixed(1), side: r.side, children: r.group.children.length }));
+  },
+  // Road surface key per zone mesh (track.js ROAD_SURFACES) in track order.
+  roadSurfaces() {
+    return track.roadMeshes.map((m) => m.userData.surface);
+  },
+  // Geometry QA: world pose of a named scene object (gates, strips) next to the
+  // road tangent at that spot, so "is it perpendicular to the road?" is a number.
+  objectPose(name) {
+    const o = scene.getObjectByName(name);
+    if (!o) return null;
+    o.updateWorldMatrix(true, false);
+    const pos = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+    const axis = (x, y, z) => new THREE.Vector3(x, y, z).transformDirection(o.matrixWorld).toArray().map((v) => +v.toFixed(3));
+    let best = { d: Infinity, u: 0 };
+    for (let i = 0; i <= 2000; i++) { const u = i / 2000; const d = track.curve.getPointAt(u).distanceTo(pos); if (d < best.d) best = { d, u }; }
+    const t = track.curve.getTangentAt(best.u).normalize();
+    const right = new THREE.Vector3().crossVectors(t, new THREE.Vector3(0, 1, 0)).normalize();
+    return { pos: pos.toArray().map((v) => +v.toFixed(2)), u: +best.u.toFixed(4), x: axis(1, 0, 0), y: axis(0, 1, 0), z: axis(0, 0, 1), tangent: t.toArray().map((v) => +v.toFixed(3)), right: right.toArray().map((v) => +v.toFixed(3)) };
   },
   // Perf QA: triangle / draw-call budget per world bucket, so heavy prop groups
   // (castles, houses, clouds) can be found and merged without guessing.
@@ -1135,4 +1356,4 @@ onResize();
 requestAnimationFrame(animate);
 window.__READY__ = true;
 window.__GL__ = renderer.getContext().getParameter(renderer.getContext().VERSION);
-console.log('[CKC] Candy Kingdom Coaster ready — track', Math.round(track.length), 'm, sweets', sweets.total);
+console.log('[CKC] Candy Kingdom Coaster ready — track', Math.round(track.length), 'm, sweets', sweets.total, ', textures', countLoaded(TEX) + '/' + Object.keys(TEX).length);

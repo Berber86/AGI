@@ -1,5 +1,5 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v2';
+const CACHE = 'ckc-v7';
 const ASSETS = [
   './',
   './index.html',
@@ -16,6 +16,10 @@ const ASSETS = [
   './src/sweets.js',
   './src/hud.js',
   './src/quality.js',
+  './src/textures.js',
+  './src/ramps.js',
+  './src/music.js',
+  './src/bridge.js',
   './vendor/three/three.module.js',
   './vendor/three/jsm/postprocessing/EffectComposer.js',
   './vendor/three/jsm/postprocessing/RenderPass.js',
@@ -32,7 +36,25 @@ const ASSETS = [
   './assets/icon-192.png',
   './assets/icon-512.png',
   './assets/icon-512-maskable.png',
-  './assets/lily.png'
+  './assets/lily.png',
+  './assets/textures/road.webp',
+  './assets/textures/road-cookie.webp',
+  './assets/textures/road-choco.webp',
+  './assets/textures/road-cream.webp',
+  './assets/textures/road-waffle.webp',
+  './assets/textures/meadow.webp',
+  './assets/textures/fields.webp',
+  './assets/textures/lollipop-pink.webp',
+  './assets/textures/lollipop-blue.webp',
+  './assets/textures/lollipop-yellow.webp',
+  './assets/textures/cane.webp',
+  './assets/textures/cookie.webp',
+  './assets/textures/wall.webp',
+  './assets/textures/donut-pink.webp',
+  './assets/textures/donut-lilac.webp',
+  './assets/textures/gumdrop.webp',
+  './assets/textures/marshmallow.webp',
+  './assets/textures/gingerbread.webp'
 ];
 
 self.addEventListener('install', (e) => {

@@ -230,9 +230,15 @@ function marshGeometry() {
   ]);
 }
 
-function iceCreamGeometry() {
+// Ice cream = two instanced meshes sharing one placement list: the waffle
+// cone keeps its golden map, the scoops take the per-instance pastel tint.
+function iceConeGeometry() {
   return mergeParts([
     { geo: new THREE.ConeGeometry(0.95, 1.9, 14), pos: [0, 0.95, 0], rot: [Math.PI, 0, 0] },
+  ]);
+}
+function iceScoopsGeometry() {
+  return mergeParts([
     { geo: new THREE.SphereGeometry(1.02, 14, 12), pos: [0, 2.25, 0] },
     { geo: new THREE.SphereGeometry(0.72, 12, 10), pos: [-0.55, 2.95, 0.1] },
     { geo: new THREE.SphereGeometry(0.2, 10, 8), pos: [0, 3.35, 0] }, // cherry
@@ -248,8 +254,12 @@ function cookieGeometry() {
   ]);
 }
 
-export function createWorld(scene, track, renderer) {
+export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const world = new THREE.Group();
+  // river/sea/valley from bridge.js: nothing is planted there
+  const blocked = (x, z) => !!(river && river.blocks(x, z));
+  // real image textures (assets/textures) with the procedural canvases as fallback
+  const mapOr = (tex, fallback) => tex || fallback();
   scene.add(world);
 
   // ---------- sky & lights ----------
@@ -422,8 +432,10 @@ export function createWorld(scene, track, renderer) {
   // ---------- the Sugar Castle ----------
   function buildCastle(scale = 1) {
     const castle = new THREE.Group();
-    const wall = new THREE.MeshStandardMaterial({ color: '#ffb7d9', roughness: 0.55, metalness: 0.05 });
-    const wallB = new THREE.MeshStandardMaterial({ color: '#ff8fc6', roughness: 0.55 });
+    // wafer-brick map (assets/textures/wall.webp) tinted by the pink wall colours;
+    // the cream trim (wallC: crenellations, teeth, stairs) stays smooth icing
+    const wall = new THREE.MeshStandardMaterial({ color: '#ffb7d9', map: TEX.wall || null, roughness: 0.55, metalness: 0.05 });
+    const wallB = new THREE.MeshStandardMaterial({ color: '#ff8fc6', map: TEX.wall || null, roughness: 0.55 });
     const wallC = new THREE.MeshStandardMaterial({ color: '#ffd7ea', roughness: 0.5 });
     const roof = new THREE.MeshStandardMaterial({ color: '#ff4f96', roughness: 0.4, metalness: 0.12, emissive: '#7a1044', emissiveIntensity: 0.22 });
     const roofB = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.4, metalness: 0.12, emissive: '#2c1270', emissiveIntensity: 0.22 });
@@ -647,7 +659,7 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- drive-under candy gates (car passes beneath) ------------------
   {
-    const gateMat = new THREE.MeshStandardMaterial({ map: stripeTexture('#ff4b6e', '#fff6f0'), roughness: 0.42 });
+    const gateMat = new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture('#ff4b6e', '#fff6f0')), roughness: 0.42 });
     const gumdropMat = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.35, emissive: '#2c1270', emissiveIntensity: 0.25 });
     for (const u of [0.18, 0.50, 0.78]) {
       const gp = track.getPose(track.length * u, 0);
@@ -793,13 +805,17 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- instanced props along the track ----------
   const propMats = {
-    lolli: ['#ff5fa2', '#56c8ff', '#ffd45e'].map((c) => new THREE.MeshStandardMaterial({ map: swirlTexture(c, '#fff2f7'), roughness: 0.42, metalness: 0.05 })),
-    cane: new THREE.MeshStandardMaterial({ map: stripeTexture(), roughness: 0.45 }),
+    lolli: [['#ff5fa2', TEX.lolliPink], ['#56c8ff', TEX.lolliBlue], ['#ffd45e', TEX.lolliYellow]].map(([c, tex]) =>
+      new THREE.MeshStandardMaterial({ map: mapOr(tex, () => swirlTexture(c, '#fff2f7')), roughness: 0.36, metalness: 0.05 })),
+    cane: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture()), roughness: 0.42 }),
     bear: new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2, emissive: 0x301018, emissiveIntensity: 0.25 }),
-    tree: new THREE.MeshStandardMaterial({ roughness: 0.6 }),
-    marsh: new THREE.MeshStandardMaterial({ roughness: 0.7 }),
-    ice: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
-    cookie: new THREE.MeshStandardMaterial({ map: cookieTexture(), roughness: 0.7 }),
+    // tint bases: the near-white sugar maps are multiplied by the instance colours
+    tree: new THREE.MeshStandardMaterial({ map: TEX.gumdrop || null, roughness: 0.6 }),
+    marsh: new THREE.MeshStandardMaterial({ map: TEX.marshmallow || null, roughness: 0.7 }),
+    ice: new THREE.MeshStandardMaterial({ map: TEX.marshmallow || null, roughness: 0.5 }),
+    cone: new THREE.MeshStandardMaterial({ map: TEX.roadWaffle || null, color: TEX.roadWaffle ? '#ffffff' : '#e8b060', roughness: 0.7 }),
+    cookie: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cookie, cookieTexture), roughness: 0.75 }),
+    ginger: new THREE.MeshStandardMaterial({ map: TEX.gingerbread || mapOr(TEX.cookie, cookieTexture), roughness: 0.7 }),
     stick: new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 }),
   };
 
@@ -896,6 +912,7 @@ export function createWorld(scene, track, renderer) {
   // props behind the camera, which is the single biggest mobile GPU saving.
   const CHUNK = 150;
   function buildChunks(geo, mat, list, fill, opts = {}) {
+    if (river) list = list.filter((p) => !(typeof p.x === 'number' && typeof p.z === 'number' && blocked(p.x, p.z)));
     if (!list.length) return [];
     const shadow = opts.shadow !== false;
     const groups = new Map();
@@ -945,6 +962,7 @@ export function createWorld(scene, track, renderer) {
       s, lateral: lat, state: 0, t: 0, dir: kSide,
     });
   }
+  if (river) for (let i = knockItems.length - 1; i >= 0; i--) if (blocked(knockItems[i].x, knockItems[i].z)) knockItems.splice(i, 1);
   const knockDummy = new THREE.Object3D();
   function knockSyncItem(it) {
     const k = Math.min(1, it.t);
@@ -986,7 +1004,8 @@ export function createWorld(scene, track, renderer) {
   makeInstanced(gummyBearGeometry(), propMats.bear, placements.bear, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
   makeInstanced(treeGeometry(), propMats.tree, placements.tree, (i) => new THREE.Color(['#7ddf9a', '#8fe0c8', '#c6e87d', '#9adcff'][i % 4]));
   makeInstanced(marshGeometry(), propMats.marsh, placements.marsh, (i) => new THREE.Color(['#fff2f7', '#ffd6e8', '#fff0d8', '#e8d6ff'][i % 4]));
-  makeInstanced(iceCreamGeometry(), propMats.ice, placements.ice, (i) => new THREE.Color(['#ffd6e8', '#d8f2ff', '#fff2c8', '#e2d2ff'][i % 4]));
+  makeInstanced(iceConeGeometry(), propMats.cone, placements.ice);
+  makeInstanced(iceScoopsGeometry(), propMats.ice, placements.ice, (i) => new THREE.Color(['#ffd6e8', '#d8f2ff', '#fff2c8', '#e2d2ff'][i % 4]));
   makeInstanced(cookieGeometry(), propMats.cookie, placements.cookie);
 
   // giant hero lollipops & canes at camera-visible moments
@@ -999,6 +1018,10 @@ export function createWorld(scene, track, renderer) {
   heroCane.position.copy(track.getPose(L * 0.55, 17).pos).add(new THREE.Vector3(0, -1, 0));
   world.add(heroCane);
 
+  // pseudo road beyond the start/finish lines (track.js run-offs): a few of
+  // the roadside props keep going along it
+  const RUN_PRE = track.runoff ? track.runoff.pre : 0, RUN_POST = track.runoff ? track.runoff.post : 0;
+
   // ---------- cheering spectator crowds behind candy fences (reference look) --
   // A low striped fence runs along both shoulders; chibi animals bob and
   // "cheer" behind it. Everything is instanced: 3 draw calls for ~300 animals.
@@ -1010,7 +1033,7 @@ export function createWorld(scene, track, renderer) {
     crowdDummy.rotation.set(0, c.ry, Math.sin(hop * Math.PI) * 0.12);
     crowdDummy.scale.set(c.sc * sq, c.sc * (2 - sq), c.sc * sq);
     crowdDummy.updateMatrix();
-    c.mesh.setMatrixAt(c.idx, crowdDummy.matrix);
+    if (c.mesh) c.mesh.setMatrixAt(c.idx, crowdDummy.matrix);
   }
   {
     const crowdGeo = {
@@ -1059,8 +1082,14 @@ export function createWorld(scene, track, renderer) {
     const FENCE_STEP = 5.6, FENCE_LAT = 9.1;
     {
       const slots = [];
-      for (let s = 15; s < L - 15; s += FENCE_STEP) {
-        for (const side of [-1, 1]) slots.push({ s, side });
+      // the fence keeps running along the pseudo road beyond both lines, so
+      // the start/finish do not look like the edge of the world
+      for (let s = 15 - RUN_PRE; s < L + RUN_POST - 15; s += FENCE_STEP) {
+        for (const side of [-1, 1]) {
+          const fp = track.getPose(s, side * FENCE_LAT).pos;
+          if (blocked(fp.x, fp.z)) continue; // the bridge has its own balustrade
+          slots.push({ s, side });
+        }
       }
       // chunked: the fence line is ~460 units along 1.3 km; one mesh would be
       // drawn in full every frame even though only ~30 units are on screen
@@ -1103,6 +1132,7 @@ export function createWorld(scene, track, renderer) {
         inst.setColorAt(i, new THREE.Color(CROWD_COLORS[type][i % CROWD_COLORS[type].length]));
       }, { bindItem: true, shadow: false }));
     }
+    if (river) for (let i = crowdItems.length - 1; i >= 0; i--) if (!crowdItems[i].mesh) crowdItems.splice(i, 1);
     for (const c of crowdItems) crowdSync(c, 0);
     for (const im of crowdMeshes) im.instanceMatrix.needsUpdate = true;
   }
@@ -1113,7 +1143,9 @@ export function createWorld(scene, track, renderer) {
   // between the animals and the mid-field dressing band.
   {
     const strip = { lolli: [], gum: [], cane: [] };
-    for (let s = 18; s < L - 20; s += 4.6) {
+    for (let s = 18 - RUN_PRE; s < L + RUN_POST - 20; s += 4.6) {
+      const onRunoff = s < 0 || s > L;
+      if (onRunoff && rand() < 0.5) continue; // thinner beyond the lines
       for (const side of [-1, 1]) {
         if (rand() < 0.22) continue; // small breathing gaps
         const far = 11.6 + rand() * 2.1;
@@ -1315,6 +1347,17 @@ export function createWorld(scene, track, renderer) {
 
   // ---------- living candy world: villages, donut gardens, ponds, groves ------
   const bounceList = []; // gummy bears that hop forever
+  // a cluster base that would land in the milk river/sea/valley slides forward
+  // along the track until it is on dry candy ground
+  const freePose = (u, lateral) => {
+    let uu = u;
+    for (let k = 0; k < 8; k++) {
+      const p = track.getPose(track.length * uu, lateral);
+      if (!blocked(p.pos.x, p.pos.z)) return p;
+      uu += 0.025;
+    }
+    return track.getPose(track.length * uu, lateral);
+  };
   {
     const icing = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 });
     const choc = new THREE.MeshStandardMaterial({ color: '#7a4526', roughness: 0.6 });
@@ -1333,7 +1376,7 @@ export function createWorld(scene, track, renderer) {
     const winMat = new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.8, roughness: 0.3 });
     const house = (hue) => {
       const g = new THREE.Group();
-      const body = new THREE.Mesh(new RoundedBoxGeometry(6.2, 4.6, 5.4, 3, 0.5), propMats.cookie);
+      const body = new THREE.Mesh(new RoundedBoxGeometry(6.2, 4.6, 5.4, 3, 0.5), propMats.ginger);
       body.position.y = 2.3;
       const roof = new THREE.Mesh(new THREE.ConeGeometry(4.9, 3.6, 4), roofMats[['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'].indexOf(hue)] ?? roofMats[0]);
       roof.position.y = 6.4;
@@ -1361,7 +1404,7 @@ export function createWorld(scene, track, renderer) {
     const villageGroup = new THREE.Group();
     world.add(villageGroup);
     [[0.14, -1], [0.52, 1], [0.79, -1]].forEach(([u, side], vi) => {
-      const base = track.getPose(track.length * u, side * 30);
+      const base = freePose(u, side * 30);
       for (let k = 0; k < 4; k++) {
         const h = house(['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'][(vi + k) % 4]);
         const ang = (k / 4) * Math.PI * 2 + vi;
@@ -1375,13 +1418,14 @@ export function createWorld(scene, track, renderer) {
 
     // --- donut gardens (big leaning rings) ---
     const donutGeo = new THREE.TorusGeometry(3.2, 1.35, 12, 22);
-    const donutMats = [0, 1].map((k) => new THREE.MeshStandardMaterial({ map: stripeTexture(k ? '#ff8ad0' : '#b18aff', '#fff2f7'), roughness: 0.45 }));
+    const donutMats = [[TEX.donutLilac, '#b18aff'], [TEX.donutPink, '#ff8ad0']].map(([tex, c]) =>
+      new THREE.MeshStandardMaterial({ map: mapOr(tex, () => stripeTexture(c, '#fff2f7')), roughness: 0.4 }));
     const donutGroup = new THREE.Group();
     world.add(donutGroup);
     for (let i = 0; i < 5; i++) {
       const u = 0.08 + i * 0.19;
       const side = i % 2 ? 1 : -1;
-      const base = track.getPose(track.length * u, side * (24 + (i % 3) * 6));
+      const base = freePose(u, side * (24 + (i % 3) * 6));
       for (let k = 0; k < 3; k++) {
         const d = new THREE.Mesh(donutGeo, donutMats[i % 2]);
         d.position.copy(base.pos).add(new THREE.Vector3((k - 1) * 8.5 + i, 2.6 + k * 0.4, (k % 2) * 5 - 2.5));
@@ -1399,7 +1443,7 @@ export function createWorld(scene, track, renderer) {
     for (let i = 0; i < 8; i++) {
       const u = 0.05 + i * 0.12;
       const side = i % 2 ? -1 : 1;
-      const base = track.getPose(track.length * u, side * (17 + (i % 4) * 5));
+      const base = freePose(u, side * (17 + (i % 4) * 5));
       const stack = new THREE.Group();
       const cols = ['#ff8fc6', '#c8b6ff', '#8fd6ff', '#ffe08a'];
       for (let k = 0; k < 3; k++) {
@@ -1421,7 +1465,7 @@ export function createWorld(scene, track, renderer) {
     for (let i = 0; i < 4; i++) {
       const u = 0.18 + i * 0.22;
       const side = i % 2 ? 1 : -1;
-      const base = track.getPose(track.length * u, side * (36 + (i % 2) * 10));
+      const base = freePose(u, side * (36 + (i % 2) * 10));
       const pond = new THREE.Mesh(new THREE.CylinderGeometry(9 + i * 1.6, 9 + i * 1.6, 0.45, 22), dark);
       pond.position.copy(base.pos).add(new THREE.Vector3(0, -1.4, 0));
       const rim = new THREE.Mesh(new THREE.TorusGeometry(9 + i * 1.6, 1.15, 8, 26), choc);
@@ -1455,7 +1499,7 @@ export function createWorld(scene, track, renderer) {
     for (let i = 0; i < 7; i++) {
       const u = 0.06 + i * 0.14;
       const side = i % 2 ? 1 : -1;
-      const base = track.getPose(track.length * u, side * (14 + (i % 3) * 6));
+      const base = freePose(u, side * (14 + (i % 3) * 6));
       const bunch = new THREE.Group();
       for (let k = 0; k < 4; k++) {
         const b = new THREE.Mesh(new THREE.SphereGeometry(1.25 - k * 0.1, 12, 10), new THREE.MeshStandardMaterial({ color: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e'][k], roughness: 0.3 }));

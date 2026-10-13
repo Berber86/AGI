@@ -91,12 +91,31 @@ const SOUNDS = {
     noise({ t: 0.12, gain: 0.1, filterFrom: 900, filterTo: 220 });
     tone({ f0: 240, f1: 110, t: 0.14, type: 'sine', gain: 0.12, when: 0.05 });
   },
+  jump() {
+    // rising whoosh + sparkle
+    noise({ t: 0.32, gain: 0.14, filterFrom: 600, filterTo: 2600 });
+    tone({ f0: 420, f1: 1180, t: 0.3, type: 'triangle', gain: 0.14 });
+    tone({ f0: 1560, t: 0.1, type: 'sine', gain: 0.08, when: 0.18 });
+  },
+  land() {
+    // soft jelly thud
+    tone({ f0: 160, f1: 70, t: 0.16, type: 'sine', gain: 0.22 });
+    noise({ t: 0.1, gain: 0.1, filterFrom: 500, filterTo: 180 });
+    tone({ f0: 330, f1: 260, t: 0.08, type: 'triangle', gain: 0.08, when: 0.03 });
+  },
   finish() {
     const seq = [523, 659, 784, 1047, 784, 1047];
     seq.forEach((f, i) => tone({ f0: f, t: i < 3 ? 0.16 : 0.32, type: 'triangle', gain: 0.22, when: i * 0.12 }));
     noise({ t: 0.7, gain: 0.12, filterFrom: 2200, filterTo: 700, when: 0.1 });
   },
 };
+
+// shared graph for the music sequencer (music.js): same context, same master
+// so one mute button covers everything
+export function audioGraph() {
+  const c = ensure();
+  return c ? { ctx: c, master } : null;
+}
 
 export const SFX = {
   unlock() { ensure(); },

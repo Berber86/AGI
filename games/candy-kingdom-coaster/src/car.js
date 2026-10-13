@@ -548,8 +548,7 @@ export function createCar() {
           f.scale.set(k, k * 1.2, k);
         }
       });
-      const targetTilt = steer * 0.05;
-      root.rotation.x = THREE.MathUtils.lerp(root.rotation.x, targetTilt * 0, 0.1);
+      // (root pitch/roll are owned by main.js: slope, ramps, jumps)
 
       // Lily feels the drive: ponytail & head sway, steering wheel turns
       tail.rotation.x = 0.7 + Math.sin(wheelSpin * 0.35) * 0.12 * Math.min(1, speed / 14) - steer * 0.18;

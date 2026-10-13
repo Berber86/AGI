@@ -1,4 +1,4 @@
-// HUD: chips, minimap, boost meter, popups. DOM-based for crisp mobile text.
+// HUD: chips, boost meter, popups. DOM-based for crisp mobile text.
 import { formatTime, GAME, MEDALS, TIME_MEDAL, ZONES } from './config.js';
 
 export class HUD {
@@ -12,22 +12,11 @@ export class HUD {
       sweetsFill: this.$('#hud-sweets-fill'),
       cakeRow: this.$('#hud-cakes'),
       popupLayer: this.$('#popup-layer'),
-      minimap: this.$('#minimap'),
       btnSound: this.$('#btn-sound'),
       btnPause: this.$('#btn-pause'),
     };
     this.cakes = [...root.querySelectorAll('#hud-cakes .cake')];
-    this.mm = this.el.minimap.getContext('2d');
     this._popupTimer = 0;
-
-    // precompute normalized minimap path
-    const pts = track.samples;
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const p of pts) {
-      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-      minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
-    }
-    this.mmBounds = { minX, maxX, minZ, maxZ };
   }
 
   setMuted(m) {
@@ -57,64 +46,6 @@ export class HUD {
     this.cakes.forEach((c, i) => c.classList.toggle('charged', boostActive || i < boostCharges));
     this.el.cakeRow.classList.toggle('is-boosting', !!boostActive);
     document.body.classList.toggle('is-boosting', !!boostActive);
-  }
-
-  drawMinimap(carU, sweetsList) {
-    const c = this.mm;
-    const W = this.el.minimap.width, H = this.el.minimap.height;
-    const { minX, maxX, minZ, maxZ } = this.mmBounds;
-    const pad = 14;
-    const sx = (W - pad * 2) / (maxX - minX);
-    const sz = (H - pad * 2) / (maxZ - minZ);
-    const s = Math.min(sx, sz);
-    const ox = pad + ((W - pad * 2) - (maxX - minX) * s) / 2;
-    const oy = pad + ((H - pad * 2) - (maxZ - minZ) * s) / 2;
-    const map = (p) => [ox + (p.x - minX) * s, oy + (p.z - minZ) * s];
-
-    c.clearRect(0, 0, W, H);
-    c.fillStyle = 'rgba(30, 12, 40, 0.35)';
-    c.fillRect(0, 0, W, H);
-
-    // track line
-    c.lineWidth = 7;
-    c.strokeStyle = 'rgba(255,255,255,0.85)';
-    c.lineJoin = 'round';
-    c.beginPath();
-    this.track.samples.forEach((p, i) => {
-      const [x, y] = map(p);
-      if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-    });
-    c.stroke();
-    c.lineWidth = 3;
-    c.strokeStyle = 'rgba(255, 120, 190, 0.9)';
-    c.stroke();
-
-    // finish marker
-    const fin = this.track.samples[this.track.samples.length - 1];
-    const [fx, fy] = map(fin);
-    c.fillStyle = '#fff';
-    c.fillRect(fx - 5, fy - 5, 10, 10);
-    c.fillStyle = '#333';
-    c.fillRect(fx - 5, fy - 5, 5, 5);
-    c.fillRect(fx, fy, 5, 5);
-
-    // sweets
-    if (sweetsList) {
-      for (const it of sweetsList) {
-        if (it.collected) continue;
-        const [x, y] = map(it.mesh.position);
-        c.fillStyle = it.type === 'star' ? '#ffd45e' : it.type === 'cupcake' ? '#ff9ed2' : '#8ef0c8';
-        c.beginPath(); c.arc(x, y, 2.6, 0, Math.PI * 2); c.fill();
-      }
-    }
-
-    // car
-    const carP = this.track.getPose(carU * this.track.length, 0);
-    const [cx, cy] = map(carP.pos);
-    c.fillStyle = '#ff2f86';
-    c.beginPath(); c.arc(cx, cy, 6, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = '#fff'; c.lineWidth = 2;
-    c.beginPath(); c.arc(cx, cy, 6, 0, Math.PI * 2); c.stroke();
   }
 
   renderMedals({ sweets, total, timeMs, score }) {
