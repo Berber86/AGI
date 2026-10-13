@@ -30,6 +30,23 @@ export const TUNING = {
   raceTimeLimitS: 240,        // finish is always reachable; this is only a soft target
 };
 
+// --- Jump ramps: one per lane, in different parts of the ride ---
+// s = metres along the track where the ramp starts, side = -1 left / +1 right
+// lane, len = run-up length, height = lip height above the road, width = ramp
+// width (the other lane stays free so the jump is always a choice).
+export const RAMPS = [
+  { id: 'cookie-left',  s: 500,  side: -1, len: 10, height: 1.5, width: 4.0, color: '#ff5f9e', accent: '#fff6f0' },
+  { id: 'cream-right',  s: 1225, side:  1, len: 12, height: 2.6, width: 4.0, color: '#8f6bff', accent: '#fff6f0' },
+];
+export const JUMP = {
+  gravity: 9.0,       // m/s² — a touch floaty, reads well from the chase camera
+  launchK: 1.8,       // vertical launch = speed · sin(rampAngle) · launchK (arcade exaggeration)
+  boostK: 1.15,       // extra lift while the cupcake boost is active (plus the higher speed itself)
+  airSteer: 0.35,     // steering authority in the air
+  bounce: 0.35,       // restitution when the car drops off a ramp side
+  dropSlow: 0.85,     // speed kept after a side drop
+};
+
 // --- Zones along the ride (u = 0..1 of track length) ---
 export const ZONES = [
   { id: 0, name: 'Lollipop Meadows',  u0: 0.00, u1: 0.22, fog: 0x9fd8ff, sky: 0x7ec9f2 },

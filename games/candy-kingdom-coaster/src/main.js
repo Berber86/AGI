@@ -13,6 +13,7 @@ import { createTrack } from './track.js';
 import { createCar, createTrail } from './car.js';
 import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
+import { createRamps } from './ramps.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { loadTextures, countLoaded } from './textures.js';
@@ -54,11 +55,12 @@ document.getElementById('btn-play').disabled = false;
 
 // ---------------------------------------------------------------- world
 const track = createTrack(scene, TEX);
+const ramps = createRamps(scene, track, TEX);
 const world = createWorld(scene, track, renderer, TEX);
 const car = createCar();
 scene.add(car.root);
 const trail = createTrail(scene);
-const sweets = createSweets(scene, track);
+const sweets = createSweets(scene, track, ramps);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
 const input = new Input();
@@ -655,6 +657,10 @@ window.__TEST__ = {
     governor.tier = tier;
     governor.apply();
     return governor.describe();
+  },
+  // Jump ramps: placement + lane span (config.js RAMPS resolved by ramps.js).
+  ramps() {
+    return ramps.list.map((r) => ({ id: r.id, s0: +r.s0.toFixed(1), s1: +r.s1.toFixed(1), latMin: +r.latMin.toFixed(2), latMax: +r.latMax.toFixed(2), height: r.height, angleDeg: +(r.angle * 180 / Math.PI).toFixed(1), side: r.side, children: r.group.children.length }));
   },
   // Road surface key per zone mesh (track.js ROAD_SURFACES) in track order.
   roadSurfaces() {

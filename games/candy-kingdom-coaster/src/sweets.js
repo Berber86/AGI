@@ -125,7 +125,7 @@ export class Burst {
   }
 }
 
-export function createSweets(scene, track) {
+export function createSweets(scene, track, ramps = null) {
   const group = new THREE.Group();
   scene.add(group);
   const burst = new Burst(scene);
@@ -165,6 +165,11 @@ export function createSweets(scene, track) {
     glow.scale.setScalar(type === 'candy' ? 2.3 : 3.2);
     mesh.add(glow);
     mesh.position.copy(pose.pos).add(new THREE.Vector3(0, type === 'cupcake' ? 1.35 : 1.55, 0));
+    // pickups over a jump ramp ride on its surface instead of hiding inside it
+    if (ramps) {
+      const rs = ramps.sample(s, lateral);
+      if (rs.ramp && rs.inside) mesh.position.y += rs.h;
+    }
     mesh.scale.setScalar(type === 'candy' ? 1.3 : 1.18);
     mesh.traverse((o) => { o.userData.noCollide = true; }); // pickups float over the road on purpose
     group.add(mesh);
