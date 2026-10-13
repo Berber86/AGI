@@ -612,16 +612,10 @@ function updateGameplay(dt) {
   trail.update(dt, car.root, game.speed, game.boostActive);
 
   // camera: readable chase view with a slight 3/4 flank offset
-  const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
-  if (game.s < TUNING.camBack) {
-    // before the start line extrapolate along the initial tangent so the car
-    // is framed normally from the very first frame (no s=0 clamp pile-up)
-    const p0 = track.getPose(0, game.lateral * 0.55);
-    const t0 = track.getPose(Math.min(track.length, 8), game.lateral * 0.55);
-    const dir = t0.pos.clone().sub(p0.pos).normalize();
-    back.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
-  }
-  const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
+  // (getPose extrapolates along the pseudo road behind the start, so the
+  // camera is framed normally from the very first frame)
+  const back = track.getPose(game.s - TUNING.camBack, game.lateral * 0.55 - TUNING.camSide);
+  const ahead = track.getPose(game.s + TUNING.camAhead, game.lateral * 0.22 + TUNING.camSide * 1.15);
   const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6 + game.air * 0.35, 0));
   const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05 + game.air * 0.7, 0));
   const k = game.camSnap ? 1 : 1 - Math.exp(-TUNING.camLerp * dt);

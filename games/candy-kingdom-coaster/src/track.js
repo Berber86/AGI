@@ -196,12 +196,12 @@ export function createTrack(scene, TEX = {}) {
   const hasMeadow = !!TEX.meadow;
   const white = new THREE.Color('#ffffff');
 
-  const vertexColor = (i, k) => {
+  const vertexColor = (u, k) => {
     const pr = profile[k];
     if (pr.kind === 'curb') return RAINBOW[pr.band].clone();
     if (pr.kind === 'road') return white.clone();
     // candy grass with zone tint, fading to a soft universal green-pink at distance
-    const zc = zoneAt(i / SAMPLES);
+    const zc = zoneAt(THREE.MathUtils.clamp(u, 0, 1));
     const col = new THREE.Color(zc.fog).lerp(new THREE.Color('#9fe3a8'), 0.62); // soft mint field — the pink road pops against it
     const away = (Math.abs(pr.off) - 7.6) / 14.4;
     col.lerp(grassEdge, away * 0.35);
@@ -220,14 +220,54 @@ export function createTrack(scene, TEX = {}) {
     return (ROAD_BAND[1] + 0.04) + (1 - ROAD_BAND[1] - 0.04) * ((k - 10) / (K_CURB_R - 10));
   };
 
+  // ---- Pseudo road beyond both ends (run-offs) ----
+  // The course is open, so without these the ribbon stopped dead under the
+  // START banner and right after FINISH — a cliff edge in the first intro
+  // frames and on the whole final straight. Two gently bending run-offs
+  // continue the same profile far into the fog; getPose() extrapolates along
+  // them so the chase camera behind the start and props placed past the
+  // lines sit on real road.
+  const EXT_PRE = 260, EXT_POST = 520, EXT_STEP = 2.8;
+  const buildRunoff = (p0, t0, outward, lengthM, bendRad) => {
+    // walk outward from the end point; heading drifts quadratically so the
+    // tangent is continuous at the join and the road curls away later
+    const n = Math.round(lengthM / EXT_STEP);
+    const h0 = Math.atan2(t0.x * outward, t0.z * outward);
+    const pts = [p0.clone()];
+    let slope = t0.y * outward;
+    for (let i = 1; i <= n; i++) {
+      const d = i * EXT_STEP;
+      const h = h0 + bendRad * (d / lengthM) * (d / lengthM);
+      slope *= Math.exp(-EXT_STEP / 70); // level out over ~70 m
+      const prev = pts[i - 1];
+      pts.push(new THREE.Vector3(prev.x + Math.sin(h) * EXT_STEP, prev.y + slope * EXT_STEP, prev.z + Math.cos(h) * EXT_STEP));
+    }
+    // store in increasing-s order (tangent = direction of travel)
+    if (outward < 0) pts.reverse();
+    const cs = [], ts = [], rs = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+      const t = b.clone().sub(a).normalize();
+      cs.push(pts[i]); ts.push(t); rs.push(new THREE.Vector3().crossVectors(t, UP).normalize());
+    }
+    return { centers: cs, tangents: ts, rights: rs, n: pts.length - 1 };
+  };
+  const preRun = buildRunoff(centers[0], tangents[0], -1, EXT_PRE, -0.55);     // behind the start, curls left
+  const postRun = buildRunoff(centers[SAMPLES], tangents[SAMPLES], 1, EXT_POST, 0.5); // past the finish, curls right
+
+  // sample sources for the strip builder: the course itself and the two run-offs
+  const mainSrc = { centers, rights, n: SAMPLES, uAt: (i) => i / SAMPLES, sAt: (i) => (i / SAMPLES) * length };
+  const preSrc = { centers: preRun.centers, rights: preRun.rights, n: preRun.n, uAt: () => 0, sAt: (i) => (i - preRun.n) * EXT_STEP };
+  const postSrc = { centers: postRun.centers, rights: postRun.rights, n: postRun.n, uAt: () => 1, sAt: (i) => length + i * EXT_STEP };
+
   // Build one quad strip over profile indices [kFrom, kTo] into shared arrays.
-  const buildStrip = (arrays, kFrom, kTo, uvFn, iFrom = 0, iTo = SAMPLES) => {
+  const buildStrip = (arrays, kFrom, kTo, uvFn, iFrom = 0, iTo = SAMPLES, src = mainSrc) => {
     const { pos, col, uv, idx } = arrays;
     const base = pos.length / 3;
     const n = kTo - kFrom + 1;
     for (let i = iFrom; i <= iTo; i++) {
-      const u = i / SAMPLES;
-      const c = centers[i], right = rights[i];
+      const u = src.uAt(i), sM = src.sAt(i);
+      const c = src.centers[i], right = src.rights[i];
       for (let k = kFrom; k <= kTo; k++) {
         const pr = profile[k];
         pos.push(
@@ -235,9 +275,9 @@ export function createTrack(scene, TEX = {}) {
           c.y + pr.dy + (pr.kind === 'road' ? 0.02 : 0),
           c.z + right.z * pr.off
         );
-        const vc = vertexColor(i, k);
+        const vc = vertexColor(u, k);
         col.push(vc.r, vc.g, vc.b);
-        const t = uvFn(u, k, pr);
+        const t = uvFn(u, k, pr, sM);
         uv.push(t[0], t[1]);
       }
     }
@@ -262,7 +302,7 @@ export function createTrack(scene, TEX = {}) {
   // One mesh per zone so the surface changes with the scenery: strawberry
   // glaze → cookie → chocolate bar → vanilla frosting → waffle. Neighbouring
   // meshes share their boundary sample row, so there is no gap.
-  const roadUv = (u, k) => [u * (length / ROAD_TILE_M), roadV(k)];
+  const roadUv = (u, k, pr, sM) => [sM / ROAD_TILE_M, roadV(k)];
   const roadMeshes = [];
   const zoneRanges = ZONES.map((z) => [Math.round(Math.max(0, z.u0) * SAMPLES), Math.round(Math.min(1, z.u1) * SAMPLES)]);
   zoneRanges.forEach(([i0, i1], zi) => {
@@ -281,13 +321,30 @@ export function createTrack(scene, TEX = {}) {
     scene.add(mesh);
     roadMeshes.push(mesh);
   });
+  // run-off road: same profile, shares the material of the adjoining zone
+  const runoffMeshes = [];
+  [[preSrc, roadMeshes[0], 'roadRunoffStart'], [postSrc, roadMeshes[roadMeshes.length - 1], 'roadRunoffFinish']].forEach(([src, twin, name]) => {
+    if (!twin) return;
+    const arrays = { pos: [], col: [], uv: [], idx: [] };
+    buildStrip(arrays, K_CURB_L, K_CURB_R, roadUv, 0, src.n, src);
+    const mesh = new THREE.Mesh(toGeometry(arrays), twin.material);
+    mesh.receiveShadow = true;
+    mesh.name = name;
+    mesh.userData.surface = twin.userData.surface;
+    scene.add(mesh);
+    runoffMeshes.push(mesh);
+  });
   // shoulders: world-scale UVs (one meadow tile = MEADOW_TILE_M m both ways)
   // so the sugar-grass detail keeps square texels on the sloping verges
   const MEADOW_TILE_M = 9;
   const grassArrays = { pos: [], col: [], uv: [], idx: [] };
-  const grassUv = (u, k, pr) => [pr.off / MEADOW_TILE_M, (u * length) / MEADOW_TILE_M];
+  const grassUv = (u, k, pr, sM) => [pr.off / MEADOW_TILE_M, sM / MEADOW_TILE_M];
   buildStrip(grassArrays, 0, K_CURB_L, grassUv);
   buildStrip(grassArrays, K_CURB_R, K_LAST, grassUv);
+  for (const src of [preSrc, postSrc]) {
+    buildStrip(grassArrays, 0, K_CURB_L, grassUv, 0, src.n, src);
+    buildStrip(grassArrays, K_CURB_R, K_LAST, grassUv, 0, src.n, src);
+  }
   const grassGeo = toGeometry(grassArrays);
   const grassMat = hasMeadow
     ? new THREE.MeshStandardMaterial({ map: TEX.meadow, vertexColors: true, roughness: 0.92, metalness: 0.0 })
@@ -376,10 +433,22 @@ export function createTrack(scene, TEX = {}) {
 
   // ---- Pose helpers ----
   const tmpRight = new THREE.Vector3();
+  // pose on a run-off polyline at distance d (m) from its join with the course
+  const runoffPose = (run, d, fromStart) => {
+    const f = THREE.MathUtils.clamp(d / EXT_STEP, 0, run.n - 1e-6);
+    const i = Math.floor(f), k = f - i;
+    const idx = fromStart ? [run.n - i, run.n - i - 1] : [i, i + 1]; // pre-run is stored far→start
+    const p = run.centers[idx[0]].clone().lerp(run.centers[idx[1]], k);
+    const t = run.tangents[idx[0]].clone().lerp(run.tangents[idx[1]], k).normalize();
+    return { p, t };
+  };
+
   function getPose(s, lateral = 0) {
     const u = THREE.MathUtils.clamp(s / length, 0, 1);
-    const p = curve.getPointAt(u);
-    const t = curve.getTangentAt(u).normalize();
+    let p, t;
+    if (s < 0) ({ p, t } = runoffPose(preRun, -s, true));
+    else if (s > length) ({ p, t } = runoffPose(postRun, s - length, false));
+    else { p = curve.getPointAt(u); t = curve.getTangentAt(u).normalize(); }
     tmpRight.crossVectors(t, UP).normalize();
     const pos = p.clone().addScaledVector(tmpRight, lateral);
     const heading = Math.atan2(t.x, t.z);
@@ -441,6 +510,8 @@ export function createTrack(scene, TEX = {}) {
   return {
     curve, length, halfW, getPose, bounds,
     roadMeshes, // one per zone (all named 'road')
+    runoffMeshes, // pseudo road before the start / after the finish
+    runoff: { pre: EXT_PRE, post: EXT_POST },
     samples: centers,
     sampleAt: (s) => centers[THREE.MathUtils.clamp(Math.round((s / length) * SAMPLES), 0, SAMPLES)],
   };

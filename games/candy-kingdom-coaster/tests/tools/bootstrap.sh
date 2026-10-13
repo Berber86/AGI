@@ -20,7 +20,14 @@ if [ ! -x /tmp/chromium ]; then
   node "$TOOLS/setup-runtime.mjs"
 fi
 if ! curl -s -o /dev/null http://127.0.0.1:8899/; then
-  (cd "$REPO" && setsid nohup python3 -m http.server 8899 --bind 127.0.0.1 >/tmp/http.log 2>&1 </dev/null &)
+  # fully detached (new session, every inherited fd closed) so the calling
+  # shell/tool does not wait on the server's pipes
+  python3 - "$REPO" <<'PY'
+import subprocess, sys
+log = open('/tmp/http.log', 'ab')
+subprocess.Popen([sys.executable, '-m', 'http.server', '8899', '--bind', '127.0.0.1'], cwd=sys.argv[1],
+                 stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, close_fds=True)
+PY
   sleep 1
 fi
 python3 -c "import PIL" 2>/dev/null || pip install -q --break-system-packages pillow >/dev/null 2>&1 || true

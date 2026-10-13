@@ -1014,6 +1014,10 @@ export function createWorld(scene, track, renderer, TEX = {}) {
   heroCane.position.copy(track.getPose(L * 0.55, 17).pos).add(new THREE.Vector3(0, -1, 0));
   world.add(heroCane);
 
+  // pseudo road beyond the start/finish lines (track.js run-offs): a few of
+  // the roadside props keep going along it
+  const RUN_PRE = track.runoff ? track.runoff.pre : 0, RUN_POST = track.runoff ? track.runoff.post : 0;
+
   // ---------- cheering spectator crowds behind candy fences (reference look) --
   // A low striped fence runs along both shoulders; chibi animals bob and
   // "cheer" behind it. Everything is instanced: 3 draw calls for ~300 animals.
@@ -1074,7 +1078,9 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     const FENCE_STEP = 5.6, FENCE_LAT = 9.1;
     {
       const slots = [];
-      for (let s = 15; s < L - 15; s += FENCE_STEP) {
+      // the fence keeps running along the pseudo road beyond both lines, so
+      // the start/finish do not look like the edge of the world
+      for (let s = 15 - RUN_PRE; s < L + RUN_POST - 15; s += FENCE_STEP) {
         for (const side of [-1, 1]) slots.push({ s, side });
       }
       // chunked: the fence line is ~460 units along 1.3 km; one mesh would be
@@ -1128,7 +1134,9 @@ export function createWorld(scene, track, renderer, TEX = {}) {
   // between the animals and the mid-field dressing band.
   {
     const strip = { lolli: [], gum: [], cane: [] };
-    for (let s = 18; s < L - 20; s += 4.6) {
+    for (let s = 18 - RUN_PRE; s < L + RUN_POST - 20; s += 4.6) {
+      const onRunoff = s < 0 || s > L;
+      if (onRunoff && rand() < 0.5) continue; // thinner beyond the lines
       for (const side of [-1, 1]) {
         if (rand() < 0.22) continue; // small breathing gaps
         const far = 11.6 + rand() * 2.1;
