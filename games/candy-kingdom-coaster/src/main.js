@@ -5,7 +5,7 @@ import { RenderPass } from '../vendor/three/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/three/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three/jsm/postprocessing/OutputPass.js';
 
-import { GAME, TUNING, ZONES, zoneAt, formatTime, MEDALS, TIME_MEDAL } from './config.js';
+import { GAME, TUNING, JUMP, ZONES, zoneAt, formatTime, MEDALS, TIME_MEDAL } from './config.js';
 import { Storage } from './storage.js';
 import { SFX } from './audio.js';
 import { Input } from './input.js';
@@ -84,6 +84,15 @@ const game = {
   introT: 0,
   goHideT: 0,
   bumpCooldown: 0,
+  // jump ramps: height above the road, vertical speed, phase, airtime
+  air: 0,
+  vy: 0,
+  jump: 'ground', // ground | ramp | air | drop
+  jumpRamp: null,
+  jumpT: 0,
+  carPitch: 0,
+  landSquash: 0,
+  camKick: 0,
   camPos: new THREE.Vector3(0, 6, -12),
   camTarget: new THREE.Vector3(0, 2, 20),
 };
@@ -156,6 +165,7 @@ function startRace() {
   game.freeze = false;
   game.camSnap = true;
   game.introT = 0;
+  resetJump();
   sweets.reset();
   input.releaseAll();
   showScreen(null);
@@ -316,6 +326,68 @@ window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 
 // ---------------------------------------------------------------- gameplay
+// ---------------------------------------------------------------- jump ramps
+function resetJump() {
+  game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
+  game.jumpT = 0; game.carPitch = 0; game.landSquash = 0; game.camKick = 0;
+  car.root.scale.setScalar(1);
+}
+
+function launchFromRamp(r) {
+  // arcade parabola: lift comes from the ramp angle and the current speed
+  game.jump = 'air';
+  game.air = r.height;
+  game.vy = game.speed * Math.sin(r.angle) * JUMP.launchK;
+  game.jumpT = 0;
+  SFX.play('jump');
+  HAPTIC.buzz(18);
+  hud.popup('✨', '#fff6a8');
+}
+
+function dropOffRamp(r) {
+  // more than half the car slid off the ramp's side: it just falls from the
+  // current height (part 4 adds the bounce / speed loss)
+  game.jump = 'drop';
+  game.vy = 0;
+  game.jumpT = 0;
+}
+
+function landCar() {
+  const hard = game.vy < -4;
+  game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
+  game.landSquash = hard ? 0.42 : 0.26;
+  game.camKick = hard ? 0.35 : 0.18;
+  SFX.play('land');
+  HAPTIC.buzz(hard ? [35, 25, 45] : 25);
+}
+
+function updateJump(dt) {
+  if (game.jump === 'ground' || game.jump === 'ramp') {
+    const rs = ramps.sample(game.s, game.lateral);
+    if (rs.ramp && rs.inside && !rs.past) {
+      // climbing the run-up: ride the wedge surface
+      game.jump = 'ramp';
+      game.jumpRamp = rs.ramp;
+      game.air = THREE.MathUtils.lerp(game.air, rs.h, 1 - Math.exp(-14 * dt)); // snaps up quickly when entering from the side
+      game.vy = 0;
+    } else if (game.jump === 'ramp') {
+      const r = game.jumpRamp;
+      if (game.s >= r.s1 - 0.35) launchFromRamp(r); // over the lip
+      else dropOffRamp(r);                          // slid off the side
+    } else {
+      game.air = 0;
+    }
+  }
+  if (game.jump === 'air' || game.jump === 'drop') {
+    game.vy -= JUMP.gravity * dt;
+    game.air += game.vy * dt;
+    game.jumpT += dt;
+    if (game.air <= 0) landCar();
+  }
+  if (game.landSquash > 0) game.landSquash = Math.max(0, game.landSquash - dt);
+  if (game.camKick > 0) game.camKick = Math.max(0, game.camKick - dt * 1.6);
+}
+
 function updateGameplay(dt) {
   // cinematic intro: camera starts front-top, sweeps around, settles behind
   if (game.state === 'intro') {
@@ -408,10 +480,11 @@ function updateGameplay(dt) {
       if (game.boostT <= 0) game.boostActive = false;
     }
 
-    // steering
+    // steering (only a little authority while airborne)
     const steer = input.steer;
-    game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed));
-    if (steer === 0) {
+    const airborne = game.jump === 'air' || game.jump === 'drop';
+    game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed)) * (airborne ? JUMP.airSteer : 1);
+    if (steer === 0 && !airborne) {
       // gentle auto-center so the road always guides home
       const center = Math.sin(game.s * 0.021) * 1.15; // visual drift line
       game.lateral = THREE.MathUtils.lerp(game.lateral, center * 0.35, dt * TUNING.steerReturn * 0.35);
@@ -438,8 +511,11 @@ function updateGameplay(dt) {
     }
   }
 
+  // ramps: climb, launch, fly, land
+  updateJump(dt);
+
   // sweets collection (also works in countdown-roll-in, harmless)
-  const events = sweets.update(dt, game.s, game.lateral, performance.now() * 0.001);
+  const events = sweets.update(dt, game.s, game.lateral, performance.now() * 0.001, game.air);
   for (const ev of events) {
     game.score += ev.points;
     if (ev.type === 'star') { game.stars += 1; SFX.play('star'); HAPTIC.buzz(15); hud.popup('⭐', '#ffd45e'); }
@@ -459,10 +535,19 @@ function updateGameplay(dt) {
   // car pose
   const pose = track.getPose(game.s, game.lateral);
   car.root.position.copy(pose.pos);
-  car.root.position.y += 0.02;
+  car.root.position.y += 0.02 + game.air;
   car.root.rotation.y = pose.heading;
-  // lean into the road slope
-  car.root.rotation.x = -pose.pitch * 0.65;
+  // lean into the road slope; nose up on the ramp, follow the arc in the air
+  let pitch = -pose.pitch * 0.65;
+  if (game.jump === 'ramp') pitch -= game.jumpRamp.angle;
+  else if (game.jump === 'air' || game.jump === 'drop') pitch -= Math.atan2(game.vy, Math.max(4, game.speed)) * 0.55;
+  game.carPitch = THREE.MathUtils.lerp(game.carPitch, pitch, 1 - Math.exp(-9 * dt));
+  car.root.rotation.x = game.carPitch;
+  // landing squash: a quick jelly bounce of the whole car
+  if (game.landSquash > 0) {
+    const k = Math.sin((game.landSquash / 0.42) * Math.PI) * Math.min(1, game.landSquash / 0.42 + 0.4);
+    car.root.scale.set(1 + k * 0.10, 1 - k * 0.20, 1 + k * 0.06);
+  } else car.root.scale.setScalar(1);
   car.update(dt, {
     speed: game.speed,
     steer: input.steer || (game.lateral < -0.3 ? -0.25 : game.lateral > 0.3 ? 0.25 : 0),
@@ -482,8 +567,8 @@ function updateGameplay(dt) {
     back.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
   }
   const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
-  const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
-  const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
+  const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6 + game.air * 0.35, 0));
+  const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05 + game.air * 0.7, 0));
   const k = game.camSnap ? 1 : 1 - Math.exp(-TUNING.camLerp * dt);
   game.camSnap = false;
   game.camPos.lerp(desiredPos, k);
@@ -492,7 +577,7 @@ function updateGameplay(dt) {
   camera.lookAt(game.camTarget);
   // speed feel: micro shake that grows with speed, lean into the steering
   const spdK = Math.min(1, game.speed / TUNING.maxSpeed);
-  const shake = (game.boostActive ? 0.055 : 0.013) * spdK;
+  const shake = (game.boostActive ? 0.055 : 0.013) * spdK + game.camKick * 0.5;
   if (shake > 0.001) {
     const tn = performance.now() * 0.001;
     camera.position.x += Math.sin(tn * 37.1) * shake;
@@ -613,6 +698,7 @@ window.__TEST__ = {
   setProgress(u, lateral = 0, freeze = false) {
     game.s = track.length * u;
     game.lateral = lateral;
+    resetJump();
     game.state = 'racing';
     game.speed = freeze ? 0 : TUNING.cruiseSpeed;
     game.freeze = freeze;
@@ -657,6 +743,10 @@ window.__TEST__ = {
     governor.tier = tier;
     governor.apply();
     return governor.describe();
+  },
+  // Jump state for physics QA (drive with step() and sample this).
+  jumpInfo() {
+    return { jump: game.jump, air: +game.air.toFixed(3), vy: +game.vy.toFixed(3), s: +game.s.toFixed(2), lateral: +game.lateral.toFixed(2), speed: +game.speed.toFixed(2), t: +game.jumpT.toFixed(2), boost: game.boostActive };
   },
   // Jump ramps: placement + lane span (config.js RAMPS resolved by ramps.js).
   ramps() {

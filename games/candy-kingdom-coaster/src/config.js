@@ -39,12 +39,12 @@ export const RAMPS = [
   { id: 'cream-right',  s: 1225, side:  1, len: 12, height: 2.6, width: 4.0, color: '#8f6bff', accent: '#fff6f0' },
 ];
 export const JUMP = {
-  gravity: 9.0,       // m/s² — a touch floaty, reads well from the chase camera
-  launchK: 1.8,       // vertical launch = speed · sin(rampAngle) · launchK (arcade exaggeration)
-  boostK: 1.15,       // extra lift while the cupcake boost is active (plus the higher speed itself)
-  airSteer: 0.35,     // steering authority in the air
-  bounce: 0.35,       // restitution when the car drops off a ramp side
-  dropSlow: 0.85,     // speed kept after a side drop
+  gravity: 9.5,    // m/s² — a little floaty, the jump should feel like a treat
+  launchK: 2.0,    // vertical speed = speed · sin(ramp angle) · launchK
+  boostK: 1.08,    // extra lift when launching with the rocket boost active
+  airSteer: 0.35,  // steering authority while airborne
+  bounce: 0.35,    // restitution when the car falls off a ramp side
+  dropSlow: 0.85,  // speed kept after such a fall
 };
 
 // --- Zones along the ride (u = 0..1 of track length) ---

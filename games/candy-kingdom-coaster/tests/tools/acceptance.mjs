@@ -219,6 +219,41 @@ const record = (name, pass, detail) => {
   record('5b. gates square to road + 5 road surfaces', gatesOk && surfacesOk, info);
 }
 
+// ---------- 5c. jump ramps: two lanes, two heights, real flight, miss = nothing ----------
+{
+  const info = await page.evaluate(() => {
+    const T = window.__TEST__; const L = T.gameInfo().trackLength;
+    const ramps = T.ramps();
+    const drive = (s0, lat, frames) => {
+      T.setProgress(s0 / L, lat, false);
+      let maxAir = 0, launched = false, landed = false, flightS = 0, t = 0;
+      for (let i = 0; i < frames; i++) {
+        T.step(1 / 60, 1, false);
+        const j = T.jumpInfo();
+        maxAir = Math.max(maxAir, j.air);
+        if (j.jump === 'air') { launched = true; t = j.t; }
+        if (launched && j.jump === 'ground') { landed = true; break; }
+      }
+      const j = T.jumpInfo();
+      return { maxAir: +maxAir.toFixed(2), launched, landed, airTime: t, endS: j.s };
+    };
+    const runs = ramps.map((r) => ({
+      id: r.id,
+      hit: drive(r.s0 - 8, (r.latMin + r.latMax) / 2, 400),
+      miss: drive(r.s0 - 8, -(r.latMin + r.latMax) / 2, 120),
+    }));
+    T.setProgress(0.02, 0, false);
+    return { ramps, runs };
+  });
+  const r = info.ramps;
+  const laneOk = r.length === 2 && r.some((x) => x.side < 0) && r.some((x) => x.side > 0)
+    && r.every((x) => x.latMin >= -4.4 && x.latMax <= 4.4 && (x.latMax - x.latMin) <= 4.4)
+    && Math.abs(r[0].height - r[1].height) >= 0.6 && Math.abs(r[0].s0 - r[1].s0) > 300;
+  const flightOk = info.runs.every((x) => x.hit.launched && x.hit.landed && x.hit.maxAir > 2 && x.hit.airTime > 0.8
+    && !x.miss.launched && x.miss.maxAir === 0);
+  record('5c. two ramps (left/right, different heights), jump + land, miss = flat', laneOk && flightOk, info);
+}
+
 // ---------- 6. no page errors ----------
 {
   await sleep(500);
