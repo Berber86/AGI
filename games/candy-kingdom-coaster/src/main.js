@@ -32,6 +32,7 @@ const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerH
 camera.position.set(0, 6, -12);
 
 const composer = new EffectComposer(renderer);
+renderer.info.autoReset = false; // keep the whole frame's draw calls/triangles
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.5, 0.62, 0.84);
 composer.addPass(bloom);
@@ -281,6 +282,14 @@ window.addEventListener('keydown', (e) => {
 // any tap during the cinematic intro jumps straight to the 3-2-1
 window.addEventListener('pointerdown', () => { if (game.state === 'intro') skipIntro(); }, { capture: true });
 
+// backgrounding (app switch, screen off, tab change) pauses the race and
+// silences the engine — a kid never comes back to a lost run
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && (game.state === 'racing' || game.state === 'countdown' || game.state === 'intro')) {
+    pauseGame();
+  }
+});
+
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h;
@@ -511,11 +520,14 @@ function updateGameplay(dt) {
 
 // ---------------------------------------------------------------- loop
 let lastT = performance.now();
-function animate(now) {
-  requestAnimationFrame(animate);
-  const dt = Math.min(0.05, (now - lastT) / 1000);
-  lastT = now;
-
+// QA: headless Chromium only produces animation frames when a screenshot forces
+// one, so tests can drive the very same frame body deterministically instead of
+// waiting on requestAnimationFrame (which would never fire).
+let qaForceRender = false;
+// while stepping frames from a test, the FPS governor must not judge or pace:
+// its real-time accounting would fight the fixed dt and force needless renders
+let qaNoGovernor = false;
+function frame(now, dt) {
   if (game.state === 'menu') {
     // pretty attract-mode camera drift around the start area
     const t = now * 0.00012;
@@ -535,16 +547,29 @@ function animate(now) {
     hud.drawMinimap(0.02, sweets.list);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
-    if (governor.frame(dt)) composer.render();
+    if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
     window.__FPS__ = Math.round(governor.fps);
     window.__GAME_STATE__ = 'menu';
     return;
   }
 
   updateGameplay(dt);
-  if (governor.frame(dt)) composer.render();
+  if (qaNoGovernor ? qaForceRender : (governor.frame(dt) || qaForceRender)) {
+    renderer.info.reset(); // accumulate every pass of this frame, not just the last
+    composer.render();
+  }
   window.__FPS__ = Math.round(governor.fps);
   window.__GAME_STATE__ = game.state;
+  // QA: live render budget (draw calls / triangles) for the perf audit
+  const ri = renderer.info.render;
+  window.__RENDER_INFO__ = { calls: ri.calls, triangles: ri.triangles, fps: window.__FPS__, tier: governor.describe() };
+}
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  frame(now, dt);
 }
 
 // ---------------------------------------------------------------- PWA & test hooks
@@ -597,10 +622,139 @@ window.__TEST__ = {
   },
   // Visual QA: pin the quality tier so a slow headless GPU cannot silently
   // downgrade shadows/bloom while taking reference screenshots.
+  // QA: advance the game by N fixed frames without requestAnimationFrame.
+  // dt defaults to 1/60 so the quality governor still sees a 60 FPS cadence.
+  // render=false skips composer.render() so long simulations stay fast on a
+  // software GL backend (the gameplay logic is identical either way).
+  step(dt = 1 / 60, steps = 1, render = false) {
+    const prevGov = qaNoGovernor;
+    qaNoGovernor = true;
+    qaForceRender = render;
+    try {
+      const now = performance.now();
+      for (let i = 0; i < steps; i++) frame(now + i * dt * 1000, dt);
+    } finally {
+      qaForceRender = false;
+      qaNoGovernor = prevGov;
+    }
+    return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
+  },
   pinQuality(tier = 2) {
     governor.tier = tier;
     governor.apply();
     return governor.describe();
+  },
+  // Perf QA: triangle / draw-call budget per world bucket, so heavy prop groups
+  // (castles, houses, clouds) can be found and merged without guessing.
+  sceneAudit() {
+    const tri = (o) => {
+      const g = o.geometry;
+      if (!g) return 0;
+      const n = g.index ? g.index.count : (g.attributes.position ? g.attributes.position.count : 0);
+      return Math.floor(n / 3);
+    };
+    const buckets = new Map();
+    let totalTri = 0, totalCalls = 0, meshes = 0;
+    scene.traverse((o) => {
+      if (!o.isMesh && !o.isInstancedMesh && !o.isPoints && !o.isSprite) return;
+      meshes++;
+      const inst = o.isInstancedMesh ? (o.count || 1) : 1;
+      const t = tri(o) * inst;
+      totalTri += t; totalCalls++;
+      // two-level label: scene child -> its child (so world props are separated)
+      let label = '(scene)';
+      const chain = [];
+      let q = o;
+      while (q && q.parent && q.parent.type !== 'Scene') { chain.push(q); q = q.parent; }
+      if (chain.length > 1) {
+        const sub = chain[chain.length - 2];
+        label = (q.name ? q.name + '/' : '') + (sub.name || sub.type + '#' + sub.children.length);
+      } else if (chain.length === 1 && q !== o) label = q.name || q.type;
+      if (!buckets.has(label)) buckets.set(label, { tri: 0, calls: 0, meshes: 0 });
+      const b = buckets.get(label);
+      b.tri += t; b.calls++; b.meshes++;
+    });
+    const top = [...buckets.entries()].map(([k, v]) => ({ k, ...v })).sort((a, b) => b.tri - a.tri).slice(0, 20);
+    const topCalls = [...buckets.entries()].map(([k, v]) => ({ k, ...v })).sort((a, b) => b.calls - a.calls).slice(0, 14);
+    const all = [];
+    scene.traverse((o) => {
+      if (!o.isMesh && !o.isInstancedMesh) return;
+      const inst = o.isInstancedMesh ? (o.count || 1) : 1;
+      const t = tri(o) * inst;
+      if (t < 2000) return;
+      const chain = [];
+      let q = o;
+      while (q && q.parent) {
+        const idx = q.parent.children ? q.parent.children.indexOf(q) : -1;
+        chain.push((q.name || q.type) + '[' + idx + ']' + (q.geometry ? ':' + q.geometry.type : ''));
+        q = q.parent;
+      }
+      let bb = null;
+      if (o.geometry && o.geometry.boundingBox === null) o.geometry.computeBoundingBox();
+      if (o.geometry && o.geometry.boundingBox) {
+        const b = o.geometry.boundingBox;
+        const d = new THREE.Vector3(); b.getSize(d);
+        const worldScale = o.getWorldScale ? o.getWorldScale(new THREE.Vector3()) : null;
+        const k = worldScale ? Math.max(worldScale.x, worldScale.y, worldScale.z) : 1;
+        bb = [Math.round(d.x * k), Math.round(d.y * k), Math.round(d.z * k)];
+      }
+      all.push({ t, path: chain.reverse().join(' < '), bb, verts: o.geometry && o.geometry.attributes.position ? o.geometry.attributes.position.count : 0, inst: o.isInstancedMesh ? (o.count || 1) : 1, mat: o.material ? (o.material.name || o.material.type) : '?' });
+    });
+    all.sort((a, b) => b.t - a.t);
+    // sub-breakdown of the heaviest scene child (the world group)
+    let heaviest = null, hv = -1;
+    for (const c of scene.children) {
+      let t = 0;
+      c.traverse((x) => { if (x.isMesh || x.isInstancedMesh) t += tri(x) * (x.isInstancedMesh ? (x.count || 1) : 1); });
+      if (t > hv) { hv = t; heaviest = c; }
+    }
+    const sub = heaviest ? heaviest.children.map((c, i) => {
+      let t = 0, m = 0;
+      c.traverse((x) => { if (x.isMesh || x.isInstancedMesh) { const q = x.isInstancedMesh ? (x.count || 1) : 1; t += tri(x) * q; m++; } });
+      return { i, n: c.name || c.type, tri: t, meshes: m, kids: c.children.length };
+    }) : [];
+    sub.sort((a, b) => b.meshes - a.meshes);
+    // what would actually be drawn right now (frustum + visibility)
+    camera.updateMatrixWorld(true);
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    );
+    const vis = {};
+    const visByLabel = new Map();
+    let visMeshes = 0, visChunks = 0;
+    const labelOf = (o) => {
+      const chain = [];
+      let q = o;
+      while (q && q.parent && q.parent.type !== 'Scene') {
+        const idx = q.parent.children ? q.parent.children.indexOf(q) : -1;
+        chain.push((q.name || q.type) + '[' + idx + ']');
+        q = q.parent;
+      }
+      chain.push((q.name || q.type) + '[root]');
+      chain.reverse();
+      return chain.slice(0, 3).join('/');
+    };
+    scene.traverse((o) => {
+      if (!o.visible) return;
+      const isDrawable = o.isMesh || o.isInstancedMesh || o.isSprite || o.isPoints || o.isLine;
+      if (!isDrawable) return;
+      if (!frustum.intersectsObject(o)) return;
+      visMeshes++;
+      const k = o.isInstancedMesh ? 'visInstanced' : (o.isSprite ? 'visSprite' : (o.isMesh ? 'visMesh' : 'visOther'));
+      vis[k] = (vis[k] || 0) + 1;
+      if (o.isInstancedMesh) visChunks++;
+      const lb = labelOf(o);
+      visByLabel.set(lb, (visByLabel.get(lb) || 0) + 1);
+    });
+    const visTop = [...visByLabel.entries()].map(([k, v]) => ({ k, v })).sort((a, b) => b.v - a.v).slice(0, 16);
+    const byType = {};
+    scene.traverse((o) => {
+      if (o.isInstancedMesh) { const k = 'InstancedMesh'; byType[k] = byType[k] || { n: 0, tri: 0 }; byType[k].n++; byType[k].tri += tri(o) * (o.count || 1); }
+      else if (o.isMesh) { const k = 'Mesh'; byType[k] = byType[k] || { n: 0, tri: 0 }; byType[k].n++; byType[k].tri += tri(o); }
+      else if (o.isSprite) { const k = 'Sprite'; byType[k] = byType[k] || { n: 0, tri: 0 }; byType[k].n++; }
+      else if (o.isPoints) { const k = 'Points'; byType[k] = byType[k] || { n: 0, tri: 0 }; byType[k].n++; }
+    });
+    return { totalTri, totalCalls, meshes, top, topCalls, byType, vis, visMeshes, visChunks, visTop, bigMeshes: all.slice(0, 22), heaviest: heaviest ? (heaviest.name || heaviest.type) : '', sub };
   },
   state: () => game.state,
   // Acceptance helper: project the road ahead to screen space (px).
@@ -621,6 +775,8 @@ window.__TEST__ = {
       trackLength: Math.round(track.length), totalSweets: sweets.total,
       state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1),
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
+      boostActive: game.boostActive, boostCharges: game.boostCharges,
+      zone: zoneAt(game.s / track.length).id,
     };
   },
   camDebug() {
@@ -783,7 +939,7 @@ window.__TEST__ = {
   mountainDebug() { return world.mountainDebug(); },
   sweetPeek(i) {
     const it = sweets.list[i % sweets.list.length];
-    return it ? { s: +it.s.toFixed(1), lateral: +it.lateral.toFixed(2), collected: it.collected, total: sweets.list.length } : null;
+    return it ? { s: +it.s.toFixed(1), lateral: +it.lateral.toFixed(2), collected: it.collected, type: it.type, total: sweets.list.length } : null;
   },
   matrixFlags(x, y, z, r = 1.5) {
     const out = [];

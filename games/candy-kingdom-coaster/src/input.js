@@ -11,14 +11,14 @@ export class Input {
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
-      if (k === 'arrowleft' || k === 'a' || k === 'ф') this._keyLeft = true;
-      else if (k === 'arrowright' || k === 'd' || k === 'в') this._keyRight = true;
+      if (k === 'arrowleft' || k === 'a' || k === 'ф') { this._keyLeft = true; this._recalc(); }
+      else if (k === 'arrowright' || k === 'd' || k === 'в') { this._keyRight = true; this._recalc(); }
       else if (k === 'escape' || k === 'p' || k === 'з') { if (this.onPause) this.onPause(); }
     });
     window.addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
-      if (k === 'arrowleft' || k === 'a' || k === 'ф') this._keyLeft = false;
-      else if (k === 'arrowright' || k === 'd' || k === 'в') this._keyRight = false;
+      if (k === 'arrowleft' || k === 'a' || k === 'ф') { this._keyLeft = false; this._recalc(); }
+      else if (k === 'arrowright' || k === 'd' || k === 'в') { this._keyRight = false; this._recalc(); }
     });
     // Safety: any blur/visibility change releases every button.
     const release = () => this.releaseAll();
