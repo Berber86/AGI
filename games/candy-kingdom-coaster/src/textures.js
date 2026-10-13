@@ -1,6 +1,6 @@
 // Candy Kingdom Coaster — real image textures.
 //
-// The art lives in assets/textures/*.jpg (generated, then conditioned by
+// The art lives in assets/textures/*.webp (generated, then conditioned by
 // assets/textures/build-textures.py). Everything is loaded up front so the
 // world is built with its final materials; any file that fails to load (or is
 // slow beyond the timeout) resolves to `null` and the caller falls back to the
@@ -12,17 +12,26 @@ const TEXTURE_ROOT = new URL('../assets/textures/', import.meta.url);
 // key → file + sampling setup. `wrap` applies to both axes unless wrapS/wrapT
 // are given. Mirrored repeat makes a non-seamless tile continuous for free.
 export const TEXTURE_MANIFEST = {
-  road:         { file: 'road.jpg' },                                  // composited into the ribbon strip by track.js
-  meadow:       { file: 'meadow.jpg', wrap: 'mirror' },                // shoulders, world-scale UVs
-  fields:       { file: 'fields.jpg', wrap: 'mirror', repeat: [5, 5] },// far ground disc (~440 m per tile)
-  lolliPink:    { file: 'lollipop-pink.jpg' },
-  lolliBlue:    { file: 'lollipop-blue.jpg' },
-  lolliYellow:  { file: 'lollipop-yellow.jpg' },
-  cane:         { file: 'cane.jpg' },
-  cookie:       { file: 'cookie.jpg' },
-  wall:         { file: 'wall.jpg', wrap: 'mirror', repeat: [4, 2] },  // castle wafer bricks
-  donutPink:    { file: 'donut-pink.jpg', wrapT: 'mirror', repeat: [1, 2] },
-  donutLilac:   { file: 'donut-lilac.jpg', wrapT: 'mirror', repeat: [1, 2] },
+  // road surfaces — composited into the ribbon strip by track.js, one per zone
+  road:         { file: 'road.webp' },                                  // 0 Lollipop Meadows: strawberry glaze + sprinkles
+  roadCookie:   { file: 'road-cookie.webp' },                           // 1 Gummy Bear Grove: chocolate-chip cookie
+  roadChoco:    { file: 'road-choco.webp' },                            // 2 Cocoa Canyon: milk chocolate bar
+  roadCream:    { file: 'road-cream.webp' },                            // 3 Marshmallow Valley: vanilla frosting
+  roadWaffle:   { file: 'road-waffle.webp', wrap: 'mirror' },           // 4 Sugar Castle Run: waffle (also the ice-cream cones)
+  meadow:       { file: 'meadow.webp', wrap: 'mirror' },                // shoulders, world-scale UVs
+  fields:       { file: 'fields.webp', wrap: 'mirror', repeat: [5, 5] },// far ground disc (~440 m per tile)
+  lolliPink:    { file: 'lollipop-pink.webp' },
+  lolliBlue:    { file: 'lollipop-blue.webp' },
+  lolliYellow:  { file: 'lollipop-yellow.webp' },
+  cane:         { file: 'cane.webp' },
+  cookie:       { file: 'cookie.webp' },
+  wall:         { file: 'wall.webp', wrap: 'mirror', repeat: [4, 2] },  // castle wafer bricks
+  donutPink:    { file: 'donut-pink.webp', wrapT: 'mirror', repeat: [1, 2] },
+  donutLilac:   { file: 'donut-lilac.webp', wrapT: 'mirror', repeat: [1, 2] },
+  // tint bases: near-white, multiplied by per-instance colours
+  gumdrop:      { file: 'gumdrop.webp', wrap: 'mirror', repeat: [2, 1] },      // candy-tree foliage + roadside gumdrops
+  marshmallow:  { file: 'marshmallow.webp', wrap: 'mirror', repeat: [2, 1] },  // marshmallow stacks + ice-cream scoops
+  gingerbread:  { file: 'gingerbread.webp' },                                  // village house walls (one tile per face)
 };
 
 const WRAP = {

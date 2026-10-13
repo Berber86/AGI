@@ -17,16 +17,6 @@ html, body {
 /* ---------------- HUD ---------------- */
 #hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 
-#hud-top-left { position: absolute; top: max(10px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
-#minimap {
-  display: block;
-  width: clamp(140px, 24vw, 228px);
-  height: auto;
-  border-radius: 16px;
-  border: 3px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 6px 18px rgba(60, 10, 40, 0.35);
-}
-
 #hud-top-right {
   position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
@@ -252,7 +242,7 @@ html, body {
   text-shadow: 0 3px 0 #ffd6e8;
 }
 .finish-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px;
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;
 }
 .fin {
   background: #fff0f7; border-radius: 14px; padding: 8px 6px;
@@ -274,7 +264,42 @@ html, body {
 .medal small { font-size: clamp(9px, 1.9vw, 12px); color: #b06a92; }
 .medal-state { font-weight: 900; color: #43a047; font-size: clamp(14px, 3vw, 20px); }
 .medal.locked .medal-state { color: #c9a8bb; }
-.finish-btns { margin-top: 10px; }
+.finish-btns { margin-top: 6px; }
+/* the replay button is the hero of the finish card: one big tap target right
+   under the result numbers, visible without scrolling even at 390 px tall */
+.replay-btn {
+  margin: 4px 0 10px;
+  padding: clamp(14px, 3vw, 24px) 20px;
+  font-size: clamp(24px, 5.2vw, 40px);
+  border-radius: 28px;
+  background: linear-gradient(180deg, #ffb13d, #ff6a2f);
+  box-shadow: 0 8px 0 #c7471a, 0 16px 30px rgba(220, 90, 30, 0.42);
+  letter-spacing: 0.02em;
+}
+.replay-btn:active { transform: translateY(5px); box-shadow: 0 3px 0 #c7471a; }
+.finish-btns .mid-btn {
+  display: inline-block; width: auto; margin: 4px auto 0;
+  font-size: clamp(13px, 2.6vw, 18px); padding: clamp(8px, 1.6vw, 12px) 22px;
+}
+/* medals as a compact row of chips (icon / name / requirement / state) */
+.finish-card .medals-title { margin: 4px 0 6px; }
+#medals-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+#medals-list .medal { flex-direction: column; text-align: center; gap: 2px; padding: 6px 4px; margin: 0; }
+#medals-list .medal div { align-items: center; }
+#medals-list .medal b { font-size: clamp(10px, 2vw, 14px); line-height: 1.15; }
+#medals-list .medal small { font-size: clamp(8px, 1.5vw, 11px); line-height: 1.15; }
+#medals-list .medal-state { font-size: clamp(12px, 2.4vw, 17px); }
+/* short landscape phones: tighten the card so button + medals fit one screen */
+@media (max-height: 430px) {
+  .finish-card { padding-top: 10px; padding-bottom: 10px; }
+  .finish-title { font-size: clamp(22px, 5vw, 34px); margin-bottom: 6px; }
+  .finish-grid { margin-bottom: 6px; }
+  .finish-grid .fin { padding: 4px 6px; }
+  .replay-btn { padding: 12px 20px; margin: 2px 0 6px; }
+  #medals-list .medal small { display: none; }
+  #medals-list .medal { padding: 4px 2px; }
+  .finish-card .medals-title { margin: 0 0 4px; }
+}
 
 /* ---------------- portrait hint ---------------- */
 #portrait-hint {

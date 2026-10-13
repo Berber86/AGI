@@ -3,14 +3,22 @@
 
 The sources are AI-generated square PNGs (see README.md for the prompts).
 This script crops, resizes, lifts brightness where the texture is multiplied
-by vertex colours in the game, derives hue-shifted colour variants, and writes
-compact JPGs that the runtime loads through `src/textures.js`.
+by vertex/instance colours in the game, derives hue-shifted colour variants,
+and writes compact lossy WebP files that the runtime loads through
+`src/textures.js` (WebP is ~3x smaller than the JPGs we shipped first; every
+browser that runs WebGL2 decodes it).
 
 Usage:
     python3 build-textures.py            # rebuild everything into this folder
     python3 build-textures.py --check    # only report sizes of the outputs
+    python3 build-textures.py --legacy   # also keep .jpg copies (debugging)
 
-Only Pillow is required:  pip install pillow
+Source lookup order for every texture: `_raw/<name>.png`, then a previously
+built `<name>.jpg` / `<name>.webp` in this folder — so the script still runs
+(e.g. to re-encode at another quality) when the raw art is not around; `_raw/`
+is git-ignored.
+
+Only Pillow (with WebP support) is required:  pip install pillow
 """
 
 from __future__ import annotations
@@ -20,12 +28,16 @@ import sys
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageEnhance
+    from PIL import Image, ImageEnhance, ImageFilter, features
 except ImportError:  # pragma: no cover - tooling guard
     sys.exit("Pillow is required: pip install pillow")
 
+if not features.check("webp"):  # pragma: no cover - tooling guard
+    sys.exit("this Pillow build has no WebP support")
+
 HERE = Path(__file__).resolve().parent
 RAW = HERE / "_raw"
+WEBP_METHOD = 6  # slowest / smallest encoder setting; a one-off build step
 
 
 def square_center(im: Image.Image) -> Image.Image:
@@ -55,70 +67,119 @@ def hue_shift(im: Image.Image, degrees: float) -> Image.Image:
     return Image.merge("HSV", (h, s, v)).convert("RGB")
 
 
-def save_jpg(im: Image.Image, name: str, quality: int = 86) -> Path:
-    out = HERE / name
-    im.convert("RGB").save(out, "JPEG", quality=quality, optimize=True, progressive=False, subsampling=1)
+def desaturate(im: Image.Image, keep: float) -> Image.Image:
+    """keep=0 → greyscale, keep=1 → unchanged. Used for tint-base textures
+    (foliage, scoops) whose colour comes from per-instance colours."""
+    return ImageEnhance.Color(im).enhance(keep)
+
+
+def soften(im: Image.Image, radius: float) -> Image.Image:
+    """A touch of blur before encoding: the generator's per-pixel grain is
+    invisible under mipmapping anyway but costs 30-40 % of the file size."""
+    return im.filter(ImageFilter.GaussianBlur(radius)) if radius > 0 else im
+
+
+def fit(im: Image.Image, size: int, blur: float = 0.0) -> Image.Image:
+    """Centre-square crop → size×size → optional soften."""
+    return soften(square_center(im).resize((size, size), Image.LANCZOS), blur)
+
+
+KEEP_JPG = False
+
+
+def save(im: Image.Image, name: str, quality: int = 78) -> Path:
+    """Write <name>.webp (and optionally a .jpg twin for debugging)."""
+    out = HERE / f"{name}.webp"
+    rgb = im.convert("RGB")
+    rgb.save(out, "WEBP", quality=quality, method=WEBP_METHOD)
+    if KEEP_JPG:
+        rgb.save(HERE / f"{name}.jpg", "JPEG", quality=86, optimize=True, subsampling=1)
     return out
 
 
-def load(name: str) -> Image.Image:
+def load(name: str, built: str | None = None) -> Image.Image:
+    """Raw generated art if present, otherwise the previously built texture."""
     path = RAW / f"{name}.png"
-    if not path.is_file():
-        sys.exit(f"missing source art: {path}")
-    return Image.open(path).convert("RGB")
+    if path.is_file():
+        return Image.open(path).convert("RGB")
+    for cand in ([built] if built else []) + [name]:
+        for ext in ("jpg", "webp"):
+            legacy = HERE / f"{cand}.{ext}"
+            if legacy.is_file():
+                return Image.open(legacy).convert("RGB")
+    sys.exit(f"missing source art: {path} (and no built {name}.jpg/.webp to fall back on)")
 
 
 def build() -> list[Path]:
     written: list[Path] = []
 
-    # Road band: 1024 along the track x 1024 across; composited at runtime.
-    road = square_center(load("road")).resize((1024, 1024), Image.LANCZOS)
-    road = lift(road, 0.10)
-    written.append(save_jpg(road, "road.jpg", 84))
+    # ---- road band: along the track x across; composited at runtime into a
+    # canvas with the cream edge lines + golden dash (track.js). The main
+    # strawberry road keeps 1024 (it is on screen the whole ride); the zone
+    # variants are 768 — one tile is 12 m, so that is still 64 texels/m.
+    road = lift(fit(load("road"), 1024, 0.6), 0.10)
+    written.append(save(road, "road", 74))
+    # per-zone surfaces: cookie (Gummy Bear Grove), chocolate bar (Cocoa
+    # Canyon), vanilla frosting (Marshmallow Valley), waffle (Sugar Castle Run)
+    for name, size, blur, lift_amt, q in (
+        ("road-cookie", 768, 0.5, 0.06, 70),
+        ("road-choco", 1024, 0.0, 0.0, 74),   # smooth bevels: tiny file even at 1024
+        ("road-cream", 768, 0.5, 0.0, 72),
+        ("road-waffle", 768, 0.5, 0.05, 72),
+    ):
+        written.append(save(lift(fit(load(name), size, blur), lift_amt), name, q))
 
-    # Shoulder meadow: multiplied by the zone-tinted vertex colours.
-    meadow = square_center(load("meadow")).resize((1024, 1024), Image.LANCZOS)
-    meadow = lift(meadow, 0.22)
-    written.append(save_jpg(meadow, "meadow.jpg", 82))
+    # ---- shoulder meadow: multiplied by the zone-tinted vertex colours.
+    written.append(save(lift(fit(load("meadow"), 768, 0.4), 0.22), "meadow", 72))
 
-    # Far patchwork fields on the big ground disc.
-    fields = square_center(load("fields")).resize((1024, 1024), Image.LANCZOS)
-    fields = lift(fields, 0.08)
-    written.append(save_jpg(fields, "fields.jpg", 82))
+    # ---- far patchwork fields on the big ground disc (~440 m per tile)
+    written.append(save(lift(fit(load("fields"), 768, 0.5), 0.08), "fields", 70))
 
-    # Lollipop swirl: pink source + two hue-rotated siblings (blue, yellow).
-    lolli = square_center(load("lollipop")).resize((512, 512), Image.LANCZOS)
-    written.append(save_jpg(lolli, "lollipop-pink.jpg"))
-    written.append(save_jpg(hue_shift(lolli, -135), "lollipop-blue.jpg"))
-    written.append(save_jpg(hue_shift(lolli, 80), "lollipop-yellow.jpg"))
+    # ---- lollipop swirl: pink source + two hue-rotated siblings (blue, yellow)
+    lolli = fit(load("lollipop", "lollipop-pink"), 512)
+    written.append(save(lolli, "lollipop-pink", 78))
+    written.append(save(hue_shift(lolli, -135), "lollipop-blue", 78))
+    written.append(save(hue_shift(lolli, 80), "lollipop-yellow", 78))
 
-    # Candy cane stripes.
-    cane = square_center(load("cane")).resize((512, 512), Image.LANCZOS)
-    written.append(save_jpg(cane, "cane.jpg"))
+    # ---- candy cane stripes
+    written.append(save(fit(load("cane"), 512), "cane", 78))
 
-    # Chocolate chip cookie top.
-    cookie = square_center(load("cookie")).resize((512, 512), Image.LANCZOS)
-    cookie = ImageEnhance.Brightness(cookie).enhance(1.08)
-    written.append(save_jpg(cookie, "cookie.jpg"))
+    # ---- chocolate chip cookie top (cookie props)
+    cookie = fit(load("cookie"), 512, 0.7)
+    if (RAW / "cookie.png").is_file():
+        cookie = ImageEnhance.Brightness(cookie).enhance(1.08)  # already baked into the shipped file
+    written.append(save(cookie, "cookie", 72))
 
-    # Castle wafer bricks: keep the six regular brick rows (the source has an
-    # irregular bottom third) so the tile repeats without a scale jump.
-    wall_src = load("wall")
-    wall = wall_src.crop((0, 82, 1024, 598)).resize((1024, 512), Image.LANCZOS)
-    wall = lift(wall, 0.06)
-    written.append(save_jpg(wall, "wall.jpg", 82))
+    # ---- castle wafer bricks: keep the six regular brick rows (the source has
+    # an irregular bottom third) so the tile repeats without a scale jump.
+    if (RAW / "wall.png").is_file():
+        wall = lift(load("wall").crop((0, 82, 1024, 598)).resize((1024, 512), Image.LANCZOS), 0.06)
+    else:
+        wall = load("wall").resize((1024, 512), Image.LANCZOS)
+    written.append(save(wall, "wall", 74))
 
-    # Donut glaze: pink + lilac variant for the second donut material.
-    donut = square_center(load("donut")).resize((512, 512), Image.LANCZOS)
-    written.append(save_jpg(donut, "donut-pink.jpg"))
-    written.append(save_jpg(hue_shift(donut, -70), "donut-lilac.jpg"))
+    # ---- donut glaze: pink + lilac variant for the second donut material
+    donut = fit(load("donut", "donut-pink"), 512)
+    written.append(save(donut, "donut-pink", 76))
+    written.append(save(hue_shift(donut, -70), "donut-lilac", 76))
+
+    # ---- tint bases (multiplied by per-instance colours, so near-white):
+    # sugar-crystal gumdrop skin → candy-tree foliage + roadside gumdrops
+    gum = lift(desaturate(fit(load("gumdrop"), 384, 0.4), 0.15), 0.30)
+    written.append(save(gum, "gumdrop", 70))
+    # powdered marshmallow → marshmallow stacks + ice-cream scoops
+    written.append(save(lift(fit(load("marshmallow"), 384, 0.3), 0.08), "marshmallow", 70))
+
+    # ---- gingerbread wall with royal icing → village house bodies
+    ginger = ImageEnhance.Brightness(fit(load("gingerbread"), 512, 0.5)).enhance(1.06)
+    written.append(save(ginger, "gingerbread", 74))
 
     return written
 
 
 def report() -> None:
     total = 0
-    for path in sorted(HERE.glob("*.jpg")):
+    for path in sorted(HERE.glob("*.webp")):
         size = path.stat().st_size
         total += size
         with Image.open(path) as im:
@@ -127,9 +188,12 @@ def report() -> None:
 
 
 def main() -> int:
+    global KEEP_JPG
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="only list the built textures")
+    parser.add_argument("--legacy", action="store_true", help="also write .jpg twins")
     args = parser.parse_args()
+    KEEP_JPG = args.legacy
     if not args.check:
         for path in build():
             print(f"wrote {path.relative_to(HERE)}")

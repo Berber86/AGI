@@ -230,9 +230,15 @@ function marshGeometry() {
   ]);
 }
 
-function iceCreamGeometry() {
+// Ice cream = two instanced meshes sharing one placement list: the waffle
+// cone keeps its golden map, the scoops take the per-instance pastel tint.
+function iceConeGeometry() {
   return mergeParts([
     { geo: new THREE.ConeGeometry(0.95, 1.9, 14), pos: [0, 0.95, 0], rot: [Math.PI, 0, 0] },
+  ]);
+}
+function iceScoopsGeometry() {
+  return mergeParts([
     { geo: new THREE.SphereGeometry(1.02, 14, 12), pos: [0, 2.25, 0] },
     { geo: new THREE.SphereGeometry(0.72, 12, 10), pos: [-0.55, 2.95, 0.1] },
     { geo: new THREE.SphereGeometry(0.2, 10, 8), pos: [0, 3.35, 0] }, // cherry
@@ -424,7 +430,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
   // ---------- the Sugar Castle ----------
   function buildCastle(scale = 1) {
     const castle = new THREE.Group();
-    // wafer-brick map (assets/textures/wall.jpg) tinted by the pink wall colours;
+    // wafer-brick map (assets/textures/wall.webp) tinted by the pink wall colours;
     // the cream trim (wallC: crenellations, teeth, stairs) stays smooth icing
     const wall = new THREE.MeshStandardMaterial({ color: '#ffb7d9', map: TEX.wall || null, roughness: 0.55, metalness: 0.05 });
     const wallB = new THREE.MeshStandardMaterial({ color: '#ff8fc6', map: TEX.wall || null, roughness: 0.55 });
@@ -801,10 +807,13 @@ export function createWorld(scene, track, renderer, TEX = {}) {
       new THREE.MeshStandardMaterial({ map: mapOr(tex, () => swirlTexture(c, '#fff2f7')), roughness: 0.36, metalness: 0.05 })),
     cane: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture()), roughness: 0.42 }),
     bear: new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2, emissive: 0x301018, emissiveIntensity: 0.25 }),
-    tree: new THREE.MeshStandardMaterial({ roughness: 0.6 }),
-    marsh: new THREE.MeshStandardMaterial({ roughness: 0.7 }),
-    ice: new THREE.MeshStandardMaterial({ roughness: 0.5 }),
+    // tint bases: the near-white sugar maps are multiplied by the instance colours
+    tree: new THREE.MeshStandardMaterial({ map: TEX.gumdrop || null, roughness: 0.6 }),
+    marsh: new THREE.MeshStandardMaterial({ map: TEX.marshmallow || null, roughness: 0.7 }),
+    ice: new THREE.MeshStandardMaterial({ map: TEX.marshmallow || null, roughness: 0.5 }),
+    cone: new THREE.MeshStandardMaterial({ map: TEX.roadWaffle || null, color: TEX.roadWaffle ? '#ffffff' : '#e8b060', roughness: 0.7 }),
     cookie: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cookie, cookieTexture), roughness: 0.75 }),
+    ginger: new THREE.MeshStandardMaterial({ map: TEX.gingerbread || mapOr(TEX.cookie, cookieTexture), roughness: 0.7 }),
     stick: new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 }),
   };
 
@@ -991,7 +1000,8 @@ export function createWorld(scene, track, renderer, TEX = {}) {
   makeInstanced(gummyBearGeometry(), propMats.bear, placements.bear, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
   makeInstanced(treeGeometry(), propMats.tree, placements.tree, (i) => new THREE.Color(['#7ddf9a', '#8fe0c8', '#c6e87d', '#9adcff'][i % 4]));
   makeInstanced(marshGeometry(), propMats.marsh, placements.marsh, (i) => new THREE.Color(['#fff2f7', '#ffd6e8', '#fff0d8', '#e8d6ff'][i % 4]));
-  makeInstanced(iceCreamGeometry(), propMats.ice, placements.ice, (i) => new THREE.Color(['#ffd6e8', '#d8f2ff', '#fff2c8', '#e2d2ff'][i % 4]));
+  makeInstanced(iceConeGeometry(), propMats.cone, placements.ice);
+  makeInstanced(iceScoopsGeometry(), propMats.ice, placements.ice, (i) => new THREE.Color(['#ffd6e8', '#d8f2ff', '#fff2c8', '#e2d2ff'][i % 4]));
   makeInstanced(cookieGeometry(), propMats.cookie, placements.cookie);
 
   // giant hero lollipops & canes at camera-visible moments
@@ -1338,7 +1348,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     const winMat = new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.8, roughness: 0.3 });
     const house = (hue) => {
       const g = new THREE.Group();
-      const body = new THREE.Mesh(new RoundedBoxGeometry(6.2, 4.6, 5.4, 3, 0.5), propMats.cookie);
+      const body = new THREE.Mesh(new RoundedBoxGeometry(6.2, 4.6, 5.4, 3, 0.5), propMats.ginger);
       body.position.y = 2.3;
       const roof = new THREE.Mesh(new THREE.ConeGeometry(4.9, 3.6, 4), roofMats[['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'].indexOf(hue)] ?? roofMats[0]);
       roof.position.y = 6.4;

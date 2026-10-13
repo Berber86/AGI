@@ -108,7 +108,6 @@ const el = {
   finishStars: document.getElementById('finish-stars'),
   medalsList: document.getElementById('medals-list'),
   recordsMenu: document.getElementById('records-menu'),
-  recordsFinish: document.getElementById('records-finish'),
   boostCount: document.getElementById('hud-boost-count'),
 };
 
@@ -221,7 +220,7 @@ function finishRace() {
   const collected = sweets.collected;
   const frac = total ? collected / total : 0;
   const medalsEarned = MEDALS.filter((m) => frac >= m.minFraction).length + (game.timeS < TIME_MEDAL.maxSeconds ? 1 : 0);
-  const records = Storage.commitRun({
+  Storage.commitRun({ // records live in the menu panel; the finish card stays focused on "play again"
     timeMs, sweets: collected, total, score: game.score,
     medalsEarned, starsEarned: game.stars,
   });
@@ -229,7 +228,6 @@ function finishRace() {
   el.finishSweets.textContent = `${collected}`;
   el.finishStars.textContent = `${game.stars}`;
   el.medalsList.innerHTML = hud.renderMedals({ sweets: collected, total, timeMs, score: game.score });
-  fillRecordsPanel(el.recordsFinish, records);
   showScreen('finish');
   setSoundIcons();
   SFX.play('finish');
@@ -352,7 +350,6 @@ function updateGameplay(dt) {
     car.update(dt, { speed: 0, steer: 0, boost: false });
     const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
     finishFx.update(dt);
-    hud.drawMinimap(0, sweets.list);
     if (game.introT >= T && game.state === 'intro') beginCountdown();
     return;
   }
@@ -523,7 +520,6 @@ function updateGameplay(dt) {
     boostActive: game.boostActive,
     score: game.score,
   });
-  hud.drawMinimap(u, sweets.list);
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
@@ -558,7 +554,6 @@ function frame(now, dt) {
     car.update(dt, { speed: 6, steer: 0, boost: false });
     trail.update(dt, car.root, 6, false);
     world.update(dt, camera.position, 0.01, now * 0.001);
-    hud.drawMinimap(0.02, sweets.list);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
     if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
@@ -660,6 +655,24 @@ window.__TEST__ = {
     governor.tier = tier;
     governor.apply();
     return governor.describe();
+  },
+  // Road surface key per zone mesh (track.js ROAD_SURFACES) in track order.
+  roadSurfaces() {
+    return track.roadMeshes.map((m) => m.userData.surface);
+  },
+  // Geometry QA: world pose of a named scene object (gates, strips) next to the
+  // road tangent at that spot, so "is it perpendicular to the road?" is a number.
+  objectPose(name) {
+    const o = scene.getObjectByName(name);
+    if (!o) return null;
+    o.updateWorldMatrix(true, false);
+    const pos = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+    const axis = (x, y, z) => new THREE.Vector3(x, y, z).transformDirection(o.matrixWorld).toArray().map((v) => +v.toFixed(3));
+    let best = { d: Infinity, u: 0 };
+    for (let i = 0; i <= 2000; i++) { const u = i / 2000; const d = track.curve.getPointAt(u).distanceTo(pos); if (d < best.d) best = { d, u }; }
+    const t = track.curve.getTangentAt(best.u).normalize();
+    const right = new THREE.Vector3().crossVectors(t, new THREE.Vector3(0, 1, 0)).normalize();
+    return { pos: pos.toArray().map((v) => +v.toFixed(2)), u: +best.u.toFixed(4), x: axis(1, 0, 0), y: axis(0, 1, 0), z: axis(0, 0, 1), tangent: t.toArray().map((v) => +v.toFixed(3)), right: right.toArray().map((v) => +v.toFixed(3)) };
   },
   // Perf QA: triangle / draw-call budget per world bucket, so heavy prop groups
   // (castles, houses, clouds) can be found and merged without guessing.

@@ -1,4 +1,4 @@
-// acceptance.mjs — 8 acceptance checks for Candy Kingdom Coaster
+// acceptance.mjs — 9 acceptance checks for Candy Kingdom Coaster
 // Usage: node acceptance.mjs [baseUrl]   (default http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html)
 import puppeteer from 'puppeteer-core';
 
@@ -191,6 +191,32 @@ const record = (name, pass, detail) => {
   record('5. PWA manifest + portrait hint',
     info.name === 'Candy Kingdom Coaster' && info.icons >= 3 && info.sw && info.css,
     info);
+}
+
+// ---------- 5b. gates & strips square to the road, road surface varies ----------
+{
+  const info = await page.evaluate(() => {
+    const T = window.__TEST__;
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const out = {};
+    for (const n of ['startArch', 'finishArch', 'startStrip', 'finishStrip']) {
+      const p = T.objectPose(n);
+      // x axis of the object must run across the road (|x·tangent| ≈ 0);
+      // strips must lie flat (z axis ≈ up); gate banners face back down the road (z ≈ -tangent)
+      out[n] = p ? {
+        acrossErr: +Math.abs(dot(p.x, p.tangent)).toFixed(3),
+        flat: n.endsWith('Strip') ? +p.z[1].toFixed(3) : null,
+        facing: n.endsWith('Arch') ? +dot(p.z, p.tangent).toFixed(3) : null,
+      } : null;
+    }
+    out.surfaces = T.roadSurfaces ? T.roadSurfaces() : null;
+    return out;
+  });
+  const gatesOk = ['startArch', 'finishArch', 'startStrip', 'finishStrip'].every((n) => info[n] && info[n].acrossErr < 0.05
+    && (info[n].flat === null || info[n].flat > 0.98) && (info[n].facing === null || info[n].facing < -0.98));
+  const surf = info.surfaces || [];
+  const surfacesOk = surf.length === 5 && new Set(surf).size === 5;
+  record('5b. gates square to road + 5 road surfaces', gatesOk && surfacesOk, info);
 }
 
 // ---------- 6. no page errors ----------

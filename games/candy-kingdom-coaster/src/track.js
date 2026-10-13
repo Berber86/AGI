@@ -1,6 +1,6 @@
 // Spline track: road mesh, curbs, terrain shoulders, start/finish, pose queries.
 import * as THREE from 'three';
-import { TUNING, zoneAt } from './config.js';
+import { TUNING, ZONES, zoneAt } from './config.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -32,15 +32,27 @@ function buildWaypoints() {
 export const ROAD_BAND = [0.12, 0.88];
 export const ROAD_TILE_M = 12;
 
-// Builds the road strip map. With `image` (assets/textures/road.jpg) the band
-// is the generated strawberry-sprinkle asphalt; without it the previous
-// procedural sprinkles are drawn so the look degrades gracefully offline.
-function roadTexture(image) {
+// One road surface per zone (index = ZONES[i].id): the texture key in
+// TEXTURE_MANIFEST plus the colours of the cream edge lines, the centre dash
+// and the edge shading drawn over it, and a procedural fallback pattern for
+// when the image is missing.
+export const ROAD_SURFACES = [
+  { key: 'road',       name: 'strawberry glaze', edge: '#fffafd', dash: '#ffd23e', shade: 'rgba(150,50,95,0.22)',  fill: '#ffc9dd', pattern: 'sprinkles' },
+  { key: 'roadCookie', name: 'cookie',           edge: '#fff3dc', dash: '#ff5f9e', shade: 'rgba(110,55,15,0.26)',  fill: '#e8b96c', pattern: 'chips' },
+  { key: 'roadChoco',  name: 'chocolate bar',    edge: '#ffe6c8', dash: '#ffd23e', shade: 'rgba(35,12,4,0.30)',    fill: '#7a4526', pattern: 'bar' },
+  { key: 'roadCream',  name: 'vanilla frosting', edge: '#ff9fc9', dash: '#ff5f9e', shade: 'rgba(200,120,170,0.18)', fill: '#fff6f0', pattern: 'dots' },
+  { key: 'roadWaffle', name: 'waffle',           edge: '#fff3dc', dash: '#ff4f96', shade: 'rgba(120,70,20,0.26)',  fill: '#f0b85c', pattern: 'waffle' },
+];
+
+// Builds the road strip map for one surface. With `image` the band is the
+// generated surface art; without it a procedural pattern is drawn so the look
+// degrades gracefully offline. x = ALONG the track (1 tile = ROAD_TILE_M m,
+// mirrored repeat), y = ACROSS (white margins → curbs keep vertex colours).
+function roadTexture(image, surface = ROAD_SURFACES[0]) {
   const W = 1024, H = 1024;
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
   const g = c.getContext('2d');
-  // Real UV mapping: x = ALONG track (1 tile = ROAD_TILE_M m), y = ACROSS.
   g.fillStyle = '#ffffff';
   g.fillRect(0, 0, W, H); // neutral outside the band -> curbs keep vertex colours
   const y0 = Math.round(ROAD_BAND[0] * H), y1 = Math.round(ROAD_BAND[1] * H);
@@ -53,50 +65,63 @@ function roadTexture(image) {
     const sy = Math.round((image.height - sh) / 2);
     g.drawImage(image, 0, sy, image.width, sh, 0, y0, W, bandH);
   } else {
-    // strawberry road band — bright, so the track pops against the candy fields
-    g.fillStyle = '#ffc9dd';
+    g.fillStyle = surface.fill;
     g.fillRect(0, y0, W, bandH);
-    // candy sprinkles inside the road band (tile every 12 m along the track)
-    const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
-    for (let i = 0; i < 560; i++) {
-      const x = Math.random() * W, y = y0 + 30 + Math.random() * (bandH - 60);
-      const a = (Math.random() - 0.5) * 0.7;
-      g.save();
-      g.translate(x, y);
-      g.rotate(a);
-      g.fillStyle = conf[i % conf.length];
-      g.globalAlpha = 0.92;
-      g.beginPath();
-      g.roundRect(-11, -4, 22, 8, 4);
-      g.fill();
-      g.restore();
-    }
-    g.globalAlpha = 1;
-    // sugar glitter specks on the asphalt (catch the sun like the reference)
-    for (let i = 0; i < 420; i++) {
-      const x = Math.random() * W, y = y0 + Math.random() * bandH;
-      g.fillStyle = 'rgba(255,255,255,0.85)';
-      g.beginPath(); g.arc(x, y, 2 + Math.random() * 3, 0, Math.PI * 2); g.fill();
+    const rnd = (() => { let t = 97; return () => (t = (t * 16807) % 2147483647) / 2147483647; })();
+    if (surface.pattern === 'sprinkles') {
+      // strawberry road band — candy sprinkles + sugar glitter (tile every 12 m)
+      const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
+      for (let i = 0; i < 560; i++) {
+        const x = rnd() * W, y = y0 + 30 + rnd() * (bandH - 60);
+        g.save(); g.translate(x, y); g.rotate((rnd() - 0.5) * 0.7);
+        g.fillStyle = conf[i % conf.length]; g.globalAlpha = 0.92;
+        g.beginPath(); g.roundRect(-11, -4, 22, 8, 4); g.fill();
+        g.restore();
+      }
+      g.globalAlpha = 1;
+      for (let i = 0; i < 420; i++) {
+        g.fillStyle = 'rgba(255,255,255,0.85)';
+        g.beginPath(); g.arc(rnd() * W, y0 + rnd() * bandH, 2 + rnd() * 3, 0, Math.PI * 2); g.fill();
+      }
+    } else if (surface.pattern === 'chips') {
+      for (let i = 0; i < 160; i++) {
+        g.fillStyle = i % 5 ? '#4a2a16' : '#d9a559';
+        g.beginPath(); g.ellipse(rnd() * W, y0 + 20 + rnd() * (bandH - 40), 14 + rnd() * 10, 10 + rnd() * 8, rnd() * 3, 0, Math.PI * 2); g.fill();
+      }
+    } else if (surface.pattern === 'bar' || surface.pattern === 'waffle') {
+      // segment grid: dark grooves (chocolate) or lighter ridges (waffle)
+      const cell = surface.pattern === 'bar' ? 170 : 110;
+      g.strokeStyle = surface.pattern === 'bar' ? 'rgba(40,15,5,0.55)' : 'rgba(255,235,190,0.55)';
+      g.lineWidth = surface.pattern === 'bar' ? 16 : 10;
+      g.lineCap = 'round';
+      for (let x = cell / 2; x < W; x += cell) { g.beginPath(); g.moveTo(x, y0 + 8); g.lineTo(x, y1 - 8); g.stroke(); }
+      for (let y = y0 + cell / 2; y < y1; y += cell) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    } else if (surface.pattern === 'dots') {
+      const pastel = ['#ffd6e8', '#d8f2ff', '#fff2c8', '#e2d2ff', '#d6f5e3'];
+      for (let i = 0; i < 260; i++) {
+        g.fillStyle = pastel[i % pastel.length];
+        g.beginPath(); g.arc(rnd() * W, y0 + 16 + rnd() * (bandH - 32), 7 + rnd() * 9, 0, Math.PI * 2); g.fill();
+      }
     }
   }
 
   // soft depth shading just inside both road edges (runs ALONG the road)
   const shadeY = (a, b) => {
     const gr = g.createLinearGradient(0, a, 0, b);
-    gr.addColorStop(0, 'rgba(150,50,95,0.22)');
-    gr.addColorStop(1, 'rgba(150,50,95,0)');
+    gr.addColorStop(0, surface.shade);
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = gr;
     g.fillRect(0, Math.min(a, b), W, Math.abs(b - a));
   };
   shadeY(y0, y0 + 250);
   shadeY(y1, y1 - 250);
   // thick cream border lines along both road edges (~0.35 m)
-  g.fillStyle = '#fffafd';
+  g.fillStyle = surface.edge;
   g.fillRect(0, y0 - 10, W, 36);
   g.fillRect(0, y1 - 26, W, 36);
-  // golden candy dash down the middle — centred in the tile so the mirrored
+  // candy dash down the middle — centred in the tile so the mirrored
   // repeat keeps the dashes evenly spaced (one per tile)
-  g.fillStyle = '#ffd23e';
+  g.fillStyle = surface.dash;
   g.beginPath();
   g.roundRect(W / 2 - 145, (y0 + y1) / 2 - 48, 290, 96, 40);
   g.fill();
@@ -196,11 +221,11 @@ export function createTrack(scene, TEX = {}) {
   };
 
   // Build one quad strip over profile indices [kFrom, kTo] into shared arrays.
-  const buildStrip = (arrays, kFrom, kTo, uvFn) => {
+  const buildStrip = (arrays, kFrom, kTo, uvFn, iFrom = 0, iTo = SAMPLES) => {
     const { pos, col, uv, idx } = arrays;
     const base = pos.length / 3;
     const n = kTo - kFrom + 1;
-    for (let i = 0; i <= SAMPLES; i++) {
+    for (let i = iFrom; i <= iTo; i++) {
       const u = i / SAMPLES;
       const c = centers[i], right = rights[i];
       for (let k = kFrom; k <= kTo; k++) {
@@ -216,7 +241,7 @@ export function createTrack(scene, TEX = {}) {
         uv.push(t[0], t[1]);
       }
     }
-    for (let i = 0; i < SAMPLES; i++) {
+    for (let i = 0; i < iTo - iFrom; i++) {
       for (let k = 0; k < n - 1; k++) {
         const a = base + i * n + k, b = a + n;
         idx.push(a, a + 1, b, b, a + 1, b + 1);
@@ -233,21 +258,29 @@ export function createTrack(scene, TEX = {}) {
     return geo;
   };
 
-  // road + curbs: x = along the track in tiles, y = across (see roadV)
-  const roadArrays = { pos: [], col: [], uv: [], idx: [] };
-  buildStrip(roadArrays, K_CURB_L, K_CURB_R, (u, k) => [u * (length / ROAD_TILE_M), roadV(k)]);
-  const roadGeo = toGeometry(roadArrays);
-
-  const roadTex = roadTexture(TEX.road ? TEX.road.image : null);
-  roadTex.repeat.set(1, 1);
-  const roadMat = new THREE.MeshStandardMaterial({
-    map: roadTex, vertexColors: true, roughness: 0.58, metalness: 0.08,
+  // road + curbs: x = along the track in tiles, y = across (see roadV).
+  // One mesh per zone so the surface changes with the scenery: strawberry
+  // glaze → cookie → chocolate bar → vanilla frosting → waffle. Neighbouring
+  // meshes share their boundary sample row, so there is no gap.
+  const roadUv = (u, k) => [u * (length / ROAD_TILE_M), roadV(k)];
+  const roadMeshes = [];
+  const zoneRanges = ZONES.map((z) => [Math.round(Math.max(0, z.u0) * SAMPLES), Math.round(Math.min(1, z.u1) * SAMPLES)]);
+  zoneRanges.forEach(([i0, i1], zi) => {
+    if (i1 <= i0) return;
+    const surface = ROAD_SURFACES[zi % ROAD_SURFACES.length];
+    const arrays = { pos: [], col: [], uv: [], idx: [] };
+    buildStrip(arrays, K_CURB_L, K_CURB_R, roadUv, i0, i1);
+    const img = TEX[surface.key] ? TEX[surface.key].image : null;
+    const mat = new THREE.MeshStandardMaterial({
+      map: roadTexture(img, surface), vertexColors: true, roughness: 0.58, metalness: 0.08,
+    });
+    const mesh = new THREE.Mesh(toGeometry(arrays), mat);
+    mesh.receiveShadow = true;
+    mesh.name = 'road';
+    mesh.userData.surface = surface.key;
+    scene.add(mesh);
+    roadMeshes.push(mesh);
   });
-  const road = new THREE.Mesh(roadGeo, roadMat);
-  road.receiveShadow = true;
-  road.name = 'road';
-  scene.add(road);
-
   // shoulders: world-scale UVs (one meadow tile = MEADOW_TILE_M m both ways)
   // so the sugar-grass detail keeps square texels on the sloping verges
   const MEADOW_TILE_M = 9;
@@ -265,65 +298,81 @@ export function createTrack(scene, TEX = {}) {
   scene.add(shoulders);
 
   // ---- Start & finish checker strips ----
+  // Explicit basis instead of lookAt+rotate chains: plane X = across the road,
+  // plane Y = along the tangent (follows the slope), plane Z = road normal (up).
+  // (The old lookAt(+UP) then rotateX(-90°) stacked two X-rotations and left the
+  // strip standing as a vertical wall along the road.)
   const stripGeo = new THREE.PlaneGeometry(halfW * 2.15, 3.4);
   const stripMat = new THREE.MeshStandardMaterial({ map: checkerTexture(), roughness: 0.6 });
-  const mkStrip = (u, rotOffset = 0) => {
+  const roadFrame = (u) => {
     const p = curve.getPointAt(u);
-    const t = curve.getTangentAt(u);
+    const t = curve.getTangentAt(u).normalize();
+    const right = new THREE.Vector3().crossVectors(t, UP).normalize();
+    const normal = new THREE.Vector3().crossVectors(right, t).normalize();
+    return { p, t, right, normal, heading: Math.atan2(t.x, t.z) };
+  };
+  const mkStrip = (u) => {
+    const f = roadFrame(u);
     const m = new THREE.Mesh(stripGeo, stripMat);
-    m.position.copy(p).addScaledVector(UP, 0.045);
-    m.lookAt(p.clone().add(UP));
-    m.rotateX(-Math.PI / 2);
-    m.rotateY(Math.atan2(t.x, t.z) + rotOffset + Math.PI / 2);
+    m.position.copy(f.p).addScaledVector(f.normal, 0.045);
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.right, f.t, f.normal));
     m.receiveShadow = true;
     scene.add(m);
     return m;
   };
-  mkStrip(0.0025);
-  mkStrip(0.9975);
+  mkStrip(0.0025).name = 'startStrip';
+  mkStrip(0.9975).name = 'finishStrip';
 
-  // ---- Finish arch (faces the oncoming car so the text reads correctly) ----
-  const arch = new THREE.Group();
+  // cream "icing seam" across the road where one surface hands over to the
+  // next (zone boundaries) — hides the hard texture cut and reads as a candy
+  // bar laid over the join
+  const seamGeo = new THREE.PlaneGeometry(halfW * 2.1, 1.1);
+  const seamMat = new THREE.MeshStandardMaterial({ color: '#fff6f0', roughness: 0.45 });
+  for (const z of ZONES.slice(1)) {
+    const f = roadFrame(z.u0);
+    const m = new THREE.Mesh(seamGeo, seamMat);
+    m.position.copy(f.p).addScaledVector(f.normal, 0.04);
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.right, f.t, f.normal));
+    m.receiveShadow = true;
+    m.name = 'zoneSeam';
+    scene.add(m);
+  }
+
+  // ---- Start / finish gates (pole pair + banner, facing the oncoming car) ----
+  // Each gate is built fresh: cloning a rotated Group re-derives its Euler from
+  // the quaternion ([-π, y, -π] for |yaw| > 90°), so a later `rotation.y = …`
+  // silently yields yaw (π - y) — that was the "poles not perpendicular" bug.
   const poleGeo = new THREE.CylinderGeometry(0.35, 0.42, 6.4, 12);
   const poleMat = new THREE.MeshStandardMaterial({ color: '#ff5f9e', roughness: 0.35, metalness: 0.15, emissive: '#7a1640', emissiveIntensity: 0.25 });
-  const bannerC = document.createElement('canvas');
-  bannerC.width = 512; bannerC.height = 128;
-  const bg = bannerC.getContext('2d');
-  bg.fillStyle = '#fff0f6'; bg.fillRect(0, 0, 512, 128);
-  bg.fillStyle = '#ff4f96'; bg.font = 'bold 84px sans-serif'; bg.textAlign = 'center'; bg.textBaseline = 'middle';
-  bg.fillText('FINISH', 256, 68);
-  for (let i = 0; i < 12; i++) { bg.fillStyle = i % 2 ? '#ff4f96' : '#ffd166'; bg.fillRect(i * 43, 0, 43, 14); bg.fillRect(i * 43, 114, 43, 14); }
-  const bannerTex = new THREE.CanvasTexture(bannerC);
-  bannerTex.colorSpace = THREE.SRGBColorSpace;
-  const poleL = new THREE.Mesh(poleGeo, poleMat); poleL.position.set(-halfW - 1.1, 3.2, 0);
-  const poleR = poleL.clone(); poleR.position.x = halfW + 1.1;
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry((halfW + 1.1) * 2, 1.8), new THREE.MeshStandardMaterial({ map: bannerTex, side: THREE.DoubleSide, roughness: 0.5 }));
-  banner.position.set(0, 6.1, 0);
-  arch.add(poleL, poleR, banner);
-  const fu = 0.9975;
-  const fp = curve.getPointAt(fu), ft = curve.getTangentAt(fu);
-  arch.position.copy(fp);
-  arch.rotation.y = Math.atan2(ft.x, ft.z) + Math.PI; // face the driver (was mirrored)
-  arch.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead: car passes under
-  scene.add(arch);
-
-  // ---- Start gate (small candy arch) ----
-  const startArch = arch.clone();
-  startArch.position.copy(curve.getPointAt(0.0025));
-  startArch.rotation.y = Math.atan2(curve.getTangentAt(0.0025).x, curve.getTangentAt(0.0025).z) + Math.PI; // face the driver
-  const b2 = startArch.children[2];
-  b2.material = b2.material.clone();
-  const sc = document.createElement('canvas');
-  sc.width = 512; sc.height = 128;
-  const sg = sc.getContext('2d');
-  sg.fillStyle = '#fff0f6'; sg.fillRect(0, 0, 512, 128);
-  sg.fillStyle = '#7a3cff'; sg.font = 'bold 84px sans-serif'; sg.textAlign = 'center'; sg.textBaseline = 'middle';
-  sg.fillText('START', 256, 68);
-  const st = new THREE.CanvasTexture(sc);
-  st.colorSpace = THREE.SRGBColorSpace;
-  b2.material.map = st;
-  startArch.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead
-  scene.add(startArch);
+  const bannerTexture = (text, color) => {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff0f6'; g.fillRect(0, 0, 512, 128);
+    g.fillStyle = color; g.font = 'bold 84px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(text, 256, 68);
+    for (let i = 0; i < 12; i++) { g.fillStyle = i % 2 ? '#ff4f96' : '#ffd166'; g.fillRect(i * 43, 0, 43, 14); g.fillRect(i * 43, 114, 43, 14); }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  };
+  const makeGate = (u, text, color, name) => {
+    const gate = new THREE.Group();
+    const poleL = new THREE.Mesh(poleGeo, poleMat); poleL.position.set(-halfW - 1.1, 3.2, 0);
+    const poleR = new THREE.Mesh(poleGeo, poleMat); poleR.position.set(halfW + 1.1, 3.2, 0);
+    const banner = new THREE.Mesh(new THREE.PlaneGeometry((halfW + 1.1) * 2, 1.8), new THREE.MeshStandardMaterial({ map: bannerTexture(text, color), side: THREE.DoubleSide, roughness: 0.5 }));
+    banner.position.set(0, 6.1, 0);
+    gate.add(poleL, poleR, banner);
+    const f = roadFrame(u);
+    gate.position.copy(f.p);
+    gate.rotation.set(0, f.heading + Math.PI, 0); // banner front (+Z) looks back down the road at the driver
+    gate.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead: car passes under
+    gate.name = name;
+    scene.add(gate);
+    return gate;
+  };
+  makeGate(0.9975, 'FINISH', '#ff4f96', 'finishArch');
+  makeGate(0.0025, 'START', '#7a3cff', 'startArch');
 
   // ---- Pose helpers ----
   const tmpRight = new THREE.Vector3();
@@ -351,7 +400,7 @@ export function createTrack(scene, TEX = {}) {
   };
 
   // Far ground disc: the generated candy-farm patchwork (assets/textures/
-  // fields.jpg) or, without it, the old soft radial patchwork gradient.
+  // fields.webp) or, without it, the old soft radial patchwork gradient.
   const groundTex = TEX.fields || (() => {
     const c = document.createElement('canvas');
     c.width = c.height = 512;
@@ -391,6 +440,7 @@ export function createTrack(scene, TEX = {}) {
 
   return {
     curve, length, halfW, getPose, bounds,
+    roadMeshes, // one per zone (all named 'road')
     samples: centers,
     sampleAt: (s) => centers[THREE.MathUtils.clamp(Math.round((s / length) * SAMPLES), 0, SAMPLES)],
   };
