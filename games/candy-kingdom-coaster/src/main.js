@@ -52,8 +52,9 @@ const TEX = await loadTextures({
     if (loadingHint) loadingHint.textContent = `Загружаем сладости… ${Math.round((n / total) * 100)}%`;
   },
 });
-if (loadingHint) loadingHint.remove();
-document.getElementById('btn-play').disabled = false;
+if (loadingHint) loadingHint.textContent = 'Собираем машинку…';
+// let the hint paint before the (synchronous) world + car build
+await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 // ---------------------------------------------------------------- world
 const track = createTrack(scene, TEX);
@@ -158,6 +159,7 @@ function toMenu() {
 }
 
 function startRace() {
+  governor.hold(2);
   game.s = 0;
   game.lateral = 0;
   game.speed = TUNING.cruiseSpeed * 0.55;
@@ -818,6 +820,10 @@ window.__TEST__ = {
     }
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
+  // perf QA: compiled shader programs / GPU textures / governor tier
+  perf() {
+    return { programs: renderer.info.programs.length, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, tier: governor.tier };
+  },
   pinQuality(tier = 2) {
     governor.tier = tier;
     governor.apply();
@@ -1348,6 +1354,61 @@ window.__TEST__ = {
     if (world && world.children[i]) world.children[i].visible = !hide;
   },
 };
+
+// ---------------------------------------------------------------- prewarm
+// Without this every material compiles its shader the first time it comes into
+// view — sweets, ramps, boost flames, finish confetti… — each a synchronous
+// stall of tens to hundreds of ms on phones, i.e. the stutter of the first
+// race seconds. Compile EVERYTHING now (hidden objects included, plus the
+// shadow-less variants the Low tier switches to) and upload every texture.
+function compileAll({ shadows = true } = {}) {
+  const hidden = [];
+  scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  const sunCast = world.sun.castShadow, smEnabled = renderer.shadowMap.enabled;
+  let job = Promise.resolve();
+  try {
+    if (!shadows) { world.sun.castShadow = false; renderer.shadowMap.enabled = false; }
+    job = renderer.compileAsync(scene, camera).catch(() => {});
+  } catch (e) {
+    console.warn('prewarm compile failed', e);
+  } finally {
+    world.sun.castShadow = sunCast; renderer.shadowMap.enabled = smEnabled;
+    for (const o of hidden) o.visible = false;
+  }
+  return job;
+}
+async function prewarm() {
+  const t0 = performance.now();
+  const job = compileAll();
+  const seen = new Set();
+  scene.traverse((o) => {
+    const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    for (const m of mats) {
+      for (const k in m) {
+        const t = m[k];
+        if (!t || !t.isTexture || seen.has(t) || t.isRenderTargetTexture) continue;
+        seen.add(t);
+        const img = t.image;
+        if (img && (img.width || img.data || t.isCubeTexture)) renderer.initTexture(t);
+      }
+    }
+  });
+  const syncMs = Math.round(performance.now() - t0);
+  // parallel compile (KHR_parallel_shader_compile) finishes in the background;
+  // never hold the menu hostage for more than a few seconds
+  await Promise.race([job, new Promise((r) => setTimeout(r, 5000))]);
+  window.__PREWARM__ = { syncMs, ms: Math.round(performance.now() - t0), programs: renderer.info.programs.length, textures: seen.size };
+  // The Low tier turns the sun shadow off = a different shader variant of
+  // every lit material. Prepare those while the player looks at the menu.
+  setTimeout(() => {
+    compileAll({ shadows: false }).then(() => { window.__PREWARM__.lowTier = renderer.info.programs.length; });
+  }, 1500);
+}
+if (loadingHint) loadingHint.textContent = 'Разогреваем трассу…';
+await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+await prewarm();
+if (loadingHint) loadingHint.remove();
+document.getElementById('btn-play').disabled = false;
 
 setSoundIcons();
 fillRecordsPanel(el.recordsMenu, Storage.getRecords());

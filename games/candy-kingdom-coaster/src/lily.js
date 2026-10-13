@@ -7,6 +7,7 @@
 // Local frame: origin on the seat cushion under her hips, +Z forward.
 import * as THREE from 'three';
 import { meshSDF, projectDecal, taperedTube, sdEllipsoid, smax, mergeStatic } from './sdf.js';
+import { createPonytail } from './ponytail.js';
 
 const HEAD = new THREE.Vector3(0, 0.70, -0.08); // head centre
 const HEAD_R = 0.215;
@@ -267,38 +268,91 @@ export function createLily({ TEX = {}, env = null, emblemTex = null, unicornTex 
     head.add(m);
   });
 
-  // ---- ponytail flowing out under the helmet
+  // ---- ponytail: a simulated hair strand (src/ponytail.js) out of the helmet back
   const tailPivot = new THREE.Group();
-  tailPivot.position.set(0, HELMET_C.y - 0.1, HELMET_C.z - 0.25);
+  tailPivot.position.set(0, HELMET_C.y - 0.07, HELMET_C.z - 0.285);
   head.add(tailPivot);
-  const tie = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.018, 10, 24), withEnv(new THREE.MeshPhysicalMaterial({ color: '#ff3d94', roughness: 0.3, clearcoat: 1 }), 0.6));
-  tie.rotation.x = 0.9;
+  const tie = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.02, 10, 24), withEnv(new THREE.MeshPhysicalMaterial({ color: '#ff3d94', roughness: 0.3, clearcoat: 1 }), 0.6));
+  tie.rotation.x = 0.35;
+  tie.scale.set(1.3, 1, 1);
   tailPivot.add(tie);
-  const tail = new THREE.Mesh(taperedTube(new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -0.03, -0.14), new THREE.Vector3(0.015, -0.09, -0.28), new THREE.Vector3(-0.01, -0.18, -0.38), new THREE.Vector3(0.02, -0.25, -0.44),
-  ]), 24, 12, (t) => 0.06 + Math.sin(t * Math.PI) * 0.045 - t * 0.05 + 0.004), hair);
-  tail.scale.x = 1.3;
-  tailPivot.add(tail);
-  shadowCasters.push(tail);
+  const ponytail = createPonytail({
+    rest: [
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -0.01, -0.11), new THREE.Vector3(0.005, -0.07, -0.21),
+      new THREE.Vector3(0, -0.17, -0.28), new THREE.Vector3(0, -0.29, -0.31),
+    ],
+    radius: (t) => (0.062 + Math.sin(t * Math.PI) * 0.05 - t * 0.045) * (1 - 0.8 * Math.pow(t, 6)) + 0.003,
+    material: hair,
+  });
+  tailPivot.add(ponytail.mesh);
+  ponytail.mesh.castShadow = true;
 
-  for (const m of shadowCasters) m.castShadow = true;
+  // colliders for the strand (world-space points pushed out in-place)
+  const _m = new THREE.Matrix4(), _p = new THREE.Vector3(), _g = new THREE.Vector3();
+  const HR = [0.268, 0.262, 0.282];
+  const helmetCollider = (p, margin) => {
+    _m.copy(head.matrixWorld).invert();
+    _p.copy(p).applyMatrix4(_m).sub(HELMET_C);
+    const ex = _p.x / HR[0], ey = _p.y / HR[1], ez = _p.z / HR[2];
+    const l = Math.hypot(ex, ey, ez);
+    const lim = 1 + margin / 0.27;
+    if (l >= lim || l < 1e-6) return;
+    _p.multiplyScalar(lim / l).add(HELMET_C).applyMatrix4(head.matrixWorld);
+    p.copy(_p);
+  };
+  // seat backs etc. as rotated rounded boxes in the CAR BODY space (root.parent)
+  let boxes = [];
+  const rbox = (x, y, z, b) => {
+    // into the box frame (rotation about X by -rotX)
+    const dx = x - b.c[0], dy0 = y - b.c[1], dz0 = z - b.c[2];
+    const c = Math.cos(b.rotX), s2 = Math.sin(b.rotX);
+    const dy = dy0 * c + dz0 * s2, dz = -dy0 * s2 + dz0 * c;
+    const qx = Math.abs(dx) - (b.h[0] - b.r), qy = Math.abs(dy) - (b.h[1] - b.r), qz = Math.abs(dz) - (b.h[2] - b.r);
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - b.r;
+  };
+  const boxCollider = (p, margin) => {
+    if (!boxes.length || !root.parent) return;
+    _m.copy(root.parent.matrixWorld).invert();
+    _p.copy(p).applyMatrix4(_m);
+    let moved = false;
+    for (const b of boxes) {
+      const d = rbox(_p.x, _p.y, _p.z, b);
+      if (d >= margin) continue;
+      const e = 0.003;
+      _g.set(
+        rbox(_p.x + e, _p.y, _p.z, b) - rbox(_p.x - e, _p.y, _p.z, b),
+        rbox(_p.x, _p.y + e, _p.z, b) - rbox(_p.x, _p.y - e, _p.z, b),
+        rbox(_p.x, _p.y, _p.z + e, b) - rbox(_p.x, _p.y, _p.z - e, b)
+      ).normalize();
+      _p.addScaledVector(_g, margin - d);
+      moved = true;
+    }
+    if (moved) p.copy(_p.applyMatrix4(root.parent.matrixWorld));
+  };
+  const colliders = [helmetCollider, boxCollider];
+
   // ~40 tiny parts -> a handful of draw calls (head and ponytail keep animating)
+  for (const m of shadowCasters) m.castShadow = true;
   const mergeInfo = [mergeStatic(root, new Set([head])), mergeStatic(head, new Set([tailPivot]))];
   root.traverse((o) => { if (o.isMesh) { o.receiveShadow = true; } });
+  const casters = [];
+  root.traverse((o) => { if (o.isMesh && o.castShadow) casters.push(o); });
 
   return {
     root,
-    shadowCasters: [],
+    shadowCasters: casters,
     mergeInfo,
+    ponytail,
+    /** car-body-space rounded boxes the ponytail must not pass through: {c:[x,y,z], h:[hx,hy,hz], r, rotX} */
+    setColliders(list) { boxes = list; },
     update(dt, { speed = 0, steer = 0, sway = 0, t = 0 }) {
       const sp = Math.min(1, speed / 14);
-      tailPivot.rotation.x = -0.25 * sp + Math.sin(t * 6.5) * 0.08 * sp;
-      tailPivot.rotation.y = -steer * 0.35 + Math.sin(t * 4.1) * 0.06 * sp;
-      tailPivot.rotation.z = steer * 0.12;
       root.rotation.z = THREE.MathUtils.lerp(root.rotation.z, -sway * 0.55, 0.08);
       head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, steer * 0.22, 0.08);
       head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, -steer * 0.08, 0.08);
       head.position.y = Math.sin(t * 9) * 0.004 * sp;
+      tailPivot.updateWorldMatrix(true, false);
+      ponytail.update(dt, { pivot: tailPivot, carMatrix: root.parent ? root.parent.matrixWorld : root.matrixWorld, speed, time: t, colliders });
     },
   };
 }

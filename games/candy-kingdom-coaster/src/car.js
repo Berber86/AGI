@@ -505,7 +505,6 @@ export function createCar(opts = {}) {
   const paint = withEnv(addFlakes(new THREE.MeshPhysicalMaterial({
     color: '#ffffff', vertexColors: true, roughness: 0.42, metalness: 0.35,
     clearcoat: 1, clearcoatRoughness: 0.06,
-    sheen: 0.25, sheenColor: new THREE.Color('#ffc2e2'), sheenRoughness: 0.4,
     emissive: new THREE.Color('#1c0410'), emissiveIntensity: 0.22,
   })), 0.7);
   const under = new THREE.MeshStandardMaterial({ color: '#5a2347', roughness: 0.9 });
@@ -532,7 +531,15 @@ export function createCar(opts = {}) {
   const shell = new THREE.Mesh(bodyGeo, paint);
   shell.name = 'body-shell';
   body.add(shell);
-  shadowCasters.push(shell);
+  // The shadow pass gets a coarse, slightly shrunken stand-in (~1/15 of the
+  // triangles) — invisible in the colour pass (no colour / depth writes).
+  const shadowProxy = new THREE.Mesh(
+    meshSDF((x, y, z) => bodySDF(x, y, z, false) + 0.02, [-1.32, 0.2, -2.32], [1.32, 1.3, 2.32], 0.085),
+    new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })
+  );
+  shadowProxy.name = 'body-shadow-proxy';
+  body.add(shadowProxy);
+  shadowCasters.push(shadowProxy);
 
   const hit = (o, d) => sdfRaycast(bodySDF, new THREE.Vector3(...o), new THREE.Vector3(...d));
   // place an object so its +Z faces along the surface normal at a ray hit
@@ -824,6 +831,7 @@ export function createCar(opts = {}) {
   if (quilt) { quilt.wrapS = quilt.wrapT = THREE.RepeatWrapping; quilt.colorSpace = THREE.SRGBColorSpace; }
   const seatMat = withEnv(new THREE.MeshStandardMaterial({ color: quilt ? '#ffffff' : '#ffe2ee', map: quilt, roughness: 0.6 }), 0.35);
   const pipingMat = darkPink;
+  const seatColliders = []; // car-body space rounded boxes for Lily's ponytail
   for (const x of [-0.37, 0.37]) {
     const seat = new THREE.Group();
     const cushion = new THREE.Mesh(new RoundedBoxGeometry(0.5, 0.15, 0.5, 3, 0.06), seatMat);
@@ -831,19 +839,15 @@ export function createCar(opts = {}) {
     const back = new THREE.Mesh(new RoundedBoxGeometry(0.52, 0.66, 0.15, 3, 0.065), seatMat);
     back.position.set(0, 1.12, -0.58);
     back.rotation.x = -0.2;
-    const head = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.17, 0.12, 2, 0.05), seatMat);
-    head.position.set(0, 1.52, -0.66);
-    head.rotation.x = -0.2;
     for (const sx of [-1, 1]) {
       const bol = new THREE.Mesh(new RoundedBoxGeometry(0.08, 0.6, 0.18, 2, 0.035), pipingMat);
       bol.position.set(sx * 0.26, 1.13, -0.56);
       bol.rotation.x = -0.2;
       seat.add(bol);
-      const hp = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 8), chrome);
-      hp.position.set(sx * 0.09, 1.42, -0.645); hp.rotation.x = -0.2;
-      seat.add(hp);
+      seatColliders.push({ c: [x + sx * 0.26, 1.13, -0.56], h: [0.04, 0.3, 0.09], r: 0.035, rotX: -0.2 });
     }
-    seat.add(cushion, back, head);
+    seat.add(cushion, back);
+    seatColliders.push({ c: [x, 1.12, -0.58], h: [0.26, 0.33, 0.075], r: 0.065, rotX: -0.2 });
     seat.position.x = x;
     body.add(seat);
     shadowCasters.push(back);
@@ -856,6 +860,8 @@ export function createCar(opts = {}) {
     bback.position.set(0, 1.0, -0.83);
     bback.rotation.x = -0.15;
     body.add(bench, bback);
+    seatColliders.push({ c: [0, 0.84, -0.74], h: [0.6, 0.07, 0.12], r: 0.06, rotX: 0 });
+    seatColliders.push({ c: [0, 1.0, -0.83], h: [0.61, 0.16, 0.05], r: 0.045, rotX: -0.15 });
   }
 
   // ---------------- folded soft-top on the rear deck
@@ -879,6 +885,7 @@ export function createCar(opts = {}) {
     }
     g.position.copy(h.point).add(new THREE.Vector3(0, -0.04, -0.03));
     body.add(g);
+    seatColliders.push({ c: [0, g.position.y + 0.11, g.position.z - 0.02], h: [0.68, 0.17, 0.17], r: 0.12, rotX: 0 });
     shadowCasters.push(g.children[0]);
   }
 
@@ -1047,6 +1054,7 @@ export function createCar(opts = {}) {
   const lily = createLily({ TEX, env, emblemTex, unicornTex });
   lily.root.position.set(-0.37, 0.86, -0.3);
   body.add(lily.root);
+  lily.setColliders(seatColliders);
 
   // ---------------- glitter sparkles around the body
   const sparkTex = sparkleTexture();
@@ -1067,7 +1075,7 @@ export function createCar(opts = {}) {
   for (const m of shadowCasters) m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   for (const m of lily.shadowCasters) m.castShadow = true;
   decals.traverse((o) => { o.receiveShadow = true; });
-  const mergeInfo = mergeStatic(body, new Set([shell, wheelHub, dice, antenna, lily.root, ...flames]));
+  const mergeInfo = mergeStatic(body, new Set([shell, shadowProxy, wheelHub, dice, antenna, lily.root, ...flames]));
 
   const shadowBlob = new THREE.Mesh(
     new THREE.CircleGeometry(1.9, 32),
@@ -1111,6 +1119,7 @@ export function createCar(opts = {}) {
   return {
     root,
     lily: lily.root,
+    lilyRig: lily,
     stats,
     update(dt, { speed = 0, steer = 0, boost = false, offRoad = false } = {}) {
       const t = performance.now() * 0.001;
