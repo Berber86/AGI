@@ -93,6 +93,7 @@ const game = {
   carPitch: 0,
   landSquash: 0,
   camKick: 0,
+  bigAir: false,
   camPos: new THREE.Vector3(0, 6, -12),
   camTarget: new THREE.Vector3(0, 2, 20),
 };
@@ -329,19 +330,28 @@ window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 // ---------------------------------------------------------------- jump ramps
 function resetJump() {
   game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
-  game.jumpT = 0; game.carPitch = 0; game.landSquash = 0; game.camKick = 0;
+  game.jumpT = 0; game.carPitch = 0; game.landSquash = 0; game.camKick = 0; game.bigAir = false;
   car.root.scale.setScalar(1);
 }
 
 function launchFromRamp(r) {
-  // arcade parabola: lift comes from the ramp angle and the current speed
+  // arcade parabola: lift comes from the ramp angle and the current speed;
+  // with the rocket boost on, the car is both faster and gets extra lift,
+  // so the jump is noticeably higher and longer
+  const boosted = game.boostActive;
   game.jump = 'air';
   game.air = r.height;
-  game.vy = game.speed * Math.sin(r.angle) * JUMP.launchK;
+  game.vy = game.speed * Math.sin(r.angle) * JUMP.launchK * (boosted ? JUMP.boostK : 1);
   game.jumpT = 0;
+  game.bigAir = boosted;
   SFX.play('jump');
-  HAPTIC.buzz(18);
-  hud.popup('✨', '#fff6a8');
+  HAPTIC.buzz(boosted ? [20, 30, 40] : 18);
+  hud.popup(boosted ? '🚀✨' : '✨', boosted ? '#ffd166' : '#fff6a8');
+  // sparkle puff off the lip
+  const lip = car.root.position.clone();
+  lip.y -= 0.3;
+  finishFx.spawn(lip, boosted ? '#ffd166' : '#fff6a8', boosted ? 22 : 12, boosted ? 6.5 : 4.5);
+  if (boosted) finishFx.spawn(lip, '#ff8fc6', 14, 5.5);
 }
 
 function dropOffRamp(r) {
@@ -354,11 +364,18 @@ function dropOffRamp(r) {
 
 function landCar() {
   const hard = game.vy < -4;
+  const big = game.bigAir && game.jumpT > 1.6;
   game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
   game.landSquash = hard ? 0.42 : 0.26;
   game.camKick = hard ? 0.35 : 0.18;
+  game.bigAir = false;
   SFX.play('land');
   HAPTIC.buzz(hard ? [35, 25, 45] : 25);
+  if (big) {
+    // a long boosted flight ends with a little celebration
+    hud.popup('🌟', '#ffd45e');
+    finishFx.spawn(car.root.position.clone(), '#ffd45e', 18, 5);
+  }
 }
 
 function updateJump(dt) {

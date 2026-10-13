@@ -11,7 +11,7 @@ await page.goto(BASE, { waitUntil: 'networkidle0', timeout: 120000 });
 await page.waitForFunction('window.__READY__ === true', { timeout: 120000 });
 const run = (s0, lat, boost, steps = 420) => page.evaluate(([s0, lat, boost, steps]) => {
   const T = window.__TEST__; const L = T.gameInfo().trackLength;
-  if (boost) T.forceBoost(30);
+  T.forceBoost(boost ? 30 : 0.001); // 0.001 → boost ends on the next frame
   T.setProgress(s0 / L, lat, false);
   const out = []; let maxAir = 0, launchS = null, landS = null, landed = false;
   for (let i = 0; i < steps; i++) {
@@ -25,10 +25,10 @@ const run = (s0, lat, boost, steps = 420) => page.evaluate(([s0, lat, boost, ste
   const j = T.jumpInfo();
   return { maxAir: +maxAir.toFixed(2), launchS, landS, dist: launchS && landS ? +(landS - launchS).toFixed(1) : null, final: j, trace: out };
 }, [s0, lat, boost, steps]);
-for (const [name, s0, lat, boost] of [['A-left-lane', 492, -2.3, false], ['A-miss(right lane)', 492, 2.3, false], ['B-right-lane', 1216, 2.3, false]]) {
+for (const [name, s0, lat, boost] of [['A-normal', 492, -2.3, false], ['A-boost', 492, -2.3, true], ['B-normal', 1216, 2.3, false], ['B-boost', 1216, 2.3, true]]) {
   const r = await run(s0, lat, boost);
   console.log(`\n== ${name}: maxAir=${r.maxAir} launch@${r.launchS} land@${r.landS} dist=${r.dist} final=${JSON.stringify(r.final)}`);
-  console.log(r.trace.slice(0, 14).join('\n'));
+  
 }
 console.log('errors:', errors);
 await browser.close();
