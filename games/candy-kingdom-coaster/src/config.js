@@ -47,6 +47,20 @@ export const JUMP = {
   dropSlow: 0.85,  // speed kept after such a fall
 };
 
+// --- Milk river + arched bridge (cookie zone). The deck humps over the river
+// (added to the spline in track.js), the shoulders dip into a valley around
+// the crossing and bridge.js builds the arch, balustrade, river and sea.
+export const BRIDGE = {
+  s: 400,          // crossing (m along the track) — straight stretch before ramp A
+  halfSpan: 24,    // deck hump half length (m)
+  hump: 2.2,       // extra deck height at the crest (m)
+  archHalf: 20,    // arch opening half span (m)
+  riverHalf: 8,    // river half width at the crossing (m)
+  valleyHalf: 26,  // shoulders are dipped to the river floor within ±valleyHalf (m along s)
+  floorY: -3.3,    // valley floor / river bed height (world y; ground disc is -3.35)
+  wallLat: 7.6,    // spandrel wall / deck edge lateral (m)
+};
+
 // --- Zones along the ride (u = 0..1 of track length) ---
 export const ZONES = [
   { id: 0, name: 'Lollipop Meadows',  u0: 0.00, u1: 0.22, fog: 0x9fd8ff, sky: 0x7ec9f2 },

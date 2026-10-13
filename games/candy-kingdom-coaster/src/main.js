@@ -14,6 +14,7 @@ import { createCar, createTrail } from './car.js';
 import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
+import { createBridge } from './bridge.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
@@ -57,7 +58,8 @@ document.getElementById('btn-play').disabled = false;
 // ---------------------------------------------------------------- world
 const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
-const world = createWorld(scene, track, renderer, TEX);
+const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
+const world = createWorld(scene, track, renderer, TEX, bridge);
 const car = createCar();
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
@@ -487,6 +489,7 @@ function updateGameplay(dt) {
     car.root.rotation.y = pose.heading;
     car.update(dt, { speed: 0, steer: 0, boost: false });
     const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
+    bridge.update(dt, performance.now() * 0.001);
     finishFx.update(dt);
     if (game.introT >= T && game.state === 'intro') beginCountdown();
     return;
@@ -648,6 +651,10 @@ function updateGameplay(dt) {
   // subtle FOV kick on boost
   const targetFov = game.boostActive ? 59 : 52;
   camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 2.2);
+  if (qaCamFixed) { // QA: absolute camera for scenery screenshots
+    camera.position.set(qaCamFixed[0], qaCamFixed[1], qaCamFixed[2]);
+    camera.lookAt(qaCamFixed[3], qaCamFixed[4], qaCamFixed[5]);
+  }
   camera.updateProjectionMatrix();
 
   // zone tracking
@@ -670,6 +677,7 @@ function updateGameplay(dt) {
   });
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
+  bridge.update(dt, performance.now() * 0.001);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
   finishFx.update(dt);
   // driving sound layer follows speed
@@ -686,6 +694,7 @@ let qaForceRender = false;
 // its real-time accounting would fight the fixed dt and force needless renders
 let qaNoGovernor = false;
 let qaSteer = null; // QA override for input.steer (-1..1), null = real input
+let qaCamFixed = null; // QA absolute camera [x,y,z, tx,ty,tz] or null
 function frame(now, dt) {
   if (game.state === 'menu') {
     // pretty attract-mode camera drift around the start area
@@ -703,6 +712,7 @@ function frame(now, dt) {
     car.update(dt, { speed: 6, steer: 0, boost: false });
     trail.update(dt, car.root, 6, false);
     world.update(dt, camera.position, 0.01, now * 0.001);
+    bridge.update(dt, now * 0.001);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
     if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
@@ -777,6 +787,13 @@ window.__TEST__ = {
     camera.lookAt(game.camTarget);
   },
   collectAll() { sweets.collectAllDemo(); game.score = sweets.total * 10; },
+  // Visual QA: park the camera at a world position looking at a target (null = release).
+  // Arguments may also be track coordinates: fixCamTrack(s, lateral, up, ts, tlat, tup).
+  fixCam(x, y, z, tx, ty, tz) { qaCamFixed = x === null ? null : [x, y, z, tx, ty, tz]; return qaCamFixed; },
+  fixCamTrack(s, lateral, up, ts, tlat, tup) {
+    const a = track.getPose(s, lateral).pos, b = track.getPose(ts, tlat).pos;
+    return this.fixCam(a.x, a.y + up, a.z, b.x, b.y + tup, b.z);
+  },
   // Visual QA: pull the chase camera in for paint/detail close-ups
   pinCam(back, up, ahead) {
     TUNING.camBack = back; TUNING.camUp = up; TUNING.camAhead = ahead;
@@ -805,6 +822,18 @@ window.__TEST__ = {
     governor.tier = tier;
     governor.apply();
     return governor.describe();
+  },
+  // Milk river + arched bridge facts for QA: deck hump, arch, river under it, sea.
+  bridge() {
+    const s = bridge.crossing.s;
+    const deck = track.getPose(s, 0).pos.y, before = track.getPose(s - 60, 0).pos.y, after = track.getPose(s + 60, 0).pos.y;
+    const names = {};
+    bridge.group.traverse((o) => { if (o.isMesh) names[o.name || 'part'] = (names[o.name || 'part'] || 0) + 1; });
+    const river = bridge.group.getObjectByName('milkRiver');
+    river.geometry.computeBoundingBox();
+    return { crossingS: s, deckY: +deck.toFixed(2), deckBefore: +before.toFixed(2), deckAfter: +after.toFixed(2),
+      archApexY: +bridge.archApexY.toFixed(2), riverY: +river.geometry.boundingBox.max.y.toFixed(2),
+      riverLength: +bridge.riverLength.toFixed(0), sea: bridge.sea, parts: names };
   },
   // Music sequencer facts (mode, bar position, note count).
   music() { return MUSIC.info(); },

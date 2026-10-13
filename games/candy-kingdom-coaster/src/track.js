@@ -1,6 +1,6 @@
 // Spline track: road mesh, curbs, terrain shoulders, start/finish, pose queries.
 import * as THREE from 'three';
-import { TUNING, ZONES, zoneAt } from './config.js';
+import { TUNING, ZONES, zoneAt, BRIDGE } from './config.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -18,6 +18,9 @@ function buildWaypoints() {
       0.34 * Math.sin(2 * Math.PI * 3.25 * t + 1.15) +
       0.1 * Math.sin(2 * Math.PI * 5.6 * t);
     y = 2.4 + 3.3 * Math.sin(2 * Math.PI * 1.55 * t + 0.2) + 0.95 * Math.sin(2 * Math.PI * 3.9 * t + 0.9);
+    // arched bridge over the milk river: the deck humps up around BRIDGE.s
+    const db = i * ds - BRIDGE.s;
+    if (Math.abs(db) < BRIDGE.halfSpan) y += BRIDGE.hump * Math.pow(Math.cos((db / BRIDGE.halfSpan) * Math.PI / 2), 2);
     pts.push(new THREE.Vector3(x, y, z));
     x += Math.sin(heading) * ds;
     z += Math.cos(heading) * ds;
@@ -261,20 +264,31 @@ export function createTrack(scene, TEX = {}) {
   const postSrc = { centers: postRun.centers, rights: postRun.rights, n: postRun.n, uAt: () => 1, sAt: (i) => length + i * EXT_STEP };
 
   // Build one quad strip over profile indices [kFrom, kTo] into shared arrays.
+  // river valley under the bridge: 0 = normal embankment, 1 = dipped to the
+  // river floor (flat around the river, smooth slopes up to ±valleyHalf)
+  const valleyDip = (sM) => {
+    const d = Math.abs(sM - BRIDGE.s);
+    const a = BRIDGE.riverHalf + 2, b = BRIDGE.valleyHalf;
+    if (d <= a) return 1;
+    if (d >= b) return 0;
+    const x = (d - a) / (b - a);
+    return 1 - x * x * (3 - 2 * x);
+  };
   const buildStrip = (arrays, kFrom, kTo, uvFn, iFrom = 0, iTo = SAMPLES, src = mainSrc) => {
     const { pos, col, uv, idx } = arrays;
     const base = pos.length / 3;
     const n = kTo - kFrom + 1;
+    const inValley = [];
     for (let i = iFrom; i <= iTo; i++) {
       const u = src.uAt(i), sM = src.sAt(i);
       const c = src.centers[i], right = src.rights[i];
+      const dip = valleyDip(sM);
+      inValley.push(dip > 0);
       for (let k = kFrom; k <= kTo; k++) {
         const pr = profile[k];
-        pos.push(
-          c.x + right.x * pr.off,
-          c.y + pr.dy + (pr.kind === 'road' ? 0.02 : 0),
-          c.z + right.z * pr.off
-        );
+        let y = c.y + pr.dy + (pr.kind === 'road' ? 0.02 : 0);
+        if (pr.kind === 'grass' && dip > 0) y = THREE.MathUtils.lerp(y, BRIDGE.floorY, dip);
+        pos.push(c.x + right.x * pr.off, y, c.z + right.z * pr.off);
         const vc = vertexColor(u, k);
         col.push(vc.r, vc.g, vc.b);
         const t = uvFn(u, k, pr, sM);
@@ -283,6 +297,11 @@ export function createTrack(scene, TEX = {}) {
     }
     for (let i = 0; i < iTo - iFrom; i++) {
       for (let k = 0; k < n - 1; k++) {
+        // the curb→grass quad is left out inside the valley: the bridge's
+        // spandrel walls stand there and the arch must stay open underneath
+        const touchesCurb = profile[kFrom + k].kind === 'curb' || profile[kFrom + k + 1].kind === 'curb';
+        const hasGrass = profile[kFrom + k].kind === 'grass' || profile[kFrom + k + 1].kind === 'grass';
+        if (touchesCurb && hasGrass && inValley[i] && inValley[i + 1]) continue;
         const a = base + i * n + k, b = a + n;
         idx.push(a, a + 1, b, b, a + 1, b + 1);
       }

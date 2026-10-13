@@ -322,6 +322,32 @@ const record = (name, pass, detail) => {
   record('5e. music loop: audible, no clipping, lead = score', levelsOk && info.leadOk && info.info.bars === 16 && info.info.notes > 80, info);
 }
 
+// ---------- 5f. arched bridge over the milk river, river reaches the milk sea, drive-over stays grounded ----------
+{
+  const info = await page.evaluate(() => {
+    const T = window.__TEST__; const b = T.bridge(); const L = T.gameInfo().trackLength;
+    // drive over the hump at race speed: must stay on the ground with a modest pitch swing
+    T.forceBoost(0.001);
+    T.setProgress((b.crossingS - 60) / L, 0, false);
+    let air = 0, pMin = 0, pMax = 0;
+    for (let i = 0; i < 300; i++) {
+      T.step(1 / 60, 1, false);
+      const j = T.jumpInfo();
+      if (j.jump !== 'ground') air++;
+      pMin = Math.min(pMin, j.pitch); pMax = Math.max(pMax, j.pitch);
+    }
+    return { ...b, air, pitchDeg: [+(pMin * 57.3).toFixed(1), +(pMax * 57.3).toFixed(1)], end: T.jumpInfo() };
+  });
+  const hump = info.deckY - Math.max(info.deckBefore, info.deckAfter);
+  const ok = hump > 1.5 && hump < 3.5 // arched deck
+    && info.archApexY > info.riverY + 6 && info.archApexY < info.deckY // the arch opening is under the deck, above the milk
+    && info.parts.bridgeArch === 1 && info.parts.bridgeAbutment === 2 && info.parts.milkRiver === 1 && info.parts.milkSea === 1
+    && info.riverLength > 350 && info.sea.r >= 100
+    && info.air === 0 && info.pitchDeg[0] < -3 && info.pitchDeg[1] > 3 && info.pitchDeg[0] > -12 && info.pitchDeg[1] < 12
+    && info.end.jump === 'ground' && info.end.s > info.crossingS + 10;
+  record('5f. arched bridge over the milk river → milk sea, smooth drive-over', ok, info);
+}
+
 // ---------- 6. no page errors ----------
 {
   await sleep(500);

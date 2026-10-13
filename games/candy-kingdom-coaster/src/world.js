@@ -254,8 +254,10 @@ function cookieGeometry() {
   ]);
 }
 
-export function createWorld(scene, track, renderer, TEX = {}) {
+export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const world = new THREE.Group();
+  // river/sea/valley from bridge.js: nothing is planted there
+  const blocked = (x, z) => !!(river && river.blocks(x, z));
   // real image textures (assets/textures) with the procedural canvases as fallback
   const mapOr = (tex, fallback) => tex || fallback();
   scene.add(world);
@@ -910,6 +912,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
   // props behind the camera, which is the single biggest mobile GPU saving.
   const CHUNK = 150;
   function buildChunks(geo, mat, list, fill, opts = {}) {
+    if (river) list = list.filter((p) => !(typeof p.x === 'number' && typeof p.z === 'number' && blocked(p.x, p.z)));
     if (!list.length) return [];
     const shadow = opts.shadow !== false;
     const groups = new Map();
@@ -959,6 +962,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
       s, lateral: lat, state: 0, t: 0, dir: kSide,
     });
   }
+  if (river) for (let i = knockItems.length - 1; i >= 0; i--) if (blocked(knockItems[i].x, knockItems[i].z)) knockItems.splice(i, 1);
   const knockDummy = new THREE.Object3D();
   function knockSyncItem(it) {
     const k = Math.min(1, it.t);
@@ -1029,7 +1033,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     crowdDummy.rotation.set(0, c.ry, Math.sin(hop * Math.PI) * 0.12);
     crowdDummy.scale.set(c.sc * sq, c.sc * (2 - sq), c.sc * sq);
     crowdDummy.updateMatrix();
-    c.mesh.setMatrixAt(c.idx, crowdDummy.matrix);
+    if (c.mesh) c.mesh.setMatrixAt(c.idx, crowdDummy.matrix);
   }
   {
     const crowdGeo = {
@@ -1081,7 +1085,11 @@ export function createWorld(scene, track, renderer, TEX = {}) {
       // the fence keeps running along the pseudo road beyond both lines, so
       // the start/finish do not look like the edge of the world
       for (let s = 15 - RUN_PRE; s < L + RUN_POST - 15; s += FENCE_STEP) {
-        for (const side of [-1, 1]) slots.push({ s, side });
+        for (const side of [-1, 1]) {
+          const fp = track.getPose(s, side * FENCE_LAT).pos;
+          if (blocked(fp.x, fp.z)) continue; // the bridge has its own balustrade
+          slots.push({ s, side });
+        }
       }
       // chunked: the fence line is ~460 units along 1.3 km; one mesh would be
       // drawn in full every frame even though only ~30 units are on screen
@@ -1124,6 +1132,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
         inst.setColorAt(i, new THREE.Color(CROWD_COLORS[type][i % CROWD_COLORS[type].length]));
       }, { bindItem: true, shadow: false }));
     }
+    if (river) for (let i = crowdItems.length - 1; i >= 0; i--) if (!crowdItems[i].mesh) crowdItems.splice(i, 1);
     for (const c of crowdItems) crowdSync(c, 0);
     for (const im of crowdMeshes) im.instanceMatrix.needsUpdate = true;
   }
@@ -1338,6 +1347,17 @@ export function createWorld(scene, track, renderer, TEX = {}) {
 
   // ---------- living candy world: villages, donut gardens, ponds, groves ------
   const bounceList = []; // gummy bears that hop forever
+  // a cluster base that would land in the milk river/sea/valley slides forward
+  // along the track until it is on dry candy ground
+  const freePose = (u, lateral) => {
+    let uu = u;
+    for (let k = 0; k < 8; k++) {
+      const p = track.getPose(track.length * uu, lateral);
+      if (!blocked(p.pos.x, p.pos.z)) return p;
+      uu += 0.025;
+    }
+    return track.getPose(track.length * uu, lateral);
+  };
   {
     const icing = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 });
     const choc = new THREE.MeshStandardMaterial({ color: '#7a4526', roughness: 0.6 });
@@ -1384,7 +1404,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     const villageGroup = new THREE.Group();
     world.add(villageGroup);
     [[0.14, -1], [0.52, 1], [0.79, -1]].forEach(([u, side], vi) => {
-      const base = track.getPose(track.length * u, side * 30);
+      const base = freePose(u, side * 30);
       for (let k = 0; k < 4; k++) {
         const h = house(['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'][(vi + k) % 4]);
         const ang = (k / 4) * Math.PI * 2 + vi;
@@ -1405,7 +1425,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     for (let i = 0; i < 5; i++) {
       const u = 0.08 + i * 0.19;
       const side = i % 2 ? 1 : -1;
-      const base = track.getPose(track.length * u, side * (24 + (i % 3) * 6));
+      const base = freePose(u, side * (24 + (i % 3) * 6));
       for (let k = 0; k < 3; k++) {
         const d = new THREE.Mesh(donutGeo, donutMats[i % 2]);
         d.position.copy(base.pos).add(new THREE.Vector3((k - 1) * 8.5 + i, 2.6 + k * 0.4, (k % 2) * 5 - 2.5));
@@ -1423,7 +1443,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     for (let i = 0; i < 8; i++) {
       const u = 0.05 + i * 0.12;
       const side = i % 2 ? -1 : 1;
-      const base = track.getPose(track.length * u, side * (17 + (i % 4) * 5));
+      const base = freePose(u, side * (17 + (i % 4) * 5));
       const stack = new THREE.Group();
       const cols = ['#ff8fc6', '#c8b6ff', '#8fd6ff', '#ffe08a'];
       for (let k = 0; k < 3; k++) {
@@ -1445,7 +1465,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     for (let i = 0; i < 4; i++) {
       const u = 0.18 + i * 0.22;
       const side = i % 2 ? 1 : -1;
-      const base = track.getPose(track.length * u, side * (36 + (i % 2) * 10));
+      const base = freePose(u, side * (36 + (i % 2) * 10));
       const pond = new THREE.Mesh(new THREE.CylinderGeometry(9 + i * 1.6, 9 + i * 1.6, 0.45, 22), dark);
       pond.position.copy(base.pos).add(new THREE.Vector3(0, -1.4, 0));
       const rim = new THREE.Mesh(new THREE.TorusGeometry(9 + i * 1.6, 1.15, 8, 26), choc);
@@ -1479,7 +1499,7 @@ export function createWorld(scene, track, renderer, TEX = {}) {
     for (let i = 0; i < 7; i++) {
       const u = 0.06 + i * 0.14;
       const side = i % 2 ? 1 : -1;
-      const base = track.getPose(track.length * u, side * (14 + (i % 3) * 6));
+      const base = freePose(u, side * (14 + (i % 3) * 6));
       const bunch = new THREE.Group();
       for (let k = 0; k < 4; k++) {
         const b = new THREE.Mesh(new THREE.SphereGeometry(1.25 - k * 0.1, 12, 10), new THREE.MeshStandardMaterial({ color: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e'][k], roughness: 0.3 }));
