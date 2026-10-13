@@ -12,9 +12,9 @@ function skyDome() {
     side: THREE.BackSide,
     depthWrite: false,
     uniforms: {
-      topColor: { value: new THREE.Color('#1f8ae6') },
-      midColor: { value: new THREE.Color('#6fc6f6') },
-      bottomColor: { value: new THREE.Color('#ffc6e0') },
+      topColor: { value: new THREE.Color('#0f7fd4') },
+      midColor: { value: new THREE.Color('#5cb8f5') },
+      bottomColor: { value: new THREE.Color('#ffd0e8') },
     },
     vertexShader: `
       varying vec3 vWorld;
@@ -145,6 +145,45 @@ function mergeParts(parts) {
   return mergeGeometries(geos, false);
 }
 
+// Collapse a scenery group into one mesh per material: a castle built from
+// 300+ primitives costs 300+ draw calls (x3 once the shadow and bloom passes
+// re-render the scene). Merging by material keeps the exact same look and cuts
+// it to ~10 calls per landmark — the difference between smooth and 15 FPS on
+// a phone. Falls back to the original meshes if a material cannot merge.
+function mergeByMaterial(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const byMat = new Map();
+  const meshes = [];
+  group.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  if (meshes.length < 3) return;
+  // mergeGeometries refuses to mix indexed and non-indexed geometry
+  // (RoundedBoxGeometry is non-indexed), so bucket by material AND index-ness
+  for (const m of meshes) {
+    const g = m.geometry.clone();
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+    const key = m.material.id + (g.index ? ':i' : ':n');
+    if (!byMat.has(key)) byMat.set(key, { mat: m.material, geos: [] });
+    byMat.get(key).geos.push(g);
+  }
+  const merged = [];
+  const ok = new Set();
+  for (const { mat, geos } of byMat.values()) {
+    const g = mergeGeometries(geos, false);
+    if (g) { merged.push([mat, g]); ok.add(mat); }
+    for (const x of geos) x.dispose();
+  }
+  if (!merged.length) return;
+  for (const m of meshes) if (ok.has(m.material)) m.parent.remove(m);
+  for (const [mat, g] of merged) {
+    const m = new THREE.Mesh(g, mat);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.userData.noCollide = true; // landmark scenery, never on the racing line
+    group.add(m);
+  }
+}
+
 function gummyBearGeometry() {
   return mergeParts([
     { geo: new THREE.SphereGeometry(0.55, 12, 10), pos: [0, 0.62, 0], scale: [1, 1.15, 0.82] },
@@ -225,11 +264,11 @@ export function createWorld(scene, track, renderer) {
   sunGlow.position.set(60, 95, -50).normalize().multiplyScalar(640);
   sky.add(sunGlow);
   world.add(sky);
-  scene.fog = new THREE.Fog(0x9fd8ff, 90, 460);
+  scene.fog = new THREE.Fog(0x9fd8ff, 150, 620);
 
-  const hemi = new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.82);
+  const hemi = new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.92);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffedc9, 1.62);
+  const sun = new THREE.DirectionalLight(0xffedc9, 1.78);
   sun.position.set(60, 95, -50);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -255,7 +294,7 @@ export function createWorld(scene, track, renderer) {
     })(),
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   }));
-  sunSprite.scale.set(150, 150, 1);
+  sunSprite.scale.set(190, 190, 1);
   sunSprite.position.set(track.bounds.center.x + 320, 380, track.bounds.center.z - 420);
   world.add(sunSprite);
 
@@ -276,35 +315,53 @@ export function createWorld(scene, track, renderer) {
   }
 
   // ---------- 3D puff-cloud clusters (cotton-candy volumes near the horizon) ----------
-  const puffMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.92 });
+  const puffMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, flatShading: true, transparent: true, opacity: 0.94 });
   for (let i = 0; i < 8; i++) {
     const cluster = new THREE.Group();
-    const n = 4 + Math.floor(Math.random() * 4);
+    const n = 5 + Math.floor(Math.random() * 4);
     for (let j = 0; j < n; j++) {
       const r = 7 + Math.random() * 11;
       const p = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), puffMat);
       p.position.set((Math.random() - 0.5) * 32, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 15);
-      p.scale.y = 0.55;
+      p.scale.y = 0.68;
       cluster.add(p);
     }
     const a = Math.random() * Math.PI * 2;
     const rr = 170 + Math.random() * 260;
     cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 75, track.bounds.center.z + Math.sin(a) * rr);
+    mergeByMaterial(cluster); // 5-9 puffs -> 1 draw call, still drifts as a unit
     world.add(cluster);
     clouds.push({ sprite: cluster, drift: 0.8 + Math.random() * 1.6 });
   }
 
+  // ---------- hero clouds: big soft volumes near the course (frame the sky) --
+  for (let i = 0; i < 7; i++) {
+    const cluster = new THREE.Group();
+    const n = 8 + Math.floor(Math.random() * 4);
+    for (let j = 0; j < n; j++) {
+      const r = 10 + Math.random() * 14;
+      const p = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), puffMat);
+      p.position.set((Math.random() - 0.5) * 44, (Math.random() - 0.5) * 11, (Math.random() - 0.5) * 20);
+      p.scale.y = 0.66;
+      cluster.add(p);
+    }
+    const a = (i / 7) * Math.PI * 2 + 0.7;
+    const rr = 150 + Math.random() * 150;
+    cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 42, track.bounds.center.z + Math.sin(a) * rr);
+    world.add(cluster);
+    clouds.push({ sprite: cluster, drift: 0.5 + Math.random() * 0.9 });
+  }
+
   // ---------- rainbows arching over the road (plus the castle one) ----------
   const rainbowCols = ['#ff6b81', '#ffb14e', '#ffe66d', '#6bd96b', '#56c8ff', '#a06bff'];
+  // one material per band, shared by all three arches so they merge to 6 calls
+  const rainbowMats = rainbowCols.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, emissive: new THREE.Color(c), emissiveIntensity: 0.12 }));
+  const rainbowGroup = new THREE.Group();
   [0.18, 0.55, 0.86].forEach((u, ri) => {
     const p = track.getPose(track.length * u, 0);
     const rainbow = new THREE.Group();
     rainbowCols.forEach((c, i) => {
-      const t = new THREE.Mesh(
-        new THREE.TorusGeometry(10.5 - i * 1.15, 0.62, 8, 26, Math.PI),
-        new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, emissive: new THREE.Color(c), emissiveIntensity: 0.12 })
-      );
-      rainbow.add(t);
+      rainbow.add(new THREE.Mesh(new THREE.TorusGeometry(10.5 - i * 1.15, 0.62, 8, 26, Math.PI), rainbowMats[i]));
     });
     rainbow.position.copy(p.pos);
     rainbow.position.y += 1.2;
@@ -313,14 +370,17 @@ export function createWorld(scene, track, renderer) {
       p.pos.y + 1.2,
       p.pos.z + Math.cos(p.heading)
     );
-    rainbow.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead: car passes under
-    world.add(rainbow);
+    rainbowGroup.add(rainbow);
   });
+  rainbowGroup.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; }); // overhead: car passes under
+  mergeByMaterial(rainbowGroup);
+  world.add(rainbowGroup);
 
   // ---------- distant mountains (ring around the course) ----------
-  const mountainMat = new THREE.MeshStandardMaterial({ color: '#e8d6f2', roughness: 0.9, flatShading: true });
-  const mountainMatB = new THREE.MeshStandardMaterial({ color: '#f2c9e0', roughness: 0.9, flatShading: true });
-  const capMat = new THREE.MeshStandardMaterial({ color: '#fff6fa', roughness: 0.85, flatShading: true });
+  // cool lavender-blue mountains: aerial perspective, distant like the reference
+  const mountainMat = new THREE.MeshStandardMaterial({ color: '#c3b3e6', roughness: 0.9, flatShading: true });
+  const mountainMatB = new THREE.MeshStandardMaterial({ color: '#d8c4ea', roughness: 0.9, flatShading: true });
+  const capMat = new THREE.MeshStandardMaterial({ color: '#f2f6ff', roughness: 0.85, flatShading: true });
   // helper: nearest track sample distance (XZ) so a mountain can NEVER overlap the road
   const tSamples = track.samples;
   const mountainDebug = [];
@@ -333,6 +393,8 @@ export function createWorld(scene, track, renderer) {
     }
     return Math.sqrt(m);
   };
+  const mountainGroup = new THREE.Group();
+  world.add(mountainGroup);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + 0.35;
     const r = 560 + (i % 3) * 160;
@@ -350,11 +412,12 @@ export function createWorld(scene, track, renderer) {
       h / 2 - 20,
       mz
     );
-    world.add(m);
+    mountainGroup.add(m);
     const cap = new THREE.Mesh(new THREE.ConeGeometry(baseR * 0.42, h * 0.32, 10), capMat);
     cap.position.set(0, h * 0.36, 0); // local to the mountain — moves with it
     m.add(cap);
   }
+  mergeByMaterial(mountainGroup); // 32 cones -> 3 draw calls
 
   // ---------- the Sugar Castle ----------
   function buildCastle(scale = 1) {
@@ -561,6 +624,8 @@ export function createWorld(scene, track, renderer) {
       const r = o.geometry.boundingSphere.radius * Math.max(o.scale.x, o.scale.y, o.scale.z, 1);
       o.castShadow = r > 1.2;
     });
+    // one mesh per material: 317 meshes -> ~12 draw calls, identical picture
+    mergeByMaterial(castle);
     return castle;
   }
 
@@ -688,6 +753,44 @@ export function createWorld(scene, track, renderer) {
     world.add(post);
   }
 
+  // ---------- a candy coaster train riding the loop (living background) -----
+  const coasterCars = [];
+  {
+    const CAR_COLORS = ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff', '#ff8a5c'];
+    for (let i = 0; i < 6; i++) {
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(
+        new RoundedBoxGeometry(1.5, 0.85, 2.3, 3, 0.3),
+        new THREE.MeshStandardMaterial({ color: CAR_COLORS[i % CAR_COLORS.length], roughness: 0.32, metalness: 0.18, clearcoat: 0.6 })
+      );
+      body.position.y = 0.5;
+      const roof = new THREE.Mesh(
+        new RoundedBoxGeometry(1.25, 0.42, 1.95, 3, 0.2),
+        new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4 })
+      );
+      roof.position.y = 1.12;
+      const canopy = new THREE.Mesh(
+        new THREE.SphereGeometry(0.48, 10, 8),
+        new THREE.MeshPhysicalMaterial({ color: '#bfe9ff', roughness: 0.06, metalness: 0.35, transparent: true, opacity: 0.42 })
+      );
+      canopy.position.y = 1.24;
+      canopy.scale.set(1, 0.72, 1.15);
+      // little waving rider bunny ears poking out
+      for (const sx of [-0.35, 0.35]) {
+        const ear = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.34, 6), new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.6 }));
+        ear.position.set(sx, 1.55, -0.2);
+        ear.rotation.z = sx > 0 ? -0.18 : 0.18;
+        g.add(ear);
+      }
+      g.add(body, roof, canopy);
+      g.scale.setScalar(2.3); // readable from the track: a real train, not dots
+      g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.userData.noCollide = true; } });
+      world.add(g);
+      coasterCars.push(g);
+    }
+  }
+  const coasterPt = new THREE.Vector3(), coasterTan = new THREE.Vector3();
+
   // ---------- instanced props along the track ----------
   const propMats = {
     lolli: ['#ff5fa2', '#56c8ff', '#ffd45e'].map((c) => new THREE.MeshStandardMaterial({ map: swirlTexture(c, '#fff2f7'), roughness: 0.42, metalness: 0.05 })),
@@ -711,9 +814,10 @@ export function createWorld(scene, track, renderer) {
     // keep the road corridor clear: props never closer than 8.2 m, big scale only far away
     const far = 8.2 + rand() * 17;
     const lateral = side * far;
-    const { pos, heading } = track.getPose(s + (rand() - 0.5) * 4, lateral);
+    const ps = s + (rand() - 0.5) * 4;
+    const { pos, heading } = track.getPose(ps, lateral);
     const scMax = Math.min(2.8, 0.9 + far * 0.11);
-    const slot = { x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.0 + rand() * (scMax - 1.0) };
+    const slot = { s: ps, x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.0 + rand() * (scMax - 1.0) };
 
     const roll = rand();
     if (z.id === 0) {
@@ -746,8 +850,9 @@ export function createWorld(scene, track, renderer) {
     // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
       if (rand() < 0.85) {
-        const wp = track.getPose(s + (rand() - 0.5) * 3, wallSide * (9.2 + rand() * 3.3));
-        const slotW = { x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
+        const ws = s + (rand() - 0.5) * 3;
+        const wp = track.getPose(ws, wallSide * (13.6 + rand() * 3.4));
+        const slotW = { s: ws, x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
         const roll2 = rand();
         if (roll2 < 0.36) placements[`lolli${Math.floor(rand() * 3)}`].push(slotW);
         else if (roll2 < 0.62) placements.cane.push(slotW);
@@ -756,8 +861,9 @@ export function createWorld(scene, track, renderer) {
       }
       // mid-field filler band (8.6-12 m) — fills the frame edges, clear of the corridor
       if (rand() < 0.55) {
-        const mp = track.getPose(s + (rand() - 0.5) * 4, wallSide * (8.6 + rand() * 3.2));
-        const slotM = { x: mp.pos.x, y: mp.pos.y - 0.5, z: mp.pos.z, ry: rand() * Math.PI * 2, sc: 0.55 + rand() * 0.6 };
+        const ms = s + (rand() - 0.5) * 4;
+        const mp = track.getPose(ms, wallSide * (13.8 + rand() * 3.2));
+        const slotM = { s: ms, x: mp.pos.x, y: mp.pos.y - 0.5, z: mp.pos.z, ry: rand() * Math.PI * 2, sc: 0.55 + rand() * 0.6 };
         const roll3 = rand();
         if (roll3 < 0.3) placements[`lolli${Math.floor(rand() * 3)}`].push(slotM);
         else if (roll3 < 0.5) placements.cane.push(slotM);
@@ -768,7 +874,7 @@ export function createWorld(scene, track, renderer) {
     }
     if (rand() < 0.38) {
       const bp = track.getPose(s + 1, side * (7.2 + rand() * 1.4));
-      placements.bear.push({ x: bp.pos.x, y: bp.pos.y - 0.3, z: bp.pos.z, ry: bp.heading + Math.PI + (rand() - 0.5) * 0.8, sc: 0.95 + rand() * 0.5 });
+      placements.bear.push({ s: s + 1, x: bp.pos.x, y: bp.pos.y - 0.3, z: bp.pos.z, ry: bp.heading + Math.PI + (rand() - 0.5) * 0.8, sc: 0.95 + rand() * 0.5 });
     }
   }
 
@@ -776,25 +882,52 @@ export function createWorld(scene, track, renderer) {
   const heroSpots = [0.05, 0.10, 0.16, 0.22, 0.28, 0.35, 0.42, 0.49, 0.56, 0.63, 0.70, 0.77, 0.84, 0.90, 0.95];
   heroSpots.forEach((u, i) => {
     const side = i % 2 ? 1 : -1;
-    const p = track.getPose(track.length * u, side * (14.5 + (i % 3) * 3.5));
-    if (i % 3 === 0) placements.lolli0.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.6 + (i % 2) * 1.3 });
-    else if (i % 3 === 1) placements.lolli1.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.9 + (i % 2) });
-    else placements.cane.push({ x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.7 + (i % 2) * 1.2 });
+    const hs = track.length * u;
+    const p = track.getPose(hs, side * (14.5 + (i % 3) * 3.5));
+    if (i % 3 === 0) placements.lolli0.push({ s: hs, x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.6 + (i % 2) * 1.3 });
+    else if (i % 3 === 1) placements.lolli1.push({ s: hs, x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.9 + (i % 2) });
+    else placements.cane.push({ s: hs, x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.7 + (i % 2) * 1.2 });
   });
 
+  // ---- spatial chunking of instanced props ---------------------------------
+  // One InstancedMesh spanning the whole 1.3 km course can never be culled:
+  // every instance is submitted (and shadow-cast) on every frame. Splitting
+  // each prop type into ~150 m chunks lets three.js frustum-cull the ~90% of
+  // props behind the camera, which is the single biggest mobile GPU saving.
+  const CHUNK = 150;
+  function buildChunks(geo, mat, list, fill, opts = {}) {
+    if (!list.length) return [];
+    const shadow = opts.shadow !== false;
+    const groups = new Map();
+    list.forEach((p, i) => {
+      const s = (typeof p.s === 'number' && isFinite(p.s)) ? p.s : (i / list.length) * L;
+      const c = Math.max(0, Math.floor(s / CHUNK));
+      if (!groups.has(c)) groups.set(c, []);
+      groups.get(c).push([p, i]);
+    });
+    const out = [];
+    for (const [c, items] of groups) {
+      const inst = new THREE.InstancedMesh(geo, mat, items.length);
+      inst.castShadow = shadow;
+      inst.receiveShadow = true;
+      inst.userData.noCollide = true;
+      inst.userData.chunk = c;
+      items.forEach(([p, gi], li) => {
+        if (opts.bindItem) { p.mesh = inst; p.idx = li; }
+        fill(inst, li, p, gi);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      world.add(inst);
+      out.push(inst);
+    }
+    return out;
+  }
   // ---------- knockable candy fence: canes + lollipops on the shoulder ----------
   // Sits on the grass strip just off the curb (5.8-8.2 m from the centerline):
   // outside the road, inside the fun. Topples & flies when the car clips it.
   // Marked noCollide so the corridor sweep leaves the fringe alone.
   const KNOCK_C = 430, KNOCK_L = 230;
-  const knockMeshC = new THREE.InstancedMesh(caneGeometry(), propMats.cane, KNOCK_C);
-  const knockMeshL = new THREE.InstancedMesh(lollipopGeometry(), propMats.lolli[1], KNOCK_L);
-  for (const km of [knockMeshC, knockMeshL]) {
-    km.castShadow = true;
-    km.receiveShadow = true;
-    km.userData.noCollide = true;
-    world.add(km);
-  }
   const knockItems = [];
   for (let i = 0; i < KNOCK_C + KNOCK_L; i++) {
     const isCane = i < KNOCK_C;
@@ -802,49 +935,47 @@ export function createWorld(scene, track, renderer) {
     const tot = isCane ? KNOCK_C : KNOCK_L;
     const s = 7 + ((n + (isCane ? 0 : 0.5)) / tot) * (L - 16);
     const kSide = (n + (isCane ? 0 : 1)) % 2 ? 1 : -1;
-    const lat = kSide * (5.85 + rand() * 1.95);
+    // fence sits just OUTSIDE the new 6-band rainbow curb (curb ends at 6.62 m)
+    const lat = kSide * (6.8 + rand() * 1.6);
     const p = track.getPose(s + (rand() - 0.5) * 1.6, lat);
     knockItems.push({
-      mesh: isCane ? knockMeshC : knockMeshL,
-      idx: isCane ? i : n,
+      type: isCane ? 'cane' : 'lolli',
       x: p.pos.x, y: p.pos.y - 0.3, z: p.pos.z,
       ry: rand() * Math.PI * 2, sc: isCane ? 0.55 + rand() * 0.32 : 0.6 + rand() * 0.38,
       s, lateral: lat, state: 0, t: 0, dir: kSide,
     });
   }
   const knockDummy = new THREE.Object3D();
-  function knockSync(i) {
-    const it = knockItems[i];
+  function knockSyncItem(it) {
     const k = Math.min(1, it.t);
     const slide = it.state ? k * 1.5 : 0;
     knockDummy.position.set(it.x + it.dir * slide * 0.6, it.y + (it.state ? Math.sin(k * Math.PI) * 0.22 : 0), it.z + it.dir * slide * 0.35);
     knockDummy.rotation.set(0, it.ry, it.state ? it.dir * k * 1.42 : 0);
     knockDummy.scale.setScalar(it.sc);
     knockDummy.updateMatrix();
-    it.mesh.setMatrixAt(it.idx, knockDummy.matrix);
+    if (it.mesh) it.mesh.setMatrixAt(it.idx, knockDummy.matrix);
   }
-  for (let i = 0; i < knockItems.length; i++) knockSync(i);
-  knockMeshC.instanceMatrix.needsUpdate = true;
-  knockMeshL.instanceMatrix.needsUpdate = true;
+  function knockSync(i) { knockSyncItem(knockItems[i]); }
+  // chunked so only the fence near the car is submitted (it is the densest
+  // shoulder prop: 660 pieces along the whole course)
+  const knockMeshes = [];
+  for (const [type, geo, mat] of [['cane', caneGeometry(), propMats.cane], ['lolli', lollipopGeometry(), propMats.lolli[1]]]) {
+    const list = knockItems.filter((it) => it.type === type);
+    knockMeshes.push(...buildChunks(geo, mat, list, (inst, i, p) => knockSyncItem(p), { bindItem: true }));
+  }
+  for (const m of knockMeshes) m.instanceMatrix.needsUpdate = true;
 
   const dummy = new THREE.Object3D();
-  function makeInstanced(geo, mat, list, colorFn) {
+  function makeInstanced(geo, mat, list, colorFn, opts) {
     if (!list.length) return null;
-    const inst = new THREE.InstancedMesh(geo, mat, list.length);
-    inst.castShadow = true;
-    inst.receiveShadow = true;
-    list.forEach((p, i) => {
+    return buildChunks(geo, mat, list, (inst, i, p, gi) => {
       dummy.position.set(p.x, p.y, p.z);
       dummy.rotation.set(0, p.ry, 0);
       dummy.scale.setScalar(p.sc ?? 1);
       dummy.updateMatrix();
       inst.setMatrixAt(i, dummy.matrix);
-      if (colorFn) inst.setColorAt(i, colorFn(i, p));
-    });
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-    world.add(inst);
-    return inst;
+      if (colorFn) inst.setColorAt(i, colorFn(gi, p));
+    }, opts);
   }
 
   const BEAR_COLORS = ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#ff8ad0', '#b18aff'];
@@ -868,18 +999,205 @@ export function createWorld(scene, track, renderer) {
   heroCane.position.copy(track.getPose(L * 0.55, 17).pos).add(new THREE.Vector3(0, -1, 0));
   world.add(heroCane);
 
+  // ---------- cheering spectator crowds behind candy fences (reference look) --
+  // A low striped fence runs along both shoulders; chibi animals bob and
+  // "cheer" behind it. Everything is instanced: 3 draw calls for ~300 animals.
+  const crowdItems = [];
+  const crowdDummy = new THREE.Object3D();
+  function crowdSync(c, hop) {
+    const sq = 1 + (1 - hop) * 0.14;
+    crowdDummy.position.set(c.x, c.y + hop * c.amp, c.z);
+    crowdDummy.rotation.set(0, c.ry, Math.sin(hop * Math.PI) * 0.12);
+    crowdDummy.scale.set(c.sc * sq, c.sc * (2 - sq), c.sc * sq);
+    crowdDummy.updateMatrix();
+    c.mesh.setMatrixAt(c.idx, crowdDummy.matrix);
+  }
+  {
+    const crowdGeo = {
+      bear: gummyBearGeometry(),
+      kitty: mergeParts([
+        { geo: new THREE.SphereGeometry(0.46, 12, 10), pos: [0, 0.6, 0], scale: [1, 0.92, 0.88] }, // body
+        { geo: new THREE.SphereGeometry(0.4, 14, 12), pos: [0, 1.28, 0.02] },                     // head
+        { geo: new THREE.ConeGeometry(0.15, 0.32, 6), pos: [-0.19, 1.63, 0], rot: [0, 0, -0.16] }, // ear L
+        { geo: new THREE.ConeGeometry(0.15, 0.32, 6), pos: [0.19, 1.63, 0], rot: [0, 0, 0.16] },   // ear R
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [-0.14, 1.32, 0.33] },                   // eye L
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [0.14, 1.32, 0.33] },                    // eye R
+        { geo: new THREE.SphereGeometry(0.045, 6, 6), pos: [0, 1.2, 0.36] },                       // nose
+        { geo: new THREE.CylinderGeometry(0.07, 0.05, 0.5, 6), pos: [0, 0.62, -0.42], rot: [-0.9, 0, 0] }, // tail
+      ]),
+      bunny: mergeParts([
+        { geo: new THREE.SphereGeometry(0.44, 12, 10), pos: [0, 0.58, 0], scale: [1, 0.95, 0.9] },
+        { geo: new THREE.SphereGeometry(0.38, 14, 12), pos: [0, 1.22, 0.02] },
+        { geo: new THREE.SphereGeometry(0.1, 8, 8), pos: [-0.13, 1.78, 0], scale: [0.85, 1.9, 0.85] }, // ear L
+        { geo: new THREE.SphereGeometry(0.1, 8, 8), pos: [0.13, 1.78, 0], scale: [0.85, 1.9, 0.85] },  // ear R
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [-0.13, 1.26, 0.32] },
+        { geo: new THREE.SphereGeometry(0.06, 8, 6), pos: [0.13, 1.26, 0.32] },
+        { geo: new THREE.SphereGeometry(0.045, 6, 6), pos: [0, 1.14, 0.34] },
+        { geo: new THREE.SphereGeometry(0.13, 8, 8), pos: [0, 0.42, -0.36], scale: [1, 0.8, 1] },   // puff tail
+      ]),
+    };
+    const crowdMats = {
+      bear: new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.05 }),
+      kitty: new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.02 }),
+      bunny: new THREE.MeshStandardMaterial({ roughness: 0.62, metalness: 0.0 }),
+    };
+    const CROWD_COLORS = {
+      bear: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#ff8ad0', '#b18aff'],
+      kitty: ['#ff9f43', '#fff2f7', '#c9c3d9', '#ff8fc6', '#8fd6ff'],
+      bunny: ['#fff2f7', '#ffd6e8', '#c8b6ff', '#ffe08a'],
+    };
+
+    // ---- the fence itself: merged striped units (2 posts + 2 rails), 5.6 m long
+    const fenceUnit = mergeParts([
+      { geo: new THREE.CylinderGeometry(0.09, 0.11, 1.15, 8), pos: [-2.7, 0.575, 0] },
+      { geo: new THREE.CylinderGeometry(0.09, 0.11, 1.15, 8), pos: [2.7, 0.575, 0] },
+      { geo: new THREE.SphereGeometry(0.15, 8, 6), pos: [-2.7, 1.2, 0] },
+      { geo: new THREE.SphereGeometry(0.15, 8, 6), pos: [2.7, 1.2, 0] },
+      { geo: new THREE.BoxGeometry(5.6, 0.11, 0.11), pos: [0, 1.04, 0] },
+      { geo: new THREE.BoxGeometry(5.6, 0.09, 0.09), pos: [0, 0.6, 0] },
+    ]);
+    const FENCE_STEP = 5.6, FENCE_LAT = 9.1;
+    {
+      const slots = [];
+      for (let s = 15; s < L - 15; s += FENCE_STEP) {
+        for (const side of [-1, 1]) slots.push({ s, side });
+      }
+      // chunked: the fence line is ~460 units along 1.3 km; one mesh would be
+      // drawn in full every frame even though only ~30 units are on screen
+      buildChunks(fenceUnit, propMats.cane, slots, (inst, i, slot) => {
+        const fd = new THREE.Object3D();
+        const p = track.getPose(slot.s, slot.side * FENCE_LAT);
+        fd.position.set(p.pos.x, p.pos.y - 0.12, p.pos.z);
+        fd.rotation.set(0, p.heading, 0);
+        fd.scale.setScalar(1);
+        fd.updateMatrix();
+        inst.setMatrixAt(i, fd.matrix);
+      }, { shadow: false });
+    }
+
+    // ---- the crowd: clusters of 3-5 animals behind the fence, facing the road
+    const crowdItems = [];
+    for (let s = 24; s < L - 34; s += 22 + rand() * 12) {
+      const side = (Math.round(s / 22) % 2) ? 1 : -1;
+      const n = 3 + Math.floor(rand() * 4);
+      for (let k = 0; k < n; k++) {
+        const far = 9.6 + rand() * 2.2;
+        const ss = s + (rand() - 0.5) * 14;
+        const p = track.getPose(ss, side * far);
+        const type = ['bear', 'kitty', 'bunny'][Math.floor(rand() * 3)];
+        crowdItems.push({
+          type, s: ss,
+          x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z,
+          ry: p.heading + Math.PI + (rand() - 0.5) * 0.8,
+          phase: rand() * Math.PI * 2,
+          amp: 0.2 + rand() * 0.38,
+          sc: 1.15 + rand() * 0.6,
+        });
+      }
+    }
+    const crowdMeshes = [];
+    for (const type of ['bear', 'kitty', 'bunny']) {
+      const list = crowdItems.filter((c) => c.type === type);
+      if (!list.length) continue;
+      crowdMeshes.push(...buildChunks(crowdGeo[type], crowdMats[type], list, (inst, i, c) => {
+        inst.setColorAt(i, new THREE.Color(CROWD_COLORS[type][i % CROWD_COLORS[type].length]));
+      }, { bindItem: true, shadow: false }));
+    }
+    for (const c of crowdItems) crowdSync(c, 0);
+    for (const im of crowdMeshes) im.instanceMatrix.needsUpdate = true;
+  }
+
+  // ---------- dense candy strip just behind the spectator fence -------------
+  // The reference frames the fence line with solid candy: mini lollipops,
+  // gumdrops and canes packed shoulder-to-shoulder. Fills the grass strip
+  // between the animals and the mid-field dressing band.
+  {
+    const strip = { lolli: [], gum: [], cane: [] };
+    for (let s = 18; s < L - 20; s += 4.6) {
+      for (const side of [-1, 1]) {
+        if (rand() < 0.22) continue; // small breathing gaps
+        const far = 11.6 + rand() * 2.1;
+        const ss = s + (rand() - 0.5) * 3;
+        const p = track.getPose(ss, side * far);
+        const slot = { s: ss, x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.42 + rand() * 0.34 };
+        const roll = rand();
+        if (roll < 0.4) strip.lolli.push(slot);
+        else if (roll < 0.72) strip.gum.push(slot);
+        else strip.cane.push(slot);
+      }
+    }
+    makeInstanced(lollipopGeometry(), propMats.lolli[2], strip.lolli);
+    makeInstanced(marshGeometry(), propMats.marsh, strip.gum,
+      (i) => new THREE.Color(['#fff2f7', '#ffd6e8', '#fff0d8', '#e8d6ff', '#ffc9dd'][i % 5]));
+    makeInstanced(caneGeometry(), propMats.cane, strip.cane);
+  }
+
+  // ---------- close framing candy: big pieces that sweep past the camera edges
+  // (the reference frames every shot with a foreground lollipop/cane)
+  {
+    const spots = [];
+    for (let s = 34; s < L - 40; s += 44 + rand() * 26) {
+      spots.push({ s, side: (Math.round(s / 44) % 2) ? 1 : -1 });
+    }
+    const kinds = [
+      { geo: lollipopGeometry(), mat: propMats.lolli[0] },
+      { geo: caneGeometry(), mat: propMats.cane },
+      { geo: lollipopGeometry(), mat: propMats.lolli[2] },
+    ];
+    for (let k = 0; k < kinds.length; k++) {
+      const list = spots.filter((_, i) => i % kinds.length === k);
+      if (!list.length) continue;
+      buildChunks(kinds[k].geo, kinds[k].mat, list, (inst, i, spot) => {
+        const d = new THREE.Object3D();
+        const p = track.getPose(spot.s, spot.side * (12.2 + rand() * 1.6));
+        d.position.set(p.pos.x, p.pos.y - 0.4, p.pos.z);
+        d.rotation.set(0, p.heading + rand() * 0.6, 0);
+        d.scale.setScalar(2.6 + rand() * 0.9);
+        d.updateMatrix();
+        inst.setMatrixAt(i, d.matrix);
+      });
+    }
+  }
+
   // grandstand gummy-bears near the finish (like the reference crowd)
   const crowd = [];
-  for (let i = 0; i < 26; i++) {
-    const u = 0.94 + (i % 5) * 0.009;
-    const side = i % 2 ? 7.2 : -7.2;
-    const p = track.getPose(track.length * u, side + (i % 3) * 1.1);
-    crowd.push({ x: p.pos.x, y: p.pos.y - 0.35, z: p.pos.z, ry: p.heading + Math.PI, sc: 1.15 + (i % 3) * 0.18 });
+  for (let i = 0; i < 58; i++) {
+    const u = 0.935 + (i % 7) * 0.008;
+    const side = i % 2 ? 7.0 : -7.0;
+    const cs = track.length * u;
+    const p = track.getPose(cs, side + (i % 3) * 1.15);
+    crowd.push({ s: cs, x: p.pos.x, y: p.pos.y - 0.35, z: p.pos.z, ry: p.heading + Math.PI, sc: 1.15 + (i % 3) * 0.2 });
   }
   makeInstanced(gummyBearGeometry(), propMats.bear, crowd, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
 
+  // ---------- finish festival: flag border + confetti curtain -------------
+  let curtainData = null;
+  {
+    const fin = track.getPose(track.length * 0.9975, 0);
+    const FLAG_COLS = ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff', '#ff8a5c'];
+    const poleMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4 });
+    for (let k = 0; k < 12; k++) {
+      const side = k % 2 ? 1 : -1;
+      const p = track.getPose(track.length - 30 + Math.floor(k / 2) * 5.2, side * 12.8);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 4.8, 8), poleMat);
+      pole.position.set(p.pos.x, p.pos.y + 2.3, p.pos.z);
+      const flag = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.8, 1.05),
+        new THREE.MeshStandardMaterial({ color: FLAG_COLS[k % FLAG_COLS.length], side: THREE.DoubleSide, roughness: 0.55 })
+      );
+      flag.position.set(
+        p.pos.x + Math.cos(p.heading) * 1.0,
+        p.pos.y + 4.15,
+        p.pos.z - Math.sin(p.heading) * 1.0
+      );
+      flag.rotation.y = p.heading;
+      pole.castShadow = false;
+      world.add(pole, flag);
+    }
+  }
+
   // ---------- air confetti ----------
-  const CONFETTI = 520;
+  const CONFETTI = 680;
   const confGeo = new THREE.BufferGeometry();
   const confPos = new Float32Array(CONFETTI * 3);
   const confCol = new Float32Array(CONFETTI * 3);
@@ -904,11 +1222,42 @@ export function createWorld(scene, track, renderer) {
     return new THREE.CanvasTexture(c);
   })();
   const confMat = new THREE.PointsMaterial({
-    size: 0.42, map: confTex, vertexColors: true, transparent: true,
-    opacity: 0.85, depthWrite: false, sizeAttenuation: true,
+    size: 0.95, map: confTex, vertexColors: true, transparent: true,
+    opacity: 0.95, depthWrite: false, sizeAttenuation: true,
   });
   const confetti = new THREE.Points(confGeo, confMat);
   world.add(confetti);
+
+  // confetti curtain over the finish line: the car drives through a party cloud
+  {
+    const fin = track.getPose(track.length * 0.9975, 0);
+    const CURTAIN = 180;
+    const curGeo = new THREE.BufferGeometry();
+    const curPos = new Float32Array(CURTAIN * 3);
+    const curVel = new Float32Array(CURTAIN * 3);
+    const curCol = new Float32Array(CURTAIN * 3);
+    const cpal = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff2f7'].map((h) => new THREE.Color(h));
+    for (let i = 0; i < CURTAIN; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 10.5;
+      curPos[i * 3] = fin.pos.x + Math.cos(a) * r;
+      curPos[i * 3 + 1] = 1.5 + Math.random() * 7.5;
+      curPos[i * 3 + 2] = fin.pos.z + Math.sin(a) * r;
+      curVel[i * 3] = (Math.random() - 0.5) * 1.5;
+      curVel[i * 3 + 1] = -0.5 - Math.random() * 0.9;
+      curVel[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+      const c = cpal[i % cpal.length];
+      curCol[i * 3] = c.r; curCol[i * 3 + 1] = c.g; curCol[i * 3 + 2] = c.b;
+    }
+    curGeo.setAttribute('position', new THREE.BufferAttribute(curPos, 3));
+    curGeo.setAttribute('color', new THREE.BufferAttribute(curCol, 3));
+    const curtain = new THREE.Points(curGeo, new THREE.PointsMaterial({
+      size: 0.6, map: confTex, vertexColors: true, transparent: true,
+      opacity: 0.95, depthWrite: false, sizeAttenuation: true,
+    }));
+    world.add(curtain);
+    curtainData = { geo: curGeo, vel: curVel, count: CURTAIN, center: fin.pos.clone() };
+  }
 
   // ---------- floating balloons ----------
   const balloonMat = new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.12 });
@@ -939,32 +1288,29 @@ export function createWorld(scene, track, renderer) {
     pebbleGeo.scale(1, 0.72, 1);
     const pebbleMat = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0, flatShading: true });
     const N = 520;
-    const field = new THREE.InstancedMesh(pebbleGeo, pebbleMat, N);
     const d2 = new THREE.Object3D();
     const cTmp = new THREE.Color();
     const COLS = ['#ff8fc6', '#ffd45e', '#8ef07e', '#56c8ff', '#b18aff', '#fff2f7', '#ff6b81'];
-    let fi = 0;
+    const slots = [];
     let fs = 12;
-    while (fi < N && fs < L - 12) {
+    while (slots.length < N && fs < L - 12) {
       for (const side of [-1, 1]) {
-        if (fi >= N) break;
+        if (slots.length >= N) break;
         const far = 9.8 + rand() * 14;
-        const p = track.getPose(fs + (rand() - 0.5) * 3, side * far);
-        const sc = 1.1 + rand() * 2.1;
-        d2.position.set(p.pos.x, p.pos.y - far * 0.13 - 0.3, p.pos.z);
-        d2.rotation.set(0, rand() * Math.PI * 2, 0);
-        d2.scale.setScalar(sc);
-        d2.updateMatrix();
-        field.setMatrixAt(fi, d2.matrix);
-        field.setColorAt(fi, cTmp.set(COLS[Math.floor(rand() * COLS.length)]));
-        fi++;
+        const ss = fs + (rand() - 0.5) * 3;
+        const p = track.getPose(ss, side * far);
+        slots.push({ s: ss, x: p.pos.x, y: p.pos.y - far * 0.13 - 0.3, z: p.pos.z, far });
       }
       fs += 3.2;
     }
-    field.count = fi;
-    field.instanceMatrix.needsUpdate = true;
-    if (field.instanceColor) field.instanceColor.needsUpdate = true;
-    world.add(field);
+    buildChunks(pebbleGeo, pebbleMat, slots, (inst, i, slot, gi) => {
+      d2.position.set(slot.x, slot.y, slot.z);
+      d2.rotation.set(0, rand() * Math.PI * 2, 0);
+      d2.scale.setScalar(1.1 + rand() * 2.1);
+      d2.updateMatrix();
+      inst.setMatrixAt(i, d2.matrix);
+      inst.setColorAt(i, cTmp.set(COLS[gi % COLS.length]));
+    });
   }
 
   // ---------- living candy world: villages, donut gardens, ponds, groves ------
@@ -981,11 +1327,15 @@ export function createWorld(scene, track, renderer) {
     });
 
     // --- gingerbread house factory ---
+    // shared roof/window materials so the whole village merges into a handful
+    // of draw calls instead of 84
+    const roofMats = ['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.42 }));
+    const winMat = new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.8, roughness: 0.3 });
     const house = (hue) => {
       const g = new THREE.Group();
       const body = new THREE.Mesh(new RoundedBoxGeometry(6.2, 4.6, 5.4, 3, 0.5), propMats.cookie);
       body.position.y = 2.3;
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(4.9, 3.6, 4), new THREE.MeshStandardMaterial({ color: hue, roughness: 0.42 }));
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(4.9, 3.6, 4), roofMats[['#ff4f96', '#8f6bff', '#56c8ff', '#ff8a5c'].indexOf(hue)] ?? roofMats[0]);
       roof.position.y = 6.4;
       roof.rotation.y = Math.PI / 4;
       const trim = new THREE.Mesh(new THREE.TorusGeometry(3.1, 0.34, 8, 4), icing);
@@ -994,7 +1344,7 @@ export function createWorld(scene, track, renderer) {
       trim.position.y = 4.75;
       const door = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.3, 0.35), dark);
       door.position.set(0, 1.15, 2.75);
-      const win = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.3, 10), new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.8, roughness: 0.3 }));
+      const win = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.72, 0.3, 10), winMat);
       win.rotation.x = Math.PI / 2;
       win.position.set(1.85, 2.7, 2.72);
       const win2 = win.clone();
@@ -1008,6 +1358,8 @@ export function createWorld(scene, track, renderer) {
     };
 
     // 3 gingerbread villages beside the track
+    const villageGroup = new THREE.Group();
+    world.add(villageGroup);
     [[0.14, -1], [0.52, 1], [0.79, -1]].forEach(([u, side], vi) => {
       const base = track.getPose(track.length * u, side * 30);
       for (let k = 0; k < 4; k++) {
@@ -1016,26 +1368,34 @@ export function createWorld(scene, track, renderer) {
         h.position.copy(base.pos).add(new THREE.Vector3(Math.cos(ang) * (7 + k * 2.4), -1.2, Math.sin(ang) * (7 + k * 2.2)));
         h.rotation.y = ang * 1.3;
         h.scale.setScalar(0.9 + (k % 3) * 0.22);
-        world.add(h);
+        villageGroup.add(h);
       }
     });
+    mergeByMaterial(villageGroup); // 84 house meshes -> ~9 draw calls
 
     // --- donut gardens (big leaning rings) ---
     const donutGeo = new THREE.TorusGeometry(3.2, 1.35, 12, 22);
+    const donutMats = [0, 1].map((k) => new THREE.MeshStandardMaterial({ map: stripeTexture(k ? '#ff8ad0' : '#b18aff', '#fff2f7'), roughness: 0.45 }));
+    const donutGroup = new THREE.Group();
+    world.add(donutGroup);
     for (let i = 0; i < 5; i++) {
       const u = 0.08 + i * 0.19;
       const side = i % 2 ? 1 : -1;
       const base = track.getPose(track.length * u, side * (24 + (i % 3) * 6));
       for (let k = 0; k < 3; k++) {
-        const d = new THREE.Mesh(donutGeo, new THREE.MeshStandardMaterial({ map: stripeTexture(i % 2 ? '#ff8ad0' : '#b18aff', '#fff2f7'), roughness: 0.45 }));
+        const d = new THREE.Mesh(donutGeo, donutMats[i % 2]);
         d.position.copy(base.pos).add(new THREE.Vector3((k - 1) * 8.5 + i, 2.6 + k * 0.4, (k % 2) * 5 - 2.5));
         d.rotation.set((rand() - 0.5) * 0.5, rand() * Math.PI, (rand() - 0.5) * 0.55);
         d.scale.setScalar(0.85 + k * 0.3);
-        world.add(d);
+        donutGroup.add(d);
       }
     }
+    mergeByMaterial(donutGroup); // 15 donuts -> 2 draw calls
 
     // --- macaron stacks ---
+    const macaronMats = ['#ff8fc6', '#c8b6ff', '#8fd6ff', '#ffe08a'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }));
+    const macaronGroup = new THREE.Group();
+    world.add(macaronGroup);
     for (let i = 0; i < 8; i++) {
       const u = 0.05 + i * 0.12;
       const side = i % 2 ? -1 : 1;
@@ -1043,7 +1403,7 @@ export function createWorld(scene, track, renderer) {
       const stack = new THREE.Group();
       const cols = ['#ff8fc6', '#c8b6ff', '#8fd6ff', '#ffe08a'];
       for (let k = 0; k < 3; k++) {
-        const shell = new THREE.Mesh(new THREE.CylinderGeometry(2.6 - k * 0.35, 2.6 - k * 0.35, 1.15, 14), new THREE.MeshStandardMaterial({ color: cols[(i + k) % 4], roughness: 0.5 }));
+        const shell = new THREE.Mesh(new THREE.CylinderGeometry(2.6 - k * 0.35, 2.6 - k * 0.35, 1.15, 14), macaronMats[(i + k) % 4]);
         shell.position.y = 0.6 + k * 1.85;
         const cream = new THREE.Mesh(new THREE.CylinderGeometry(2.45 - k * 0.35, 2.45 - k * 0.35, 0.75, 14), icing);
         cream.position.y = 1.55 + k * 1.85;
@@ -1051,10 +1411,13 @@ export function createWorld(scene, track, renderer) {
       }
       stack.position.copy(base.pos).add(new THREE.Vector3(0, -0.6, 0));
       stack.scale.setScalar(0.8 + (i % 3) * 0.28);
-      world.add(stack);
+      macaronGroup.add(stack);
     }
+    mergeByMaterial(macaronGroup); // 48 stack meshes -> 5 draw calls
 
     // --- chocolate ponds with cookie-crumb rim ---
+    const pondGroup = new THREE.Group();
+    world.add(pondGroup);
     for (let i = 0; i < 4; i++) {
       const u = 0.18 + i * 0.22;
       const side = i % 2 ? 1 : -1;
@@ -1064,8 +1427,9 @@ export function createWorld(scene, track, renderer) {
       const rim = new THREE.Mesh(new THREE.TorusGeometry(9 + i * 1.6, 1.15, 8, 26), choc);
       rim.rotation.x = Math.PI / 2;
       rim.position.copy(pond.position).add(new THREE.Vector3(0, 0.35, 0));
-      world.add(pond, rim);
+      pondGroup.add(pond, rim);
     }
+    mergeByMaterial(pondGroup); // 8 pond meshes -> 2 draw calls
 
     // --- extra tree groves mid-field ---
     const groveList = [];
@@ -1132,6 +1496,209 @@ export function createWorld(scene, track, renderer) {
         world.add(bear);
         bounceList.push({ m: bear, sc: bear.scale.x, baseY: bear.position.y, phase: gi * 1.7 + k * 0.9, amp: 0.55 + rand() * 0.55, spin: (rand() - 0.5) * 0.6 });
       }
+    }
+  }
+
+  // ---------- living details: butterflies in the meadows, birds in the sky ---
+  const butterflies = [];
+  {
+    const wingGeo = new THREE.PlaneGeometry(0.24, 0.17);
+    for (let i = 0; i < 16; i++) {
+      const g = new THREE.Group();
+      const mat = new THREE.MeshStandardMaterial({
+        color: ['#ff8fc6', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7', '#ff9f43'][i % 6],
+        roughness: 0.5, side: THREE.DoubleSide,
+      });
+      const wl = new THREE.Mesh(wingGeo, mat); wl.position.x = -0.12;
+      const wr = new THREE.Mesh(wingGeo, mat); wr.position.x = 0.12;
+      g.add(wl, wr);
+      g.scale.setScalar(2.6); // visible as colorful flutters over the grass
+      const u = 0.005 + (i / 16) * 0.21;
+      const side = i % 2 ? 1 : -1;
+      const p = track.getPose(L * u, side * (8.5 + rand() * 10));
+      g.position.set(p.pos.x, p.pos.y + 1.1 + rand() * 1.8, p.pos.z);
+      g.traverse((o) => { o.userData.noCollide = true; });
+      world.add(g);
+      butterflies.push({ g, wl, wr, base: g.position.clone(), phase: rand() * 6.28, r: 1.6 + rand() * 2.6, speed: 0.45 + rand() * 0.65, flap: 9 + rand() * 7 });
+    }
+  }
+  const birds = [];
+  {
+    const wingGeo = new THREE.PlaneGeometry(1.5, 0.42);
+    const birdMat = new THREE.MeshStandardMaterial({ color: '#8f7fb8', roughness: 0.9, side: THREE.DoubleSide });
+    for (let i = 0; i < 9; i++) {
+      const g = new THREE.Group();
+      const wl = new THREE.Mesh(wingGeo, birdMat); wl.position.x = -0.75;
+      const wr = new THREE.Mesh(wingGeo, birdMat); wr.position.x = 0.75;
+      g.add(wl, wr);
+      const a = (i / 9) * Math.PI * 2;
+      const rr = 130 + rand() * 180;
+      g.position.set(track.bounds.center.x + Math.cos(a) * rr, 46 + rand() * 30, track.bounds.center.z + Math.sin(a) * rr);
+      g.scale.setScalar(1.6 + rand() * 1.0);
+      g.traverse((o) => { o.userData.noCollide = true; });
+      world.add(g);
+      birds.push({ g, wl, wr, cx: g.position.x, cz: g.position.z, y: g.position.y, r: 40 + rand() * 70, phase: rand() * 6.28, speed: 0.1 + rand() * 0.12, flap: 3.5 + rand() * 2.5 });
+    }
+  }
+
+  // ---------- zone identity: each stretch gets its own hero dressing -------
+  {
+    // 0. Lollipop Meadows — candy flower fields on the grass
+    const flowerGeo = mergeParts([
+      { geo: new THREE.CylinderGeometry(0.035, 0.045, 0.55, 5), pos: [0, 0.27, 0] },
+      { geo: new THREE.SphereGeometry(0.17, 8, 6), pos: [0, 0.62, 0], scale: [1, 0.85, 1] },
+      { geo: new THREE.SphereGeometry(0.07, 6, 5), pos: [0, 0.78, 0] },
+    ]);
+    const flowerMat = new THREE.MeshStandardMaterial({ roughness: 0.5 });
+    {
+      const list = [];
+      let fs = 8;
+      while (fs < L * 0.22) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.8) {
+            const far = 12 + rand() * 14;
+            const p = track.getPose(fs + (rand() - 0.5) * 4, side * far);
+            list.push({ x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.8 + rand() * 0.9, c: ['#ff6b9e', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7'][Math.floor(rand() * 5)] });
+          }
+        }
+        fs += 2.6;
+      }
+      const im = new THREE.InstancedMesh(flowerGeo, flowerMat, list.length);
+      im.receiveShadow = true;
+      im.castShadow = false;
+      const d = new THREE.Object3D();
+      list.forEach((f, i) => {
+        d.position.set(f.x, f.y, f.z); d.rotation.set(0, f.ry, 0); d.scale.setScalar(f.sc);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+        im.setColorAt(i, new THREE.Color(f.c));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 1. Gummy Bear Grove — big gumdrop bushes
+    const gumGeo = new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62);
+    const gumMat2 = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2 });
+    {
+      const list = [];
+      let gs = L * 0.22;
+      while (gs < L * 0.46) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.5) {
+            const far = 13 + rand() * 15;
+            const p = track.getPose(gs + (rand() - 0.5) * 6, side * far);
+            list.push({ x: p.pos.x, y: p.pos.y - 0.25, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.4 + rand() * 1.6, c: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#b18aff', '#ff8ad0'][Math.floor(rand() * 6)] });
+          }
+        }
+        gs += 7;
+      }
+      const im = new THREE.InstancedMesh(gumGeo, gumMat2, list.length);
+      im.castShadow = true; im.receiveShadow = true;
+      const d = new THREE.Object3D();
+      list.forEach((g, i) => {
+        d.position.set(g.x, g.y, g.z); d.rotation.set(0, g.ry, 0); d.scale.set(g.sc, g.sc * (0.8 + rand() * 0.5), g.sc);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+        im.setColorAt(i, new THREE.Color(g.c));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 2. Cocoa Canyon — dark chocolate crystals & boulders
+    const chocGeo = new THREE.OctahedronGeometry(1, 0);
+    const chocMat2 = new THREE.MeshStandardMaterial({ color: '#6b3a1e', roughness: 0.42, metalness: 0.1, flatShading: true });
+    {
+      const list = [];
+      let cs = L * 0.46;
+      while (cs < L * 0.68) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.55) {
+            const far = 13 + rand() * 16;
+            const p = track.getPose(cs + (rand() - 0.5) * 7, side * far);
+            list.push({ x: p.pos.x, y: p.pos.y - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.6 + rand() * 2.6 });
+          }
+        }
+        cs += 6.5;
+      }
+      const im = new THREE.InstancedMesh(chocGeo, chocMat2, list.length);
+      im.castShadow = true; im.receiveShadow = true;
+      const d = new THREE.Object3D();
+      list.forEach((c2, i) => {
+        d.position.set(c2.x, c2.y, c2.z);
+        d.rotation.set((rand() - 0.5) * 0.5, c2.ry, (rand() - 0.5) * 0.5);
+        d.scale.set(c2.sc, c2.sc * (0.7 + rand() * 0.9), c2.sc);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 3. Marshmallow Valley — big soft mounds on the horizon
+    const marshGeo = new THREE.SphereGeometry(1, 14, 10);
+    const marshMat2 = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+    {
+      const list = [];
+      for (let i = 0; i < 16; i++) {
+        const u = 0.68 + (i / 16) * 0.2 + (rand() - 0.5) * 0.01;
+        const side = i % 2 ? 1 : -1;
+        const far = 22 + rand() * 26;
+        const p = track.getPose(L * u, side * far);
+        list.push({ x: p.pos.x, y: p.pos.y - far * 0.12 - 1.2, z: p.pos.z, sc: 5 + rand() * 6, c: ['#fff2f7', '#ffd6e8', '#f2e8ff', '#fff0d8'][i % 4] });
+      }
+      const im = new THREE.InstancedMesh(marshGeo, marshMat2, list.length);
+      im.receiveShadow = true; im.castShadow = false;
+      const d = new THREE.Object3D();
+      list.forEach((m2, i) => {
+        d.position.set(m2.x, m2.y, m2.z);
+        d.rotation.set(0, rand() * Math.PI, 0);
+        d.scale.set(m2.sc, m2.sc * 0.52, m2.sc * 0.9);
+        d.updateMatrix(); im.setMatrixAt(i, d.matrix);
+        im.setColorAt(i, new THREE.Color(m2.c));
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      world.add(im);
+    }
+
+    // 4. Sugar Castle Run — bunting flag rows leading to the finish
+    const flagGeo = new THREE.PlaneGeometry(0.9, 1.15);
+    const flagMat = new THREE.MeshStandardMaterial({ roughness: 0.6, side: THREE.DoubleSide });
+    const poleGeo = new THREE.CylinderGeometry(0.07, 0.09, 3.4, 6);
+    const poleMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.5 });
+    {
+      const poles = [], flags = [];
+      let bs = L * 0.88;
+      while (bs < L - 26) {
+        for (const side of [-1, 1]) {
+          if (rand() < 0.9) {
+            const far = 13 + rand() * 4;
+            const p = track.getPose(bs + (rand() - 0.5) * 3, side * far);
+            poles.push({ x: p.pos.x, y: p.pos.y - 0.1, z: p.pos.z, ry: p.heading });
+            flags.push({ x: p.pos.x, y: p.pos.y + 3.0, z: p.pos.z, ry: p.heading, c: ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff'][Math.floor(rand() * 5)] });
+          }
+        }
+        bs += 5.2;
+      }
+      const pim = new THREE.InstancedMesh(poleGeo, poleMat, poles.length);
+      const fim = new THREE.InstancedMesh(flagGeo, flagMat, flags.length);
+      const d = new THREE.Object3D();
+      poles.forEach((p2, i) => {
+        d.position.set(p2.x, p2.y + 1.7, p2.z); d.rotation.set(0, p2.ry, 0); d.scale.setScalar(1);
+        d.updateMatrix(); pim.setMatrixAt(i, d.matrix);
+      });
+      flags.forEach((f2, i) => {
+        d.position.set(f2.x, f2.y, f2.z); d.rotation.set(0, f2.ry, 0); d.scale.setScalar(1);
+        d.updateMatrix(); fim.setMatrixAt(i, d.matrix);
+        fim.setColorAt(i, new THREE.Color(f2.c));
+      });
+      pim.instanceMatrix.needsUpdate = true;
+      fim.instanceMatrix.needsUpdate = true;
+      if (fim.instanceColor) fim.instanceColor.needsUpdate = true;
+      pim.userData.noCollide = true; // shoulder dressing, clear of the corridor
+      fim.userData.noCollide = true;
+      world.add(pim, fim);
     }
   }
 
@@ -1240,7 +1807,7 @@ export function createWorld(scene, track, renderer) {
             knockDirty = true;
           }
         }
-        if (knockDirty) { knockMeshC.instanceMatrix.needsUpdate = true; knockMeshL.instanceMatrix.needsUpdate = true; }
+        if (knockDirty) { for (const m of knockMeshes) m.instanceMatrix.needsUpdate = true; }
       }
 
       // clouds drift
@@ -1269,6 +1836,32 @@ export function createWorld(scene, track, renderer) {
         b.g.position.y = b.baseY + Math.sin(time * 0.8 + b.phase) * 1.6;
         b.g.rotation.y = time * 0.25 + b.phase;
       }
+      // coaster train circles the loop, cars spaced along the curve
+      for (let i = 0; i < coasterCars.length; i++) {
+        const ct = (time * 0.042 + i * 0.042) % 1;
+        coasterCurve.getPointAt(ct, coasterPt);
+        coasterCurve.getTangentAt(ct, coasterTan);
+        coasterCars[i].position.set(coasterPt.x, coasterPt.y - 0.55, coasterPt.z);
+        coasterCars[i].lookAt(coasterPt.x + coasterTan.x, coasterPt.y - 0.55 + coasterTan.y, coasterPt.z + coasterTan.z);
+      }
+      // butterflies drift and flap over the meadows
+      for (const bf of butterflies) {
+        const t2 = time * bf.speed + bf.phase;
+        bf.g.position.set(bf.base.x + Math.cos(t2) * bf.r, bf.base.y + Math.sin(t2 * 1.7) * 0.55, bf.base.z + Math.sin(t2) * bf.r);
+        bf.g.rotation.y = -t2;
+        const flap = Math.sin(time * bf.flap + bf.phase) * 0.95;
+        bf.wl.rotation.y = flap;
+        bf.wr.rotation.y = -flap;
+      }
+      // birds wheel in slow circles high above the kingdom
+      for (const bd of birds) {
+        const a = time * bd.speed + bd.phase;
+        bd.g.position.set(bd.cx + Math.cos(a) * bd.r, bd.y + Math.sin(a * 0.7) * 4, bd.cz + Math.sin(a) * bd.r);
+        bd.g.rotation.y = -a + Math.PI / 2;
+        const flap = Math.sin(time * bd.flap) * 0.5;
+        bd.wl.rotation.y = flap;
+        bd.wr.rotation.y = -flap;
+      }
       // marzipan bears hop with a squash-and-stretch
       for (const bn of bounceList) {
         const hop = Math.abs(Math.sin(time * 2.1 + bn.phase));
@@ -1276,6 +1869,32 @@ export function createWorld(scene, track, renderer) {
         const sq = 1 + (1 - hop) * 0.16;
         bn.m.scale.set(bn.sc * sq, bn.sc * (2 - sq), bn.sc * sq);
         bn.m.rotation.y += bn.spin * dt;
+      }
+      // finish confetti curtain swirls and falls, wrapping around the line
+      if (curtainData) {
+        const arr = curtainData.geo.attributes.position.array;
+        const vel = curtainData.vel;
+        for (let i = 0; i < curtainData.count; i++) {
+          const ix = i * 3;
+          arr[ix] += (vel[ix] + Math.sin(time * 1.6 + i) * 0.4) * dt;
+          arr[ix + 1] += vel[ix + 1] * dt;
+          arr[ix + 2] += (vel[ix + 2] + Math.cos(time * 1.2 + i * 0.8) * 0.4) * dt;
+          if (arr[ix + 1] < 1.2) {
+            const a = Math.random() * Math.PI * 2;
+            const r = Math.random() * 10.5;
+            arr[ix] = curtainData.center.x + Math.cos(a) * r;
+            arr[ix + 1] = 8.5 + Math.random() * 1.5;
+            arr[ix + 2] = curtainData.center.z + Math.sin(a) * r;
+          }
+        }
+        curtainData.geo.attributes.position.needsUpdate = true;
+      }
+      // spectator crowd cheers near the camera (only nearby clusters animate)
+      const cheerS = carS >= 0 ? carS : 14; // menu attract mode: cheer at the grid
+      for (const c of crowdItems) {
+        if (Math.abs(c.s - cheerS) > 110) continue;
+        crowdSync(c, Math.abs(Math.sin(time * 2.6 + c.phase)));
+        c.mesh.instanceMatrix.needsUpdate = true;
       }
       return knocked;
     },

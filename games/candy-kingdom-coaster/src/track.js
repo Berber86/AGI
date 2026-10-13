@@ -33,8 +33,8 @@ function roadTexture() {
   // (road band = y 226..285 between the road vertices at k=4..5 of 0..9).
   g.fillStyle = '#ffffff';
   g.fillRect(0, 0, 256, 512); // neutral outside road -> grass/curb keep vertex colors
-  // strawberry road band
-  g.fillStyle = '#efa3c4';
+  // strawberry road band — bright, so the track pops against the candy fields
+  g.fillStyle = '#ffc9dd';
   g.fillRect(0, 226, 256, 59);
   // candy sprinkles inside the road band (tile every 12 m along the track)
   const conf = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0', '#fff3b0'];
@@ -45,13 +45,19 @@ function roadTexture() {
     g.translate(x, y);
     g.rotate(a);
     g.fillStyle = conf[i % conf.length];
-    g.globalAlpha = 0.78;
+    g.globalAlpha = 0.92;
     g.beginPath();
     g.roundRect(-2.4, -0.9, 4.8, 1.8, 0.9);
     g.fill();
     g.restore();
   }
   g.globalAlpha = 1;
+  // sugar glitter specks on the asphalt (catch the sun like the reference)
+  for (let i = 0; i < 60; i++) {
+    const x = Math.random() * 256, y = 228 + Math.random() * 55;
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.arc(x, y, 0.7 + Math.random() * 1.1, 0, Math.PI * 2); g.fill();
+  }
   // soft depth shading just inside both road edges (runs ALONG the road)
   const shadeY = (y0, y1) => {
     const gr = g.createLinearGradient(0, y0, 0, y1);
@@ -63,13 +69,13 @@ function roadTexture() {
   shadeY(226, 248);
   shadeY(285, 263);
   // thick cream border lines along both road edges
-  g.fillStyle = '#fff6ec';
-  g.fillRect(0, 226, 256, 9);
-  g.fillRect(0, 276, 256, 9);
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 224, 256, 12);
+  g.fillRect(0, 275, 256, 12);
   // golden candy dash down the middle (once per 12 m tile)
-  g.fillStyle = '#ffe082';
+  g.fillStyle = '#ffd23e';
   g.beginPath();
-  g.roundRect(28, 251, 62, 11, 5);
+  g.roundRect(24, 249, 70, 13, 6);
   g.fill();
 
   const tex = new THREE.CanvasTexture(c);
@@ -110,28 +116,38 @@ export function createTrack(scene) {
 
   // ---- Road ribbon + curbs + shoulders in one vertex-colored mesh ----
   // Across-profile offsets (meters) and heights relative to road plane.
+  // The curb is a 6-band RAINBOW ribbon hugging both road edges (reference
+  // look): vivid longitudinal stripes from the road edge outward —
+  // red → orange → yellow → green → blue → violet.
+  const RAINBOW = ['#ff4d6d', '#ff9f43', '#ffd93d', '#6bd96b', '#56c8ff', '#a06bff'].map((h) => new THREE.Color(h));
   const profile = [
     { off: -22.0, dy: -3.1, kind: 'grass' },
     { off: -13.0, dy: -1.35, kind: 'grass' },
     { off: -7.6, dy: -0.32, kind: 'grass' },
-    { off: -5.15, dy: -0.02, kind: 'curb' },
+    { off: -6.62, dy: -0.075, kind: 'curb', band: 5 },
+    { off: -6.29, dy: -0.06, kind: 'curb', band: 4 },
+    { off: -5.96, dy: -0.045, kind: 'curb', band: 3 },
+    { off: -5.63, dy: -0.03, kind: 'curb', band: 2 },
+    { off: -5.30, dy: -0.015, kind: 'curb', band: 1 },
     { off: -4.42, dy: 0.0, kind: 'road' },
     { off: 4.42, dy: 0.0, kind: 'road' },
-    { off: 5.15, dy: -0.02, kind: 'curb' },
+    { off: 5.30, dy: -0.015, kind: 'curb', band: 1 },
+    { off: 5.63, dy: -0.03, kind: 'curb', band: 2 },
+    { off: 5.96, dy: -0.045, kind: 'curb', band: 3 },
+    { off: 6.29, dy: -0.06, kind: 'curb', band: 4 },
+    { off: 6.62, dy: -0.075, kind: 'curb', band: 5 },
     { off: 7.6, dy: -0.32, kind: 'grass' },
     { off: 13.0, dy: -1.35, kind: 'grass' },
     { off: 22.0, dy: -3.1, kind: 'grass' },
   ];
   const K = profile.length;
   const posArr = [], colArr = [], uvArr = [], idxArr = [];
-  const RAINBOW = ['#ff6b81', '#ffb14e', '#ffe66d', '#6bd96b', '#56c8ff', '#a06bff', '#ff8ad0'].map((h) => new THREE.Color(h));
   const grassEdge = new THREE.Color('#b8e6a0');
 
   for (let i = 0; i <= SAMPLES; i++) {
     const u = i / SAMPLES;
     const zc = zoneAt(u);
     const base = centers[i], right = rights[i], tan = tangents[i];
-    const stripe = RAINBOW[Math.floor(i / 3) % RAINBOW.length];
     for (let k = 0; k < K; k++) {
       const pr = profile[k];
       posArr.push(
@@ -140,11 +156,11 @@ export function createTrack(scene) {
         base.z + right.z * pr.off
       );
       let col;
-      if (pr.kind === 'curb') col = stripe;
+      if (pr.kind === 'curb') col = RAINBOW[pr.band].clone();
       else if (pr.kind === 'road') col = new THREE.Color('#ffffff');
       else {
         // candy grass with zone tint, fading to a soft universal green-pink at distance
-        col = new THREE.Color(zc.fog).lerp(new THREE.Color('#8fe096'), 0.74); // fresh mint field — pink road pops against it
+        col = new THREE.Color(zc.fog).lerp(new THREE.Color('#9fe3a8'), 0.62); // soft mint field — the pink road pops against it
         const away = (Math.abs(pr.off) - 7.6) / 14.4;
         col.lerp(grassEdge, away * 0.35);
       }
@@ -168,7 +184,7 @@ export function createTrack(scene) {
   const roadTex = roadTexture();
   roadTex.repeat.set(1, 1);
   const roadMat = new THREE.MeshStandardMaterial({
-    map: roadTex, vertexColors: true, roughness: 0.72, metalness: 0.06,
+    map: roadTex, vertexColors: true, roughness: 0.58, metalness: 0.08,
   });
   const road = new THREE.Mesh(roadGeo, roadMat);
   road.receiveShadow = true;

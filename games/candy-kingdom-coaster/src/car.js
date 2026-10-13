@@ -34,6 +34,32 @@ function decalTexture() {
   return t;
 }
 
+function glitterTexture() {
+  // subtle roughness variation: dark dots read as glossy glitter flakes in the
+  // clearcoat under the sun — the "candy glitter paint" of the reference car
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#b8b8c8'; // mid roughness base
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 900; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    const r = 0.6 + Math.random() * 1.6;
+    g.fillStyle = Math.random() < 0.72 ? 'rgba(30,14,34,0.85)' : 'rgba(255,255,255,0.5)';
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // a few bigger star flakes
+  for (let i = 0; i < 26; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256, r = 2.4 + Math.random() * 3.2;
+    g.fillStyle = 'rgba(255,246,252,0.9)';
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 1);
+  return tex;
+}
+
 function sparkleTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -62,14 +88,72 @@ function diceTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// Pink magic-dust trail behind the car (reference look). Lives in the SCENE,
+// not on the car group, so the sparks stay where they were born.
+export function createTrail(scene, count = 72) {
+  const tex = sparkleTexture();
+  const items = [];
+  for (let i = 0; i < count; i++) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0, depthWrite: false,
+      blending: THREE.AdditiveBlending, color: new THREE.Color('#ff8fc6'),
+    }));
+    s.visible = false;
+    scene.add(s);
+    items.push({ s, life: 0, maxLife: 1, vel: new THREE.Vector3() });
+  }
+  let cursor = 0, acc = 0;
+  const fwd = new THREE.Vector3();
+  const COLORS = ['#ff8fc6', '#ff5fa2', '#c86bff', '#ffe9a8', '#ffffff'];
+  return {
+    update(dt, carRoot, speed, boost) {
+      acc += dt * (boost ? 120 : 58);
+      carRoot.getWorldDirection(fwd);
+      while (acc >= 1) {
+        acc -= 1;
+        const it = items[cursor];
+        cursor = (cursor + 1) % items.length;
+        it.maxLife = it.life = 0.65 + Math.random() * 0.75;
+        it.s.visible = true;
+        it.s.material.color.set(COLORS[(Math.random() * COLORS.length) | 0]);
+        it.s.position.copy(carRoot.position)
+          .addScaledVector(fwd, -2.2 - Math.random() * 0.6)
+          .add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0.25 + Math.random() * 0.85, (Math.random() - 0.5) * 0.6));
+        const back = 0.8 + Math.min(4, speed) * 0.22;
+        it.vel.set(
+          (Math.random() - 0.5) * 1.2 - fwd.x * back,
+          0.5 + Math.random() * 0.9,
+          (Math.random() - 0.5) * 1.2 - fwd.z * back
+        );
+      }
+      for (const it of items) {
+        if (it.life <= 0) continue;
+        it.life -= dt;
+        if (it.life <= 0) { it.s.visible = false; continue; }
+        it.s.position.addScaledVector(it.vel, dt);
+        it.vel.y += dt * 0.6;
+        it.vel.multiplyScalar(1 - dt * 1.4);
+        const k = it.life / it.maxLife;
+        it.s.material.opacity = k * (boost ? 0.95 : 0.75);
+        const sc = (0.16 + (1 - k) * 0.42) * (boost ? 1.5 : 1);
+        it.s.scale.set(sc, sc, sc);
+      }
+    },
+    reset() {
+      for (const it of items) { it.life = 0; it.s.visible = false; }
+    },
+  };
+}
+
 export function createCar() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
 
   const pink = new THREE.MeshPhysicalMaterial({
-    color: '#f5489b', roughness: 0.38, metalness: 0.22,
+    color: '#f5489b', roughness: 0.34, metalness: 0.22,
     clearcoat: 1, clearcoatRoughness: 0.1, sheen: 1, sheenColor: '#ff9ed2',
+    roughnessMap: glitterTexture(),
   });
   const pinkDark = new THREE.MeshStandardMaterial({ color: '#c22b72', roughness: 0.45, metalness: 0.25 });
   const cream = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4, metalness: 0.12 });
@@ -396,15 +480,15 @@ export function createCar() {
   // sparkle glitter around the body
   const sparkTex = sparkleTexture();
   const sparks = [];
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 26; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({
       map: sparkTex, transparent: true, opacity: 0.0, depthWrite: false,
       blending: THREE.AdditiveBlending, color: new THREE.Color().setHSL(0.92 + Math.random() * 0.1, 0.7, 0.75),
     }));
-    const s = 0.12 + Math.random() * 0.22;
+    const s = 0.1 + Math.random() * 0.2;
     m.scale.set(s, s, s);
     body.add(m);
-    sparks.push({ sprite: m, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.9 + Math.random() * 1.1, y: 0.3 + Math.random() * 1.2 });
+    sparks.push({ sprite: m, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.85 + Math.random() * 0.85, y: 0.3 + Math.random() * 1.2 });
   }
 
   root.traverse((o) => {
@@ -418,12 +502,34 @@ export function createCar() {
   shadowBlob.rotation.x = -Math.PI / 2;
   shadowBlob.position.y = 0.03;
   root.add(shadowBlob);
+
+  // boost underglow — arcade-racer pool of pink light under the car
+  const underglowTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(255,150,215,0.9)');
+    grd.addColorStop(0.45, 'rgba(255,90,180,0.35)');
+    grd.addColorStop(1, 'rgba(255,60,160,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  })();
+  const underglow = new THREE.Mesh(
+    new THREE.CircleGeometry(2.6, 24),
+    new THREE.MeshBasicMaterial({ map: underglowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
+  );
+  underglow.rotation.x = -Math.PI / 2;
+  underglow.position.y = 0.05;
+  root.add(underglow);
   root.traverse((o) => { o.userData.noCollide = true; }); // the car belongs on the road
 
   let wheelSpin = 0;
   return {
     root,
     update(dt, { speed = 0, steer = 0, boost = false, offRoad = false } = {}) {
+      const t = performance.now() * 0.001;
       wheelSpin += speed * dt * 2.1;
       for (const w of wheels) {
         w.hub.rotation.x = wheelSpin;
@@ -453,14 +559,17 @@ export function createCar() {
       wheelHub.rotation.z = THREE.MathUtils.lerp(wheelHub.rotation.z, -steer * 0.85, 0.12);
       // taillights flare on boost
       tailGlow.emissiveIntensity = boost ? 1.9 + Math.sin(wheelSpin * 3.1) * 0.4 : 1.2;
+      // underglow swells on boost
+      const ugTarget = boost ? 0.75 + Math.sin(t * 14) * 0.15 : 0;
+      underglow.material.opacity = THREE.MathUtils.lerp(underglow.material.opacity, ugTarget, boost ? 0.25 : 0.12);
+      underglow.scale.setScalar(boost ? 1.15 + Math.sin(t * 9) * 0.1 : 1);
 
       // sparkles
-      const t = performance.now() * 0.001;
       for (const sp of sparks) {
         const a = t * sp.speed + sp.phase;
         sp.sprite.position.set(Math.cos(a) * sp.r, sp.y + Math.sin(a * 1.7) * 0.25, Math.sin(a * 1.3) * sp.r * 1.6);
         const tw = 0.5 + 0.5 * Math.sin(a * 3.1 + t * 2);
-        sp.sprite.material.opacity = (boost ? 0.85 : 0.28) * tw;
+        sp.sprite.material.opacity = (boost ? 0.95 : 0.5) * tw;
         const sc = (boost ? 0.3 : 0.16) * (0.7 + 0.6 * tw);
         sp.sprite.scale.set(sc, sc, sc);
       }
