@@ -110,6 +110,13 @@ const SOUNDS = {
   },
 };
 
+// shared graph for the music sequencer (music.js): same context, same master
+// so one mute button covers everything
+export function audioGraph() {
+  const c = ensure();
+  return c ? { ctx: c, master } : null;
+}
+
 export const SFX = {
   unlock() { ensure(); },
   play(name) { if (!muted && SOUNDS[name]) SOUNDS[name](); },

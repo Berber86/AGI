@@ -288,6 +288,40 @@ const record = (name, pass, detail) => {
   record('5d. off the ramp side → fall, bounce, 4 wheels, drive on', ok, info);
 }
 
+// ---------- 5e. music: procedural loop renders audibly, no clipping, lead plays the written tune ----------
+{
+  const info = await page.evaluate(async () => {
+    const { MUSIC } = await import('./src/music.js');
+    const out = { modes: {} };
+    for (const mode of ['menu', 'race', 'boost']) {
+      const r = await MUSIC.renderOffline(3.2, mode, mode === 'menu');
+      out.modes[mode] = { peak: r.peak, rms: r.rms };
+      if (mode === 'menu') {
+        // detect the lead pitch in each 8th-note slot of bar 1 (Goertzel) and compare with the score
+        const sr = r.sampleRate, d = r.pcm, slot = 60 / 150 / 2;
+        const score = [76, 79, 76, 72, 74, 76, 0, 0];
+        const power = (x, f) => { const k = 2 * Math.cos(2 * Math.PI * f / sr); let s1 = 0, s2 = 0; for (const v of x) { const s0 = v + k * s1 - s2; s2 = s1; s1 = s0; } return s1 * s1 + s2 * s2 - k * s1 * s2; };
+        let ok = 0, tot = 0;
+        score.forEach((m, e) => {
+          if (!m) return;
+          const t0 = 0.02 + e * slot + 0.03;
+          const x = d.slice(Math.floor(t0 * sr), Math.floor((t0 + 0.12) * sr));
+          let best = 0, bp = -1;
+          for (let c = 55; c < 92; c++) { const p = power(x, 440 * Math.pow(2, (c - 69) / 12)); if (p > bp) { bp = p; best = c; } }
+          tot++; if (best === m) ok++;
+        });
+        out.leadMatch = `${ok}/${tot}`; out.leadOk = ok === tot;
+      }
+    }
+    out.info = MUSIC.info();
+    return out;
+  });
+  const m = info.modes;
+  const levelsOk = ['menu', 'race', 'boost'].every((k) => m[k].peak > 0.05 && m[k].peak < 0.95 && m[k].rms > 0.01)
+    && m.race.rms > m.menu.rms; // the full band is louder than the menu layer
+  record('5e. music loop: audible, no clipping, lead = score', levelsOk && info.leadOk && info.info.bars === 16 && info.info.notes > 80, info);
+}
+
 // ---------- 6. no page errors ----------
 {
   await sleep(500);

@@ -14,6 +14,7 @@ import { createCar, createTrail } from './car.js';
 import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
+import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { loadTextures, countLoaded } from './textures.js';
@@ -150,6 +151,7 @@ function toMenu() {
   fillRecordsPanel(el.recordsMenu, Storage.getRecords());
   setSoundIcons();
   SFX.engineStop();
+  if (MUSIC.isPlaying()) MUSIC.setMode('menu');
   window.__GAME_STATE__ = 'menu';
 }
 
@@ -179,6 +181,7 @@ function startRace() {
   window.__GAME_STATE__ = 'intro';
   SFX.unlock();
   SFX.engineStart();
+  MUSIC.start('menu');
 }
 
 function beginCountdown() {
@@ -206,6 +209,7 @@ function pauseGame() {
     window.__GAME_STATE__ = 'paused';
     SFX.play('click');
     SFX.engineStop();
+    MUSIC.stop(0.2);
   } else if (game.state === 'paused') {
     resumeGame();
   }
@@ -221,12 +225,14 @@ function resumeGame() {
   SFX.play('click');
   SFX.unlock();
   SFX.engineStart();
+  MUSIC.start(game.boostActive ? 'boost' : 'race');
 }
 
 function finishRace() {
   game.state = 'finish';
   input.releaseAll();
   SFX.engineStop();
+  MUSIC.setMode('menu'); // the band takes a breather under the fanfare
   // candy-confetti celebration around the car
   const fp = car.root.position.clone().add(new THREE.Vector3(0, 1.6, 0));
   finishFx.spawn(fp, '#ffd45e', 34, 8.5);
@@ -254,7 +260,11 @@ function finishRace() {
 }
 
 // ---------------------------------------------------------------- UI wiring
-document.addEventListener('pointerdown', () => SFX.unlock(), { once: true });
+document.addEventListener('pointerdown', () => {
+  // first touch unlocks audio: the tune starts here (browsers forbid earlier)
+  SFX.unlock();
+  MUSIC.start(game.state === 'racing' ? 'race' : 'menu');
+}, { once: true });
 
 el.btnPlay.addEventListener('click', () => { SFX.unlock(); SFX.play('click'); startRace(); });
 el.btnResume.addEventListener('click', () => resumeGame());
@@ -493,6 +503,7 @@ function updateGameplay(dt) {
         // 3,2,1 → digits vanish at zero; the race just begins
         el.countdown.classList.add('hidden');
         SFX.play('go');
+        MUSIC.setMode('race', { restart: true }); // band kicks in on the downbeat
         game.state = 'racing';
         window.__GAME_STATE__ = 'racing';
         game.goHideT = 0;
@@ -528,10 +539,11 @@ function updateGameplay(dt) {
       SFX.play('boost');
       HAPTIC.buzz([25, 35, 45]);
       hud.popup('🚀');
+      MUSIC.setMode('boost');
     }
     if (game.boostActive) {
       game.boostT -= dt;
-      if (game.boostT <= 0) game.boostActive = false;
+      if (game.boostT <= 0) { game.boostActive = false; MUSIC.setMode('race'); }
     }
 
     // steering (only a little authority while airborne)
@@ -794,6 +806,8 @@ window.__TEST__ = {
     governor.apply();
     return governor.describe();
   },
+  // Music sequencer facts (mode, bar position, note count).
+  music() { return MUSIC.info(); },
   // QA: hold the steering at v (-1..1) for step() runs; null releases.
   holdSteer(v = null) { qaSteer = v === null ? null : Math.max(-1, Math.min(1, +v)); return qaSteer; },
   // Jump state for physics QA (drive with step() and sample this).
