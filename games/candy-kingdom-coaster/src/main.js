@@ -756,6 +756,14 @@ window.__TEST__ = {
     });
     return { totalTri, totalCalls, meshes, top, topCalls, byType, vis, visMeshes, visChunks, visTop, bigMeshes: all.slice(0, 22), heaviest: heaviest ? (heaviest.name || heaviest.type) : '', sub };
   },
+  // Visual QA: force the boost state for a frozen screenshot
+  forceBoost(seconds = 3.4) {
+    if (game.state !== 'racing') { startRace(); skipIntro(); game.countdownT = 2.3; }
+    game.boostActive = true;
+    game.boostT = seconds;
+    game.boostCharges = 0;
+    return { boost: game.boostActive, t: game.boostT };
+  },
   state: () => game.state,
   // Acceptance helper: project the road ahead to screen space (px).
   roadScreenPoints(aheadFrom = 20, aheadTo = 110, step = 10) {

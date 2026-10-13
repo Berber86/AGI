@@ -61,6 +61,16 @@ for (const spec of specs) {
     await page.evaluate(() => { window.__TEST__.startRace(); window.__TEST__.setIntro(parseFloat(a)); });
     if (!hud) await page.evaluate(() => window.__TEST__.hideHUD());
     await waitFrames(8, 25000);
+  } else if (kind === 'boost') {
+    // QA: frozen racing frame with the boost active (underglow, flames, trail)
+    const u = parseFloat(a);
+    const lat = parseFloat(b || '0');
+    await page.evaluate(([u, lat]) => {
+      window.__TEST__.setProgress(u, lat, true);
+      window.__TEST__.forceBoost(30);
+    }, [u, lat]);
+    if (!hud) await page.evaluate(() => window.__TEST__.hideHUD());
+    await waitFrames(10, 25000);
   } else if (kind === 'close') {
     // QA close-up: pull the chase camera in on the car (u, lateral)
     const u = parseFloat(a);

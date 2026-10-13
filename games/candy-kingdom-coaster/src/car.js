@@ -502,12 +502,34 @@ export function createCar() {
   shadowBlob.rotation.x = -Math.PI / 2;
   shadowBlob.position.y = 0.03;
   root.add(shadowBlob);
+
+  // boost underglow — arcade-racer pool of pink light under the car
+  const underglowTex = (() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+    grd.addColorStop(0, 'rgba(255,150,215,0.9)');
+    grd.addColorStop(0.45, 'rgba(255,90,180,0.35)');
+    grd.addColorStop(1, 'rgba(255,60,160,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  })();
+  const underglow = new THREE.Mesh(
+    new THREE.CircleGeometry(2.6, 24),
+    new THREE.MeshBasicMaterial({ map: underglowTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })
+  );
+  underglow.rotation.x = -Math.PI / 2;
+  underglow.position.y = 0.05;
+  root.add(underglow);
   root.traverse((o) => { o.userData.noCollide = true; }); // the car belongs on the road
 
   let wheelSpin = 0;
   return {
     root,
     update(dt, { speed = 0, steer = 0, boost = false, offRoad = false } = {}) {
+      const t = performance.now() * 0.001;
       wheelSpin += speed * dt * 2.1;
       for (const w of wheels) {
         w.hub.rotation.x = wheelSpin;
@@ -537,9 +559,12 @@ export function createCar() {
       wheelHub.rotation.z = THREE.MathUtils.lerp(wheelHub.rotation.z, -steer * 0.85, 0.12);
       // taillights flare on boost
       tailGlow.emissiveIntensity = boost ? 1.9 + Math.sin(wheelSpin * 3.1) * 0.4 : 1.2;
+      // underglow swells on boost
+      const ugTarget = boost ? 0.75 + Math.sin(t * 14) * 0.15 : 0;
+      underglow.material.opacity = THREE.MathUtils.lerp(underglow.material.opacity, ugTarget, boost ? 0.25 : 0.12);
+      underglow.scale.setScalar(boost ? 1.15 + Math.sin(t * 9) * 0.1 : 1);
 
       // sparkles
-      const t = performance.now() * 0.001;
       for (const sp of sparks) {
         const a = t * sp.speed + sp.phase;
         sp.sprite.position.set(Math.cos(a) * sp.r, sp.y + Math.sin(a * 1.7) * 0.25, Math.sin(a * 1.3) * sp.r * 1.6);
