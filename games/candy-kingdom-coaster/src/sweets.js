@@ -15,6 +15,15 @@ function candyMesh(color) {
     new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.35 })
   );
   ring.rotation.x = Math.PI / 2;
+  // wrapper twists — reads as a wrapped sweet at speed, like the reference
+  const twistMat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, side: THREE.DoubleSide });
+  for (const s of [-1, 1]) {
+    const w = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.46, 4), twistMat);
+    w.position.set(s * 0.6, 0, 0);
+    w.rotation.z = s * Math.PI / 2;
+    w.scale.set(1, 1, 0.45);
+    g.add(w);
+  }
   g.add(ball, ring);
   return g;
 }
@@ -149,11 +158,11 @@ export function createSweets(scene, track) {
     else if (type === 'cupcake') mesh = cupcakeMesh();
     else mesh = candyMesh(CANDY_COLORS[seed % CANDY_COLORS.length]);
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: GLOW, transparent: true, opacity: type === 'candy' ? 0.25 : 0.5,
+      map: GLOW, transparent: true, opacity: type === 'candy' ? 0.42 : 0.68,
       depthWrite: false, blending: THREE.AdditiveBlending,
       color: new THREE.Color(type === 'star' ? '#ffe9a8' : type === 'cupcake' ? '#ffc6e2' : '#ffffff'),
     }));
-    glow.scale.setScalar(type === 'candy' ? 1.6 : 2.6);
+    glow.scale.setScalar(type === 'candy' ? 2.3 : 3.2);
     mesh.add(glow);
     mesh.position.copy(pose.pos).add(new THREE.Vector3(0, type === 'cupcake' ? 1.35 : 1.55, 0));
     mesh.scale.setScalar(type === 'candy' ? 1.3 : 1.18);
