@@ -58,6 +58,7 @@ const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const world = createWorld(scene, track, renderer, TEX);
 const car = createCar();
+car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);
 const sweets = createSweets(scene, track, ramps);
@@ -94,6 +95,9 @@ const game = {
   landSquash: 0,
   camKick: 0,
   bigAir: false,
+  dropSide: 0,
+  bounces: 0,
+  carRoll: 0,
   camPos: new THREE.Vector3(0, 6, -12),
   camTarget: new THREE.Vector3(0, 2, 20),
 };
@@ -331,7 +335,9 @@ window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
 function resetJump() {
   game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
   game.jumpT = 0; game.carPitch = 0; game.landSquash = 0; game.camKick = 0; game.bigAir = false;
+  game.dropSide = 0; game.bounces = 0; game.carRoll = 0;
   car.root.scale.setScalar(1);
+  car.root.rotation.z = 0;
 }
 
 function launchFromRamp(r) {
@@ -355,17 +361,40 @@ function launchFromRamp(r) {
 }
 
 function dropOffRamp(r) {
-  // more than half the car slid off the ramp's side: it just falls from the
-  // current height (part 4 adds the bounce / speed loss)
+  // more than half the car slid off the ramp's side: it tips over the edge
+  // and falls from the current height, loses a bit of speed, bounces on its
+  // wheels once or twice and drives on
   game.jump = 'drop';
   game.vy = 0;
   game.jumpT = 0;
+  game.bounces = 0;
+  game.dropSide = game.lateral > r.center ? 1 : -1; // which side it tipped to
+  game.speed *= JUMP.dropSlow;
+  SFX.play('bump');
+  HAPTIC.buzz(20);
 }
 
-function landCar() {
+function bounceCar(floor) {
+  // wheels hit the ground hard: squash and pop back up a little
+  game.bounces += 1;
+  game.air = floor;
+  game.vy = -game.vy * JUMP.bounce;
+  game.landSquash = 0.3;
+  game.camKick = 0.25;
+  SFX.play('land');
+  HAPTIC.buzz(30);
+}
+
+function landCar(onWedge) {
   const hard = game.vy < -4;
   const big = game.bigAir && game.jumpT > 1.6;
-  game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
+  if (onWedge) {
+    // came down on a ramp surface: ride it like a normal entry
+    game.air = onWedge.h; game.vy = 0; game.jump = 'ramp'; game.jumpRamp = onWedge.ramp;
+  } else {
+    game.air = 0; game.vy = 0; game.jump = 'ground'; game.jumpRamp = null;
+  }
+  game.dropSide = 0;
   game.landSquash = hard ? 0.42 : 0.26;
   game.camKick = hard ? 0.35 : 0.18;
   game.bigAir = false;
@@ -379,9 +408,10 @@ function landCar() {
 }
 
 function updateJump(dt) {
+  const rs = ramps.sample(game.s, game.lateral);
+  const onWedge = !!(rs.ramp && rs.inside && !rs.past);
   if (game.jump === 'ground' || game.jump === 'ramp') {
-    const rs = ramps.sample(game.s, game.lateral);
-    if (rs.ramp && rs.inside && !rs.past) {
+    if (onWedge) {
       // climbing the run-up: ride the wedge surface
       game.jump = 'ramp';
       game.jumpRamp = rs.ramp;
@@ -399,8 +429,15 @@ function updateJump(dt) {
     game.vy -= JUMP.gravity * dt;
     game.air += game.vy * dt;
     game.jumpT += dt;
-    if (game.air <= 0) landCar();
+    const floor = onWedge ? rs.h : 0; // steering back over a wedge lands on it
+    if (game.air <= floor) {
+      if (game.jump === 'drop' && game.vy < -2.2 && game.bounces < 2) bounceCar(floor);
+      else landCar(onWedge ? rs : null);
+    }
   }
+  // roll: tips toward the side it fell off, settles back once on the wheels
+  const rollTarget = game.jump === 'drop' ? game.dropSide * 0.3 : 0;
+  game.carRoll = THREE.MathUtils.lerp(game.carRoll, rollTarget, 1 - Math.exp(-(game.jump === 'drop' ? 7 : 5) * dt));
   if (game.landSquash > 0) game.landSquash = Math.max(0, game.landSquash - dt);
   if (game.camKick > 0) game.camKick = Math.max(0, game.camKick - dt * 1.6);
 }
@@ -498,7 +535,7 @@ function updateGameplay(dt) {
     }
 
     // steering (only a little authority while airborne)
-    const steer = input.steer;
+    const steer = qaSteer !== null ? qaSteer : input.steer;
     const airborne = game.jump === 'air' || game.jump === 'drop';
     game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed)) * (airborne ? JUMP.airSteer : 1);
     if (steer === 0 && !airborne) {
@@ -560,6 +597,7 @@ function updateGameplay(dt) {
   else if (game.jump === 'air' || game.jump === 'drop') pitch -= Math.atan2(game.vy, Math.max(4, game.speed)) * 0.55;
   game.carPitch = THREE.MathUtils.lerp(game.carPitch, pitch, 1 - Math.exp(-9 * dt));
   car.root.rotation.x = game.carPitch;
+  car.root.rotation.z = game.carRoll;
   // landing squash: a quick jelly bounce of the whole car
   if (game.landSquash > 0) {
     const k = Math.sin((game.landSquash / 0.42) * Math.PI) * Math.min(1, game.landSquash / 0.42 + 0.4);
@@ -641,6 +679,7 @@ let qaForceRender = false;
 // while stepping frames from a test, the FPS governor must not judge or pace:
 // its real-time accounting would fight the fixed dt and force needless renders
 let qaNoGovernor = false;
+let qaSteer = null; // QA override for input.steer (-1..1), null = real input
 function frame(now, dt) {
   if (game.state === 'menu') {
     // pretty attract-mode camera drift around the start area
@@ -761,9 +800,11 @@ window.__TEST__ = {
     governor.apply();
     return governor.describe();
   },
+  // QA: hold the steering at v (-1..1) for step() runs; null releases.
+  holdSteer(v = null) { qaSteer = v === null ? null : Math.max(-1, Math.min(1, +v)); return qaSteer; },
   // Jump state for physics QA (drive with step() and sample this).
   jumpInfo() {
-    return { jump: game.jump, air: +game.air.toFixed(3), vy: +game.vy.toFixed(3), s: +game.s.toFixed(2), lateral: +game.lateral.toFixed(2), speed: +game.speed.toFixed(2), t: +game.jumpT.toFixed(2), boost: game.boostActive };
+    return { jump: game.jump, air: +game.air.toFixed(3), vy: +game.vy.toFixed(3), s: +game.s.toFixed(2), lateral: +game.lateral.toFixed(2), speed: +game.speed.toFixed(2), t: +game.jumpT.toFixed(2), boost: game.boostActive, roll: +game.carRoll.toFixed(3), pitch: +game.carPitch.toFixed(3), bounces: game.bounces };
   },
   // Jump ramps: placement + lane span (config.js RAMPS resolved by ramps.js).
   ramps() {

@@ -254,6 +254,40 @@ const record = (name, pass, detail) => {
   record('5c. two ramps (left/right, different heights), jump + land, miss = flat', laneOk && flightOk, info);
 }
 
+// ---------- 5d. slid off a ramp side: falls, bounces, back on 4 wheels, drives on ----------
+{
+  const info = await page.evaluate(() => {
+    const T = window.__TEST__; const L = T.gameInfo().trackLength;
+    const out = [];
+    for (const r of T.ramps()) {
+      const laneMid = (r.latMin + r.latMax) / 2;
+      T.holdSteer(null);
+      T.setProgress((r.s0 - 8) / L, laneMid, false);
+      const phases = []; let bounces = 0, dropH = 0, minSpeed = 99, maxRoll = 0;
+      for (let i = 0; i < 240; i++) {
+        const j0 = T.jumpInfo();
+        if (j0.s >= r.s0 + 3) T.holdSteer(-r.side); // steer toward the road centre → off the inner edge
+        if (j0.jump === 'drop' || j0.jump === 'ground' && phases.includes('drop')) T.holdSteer(0);
+        T.step(1 / 60, 1, false);
+        const j = T.jumpInfo();
+        if (phases[phases.length - 1] !== j.jump) phases.push(j.jump);
+        if (j.jump === 'drop' && j0.vy < -1 && j.vy > 0) bounces++;
+        if (j.jump === 'drop') dropH = Math.max(dropH, j.air);
+        if (phases.includes('drop')) minSpeed = Math.min(minSpeed, j.speed);
+        maxRoll = Math.max(maxRoll, Math.abs(j.roll || 0));
+      }
+      T.holdSteer(null);
+      const j = T.jumpInfo();
+      out.push({ id: r.id, phases: phases.join('>'), bounces, dropH: +dropH.toFixed(2), minSpeed: +minSpeed.toFixed(1), maxRoll: +maxRoll.toFixed(2), end: { jump: j.jump, air: j.air, speed: j.speed, lateral: j.lateral } });
+    }
+    T.setProgress(0.02, 0, false);
+    return out;
+  });
+  const ok = info.length === 2 && info.every((x) => x.phases === 'ground>ramp>drop>ground' && x.bounces >= 1 && x.dropH > 0.3
+    && x.minSpeed > 8 && x.end.jump === 'ground' && x.end.air === 0 && x.end.speed > 14 && Math.abs(x.end.lateral) < 4.4 && x.maxRoll > 0.1);
+  record('5d. off the ramp side → fall, bounce, 4 wheels, drive on', ok, info);
+}
+
 // ---------- 6. no page errors ----------
 {
   await sleep(500);
