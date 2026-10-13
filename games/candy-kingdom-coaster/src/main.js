@@ -820,6 +820,8 @@ window.__TEST__ = {
     }
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
+  // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
+  internals() { return { renderer, scene, camera, composer, world, car, governor }; },
   // perf QA: compiled shader programs / GPU textures / governor tier
   perf() {
     return { programs: renderer.info.programs.length, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, tier: governor.tier };

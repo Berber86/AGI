@@ -11,6 +11,7 @@
 // blocks(x, z) tells world.js where NOT to put props (river, sea, valley).
 import * as THREE from 'three';
 import { BRIDGE } from './config.js';
+import { mergeByMaterial } from './merge.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -123,7 +124,7 @@ export function createBridge(scene, track, TEX = {}) {
   const archRise = (mid.pos.y - 1.4) - (B.floorY - 0.6); // mid.pos.y already includes the hump
   const archY = (d) => (Math.abs(d) >= A ? B.floorY - 0.6 : (B.floorY - 0.6) + archRise * Math.sqrt(1 - (d / A) * (d / A)));
   {
-    const pos = [], uv = [], idx = [];
+    const pos = [], uv = [], idx = [], idxBarrel = [];
     const STEP = 1.0;
     const n = Math.round((A + 1) * 2 / STEP);
     for (let i = 0; i <= n; i++) {
@@ -138,22 +139,21 @@ export function createBridge(scene, track, TEX = {}) {
       uv.push(us, topL / 6, us, bottom / 6, us, bottom / 6, us, topR / 6);
       if (i > 0) {
         const a = (i - 1) * 4, b = i * 4;
-        for (let k = 0; k < 3; k++) idx.push(a + k, b + k, a + k + 1, a + k + 1, b + k, b + k + 1);
+        // walls (k 0 and 2) and barrel (k 1) go to separate contiguous runs:
+        // interleaving them made one draw call PER SEGMENT (126 calls)
+        for (let k = 0; k < 3; k++) (k === 1 ? idxBarrel : idx).push(a + k, b + k, a + k + 1, a + k + 1, b + k, b + k + 1);
       }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-    geo.setIndex(idx);
+    const wallCount = idx.length;
+    geo.setIndex(idx.concat(idxBarrel));
     geo.computeVertexNormals();
     // walls get the wafer bricks, the barrel underneath is dark chocolate
     geo.clearGroups();
-    const triPerSeg = 6;
-    for (let i = 0; i < n; i++) {
-      geo.addGroup(i * triPerSeg * 3, 6, 0);      // left wall
-      geo.addGroup(i * triPerSeg * 3 + 6, 6, 1);  // barrel
-      geo.addGroup(i * triPerSeg * 3 + 12, 6, 0); // right wall
-    }
+    geo.addGroup(0, wallCount, 0);
+    geo.addGroup(wallCount, idxBarrel.length, 1);
     const arch = new THREE.Mesh(geo, [wafer, choco]);
     arch.name = 'bridgeArch';
     arch.castShadow = true; arch.receiveShadow = true;
@@ -175,6 +175,8 @@ export function createBridge(scene, track, TEX = {}) {
 
   // ---- balustrade: cane posts + cream rail following the hump ---------------
   {
+    const bal = new THREE.Group();
+    bal.name = 'balustrade';
     const postGeo = new THREE.CylinderGeometry(0.1, 0.12, 1.0, 8);
     const ballGeo = new THREE.SphereGeometry(0.2, 10, 8);
     const railR = 0.09;
@@ -186,18 +188,18 @@ export function createBridge(scene, track, TEX = {}) {
         const post = new THREE.Mesh(postGeo, cane);
         post.position.copy(p.pos); post.position.y += 0.45;
         post.castShadow = true;
-        group.add(post);
+        bal.add(post);
         const ball = new THREE.Mesh(ballGeo, k % 2 ? blue : pink);
         ball.position.copy(p.pos); ball.position.y += 1.05;
-        group.add(ball);
+        bal.add(ball);
         railPts.push(p.pos.clone().add(new THREE.Vector3(0, 0.95, 0)));
         k++;
       }
       const rail = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 48, railR, 6, false), cream);
       rail.castShadow = true;
-      group.add(rail);
+      bal.add(rail);
       const rail2 = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts.map((v) => v.clone().setY(v.y - 0.45))), 48, railR * 0.8, 6, false), cream);
-      group.add(rail2);
+      bal.add(rail2);
       // lollipop pillars at both ends
       for (const end of [-1, 1]) {
         const p = track.getPose(B.s + end * (B.halfSpan + 2.6), side * 6.3);
@@ -205,14 +207,17 @@ export function createBridge(scene, track, TEX = {}) {
         pillar.position.copy(p.pos); pillar.position.y += 0.85;
         pillar.rotation.set(0, p.heading, 0);
         pillar.castShadow = true;
-        group.add(pillar);
+        bal.add(pillar);
         const top = new THREE.Mesh(new THREE.SphereGeometry(0.55, 14, 12), lolli);
         top.position.copy(p.pos); top.position.y += 2.3;
         top.scale.set(1, 1, 0.45);
         top.rotation.set(0, p.heading, 0);
-        group.add(top);
+        bal.add(top);
       }
     }
+    // ~110 static meshes -> one draw call per material
+    group.add(bal);
+    mergeByMaterial(bal, { noCollide: false });
   }
 
   // ---- the river: from the hills on the right, under the arch, to the sea ----

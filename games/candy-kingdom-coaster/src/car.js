@@ -21,6 +21,7 @@ import {
   sdEllipsoid, sdRoundBox, sdCylX, sdCapsule, smin, smax,
 } from './sdf.js';
 import { createLily } from './lily.js';
+import { BillboardBatch } from './billboards.js';
 
 // ---------------------------------------------------------------- dimensions
 export const CAR_DIM = {
@@ -410,19 +411,15 @@ function addFlakes(mat, { scale = 210, strength = 0.32, density = 0.45 } = {}) {
 // Pink magic-dust trail behind the car (reference look). Lives in the SCENE,
 // not on the car group, so the sparks stay where they were born.
 export function createTrail(scene, count = 72) {
-  const tex = sparkleTexture();
+  // one instanced draw for the whole trail (was a Sprite + material per spark)
+  const batch = new BillboardBatch(scene, sparkleTexture(), count, 'carTrail');
   const items = [];
   for (let i = 0; i < count; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: tex, transparent: true, opacity: 0, depthWrite: false,
-      blending: THREE.AdditiveBlending, color: new THREE.Color('#ff8fc6'),
-    }));
-    s.visible = false;
-    scene.add(s);
-    items.push({ s, life: 0, maxLife: 1, vel: new THREE.Vector3() });
+    items.push({ pos: new THREE.Vector3(), color: new THREE.Color('#ff8fc6'), life: 0, maxLife: 1, vel: new THREE.Vector3() });
   }
-  let cursor = 0, acc = 0;
+  let cursor = 0, acc = 0, live = false;
   const fwd = new THREE.Vector3();
+  const jitter = new THREE.Vector3();
   const COLORS = ['#ff8fc6', '#ff5fa2', '#c86bff', '#ffe9a8', '#ffffff'];
   return {
     update(dt, carRoot, speed, boost) {
@@ -433,11 +430,10 @@ export function createTrail(scene, count = 72) {
         const it = items[cursor];
         cursor = (cursor + 1) % items.length;
         it.maxLife = it.life = 0.65 + Math.random() * 0.75;
-        it.s.visible = true;
-        it.s.material.color.set(COLORS[(Math.random() * COLORS.length) | 0]);
-        it.s.position.copy(carRoot.position)
+        it.color.set(COLORS[(Math.random() * COLORS.length) | 0]);
+        it.pos.copy(carRoot.position)
           .addScaledVector(fwd, -2.3 - Math.random() * 0.6)
-          .add(new THREE.Vector3((Math.random() - 0.5) * 1.5, 0.25 + Math.random() * 0.85, (Math.random() - 0.5) * 0.6));
+          .add(jitter.set((Math.random() - 0.5) * 1.5, 0.25 + Math.random() * 0.85, (Math.random() - 0.5) * 0.6));
         const back = 0.8 + Math.min(4, speed) * 0.22;
         it.vel.set(
           (Math.random() - 0.5) * 1.2 - fwd.x * back,
@@ -445,21 +441,25 @@ export function createTrail(scene, count = 72) {
           (Math.random() - 0.5) * 1.2 - fwd.z * back
         );
       }
-      for (const it of items) {
-        if (it.life <= 0) continue;
+      let any = false;
+      items.forEach((it, i) => {
+        if (it.life <= 0) return;
+        any = true;
         it.life -= dt;
-        if (it.life <= 0) { it.s.visible = false; continue; }
-        it.s.position.addScaledVector(it.vel, dt);
+        if (it.life <= 0) { batch.hide(i); return; }
+        it.pos.addScaledVector(it.vel, dt);
         it.vel.y += dt * 0.6;
         it.vel.multiplyScalar(1 - dt * 1.4);
         const k = it.life / it.maxLife;
-        it.s.material.opacity = k * (boost ? 0.95 : 0.75);
         const sc = (0.16 + (1 - k) * 0.42) * (boost ? 1.5 : 1);
-        it.s.scale.set(sc, sc, sc);
-      }
+        batch.set(i, it.pos, sc, it.color, k * (boost ? 0.95 : 0.75));
+      });
+      if (any || live) batch.commit();
+      live = any;
     },
     reset() {
-      for (const it of items) { it.life = 0; it.s.visible = false; }
+      items.forEach((it, i) => { it.life = 0; batch.hide(i); });
+      batch.commit();
     },
   };
 }
@@ -1057,17 +1057,11 @@ export function createCar(opts = {}) {
   lily.setColliders(seatColliders);
 
   // ---------------- glitter sparkles around the body
-  const sparkTex = sparkleTexture();
+  // one instanced draw in the body's space (was 26 Sprites)
+  const sparkBatch = new BillboardBatch(body, sparkleTexture(), 26, 'carGlitter');
   const sparks = [];
   for (let i = 0; i < 26; i++) {
-    const m = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: sparkTex, transparent: true, opacity: 0.0, depthWrite: false,
-      blending: THREE.AdditiveBlending, color: new THREE.Color().setHSL(0.92 + Math.random() * 0.1, 0.7, 0.75),
-    }));
-    const s = 0.1 + Math.random() * 0.2;
-    m.scale.set(s, s, s);
-    body.add(m);
-    sparks.push({ sprite: m, phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.9 + Math.random() * 0.85, y: 0.3 + Math.random() * 1.2 });
+    sparks.push({ pos: new THREE.Vector3(), color: new THREE.Color().setHSL(0.92 + Math.random() * 0.1, 0.7, 0.75), phase: Math.random() * Math.PI * 2, speed: 0.6 + Math.random() * 1.4, r: 0.9 + Math.random() * 0.85, y: 0.3 + Math.random() * 1.2 });
   }
 
   // shadows: only the big masses cast (the shadow pass is the first cost on phones)
@@ -1075,7 +1069,7 @@ export function createCar(opts = {}) {
   for (const m of shadowCasters) m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   for (const m of lily.shadowCasters) m.castShadow = true;
   decals.traverse((o) => { o.receiveShadow = true; });
-  const mergeInfo = mergeStatic(body, new Set([shell, shadowProxy, wheelHub, dice, antenna, lily.root, ...flames]));
+  const mergeInfo = mergeStatic(body, new Set([shell, shadowProxy, wheelHub, dice, antenna, lily.root, sparkBatch.mesh, ...flames]));
 
   const shadowBlob = new THREE.Mesh(
     new THREE.CircleGeometry(1.9, 32),
@@ -1161,14 +1155,14 @@ export function createCar(opts = {}) {
       antenna.rotation.x = Math.sin(t * 7) * 0.04 * Math.min(1, speed / 10) - Math.min(0.25, speed * 0.008);
 
       // sparkles
-      for (const sp of sparks) {
+      sparks.forEach((sp, i) => {
         const a = t * sp.speed + sp.phase;
-        sp.sprite.position.set(Math.cos(a) * sp.r, sp.y + Math.sin(a * 1.7) * 0.25, Math.sin(a * 1.3) * sp.r * 1.6);
+        sp.pos.set(Math.cos(a) * sp.r, sp.y + Math.sin(a * 1.7) * 0.25, Math.sin(a * 1.3) * sp.r * 1.6);
         const tw2 = 0.5 + 0.5 * Math.sin(a * 3.1 + t * 2);
-        sp.sprite.material.opacity = (boost ? 0.95 : 0.45) * tw2;
         const sc = (boost ? 0.3 : 0.15) * (0.7 + 0.6 * tw2);
-        sp.sprite.scale.set(sc, sc, sc);
-      }
+        sparkBatch.set(i, sp.pos, sc, sp.color, (boost ? 0.95 : 0.45) * tw2);
+      });
+      sparkBatch.commit();
       paint.emissive.setHex(boost ? 0x66103a : 0x1c0410);
       paint.emissiveIntensity = boost ? 0.55 + Math.sin(t * 18) * 0.15 : 0.22;
     },
