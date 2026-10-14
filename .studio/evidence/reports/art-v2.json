@@ -1,0 +1,41 @@
+{
+  "passed": true,
+  "errors": [],
+  "models": [
+    {
+      "drawCalls": 127,
+      "triangles": 342848,
+      "geometries": 74,
+      "textures": 38,
+      "models": 1,
+      "postprocessing": true,
+      "zoom": 1,
+      "modelDetails": {
+        "id": "teacup",
+        "modeledParts": 63,
+        "materialBatches": 4
+      },
+      "meanFrameMs": 989.7608695652176,
+      "renderer": "WebKit WebGL",
+      "quality": "high"
+    },
+    {
+      "drawCalls": 127,
+      "triangles": 262432,
+      "geometries": 78,
+      "textures": 40,
+      "models": 2,
+      "postprocessing": true,
+      "zoom": 1,
+      "modelDetails": {
+        "id": "horse",
+        "modeledParts": 41,
+        "materialBatches": 4
+      },
+      "meanFrameMs": 1334.0463414634146,
+      "renderer": "WebKit WebGL",
+      "quality": "high"
+    }
+  ],
+  "notes": "Normal-motion high-quality WebGL render; software GPU timing is not Android FPS."
+}

@@ -1,5 +1,6 @@
 import './style.css';
 import { World } from './world.js';
+import { materialAssetsReady } from './materials.js';
 import { ITEMS, RARITY, initialState, chooseItem, transition, loadSave, saveState } from './state.js';
 const $=selector=>document.querySelector(selector);
 const $$=selector=>[...document.querySelectorAll(selector)];
@@ -38,8 +39,9 @@ function renderCollection(){
 function openCollection(){if(state.phase==='inspect')return;renderCollection();$('#collection-dialog').showModal();}
 function closeReview(){if(!state.reviewing)return;state=transition(state,{type:'close'});world.hide();updateUI();openCollection();}
 function reset(){state=initialState();world.hide();persist();updateUI();$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;$('#settings-dialog').close();notify('Новая белая ночь. Начнём сначала.');}
-function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)){lastTime=time;return;}const dt=lastTime?Math.min((time-lastTime)/1000,.1):.016;lastTime=time;world.update(dt);}
+function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;world.update(Math.min(rawDt,.1),rawDt);}
 function bind(){
+ $('#zoom-in').addEventListener('click',()=>world.setZoom(.2));$('#zoom-out').addEventListener('click',()=>world.setZoom(-.2));
  $('#search-button').addEventListener('click',search);$('#discard').addEventListener('click',()=>decide(false));$('#keep').addEventListener('click',()=>decide(true));$('#close-review').addEventListener('click',closeReview);
  $('#open-collection').addEventListener('click',openCollection);$('#open-settings').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;$('#settings-dialog').showModal();});
  $$('[data-close]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.close).close()));
@@ -57,8 +59,8 @@ function bind(){
 }
 async function start(){
  try{world=new World($('#world'));try{if(storage.getItem('white-night-quality')==='low'){world.setQuality(true);$('#low-quality').checked=true;}}catch{}
- bind();updateUI();await document.fonts.ready;world.update(.016);$('#loading').hidden=true;window.__READY__=true;raf=requestAnimationFrame(tick);
- if(testing)window.__GAME_TEST__={getState:()=>structuredClone(state),getMetrics:()=>world.metrics(),getRotation:()=>({x:world.targetX,y:world.targetY}),binScreen:()=>world.binScreen(),forceNext:id=>{if(!ITEMS.some(i=>i.id===id))throw Error('unknown item');forcedItem=id;},reset:()=>{dialogs.forEach(d=>d.close());reset();},setCollection:ids=>{state=initialState({collection:ids,searches:ids.length});world.hide();persist();updateUI();},isPaused:()=>paused,items:ITEMS.map(i=>i.id)};
+ bind();updateUI();await Promise.all([document.fonts.ready,materialAssetsReady()]);world.update(.016);$('#loading').hidden=true;window.__READY__=true;raf=requestAnimationFrame(tick);
+ if(testing)window.__GAME_TEST__={getState:()=>structuredClone(state),getMetrics:()=>world.metrics(),settle:()=>{world.reveal=1;world.kick=0;world.dirty=true;world.update(.016);},getRotation:()=>({x:world.targetX,y:world.targetY}),binScreen:()=>world.binScreen(),forceNext:id=>{if(!ITEMS.some(i=>i.id===id))throw Error('unknown item');forcedItem=id;},reset:()=>{dialogs.forEach(d=>d.close());reset();},setCollection:ids=>{state=initialState({collection:ids,searches:ids.length});world.hide();persist();updateUI();},isPaused:()=>paused,items:ITEMS.map(i=>i.id)};
  if(import.meta.env.PROD&&'serviceWorker' in navigator)navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(()=>{console.warn('Offline mode could not be enabled.');});
  }catch(error){console.error(error);$('#loading').hidden=true;$('#webgl-error').hidden=false;cancelAnimationFrame(raf);}
 }

@@ -9,3 +9,10 @@
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 /* On short landscape screens do not let the portrait minimum push controls offscreen. */
 @media(max-height:520px) and (min-width:651px){#app{min-height:0;height:100dvh}}
+
+/* Keep inspection hints off the face of the object; allow close-up examination. */
+.rotation-hint{top:183px;bottom:auto;padding:0 3px;background:#162a215e;gap:9px}
+.rotation-hint>span{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.rotation-hint button{width:44px;height:44px;font-size:20px;color:var(--accent);pointer-events:auto}
+@media(max-width:650px){.rotation-hint{top:153px}}
+@media(max-height:520px) and (min-width:651px){.rotation-hint{top:auto;bottom:18px;left:22%}}

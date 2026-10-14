@@ -3,10 +3,10 @@
   "phase": "done",
   "activeRole": "release-manager",
   "currentTask": null,
-  "lastAction": "Added and browser-tested root catalog card with build-free static game entry",
-  "nextAction": "Optional physical Android playtest and permanent HTTPS deployment",
+  "lastAction": "Visual v2 delivered: refined 18 models, PBR environment, AO, zoom, static catalog refreshed and tested",
+  "nextAction": "Optional physical Android QA and push/publish if requested",
   "blockers": [],
-  "latestHandoff": ".studio/handoffs/2026-10-14-catalog-integration.md",
+  "latestHandoff": ".studio/handoffs/2026-10-14-visual-v2.md",
   "sessionBenchmark": {
     "runId": "20261014T171940Z-85e871",
     "status": "qualified",
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/latest-result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-14T19:38:52.441420+00:00"
+  "updatedAt": "2026-10-14T20:37:40.494662+00:00"
 }

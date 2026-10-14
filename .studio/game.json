@@ -75,6 +75,11 @@
     "deployment": "Static build, GitHub Pages compatible"
   },
   "approvedAt": "2026-10-14T17:29:22.525512+00:00",
-  "updatedAt": "2026-10-14T17:29:22.525512+00:00",
-  "initialRequestPath": ".studio/request.md"
+  "updatedAt": "2026-10-14T20:37:40.494662+00:00",
+  "initialRequestPath": ".studio/request.md",
+  "visualRevision": {
+    "requested": "Для начала неплохо, но надо сделать графику в пару раз лучше, а находки детальнее",
+    "implemented": "PBR environment maps, high-quality contact shadows, detailed geometry and labels on all finds, inspection close-up, material batching; gameplay and save IDs unchanged",
+    "updatedAt": "2026-10-14T20:37:40.494662+00:00"
+  }
 }

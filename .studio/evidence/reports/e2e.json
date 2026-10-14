@@ -1,9 +1,12 @@
 {
   "passed": true,
+  "revision": "visual-v2",
+  "motionPreference": "reduce (standard browser accessibility preference)",
   "checks": [
     "360×800: portrait layout does not overflow",
     "Three actual touch taps on 3D bin open exactly one find",
     "Touch drag rotates the actual 3D find",
+    "Touch close-up zoom preserves the inspection flow",
     "Cross discards without collecting",
     "Keep collects once; duplicates are marked and do not inflate progress",
     "Production reload preserves the unique collection",
@@ -22,29 +25,127 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 127,
-      "triangles": 55889,
-      "geometries": 413,
-      "textures": 24,
+      "drawCalls": 76,
+      "triangles": 152015,
+      "geometries": 165,
+      "textures": 76,
       "models": 18,
-      "meanFrameMs": 64.85583333333368,
+      "postprocessing": false,
+      "zoom": 1,
+      "modelDetails": null,
+      "meanFrameMs": 838.1558333333348,
       "renderer": "WebKit WebGL",
       "quality": "low"
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 72,
-      "triangles": 37865,
-      "geometries": 113,
-      "textures": 12,
+      "drawCalls": 63,
+      "triangles": 109367,
+      "geometries": 70,
+      "textures": 33,
       "models": 1,
-      "meanFrameMs": 78.4505833333334,
+      "postprocessing": false,
+      "zoom": 1,
+      "modelDetails": null,
+      "meanFrameMs": 293.69375000000014,
       "renderer": "WebKit WebGL",
       "quality": "low"
     }
   ],
+  "models": [
+    {
+      "id": "camera",
+      "modeledParts": 145,
+      "materialBatches": 13
+    },
+    {
+      "id": "teacup",
+      "modeledParts": 63,
+      "materialBatches": 4
+    },
+    {
+      "id": "watch",
+      "modeledParts": 119,
+      "materialBatches": 10
+    },
+    {
+      "id": "cassette",
+      "modeledParts": 71,
+      "materialBatches": 8
+    },
+    {
+      "id": "duck",
+      "modeledParts": 24,
+      "materialBatches": 5
+    },
+    {
+      "id": "book",
+      "modeledParts": 68,
+      "materialBatches": 7
+    },
+    {
+      "id": "key",
+      "modeledParts": 12,
+      "materialBatches": 6
+    },
+    {
+      "id": "badge",
+      "modeledParts": 6,
+      "materialBatches": 5
+    },
+    {
+      "id": "record",
+      "modeledParts": 7,
+      "materialBatches": 5
+    },
+    {
+      "id": "perfume",
+      "modeledParts": 33,
+      "materialBatches": 4
+    },
+    {
+      "id": "horse",
+      "modeledParts": 46,
+      "materialBatches": 4
+    },
+    {
+      "id": "compass",
+      "modeledParts": 84,
+      "materialBatches": 7
+    },
+    {
+      "id": "bottle",
+      "modeledParts": 5,
+      "materialBatches": 3
+    },
+    {
+      "id": "can",
+      "modeledParts": 14,
+      "materialBatches": 3
+    },
+    {
+      "id": "cup",
+      "modeledParts": 5,
+      "materialBatches": 3
+    },
+    {
+      "id": "box",
+      "modeledParts": 48,
+      "materialBatches": 4
+    },
+    {
+      "id": "lid",
+      "modeledParts": 64,
+      "materialBatches": 3
+    },
+    {
+      "id": "paper",
+      "modeledParts": 2,
+      "materialBatches": 1
+    }
+  ],
   "build": {
-    "totalBytes": 1014908,
+    "totalBytes": 6603790,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -55,12 +156,24 @@
         "bytes": 22876
       },
       {
-        "file": "assets/index-BwUKHJfX.js",
-        "bytes": 568775
+        "file": "assets/courtyard-stone-normal.png",
+        "bytes": 2254214
       },
       {
-        "file": "assets/index-CL1Zj5JD.css",
-        "bytes": 19602
+        "file": "assets/courtyard-stone-roughness.png",
+        "bytes": 764315
+      },
+      {
+        "file": "assets/courtyard-stone.jpg",
+        "bytes": 404997
+      },
+      {
+        "file": "assets/index-B1v25Bqi.js",
+        "bytes": 627418
+      },
+      {
+        "file": "assets/index-De5Y38d0.css",
+        "bytes": 20082
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -99,6 +212,18 @@
         "bytes": 252679
       },
       {
+        "file": "assets/steel-paint-normal.png",
+        "bytes": 1449384
+      },
+      {
+        "file": "assets/steel-paint-roughness.png",
+        "bytes": 405675
+      },
+      {
+        "file": "assets/steel-paint.jpg",
+        "bytes": 250715
+      },
+      {
         "file": "icon-192.png",
         "bytes": 4960
       },
@@ -112,7 +237,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 10460
+        "bytes": 10711
       },
       {
         "file": "manifest.webmanifest",
@@ -120,13 +245,13 @@
       },
       {
         "file": "sw.js",
-        "bytes": 1533
+        "bytes": 1741
       }
     ]
   },
   "limitations": [
     "Software WebGL emulation is not physical Android testing.",
-    "Frame time is clamped at 100ms for animation; metrics not a hardware FPS certification.",
+    "Frame timing is raw wall-clock, not capped animation dt; measurements on SwiftShader are not a hardware FPS certification. Reduced-motion testing avoids wasting software GPU time on idle animations.",
     "Visibility lifecycle uses synthetic document visibility events."
   ]
 }

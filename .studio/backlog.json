@@ -70,7 +70,30 @@
         ".studio/evidence/reports/release.json",
         "games/white-night/README.md"
       ]
+    },
+    {
+      "id": "ART-002",
+      "title": "Second visual pass: PBR environment, contact shadows and detailed 18 finds",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "acceptanceCriteria": [
+        "Visually reviewed before/after courtyard and close-up models",
+        "All 18 models have detailed front and back surfaces",
+        "High and lightweight render paths work on mobile viewports",
+        "Bounded model/texture caches, no repeated-inspection GPU growth",
+        "Root catalog and static offline export kept functional"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/reports/art-v2.json",
+        ".studio/evidence/reports/catalog.json",
+        ".studio/evidence/screenshots/visual-v2/courtyard-desktop-final.png",
+        ".studio/evidence/screenshots/visual-v2/teacup-final.png"
+      ]
     }
   ],
-  "updatedAt": "2026-10-14T18:07:14.293992+00:00"
+  "updatedAt": "2026-10-14T20:37:40.494662+00:00"
 }

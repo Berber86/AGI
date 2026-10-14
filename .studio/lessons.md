@@ -19,3 +19,11 @@ Record only evidence-backed lessons.
 
 ## Catalog entry is part of integration
 A working isolated game preview is not enough when the repository already has a game launcher. Verify the real root card-to-game path on ordinary static hosting. Regression coverage: tests/test_game_catalog.py and games/white-night/tests/catalog.mjs, including /AGI/ deployment prefix, cover, WebGL boot, search, keep, reload and no HTTP errors.
+
+## Visual v2 findings
+- Split color, normal and roughness maps; data textures must use NoColorSpace. Generated PBR maps are approximations, not calibrated scans.
+- Transparent decals/glass must be omitted from SSAO normal/depth; otherwise their rectangular planes occlude geometry incorrectly.
+- Newly detailed static pieces should be merged by material. Cache models and thumbnails; E2E confirmed stable resource counts across repeated inspections.
+- Readability beat physically expensive optical transmission for thin watch covers. Dial print stays legible using a basic printed surface under a thin reflective coat; real transmission retained only where it visibly helps bottle/flacon glass.
+- Ornamental lines on a lathed cup must follow the actual radius profile, not a loose 3-point spline that falls inside the porcelain. Final targeted production capture verifies the repair.
+- Raw frame timing must not reuse capped animation dt. Rendering is skipped for idle courtyard/reduced-motion states; software GPU timings remain explicitly non-device evidence.

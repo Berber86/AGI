@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "check": "node --check src/main.js && node --check src/world.js && node --check src/models.js && node --check src/state.js && node --check src/materials.js",
+    "check": "node --check src/main.js && node --check src/world.js && node --check src/models.js && node --check src/state.js && node --check src/materials.js && node --check src/rendering.js && node --check src/scenery.js && node --check src/sculpt.js",
     "test": "node --test tests/state.test.js",
     "build": "vite build && node scripts/service-worker.mjs",
     "preview": "vite preview --host 0.0.0.0",
@@ -13,7 +13,9 @@
     "gate": "npm run check && npm test && npm run build && npm run test:e2e",
     "test:desktop": "node tests/desktop.mjs",
     "export:static": "npm run build && node scripts/export-static.mjs",
-    "test:catalog": "node tests/catalog.mjs"
+    "test:catalog": "node tests/catalog.mjs",
+    "test:art": "node tests/art-review.mjs",
+    "materials": "node scripts/material-maps.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
