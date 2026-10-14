@@ -1,0 +1,131 @@
+{
+  "iteration": 6,
+  "url": "http://127.0.0.1:5173/",
+  "viewport": {
+    "width": 915,
+    "height": 412,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "game booted with test bridge",
+      "passed": true,
+      "detail": "{\"phase\":\"menu\",\"seed\":1296646994,\"entities\":31,\"cellX\":0}"
+    },
+    {
+      "name": "steering changes cell position",
+      "passed": true,
+      "detail": "x=0.4"
+    },
+    {
+      "name": "cell remains inside movement bounds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "landscape touch controls stay inside the viewport",
+      "passed": true,
+      "detail": "[{\"selector\":\"#joystick\",\"left\":24,\"right\":150,\"top\":299,\"bottom\":402},{\"selector\":\"#bite-button\",\"left\":725,\"right\":803,\"top\":309,\"bottom\":385},{\"selector\":\"#dash-button\",\"left\":815,\"right\":893,\"top\":309,\"bottom\":385},{\"selector\":\"#pause-button\",\"left\":845,\"right\":893,\"top\":77.5,\"bottom\":125.5}]"
+    },
+    {
+      "name": "world edge is clamped",
+      "passed": true,
+      "detail": "x=34"
+    },
+    {
+      "name": "virtual joystick reports touch direction",
+      "passed": true,
+      "detail": "{\"x\":0.6715506715506716,\"z\":0}"
+    },
+    {
+      "name": "touch steering moves the cell without a keyboard",
+      "passed": true,
+      "detail": "{\"axes\":{\"x\":0.6715506715506716,\"z\":0},\"beforeX\":0,\"afterX\":0.26862026862026867}"
+    },
+    {
+      "name": "touch cancellation releases the virtual joystick",
+      "passed": true,
+      "detail": "{\"before\":{\"x\":0.6715506715506716,\"z\":0},\"after\":{\"x\":0,\"z\":0},\"active\":false}"
+    },
+    {
+      "name": "manual pause freezes simulation and resume restores controls",
+      "passed": true,
+      "detail": "{\"phase\":\"paused\",\"overlay\":true,\"frozen\":true,\"resumeResult\":{\"phase\":\"playing\",\"overlayHidden\":true,\"controlsVisible\":true}}"
+    },
+    {
+      "name": "restart is available from the pause screen",
+      "passed": true,
+      "detail": "{\"phase\":\"playing\",\"biomass\":0,\"health\":3,\"overlayHidden\":true}"
+    },
+    {
+      "name": "backgrounding pauses safely and foregrounding resumes without stuck touch input",
+      "passed": true,
+      "detail": "{\"hidden\":{\"phase\":\"paused\",\"axis\":{\"x\":0,\"z\":0},\"joystickActive\":false},\"visible\":\"playing\"}"
+    },
+    {
+      "name": "nutrient contact grants biomass once",
+      "passed": true,
+      "detail": "{\"firstAmount\":12,\"secondAmount\":12,\"collectedOnce\":true}"
+    },
+    {
+      "name": "touch bite consumes nearby prey for DNA and biomass",
+      "passed": true,
+      "detail": "{\"dna\":1,\"biomass\":24,\"eaten\":true,\"noDuplicateDna\":true,\"biteReady\":true,\"readyLabel\":\"В РАДИУСЕ\"}"
+    },
+    {
+      "name": "predator contact damages once and respects cooldown",
+      "passed": true,
+      "detail": "{\"healthAfterContact\":2,\"healthAfterCooldownFrame\":2}"
+    },
+    {
+      "name": "dash creates distance and a temporary safe window",
+      "passed": true,
+      "detail": "{\"before\":-22,\"after\":-17.400000000000002,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "touch dash button activates the escape action",
+      "passed": true,
+      "detail": "{\"distance\":4.599999999999998,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "equipped organs are visible and change movement mechanics",
+      "passed": true,
+      "detail": "{\"travel\":0.54,\"speedMultiplier\":1.35,\"flagellumVisible\":true,\"spinesVisible\":true,\"ciliaVisible\":false}"
+    },
+    {
+      "name": "all four selectable organs change the visible cell silhouette",
+      "passed": true,
+      "detail": "{\"flagellum\":true,\"cilia\":true,\"spines\":true,\"proboscis\":true}"
+    },
+    {
+      "name": "first growth threshold automatically opens mutation editor",
+      "passed": true,
+      "detail": "{\"phase\":\"editor\",\"growthStage\":1,\"dna\":1,\"editorVisible\":true}"
+    },
+    {
+      "name": "nearby predator gets a distance and danger warning",
+      "passed": true,
+      "detail": "{\"visible\":true,\"danger\":true,\"distance\":\"2 ед.\"}"
+    },
+    {
+      "name": "two biomass thresholds lead through two mutations to the final exit win",
+      "passed": true,
+      "detail": "{\"firstMilestone\":{\"phase\":\"editor\",\"growthStage\":1,\"dna\":1,\"editorVisible\":true},\"firstMutation\":{\"canApply\":true,\"phase\":\"playing\",\"mutations\":1,\"organ\":\"cilia\",\"growthStage\":1},\"secondMilestone\":{\"phase\":\"editor\",\"growthStage\":2,\"editorVisible\":true},\"finalMutation\":{\"canApply\":true,\"phase\":\"playing\",\"growthStage\":2,\"mutations\":2,\"organs\":[\"cilia\",\"proboscis\"],\"finalEncounterActive\":true,\"exitVisible\":true,\"missionVisible\":true,\"buildText\":\"РЕСНИЧКИ · ХОБОТОК\"},\"victoryResult\":{\"phase\":\"won\",\"winVisible\":true,\"mutations\":2}}"
+    },
+    {
+      "name": "zero-health loss and restart clear the expedition state",
+      "passed": true,
+      "detail": "{\"lossResult\":{\"phase\":\"lost\",\"health\":0,\"lossVisible\":true},\"restartResult\":{\"phase\":\"playing\",\"health\":3,\"biomass\":0,\"growthStage\":0,\"finalEncounterActive\":false}}"
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 23,
+  "total": 23,
+  "completedAt": "2026-10-14T14:29:25.557Z"
+}

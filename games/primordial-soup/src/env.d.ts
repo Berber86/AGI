@@ -10,8 +10,10 @@ declare global {
       setPosition(x: number, z: number): void;
       setHealth(health: number): void;
       setDNA(dna: number): void;
+      setBiomass(biomass: number): void;
       setLoadout(organs: Array<OrganId | null>): void;
       organVisible(organ: OrganId): boolean;
+      exitVisible(): boolean;
       effects(): ReturnType<typeof import('./simulation').getOrganEffects>;
       teleportToEntity(id: string): boolean;
       entities(): GameState['entities'];

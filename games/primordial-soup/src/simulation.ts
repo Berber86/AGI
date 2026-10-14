@@ -1,4 +1,5 @@
 export type GamePhase = 'menu' | 'playing' | 'editor' | 'paused' | 'won' | 'lost';
+export type GrowthStage = 0 | 1 | 2;
 export type OrganId = 'flagellum' | 'cilia' | 'spines' | 'proboscis';
 export type EntityKind = 'nutrient' | 'prey' | 'predator';
 
@@ -27,6 +28,9 @@ export interface GameState {
   phase: GamePhase;
   seed: number;
   elapsedSeconds: number;
+  growthStage: GrowthStage;
+  mutationsCompleted: number;
+  finalEncounterActive: boolean;
   cell: CellState;
   entities: WorldEntity[];
   invulnerableSeconds: number;
@@ -56,10 +60,15 @@ export interface OrganEffects {
 export const WORLD_LIMIT = 34;
 export const BASE_MOVE_SPEED = 8;
 export const CELL_RADIUS = 1.1;
+export const GROWTH_THRESHOLDS = [36, 72] as const;
+export const EXIT_X = 29;
+export const EXIT_Z = -28;
+export const EXIT_RADIUS = 3.4;
 const MAX_STEP_SECONDS = 0.05;
 const DASH_DISTANCE = 4.2;
 const BITE_RANGE = 3.2;
 const PREDATOR_SPEED = 1.65;
+const FINAL_PREDATOR_SPEED = 2.35;
 
 export function getOrganEffects(organs: readonly (OrganId | null)[]): OrganEffects {
   const active = new Set(organs.filter((organ): organ is OrganId => organ !== null));
@@ -78,6 +87,9 @@ export function createInitialState(seed = 0x4d494352): GameState {
     phase: 'menu',
     seed: stableSeed,
     elapsedSeconds: 0,
+    growthStage: 0,
+    mutationsCompleted: 0,
+    finalEncounterActive: false,
     cell: {
       x: 0,
       z: 0,
@@ -129,6 +141,7 @@ export function stepSimulation(state: GameState, input: GameInput, deltaSeconds:
   let biomass = cell.biomass;
   let dna = cell.dna;
   let phase: GamePhase = state.phase;
+  let growthStage: GrowthStage = state.growthStage;
   const entities = state.entities.map((entity) => ({ ...entity }));
 
   if (input.dash && dashCooldownSeconds <= 0) {
@@ -153,7 +166,8 @@ export function stepSimulation(state: GameState, input: GameInput, deltaSeconds:
       const dz = cell.z - entity.z;
       const distance = Math.hypot(dx, dz);
       if (distance > 0.001) {
-        const stride = Math.min(distance, PREDATOR_SPEED * dt);
+        const predatorSpeed = state.finalEncounterActive ? FINAL_PREDATOR_SPEED : PREDATOR_SPEED;
+        const stride = Math.min(distance, predatorSpeed * dt);
         entity.x = clamp(entity.x + (dx / distance) * stride, -WORLD_LIMIT + 1, WORLD_LIMIT - 1);
         entity.z = clamp(entity.z + (dz / distance) * stride, -WORLD_LIMIT + 1, WORLD_LIMIT - 1);
         entity.phase = Math.atan2(dx, dz);
@@ -203,10 +217,21 @@ export function stepSimulation(state: GameState, input: GameInput, deltaSeconds:
     }
   }
 
+  const nextGrowthThreshold = growthStage === 0 ? GROWTH_THRESHOLDS[0] : growthStage === 1 ? GROWTH_THRESHOLDS[1] : undefined;
+  if (phase === 'playing' && nextGrowthThreshold !== undefined && biomass >= nextGrowthThreshold) {
+    growthStage = (growthStage + 1) as GrowthStage;
+    dna += 1;
+    phase = 'editor';
+  }
+  if (phase === 'playing' && state.finalEncounterActive && distance(cell.x, cell.z, EXIT_X, EXIT_Z) <= EXIT_RADIUS) {
+    phase = 'won';
+  }
+
   return {
     ...moved,
     phase,
     elapsedSeconds,
+    growthStage,
     cell: { ...cell, biomass, dna },
     entities,
     invulnerableSeconds,

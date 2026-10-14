@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "phase": "vertical_slice",
   "activeRole": "builder",
-  "currentTask": "ITER-004",
-  "currentIteration": 4,
-  "lastAction": "Iteration 3 complete: two-slot organ editor, four visible mutations with distinct mechanics; 15/15 unit and 15/15 browser checks passed, build is 7.16 MB.",
-  "nextAction": "Add the two growth thresholds, final encounter, victory/restart flow, then close iteration 4 before the iteration-6 push checkpoint.",
+  "currentTask": "ITER-007",
+  "currentIteration": 7,
+  "lastAction": "Iteration 6 complete: pause/resume + visibility safety, offline-first install shell, 192/512px PWA icons, target landscape QA; 19/19 unit, 69/69 browser, 6/6 offline checks passed.",
+  "nextAction": "Tune same-seed movement, feeding, and defense trade-offs for iteration 7; expose active build identity and ensure no evolved combination is unbeatable or unusable.",
   "blockers": [],
   "latestHandoff": null,
   "sessionBenchmark": {
@@ -16,5 +16,5 @@
     "resultPath": ".studio/benchmarks/latest-result.json"
   },
   "createdAt": "2026-10-14T11:56:09Z",
-  "updatedAt": "2026-10-14T12:38:24Z"
+  "updatedAt": "2026-10-14T14:35:43Z"
 }

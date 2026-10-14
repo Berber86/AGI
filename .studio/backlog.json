@@ -1,10 +1,14 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-14T12:38:24Z",
+  "updatedAt": "2026-10-14T14:35:43Z",
   "iterationPolicy": {
     "unit": "one distinct change batch",
     "numberingStartsAfterContractApproval": true,
-    "pushAfter": [3, 6, 9],
+    "pushAfter": [
+      3,
+      6,
+      9
+    ],
     "branch": "arena/0934f2ca-agi",
     "maximum": 9,
     "stopWhenRubricPassed": true
@@ -21,7 +25,10 @@
         "A landscape mobile browser page starts into an original 3D micro-world with a visible cell, camera follow, and touch virtual joystick.",
         "A keyboard-free touch test and deterministic test hook confirm that steering changes the cell position without leaving the world bounds."
       ],
-      "evidence": [".studio/evidence/reports/iteration-01.json", ".studio/evidence/screenshots/iteration-01.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-01.json",
+        ".studio/evidence/screenshots/iteration-01.png"
+      ]
     },
     {
       "id": "ITER-002",
@@ -29,12 +36,17 @@
       "ownerRole": "builder",
       "status": "done",
       "iteration": 2,
-      "dependencies": ["ITER-001"],
+      "dependencies": [
+        "ITER-001"
+      ],
       "acceptanceCriteria": [
         "Nutrients, small prey, and one larger predator have readable interactions; nutrients and prey cannot be collected repeatedly.",
         "Health, biomass, and DNA visibly respond to the seeded test scenario; predator contact is avoidable and damage is deterministic."
       ],
-      "evidence": [".studio/evidence/reports/iteration-02.json", ".studio/evidence/screenshots/iteration-02.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-02.json",
+        ".studio/evidence/screenshots/iteration-02.png"
+      ]
     },
     {
       "id": "ITER-003",
@@ -42,64 +54,104 @@
       "ownerRole": "builder",
       "status": "done",
       "iteration": 3,
-      "dependencies": ["ITER-002"],
+      "dependencies": [
+        "ITER-002"
+      ],
       "acceptanceCriteria": [
         "The editor equips two active organs from flagellum, cilia, spines, and proboscis; each option changes cell silhouette and a tested gameplay property.",
         "At least three reproducible organ builds differ on the same test path; complete iteration-3 checks before pushing the accumulated work."
       ],
-      "evidence": [".studio/evidence/reports/iteration-03.json", ".studio/evidence/screenshots/iteration-03.png", ".studio/evidence/screenshots/iteration-03-gameplay.png", ".studio/evidence/screenshots/iteration-03-editor.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-03.json",
+        ".studio/evidence/screenshots/iteration-03.png",
+        ".studio/evidence/screenshots/iteration-03-gameplay.png",
+        ".studio/evidence/screenshots/iteration-03-editor.png"
+      ]
     },
     {
       "id": "ITER-004",
       "title": "Complete the expedition with two evolution milestones and end states",
       "ownerRole": "builder",
-      "status": "ready",
+      "status": "done",
       "iteration": 4,
-      "dependencies": ["ITER-003"],
+      "dependencies": [
+        "ITER-003"
+      ],
       "acceptanceCriteria": [
         "A seeded expedition reaches two growth/editor milestones and then a final exit encounter.",
         "Both the exit victory and zero-health defeat are reachable; restart clears the run and retains only intended local progress."
       ],
-      "evidence": [".studio/evidence/reports/iteration-04.json", ".studio/evidence/screenshots/iteration-04.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-04.json",
+        ".studio/evidence/screenshots/iteration-04.png",
+        ".studio/evidence/screenshots/iteration-04-editor.png",
+        ".studio/evidence/screenshots/iteration-04-final-encounter.png",
+        ".studio/evidence/screenshots/iteration-04-win.png",
+        ".studio/evidence/screenshots/iteration-04-loss.png"
+      ]
     },
     {
       "id": "ITER-005",
       "title": "Improve microscope visuals and readable organism feedback",
       "ownerRole": "designer-builder",
-      "status": "blocked",
+      "status": "done",
       "iteration": 5,
-      "dependencies": ["ITER-004"],
+      "dependencies": [
+        "ITER-004"
+      ],
       "acceptanceCriteria": [
         "The scene communicates water depth, microflora, nutrients, prey, and danger with original assets and clear depth ordering.",
         "A stable screenshot comparison against the user-provided reference improves readability and visual identity without copying protected art."
       ],
-      "evidence": [".studio/evidence/reports/iteration-05.json", ".studio/evidence/screenshots/iteration-05.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-05.json",
+        ".studio/evidence/screenshots/iteration-05.png",
+        ".studio/evidence/screenshots/iteration-05-final-encounter.png",
+        ".studio/evidence/screenshots/iteration-05-editor.png"
+      ]
     },
     {
       "id": "ITER-006",
       "title": "Polish landscape controls, HUD, pause/resume, and installable offline shell",
       "ownerRole": "builder",
-      "status": "blocked",
+      "status": "done",
       "iteration": 6,
-      "dependencies": ["ITER-005"],
+      "dependencies": [
+        "ITER-005"
+      ],
       "acceptanceCriteria": [
         "Landscape touch controls and HUD fit the approved viewports; pause, visibility-change resume, and restart behave correctly.",
         "The static PWA installs and opens offline after first load; finish QA before pushing the accumulated work."
       ],
-      "evidence": [".studio/evidence/reports/iteration-06.json", ".studio/evidence/screenshots/iteration-06.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-06.json",
+        ".studio/evidence/reports/iteration-06-800x360.json",
+        ".studio/evidence/reports/iteration-06-915x412.json",
+        ".studio/evidence/reports/iteration-06-pwa.json",
+        ".studio/evidence/screenshots/iteration-06.png",
+        ".studio/evidence/screenshots/iteration-06-800x360-final-encounter.png",
+        ".studio/evidence/screenshots/iteration-06-800x360-pause.png",
+        ".studio/evidence/screenshots/iteration-06-915x412-final-encounter.png",
+        ".studio/evidence/screenshots/iteration-06-offline.png"
+      ]
     },
     {
       "id": "ITER-007",
       "title": "Tune evolution trade-offs and make build identity more legible",
       "ownerRole": "designer-builder",
-      "status": "blocked",
+      "status": "in_progress",
       "iteration": 7,
-      "dependencies": ["ITER-006"],
+      "dependencies": [
+        "ITER-006"
+      ],
       "acceptanceCriteria": [
         "Same-seed tests expose distinct movement, feeding, and defense trade-offs for the available organ combinations.",
         "Mutation choices are understandable without sound and do not create an unbeatable or unusable cell build."
       ],
-      "evidence": [".studio/evidence/reports/iteration-07.json", ".studio/evidence/screenshots/iteration-07.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-07.json",
+        ".studio/evidence/screenshots/iteration-07.png"
+      ]
     },
     {
       "id": "ITER-008",
@@ -107,12 +159,17 @@
       "ownerRole": "mobile-qa",
       "status": "blocked",
       "iteration": 8,
-      "dependencies": ["ITER-007"],
+      "dependencies": [
+        "ITER-007"
+      ],
       "acceptanceCriteria": [
         "Automated checks cover touch-only full round, collection idempotence, two mutations, predator damage, win, loss, pause, and restart.",
         "Production asset budget is at most 10 MB and visual fallback remains stable at the 30 FPS tier on constrained rendering."
       ],
-      "evidence": [".studio/evidence/reports/iteration-08.json", ".studio/evidence/screenshots/iteration-08.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-08.json",
+        ".studio/evidence/screenshots/iteration-08.png"
+      ]
     },
     {
       "id": "ITER-009",
@@ -120,12 +177,17 @@
       "ownerRole": "release",
       "status": "blocked",
       "iteration": 9,
-      "dependencies": ["ITER-008"],
+      "dependencies": [
+        "ITER-008"
+      ],
       "acceptanceCriteria": [
         "Run all approved acceptance checks on a production build, capture a final landscape frame, and state precisely which comparison criteria passed or failed.",
         "Iteration 9 is final if earlier cycles did not satisfy the rubric: push this checkpoint to the fixed branch, write a handoff, and wait for further user instructions."
       ],
-      "evidence": [".studio/evidence/reports/iteration-09.json", ".studio/evidence/screenshots/iteration-09.png"]
+      "evidence": [
+        ".studio/evidence/reports/iteration-09.json",
+        ".studio/evidence/screenshots/iteration-09.png"
+      ]
     }
   ]
 }

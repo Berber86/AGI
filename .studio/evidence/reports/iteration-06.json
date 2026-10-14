@@ -1,0 +1,227 @@
+{
+  "iteration": 6,
+  "url": "http://127.0.0.1:5173/",
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "game booted with test bridge",
+      "passed": true,
+      "detail": "{\"phase\":\"menu\",\"seed\":1296646994,\"entities\":31,\"cellX\":0}"
+    },
+    {
+      "name": "steering changes cell position",
+      "passed": true,
+      "detail": "x=0.4"
+    },
+    {
+      "name": "cell remains inside movement bounds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "landscape touch controls stay inside the viewport",
+      "passed": true,
+      "detail": "[{\"selector\":\"#joystick\",\"left\":24,\"right\":150,\"top\":277,\"bottom\":380},{\"selector\":\"#bite-button\",\"left\":654,\"right\":732,\"top\":287,\"bottom\":363},{\"selector\":\"#dash-button\",\"left\":744,\"right\":822,\"top\":287,\"bottom\":363},{\"selector\":\"#pause-button\",\"left\":774,\"right\":822,\"top\":77.5,\"bottom\":125.5}]"
+    },
+    {
+      "name": "world edge is clamped",
+      "passed": true,
+      "detail": "x=34"
+    },
+    {
+      "name": "virtual joystick reports touch direction",
+      "passed": true,
+      "detail": "{\"x\":0.6715506715506716,\"z\":0}"
+    },
+    {
+      "name": "touch steering moves the cell without a keyboard",
+      "passed": true,
+      "detail": "{\"axes\":{\"x\":0.6715506715506716,\"z\":0},\"beforeX\":0,\"afterX\":0.26862026862026867}"
+    },
+    {
+      "name": "touch cancellation releases the virtual joystick",
+      "passed": true,
+      "detail": "{\"before\":{\"x\":0.6715506715506716,\"z\":0},\"after\":{\"x\":0,\"z\":0},\"active\":false}"
+    },
+    {
+      "name": "manual pause freezes simulation and resume restores controls",
+      "passed": true,
+      "detail": "{\"phase\":\"paused\",\"overlay\":true,\"frozen\":true,\"resumeResult\":{\"phase\":\"playing\",\"overlayHidden\":true,\"controlsVisible\":true}}"
+    },
+    {
+      "name": "restart is available from the pause screen",
+      "passed": true,
+      "detail": "{\"phase\":\"playing\",\"biomass\":0,\"health\":3,\"overlayHidden\":true}"
+    },
+    {
+      "name": "backgrounding pauses safely and foregrounding resumes without stuck touch input",
+      "passed": true,
+      "detail": "{\"hidden\":{\"phase\":\"paused\",\"axis\":{\"x\":0,\"z\":0},\"joystickActive\":false},\"visible\":\"playing\"}"
+    },
+    {
+      "name": "nutrient contact grants biomass once",
+      "passed": true,
+      "detail": "{\"firstAmount\":12,\"secondAmount\":12,\"collectedOnce\":true}"
+    },
+    {
+      "name": "touch bite consumes nearby prey for DNA and biomass",
+      "passed": true,
+      "detail": "{\"dna\":1,\"biomass\":24,\"eaten\":true,\"noDuplicateDna\":true,\"biteReady\":true,\"readyLabel\":\"В РАДИУСЕ\"}"
+    },
+    {
+      "name": "predator contact damages once and respects cooldown",
+      "passed": true,
+      "detail": "{\"healthAfterContact\":2,\"healthAfterCooldownFrame\":2}"
+    },
+    {
+      "name": "dash creates distance and a temporary safe window",
+      "passed": true,
+      "detail": "{\"before\":-22,\"after\":-17.400000000000002,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "touch dash button activates the escape action",
+      "passed": true,
+      "detail": "{\"distance\":4.599999999999998,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "equipped organs are visible and change movement mechanics",
+      "passed": true,
+      "detail": "{\"travel\":0.54,\"speedMultiplier\":1.35,\"flagellumVisible\":true,\"spinesVisible\":true,\"ciliaVisible\":false}"
+    },
+    {
+      "name": "all four selectable organs change the visible cell silhouette",
+      "passed": true,
+      "detail": "{\"flagellum\":true,\"cilia\":true,\"spines\":true,\"proboscis\":true}"
+    },
+    {
+      "name": "first growth threshold automatically opens mutation editor",
+      "passed": true,
+      "detail": "{\"phase\":\"editor\",\"growthStage\":1,\"dna\":1,\"editorVisible\":true}"
+    },
+    {
+      "name": "nearby predator gets a distance and danger warning",
+      "passed": true,
+      "detail": "{\"visible\":true,\"danger\":true,\"distance\":\"1 ед.\"}"
+    },
+    {
+      "name": "two biomass thresholds lead through two mutations to the final exit win",
+      "passed": true,
+      "detail": "{\"firstMilestone\":{\"phase\":\"editor\",\"growthStage\":1,\"dna\":1,\"editorVisible\":true},\"firstMutation\":{\"canApply\":true,\"phase\":\"playing\",\"mutations\":1,\"organ\":\"cilia\",\"growthStage\":1},\"secondMilestone\":{\"phase\":\"editor\",\"growthStage\":2,\"editorVisible\":true},\"finalMutation\":{\"canApply\":true,\"phase\":\"playing\",\"growthStage\":2,\"mutations\":2,\"organs\":[\"cilia\",\"proboscis\"],\"finalEncounterActive\":true,\"exitVisible\":true,\"missionVisible\":true,\"buildText\":\"РЕСНИЧКИ · ХОБОТОК\"},\"victoryResult\":{\"phase\":\"won\",\"winVisible\":true,\"mutations\":2}}"
+    },
+    {
+      "name": "zero-health loss and restart clear the expedition state",
+      "passed": true,
+      "detail": "{\"lossResult\":{\"phase\":\"lost\",\"health\":0,\"lossVisible\":true},\"restartResult\":{\"phase\":\"playing\",\"health\":3,\"biomass\":0,\"growthStage\":0,\"finalEncounterActive\":false}}"
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 23,
+  "total": 23,
+  "completedAt": "2026-10-14T14:35:43Z",
+  "viewportRuns": [
+    {
+      "report": ".studio/evidence/reports/iteration-06.json",
+      "viewport": "844x390",
+      "touch": true,
+      "passed": 23,
+      "total": 23
+    },
+    {
+      "report": ".studio/evidence/reports/iteration-06-800x360.json",
+      "viewport": "800x360",
+      "touch": true,
+      "passed": 23,
+      "total": 23
+    },
+    {
+      "report": ".studio/evidence/reports/iteration-06-915x412.json",
+      "viewport": "915x412",
+      "touch": true,
+      "passed": 23,
+      "total": 23
+    }
+  ],
+  "verification": {
+    "unitTests": {
+      "passed": 19,
+      "total": 19,
+      "command": "npm test"
+    },
+    "typescript": {
+      "passed": true,
+      "command": "npm run check"
+    },
+    "productionBuild": {
+      "passed": true,
+      "command": "npm run build",
+      "distBytes": 7346864,
+      "distMb": 7.35,
+      "mainBundleMinifiedKb": 6761.35,
+      "mainBundleGzipKb": 1477.98,
+      "warning": "Vite reports the main JS entry is larger than 500 kB; initial total remains under the 10 MB gate."
+    },
+    "browserSmoke": {
+      "passed": 69,
+      "total": 69,
+      "viewports": [
+        "844x390",
+        "800x360",
+        "915x412"
+      ],
+      "touchCapable": true
+    },
+    "productionPwaOffline": {
+      "report": ".studio/evidence/reports/iteration-06-pwa.json",
+      "passed": 6,
+      "total": 6,
+      "cachedRequests": 83,
+      "coldOfflineNavigation": true,
+      "offlineStart": true
+    }
+  },
+  "visualChanges": [
+    "Added manual pause, frozen simulation, explicit resume, and clean restart from the pause card.",
+    "Hiding the document now freezes the expedition and releases touch input; returning resumes it without a delta-time jump.",
+    "Added a production-generated service worker that precaches the app shell, all bundled JS/CSS chunks, manifest, and original icons.",
+    "Added 192×192 and 512×512 PWA icons; production browser QA confirms a cold offline navigation and expedition start.",
+    "Touch controls are measured fully inside 844×390, 800×360, and 915×412 landscape viewports."
+  ],
+  "qualitativeComparison": {
+    "sameSeedAgainstIteration05": "At all tested landscape widths, the main cell and final-gate scene remain visible; the joystick stays bottom-left, action controls bottom-right, and threat cue at top-right. The pause card is centered and offers both resume and restart without obscuring the underlying game state.",
+    "userReference": "The original scientific-microscope palette and translucent procedural organisms remain consistent with the supplied still. No original executable was supplied, so the comparison remains visual/qualitative and makes no gameplay-superiority claim.",
+    "assetProvenance": "3D organisms/world geometry and the PWA icon are original project assets; no Spore/EA logos or game assets are used."
+  },
+  "limitations": [
+    "QA used touch-capable headless Chromium with software rendering at scale 1; no physical Android device or actual home-screen install action was performed.",
+    "The PWA manifest/icon, service-worker cache, and cold offline start were tested locally at the build root; no GitHub Pages deployment under a nested URL has been exercised.",
+    "The 60 FPS target and automatic stable 30 FPS quality fallback remain unmeasured/unimplemented for constrained Android devices.",
+    "The 6.761 MB minified Babylon entry continues to trigger Vite’s >500 kB chunk warning; total dist is 7,346,864 bytes.",
+    "Automated expedition E2E uses QA hooks to accelerate biomass milestones and final travel; touch steering, resource pickup, action controls, pause, pointer cancellation, visibility transitions, and end states are separately exercised."
+  ],
+  "evidence": [
+    ".studio/evidence/screenshots/iteration-06.png",
+    ".studio/evidence/screenshots/iteration-06-gameplay.png",
+    ".studio/evidence/screenshots/iteration-06-editor.png",
+    ".studio/evidence/screenshots/iteration-06-pause.png",
+    ".studio/evidence/screenshots/iteration-06-final-encounter.png",
+    ".studio/evidence/screenshots/iteration-06-win.png",
+    ".studio/evidence/screenshots/iteration-06-loss.png",
+    ".studio/evidence/screenshots/iteration-06-offline.png",
+    ".studio/evidence/screenshots/iteration-06-800x360.png",
+    ".studio/evidence/screenshots/iteration-06-800x360-final-encounter.png",
+    ".studio/evidence/screenshots/iteration-06-800x360-pause.png",
+    ".studio/evidence/screenshots/iteration-06-915x412.png",
+    ".studio/evidence/screenshots/iteration-06-915x412-gameplay.png",
+    ".studio/evidence/screenshots/iteration-06-915x412-final-encounter.png"
+  ]
+}

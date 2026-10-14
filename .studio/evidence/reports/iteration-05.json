@@ -1,0 +1,156 @@
+{
+  "iteration": 5,
+  "url": "http://127.0.0.1:5173/",
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "game booted with test bridge",
+      "passed": true,
+      "detail": "{\"phase\":\"menu\",\"seed\":1296646994,\"entities\":31,\"cellX\":0}"
+    },
+    {
+      "name": "steering changes cell position",
+      "passed": true,
+      "detail": "x=0.4"
+    },
+    {
+      "name": "cell remains inside movement bounds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "world edge is clamped",
+      "passed": true,
+      "detail": "x=34"
+    },
+    {
+      "name": "virtual joystick reports touch direction",
+      "passed": true,
+      "detail": "{\"x\":0.6715506715506716,\"z\":0}"
+    },
+    {
+      "name": "touch steering moves the cell without a keyboard",
+      "passed": true,
+      "detail": "{\"axes\":{\"x\":0.6715506715506716,\"z\":0},\"beforeX\":0,\"afterX\":0.26862026862026867}"
+    },
+    {
+      "name": "nutrient contact grants biomass once",
+      "passed": true,
+      "detail": "{\"firstAmount\":12,\"secondAmount\":12,\"collectedOnce\":true}"
+    },
+    {
+      "name": "touch bite consumes nearby prey for DNA and biomass",
+      "passed": true,
+      "detail": "{\"dna\":1,\"biomass\":24,\"eaten\":true,\"noDuplicateDna\":true,\"biteReady\":true,\"readyLabel\":\"В РАДИУСЕ\"}"
+    },
+    {
+      "name": "predator contact damages once and respects cooldown",
+      "passed": true,
+      "detail": "{\"healthAfterContact\":2,\"healthAfterCooldownFrame\":2}"
+    },
+    {
+      "name": "dash creates distance and a temporary safe window",
+      "passed": true,
+      "detail": "{\"before\":-22,\"after\":-17.400000000000002,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "touch dash button activates the escape action",
+      "passed": true,
+      "detail": "{\"distance\":4.599999999999998,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "equipped organs are visible and change movement mechanics",
+      "passed": true,
+      "detail": "{\"travel\":0.54,\"speedMultiplier\":1.35,\"flagellumVisible\":true,\"spinesVisible\":true,\"ciliaVisible\":false}"
+    },
+    {
+      "name": "all four selectable organs change the visible cell silhouette",
+      "passed": true,
+      "detail": "{\"flagellum\":true,\"cilia\":true,\"spines\":true,\"proboscis\":true}"
+    },
+    {
+      "name": "first growth threshold automatically opens mutation editor",
+      "passed": true,
+      "detail": "{\"phase\":\"editor\",\"growthStage\":1,\"dna\":1,\"editorVisible\":true}"
+    },
+    {
+      "name": "nearby predator gets a distance and danger warning",
+      "passed": true,
+      "detail": "{\"visible\":true,\"danger\":true,\"distance\":\"1 ед.\"}"
+    },
+    {
+      "name": "two biomass thresholds lead through two mutations to the final exit win",
+      "passed": true,
+      "detail": "{\"firstMilestone\":{\"phase\":\"editor\",\"growthStage\":1,\"dna\":1,\"editorVisible\":true},\"firstMutation\":{\"canApply\":true,\"phase\":\"playing\",\"mutations\":1,\"organ\":\"cilia\",\"growthStage\":1},\"secondMilestone\":{\"phase\":\"editor\",\"growthStage\":2,\"editorVisible\":true},\"finalMutation\":{\"canApply\":true,\"phase\":\"playing\",\"growthStage\":2,\"mutations\":2,\"organs\":[\"cilia\",\"proboscis\"],\"finalEncounterActive\":true,\"exitVisible\":true,\"missionVisible\":true,\"buildText\":\"РЕСНИЧКИ · ХОБОТОК\"},\"victoryResult\":{\"phase\":\"won\",\"winVisible\":true,\"mutations\":2}}"
+    },
+    {
+      "name": "zero-health loss and restart clear the expedition state",
+      "passed": true,
+      "detail": "{\"lossResult\":{\"phase\":\"lost\",\"health\":0,\"lossVisible\":true},\"restartResult\":{\"phase\":\"playing\",\"health\":3,\"biomass\":0,\"growthStage\":0,\"finalEncounterActive\":false}}"
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 18,
+  "total": 18,
+  "completedAt": "2026-10-14T14:18:55Z",
+  "verification": {
+    "unitTests": {
+      "passed": 19,
+      "total": 19,
+      "command": "npm test"
+    },
+    "typescript": {
+      "passed": true,
+      "command": "npm run check"
+    },
+    "productionBuild": {
+      "passed": true,
+      "command": "npm run build",
+      "distBytes": 7167085,
+      "distMb": 7.17,
+      "mainBundleMinifiedMb": 6.76,
+      "mainBundleGzipMb": 1.478,
+      "warning": "Vite still warns that the main entry exceeds 500 kB."
+    },
+    "browserSmoke": {
+      "passed": 18,
+      "total": 18,
+      "viewport": "844x390 touch landscape"
+    }
+  },
+  "evidence": [
+    ".studio/evidence/screenshots/iteration-05.png",
+    ".studio/evidence/screenshots/iteration-05-gameplay.png",
+    ".studio/evidence/screenshots/iteration-05-editor.png",
+    ".studio/evidence/screenshots/iteration-05-final-encounter.png",
+    ".studio/evidence/screenshots/iteration-05-win.png",
+    ".studio/evidence/screenshots/iteration-05-loss.png"
+  ],
+  "visualChanges": [
+    "HUD now names the active two-organ build.",
+    "The bite control glows and changes label while prey is in reach.",
+    "Nearby predators show a distance and directional danger warning; the exit mission keeps its own bearing cue.",
+    "Camera follow interpolation is time-based to remain responsive at low frame rates."
+  ],
+  "qualitativeComparison": {
+    "sameSeedAgainstIteration04": "The iteration-5 final encounter frame adds a visible build label and relocates the predator warning away from the cell and enemy silhouettes, making the current tactic and danger easier to read.",
+    "userReference": "The palette retains teal water, translucent original organisms, bubbles, and microflora. Only a still reference is available; no original executable or gameplay was provided, so no gameplay superiority claim is made.",
+    "assetProvenance": "Cell, prey, predator, nutrient, and gate meshes are procedural original geometry; no Spore/EA assets or logos are used."
+  },
+  "limitations": [
+    "Only 844x390 touch-capable headless Chromium was tested; no physical Android device or 800x360/915x412 viewport QA has been performed.",
+    "Automated E2E accelerates biomass thresholds and final travel with test hooks; real pickups, touch steering, bite, dash, and the separate milestone simulation tests are covered.",
+    "The production service worker/offline cache, pause/resume, and 30 FPS fallback remain for later iterations.",
+    "The production build is below 10 MB, but the 6.760 MB JS entry still triggers the Vite chunk warning."
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "iteration": 6,
+  "url": "http://127.0.0.1:4173/",
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "production service worker activates and controls the game",
+      "passed": true,
+      "detail": "{\"controlled\":true,\"active\":true,\"cacheName\":\"microgenesis-1ya5wn1\",\"cachedCount\":83,\"scriptCount\":76,\"styleCount\":1,\"manifest\":{\"display\":\"standalone\",\"orientation\":\"landscape\",\"iconCount\":3,\"icons\":[{\"sizes\":\"192x192\",\"purpose\":\"any\",\"cached\":true},{\"sizes\":\"512x512\",\"purpose\":\"any maskable\",\"cached\":true},{\"sizes\":\"any\",\"purpose\":\"any\",\"cached\":true}]},\"shellCached\":true}"
+    },
+    {
+      "name": "offline cache contains the complete app shell and built code",
+      "passed": true,
+      "detail": "{\"count\":83,\"scripts\":76,\"styles\":1,\"shell\":true}"
+    },
+    {
+      "name": "manifest requests standalone landscape installation with cached 192px and 512px icons",
+      "passed": true,
+      "detail": "{\"display\":\"standalone\",\"orientation\":\"landscape\",\"iconCount\":3,\"icons\":[{\"sizes\":\"192x192\",\"purpose\":\"any\",\"cached\":true},{\"sizes\":\"512x512\",\"purpose\":\"any maskable\",\"cached\":true},{\"sizes\":\"any\",\"purpose\":\"any\",\"cached\":true}]}"
+    },
+    {
+      "name": "game boots and remains interactive after a cold offline navigation",
+      "passed": true,
+      "detail": "{\"controlled\":true,\"phase\":\"menu\",\"canvas\":true}"
+    },
+    {
+      "name": "offline game starts without a network dependency",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 6,
+  "total": 6,
+  "completedAt": "2026-10-14T14:32:05.941Z"
+}

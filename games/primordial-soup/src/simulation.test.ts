@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   createInitialState,
+  EXIT_RADIUS,
+  EXIT_X,
+  EXIT_Z,
   moveCell,
   type OrganId,
   stepSimulation,
@@ -110,8 +113,9 @@ describe('cell movement and seeded food web', () => {
     const plain = stepSimulation(initial, { move: { x: 0, z: 0 }, bite: true }, 0.05);
     const evolved = stepSimulation(withOrgan(initial, 'proboscis'), { move: { x: 0, z: 0 }, bite: true }, 0.05);
     expect(plain.cell.dna).toBe(0);
-    expect(evolved.cell.dna).toBe(1);
+    expect(evolved.cell.dna).toBe(2);
     expect(evolved.cell.biomass).toBe(36);
+    expect(evolved.growthStage).toBe(1);
   });
 
   it('same encounter path yields distinct outcomes for three reproducible builds', () => {
@@ -134,8 +138,8 @@ describe('cell movement and seeded food web', () => {
     const signature = (state: GameState) => [state.cell.x, state.cell.biomass, state.cell.dna, state.cell.health];
     expect(new Set([JSON.stringify(signature(baseline)), JSON.stringify(signature(explorer)), JSON.stringify(signature(defender))]).size).toBe(3);
     expect(signature(baseline)).toEqual([0.4, 0, 0, 2]);
-    expect(signature(explorer)).toEqual([0.54, 36, 1, 2]);
-    expect(signature(defender)).toEqual([0.4, 36, 1, 3]);
+    expect(signature(explorer)).toEqual([0.54, 36, 2, 2]);
+    expect(signature(defender)).toEqual([0.4, 36, 2, 3]);
   });
 
   it('predator contact removes one health pip and has a damage cooldown', () => {
@@ -153,6 +157,56 @@ describe('cell movement and seeded food web', () => {
     expect(dashed.cell.x).toBeGreaterThan(initial.cell.x + 3);
     expect(dashed.cell.health).toBe(3);
     expect(dashed.dashCooldownSeconds).toBeGreaterThan(2);
+  });
+
+  it('opens the first editor at the first biomass threshold and awards mutation DNA once', () => {
+    const initial = {
+      ...playing(),
+      cell: { ...playing().cell, biomass: 24 },
+      entities: [entity('food-1', 'nutrient', 0)],
+    };
+    const milestone = stepSimulation(initial, { move: { x: 0, z: 0 } }, 0.05);
+    expect(milestone.phase).toBe('editor');
+    expect(milestone.growthStage).toBe(1);
+    expect(milestone.cell.biomass).toBe(36);
+    expect(milestone.cell.dna).toBe(1);
+    expect(stepSimulation(milestone, { move: { x: 1, z: 0 } }, 0.05)).toBe(milestone);
+  });
+
+  it('opens the second editor at the second biomass threshold', () => {
+    const initial = {
+      ...playing(),
+      growthStage: 1 as const,
+      cell: { ...playing().cell, biomass: 60 },
+      entities: [entity('food-1', 'nutrient', 0)],
+    };
+    const milestone = stepSimulation(initial, { move: { x: 0, z: 0 } }, 0.05);
+    expect(milestone.phase).toBe('editor');
+    expect(milestone.growthStage).toBe(2);
+    expect(milestone.cell.biomass).toBe(72);
+    expect(milestone.cell.dna).toBe(1);
+  });
+
+  it('final encounter predator pursues faster than the early hunter', () => {
+    const initial = { ...playing(), entities: [entity('hunter', 'predator', 10)] };
+    const early = stepSimulation(initial, { move: { x: 0, z: 0 } }, 0.05);
+    const final = stepSimulation({ ...initial, finalEncounterActive: true }, { move: { x: 0, z: 0 } }, 0.05);
+    expect(final.entities[0].x).toBeLessThan(early.entities[0].x);
+    expect(early.entities[0].x - final.entities[0].x).toBeCloseTo(0.035, 4);
+  });
+
+  it('wins only after the final encounter is active and the exit is reached', () => {
+    const nearExit: GameState = {
+      ...playing(),
+      finalEncounterActive: true,
+      cell: { ...playing().cell, x: EXIT_X - EXIT_RADIUS / 2, z: EXIT_Z },
+      entities: [entity('hunter', 'predator', EXIT_X - 10, EXIT_Z)],
+    };
+    const won = stepSimulation(nearExit, { move: { x: 0, z: 0 } }, 0.05);
+    expect(won.phase).toBe('won');
+
+    const beforeEncounter = { ...nearExit, finalEncounterActive: false };
+    expect(stepSimulation(beforeEncounter, { move: { x: 0, z: 0 } }, 0.05).phase).toBe('playing');
   });
 
   it('loses at zero health and terminal states cannot continue moving', () => {

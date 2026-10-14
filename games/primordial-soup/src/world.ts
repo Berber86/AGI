@@ -11,11 +11,12 @@ import {
   TransformNode,
   Vector3,
 } from '@babylonjs/core';
-import type { GameState, OrganId, WorldEntity } from './simulation';
+import { EXIT_X, EXIT_Z, type GameState, type OrganId, type WorldEntity } from './simulation';
 
 export interface MicroWorld {
   cellRoot: TransformNode;
   organVisible(organ: OrganId): boolean;
+  exitVisible(): boolean;
   update(state: GameState, seconds: number): void;
 }
 
@@ -381,6 +382,53 @@ export function createMicroWorld(scene: Scene, camera: ArcRotateCamera, initialS
   boundaryMaterial.alpha = 0.33;
   boundary.material = boundaryMaterial;
 
+  const exitRoot = new TransformNode('vent-exit', scene);
+  exitRoot.position.set(EXIT_X, 0, EXIT_Z);
+  const exitMaterial = new StandardMaterial('vent-exit-material', scene);
+  exitMaterial.diffuseColor = new Color3(0.31, 1, 0.83);
+  exitMaterial.emissiveColor = new Color3(0.18, 0.93, 0.75);
+  exitMaterial.specularColor = Color3.White();
+  exitMaterial.specularPower = 96;
+  exitMaterial.alpha = 0.78;
+  const exitBase = MeshBuilder.CreateTorus('vent-exit-base', { diameter: 7, thickness: 0.09, tessellation: 48 }, scene);
+  exitBase.parent = exitRoot;
+  exitBase.position.y = 0.08;
+  exitBase.rotation.x = Math.PI / 2;
+  exitBase.material = exitMaterial;
+  const exitFrame = MeshBuilder.CreateTorus('vent-exit-frame', { diameter: 5.6, thickness: 0.16, tessellation: 48 }, scene);
+  exitFrame.parent = exitRoot;
+  exitFrame.position.y = 2.55;
+  exitFrame.material = exitMaterial;
+  const exitCrossFrame = MeshBuilder.CreateTorus('vent-exit-cross-frame', { diameter: 4.8, thickness: 0.045, tessellation: 40 }, scene);
+  exitCrossFrame.parent = exitRoot;
+  exitCrossFrame.position.y = 2.55;
+  exitCrossFrame.rotation.y = Math.PI / 2;
+  exitCrossFrame.material = exitMaterial;
+  const exitCoreMaterial = new StandardMaterial('vent-exit-core-material', scene);
+  exitCoreMaterial.diffuseColor = new Color3(0.16, 0.72, 0.69);
+  exitCoreMaterial.emissiveColor = new Color3(0.08, 0.54, 0.55);
+  exitCoreMaterial.alpha = 0.32;
+  const exitCore = MeshBuilder.CreateSphere('vent-exit-core', { diameter: 3.9, segments: 18 }, scene);
+  exitCore.parent = exitRoot;
+  exitCore.position.y = 2.45;
+  exitCore.scaling.y = 1.12;
+  exitCore.material = exitCoreMaterial;
+  const exitBeacon = MeshBuilder.CreateCylinder('vent-exit-beacon', { height: 7, diameter: 0.08, tessellation: 8 }, scene);
+  exitBeacon.parent = exitRoot;
+  exitBeacon.position.y = 3.45;
+  exitBeacon.material = exitMaterial;
+  const exitPillars = [
+    MeshBuilder.CreateSphere('vent-exit-node-a', { diameter: 0.42, segments: 10 }, scene),
+    MeshBuilder.CreateSphere('vent-exit-node-b', { diameter: 0.32, segments: 10 }, scene),
+    MeshBuilder.CreateSphere('vent-exit-node-c', { diameter: 0.36, segments: 10 }, scene),
+  ];
+  exitPillars.forEach((node, index) => {
+    node.parent = exitRoot;
+    node.position.set(Math.cos(index * 2.1) * 2.3, 2.55 + Math.sin(index * 2.1) * 2.3, 0);
+    node.material = exitMaterial;
+  });
+  exitRoot.setEnabled(false);
+
   const bubbleMaterial = new StandardMaterial('distant-bubble-material', scene);
   bubbleMaterial.diffuseColor = new Color3(0.39, 0.83, 0.84);
   bubbleMaterial.emissiveColor = new Color3(0.05, 0.18, 0.22);
@@ -434,13 +482,22 @@ export function createMicroWorld(scene: Scene, camera: ArcRotateCamera, initialS
   const entityMaterials = makeEntityMaterials(scene);
   const entityViews = new Map(initialState.entities.map((entity) => [entity.id, makeEntityView(scene, entity, entityMaterials)]));
   camera.setTarget(new Vector3(0, 0.7, 0));
+  let previousCameraSeconds = 0;
 
   return {
     cellRoot,
     organVisible(organ: OrganId) {
       return organGroups.get(organ)?.isEnabled() ?? false;
     },
+    exitVisible() {
+      return exitRoot.isEnabled();
+    },
     update(state: GameState, seconds: number) {
+      const exitEnabled = state.finalEncounterActive;
+      if (exitRoot.isEnabled() !== exitEnabled) exitRoot.setEnabled(exitEnabled);
+      exitFrame.rotation.z = seconds * 0.18;
+      exitCrossFrame.rotation.z = -seconds * 0.12;
+      exitCore.scaling.x = 1 + Math.sin(seconds * 2.4) * 0.035;
       const activeOrgans = new Set(state.cell.organs.filter((organ): organ is OrganId => organ !== null));
       for (const [organ, group] of organGroups) {
         const enabled = activeOrgans.has(organ);
@@ -453,7 +510,10 @@ export function createMicroWorld(scene: Scene, camera: ArcRotateCamera, initialS
       // Leave breathing room for the title card while the player is in the menu.
       const menuOffset = state.phase === 'menu' ? 4.5 : 0;
       const target = new Vector3(state.cell.x - menuOffset, 0.65, state.cell.z);
-      camera.target = Vector3.Lerp(camera.target, target, 0.08);
+      const cameraDeltaSeconds = Math.max(0, seconds - previousCameraSeconds);
+      previousCameraSeconds = seconds;
+      const followAmount = 1 - Math.exp(-8 * cameraDeltaSeconds);
+      camera.setTarget(Vector3.Lerp(camera.target, target, followAmount));
       for (let i = 0; i < bubbles.length; i += 1) {
         bubbles[i].position.y = 0.15 + ((seconds * (0.08 + (i % 5) * 0.012) + i * 0.73) % 5.2);
       }

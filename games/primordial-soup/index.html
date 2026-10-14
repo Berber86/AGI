@@ -48,10 +48,10 @@
         </div>
         <div class="hud-right">
           <div class="hud-chip"><span class="chip-icon dna-icon">⌬</span><div><small>ДНК</small><strong id="dna-value">0</strong></div></div>
-          <button id="evolution-button" class="evolution-button is-hidden" type="button" aria-label="Открыть редактор эволюции">⌬ <span>МУТАЦИЯ</span></button>
           <button id="pause-button" class="icon-button" type="button" aria-label="Пауза">Ⅱ</button>
         </div>
-        <div class="stage-meter"><span></span><small>РОСТ КЛЕТКИ</small></div>
+        <div class="stage-meter"><span></span><small id="growth-label">ПЕРВЫЙ ПОРОГ · 36</small></div>
+        <div id="build-readout" class="build-readout is-hidden" aria-live="polite"><small>СБОРКА</small><span id="build-organs">—</span></div>
       </section>
 
       <div id="start-hint" class="start-hint is-hidden" aria-live="polite">
@@ -60,17 +60,26 @@
 
       <div id="action-controls" class="action-controls is-hidden" aria-label="Действия клетки">
         <button id="bite-button" class="action-button bite-action" type="button" aria-label="Кусать добычу">
-          <span class="action-glyph" aria-hidden="true">✦</span><span class="action-copy"><strong>КУСАТЬ</strong><small>ДОБЫЧУ</small></span>
+          <span class="action-glyph" aria-hidden="true">✦</span><span class="action-copy"><strong>КУСАТЬ</strong><small id="bite-status">ДОБЫЧУ</small></span>
         </button>
         <button id="dash-button" class="action-button dash-action" type="button" aria-label="Рывок клетки">
           <span class="action-glyph" aria-hidden="true">»</span><span class="action-copy"><strong>РЫВОК</strong><small id="dash-cooldown">ГОТОВ</small></span>
         </button>
       </div>
 
+      <div id="mission-banner" class="mission-banner is-hidden" aria-live="polite">
+        <span class="mission-mark" aria-hidden="true">◉</span>
+        <div class="mission-copy"><small>ФИНАЛЬНАЯ ВСТРЕЧА · УЙДИ ОТ ХИЩНИКА</small><strong>Найди светлый разлом</strong><span id="exit-distance">РАЗЛОМ · 0 м</span></div>
+        <span id="exit-arrow" class="exit-arrow" aria-hidden="true">➤</span>
+      </div>
+      <div id="threat-warning" class="threat-warning is-hidden" role="status" aria-live="polite">
+        <span class="threat-pulse" aria-hidden="true"></span><strong>ХИЩНИК РЯДОМ</strong><small id="threat-distance">0 ед.</small><span id="threat-arrow" aria-hidden="true">➤</span>
+      </div>
+
       <section id="editor-screen" class="editor-screen is-hidden" aria-labelledby="editor-title" aria-modal="true" role="dialog">
         <div class="editor-panel">
           <header class="editor-header">
-            <div><div class="eyebrow"><span class="eyebrow-line"></span>ЛАБОРАТОРИЯ · МУТАЦИЯ</div><h2 id="editor-title">Собери своё преимущество</h2><p>Выбери орган для активного слота. Каждая новая мутация стоит 1 ДНК.</p></div>
+            <div><div class="eyebrow"><span class="eyebrow-line"></span>ЛАБОРАТОРИЯ · МУТАЦИЯ</div><h2 id="editor-title">Собери своё преимущество</h2><p>Порог роста даёт 1 ДНК. На этом этапе измени один активный слот.</p></div>
             <div class="editor-dna"><span>⌬</span><small>ДОСТУПНО</small><strong id="editor-dna-value">0</strong></div>
           </header>
           <div class="editor-slots" aria-label="Активные слоты органов">
@@ -83,12 +92,24 @@
             <button class="organ-card" type="button" data-organ="spines"><span class="organ-glyph glyph-spines" aria-hidden="true">✣</span><span class="organ-card-copy"><strong>Шипы</strong><small>КОНТАКТНАЯ ЗАЩИТА</small><em>Отбрасывают хищника</em></span></button>
             <button class="organ-card" type="button" data-organ="proboscis"><span class="organ-glyph glyph-proboscis" aria-hidden="true">⊙</span><span class="organ-card-copy"><strong>Хоботок</strong><small>ДИСТАНЦИОННЫЙ УКУС</small><em>Дальше укус · +50% добычи</em></span></button>
           </div>
-          <div class="editor-footer"><p id="editor-feedback" aria-live="polite">Выбери слот и орган для мутации.</p><div><button id="editor-cancel" class="quiet-button" type="button">Назад</button><button id="editor-apply" class="primary-button editor-apply" type="button"><span>Сохранить мутацию</span><span class="button-arrow" aria-hidden="true">↗</span></button></div></div>
+          <div class="editor-footer"><p id="editor-feedback" aria-live="polite">Выбери один слот и новый орган.</p><div><button id="editor-apply" class="primary-button editor-apply" type="button"><span>Принять эволюцию</span><span class="button-arrow" aria-hidden="true">↗</span></button></div></div>
         </div>
       </section>
 
+      <section id="pause-screen" class="pause-screen is-hidden" aria-labelledby="pause-title">
+        <div class="loss-card pause-card">
+          <span class="loss-eyebrow">ПЕРЕДЫШКА · МИКРОМИР НА ПАУЗЕ</span>
+          <h2 id="pause-title">Экспедиция остановлена</h2>
+          <p>Клетка ждёт, когда ты будешь готов продолжить.</p>
+          <button id="resume-button" class="primary-button" type="button"><span class="play-icon" aria-hidden="true">▶</span><span>Продолжить</span><span class="button-arrow" aria-hidden="true">↗</span></button>
+          <button id="pause-restart-button" class="quiet-button pause-restart" type="button">Начать экспедицию заново</button>
+        </div>
+      </section>
       <section id="loss-screen" class="loss-screen is-hidden" aria-labelledby="loss-title">
         <div class="loss-card"><span class="loss-eyebrow">СИГНАЛ КЛЕТКИ ПРЕРВАН</span><h2 id="loss-title">Новая попытка?</h2><p>Первичный океан всё ещё полон возможностей.</p><button id="retry-button" class="primary-button" type="button"><span class="play-icon" aria-hidden="true">↻</span><span>Начать заново</span><span class="button-arrow" aria-hidden="true">↗</span></button></div>
+      </section>
+      <section id="win-screen" class="win-screen is-hidden" aria-labelledby="win-title">
+        <div class="win-card"><span class="win-eyebrow">РАЗЛОМ ПРОЙДЕН · ЭКСПЕДИЦИЯ ЗАВЕРШЕНА</span><h2 id="win-title">Клетка выбрала путь</h2><p>Две мутации изменили твою тактику. За разломом — новый мир.</p><div class="win-stats"><span><small>МУТАЦИИ</small><strong id="win-mutations">2 / 2</strong></span><span><small>ВРЕМЯ В ОКЕАНЕ</small><strong id="win-time">00:00</strong></span></div><button id="win-retry-button" class="primary-button" type="button"><span class="play-icon" aria-hidden="true">↻</span><span>Новая экспедиция</span><span class="button-arrow" aria-hidden="true">↗</span></button></div>
       </section>
 
       <div id="joystick" class="joystick is-hidden" role="application" aria-label="Виртуальный джойстик. Перетаскивай палец, чтобы двигаться">

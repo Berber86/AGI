@@ -4,7 +4,7 @@ import {
   Scene,
   Vector3,
 } from '@babylonjs/core';
-import { createInitialState, getOrganEffects, stepSimulation, type GameInput, type GameState, type OrganId } from './simulation';
+import { createInitialState, EXIT_X, EXIT_Z, GROWTH_THRESHOLDS, getOrganEffects, stepSimulation, type GameInput, type GameState, type OrganId } from './simulation';
 import { VirtualJoystick } from './touch';
 import { createMicroWorld } from './world';
 import './style.css';
@@ -17,16 +17,32 @@ const actionControls = requiredElement<HTMLElement>('action-controls');
 const startHint = requiredElement<HTMLElement>('start-hint');
 const loading = requiredElement<HTMLElement>('loading-status');
 const startButton = requiredElement<HTMLButtonElement>('start-button');
+const pauseButton = requiredElement<HTMLButtonElement>('pause-button');
+const pauseScreen = requiredElement<HTMLElement>('pause-screen');
+const resumeButton = requiredElement<HTMLButtonElement>('resume-button');
+const pauseRestartButton = requiredElement<HTMLButtonElement>('pause-restart-button');
 const retryButton = requiredElement<HTMLButtonElement>('retry-button');
 const lossScreen = requiredElement<HTMLElement>('loss-screen');
 const editorScreen = requiredElement<HTMLElement>('editor-screen');
-const evolutionButton = requiredElement<HTMLButtonElement>('evolution-button');
 const editorDnaValue = requiredElement<HTMLElement>('editor-dna-value');
 const editorFeedback = requiredElement<HTMLElement>('editor-feedback');
 const editorApplyButton = requiredElement<HTMLButtonElement>('editor-apply');
-const editorCancelButton = requiredElement<HTMLButtonElement>('editor-cancel');
 const editorSlots = [requiredElement<HTMLButtonElement>('slot-a'), requiredElement<HTMLButtonElement>('slot-b')];
 const organCards = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-organ]'));
+const growthLabel = requiredElement<HTMLElement>('growth-label');
+const buildReadout = requiredElement<HTMLElement>('build-readout');
+const buildOrgans = requiredElement<HTMLElement>('build-organs');
+const biteStatus = requiredElement<HTMLElement>('bite-status');
+const missionBanner = requiredElement<HTMLElement>('mission-banner');
+const threatWarning = requiredElement<HTMLElement>('threat-warning');
+const threatDistance = requiredElement<HTMLElement>('threat-distance');
+const threatArrow = requiredElement<HTMLElement>('threat-arrow');
+const exitDistance = requiredElement<HTMLElement>('exit-distance');
+const exitArrow = requiredElement<HTMLElement>('exit-arrow');
+const winScreen = requiredElement<HTMLElement>('win-screen');
+const winRetryButton = requiredElement<HTMLButtonElement>('win-retry-button');
+const winMutations = requiredElement<HTMLElement>('win-mutations');
+const winTime = requiredElement<HTMLElement>('win-time');
 const biteButton = requiredElement<HTMLButtonElement>('bite-button');
 const dashButton = requiredElement<HTMLButtonElement>('dash-button');
 const healthValue = requiredElement<HTMLElement>('health-value');
@@ -71,6 +87,7 @@ let previousTime = performance.now();
 let renderCount = 0;
 let fpsWindowStart = previousTime;
 let visibleFps = 60;
+let pausedByVisibility = false;
 let draftOrgans: Array<OrganId | null> = [null, null];
 let selectedSlot = 0;
 const ORGAN_LABELS: Record<OrganId, string> = {
@@ -80,16 +97,46 @@ const ORGAN_LABELS: Record<OrganId, string> = {
   proboscis: 'Хоботок',
 };
 
+function pauseExpedition(): void {
+  if (state.phase !== 'playing') return;
+  state = { ...state, phase: 'paused' };
+  keyboard = { x: 0, z: 0 };
+  testAxes = { x: 0, z: 0 };
+  joystick.releaseAll();
+  biteHeld = false;
+  bitePulse = false;
+  dashPending = false;
+  joystickElement.classList.add('is-hidden');
+  actionControls.classList.add('is-hidden');
+  pauseScreen.classList.remove('is-hidden');
+  previousTime = performance.now();
+  updateHud();
+}
+
+function resumeExpedition(): void {
+  if (state.phase !== 'paused') return;
+  state = { ...state, phase: 'playing' };
+  pauseScreen.classList.add('is-hidden');
+  joystickElement.classList.remove('is-hidden');
+  actionControls.classList.remove('is-hidden');
+  previousTime = performance.now();
+  updateHud();
+}
+
 function beginExpedition(): void {
   state = { ...createInitialState(state.seed), phase: 'playing' };
+  pausedByVisibility = false;
   testAxes = { x: 0, z: 0 };
   keyboard = { x: 0, z: 0 };
   biteHeld = false;
   bitePulse = false;
   dashPending = false;
   menu.classList.add('is-hidden');
+  pauseScreen.classList.add('is-hidden');
   lossScreen.classList.add('is-hidden');
+  winScreen.classList.add('is-hidden');
   editorScreen.classList.add('is-hidden');
+  missionBanner.classList.add('is-hidden');
   hud.classList.remove('is-hidden');
   joystickElement.classList.remove('is-hidden');
   actionControls.classList.remove('is-hidden');
@@ -106,15 +153,32 @@ function finishLoss(): void {
   joystickElement.classList.add('is-hidden');
   actionControls.classList.add('is-hidden');
   startHint.classList.add('is-hidden');
+  missionBanner.classList.add('is-hidden');
   editorScreen.classList.add('is-hidden');
   lossScreen.classList.remove('is-hidden');
 }
 
+function finishWin(): void {
+  document.body.dataset.phase = 'won';
+  joystick.releaseAll();
+  biteHeld = false;
+  dashPending = false;
+  joystickElement.classList.add('is-hidden');
+  actionControls.classList.add('is-hidden');
+  startHint.classList.add('is-hidden');
+  missionBanner.classList.add('is-hidden');
+  editorScreen.classList.add('is-hidden');
+  winMutations.textContent = `${state.mutationsCompleted} / 2`;
+  const minutes = Math.floor(state.elapsedSeconds / 60).toString().padStart(2, '0');
+  const seconds = Math.floor(state.elapsedSeconds % 60).toString().padStart(2, '0');
+  winTime.textContent = `${minutes}:${seconds}`;
+  winScreen.classList.remove('is-hidden');
+}
+
 function openEditor(): void {
-  if (state.phase !== 'playing' || state.cell.dna < 1) return;
+  if (state.phase !== 'editor') return;
   draftOrgans = [state.cell.organs[0] ?? null, state.cell.organs[1] ?? null];
   selectedSlot = Math.max(0, draftOrgans.findIndex((organ) => organ === null));
-  state = { ...state, phase: 'editor' };
   keyboard = { x: 0, z: 0 };
   joystick.releaseAll();
   biteHeld = false;
@@ -141,48 +205,44 @@ function renderEditor(): void {
     card.classList.toggle('equipped', draftOrgans.includes(organ));
   }
 
-  const hasChanges = draftOrgans.some((organ, index) => organ !== state.cell.organs[index]);
-  const mutationCost = draftOrgans.reduce((cost, organ, index) => (
-    cost + (organ !== state.cell.organs[index] && organ !== null ? 1 : 0)
-  ), 0);
-  editorApplyButton.disabled = !hasChanges || mutationCost > state.cell.dna;
-  if (!hasChanges) editorFeedback.textContent = 'Выбери слот и орган для мутации.';
-  else if (mutationCost > state.cell.dna) editorFeedback.textContent = `Нужно ещё ${mutationCost - state.cell.dna} ДНК для этой сборки.`;
-  else editorFeedback.textContent = mutationCost > 0 ? `Новая мутация: ${mutationCost} ДНК. Сборка изменит тактику.` : 'Можно убрать орган без затрат ДНК.';
+  const changedSlots = draftOrgans.filter((organ, index) => organ !== state.cell.organs[index]).length;
+  editorApplyButton.disabled = changedSlots !== 1 || state.cell.dna < 1;
+  if (changedSlots === 0) editorFeedback.textContent = 'Выбери один слот и новый орган.';
+  else if (changedSlots > 1) editorFeedback.textContent = 'На этом пороге доступна одна мутация — измени только один слот.';
+  else if (state.cell.dna < 1) editorFeedback.textContent = 'Для эволюции нужна 1 единица ДНК.';
+  else editorFeedback.textContent = 'Новая мутация: 1 ДНК. Способности клетки изменятся.';
 }
 
 function chooseOrgan(organ: OrganId): void {
-  const next = [...draftOrgans];
-  const otherSlot = next.findIndex((active, index) => active === organ && index !== selectedSlot);
-  if (otherSlot >= 0) next[otherSlot] = next[selectedSlot] ?? null;
-  next[selectedSlot] = organ;
-  draftOrgans = next;
+  const otherSlot = draftOrgans.findIndex((active, index) => active === organ && index !== selectedSlot);
+  if (otherSlot >= 0) {
+    editorFeedback.textContent = 'Этот орган уже установлен в другом слоте.';
+    return;
+  }
+  draftOrgans[selectedSlot] = organ;
   renderEditor();
-}
-
-function closeEditor(): void {
-  state = { ...state, phase: 'playing' };
-  editorScreen.classList.add('is-hidden');
-  joystickElement.classList.remove('is-hidden');
-  actionControls.classList.remove('is-hidden');
-  if (state.elapsedSeconds <= 4) startHint.classList.remove('is-hidden');
-  updateHud();
 }
 
 function applyMutation(): void {
   if (state.phase !== 'editor') return;
-  const hasChanges = draftOrgans.some((organ, index) => organ !== state.cell.organs[index]);
-  const mutationCost = draftOrgans.reduce((cost, organ, index) => (
-    cost + (organ !== state.cell.organs[index] && organ !== null ? 1 : 0)
-  ), 0);
-  if (!hasChanges || mutationCost > state.cell.dna) {
+  const changedSlots = draftOrgans.filter((organ, index) => organ !== state.cell.organs[index]).length;
+  if (changedSlots !== 1 || state.cell.dna < 1) {
     renderEditor();
     return;
   }
+
+  const mutationsCompleted = state.mutationsCompleted + 1;
+  const activateFinalEncounter = state.growthStage === 2 && mutationsCompleted >= 2 && !state.finalEncounterActive;
+  const entities = activateFinalEncounter
+    ? state.entities.map((entity) => entity.kind === 'predator' ? { ...entity, x: EXIT_X, z: EXIT_Z + 6, consumed: false } : entity)
+    : state.entities;
   state = {
     ...state,
     phase: 'playing',
-    cell: { ...state.cell, organs: [...draftOrgans], dna: state.cell.dna - mutationCost },
+    mutationsCompleted,
+    finalEncounterActive: state.finalEncounterActive || activateFinalEncounter,
+    entities,
+    cell: { ...state.cell, organs: [...draftOrgans], dna: state.cell.dna - 1 },
   };
   world.update(state, performance.now() / 1000);
   editorScreen.classList.add('is-hidden');
@@ -191,7 +251,6 @@ function applyMutation(): void {
   updateHud();
 }
 
-evolutionButton.addEventListener('click', openEditor);
 editorSlots.forEach((slot, index) => slot.addEventListener('click', () => {
   selectedSlot = index;
   renderEditor();
@@ -201,10 +260,23 @@ organCards.forEach((card) => card.addEventListener('click', () => {
   if (organ) chooseOrgan(organ);
 }));
 editorApplyButton.addEventListener('click', applyMutation);
-editorCancelButton.addEventListener('click', closeEditor);
 
 startButton.addEventListener('click', beginExpedition);
+pauseButton.addEventListener('click', pauseExpedition);
+resumeButton.addEventListener('click', resumeExpedition);
+pauseRestartButton.addEventListener('click', beginExpedition);
 retryButton.addEventListener('click', beginExpedition);
+winRetryButton.addEventListener('click', beginExpedition);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.phase === 'playing') {
+    pausedByVisibility = true;
+    pauseExpedition();
+  } else if (!document.hidden && pausedByVisibility && state.phase === 'paused') {
+    pausedByVisibility = false;
+    resumeExpedition();
+  }
+});
 
 function bindHold(button: HTMLButtonElement, onStart: () => void, onStop: () => void): void {
   const down = (event: PointerEvent): void => {
@@ -269,9 +341,42 @@ function updateHud(): void {
   biomassValue.innerHTML = `${state.cell.biomass} <i>/ 100</i>`;
   dnaValue.textContent = String(state.cell.dna);
   dashButton.disabled = state.dashCooldownSeconds > 0.05;
-  evolutionButton.classList.toggle('is-hidden', state.phase !== 'playing' || state.cell.dna < 1);
   dashCooldownLabel.textContent = state.dashCooldownSeconds > 0.05 ? `${state.dashCooldownSeconds.toFixed(1)}С` : 'ГОТОВ';
-  if (growthMeter) growthMeter.style.width = `${state.cell.biomass}%`;
+  if (state.growthStage === 0) {
+    growthLabel.textContent = `ПЕРВЫЙ ПОРОГ · ${GROWTH_THRESHOLDS[0]}`;
+    if (growthMeter) growthMeter.style.width = `${Math.min(100, (state.cell.biomass / GROWTH_THRESHOLDS[0]) * 100)}%`;
+  } else if (state.growthStage === 1) {
+    growthLabel.textContent = `ВТОРОЙ ПОРОГ · ${GROWTH_THRESHOLDS[1]}`;
+    if (growthMeter) growthMeter.style.width = `${Math.min(100, ((state.cell.biomass - GROWTH_THRESHOLDS[0]) / (GROWTH_THRESHOLDS[1] - GROWTH_THRESHOLDS[0])) * 100)}%`;
+  } else {
+    growthLabel.textContent = state.finalEncounterActive ? 'ФИНАЛЬНАЯ ВСТРЕЧА' : 'РОСТ ДОСТИГНУТ';
+    if (growthMeter) growthMeter.style.width = '100%';
+  }
+  const activeOrganNames = state.cell.organs.filter((organ): organ is OrganId => organ !== null).map((organ) => ORGAN_LABELS[organ]);
+  buildReadout.classList.toggle('is-hidden', activeOrganNames.length === 0 || state.phase !== 'playing');
+  buildOrgans.textContent = activeOrganNames.join(' · ').toLocaleUpperCase('ru-RU');
+  const effects = getOrganEffects(state.cell.organs);
+  const preyInRange = state.entities.some((entity) => entity.kind === 'prey' && !entity.consumed && Math.hypot(entity.x - state.cell.x, entity.z - state.cell.z) <= effects.biteRange + entity.radius);
+  biteButton.classList.toggle('is-in-range', preyInRange && state.phase === 'playing');
+  biteStatus.textContent = preyInRange ? 'В РАДИУСЕ' : 'ДОБЫЧУ';
+  biteButton.setAttribute('aria-label', preyInRange ? 'Кусать добычу — цель в радиусе' : 'Кусать добычу');
+
+  const exitDx = EXIT_X - state.cell.x;
+  const exitDz = EXIT_Z - state.cell.z;
+  exitDistance.textContent = `РАЗЛОМ · ${Math.round(Math.hypot(exitDx, exitDz))} ед.`;
+  exitArrow.style.transform = `rotate(${Math.atan2(-exitDz, exitDx) * 180 / Math.PI}deg)`;
+  missionBanner.classList.toggle('is-hidden', !state.finalEncounterActive || state.phase !== 'playing');
+  const predator = state.entities.find((entity) => entity.kind === 'predator' && !entity.consumed);
+  const predatorDistance = predator ? Math.hypot(predator.x - state.cell.x, predator.z - state.cell.z) : Infinity;
+  const showThreat = state.phase === 'playing' && predator !== undefined && predatorDistance <= 14;
+  threatWarning.classList.toggle('is-hidden', !showThreat);
+  threatWarning.classList.toggle('is-danger', showThreat && predatorDistance <= 6);
+  if (showThreat && predator) {
+    const predatorDx = predator.x - state.cell.x;
+    const predatorDz = predator.z - state.cell.z;
+    threatDistance.textContent = `${Math.round(predatorDistance)} ед.`;
+    threatArrow.style.transform = `rotate(${Math.atan2(-predatorDz, predatorDx) * 180 / Math.PI}deg)`;
+  }
   document.body.dataset.phase = state.phase;
 }
 
@@ -281,7 +386,9 @@ function simulate(deltaSeconds: number, input = readInput()): GameState {
   bitePulse = false;
   dashPending = false;
   updateHud();
+  if (oldPhase === 'playing' && state.phase === 'editor') openEditor();
   if (oldPhase !== 'lost' && state.phase === 'lost') finishLoss();
+  if (oldPhase !== 'won' && state.phase === 'won') finishWin();
   return state;
 }
 
@@ -324,12 +431,17 @@ window.__GAME_TEST__ = {
     state = { ...state, cell: { ...state.cell, dna: Math.max(0, Math.floor(dna)) } };
     updateHud();
   },
+  setBiomass: (biomass) => {
+    state = { ...state, cell: { ...state.cell, biomass: Math.max(0, Math.min(100, Math.floor(biomass))) } };
+    updateHud();
+  },
   setLoadout: (organs) => {
     state = { ...state, cell: { ...state.cell, organs: [organs[0] ?? null, organs[1] ?? null] } };
     world.update(state, performance.now() / 1000);
     updateHud();
   },
   organVisible: (organ) => world.organVisible(organ),
+  exitVisible: () => world.exitVisible(),
   effects: () => getOrganEffects(state.cell.organs),
   teleportToEntity: (id) => {
     const entity = state.entities.find((candidate) => candidate.id === id && !candidate.consumed);
@@ -348,7 +460,7 @@ window.addEventListener('resize', () => engine.resize());
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((error: unknown) => {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch((error: unknown) => {
       console.warn('[Microgenesis] Service worker registration failed', error);
     });
   });
