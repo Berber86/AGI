@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "revision": "visual-v3",
+  "revision": "visual-v4",
   "motionPreference": "reduce (standard browser accessibility preference)",
   "checks": [
     "360×800: portrait layout does not overflow",
@@ -25,32 +25,50 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 77,
-      "triangles": 152017,
-      "geometries": 165,
-      "textures": 77,
+      "drawCalls": 82,
+      "triangles": 169806,
+      "geometries": 167,
+      "textures": 80,
       "models": 18,
       "postprocessing": false,
       "zoom": 1,
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 873.8516666666673,
+      "meanFrameMs": 51.47676767676783,
       "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
       "quality": "low"
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 63,
-      "triangles": 109367,
-      "geometries": 71,
-      "textures": 33,
+      "drawCalls": 68,
+      "triangles": 127156,
+      "geometries": 76,
+      "textures": 35,
       "models": 1,
       "postprocessing": false,
       "zoom": 1,
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 319.7375000000001,
+      "meanFrameMs": 610.9666666666664,
       "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
       "quality": "low"
     }
   ],
@@ -176,7 +194,7 @@
     },
     {
       "id": "badge",
-      "modeledParts": 6,
+      "modeledParts": 9,
       "materialBatches": 5,
       "bounds": {
         "min": [
@@ -282,14 +300,14 @@
       "materialBatches": 3,
       "bounds": {
         "min": [
-          -0.7145393056249381,
+          -0.7145319914877832,
           -1.05,
-          -0.7145393056249381
+          -0.713198972005731
         ],
         "max": [
-          0.7145393056249381,
+          0.7145319914877832,
           1.05,
-          0.7145393056249381
+          0.713198972005731
         ]
       }
     },
@@ -299,21 +317,21 @@
       "materialBatches": 3,
       "bounds": {
         "min": [
-          -0.8762649025677521,
+          -0.8761723631298971,
           -1.05,
-          -0.8651859893275583
+          -0.8411525972897724
         ],
         "max": [
-          0.8762649025677521,
+          0.8761723631298971,
           1.05,
-          0.8651859893275583
+          0.8411525972897724
         ]
       }
     },
     {
       "id": "box",
-      "modeledParts": 48,
-      "materialBatches": 4,
+      "modeledParts": 49,
+      "materialBatches": 5,
       "bounds": {
         "min": [
           -1.05,
@@ -352,18 +370,18 @@
         "min": [
           -0.8370629572624678,
           -1.05,
-          -0.09676921770786955
+          -0.15360902802827245
         ],
         "max": [
           0.8370629572624678,
           1.05,
-          0.09676921770786955
+          0.15360902802827245
         ]
       }
     }
   ],
   "build": {
-    "totalBytes": 6634537,
+    "totalBytes": 6643872,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -386,12 +404,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-1w5kisxk.css",
-        "bytes": 25409
+        "file": "assets/index-Dcn0vzJy.css",
+        "bytes": 26663
       },
       {
-        "file": "assets/index-Cze7iciF.js",
-        "bytes": 652569
+        "file": "assets/index-XmK9jd2B.js",
+        "bytes": 660592
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -455,7 +473,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 10980
+        "bytes": 11038
       },
       {
         "file": "manifest.webmanifest",

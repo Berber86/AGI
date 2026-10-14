@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {agePoint} from '../src/aging.js';
 test('Wear deformations are deterministic, finite and bounded',()=>{
- for(const id of ['book','box','can','cup','paper'])for(let x=-.6;x<=.6;x+=.2)for(let y=-.7;y<=.7;y+=.2){
+ for(const id of ['box','can','cup','paper'])for(let x=-.6;x<=.6;x+=.2)for(let y=-.7;y<=.7;y+=.2){
   const a=agePoint(id,x,y,.3);assert.deepEqual(a,agePoint(id,x,y,.3));assert.ok(a.every(Number.isFinite));
   assert.ok(Math.hypot(a[0]-x,a[1]-y,a[2]-.3)<.4);
  }

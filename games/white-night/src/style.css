@@ -87,3 +87,18 @@
 @media(prefers-reduced-motion:reduce){.quality-setting input,.quality-setting input:before{transition:none}}
 
 :root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}
+
+/* Three-beat reveal; all animation is visual and outside the save/state machine. */
+.reveal-note{position:absolute;left:50%;top:calc(var(--stage-bottom,60%) + 24px);transform:translateX(-50%);margin:0;width:80%;text-align:center;font-size:12px;letter-spacing:.6px;color:#dce4d6;pointer-events:none}
+.find-info,.find-header{transition:opacity .24s ease}
+.is-revealing .decision-buttons,.is-revealing .rotation-hint{opacity:0;pointer-events:none}
+#app[data-reveal-phase="anticipation"] .find-info,#app[data-reveal-phase="silhouette"] .find-info,#app[data-reveal-phase="anticipation"] .find-header,#app[data-reveal-phase="silhouette"] .find-header{opacity:0;visibility:hidden}
+.tap-dots i.active{box-shadow:0 0 0 3px #dce9b018}
+#search-button:active:not(:disabled){box-shadow:inset 0 0 0 2px #65805c50}
+#header-count.collected{animation:collection-tick .65s ease-out}
+@keyframes collection-tick{0%,100%{color:var(--accent);text-shadow:none}30%{color:#f5ffce;text-shadow:0 0 12px #dce9b070}}
+#toast[data-tone="kept"]{border-color:#dce9b075}
+#toast[data-tone="kept"]:before{content:'✓';color:var(--accent);margin-right:9px}
+#toast[data-tone="duplicate"]:before{content:'↗';color:#c3d0bd;margin-right:9px}
+#toast[data-tone="discarded"]{color:#c5cdc7;border-style:dashed}
+@media(max-height:520px) and (min-width:651px){.reveal-note{left:30%;top:auto;bottom:38px;width:52%}}

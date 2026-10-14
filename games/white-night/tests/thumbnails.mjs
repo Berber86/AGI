@@ -2,7 +2,8 @@ import {launch} from './browser.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const browser=await launch();const errors=[];let report={passed:false};
-const folder='../../.studio/evidence/screenshots/visual-v3-3';
+const series=process.env.SERIES||'v4',iteration=process.env.ITERATION||'6';
+const folder=`../../.studio/evidence/screenshots/visual-${series}-${iteration}`;
 try{
  const page=await browser.newPage();page.setDefaultTimeout(120000);page.setDefaultNavigationTimeout(120000);
  await page.setViewport({width:412,height:915,isMobile:true,hasTouch:true,deviceScaleFactor:1});
@@ -41,4 +42,4 @@ try{
  report={passed:true,samples,errors,checks:['All 18 thumbnails are sRGB/ACES output, verified by corner pixels','Cached re-opening does not grow GPU geometry or texture counts','Completion shows three recent finds','Final production build reloads with all 18 thumbnails offline'],limitations:['Color tests detect missing output transfer, not aesthetic accuracy on physical displays.']};
  console.log('PASS all 18 thumbnails: display encoding and stable cache');
 }catch(e){report={...report,errors,error:e.stack};throw e;}
-finally{fs.writeFileSync('../../.studio/evidence/reports/visual-v3-thumbnails.json',JSON.stringify(report,null,2));await browser.close();}
+finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-${series}-thumbnails.json`,JSON.stringify(report,null,2));await browser.close();}

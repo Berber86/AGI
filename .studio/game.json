@@ -87,5 +87,11 @@
     "implemented": "Three bounded passes: perspective-safe staging; priority cast models/materials; display-encoded archive thumbnails and readable UI. Mechanics and save schema unchanged.",
     "journal": "games/white-night/VISUAL_ITERATIONS.md",
     "evidence": ".studio/evidence/reports/visual-v3-release.json"
+  },
+  "visualIterationsV4": {
+    "request": "Хорошо. Сделай ещё 3 итерации и тоже запуш",
+    "implemented": "Iterations 4–6: inhabited courtyard/bin; localized item wear and highlights; staged reveal/feedback. Book warp reverted to preserve its print. Saves, IDs, silence and rules unchanged.",
+    "journal": "games/white-night/VISUAL_ITERATIONS.md",
+    "evidence": ".studio/evidence/reports/visual-v4-release.json"
   }
 }

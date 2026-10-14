@@ -410,7 +410,7 @@ function bake(group){
 }
 export function createItem(id){
   const group=new THREE.Group();builders[id](group);
-  if(['book','box','can','cup','paper'].includes(id)){
+  if(['box','can','cup','paper'].includes(id)){
     group.updateMatrixWorld(true);
     group.traverse(o=>{
       if(!o.isMesh)return;const p=o.geometry.attributes.position,inv=o.matrixWorld.clone().invert();

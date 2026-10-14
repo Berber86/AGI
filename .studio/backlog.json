@@ -149,6 +149,65 @@
         ".studio/evidence/reports/visual-v3-thumbnails.json",
         ".studio/evidence/reports/visual-v3-release.json"
       ]
+    },
+    {
+      "id": "VISUAL-V4-4",
+      "title": "Inhabited courtyard and localized bin wear",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3-3"
+      ],
+      "acceptanceCriteria": [
+        "Real rear-wall arch geometry",
+        "Deterministic varied window treatments",
+        "Asymmetric rubbish with aligned contact shadows"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4-4.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V4-5",
+      "title": "Individualized aging and highlight readability",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4-4"
+      ],
+      "acceptanceCriteria": [
+        "Deformations follow assembled labels and rims",
+        "Localized stains retain printed details",
+        "Targeted item framing and zoom regression"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4-5.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V4-6",
+      "title": "Staged reveal, restrained feedback and static release",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4-5"
+      ],
+      "acceptanceCriteria": [
+        "Natural anticipation, silhouette and detail sequence",
+        "Reduced motion and owned review skip delay",
+        "All 18 models, saves, offline and static subpath regression",
+        "Final tracked play export under 8 MB"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4-6.json",
+        "games/white-night/VISUAL_ITERATIONS.md",
+        ".studio/evidence/reports/visual-v4-release.json",
+        ".studio/evidence/reports/visual-v4-6-reveal.json",
+        ".studio/evidence/reports/visual-v4-6-scene.json",
+        ".studio/evidence/reports/visual-v4-thumbnails.json"
+      ]
     }
   ],
   "updatedAt": "2026-10-15"

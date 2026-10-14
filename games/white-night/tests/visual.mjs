@@ -1,5 +1,6 @@
 import {launch} from './browser.mjs';
 import fs from 'node:fs';
+import sharp from 'sharp';
 import assert from 'node:assert/strict';
 const iteration=process.env.ITERATION||'final';
 const series=process.env.SERIES||'v3';
@@ -28,7 +29,13 @@ try{
   });
   assert.ok(layout.infoBottom+8<=layout.buttonTop,`${id}: caption overlaps decision buttons`);
   assert.ok(m.modelDetails.materialBatches<=20);models.push({id,bounds:b,...m.modelDetails});
-  await shot(id);await page.click('#keep');console.log('PASS',id,'safe framing and render');
+  await shot(id);
+  if(id==='book'){
+   const {data,info}=await sharp(`${folder}/book.webp`).extract({left:155,top:290,width:110,height:105}).raw().toBuffer({resolveWithObject:true});let ink=0;
+   for(let p=0;p<data.length;p+=info.channels)if(data[p]>140&&data[p+1]>110&&data[p+2]<180&&data[p]>data[p+2]*1.15)ink++;
+   assert.ok(ink>40,`Book title occluded by bent cover: ${ink} gold pixels`);checks.push('Book gold title remains visible after deformation');
+  }
+  await page.click('#keep');console.log('PASS',id,'safe framing and render');
  }
  if(await page.$eval('#complete-dialog',d=>d.open)){await shot('complete');await page.click('#continue-button');}
  await page.click('#open-collection');await shot('collection');await page.click('[data-close="collection-dialog"]');

@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "phase": "building",
-  "activeRole": "builder",
-  "currentTask": "VISUAL-V4-6",
-  "lastAction": "Iteration 5 targeted seven-item browser review, syntax, 15 unit tests and build passed",
-  "nextAction": "Iteration 6 staged reveal, feedback and final all-item/static/offline regression",
+  "phase": "done",
+  "activeRole": "release",
+  "currentTask": null,
+  "lastAction": "Three further visual iterations complete: final 17 unit tests, all 18 framing, 17 E2E groups, thumbnails, desktop, catalog, courtyard and reveal passed; static export 6643872 bytes matches dist",
+  "nextAction": "Review physical Android performance and remaining visual audit if requested; git/chat records final branch delivery",
   "blockers": [],
-  "latestHandoff": ".studio/handoffs/2026-10-15-visual-v3.md",
+  "latestHandoff": ".studio/handoffs/2026-10-15-visual-v4.md",
   "sessionBenchmark": {
     "runId": "20261014T223742Z-ec584f",
     "status": "qualified",
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/latest-result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-14T22:38:09Z"
+  "updatedAt": "2026-10-14T23:52:56.452457+00:00"
 }

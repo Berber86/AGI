@@ -1,11 +1,6 @@
 // Deform a whole assembled object, including its labels/rims: no floating dents.
 export function agePoint(id, x, y, z) {
-  if (id === 'book') {
-    const corner = Math.max(0, (x - .25) / .4) * Math.max(0, (y - .40) / .45);
-    z += .07 * corner;
-    x -= .018 * corner;
-    y -= .025 * corner;
-  } else if (id === 'box') {
+  if (id === 'box') {
     const wet = Math.exp(-((x - .5) ** 2 * 13 + (y + .38) ** 2 * 12 + (z - .35) ** 2 * 8));
     x -= .055 * wet; y += .034 * wet; z -= .05 * wet;
   } else if (id === 'can') {

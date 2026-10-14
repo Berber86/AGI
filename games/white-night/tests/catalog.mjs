@@ -35,7 +35,7 @@ try {
   await page.waitForFunction(()=>window.__READY__===true);
   checks.push('Play link boots real WebGL game on plain static hosting under /AGI/');
   for(let i=0;i<3;i++)await page.click('#search-button');
-  await page.waitForFunction(()=>!document.querySelector('.inspection').hidden);
+  await page.waitForFunction(()=>!document.querySelector('.inspection').hidden&&!document.querySelector('#keep').disabled);
   assert.equal(await page.$eval('#find-name',el=>el.textContent),'Смена-8М');
   await page.click('#keep');
   await page.reload({waitUntil:'networkidle0'});await page.waitForFunction(()=>window.__READY__===true);

@@ -25,4 +25,4 @@ try{
  assert.equal(await p.evaluate(()=>window.__GAME_TEST__.getMetrics().quality),'low');checks.push('Low-quality path retains scene and interaction');
  assert.deepEqual(errors,[]);report={passed:true,iteration,checks,metrics,errors,limitations:['SwiftShader screenshots do not establish physical Android FPS.']};
 }catch(e){report={passed:false,iteration,checks,metrics,errors,error:e.stack};throw e;}
-finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-v4-${iteration}.json`,JSON.stringify(report,null,2));await browser.close();}
+finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-v4-${iteration}-scene.json`,JSON.stringify(report,null,2));await browser.close();}
