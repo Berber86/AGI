@@ -21,3 +21,6 @@ Verbatim: «Для начала неплохо, но надо сделать г�
 
 ## 2026-10-15 — Three visual iterations approved
 User: «Хорошо. Приступай к реализации. Как сделаешь три итерации - пуш». Implement the bounded visual audit in three reviewable passes: presentation; priority models/materials; archive/UI. Keep the approved mechanics, silent courtyard, item IDs and saves. Push only the Arena session branch after the third pass and applicable checks. Remaining audit proposals are not implicitly declared completed.
+
+## 2026-10-15 — Three further visual iterations
+User: «Хорошо. Сделай ещё 3 итерации и тоже запуш». Continue the remaining audit in iterations 4–6: authored courtyard/bin details; localized wear on finds; staged search/reveal and restrained feedback. Keep gameplay, save IDs, weighted drops and silence. Push the same session branch after the third additional iteration and checks.

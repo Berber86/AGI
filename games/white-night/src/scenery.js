@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RUBBISH } from './environment.js';
 import { box, cyl, torus, mesh, ball } from './models.js';
 import { canvasTexture, materials as M, seeded, grimeTexture, assetTexture } from './materials.js';
 
@@ -32,6 +33,34 @@ export function addWindowDetails(g,x,y,w,h,stone,dark,trim){
   }
   box(g,[w+.28,.045,.05],[x,y-h/2-.155,.754],M.silver,0);
 }
+let windowMaterials;
+function windowMats(){
+ if(windowMaterials)return windowMaterials;
+ const weave=canvasTexture((c,s)=>{c.fillStyle='#b0a895';c.fillRect(0,0,s,s);for(let x=0;x<s;x+=24){const grad=c.createLinearGradient(x,0,x+24,0);grad.addColorStop(0,'#767c70');grad.addColorStop(.5,'#c3bbab');grad.addColorStop(1,'#929889');c.fillStyle=grad;c.fillRect(x,0,24,s);}},256);
+ windowMaterials={curtain:new THREE.MeshStandardMaterial({map:weave,roughness:1,side:THREE.DoubleSide}),blind:new THREE.MeshStandardMaterial({color:0x999c91,roughness:.9}),leaf:new THREE.MeshStandardMaterial({color:0x3e5e3f,roughness:1}),pot:new THREE.MeshStandardMaterial({color:0x806451,roughness:.94})};return windowMaterials;
+}
+export function addWindowLife(g,x,y,w,h,state,trim,glass){
+ const m=windowMats();
+ if(state==='curtain'){
+  for(const side of [-1,1]){
+   const geo=new THREE.PlaneGeometry(w*.27,h*.91,8,12),p=geo.attributes.position;
+   for(let i=0;i<p.count;i++)p.setZ(i,.008*Math.sin(p.getX(i)*80));geo.computeVertexNormals();
+   mesh(geo,m.curtain,g,[x+side*w*.34,y-.025,.573]);
+  }
+ }else if(state==='blind'){
+  for(let i=0;i<12;i++)box(g,[w*.94,.04,.019],[x,y+h/2-.08-i*.093,.581],m.blind,0);
+ }else if(state==='open'){
+  const sash=new THREE.Group();sash.position.set(x-w/2,y,.60);sash.rotation.y=-.42;g.add(sash);
+  box(sash,[w*.48,h*.91,.019],[w*.24,0,0],glass,0);
+  for(const dx of [0,w*.48])box(sash,[.038,h*.94,.05],[dx,0,.025],trim,0);
+  for(const dy of [-h*.47,h*.47])box(sash,[w*.50,.038,.05],[w*.24,dy,.025],trim,0);
+  box(sash,[w*.48,.032,.05],[w*.24,.23,.025],trim,0);
+ }
+ if(state==='curtain'&&y<2){
+  cyl(g,.10,.075,.15,[x+.29,y-h/2+.01,.79],m.pot,[0,0,0],12);
+  for(const side of [-1,1])ball(g,[.13,.07,.035],[x+.29+side*.04,y-h/2+.17,.79],m.leaf);
+ }
+}
 export function addCourtyardDetails(g,scene){
   const stone=new THREE.MeshStandardMaterial({color:0x737467,roughness:.86,map:assetTexture('plaster.jpg')});
   const iron=new THREE.MeshStandardMaterial({color:0x283028,metalness:.72,roughness:.6});
@@ -64,7 +93,7 @@ export function addCourtyardDetails(g,scene){
   // Contact patches ground rubbish bags and bicycle instead of letting them float.
   const shadowMap=canvasTexture((c,s)=>{const grad=c.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);grad.addColorStop(0,'rgba(5,13,8,.8)');grad.addColorStop(.45,'rgba(5,13,8,.5)');grad.addColorStop(1,'rgba(5,13,8,0)');c.fillStyle=grad;c.fillRect(0,0,s,s);},128);
   const contact=new THREE.MeshBasicMaterial({map:shadowMap,transparent:true,depthWrite:false});
-  for(const [x,z,w,h] of [[-2.5,.2,2,1.7],[2.35,-1.2,2,1.6],[3.5,-5.8,2.9,1],[-3.3,-2.6,1.4,1.1]])mesh(new THREE.PlaneGeometry(w,h),contact,g,[x,.022,z],[-Math.PI/2,0,0]);
+  for(const [x,z,w,h] of [...RUBBISH.map(b=>[b.x,b.z,b.scale*3.5,b.scale*3]),[3.5,-5.8,2.9,1],[-3.3,-2.6,1.4,1.1]])mesh(new THREE.PlaneGeometry(w,h),contact,g,[x,.022,z],[-Math.PI/2,0,0]);
   const green=new THREE.MeshStandardMaterial({color:0x405539,roughness:.9,side:THREE.DoubleSide});
   for(let i=0;i<30;i++){
     const x=-7.1+r()*1.3,z=-6+r()*6,hei=.03+r()*.13;
@@ -89,6 +118,21 @@ export function addBinDetails(g,lid,steel){
     for(const dx of [-.065,.065])cyl(lid,.022,.022,.012,[x+dx,.139,.12],M.silver,[0,0,0],8);
   }
   const inside=new THREE.MeshStandardMaterial({color:0x101b13,roughness:.94});box(g,[2.44,.012,1.61],[0,2.031,0],inside,.01);
+  // Paint loss follows handling/impact zones; the centre is intentionally quiet.
+  const wear=canvasTexture((c,s,rng)=>{
+   for(let i=0;i<1800;i++){
+    const u=rng(),v=rng();if(u>.10&&u<.9&&v<.82)continue;
+    c.fillStyle=i%4?'rgba(90,54,29,.45)':'rgba(154,164,147,.65)';c.fillRect(u*s,v*s,1+rng()*7,1+rng()*3);
+   }
+   for(const u of [.055,.945]){
+    const grad=c.createLinearGradient(0,0,0,s);grad.addColorStop(0,'rgba(67,42,24,0)');grad.addColorStop(.5,'rgba(67,42,24,.35)');grad.addColorStop(1,'rgba(35,34,26,.5)');
+    c.fillStyle=grad;c.fillRect(u*s,0,6,s);
+   }
+  });
+  const chips=new THREE.MeshStandardMaterial({map:wear,transparent:true,alphaTest:.025,depthWrite:false,roughness:.86});
+  mesh(new THREE.PlaneGeometry(2.35,1.43),chips,g,[0,1.18,.876]);
+  mesh(new THREE.PlaneGeometry(1.43,1.36),chips,g,[1.287,1.16,0],[0,Math.PI/2,0]);
+  for(const x of [-1.14,1.14])box(lid,[.025,.006,.48],[x,.114,1.60],M.silver,.002);
   // Additional service decal on the side, curved/worn enamel details stay in 3D.
   const label=canvasTexture((c,s,rng)=>{c.fillStyle='#b1aa80';c.fillRect(0,0,s,s);c.fillStyle='#384634';c.textAlign='center';c.font='bold 53px Arial';c.fillText('1100 л',s/2,170);c.font='26px Arial';c.fillText('ТВЁРДЫЕ БЫТОВЫЕ',s/2,262);c.fillText('ОТХОДЫ',s/2,306);c.font='20px monospace';c.fillText('СПБ • ИНВ. 0017',s/2,410);for(let i=0;i<700;i++){c.fillStyle='rgba(62,52,31,.1)';c.fillRect(rng()*s,rng()*s,3,2);}});
   mesh(new THREE.PlaneGeometry(.42,.37),new THREE.MeshStandardMaterial({map:label,roughness:.84}),g,[1.284,1.09,.05],[0,Math.PI/2,0]);

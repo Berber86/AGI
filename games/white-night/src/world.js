@@ -1,11 +1,12 @@
 import * as THREE from 'three';
+import { RUBBISH, windowTreatment } from './environment.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PRESENTATION, ZOOM, inspectionRect, fitScale } from './presentation.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials as M, canvasTexture, textTexture, pbrMaps, seeded, distress } from './materials.js';
 import { RenderPipeline } from './rendering.js';
-import { addFacadeDetails, addWindowDetails, addCourtyardDetails, addBinDetails } from './scenery.js';
+import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addBinDetails } from './scenery.js';
 import { box, cyl, ball, torus, mesh, createItem } from './models.js';
 const rand=seeded(137);
 function batch(group){group.updateMatrixWorld(true);const batches=new Map();group.traverse(o=>{if(!o.isMesh||Array.isArray(o.material))return;const key=o.material.uuid;let batch=batches.get(key);if(!batch){batch={material:o.material,geos:[]};batches.set(key,batch);}const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.deleteAttribute('uv1');batch.geos.push(g);o.geometry.dispose();});group.clear();for(const {material,geos} of batches.values()){const geo=mergeGeometries(geos,false);if(geo){const m=new THREE.Mesh(geo,material);m.receiveShadow=!material.transparent;m.castShadow=!material.transparent&&!material.transmission;group.add(m);}geos.forEach(g=>g.dispose());}}
@@ -38,16 +39,25 @@ export class World {
   const reflected=canvasTexture((c,s)=>{const sky=c.createLinearGradient(0,0,s,s);sky.addColorStop(0,'#788b91');sky.addColorStop(.48,'#495b60');sky.addColorStop(1,'#1d302c');c.fillStyle=sky;c.fillRect(0,0,s,s);c.save();c.transform(1,.16,-.07,1,0,0);for(let x=-30;x<s;x+=94){c.fillStyle='#283b3a';c.fillRect(x,70,65,s);for(let y=94;y<s;y+=104){c.fillStyle='#83938b';c.globalAlpha=.24;c.fillRect(x+6,y,24,66);c.fillRect(x+34,y,24,66);}}c.restore();});
   const glassMats=[0x687d7c,0x859794,0x9eaea4,0x465957].map(c=>new THREE.MeshStandardMaterial({color:c,map:reflected,metalness:.24,roughness:.28}));const lit=new THREE.MeshStandardMaterial({color:0xa99159,emissive:0xdbaa57,emissiveIntensity:.48,roughness:.65});
   const facade=(width,height,pos,rotation,mat)=>{
-   const g=new THREE.Group();g.position.set(...pos);g.rotation.y=rotation;this.static.add(g);box(g,[width,height,.65],[0,height/2,0],mat,0);box(g,[width,.75,.78],[0,.375,.025],stone,0);
+   const g=new THREE.Group();g.position.set(...pos);g.rotation.y=rotation;this.static.add(g);
+   if(rotation===0){
+    // An actual notch through the masonry, not a dark arch pasted onto a wall.
+    const outline=new THREE.Shape();outline.moveTo(-width/2,0);outline.lineTo(-4.98,0);outline.lineTo(-4.98,2.05);
+    outline.absarc(-3.8,2.05,1.18,Math.PI,0,true);outline.lineTo(-2.62,0);outline.lineTo(width/2,0);outline.lineTo(width/2,height);outline.lineTo(-width/2,height);outline.closePath();
+    mesh(new THREE.ExtrudeGeometry(outline,{depth:.65,bevelEnabled:false,curveSegments:24}),mat,g,[0,0,-.325]);
+    box(g,[width/2-4.98,.75,.78],[(-width/2-4.98)/2,.375,.025],stone,0);
+    box(g,[width/2+2.62,.75,.78],[(width/2-2.62)/2,.375,.025],stone,0);
+   }else{box(g,[width,height,.65],[0,height/2,0],mat,0);box(g,[width,.75,.78],[0,.375,.025],stone,0);}
    for(const y of [3.2,6.15,9.1,12.1]){box(g,[width,.14,.87],[0,y,.055],trim,0);box(g,[width,.07,.98],[0,y+.09,.08],stone,0);}
    box(g,[width,.35,1.06],[0,height-.12,.05],trim,0);
    addFacadeDetails(g,width);
    let cols=Math.floor(width/2.45);for(let col=0;col<cols;col++)for(let row=0;row<4;row++){
     let x=(col-(cols-1)/2)*2.47,y=1.72+row*2.95;if(rotation===0&&row===0&&Math.abs(x+3.8)<1.2)continue;const w=1.16,h=1.91;
-    box(g,[w+.26,h+.27,.14],[x,y,.38],trim,0);box(g,[w+.05,h+.06,.1],[x,y,.47],dark,0);box(g,[w,h,.04],[x,y,.54],rand()>.92?lit:glassMats[Math.floor(rand()*4)],0);
+    box(g,[w+.26,h+.27,.14],[x,y,.38],trim,0);box(g,[w+.05,h+.06,.1],[x,y,.47],dark,0);const treatment=windowTreatment(col,row,rotation===0?0:rotation>0?1:2);
+    const glazing=treatment==='lit'?lit:glassMats[(col+row)%glassMats.length];box(g,[w,h,.04],[x,y,.54],glazing,0);
     for(const dx of [-w/2,w/2,0])box(g,[.048,h,.09],[x+dx,y,.58],stone,0);for(const dy of [-h/2,h/2,.24])box(g,[w,.047,.09],[x,y+dy,.58],stone,0);box(g,[w+.4,.12,.43],[x,y-h/2-.09,.55],trim,0);
     addWindowDetails(g,x,y,w,h,stone,dark,trim);
-    if(rand()>.65){box(g,[.36,1.8,.018],[x-.34,y,.567],new THREE.MeshStandardMaterial({color:0x888a7b,roughness:1}),0);}
+    addWindowLife(g,x,y,w,h,treatment,trim,glazing);
    }
    // Drainpipes, fixing collars and irregular patched plaster.
    for(const x of [-width/2+.35,width/2-.38]){cyl(g,.07,.07,height,[x,height/2,.53],dark,[0,0,0],12);for(let y=1;y<height;y+=2)cyl(g,.087,.087,.055,[x,y,.53],M.rust,[0,0,0],12);}
@@ -57,7 +67,13 @@ export class World {
   facade(20,13.5,[0,0,-7],0,wall);facade(19,14,[-8,0,1],Math.PI/2,side);facade(19,14,[9,0,1],-Math.PI/2,wall);
   // Recessed archway: dark rounded opening with a weathered stone frame.
   const arch=new THREE.Shape();arch.moveTo(-1.18,0);arch.lineTo(1.18,0);arch.lineTo(1.18,2.05);arch.absarc(0,2.05,1.18,0,Math.PI,false);arch.lineTo(-1.18,0);
-  mesh(new THREE.ShapeGeometry(arch),dark,this.static,[-3.8,0,-6.51]);
+  // Visible tunnel behind the cut opening: floor, jamb depth and a dim far end.
+  box(this.static,[.15,3.2,3.3],[-5.02,1.6,-8.15],side,0);box(this.static,[.15,3.2,3.3],[-2.58,1.6,-8.15],side,0);
+  box(this.static,[2.45,.1,3.3],[-3.8,3.22,-8.15],stone,0);box(this.static,[2.4,.05,3.5],[-3.8,0,-8.15],stone,0);
+  box(this.static,[2.5,3.3,.1],[-3.8,1.65,-9.85],dark,0);
+  const farLight=new THREE.MeshStandardMaterial({color:0x9ab1b8,emissive:0x7c929c,emissiveIntensity:.25,roughness:1});
+  box(this.static,[.83,2.15,.02],[-3.48,1.12,-9.79],farLight,0);
+  for(const y of [.22,.6,1.15])box(this.static,[.12,.055,2.7],[-4.83,y,-8.25],M.rust,0);
   const archCurve=new THREE.EllipseCurve(0,0,1.29,1.29,0,Math.PI,false,0);const pts=archCurve.getPoints(35).map(p=>new THREE.Vector3(p.x,p.y,0));const tube=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),35,.105,8,false);mesh(tube,stone,this.static,[-3.8,2.05,-6.42]);
   for(const x of [-5.09,-2.51])box(this.static,[.2,2.05,.2],[x,1.025,-6.43],stone,0);
   for(let i=0;i<13;i++){const x=-4.95+i*.19;box(this.static,[.025,2.5,.026],[x,1.25,-6.4],M.black,0);}box(this.static,[2.3,.035,.035],[-3.8,1.2,-6.36],M.black,0);
@@ -77,7 +93,7 @@ export class World {
  }
  buildProps(){
   const g=this.static;const bagMat=new THREE.MeshStandardMaterial({color:0x19251d,roughness:.64,metalness:.03,bumpMap:M.leather.bumpMap,bumpScale:.005});
-  for(const [x,z,s] of [[-2.45,.4,.55],[-2.82,-.16,.47],[2.35,-1.2,.62]]){
+  for(const {x,z,scale:s} of RUBBISH){
     const profile=[[0,0],[.29,.015],[.47,.06],[.54,.29],[.49,.56],[.37,.82],[.15,1],[.062,1.11],[.02,1.14]].map(([a,b])=>new THREE.Vector2(a*s*1.7,b*s*1.55));
     const geo=new THREE.LatheGeometry(profile,64),p=geo.attributes.position;
     for(let i=0;i<p.count;i++){const px=p.getX(i),y=p.getY(i),pz=p.getZ(i),a=Math.atan2(pz,px);const crease=1+.08*Math.sin(a*13+y*12)+.045*Math.sin(a*21-y*7);p.setXYZ(i,px*crease,y,pz*crease);}geo.computeVertexNormals();mesh(geo,bagMat,g,[x,.02,z]);
