@@ -1,0 +1,481 @@
+{
+  "baseURL": "http://127.0.0.1:8900/index.html",
+  "results": [
+    {
+      "name": "two actual forks, four distinct routes, shared tangent-continuous joins",
+      "pass": true,
+      "detail": {
+        "forks": 2,
+        "routes": [
+          {
+            "id": "gummy",
+            "length": 239.2251617615185,
+            "minRadius": 47.506708782961205,
+            "maxGrade": 9.082629529977178,
+            "metreError": 0.00005413787107100276,
+            "inverseError": 2.842170943040401e-14,
+            "joins": [
+              {
+                "gap": 0,
+                "dot": 1
+              },
+              {
+                "gap": 0,
+                "dot": 1
+              }
+            ]
+          },
+          {
+            "id": "stars",
+            "length": 216.53564277731556,
+            "minRadius": 54.47955143620531,
+            "maxGrade": 0.45874690961139397,
+            "metreError": 0.00005111321765027821,
+            "inverseError": 5.684341886080802e-14,
+            "joins": [
+              {
+                "gap": 0,
+                "dot": 1
+              },
+              {
+                "gap": 0,
+                "dot": 1
+              }
+            ]
+          },
+          {
+            "id": "cookie",
+            "length": 257.9097528282907,
+            "minRadius": 63.159068024957705,
+            "maxGrade": 1.6769807584238674,
+            "metreError": 0.000028020984360388468,
+            "inverseError": 0,
+            "joins": [
+              {
+                "gap": 0,
+                "dot": 1.0000000000000002
+              },
+              {
+                "gap": 0,
+                "dot": 1.0000000000000002
+              }
+            ]
+          },
+          {
+            "id": "clouds",
+            "length": 259.4803356527405,
+            "minRadius": 57.78588202446358,
+            "maxGrade": 13.650459938129002,
+            "metreError": 0.000038979538640182554,
+            "inverseError": 0,
+            "joins": [
+              {
+                "gap": 0,
+                "dot": 1.0000000000000002
+              },
+              {
+                "gap": 0,
+                "dot": 1.0000000000000002
+              }
+            ]
+          }
+        ],
+        "separation": [
+          53.98199816044528,
+          58.46976498180336
+        ]
+      }
+    },
+    {
+      "name": "true metre speed on alternatives; forward/backward camera mapping is invertible",
+      "pass": true,
+      "detail": [
+        {
+          "id": "gummy",
+          "length": 239.2251617615185,
+          "minRadius": 47.506708782961205,
+          "maxGrade": 9.082629529977178,
+          "metreError": 0.00005413787107100276,
+          "inverseError": 2.842170943040401e-14,
+          "joins": [
+            {
+              "gap": 0,
+              "dot": 1
+            },
+            {
+              "gap": 0,
+              "dot": 1
+            }
+          ]
+        },
+        {
+          "id": "stars",
+          "length": 216.53564277731556,
+          "minRadius": 54.47955143620531,
+          "maxGrade": 0.45874690961139397,
+          "metreError": 0.00005111321765027821,
+          "inverseError": 5.684341886080802e-14,
+          "joins": [
+            {
+              "gap": 0,
+              "dot": 1
+            },
+            {
+              "gap": 0,
+              "dot": 1
+            }
+          ]
+        },
+        {
+          "id": "cookie",
+          "length": 257.9097528282907,
+          "minRadius": 63.159068024957705,
+          "maxGrade": 1.6769807584238674,
+          "metreError": 0.000028020984360388468,
+          "inverseError": 0,
+          "joins": [
+            {
+              "gap": 0,
+              "dot": 1.0000000000000002
+            },
+            {
+              "gap": 0,
+              "dot": 1.0000000000000002
+            }
+          ]
+        },
+        {
+          "id": "clouds",
+          "length": 259.4803356527405,
+          "minRadius": 57.78588202446358,
+          "maxGrade": 13.650459938129002,
+          "metreError": 0.000038979538640182554,
+          "inverseError": 0,
+          "joins": [
+            {
+              "gap": 0,
+              "dot": 1.0000000000000002
+            },
+            {
+              "gap": 0,
+              "dot": 1.0000000000000002
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "both road surfaces cover the full steering range, including exact joins",
+      "pass": true,
+      "detail": {
+        "missing": [],
+        "missingCount": 0,
+        "intrusions": [],
+        "intrusionCount": 0,
+        "draws": 21,
+        "triangles": 25088
+      }
+    },
+    {
+      "name": "no scenery, poles or clouds in either car envelope",
+      "pass": true,
+      "detail": {
+        "missing": [],
+        "missingCount": 0,
+        "intrusions": [],
+        "intrusionCount": 0,
+        "draws": 21,
+        "triangles": 25088
+      }
+    },
+    {
+      "name": "four destinations fit a modest scenery budget",
+      "pass": true,
+      "detail": {
+        "draws": 21,
+        "triangles": 25088
+      }
+    },
+    {
+      "name": "fork 1, real left touch selects and latches without teleport",
+      "pass": true,
+      "detail": {
+        "selected": 0,
+        "maxStep": 0.3007359968072685,
+        "state": "racing",
+        "hint": true,
+        "latched": 0,
+        "released": true
+      }
+    },
+    {
+      "name": "fork 1, real right touch selects and latches without teleport",
+      "pass": true,
+      "detail": {
+        "selected": 1,
+        "maxStep": 0.293524945817272,
+        "state": "racing",
+        "hint": true,
+        "latched": 1,
+        "released": true
+      }
+    },
+    {
+      "name": "fork 2, real left touch selects and latches without teleport",
+      "pass": true,
+      "detail": {
+        "selected": 0,
+        "maxStep": 0.30460035737231406,
+        "state": "racing",
+        "hint": true,
+        "latched": 0,
+        "released": true
+      }
+    },
+    {
+      "name": "fork 2, real right touch selects and latches without teleport",
+      "pass": true,
+      "detail": {
+        "selected": 1,
+        "maxStep": 0.29348668090129726,
+        "state": "racing",
+        "hint": true,
+        "latched": 1,
+        "released": true
+      }
+    },
+    {
+      "name": "camera sees the car and near road on all four routes",
+      "pass": true,
+      "detail": {
+        "checked": 204,
+        "minBodyY": -0.6340051822371412,
+        "cropped": [],
+        "croppedCount": 0,
+        "blocked": [],
+        "blockedCount": 0,
+        "roadLost": [],
+        "roadLostCount": 0
+      }
+    },
+    {
+      "name": "unchosen rewards never double-count; medals use only reachable sweets",
+      "pass": true,
+      "detail": {
+        "selectedOnly": true,
+        "events": 1,
+        "counts": [
+          [
+            12,
+            12
+          ],
+          [
+            13,
+            13
+          ]
+        ],
+        "total": 151,
+        "physical": 176,
+        "allReachable": true,
+        "leftRamp": "fork-cookie",
+        "rightRamp": null,
+        "reset": true
+      }
+    },
+    {
+      "name": "the cookie jump cannot trigger invisibly on the cloud road; reset clears both choices",
+      "pass": true,
+      "detail": {
+        "selectedOnly": true,
+        "events": 1,
+        "counts": [
+          [
+            12,
+            12
+          ],
+          [
+            13,
+            13
+          ]
+        ],
+        "total": 151,
+        "physical": 176,
+        "allReachable": true,
+        "leftRamp": "fork-cookie",
+        "rightRamp": null,
+        "reset": true
+      }
+    },
+    {
+      "name": "destinations differ in actual gameplay: hills, lit tunnel, jump and raised bridge",
+      "pass": true,
+      "detail": {
+        "maxHill": 2.8,
+        "maxCloud": 8.5,
+        "dark": 0.62,
+        "light": 0,
+        "ramp": 1.4,
+        "worlds": 11
+      }
+    },
+    {
+      "name": "complete LL ride reaches finish with its own rewards",
+      "pass": true,
+      "detail": {
+        "choices": [
+          0,
+          0
+        ],
+        "frames": 6540,
+        "bad": 0,
+        "forkJump": 2.456,
+        "info": {
+          "trackLength": 1893,
+          "referenceLength": 1865,
+          "totalSweets": 151,
+          "state": "finish",
+          "timeS": 108.98,
+          "speedKmh": 59.4,
+          "lateral": 0.27,
+          "collected": 88,
+          "boostActive": false,
+          "boostCharges": 0,
+          "zone": 4
+        },
+        "choicesSaved": [
+          0,
+          0
+        ],
+        "reachable": 151,
+        "message": "Твой маршрут: Мармеладные холмы → Печеньевый трамплин"
+      }
+    },
+    {
+      "name": "complete LR ride reaches finish with its own rewards",
+      "pass": true,
+      "detail": {
+        "choices": [
+          0,
+          1
+        ],
+        "frames": 6536,
+        "bad": 0,
+        "forkJump": 0,
+        "info": {
+          "trackLength": 1894,
+          "referenceLength": 1865,
+          "totalSweets": 151,
+          "state": "finish",
+          "timeS": 108.92,
+          "speedKmh": 59.4,
+          "lateral": 0.27,
+          "collected": 88,
+          "boostActive": false,
+          "boostCharges": 0,
+          "zone": 4
+        },
+        "choicesSaved": [
+          0,
+          1
+        ],
+        "reachable": 151,
+        "message": "Твой маршрут: Мармеладные холмы → Облачный мост"
+      }
+    },
+    {
+      "name": "complete RL ride reaches finish with its own rewards",
+      "pass": true,
+      "detail": {
+        "choices": [
+          1,
+          0
+        ],
+        "frames": 6460,
+        "bad": 0,
+        "forkJump": 2.459,
+        "info": {
+          "trackLength": 1870,
+          "referenceLength": 1865,
+          "totalSweets": 151,
+          "state": "finish",
+          "timeS": 107.62,
+          "speedKmh": 59.4,
+          "lateral": 0.27,
+          "collected": 88,
+          "boostActive": false,
+          "boostCharges": 0,
+          "zone": 4
+        },
+        "choicesSaved": [
+          1,
+          0
+        ],
+        "reachable": 151,
+        "message": "Твой маршрут: Звёздный тоннель → Печеньевый трамплин"
+      }
+    },
+    {
+      "name": "complete RR ride reaches finish with its own rewards",
+      "pass": true,
+      "detail": {
+        "choices": [
+          1,
+          1
+        ],
+        "frames": 6456,
+        "bad": 0,
+        "forkJump": 0,
+        "info": {
+          "trackLength": 1872,
+          "referenceLength": 1865,
+          "totalSweets": 151,
+          "state": "finish",
+          "timeS": 107.55,
+          "speedKmh": 59.4,
+          "lateral": 0.27,
+          "collected": 88,
+          "boostActive": false,
+          "boostCharges": 0,
+          "zone": 4
+        },
+        "choicesSaved": [
+          1,
+          1
+        ],
+        "reachable": 151,
+        "message": "Твой маршрут: Звёздный тоннель → Облачный мост"
+      }
+    },
+    {
+      "name": "pause/resume keeps the pending route and does not advance or choose while paused",
+      "pass": true,
+      "detail": {
+        "paused": {
+          "state": "paused",
+          "frozen": true,
+          "pending": 1,
+          "selected": null
+        },
+        "resumed": {
+          "state": "racing",
+          "selected": 1
+        }
+      }
+    },
+    {
+      "name": "both route modules are in the offline cache",
+      "pass": true,
+      "detail": {
+        "key": "ckc-v22",
+        "routes": true,
+        "scenery": true
+      }
+    },
+    {
+      "name": "no browser errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

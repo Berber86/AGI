@@ -48,6 +48,22 @@ export const CAKE_COURSE = {
   railLateral: 8.5, // outside the entire car envelope at the soft steering wall
 };
 
+// Two genuine route choices. Bounds are BASE-course metres, like landmarks.
+// Their local curves have their own metre tables; stations outside them never
+// move, so the river, cakes, suspended bridge and tunnel retain their joins.
+export const FORKS = [
+  { id: 'gummy-or-stars', baseStart: 115, baseEnd: 335, spread: 27, warning: 65,
+    routes: [
+      { id: 'gummy', title: 'Мармеладные холмы', short: ['МАРМЕЛАДНЫЕ', 'ХОЛМЫ'], color: '#82caa5', surface: 'road', lift: 2.8, kind: 'hills', icon: 'bear' },
+      { id: 'stars', title: 'Звёздный тоннель', short: ['ЗВЁЗДНЫЙ', 'ТОННЕЛЬ'], color: '#b394e7', surface: 'roadCream', lift: 0, kind: 'tunnel', icon: 'star' },
+    ] },
+  { id: 'cookie-or-clouds', baseStart: 1110, baseEnd: 1360, spread: 29, warning: 65,
+    routes: [
+      { id: 'cookie', title: 'Печеньевый трамплин', short: ['ПЕЧЕНЬЕВЫЙ', 'ТРАМПЛИН'], color: '#e9b363', surface: 'roadCookie', lift: 0, kind: 'jump', icon: 'jump' },
+      { id: 'clouds', title: 'Облачный мост', short: ['ОБЛАЧНЫЙ', 'МОСТ'], color: '#8fc8e9', surface: 'roadCream', lift: 8.5, kind: 'cloud', icon: 'cloud' },
+    ] },
+];
+
 // --- Jump ramps: one per lane, in different parts of the ride ---
 // s = metres along the track where the ramp starts, side = -1 left / +1 right
 // lane, len = run-up length, height = lip height above the road, width = ramp
@@ -55,6 +71,7 @@ export const CAKE_COURSE = {
 export const RAMPS = [
   { id: 'cookie-left',  s: 500,  side: -1, len: 10, height: 1.5, width: 4.0, color: '#ff5f9e', accent: '#fff6f0' },
   { id: 'cream-right',  s: 1225, side:  1, len: 12, height: 2.6, width: 4.0, color: '#8f6bff', accent: '#fff6f0' },
+  { id: 'fork-cookie',  s: 1290, side:  0, len: 10, height: 1.4, width: 8.6, color: '#dfac70', accent: '#fff8e8', branch: 0 },
 ];
 export const JUMP = {
   gravity: 9.5,    // m/s² — a little floaty, the jump should feel like a treat

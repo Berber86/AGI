@@ -146,14 +146,22 @@ export function createSweets(scene, track, ramps = null) {
     idx++;
   }
 
-  function addSweet(s, lateral, type, seed) {
-    const pose = track.getPose(s, lateral);
+  function addSweet(s, lateral, type, seed, option) {
+    const fork = track.routes.at(s);
+    if (fork && option === undefined) {
+      const q = (s - fork.s0) / fork.span;
+      // Clear decision/merge aprons. Duplicate only reachable branch rewards,
+      // not overlapping sweets at the shared landing or an invisible third road.
+      if (q < .22 || q > .78) return;
+      addSweet(s, lateral, type, seed, 0); addSweet(s, lateral, type, seed, 1); return;
+    }
+    const pose = track.getPose(s, lateral, option);
     const mesh = new THREE.Object3D(); // proxy: transform + visibility of the pickup
     mesh.name = 'sweet-' + type;
     mesh.position.copy(pose.pos).add(new THREE.Vector3(0, type === 'cupcake' ? 1.35 : 1.55, 0));
     // pickups over a jump ramp ride on its surface instead of hiding inside it
     if (ramps) {
-      const rs = ramps.sample(s, lateral);
+      const rs = ramps.sample(s, lateral, option);
       if (rs.ramp && rs.inside) mesh.position.y += rs.h;
     }
     const baseScale = type === 'candy' ? 1.3 : 1.18;
@@ -164,7 +172,7 @@ export function createSweets(scene, track, ramps = null) {
     const glowColor = new THREE.Color(type === 'star' ? '#ffe9a8' : type === 'cupcake' ? '#ffc6e2' : '#ffffff')
       .multiplyScalar(type === 'candy' ? 0.42 : 0.68);
     list.push({
-      mesh, type, s, lateral, tint, glowColor, baseScale,
+      mesh, type, s, lateral, tint, glowColor, baseScale, fork, branch: option,
       glowSize: type === 'candy' ? 2.3 : 3.2,
       baseY: mesh.position.y,
       hover: mesh.position.y - pose.pos.y, // height above the road (ramp included)
@@ -236,7 +244,8 @@ export function createSweets(scene, track, ramps = null) {
       it.mesh.rotation.y += dt * (it.type === 'star' ? 1.6 : 2.4);
       if (it.type === 'star') it.mesh.rotation.z = Math.sin(time * 1.5 + it.phase) * 0.25;
 
-      const ds = Math.abs(it.s - carS);
+      if (it.fork && track.routes.choice(it.fork) !== it.branch) continue;
+      const ds = Math.abs(track.routes.distance(carS, it.s));
       if (ds > 6) continue;
       // distance check in world space happens via car position passed as (s, lateral)
       const lateralDiff = Math.abs(it.lateral - carX);
@@ -256,13 +265,15 @@ export function createSweets(scene, track, ramps = null) {
 
   function collectAllDemo() {
     // used only by automated visual tests
-    for (const it of list) { it.collected = true; it.mesh.visible = false; }
+    for (const it of list) if (!it.fork || track.routes.choice(it.fork) === it.branch) { it.collected = true; it.mesh.visible = false; }
     sync();
   }
 
   return {
     group, list, update, reset, collectAllDemo,
-    get collected() { return list.filter((x) => x.collected).length; },
-    get total() { return list.length; },
+    get collected() { return list.filter((x) => x.collected && (!x.fork || track.routes.choice(x.fork) === x.branch)).length; },
+    // Both alternatives have identical reward counts. Unchosen roads must not
+    // inflate the medal denominator or let equal-s pickups double the score.
+    get total() { return list.filter((x) => !x.fork || x.branch === 0).length; },
   };
 }

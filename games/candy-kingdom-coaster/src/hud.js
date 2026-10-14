@@ -14,6 +14,10 @@ export class HUD {
       popupLayer: this.$('#popup-layer'),
       btnSound: this.$('#btn-sound'),
       btnPause: this.$('#btn-pause'),
+      fork: this.$('#fork-hint'),
+      forkCaption: this.$('#fork-caption'),
+      forkDistance: this.$('#fork-distance'),
+      forkLive: this.$('#fork-live'),
     };
     this.cakes = [...root.querySelectorAll('#hud-cakes .cake')];
     this._popupTimer = 0;
@@ -23,6 +27,27 @@ export class HUD {
     this.el.btnSound.classList.toggle('is-muted', m);
     this.el.btnSound.setAttribute('aria-pressed', String(!m));
     this.el.btnSound.setAttribute('aria-label', m ? 'Включить звук' : 'Выключить звук');
+  }
+
+  updateFork(info) {
+    this.el.fork.classList.toggle('hidden', !info);
+    if (!info) { this._forkKey = ''; return; }
+    const choice = info.selected ?? info.pending, key = `${info.id}:${info.selected}:${choice}`;
+    if (key !== this._forkKey) {
+      this._forkKey = key;
+      this.el.fork.classList.toggle('is-chosen', info.selected !== null);
+      this.el.forkCaption.textContent = info.selected === null ? `Развилка ${info.index}/2 · выбирай стрелками` : 'Твой путь выбран!';
+      this.el.fork.querySelectorAll('[data-fork-side]').forEach((el, i) => {
+        el.classList.toggle('is-selected', i === choice);
+        el.style.setProperty('--route-color', info.routes[i].color);
+        el.querySelector('use').setAttribute('href', `#icon-${info.routes[i].icon}`);
+        el.querySelector('.fork-name').textContent = info.routes[i].title;
+      });
+      this.el.forkLive.textContent = info.selected === null
+        ? `Развилка. Слева ${info.routes[0].title}, справа ${info.routes[1].title}. Выбирай рулём.`
+        : `Выбран путь: ${info.routes[choice].title}`;
+    }
+    this.el.forkDistance.textContent = info.selected === null ? `${Math.ceil(info.metres / 5) * 5} м` : '✓';
   }
 
   popup(text, color = '#fff') {

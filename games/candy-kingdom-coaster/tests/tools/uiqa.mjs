@@ -1,6 +1,6 @@
 // Welcome/loading + touch controls + post-cake coaster clearance regression.
 // Toolchain: tests/tools/setup-runtime.mjs; run beside puppeteer-core.
-// node uiqa.mjs [baseURL] [--offline]  ($QA_OUT or test-results/ui)
+// node uiqa.mjs [baseURL] [--offline] [--fork-views]  ($QA_OUT or test-results/ui)
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -133,10 +133,10 @@ try {
   const coaster = await page.evaluate(async () => {
     const THREE = await import('three');
     const T = __TEST__, { world, track, scene, camera } = T.internals(), c = world.coaster;
-    const samples = track.samples;
+    const paths = track.samplePaths;
     const distance = (p) => {
       let best = Infinity;
-      for (let i = 1; i < samples.length; i++) {
+      for (const samples of paths) for (let i = 1; i < samples.length; i++) {
         const a = samples[i - 1], b = samples[i], dx = b.x - a.x, dz = b.z - a.z;
         const k = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / (dx * dx + dz * dz)));
         best = Math.min(best, Math.hypot(p.x - a.x - k * dx, p.z - a.z - k * dz));
@@ -173,6 +173,40 @@ try {
     const r = document.getElementById(id).getBoundingClientRect(); return { id, size: [r.width, r.height], fits: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight };
   }));
   check('all live controls fit, every target at least 44px', controls.every((r) => r.fits && r.size.every((v) => v >= 44)), controls);
+  // Optional release captures reuse this already-booted page; no need to
+  // repeat the complete fork physics suite just to inspect the final scenery.
+  if (process.argv.includes('--fork-views')) {
+    await view(page, 915, 412);
+    await page.evaluate(() => { __TEST__.pinQuality(1); __TEST__.internals().governor.hold(10000); });
+    for (const [name, fi, option, q] of [
+      ['fork-choice-1', 0, 0, -.24], ['fork-gummy-hills', 0, 0, .35], ['fork-star-tunnel', 0, 1, .40],
+      ['fork-choice-2', 1, 0, -.21], ['fork-cookie-jump', 1, 0, .67], ['fork-cloud-bridge', 1, 1, .40],
+    ]) {
+      await page.evaluate(([fi, option, q]) => {
+        const T = __TEST__, { track } = T.internals(), f = track.routes.forks[fi];
+        T.startRace(); T.chooseFork(f.id, option);
+        if (q < 0) { f.selected = null; f.pending = option; }
+        T.setProgress((f.s0 + f.span * q) / track.length, 0, true);
+        T.step(1 / 60, 30, false); T.snapCamera(); T.step(1 / 60, 1, true);
+      }, [fi, option, q]);
+      await shot(page, name);
+      console.log(`CAPTURE ${name}`);
+    }
+  }
+
+  for (const [width, height] of [[851, 326], [640, 280]]) {
+    await view(page, width, height);
+    const panel = await page.evaluate(() => {
+      const T = __TEST__, { track } = T.internals(); T.startRace(); T.setProgress((track.routes.forks[0].s0 - 35) / track.length, 0, true); T.step(1 / 60, 1, false);
+      const el = document.getElementById('fork-hint'), r = el.getBoundingClientRect();
+      const hits = ['hud-bottom-right', 'hud-top-right', 'btn-left', 'btn-right'].filter((id) => {
+        const b = document.getElementById(id).getBoundingClientRect(); return r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top;
+      });
+      return { shown: !el.classList.contains('hidden'), fits: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overlaps: hits };
+    });
+    check(`active fork chooser fits ${width}x${height} without covering controls`, panel.shown && panel.fits && panel.overlaps.length === 0, panel);
+  }
+  await view(page, 915, 412);
   const finished = await page.evaluate(() => {
     const T = __TEST__; T.setProgress(.999, 0, false); T.step(1 / 60, 60, false);
     return { state: T.state(), ui: document.body.dataset.screen, inert: document.getElementById('hud').inert };
@@ -189,7 +223,7 @@ try {
   // is controlled before disabling the network, not just until caches exist.
   await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 30000 });
   const cached = await page.evaluate(async () => {
-    const c = await caches.open('ckc-v18'), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2'];
+    const c = await caches.open('ckc-v22'), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2', './src/routes.js', './src/forks.js'];
     return await Promise.all(urls.map(async (url) => ({ url, cached: !!(await c.match(url)) })));
   });
   check('new UI, artwork, fonts and loader are cached', cached.every((r) => r.cached), cached);
@@ -197,8 +231,8 @@ try {
     await page.setBypassServiceWorker(false);
     await page.setOfflineMode(true); await page.reload({ waitUntil: 'networkidle0', timeout: 120000 });
     await page.waitForFunction('window.__READY__ === true || document.body.dataset.boot === "error"', { timeout: 120000 });
-    const offline = await page.evaluate(() => ({ state: document.body.dataset.boot, art: document.querySelector('.welcome-art').naturalWidth, ready: !document.getElementById('btn-play').disabled }));
-    check('real offline reload reaches the illustrated ready screen', offline.state === 'ready' && offline.art === 960 && offline.ready, offline);
+    const offline = await page.evaluate(() => ({ state: document.body.dataset.boot, art: document.querySelector('.welcome-art').naturalWidth, ready: !document.getElementById('btn-play').disabled, forks: __TEST__.forks().length, routes: __TEST__.forks().flatMap((f) => f.routes).length }));
+    check('real offline reload reaches the illustrated ready screen', offline.state === 'ready' && offline.art === 960 && offline.ready && offline.forks === 2 && offline.routes === 4, offline);
     await page.setOfflineMode(false);
   }
   check('no browser errors in the real game', errors.length === 0, errors);

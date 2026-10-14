@@ -155,7 +155,7 @@ const withLod = (fn) => (lo = false) => {
   return g;
 };
 
-const gummyBearGeometry = withLod((lo) => {
+export const gummyBearGeometry = withLod((lo) => {
   const [a, b] = lo ? [8, 6] : [12, 9];
   const [c, d] = lo ? [5, 4] : [7, 5];
   return mergeParts([
@@ -221,6 +221,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   world.name = 'candyWorld';
   // Landmark footprints (river, tunnel, cakes): nothing is planted there
   const blocked = (x, z) => !!(river && river.blocks(x, z));
+  const nearFork = (s) => track.routes.forks.some((f) => s >= f.s0 - f.warning && s <= f.s1 + 20);
   // real image textures (assets/textures) with the procedural canvases as fallback
   const mapOr = (tex, fallback) => tex || fallback();
   scene.add(world);
@@ -332,7 +333,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const rainbowMats = rainbowCols.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, emissive: new THREE.Color(c), emissiveIntensity: 0.12 }));
   const rainbowGroup = new THREE.Group();
   [0.18, 0.55, 0.86].forEach((u, ri) => {
-    if (track.isCakeSection(track.length * u)) return;
+    if (track.isCakeSection(track.length * u) || nearFork(track.length * u)) return;
     const p = track.getPose(track.length * u, 0);
     const rainbow = new THREE.Group();
     rainbowCols.forEach((c, i) => {
@@ -357,7 +358,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const mountainMatB = new THREE.MeshStandardMaterial({ color: '#d8c4ea', roughness: 0.9, flatShading: true });
   const capMat = new THREE.MeshStandardMaterial({ color: '#f2f6ff', roughness: 0.85, flatShading: true });
   // helper: nearest track sample distance (XZ) so a mountain can NEVER overlap the road
-  const tSamples = track.samples;
+  const tSamples = track.allSamples || track.samples;
   const mountainDebug = [];
   const minDistToTrack = (x, z) => {
     let m = Infinity;
@@ -630,7 +631,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const gates = new THREE.Group();
     world.add(gates);
     for (const u of [0.18, 0.50, 0.78]) {
-      if (track.isCakeSection(track.length * u)) continue; // cake deck has its own rails
+      if (track.isCakeSection(track.length * u) || nearFork(track.length * u)) continue; // themed roads supply their own safe portals
       const gp = track.getPose(track.length * u, 0);
       const gate = new THREE.Group();
       const R = 8.9;
@@ -718,11 +719,10 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   }
 
   // ---------- rollercoaster rails (background fun, near mid-course) ----------
-  const c0 = track.getPose(track.fromBaseDistance(track.baseLength * 0.76), 0);
+  const c0 = track.getBasePose(track.fromBaseDistance(track.baseLength * 0.76), 0);
   const sideDir = new THREE.Vector3(Math.cos(c0.heading), 0, -Math.sin(c0.heading));
-  // 70 m put the near supports across the post-cake route at s ≈ 1480.
-  // Move the WHOLE attraction (including the train path) 25 m outward.
-  // The nearest rail/support now has >18 m centreline clearance.
+  // Reserve clearance from EVERY alternative, not just the default driving
+  // line. Translate the entire attraction, including its train's curve.
   const base = c0.pos.clone().addScaledVector(sideDir, 95);
   const coasterCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(base.x - 60, 6, base.z - 25), new THREE.Vector3(base.x - 20, 26, base.z),
@@ -731,9 +731,20 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     new THREE.Vector3(base.x - 8, 16, base.z - 70), new THREE.Vector3(base.x - 46, 30, base.z - 60),
     new THREE.Vector3(base.x - 72, 18, base.z - 40), new THREE.Vector3(base.x - 60, 6, base.z - 25),
   ], true, 'catmullrom', 0.6);
+  let coasterOffset = 95;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    let clearance = Infinity;
+    for (let i = 0; i <= 200; i++) {
+      const p = coasterCurve.getPointAt(i / 200); clearance = Math.min(clearance, minDistToTrack(p.x, p.z));
+    }
+    if (clearance >= 19) break;
+    for (const p of coasterCurve.points) p.addScaledVector(sideDir, 5);
+    coasterOffset += 5; coasterCurve.updateArcLengths();
+  }
   const railMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.35, metalness: 0.35 });
   const coasterRig = new THREE.Group();
   coasterRig.name = 'backgroundCoaster';
+  coasterRig.userData.offset = coasterOffset;
   world.add(coasterRig);
   const railA = new THREE.Mesh(new THREE.TubeGeometry(coasterCurve, 120, 0.55, 8, true), railMat);
   coasterRig.add(railA);

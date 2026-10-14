@@ -75,3 +75,12 @@ Latest result: `evidence/cake-serpentines-qa.json`. Screenshots:
 Physical Android performance has not been measured. Chromium/SwiftShader is
 used for correctness/screenshots, not device FPS; the older broad acceptance
 suite is not part of this focused run.
+
+## After the two-fork extension — 2026-10-15
+
+The common cake/sagging-bridge geometry is unchanged. Its focused suite was
+rerun on v22: **12/12 passed**, `evidence/forks-serpentines-qa.json`. Final v22
+offline reload is additionally covered by the **25/25** UI run in
+`evidence/forks-ui-qa.json`. The 1,865.49 m reference coordinate is now a stable
+station system through the forks: physical rides vary with the chosen routes.
+Use `track.advance` / `track.routes.distance`; see [forks.md](forks.md).

@@ -39,6 +39,9 @@
 <symbol id="icon-retry" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5m10-3a7.5 7.5 0 0 0-13-3m-1 9a7.5 7.5 0 0 0 13 3" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v12h12V9m-9 12v-7h6v7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-bear" viewBox="0 0 24 24"><g fill="#8bc9ac" stroke="#67a387" stroke-width=".9"><circle cx="6" cy="5" r="3"/><circle cx="18" cy="5" r="3"/><ellipse cx="12" cy="16" rx="8" ry="7"/><circle cx="12" cy="8" r="6.5"/></g><circle cx="9.5" cy="7" r="1" fill="#56776b"/><circle cx="14.5" cy="7" r="1" fill="#56776b"/><ellipse cx="12" cy="10.5" rx="2.5" ry="1.7" fill="#d8eddb"/></symbol>
+<symbol id="icon-cloud" viewBox="0 0 24 24"><path d="M6 19a5 5 0 0 1-1-10 7 7 0 0 1 13-2 6 6 0 0 1 0 12Z" fill="#c3e9f4" stroke="#84bace" stroke-width="1.2"/><path d="M7 12a5 5 0 0 1 8-4" fill="none" stroke="#f7ffff" stroke-width="2.1" stroke-linecap="round"/></symbol>
+<symbol id="icon-jump" viewBox="0 0 24 24"><path d="m2 21 16-10v10Z" fill="#edc48a" stroke="#ca995e" stroke-width="1.1"/><path d="M4 10C9 3 17 2 21 8m-5-2 5 2-1-5" fill="none" stroke="#cb945d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </defs></svg>
   <div id="game-root">
     <canvas id="game-canvas"></canvas>
@@ -63,6 +66,14 @@
           <div class="sweets-bar" aria-hidden="true"><div id="hud-sweets-fill"></div></div>
         </div>
       </div>
+      <section id="fork-hint" class="fork-hint hidden" aria-label="Выбор дороги">
+        <div class="fork-caption"><b id="fork-caption">Выбери дорогу</b><span id="fork-distance" aria-hidden="true"></span></div>
+        <div class="fork-options">
+          <div class="fork-chip" data-fork-side="0"><span class="fork-arrow" aria-hidden="true">←</span><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use/></svg><span class="fork-name"></span></div>
+          <div class="fork-chip" data-fork-side="1"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use/></svg><span class="fork-name"></span><span class="fork-arrow" aria-hidden="true">→</span></div>
+        </div>
+        <span id="fork-live" class="sr-only" aria-live="polite"></span>
+      </section>
       <div id="popup-layer"></div>
       <button type="button" id="btn-left" class="ctl-btn" aria-label="Влево" aria-pressed="false"><span class="ctl-face"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-left"/></svg><span class="thumb-grip" aria-hidden="true"></span></span></button>
       <button type="button" id="btn-right" class="ctl-btn" aria-label="Вправо" aria-pressed="false"><span class="ctl-face"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-right"/></svg><span class="thumb-grip" aria-hidden="true"></span></span></button>
@@ -81,7 +92,7 @@
           <div class="welcome-heading">
             <div class="eyebrow"><span></span>Сладкое приключение Лили</div>
             <h1 id="welcome-title" class="game-title"><span>Candy Kingdom</span><strong>Coaster</strong></h1>
-            <p class="game-subtitle">Твоя самая сладкая гонка.</p>
+            <p class="game-subtitle">Две развилки. Четыре приключения.</p>
           </div>
           <div class="welcome-action" aria-busy="true">
             <div id="loading-panel">
@@ -122,7 +133,8 @@
           <div class="fin"><span>⭐</span><b id="finish-stars">0</b></div>
         </div>
         <button id="btn-restart2" class="big-btn replay-btn">🔄 ЕЩЁ РАЗ!</button>
-        <div class="medals-title">Медали</div>
+        <p id="finish-route" class="finish-route"></p>
+      <div class="medals-title">Медали</div>
         <div id="medals-list"></div>
         <div class="finish-btns">
           <button id="btn-menu2" class="mid-btn">🏠 В меню</button>

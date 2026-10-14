@@ -54,7 +54,7 @@ try {
     });
     let minRadius = Infinity, maxGrade = 0, maxOrdinaryGrade = 0, stepError = 0;
     for (let s = 1; s < track.length - 1; s += 0.5) {
-      const a = track.getPose(s - 0.5), b = track.getPose(s + 0.5);
+      const a = track.getPose(track.advance(s, -0.5)), b = track.getPose(track.advance(s, 0.5));
       minRadius = Math.min(minRadius, 1 / a.tangent.angleTo(b.tangent));
       maxGrade = Math.max(maxGrade, Math.abs(a.pitch));
       if (s < C.bridge.s0 || s > C.bridge.s1) maxOrdinaryGrade = Math.max(maxOrdinaryGrade, Math.abs(a.pitch));
@@ -82,7 +82,7 @@ try {
       const a = samples[i], b = samples[j];
       if (Math.abs(a.p.y - b.p.y) < 5 && Math.hypot(a.p.x - b.p.x, a.p.z - b.p.z) < 17.6) intersections.push([a.s, b.s]);
     }
-    return { length: round(track.length), ascent: wind(C.ascent), descent: wind(C.descent),
+    return { length: round(track.routes.routeLength()), stations: round(track.length), ascent: wind(C.ascent), descent: wind(C.descent),
       bridgeLength: round(C.bridge.s1 - C.bridge.s0), bridge, joins,
       minRadius: round(minRadius), maxGrade: round(maxGrade * 180 / Math.PI), maxOrdinaryGrade: round(maxOrdinaryGrade * 180 / Math.PI), stepError: round(stepError), intersections };
   });
@@ -274,11 +274,11 @@ try {
   const cache = await page.evaluate(async () => {
     const ready = await Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((r) => setTimeout(() => r(false), 15000))]);
     if (!ready) return { error: 'service worker did not activate within 15 seconds' };
-    const keys = await caches.keys(), key = keys.find((k) => k === 'ckc-v18');
+    const keys = await caches.keys(), key = keys.find((k) => k === 'ckc-v22');
     const c = key && await caches.open(key);
     return { key, course: !!(c && await c.match('./src/course.js')), cakes: !!(c && await c.match('./src/cakes.js')) };
   });
-  record('new route and cake modules are precached for offline play', cache.key === 'ckc-v18' && cache.course && cache.cakes, cache);
+  record('new route and cake modules are precached for offline play', cache.key === 'ckc-v22' && cache.course && cache.cakes, cache);
   if (process.argv.includes('--offline')) {
     await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 15000 });
     await page.setOfflineMode(true);

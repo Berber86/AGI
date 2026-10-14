@@ -76,3 +76,12 @@ See `evidence/ui-qa.json` for the latest automated result and:
 Browser checks use headless Chromium/SwiftShader with mobile touch emulation;
 these are not measurements of physical Android frame rate. The older, broad
 acceptance suite is not part of this focused run.
+
+## After the two-fork extension — 2026-10-15
+
+The final v22 UI suite passed **25/25**, including the active route hint at
+851×326 and 640×280 and an actual offline reload with both forks/all four
+routes. Latest result: `evidence/forks-ui-qa.json`; final fork images and the
+completed regression summary are listed in [forks.md](forks.md). The coaster
+now checks clearance against all alternatives, not just the default route.
+The earlier figures/cache versions above describe the preceding UI checkpoint.
