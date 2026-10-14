@@ -79,6 +79,9 @@ function glowSprite() {
   return new THREE.CanvasTexture(c);
 }
 const GLOW = glowSprite();
+// Pickup bursts / finish fireworks: brightness > 1 gives each mote a hot,
+// hue-preserving core through the billboard roll-off (see billboards.js).
+const BURST_HOT = 1.35;
 
 export class Burst {
   constructor(scene, count = 64) {
@@ -111,7 +114,7 @@ export class Burst {
       if (it.life <= 0) { this.batch.hide(i); return; }
       it.pos.addScaledVector(it.vel, dt);
       it.vel.y -= 8.5 * dt;
-      this.batch.set(i, it.pos, it.size, it.color, Math.max(0, it.life));
+      this.batch.set(i, it.pos, it.size, it.color, BURST_HOT * Math.max(0, it.life));
     });
     if (any || this.dirty) this.batch.commit();
     this.dirty = any;

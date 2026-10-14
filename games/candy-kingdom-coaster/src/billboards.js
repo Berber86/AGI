@@ -33,7 +33,15 @@ function billboardMaterial(map) {
       #include <fog_pars_fragment>
       void main() {
         vec4 t = texture2D(map, vUv);
-        gl_FragColor = vec4(t.rgb * vTint, t.a);
+        vec3 col = t.rgb * vTint;
+        // Highlight roll-off, ratio preserving: sparks may be pushed past white
+        // on purpose (a hot core reads as "sparkling"), but this renderer has no
+        // tone mapping (the pastel look is deliberate), so anything > 1 used to
+        // clip to a flat white disc. Compressing every channel by the same
+        // factor keeps the pink/violet/gold hue of the hottest pixels.
+        float m = max(col.r, max(col.g, col.b));
+        if (m > 1.0) col *= (1.0 + (m - 1.0) / (1.0 + 0.55 * (m - 1.0))) / m;
+        gl_FragColor = vec4(col, t.a);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
         #include <fog_fragment>

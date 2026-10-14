@@ -421,6 +421,10 @@ export function createTrail(scene, count = 72) {
   const fwd = new THREE.Vector3();
   const jitter = new THREE.Vector3();
   const COLORS = ['#ff8fc6', '#ff5fa2', '#c86bff', '#ffe9a8', '#ffffff'];
+  // > 1 on purpose: pushes each spark's core past white so the billboard
+  // shader's highlight roll-off turns it into a saturated pink/violet/gold
+  // glint (see billboards.js) instead of a flat white dot.
+  const HOT = 1.55;
   return {
     update(dt, carRoot, speed, boost) {
       acc += dt * (boost ? 120 : 58);
@@ -452,7 +456,7 @@ export function createTrail(scene, count = 72) {
         it.vel.multiplyScalar(1 - dt * 1.4);
         const k = it.life / it.maxLife;
         const sc = (0.16 + (1 - k) * 0.42) * (boost ? 1.5 : 1);
-        batch.set(i, it.pos, sc, it.color, k * (boost ? 0.95 : 0.75));
+        batch.set(i, it.pos, sc, it.color, HOT * k * (boost ? 0.95 : 0.75));
       });
       if (any || live) batch.commit();
       live = any;
