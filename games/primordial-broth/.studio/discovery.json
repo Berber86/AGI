@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 3,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "completedAt": "2026-10-14T00:23:46Z",
+      "optionsUsed": true,
+      "questions": [
+        "audience",
+        "orientation",
+        "progression"
+      ],
+      "answers": {
+        "audience": "7-10-honest-but-gentle",
+        "orientation": "landscape",
+        "progression": "spore-style-part-editor"
+      },
+      "summary": "Игра для 7–10 лет: риск есть, наказания нет — укус отнимает здоровье, после съедения продолжаешь рядом, собранные части сохраняются. Основная ориентация — ландшафт, как в референсном кадре Spore (16:9). Развитие — редактор частей как в Spore: ДНК и выбор жгутика/ресничек/шипов/жала/яда/электричества/челюсти между поколениями."
+    },
+    {
+      "stage": 2,
+      "name": "play-experience",
+      "completedAt": "2026-10-14T00:26:31Z",
+      "optionsUsed": true,
+      "questions": [
+        "controls",
+        "episodeLength",
+        "deathModel",
+        "signatureBet"
+      ],
+      "answers": {
+        "controls": "free-stick-anywhere-drag",
+        "episodeLength": "12-15-min-five-generations",
+        "deathModel": "health-plus-soft-defeat",
+        "signatureBet": "juicy-living-water-and-swimming"
+      },
+      "summary": "Управление одной рукой: палец в любом месте экрана задаёт направление тяги (мышь-стайл, инерция), плюс кнопка рывка и пауза. Заплыв 12–15 минут из 5 поколений, прогресс сохраняется. Опасность: здоровье + мягкое поражение (продолжаешь рядом, теряя часть добычи). Главная ставка — сочность воды и плавания."
+    },
+    {
+      "stage": 3,
+      "name": "contract-lock",
+      "completedAt": "2026-10-14T06:12:15Z",
+      "optionsUsed": true,
+      "questions": [
+        "contract_lock"
+      ],
+      "answers": {
+        "approval": "approve-lean"
+      },
+      "summary": "Пользователь утвердил компактную версию контракта: 3 поколения вместо 5, без сверххищника; победа — дорасти до максимума и доплыть до отмели. Редактор частей, живая вода, пищевая цепочка и финальный спурт остаются."
+    }
+  ],
+  "answers": {
+    "audience": "7-10-honest-but-gentle",
+    "orientation": "landscape",
+    "progression": "spore-style-part-editor",
+    "controls": "free-stick-anywhere-drag",
+    "episodeLength": "12-15-min-five-generations",
+    "deathModel": "health-plus-soft-defeat",
+    "signatureBet": "juicy-living-water-and-swimming",
+    "approval": "approve-lean",
+    "generations": 3,
+    "finale": "no-superpredator-reach-the-shoal"
+  },
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-14T00:14:13Z",
+  "updatedAt": "2026-10-14T06:12:15Z",
+  "approvedAt": "2026-10-14T06:12:15Z"
+}

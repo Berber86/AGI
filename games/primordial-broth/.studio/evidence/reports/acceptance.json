@@ -1,0 +1,173 @@
+{
+  "url": "http://127.0.0.1:8899/games/primordial-broth/index.html",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "passed": 13,
+  "total": 13,
+  "results": [
+    {
+      "name": "boot: bridge, start screen, ecosystem, canvas",
+      "pass": true,
+      "detail": {
+        "ready": true,
+        "startVisible": true,
+        "entities": 356,
+        "canvas": [
+          1280,
+          720
+        ],
+        "hasDash": true,
+        "hasSlots": 8
+      }
+    },
+    {
+      "name": "touch: dragging the surface pulls the cell east and speeds it up",
+      "pass": true,
+      "detail": {
+        "moved": 265,
+        "dx": 241,
+        "vx": 205
+      }
+    },
+    {
+      "name": "play: eating plankton raises biomass, DNA and the eaten counter",
+      "pass": true,
+      "detail": {
+        "biomass": [
+          0,
+          13.28
+        ],
+        "eaten": 18
+      }
+    },
+    {
+      "name": "progression: biomass milestone increases size, stage and health",
+      "pass": true,
+      "detail": {
+        "r1": 30,
+        "r2": 48,
+        "stage": 3,
+        "maxHp": 105
+      }
+    },
+    {
+      "name": "mutation: milestone opens the 1-of-3 editor and applies the chosen part",
+      "pass": true,
+      "detail": {
+        "modeAtMilestone": "mutation",
+        "visible": true,
+        "cards": 3,
+        "picked": "cilia",
+        "gen": 2,
+        "parts": [
+          "cilia"
+        ],
+        "mode": "playing"
+      }
+    },
+    {
+      "name": "defeat: reaching zero health continues the run with progress and parts kept",
+      "pass": true,
+      "detail": {
+        "deaths": 1,
+        "hp": 44,
+        "biomass": [
+          5,
+          3.5999999999999996
+        ],
+        "parts": [
+          "spike"
+        ]
+      }
+    },
+    {
+      "name": "threat: a hunter in front of the nose bites and drains health",
+      "pass": true,
+      "detail": {
+        "hp": [
+          88,
+          66
+        ],
+        "hunterRadius": 57
+      }
+    },
+    {
+      "name": "win: full size at the shoal triggers the victory screen",
+      "pass": true,
+      "detail": {
+        "mode": "won",
+        "stage": 8,
+        "winVisible": true,
+        "final": true
+      }
+    },
+    {
+      "name": "restart: a new run starts clean from the win screen",
+      "pass": true,
+      "detail": {
+        "mode": "playing",
+        "stage": 1,
+        "biomass": 0,
+        "parts": 0,
+        "gen": 1,
+        "winVisible": false
+      }
+    },
+    {
+      "name": "lifecycle: pause stops the clock and resume closes the overlay",
+      "pass": true,
+      "detail": {
+        "paused": "playing",
+        "pauseScreen": true,
+        "timePaused": 0.16666666666666666,
+        "timeAfterWait": 0.16666666666666666,
+        "resumedScreen": false
+      }
+    },
+    {
+      "name": "hud: growth, DNA, clock, health, stamina, slots, minimap all present and on screen",
+      "pass": true,
+      "detail": {
+        "missing": [],
+        "minimap": [
+          188,
+          98
+        ],
+        "slots": 8,
+        "overflow": 0,
+        "vw": 1280,
+        "vh": 720
+      }
+    },
+    {
+      "name": "ecology: food chain keeps all five tiers populated while playing",
+      "pass": true,
+      "detail": {
+        "chain": {
+          "plankton": 229,
+          "cell": 25,
+          "hunter": 3,
+          "grazer": 5,
+          "spore": 8,
+          "swarmling": 0
+        },
+        "entities": 354,
+        "stage": 1,
+        "fps": 42,
+        "frameMs": 23.3
+      }
+    },
+    {
+      "name": "runtime: no page errors, no console errors, no failed requests",
+      "pass": true,
+      "detail": {
+        "pageErrors": [],
+        "consoleErrors": [],
+        "failedRequests": []
+      }
+    }
+  ],
+  "generatedAt": "2026-10-14T07:32:04.254Z"
+}

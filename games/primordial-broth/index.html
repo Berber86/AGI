@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#062a45">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Первичный бульон</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game-canvas"></canvas>
+
+    <!-- ================= HUD ================= -->
+    <div id="hud">
+      <!-- objective panel, mirrors the reference "Фрагменты" box -->
+      <div class="hud-corner hud-top-left">
+        <div class="panel">
+          <div class="panel-head">
+            <span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 3c0 4 10 5 10 9s-10 5-10 9M17 3c0 4-10 5-10 9s10 5 10 9"/></svg></span>
+            <span class="panel-title">Рост</span>
+            <span class="panel-value"><span id="hud-stage">1/8</span></span>
+          </div>
+          <div class="growth-bar"><div id="hud-growth-fill"></div></div>
+          <div class="panel-sub"><span id="hud-growth-text">6 до роста</span> · ДНК <b id="hud-dna">0</b></div>
+          <p class="panel-hint" id="hud-hint">Собирайте планктон и мелких клеток; вырастете — откроется новая часть тела.</p>
+          <div class="panel-gen">Поколение <b id="hud-gen">1</b>/3</div>
+        </div>
+        <div class="objective-banner" id="hud-objective">Поколение 1/3: дорасти до 3/8</div>
+      </div>
+
+      <div class="hud-corner hud-top-right">
+        <div class="hud-buttons">
+          <button id="btn-sound" class="icon-btn" aria-label="Звук">🔊</button>
+          <button id="btn-pause" class="icon-btn" aria-label="Пауза">⏸</button>
+          <button id="btn-full" class="icon-btn" aria-label="Полный экран">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-corner hud-bottom-left">
+        <div class="stat-panel">
+          <div class="stat-row">
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5.1-8-10.4A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 3.6C20 15.9 12 21 12 21z"/></svg></span>
+            <div class="bar health"><div id="hud-health-fill"></div></div>
+            <span class="stat-value" id="hud-health-text">71/71</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></span>
+            <div class="bar stamina"><div id="hud-stamina-fill"></div></div>
+            <span class="stat-value clock" id="hud-clock">00:00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="hud-corner hud-bottom-center">
+        <div class="slots" id="hud-slots"></div>
+      </div>
+
+      <div class="hud-corner hud-bottom-right">
+        <div class="minimap-wrap">
+          <canvas id="hud-minimap" width="188" height="98"></canvas>
+          <div class="minimap-label">бульон</div>
+        </div>
+        <button id="btn-dash" class="dash-btn" aria-label="Рывок">РЫВОК</button>
+      </div>
+
+      <div id="hud-toast" class="toast"></div>
+    </div>
+
+    <!-- ================= START ================= -->
+    <div id="screen-start" class="screen visible">
+      <div class="card start-card">
+        <div class="bubbles" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+        <h1 class="game-title">Первичный<br>бульон</h1>
+        <p class="game-subtitle">Ты — только что вылупившаяся клетка. Ешь, расти, приращивай части тела и доплыви до отмели.</p>
+        <button id="btn-play" class="play-btn">▶ ИГРАТЬ</button>
+        <div class="start-grid">
+          <div>
+            <h3>Управление</h3>
+            <p>Палец в любом месте — тяга в сторону пальца. Кнопка <b>РЫВОК</b> — ускорение. Одна рука, без клавиатуры.</p>
+          </div>
+          <div>
+            <h3>Три поколения</h3>
+            <p>На каждом росте выбирается новая часть тела. Части остаются навсегда, даже если вас чуть не съели.</p>
+          </div>
+        </div>
+        <div class="parts-panel" id="parts-panel"></div>
+        <p class="start-foot">Телефон держите горизонтально. Игра работает офлайн после первой загрузки.</p>
+      </div>
+    </div>
+
+    <!-- ================= MUTATION ================= -->
+    <div id="screen-mutation" class="screen">
+      <div class="card mutation-card">
+        <h2>Мутация</h2>
+        <p id="mutation-sub">Выберите одну часть тела.</p>
+        <div class="mutation-cards" id="mutation-cards"></div>
+        <p class="start-foot">Клавиши 1–3 тоже работают (для проверок на компьютере).</p>
+      </div>
+    </div>
+
+    <!-- ================= WIN ================= -->
+    <div id="screen-win" class="screen">
+      <div class="card win-card">
+        <div class="garland" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <h2>Отмель достигнута!</h2>
+        <p>Ваш организм выполз из бульона венцом экосистемы.</p>
+        <div class="win-stats" id="win-stats"></div>
+        <button id="btn-again" class="play-btn">↻ ЕЩЁ ЗАПЛЫВ</button>
+      </div>
+    </div>
+
+    <!-- ================= PAUSE ================= -->
+    <div id="screen-pause" class="screen">
+      <div class="card pause-card">
+        <h2>Пауза</h2>
+        <p>Бульон ждёт. Прогресс и части тела сохранены.</p>
+        <button id="btn-resume" class="play-btn">▶ ПРОДОЛЖИТЬ</button>
+        <button id="btn-restart-pause" class="ghost-btn">↻ Начать заново</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
