@@ -792,6 +792,22 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     stick: new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 }),
   };
 
+  // Roadside density. The course used to stack 8 bands of props (knock fence,
+  // shoulder bears, main props, crowd, pebbles, candy strip, two wall bands) at
+  // ~2.5 props per metre — the eye had nowhere to rest and every frame drew
+  // thousands of instances. These keep each band's identity but thin it out.
+  const DECOR = {
+    main: 0.65,       // main zone props 8-25 m: share of slots used (was every slot)
+    wall: 0.28,       // small candy wall, 13.6-17 m (was 0.85 per slot/side)
+    filler: 0.15,     // mid-field filler band (was 0.55)
+    shoulderBear: 0.12, // mini bears just past the curb (was 0.38)
+    knockCanes: 210, knockLollis: 110, // knockable shoulder fence (was 430 + 230)
+    stripSkip: 0.7,   // candy strip behind the fence: share of slots left empty (was 0.22)
+    pebbles: 300,     // gumdrop pebbles on the grass (was 520)
+    flowerKeep: 0.6,  // meadow flowers (was 0.8)
+    chocKeep: 0.4,    // cocoa canyon crystals (was 0.55)
+    buntingKeep: 0.6, // finish-run bunting poles (was 0.9)
+  };
   const placements = { lolli0: [], lolli1: [], lolli2: [], cane: [], bear: [], tree: [], marsh: [], ice: [], cookie: [] };
   const rand = (() => { let s = 1234567; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
@@ -809,7 +825,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const slot = { s: ps, x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.0 + rand() * (scMax - 1.0) };
 
     const roll = rand();
-    if (z.id === 0) {
+    if (rand() > DECOR.main) { /* breathing room: no main prop on this slot */ } else if (z.id === 0) {
       if (roll < 0.42) placements[`lolli${Math.floor(rand() * 3)}`].push(slot);
       else if (roll < 0.62) placements.tree.push(slot);
       else if (roll < 0.82) placements.cane.push(slot);
@@ -838,7 +854,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     }
     // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
-      if (rand() < 0.85) {
+      if (rand() < DECOR.wall) {
         const ws = s + (rand() - 0.5) * 3;
         const wp = track.getPose(ws, wallSide * (13.6 + rand() * 3.4));
         const slotW = { s: ws, x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
@@ -849,7 +865,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         else placements.bear.push({ ...slotW, sc: 0.65 + rand() * 0.35, ry: wp.heading + Math.PI });
       }
       // mid-field filler band (8.6-12 m) — fills the frame edges, clear of the corridor
-      if (rand() < 0.55) {
+      if (rand() < DECOR.filler) {
         const ms = s + (rand() - 0.5) * 4;
         const mp = track.getPose(ms, wallSide * (13.8 + rand() * 3.2));
         const slotM = { s: ms, x: mp.pos.x, y: mp.pos.y - 0.5, z: mp.pos.z, ry: rand() * Math.PI * 2, sc: 0.55 + rand() * 0.6 };
@@ -861,7 +877,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         else placements.tree.push(slotM);
       }
     }
-    if (rand() < 0.38) {
+    if (rand() < DECOR.shoulderBear) {
       const bp = track.getPose(s + 1, side * (7.2 + rand() * 1.4));
       placements.bear.push({ s: s + 1, x: bp.pos.x, y: bp.pos.y - 0.3, z: bp.pos.z, ry: bp.heading + Math.PI + (rand() - 0.5) * 0.8, sc: 0.95 + rand() * 0.5 });
     }
@@ -924,7 +940,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   // Sits on the grass strip just off the curb (5.8-8.2 m from the centerline):
   // outside the road, inside the fun. Topples & flies when the car clips it.
   // Marked noCollide so the corridor sweep leaves the fringe alone.
-  const KNOCK_C = 430, KNOCK_L = 230;
+  const KNOCK_C = DECOR.knockCanes, KNOCK_L = DECOR.knockLollis;
   const knockItems = [];
   for (let i = 0; i < KNOCK_C + KNOCK_L; i++) {
     const isCane = i < KNOCK_C;
@@ -1127,7 +1143,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       const onRunoff = s < 0 || s > L;
       if (onRunoff && rand() < 0.5) continue; // thinner beyond the lines
       for (const side of [-1, 1]) {
-        if (rand() < 0.22) continue; // small breathing gaps
+        if (rand() < DECOR.stripSkip) continue; // breathing gaps
         const far = 11.6 + rand() * 2.1;
         const ss = s + (rand() - 0.5) * 3;
         const p = track.getPose(ss, side * far);
@@ -1303,7 +1319,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const pebbleGeo = new THREE.SphereGeometry(0.42, 8, 6);
     pebbleGeo.scale(1, 0.72, 1);
     const pebbleMat = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0, flatShading: true });
-    const N = 520;
+    const N = DECOR.pebbles;
     const d2 = new THREE.Object3D();
     const cTmp = new THREE.Color();
     const COLS = ['#ff8fc6', '#ffd45e', '#8ef07e', '#56c8ff', '#b18aff', '#fff2f7', '#ff6b81'];
@@ -1317,7 +1333,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         const p = track.getPose(ss, side * far);
         slots.push({ s: ss, x: p.pos.x, y: p.pos.y - far * 0.13 - 0.3, z: p.pos.z, far });
       }
-      fs += 3.2;
+      fs += (L - 24) / (N / 2); // spread over the whole course (used to stop at ~830 m)
     }
     buildChunks(pebbleGeo, pebbleMat, slots, (inst, i, slot, gi) => {
       d2.position.set(slot.x, slot.y, slot.z);
@@ -1583,7 +1599,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       let fs = 8;
       while (fs < L * 0.22) {
         for (const side of [-1, 1]) {
-          if (rand() < 0.8) {
+          if (rand() < DECOR.flowerKeep) {
             const far = 12 + rand() * 14;
             const p = track.getPose(fs + (rand() - 0.5) * 4, side * far);
             list.push({ x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.8 + rand() * 0.9, c: ['#ff6b9e', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7'][Math.floor(rand() * 5)] });
@@ -1642,7 +1658,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       let cs = L * 0.46;
       while (cs < L * 0.68) {
         for (const side of [-1, 1]) {
-          if (rand() < 0.55) {
+          if (rand() < DECOR.chocKeep) {
             const far = 13 + rand() * 16;
             const p = track.getPose(cs + (rand() - 0.5) * 7, side * far);
             list.push({ x: p.pos.x, y: p.pos.y - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.6 + rand() * 2.6 });
@@ -1700,7 +1716,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       let bs = L * 0.88;
       while (bs < L - 26) {
         for (const side of [-1, 1]) {
-          if (rand() < 0.9) {
+          if (rand() < DECOR.buntingKeep) {
             const far = 13 + rand() * 4;
             const p = track.getPose(bs + (rand() - 0.5) * 3, side * far);
             poles.push({ x: p.pos.x, y: p.pos.y - 0.1, z: p.pos.z, ry: p.heading });
