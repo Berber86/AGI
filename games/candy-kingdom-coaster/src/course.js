@@ -46,7 +46,7 @@ class Slice extends THREE.Curve {
 }
 
 // An open, tapered helix. Smoothstep makes both height and radial velocity
-// zero at the ends: the two summits meet the level bridge without a kink.
+// zero at the ends: the two summits meet the bridge landings without a kink.
 class CakeSpiral extends THREE.Curve {
   constructor(center, side, forward, r0, r1, y0, y1, angle, sweep) {
     super();
@@ -67,6 +67,31 @@ class CakeSpiral extends THREE.Curve {
     return target.copy(this.side).multiplyScalar(dr * Math.cos(a) - r * Math.sin(a) * this.sweep)
       .addScaledVector(this.forward, dr * Math.sin(a) + r * Math.cos(a) * this.sweep)
       .setY((this.y1 - this.y0) * dq).normalize();
+  }
+}
+
+// A suspended ribbon, not a flat road with a sagging decoration underneath.
+// The symmetric 64t³(1−t)³ dip has zero first AND second derivatives at its
+// ends, so the descent eases in and the exit levels out before the next cake.
+// Curve.getPointAt/getTangentAt share an arc-length table: speed, camera,
+// pickups and the rendered deck all follow the same real metres.
+class SaggingBridge extends THREE.Curve {
+  constructor(start, end, sag) {
+    super();
+    this.start = start.clone(); this.end = end.clone(); this.sag = sag;
+    this.arcLengthDivisions = 1024;
+  }
+  getPoint(t, target = new THREE.Vector3()) {
+    const dip = 64 * (t * (1 - t)) ** 3;
+    target.lerpVectors(this.start, this.end, t);
+    target.y -= this.sag * dip;
+    return target;
+  }
+  getTangent(t, target = new THREE.Vector3()) {
+    const slope = 192 * (t * (1 - t)) ** 2 * (1 - 2 * t);
+    target.subVectors(this.end, this.start);
+    target.y -= this.sag * slope;
+    return target.normalize();
   }
 }
 
@@ -119,7 +144,7 @@ export function buildCourse() {
     a.clone().addScaledVector(forward, -C.approach / 3), a);
   const departure = new THREE.CubicBezierCurve3(b, b.clone().addScaledVector(forward, C.departure / 3),
     newExit.clone().addScaledVector(exitT, -C.departure / 3), newExit);
-  const bridge = new THREE.LineCurve3(up.getPoint(1), down.getPoint(0));
+  const bridge = new SaggingBridge(up.getPoint(1), down.getPoint(0), C.bridgeSag);
   const curve = new Course([
     ['before', new Slice(base, 0, C.baseStart)], ['approach', approach],
     ['ascent', up], ['cakeBridge', bridge], ['descent', down], ['departure', departure],
@@ -139,7 +164,8 @@ export function buildCourse() {
     deckStart: part('ascent').s0 - 6, deckEnd: part('descent').s1 + 6,
     ascent: cake('ascent', centerA, entry.y, 'strawberry-vanilla'),
     descent: cake('descent', centerB, oldExit.y, 'chocolate-blueberry'),
-    bridge: { s0: part('cakeBridge').s0, s1: part('cakeBridge').s1, y: topY },
+    bridge: { s0: part('cakeBridge').s0, s1: part('cakeBridge').s1, y: topY,
+      lowY: topY - C.bridgeSag, sag: C.bridgeSag, span: C.bridgeLength },
   };
   return { curve, baseLength, fromBaseDistance, cakeSection };
 }

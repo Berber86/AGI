@@ -189,7 +189,7 @@ try {
   // is controlled before disabling the network, not just until caches exist.
   await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 30000 });
   const cached = await page.evaluate(async () => {
-    const c = await caches.open('ckc-v16'), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2'];
+    const c = await caches.open('ckc-v18'), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2'];
     return await Promise.all(urls.map(async (url) => ({ url, cached: !!(await c.match(url)) })));
   });
   check('new UI, artwork, fonts and loader are cached', cached.every((r) => r.cached), cached);

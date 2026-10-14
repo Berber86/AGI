@@ -1,5 +1,5 @@
 {
-  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
+  "baseURL": "http://127.0.0.1:8900/index.html",
   "results": [
     {
       "name": "real progress, no rollback, hidden/inert controls during loading",
@@ -193,7 +193,7 @@
       "pass": true,
       "detail": {
         "held": {
-          "lateral": -2.78,
+          "lateral": -2.47,
           "pressed": true,
           "aria": "true"
         },
@@ -256,8 +256,8 @@
       "name": "all coaster supports/rails clear road; moving train stays aligned",
       "pass": true,
       "detail": {
-        "railClearance": 17.872726466054306,
-        "postClearance": 18.21196065613496,
+        "railClearance": 17.87296091288106,
+        "postClearance": 18.212238512732586,
         "trainError": 0,
         "blocked": 0,
         "rig": "backgroundCoaster"

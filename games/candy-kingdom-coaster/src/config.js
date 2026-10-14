@@ -42,7 +42,8 @@ export const CAKE_COURSE = {
   outerRadius: 36,
   innerRadius: 28,
   rise: 34,
-  bridgeLength: 84,
+  bridgeLength: 84, // horizontal span; the dipped road is slightly longer
+  bridgeSag: 9,     // metres below the two summits at the middle
   deckHalfWidth: 8.8,
   railLateral: 8.5, // outside the entire car envelope at the soft steering wall
 };

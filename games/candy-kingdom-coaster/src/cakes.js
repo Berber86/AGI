@@ -221,17 +221,34 @@ export function createCakes(scene, track, TEX = {}) {
     const b = p.clone().addScaledVector(radial, 6.6).addScaledVector(UP, -0.88);
     bar(supports, a, b, 0.36, cream);
   }
-  // Two broad arched ribs below the sky bridge; no columns planted in a
-  // lower spiral's driving line. The centre span is open to the valley.
+  // A real hanging bridge: both its deck and its candy cables dip. Every
+  // hanger/under-deck rib uses the LOCAL road height, never the old summit
+  // plane (which would send support rods straight through the dipped road).
+  const bridge = section.bridge, cableLat = C.deckHalfWidth + 0.9;
   for (const side of [-1, 1]) {
-    const pts = [], n = 32;
+    const cables = [], underside = [], n = 48;
     for (let i = 0; i <= n; i++) {
-      const q = i / n, p = track.getPose(THREE.MathUtils.lerp(section.bridge.s0, section.bridge.s1, q), side * 7.7).pos;
-      p.y -= 9 - Math.sin(q * Math.PI) * 7.5;
-      pts.push(p);
-      if (i % 4 === 0) bar(supports, p, p.clone().setY(section.bridge.y - 0.88), 0.28, cream);
+      const q = i / n, s = THREE.MathUtils.lerp(bridge.s0, bridge.s1, q);
+      const p = track.getPose(s, side * cableLat).pos;
+      const top = p.clone().addScaledVector(UP, 2.1 + 4.4 * (2 * q - 1) ** 2);
+      cables.push(top);
+      underside.push(track.getPose(s, side * 7.7).pos.addScaledVector(UP, -1.3));
+      if (i % 3 === 0) bar(supports, p.clone().addScaledVector(UP, -0.95), top, 0.11, cream);
+      if (i === 0 || i === n) {
+        bar(supports, p.clone().addScaledVector(UP, -1.25), top.clone().addScaledVector(UP, 0.45), 0.4, cane);
+        mesh(supports, capGeo, pink, top.x, top.y + 0.65, top.z).scale.setScalar(2.2);
+      }
     }
-    mesh(supports, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, 0.65, 8, false), gold);
+    mesh(supports, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cables), n, 0.23, 6, false), gold);
+    mesh(supports, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(underside), n, 0.38, 6, false), gold);
+  }
+  // Cross-bearers attach the wafer deck to the hanging side rods. They remain
+  // underneath even at the lowest point, leaving the full driving lane free.
+  for (let i = 0; i <= 16; i++) {
+    const s = THREE.MathUtils.lerp(bridge.s0, bridge.s1, i / 16);
+    const a = track.getPose(s, -cableLat).pos.addScaledVector(UP, -0.95);
+    const b = track.getPose(s, cableLat).pos.addScaledVector(UP, -0.95);
+    bar(supports, a, b, 0.22, cream);
   }
   mergeByMaterial(supports);
 

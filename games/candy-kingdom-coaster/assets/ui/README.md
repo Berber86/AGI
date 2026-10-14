@@ -1,8 +1,10 @@
 # Welcome screen assets
 
 - `welcome.webp`: original AI-generated menu key art, using the existing
-  `assets/lily.png` as the character reference. A single 960×720 WebP (~60 KB),
+  `assets/lily.png` as the character reference. A single 960×720 WebP (~80 KB),
   loaded before the 3D engine so the loading screen is never an empty scene.
+  The artwork has no flag or flagpole: it features a wafer-and-frosting castle,
+  translucent gummy bears, gumdrops and a suspended candy bridge.
   The large source image is not shipped or tracked.
 - `fonts/nunito-{latin,cyrillic}.woff2`: Nunito variable font subsets from the
   npm package `@fontsource-variable/nunito`, under the SIL Open Font License

@@ -1,11 +1,11 @@
 {
-  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
+  "baseURL": "http://127.0.0.1:8900/index.html",
   "results": [
     {
-      "name": "opposite uphill/downhill spirals + level connecting bridge",
+      "name": "opposite uphill/downhill spirals + genuinely sagging bridge",
       "pass": true,
       "detail": {
-        "length": 1862.9857,
+        "length": 1865.4892,
         "ascent": {
           "winding": 1.25,
           "wrongSlope": 0,
@@ -16,8 +16,19 @@
           "wrongSlope": 0,
           "rise": -34.5909
         },
-        "bridgeLength": 84,
-        "bridgeError": 0,
+        "bridgeLength": 86.5035,
+        "bridge": {
+          "sag": 9,
+          "span": 84,
+          "lowY": 27.4,
+          "minY": 27.4,
+          "wrongSlope": 0,
+          "symmetryError": 7.815970093361102e-14,
+          "downPitch": -0.35260952810556656,
+          "upPitch": 0.35260952810556645,
+          "flatEnds": 0,
+          "endHeightError": 0
+        },
         "joins": [
           {
             "id": "approach",
@@ -36,7 +47,7 @@
           },
           {
             "id": "descent",
-            "gap": 0,
+            "gap": 1.4210854715202004e-14,
             "dot": 0.9999999999999999
           },
           {
@@ -51,7 +62,8 @@
           }
         ],
         "minRadius": 28.5402,
-        "maxGrade": 12.7968,
+        "maxGrade": 20.2032,
+        "maxOrdinaryGrade": 12.7968,
         "stepError": 0.0002,
         "intersections": []
       }
@@ -78,7 +90,7 @@
           },
           {
             "id": "descent",
-            "gap": 0,
+            "gap": 1.4210854715202004e-14,
             "dot": 0.9999999999999999
           },
           {
@@ -93,7 +105,8 @@
           }
         ],
         "radius": 28.5402,
-        "grade": 12.7968,
+        "grade": 20.2032,
+        "ordinaryGrade": 12.7968,
         "stepError": 0.0002
       }
     },
@@ -115,7 +128,9 @@
         "checked": 153,
         "bad": [],
         "badCount": 0,
-        "occluded": []
+        "occluded": [],
+        "cropped": [],
+        "minBridgeBodyY": -0.767195452225008
       }
     },
     {
@@ -124,16 +139,19 @@
       "detail": [
         {
           "boost": false,
-          "frames": 2544,
+          "frames": 2553,
           "air": 0,
-          "maxPitch": 0.145,
-          "maxHeadingStep": 0.009554879559255935,
+          "maxPitch": 0.349,
+          "ordinaryPitch": 0.145,
+          "downPitch": 0.349,
+          "upPitch": -0.349,
+          "maxHeadingStep": 0.009554878739544304,
           "cleared": true,
           "end": {
             "jump": "ground",
             "air": 0,
             "vy": 0,
-            "s": 1295.6,
+            "s": 1298.08,
             "lateral": 0.34,
             "speed": 16.5,
             "t": 0,
@@ -145,16 +163,19 @@
         },
         {
           "boost": true,
-          "frames": 1463,
+          "frames": 1468,
           "air": 0,
-          "maxPitch": 0.145,
-          "maxHeadingStep": 0.016793431887362376,
+          "maxPitch": 0.342,
+          "ordinaryPitch": 0.145,
+          "downPitch": 0.342,
+          "upPitch": -0.342,
+          "maxHeadingStep": 0.016793400642054035,
           "cleared": true,
           "end": {
             "jump": "ground",
             "air": 0,
             "vy": 0,
-            "s": 1295.51,
+            "s": 1297.93,
             "lateral": 0.26,
             "speed": 29,
             "t": 0,
@@ -196,8 +217,8 @@
           },
           {
             "id": "cream-right",
-            "s0": 1615.4,
-            "s1": 1627.4,
+            "s0": 1617.9,
+            "s1": 1629.9,
             "latMin": 0.3,
             "latMax": 4.3,
             "height": 2.6,
@@ -207,12 +228,12 @@
           }
         ],
         "tunnel": [
-          1340.4108852983272,
-          1455.4108852983272
+          1342.9143951293709,
+          1457.9143951293709
         ],
         "river": 400,
         "cakeStart": 600,
-        "cakeEnd": 1290.4108852983272,
+        "cakeEnd": 1292.9143951293709,
         "flavors": [
           "strawberry-vanilla",
           "chocolate-blueberry"
@@ -221,31 +242,31 @@
           {
             "id": 0,
             "u0": 0,
-            "u1": 0.1738963744498916
+            "u1": 0.1736630033413869
           },
           {
             "id": 1,
-            "u0": 0.1738963744498916,
-            "u1": 0.417657599903481
+            "u0": 0.1736630033413869,
+            "u1": 0.41744326767408757
           },
           {
             "id": 2,
-            "u0": 0.417657599903481,
-            "u1": 0.7470598189819758
+            "u0": 0.41744326767408757,
+            "u1": 0.7473992678670736
           },
           {
             "id": 3,
-            "u0": 0.7470598189819758,
-            "u1": 0.9051474321182409
+            "u0": 0.7473992678670736,
+            "u1": 0.9052747254501525
           },
           {
             "id": 4,
-            "u0": 0.9051474321182409,
-            "u1": 1.0007904380656814
+            "u0": 0.9052747254501525,
+            "u1": 1.0007893772879153
           }
         ],
-        "draws": 28,
-        "triangles": 87040
+        "draws": 30,
+        "triangles": 89052
       }
     },
     {
@@ -253,19 +274,19 @@
       "pass": true,
       "detail": {
         "result": {
-          "trackLength": 1863,
+          "trackLength": 1865,
           "totalSweets": 166,
           "state": "finish",
-          "timeS": 107.18,
+          "timeS": 107.35,
           "speedKmh": 59.4,
-          "lateral": 0.26,
-          "collected": 97,
+          "lateral": 0.27,
+          "collected": 96,
           "boostActive": false,
           "boostCharges": 0,
           "zone": 4
         },
         "restart": {
-          "trackLength": 1863,
+          "trackLength": 1865,
           "totalSweets": 166,
           "state": "intro",
           "timeS": 0,
@@ -282,10 +303,10 @@
       "name": "touch steering and release on the sky bridge",
       "pass": true,
       "detail": {
-        "held": -2.45,
-        "released": -2.03,
-        "width": 118,
-        "height": 118
+        "held": -2.46,
+        "released": -1.76,
+        "width": 97.046875,
+        "height": 81.890625
       }
     },
     {
@@ -308,17 +329,19 @@
       "name": "new route and cake modules are precached for offline play",
       "pass": true,
       "detail": {
-        "key": "ckc-v15",
+        "key": "ckc-v18",
         "course": true,
         "cakes": true
       }
     },
     {
-      "name": "offline reload builds both cakes and all textures",
+      "name": "offline reload builds both cakes, new artwork and all textures",
       "pass": true,
       "detail": {
         "cakes": 2,
-        "textures": 26
+        "textures": 26,
+        "art": 960,
+        "ready": true
       }
     },
     {

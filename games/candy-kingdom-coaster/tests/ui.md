@@ -16,7 +16,9 @@
 - The whole background coaster is moved 25 m farther from the route: its base
   offset changes from 70 to 95 m. Supports, rails and the moving train use the
   same translated curve; no extra draw calls or disconnected supports.
-- `ckc-v16` precaches the new bootstrap, loading module, WebP and fonts.
+- The welcome artwork now has a wafer castle, gummy bears and sweets, with
+  no rainbow flag or flagpole. Inspected in both short-phone and desktop views.
+- `ckc-v18` refreshes the bootstrap, route/camera, WebP and local fonts.
 
 ## Reproduce
 
@@ -53,9 +55,12 @@ corridor from the downhill cake through the tunnel and another 180 m beyond it.
 ## Verified results — 2026-10-14
 
 - UI/controls/clearance/offline: **23/23 passed**, no browser errors.
-- Serpentine regression: **12/12 passed**, including the complete ride/restart,
-  camera visibility and unchanged 87,040-triangle cake budget. Latest report:
-  `evidence/serpentines-after-ui.json`.
+- Route/camera/offline regression after the 9 m bridge dip: **13/13 passed**.
+  See `evidence/cake-serpentines-qa.json` and [serpentines.md](serpentines.md).
+  Its 89,052 triangles satisfy the original 90,000-triangle budget.
+- UI evidence was captured with the new illustration on cache v17. The final
+  camera-framing adjustment and v18 offline reload are covered by that later
+  route run; layout and controls did not change between these runs.
 - Repository unit tests: **11/11 passed**; validator self-test passed.
 
 ## Evidence

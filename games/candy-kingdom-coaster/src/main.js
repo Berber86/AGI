@@ -497,6 +497,20 @@ function updateJump(dt) {
   if (game.camKick > 0) game.camKick = Math.max(0, game.camKick - dt * 1.6);
 }
 
+// At the bottom of the hanging bridge, aiming at the distant uphill road
+// alone tilts the camera up and crops the car. Keep most of the local tangent
+// framing while retaining the road's rise farther ahead. This has no effect
+// outside the bridge or on convex crests (the approach still looks downhill).
+function chaseTarget(s, ahead, pose = track.getPose(s)) {
+  const target = ahead.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
+  const B = track.cakeSection.bridge;
+  if (s >= B.s0 && s <= B.s1) {
+    const tangentY = pose.pos.y + pose.tangent.y * TUNING.camAhead;
+    target.y -= Math.max(0, ahead.pos.y - tangentY) * 0.85;
+  }
+  return target;
+}
+
 function updateGameplay(dt) {
   // cinematic intro: camera starts front-top, sweeps around, settles behind
   if (game.state === 'intro') {
@@ -651,7 +665,11 @@ function updateGameplay(dt) {
   car.root.position.y += 0.02 + game.air;
   car.root.rotation.y = pose.heading;
   // lean into the road slope; nose up on the ramp, follow the arc in the air
-  let pitch = -pose.pitch * 0.65;
+  // The dipped bridge is steeper than the ordinary road: align the chassis
+  // to that deck rather than leaving the front/rear wheels inside the wafer.
+  const sky = track.cakeSection.bridge;
+  const onSkyBridge = game.s >= sky.s0 && game.s <= sky.s1;
+  let pitch = -pose.pitch * (onSkyBridge ? 1 : 0.65);
   if (game.jump === 'ramp') pitch -= game.jumpRamp.angle;
   else if (game.jump === 'air' || game.jump === 'drop') pitch -= Math.atan2(game.vy, Math.max(4, game.speed)) * 0.55;
   game.carPitch = THREE.MathUtils.lerp(game.carPitch, pitch, 1 - Math.exp(-9 * dt));
@@ -676,7 +694,8 @@ function updateGameplay(dt) {
   const back = track.getPose(game.s - TUNING.camBack, game.lateral * 0.55 - TUNING.camSide);
   const ahead = track.getPose(game.s + TUNING.camAhead, game.lateral * 0.22 + TUNING.camSide * 1.15);
   const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6 + game.air * 0.35, 0));
-  const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05 + game.air * 0.7, 0));
+  const desiredTgt = chaseTarget(game.s, ahead, pose);
+  desiredTgt.y += game.air * 0.7;
   const k = game.camSnap ? 1 : 1 - Math.exp(-TUNING.camLerp * dt);
   game.camSnap = false;
   game.camPos.lerp(desiredPos, k);
@@ -830,7 +849,7 @@ window.__TEST__ = {
     const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
     const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
     game.camPos.copy(back.pos).add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
-    game.camTarget.copy(ahead.pos).add(new THREE.Vector3(0, 1.05, 0));
+    game.camTarget.copy(chaseTarget(game.s, ahead));
     camera.position.copy(game.camPos);
     camera.lookAt(game.camTarget);
   },
