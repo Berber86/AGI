@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="water" cx="36%" cy="29%" r="78%"><stop stop-color="#18788a"/><stop offset="1" stop-color="#052536"/></radialGradient>
+    <radialGradient id="cell" cx="34%" cy="25%" r="78%"><stop stop-color="#c5fff0"/><stop offset=".3" stop-color="#6be0ce"/><stop offset="1" stop-color="#277c83"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#water)"/>
+  <g fill="#bdf9ed" opacity=".54"><circle cx="93" cy="133" r="11"/><circle cx="390" cy="93" r="8"/><circle cx="421" cy="359" r="13"/><circle cx="109" cy="383" r="7"/></g>
+  <g fill="none" stroke="#82f4dc" stroke-width="10" opacity=".76"><path d="M155 166c-56-37-77-5-49 26 22 24 47 28 71 35"/><path d="M365 160c64-46 89-5 58 25-22 20-44 26-69 28"/><path d="M147 333c-62 41-86 9-54-20 20-18 45-27 70-30"/></g>
+  <g filter="url(#glow)"><circle cx="256" cy="252" r="126" fill="url(#cell)" stroke="#c8fff0" stroke-opacity=".84" stroke-width="10"/><circle cx="249" cy="247" r="50" fill="#0b5263" opacity=".55"/><circle cx="234" cy="228" r="25" fill="#d7fff5" opacity=".86"/></g>
+  <g fill="#9affdd"><circle cx="186" cy="260" r="10"/><circle cx="306" cy="200" r="8"/><circle cx="294" cy="300" r="11"/><circle cx="219" cy="321" r="7"/></g>
+</svg>

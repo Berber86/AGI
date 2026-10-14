@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "Первичный бульон: Микрогенез",
+  "short_name": "Микрогенез",
+  "description": "Исследуй первичный океан и измени свою клетку.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#052536",
+  "theme_color": "#082a3d",
+  "lang": "ru",
+  "icons": [
+    { "src": "./icons/microgenesis.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

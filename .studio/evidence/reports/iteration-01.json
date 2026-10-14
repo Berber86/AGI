@@ -1,0 +1,51 @@
+{
+  "iteration": 1,
+  "url": "http://127.0.0.1:5173/",
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "game booted with test bridge",
+      "passed": true,
+      "detail": "{\"phase\":\"menu\",\"seed\":1296646994,\"elapsedSeconds\":0,\"cell\":{\"x\":0,\"z\":0,\"heading\":0,\"health\":3,\"maxHealth\":3,\"biomass\":0,\"dna\":0,\"organs\":[]},\"entities\":[{\"id\":\"nutrient-01\",\"kind\":\"nutrient\",\"x\":13.83753666447587,\"z\":-2.0249893946187623,\"radius\":0.5883501778217033,\"phase\":0.6523016819776175,\"consumed\":false},{\"id\":\"nutrient-02\",\"kind\":\"nutrient\",\"x\":24.779905717890557,\"z\":8.65850866981303,\"radius\":0.6643434864189476,\"phase\":2.4810622358923036,\"consumed\":false},{\"id\":\"nutrient-03\",\"kind\":\"nutrient\",\"x\":12.933497721382983,\"z\":8.076904783354118,\"radius\":0.5241379813523963,\"phase\":5.919262972490739,\"consumed\":false},{\"id\":\"nutrient-04\",\"kind\":\"nutrient\",\"x\":7.934285495465213,\"z\":7.3891621108314345,\"radius\":0.5214414743194357,\"phase\":0.961149637751805,\"consumed\":false},{\"id\":\"nutrient-05\",\"kind\":\"nutrient\",\"x\":6.105927795441317,\"z\":10.17597120751693,\"radius\":0.6396221423102543,\"phase\":1.6919717711299684,\"consumed\":false},{\"id\":\"nutrient-06\",\"kind\":\"nutrient\",\"x\":4.366628818288588,\"z\":16.718851671215397,\"radius\":0.5397670406568795,\"phase\":1.30003087305835,\"consumed\":false},{\"id\":\"nutrient-07\",\"kind\":\"nutrient\",\"x\":2.061827379079735,\"z\":13.658434794169533,\"radius\":0.6857637031236663,\"phase\":2.000586018426403,\"consumed\":false},{\"id\":\"nutrient-08\",\"kind\":\"nutrient\",\"x\":-4.933844079978387,\"z\":15.272200740014487,\"radius\":0.5632406389852986,\"phase\":4.173263010755482,\"consumed\":false},{\"id\":\"nutrient-09\",\"kind\":\"nutrient\",\"x\":-14.092778860408327,\"z\":25.980926899083947,\"radius\":0.5379154211655259,\"phase\":3.0351715909653705,\"consumed\":false},{\"id\":\"nutrient-10\",\"kind\":\"nutrient\",\"x\":-20.869011032846522,\"z\":20.46590838883722,\"radius\":0.6139853945886716,\"phase\":1.1436141242557774,\"consumed\":false},{\"id\":\"nutrient-11\",\"kind\":\"nutrient\",\"x\":-19.780132939821133,\"z\":15.059347482265075,\"radius\":0.5368340539839119,\"phase\":0.5133656514428411,\"consumed\":false},{\"id\":\"nutrient-12\",\"kind\":\"nutrient\",\"x\":-19.299396560506224,\"z\":8.68305229968806,\"radius\":0.6002794874459505,\"phase\":4.9823161747472255,\"consumed\":false},{\"id\":\"nutrient-13\",\"kind\":\"nutrient\",\"x\":-25.57475991794972,\"z\":1.4938191309909117,\"radius\":0.6795828824024648,\"phase\":4.610825096904132,\"consumed\":false},{\"id\":\"nutrient-14\",\"kind\":\"nutrient\",\"x\":-18.468895084904595,\"z\":-4.771499764615461,\"radius\":0.6018429051712155,\"phase\":0.044385943938440316,\"consumed\":false},{\"id\":\"nutrient-15\",\"kind\":\"nutrient\",\"x\":-15.393619742477691,\"z\":-9.959979635343595,\"radius\":0.6799295597616584,\"phase\":4.075116502445175,\"consumed\":false},{\"id\":\"nutrient-16\",\"kind\":\"nutrient\",\"x\":-22.56252172656684,\"z\":-16.54641989779514,\"radius\":0.5813442951906472,\"phase\":3.391007082747608,\"consumed\":false},{\"id\":\"nutrient-17\",\"kind\":\"nutrient\",\"x\":-7.872471213459422,\"z\":-13.613895474670885,\"radius\":0.6275602891901508,\"phase\":3.967467548308428,\"consumed\":false},{\"id\":\"nutrient-18\",\"kind\":\"nutrient\",\"x\":-10.797049018644566,\"z\":-27.773219232879047,\"radius\":0.5955527965025976,\"phase\":5.133837421803929,\"consumed\":false},{\"id\":\"nutrient-19\",\"kind\":\"nutrient\",\"x\":2.3065112026738768,\"z\":-15.777030124349874,\"radius\":0.6067228332301602,\"phase\":0.9371631560128468,\"consumed\":false},{\"id\":\"nutrient-20\",\"kind\":\"nutrient\",\"x\":2.6411220182224926,\"z\":-19.74846158734807,\"radius\":0.6197793346969411,\"phase\":0.3542015541907494,\"consumed\":false},{\"id\":\"nutrient-21\",\"kind\":\"nutrient\",\"x\":10.349781270247028,\"z\":-15.76615448584998,\"radius\":0.6684648619638756,\"phase\":0.8674511216210825,\"consumed\":false},{\"id\":\"nutrient-22\",\"kind\":\"nutrient\",\"x\":17.525674961929393,\"z\":-20.108555646063497,\"radius\":0.5903187205037103,\"phase\":0.696539893133823,\"consumed\":false},{\"id\":\"nutrient-23\",\"kind\":\"nutrient\",\"x\":17.343513242840555,\"z\":-12.567401517383841,\"radius\":0.6549186369078234,\"phase\":0.061100827517576214,\"consumed\":false},{\"id\":\"nutrient-24\",\"kind\":\"nutrient\",\"x\":21.25114775560376,\"z\":-5.84938695274084,\"radius\":0.6691921968339012,\"phase\":0.7671890582179851,\"consumed\":false},{\"id\":\"prey-01\",\"kind\":\"prey\",\"x\":14.618131446170478,\"z\":3.2053351836366724,\"radius\":0.8497061013057828,\"phase\":4.868349174398494,\"consumed\":false},{\"id\":\"prey-02\",\"kind\":\"prey\",\"x\":-26.86224224019965,\"z\":-3.2911468194598568,\"radius\":0.9342655248194933,\"phase\":2.874984182516832,\"consumed\":false},{\"id\":\"prey-03\",\"kind\":\"prey\",\"x\":24.398224138760884,\"z\":11.480093734998881,\"radius\":0.7984791567176581,\"phase\":5.2391052939019085,\"consumed\":false},{\"id\":\"prey-04\",\"kind\":\"prey\",\"x\":-22.84745335542333,\"z\":-5.5488055054488274,\"radius\":0.8671919747442007,\"phase\":2.7561752349272766,\"consumed\":false},{\"id\":\"prey-05\",\"kind\":\"prey\",\"x\":-11.806435120906029,\"z\":-5.24798369697957,\"radius\":0.8085332711413503,\"phase\":4.227867259001598,\"consumed\":false},{\"id\":\"prey-06\",\"kind\":\"prey\",\"x\":13.640684595603805,\"z\":-5.185987416611077,\"radius\":0.8386822110414506,\"phase\":1.3101711233719062,\"consumed\":false},{\"id\":\"predator-01\",\"kind\":\"predator\",\"x\":-24,\"z\":22,\"radius\":1.8,\"phase\":-2.356194490192345,\"consumed\":false}],\"invulnerableSeconds\":0,\"biteCooldownSeconds\":0,\"dashCooldownSeconds\":0}"
+    },
+    {
+      "name": "steering changes cell position",
+      "passed": true,
+      "detail": "x=0.4"
+    },
+    {
+      "name": "cell remains inside movement bounds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "world edge is clamped",
+      "passed": true,
+      "detail": "x=34"
+    },
+    {
+      "name": "virtual joystick reports touch direction",
+      "passed": true,
+      "detail": "{\"x\":0.6715506715506716,\"z\":0}"
+    },
+    {
+      "name": "touch steering moves the cell without a keyboard",
+      "passed": true,
+      "detail": "{\"axes\":{\"x\":0.6715506715506716,\"z\":0},\"beforeX\":0,\"afterX\":0.26862026862026867}"
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 7,
+  "total": 7,
+  "completedAt": "2026-10-14T12:26:06.720Z"
+}

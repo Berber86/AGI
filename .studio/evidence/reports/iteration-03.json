@@ -1,0 +1,159 @@
+{
+  "iteration": 3,
+  "url": "http://127.0.0.1:5173/",
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "game booted with test bridge",
+      "passed": true,
+      "detail": "{\"phase\":\"menu\",\"seed\":1296646994,\"entities\":31,\"cellX\":0}"
+    },
+    {
+      "name": "steering changes cell position",
+      "passed": true,
+      "detail": "x=0.4"
+    },
+    {
+      "name": "cell remains inside movement bounds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "world edge is clamped",
+      "passed": true,
+      "detail": "x=34"
+    },
+    {
+      "name": "virtual joystick reports touch direction",
+      "passed": true,
+      "detail": "{\"x\":0.6715506715506716,\"z\":0}"
+    },
+    {
+      "name": "touch steering moves the cell without a keyboard",
+      "passed": true,
+      "detail": "{\"axes\":{\"x\":0.6715506715506716,\"z\":0},\"beforeX\":0,\"afterX\":0.26862026862026867}"
+    },
+    {
+      "name": "nutrient contact grants biomass once",
+      "passed": true,
+      "detail": "{\"firstAmount\":12,\"secondAmount\":12,\"collectedOnce\":true}"
+    },
+    {
+      "name": "touch bite consumes nearby prey for DNA and biomass",
+      "passed": true,
+      "detail": "{\"dna\":1,\"biomass\":24,\"eaten\":true,\"noDuplicateDna\":true}"
+    },
+    {
+      "name": "predator contact damages once and respects cooldown",
+      "passed": true,
+      "detail": "{\"healthAfterContact\":2,\"healthAfterCooldownFrame\":2}"
+    },
+    {
+      "name": "dash creates distance and a temporary safe window",
+      "passed": true,
+      "detail": "{\"before\":-22,\"after\":-17.400000000000002,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "touch dash button activates the escape action",
+      "passed": true,
+      "detail": "{\"distance\":4.599999999999998,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "equipped organs are visible and change movement mechanics",
+      "passed": true,
+      "detail": "{\"travel\":0.54,\"speedMultiplier\":1.35,\"flagellumVisible\":true,\"spinesVisible\":true,\"ciliaVisible\":false}"
+    },
+    {
+      "name": "all four selectable organs change the visible cell silhouette",
+      "passed": true,
+      "detail": "{\"flagellum\":true,\"cilia\":true,\"spines\":true,\"proboscis\":true}"
+    },
+    {
+      "name": "touch editor fills both organ slots and spends one DNA per slot",
+      "passed": true,
+      "detail": "{\"unlocked\":true,\"editorOpened\":true,\"phaseInEditor\":\"editor\",\"canSave\":true,\"closed\":true,\"finalPhase\":\"playing\",\"organs\":[\"flagellum\",\"proboscis\"],\"dna\":1,\"proboscisVisible\":true,\"flagellumVisible\":true}"
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 15,
+  "total": 15,
+  "completedAt": "2026-10-14T12:38:24Z",
+  "verification": {
+    "unitTests": {
+      "passed": 15,
+      "total": 15,
+      "command": "npm test"
+    },
+    "typescript": {
+      "passed": true,
+      "command": "npm run check"
+    },
+    "productionBuild": {
+      "passed": true,
+      "command": "npm run build",
+      "distBytes": 7157383,
+      "distMb": 7.16,
+      "mainBundleMinifiedMb": 6.756,
+      "mainBundleGzipMb": 1.476,
+      "warning": "Vite reports an entry chunk above 500 kB; code splitting is still needed despite total build remaining below 10 MB."
+    },
+    "browserSmoke": {
+      "passed": 15,
+      "total": 15,
+      "viewport": "844x390 touch landscape"
+    }
+  },
+  "evidence": [
+    ".studio/evidence/screenshots/iteration-03.png",
+    ".studio/evidence/screenshots/iteration-03-gameplay.png",
+    ".studio/evidence/screenshots/iteration-03-editor.png"
+  ],
+  "organEffects": {
+    "flagellum": "movement speed x1.35",
+    "cilia": "nutrient collection radius x1.55",
+    "spines": "repels a contacting predator",
+    "proboscis": "bite range x1.55 and prey biomass 36 rather than 24"
+  },
+  "sameSeedBuildSignatures": {
+    "baseline": [
+      0.4,
+      0,
+      0,
+      2
+    ],
+    "flagellum+cilia explorer": [
+      0.54,
+      36,
+      1,
+      2
+    ],
+    "spines+proboscis defender": [
+      0.4,
+      36,
+      1,
+      3
+    ],
+    "fields": [
+      "x displacement",
+      "biomass",
+      "DNA",
+      "health"
+    ]
+  },
+  "limitations": [
+    "Only 844x390 touch-capable headless Chromium was exercised; no physical Android device was tested.",
+    "Growth thresholds, final encounter, victory, pause/resume, and the production service worker/offline cache remain for later iterations.",
+    "The production build is below the 10 MB target, but its 6.756 MB main entry produces a chunk warning; optimize before release.",
+    "The 3D reference comparison is qualitative because only a single still image is available."
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "iteration": 2,
+  "url": "http://127.0.0.1:5173/",
+  "viewport": {
+    "width": 844,
+    "height": 390,
+    "mobile": true,
+    "touch": true
+  },
+  "checks": [
+    {
+      "name": "game booted with test bridge",
+      "passed": true,
+      "detail": "{\"phase\":\"menu\",\"seed\":1296646994,\"entities\":31,\"cellX\":0}"
+    },
+    {
+      "name": "steering changes cell position",
+      "passed": true,
+      "detail": "x=0.4"
+    },
+    {
+      "name": "cell remains inside movement bounds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "world edge is clamped",
+      "passed": true,
+      "detail": "x=34"
+    },
+    {
+      "name": "virtual joystick reports touch direction",
+      "passed": true,
+      "detail": "{\"x\":0.6715506715506716,\"z\":0}"
+    },
+    {
+      "name": "touch steering moves the cell without a keyboard",
+      "passed": true,
+      "detail": "{\"axes\":{\"x\":0.6715506715506716,\"z\":0},\"beforeX\":0,\"afterX\":0.26862026862026867}"
+    },
+    {
+      "name": "nutrient contact grants biomass once",
+      "passed": true,
+      "detail": "{\"firstAmount\":12,\"secondAmount\":12,\"collectedOnce\":true}"
+    },
+    {
+      "name": "touch bite consumes nearby prey for DNA and biomass",
+      "passed": true,
+      "detail": "{\"dna\":1,\"biomass\":24,\"eaten\":true,\"noDuplicateDna\":true}"
+    },
+    {
+      "name": "predator contact damages once and respects cooldown",
+      "passed": true,
+      "detail": "{\"healthAfterContact\":2,\"healthAfterCooldownFrame\":2}"
+    },
+    {
+      "name": "dash creates distance and a temporary safe window",
+      "passed": true,
+      "detail": "{\"before\":-22,\"after\":-17.400000000000002,\"health\":3,\"cooldown\":2.8}"
+    },
+    {
+      "name": "no browser console or runtime errors",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "passed": 11,
+  "total": 11,
+  "completedAt": "2026-10-14T12:28:15Z",
+  "verification": {
+    "unitTests": {
+      "passed": 10,
+      "total": 10,
+      "command": "npm test"
+    },
+    "typescript": {
+      "passed": true,
+      "command": "npm run check"
+    },
+    "productionBuild": {
+      "passed": true,
+      "command": "npm run build",
+      "mainBundleMinifiedMb": 6.75,
+      "mainBundleGzipMb": 1.475,
+      "warning": "Vite reports a chunk above 500 kB; retain as a performance task for later iterations."
+    }
+  },
+  "evidence": [
+    ".studio/evidence/screenshots/iteration-02.png",
+    ".studio/evidence/screenshots/iteration-02-gameplay.png"
+  ],
+  "limitations": [
+    "Only 844x390 touch-capable headless Chromium was exercised; no physical Android device was tested.",
+    "Evolution editor, growth thresholds, victory, pause/resume, production PWA/offline, and final bundle optimization remain for later iterations.",
+    "The 3D reference comparison is qualitative because only a single still image is available."
+  ]
+}

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#082a3d" />
+    <meta name="description" content="Исследуй первичный океан и измени свою клетку." />
+    <title>Первичный бульон: Микрогенез</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/microgenesis.svg" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <main id="game-root" aria-label="Первичный бульон: Микрогенез">
+      <canvas id="renderCanvas" aria-label="Трёхмерный мир первичного океана"></canvas>
+      <div class="water-grain" aria-hidden="true"></div>
+      <div class="screen-vignette" aria-hidden="true"></div>
+
+      <header class="brand-bar">
+        <a class="brand" href="./index.html" aria-label="Микрогенез — начало">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="brand-copy"><strong>МИКРОГЕНЕЗ</strong><small>жизнь начинается с выбора</small></span>
+        </a>
+        <div class="build-tag"><span class="live-dot"></span><span>ПЕРВИЧНЫЙ ОКЕАН</span></div>
+      </header>
+
+      <section id="menu-screen" class="menu-screen" aria-labelledby="game-title">
+        <div class="menu-card">
+          <div class="eyebrow"><span class="eyebrow-line"></span>ЭПОХА 01 · ПЕРВОЕ ДЫХАНИЕ</div>
+          <h1 id="game-title">Первичный<br /><em>бульон</em></h1>
+          <p class="menu-subtitle">Мир ещё не знает, кем ты станешь.</p>
+          <button id="start-button" class="primary-button" type="button">
+            <span class="play-icon" aria-hidden="true">▶</span>
+            <span>Начать экспедицию</span>
+            <span class="button-arrow" aria-hidden="true">↗</span>
+          </button>
+          <div class="menu-foot"><span>Исследуй</span><b>·</b><span>Собирай</span><b>·</b><span>Эволюционируй</span></div>
+        </div>
+        <div class="menu-orbit orbit-one" aria-hidden="true"></div>
+        <div class="menu-orbit orbit-two" aria-hidden="true"></div>
+        <div class="menu-note"><span class="note-dot"></span>СИГНАЛ ЖИЗНИ ОБНАРУЖЕН</div>
+      </section>
+
+      <section id="game-hud" class="game-hud is-hidden" aria-label="Показатели экспедиции">
+        <div class="hud-left">
+          <div class="hud-chip"><span class="chip-icon">◉</span><div><small>ЦЕЛОСТНОСТЬ</small><strong id="health-value">● ● ●</strong></div></div>
+          <div class="hud-chip"><span class="chip-icon dna-icon">⌘</span><div><small>БИОМАССА</small><strong id="biomass-value">0 <i>/ 100</i></strong></div></div>
+        </div>
+        <div class="hud-right">
+          <div class="hud-chip"><span class="chip-icon dna-icon">⌬</span><div><small>ДНК</small><strong id="dna-value">0</strong></div></div>
+          <button id="evolution-button" class="evolution-button is-hidden" type="button" aria-label="Открыть редактор эволюции">⌬ <span>МУТАЦИЯ</span></button>
+          <button id="pause-button" class="icon-button" type="button" aria-label="Пауза">Ⅱ</button>
+        </div>
+        <div class="stage-meter"><span></span><small>РОСТ КЛЕТКИ</small></div>
+      </section>
+
+      <div id="start-hint" class="start-hint is-hidden" aria-live="polite">
+        <span class="hint-pulse"></span>ТЯНИ ДЖОЙСТИК, ЧТОБЫ ПЛЫТЬ
+      </div>
+
+      <div id="action-controls" class="action-controls is-hidden" aria-label="Действия клетки">
+        <button id="bite-button" class="action-button bite-action" type="button" aria-label="Кусать добычу">
+          <span class="action-glyph" aria-hidden="true">✦</span><span class="action-copy"><strong>КУСАТЬ</strong><small>ДОБЫЧУ</small></span>
+        </button>
+        <button id="dash-button" class="action-button dash-action" type="button" aria-label="Рывок клетки">
+          <span class="action-glyph" aria-hidden="true">»</span><span class="action-copy"><strong>РЫВОК</strong><small id="dash-cooldown">ГОТОВ</small></span>
+        </button>
+      </div>
+
+      <section id="editor-screen" class="editor-screen is-hidden" aria-labelledby="editor-title" aria-modal="true" role="dialog">
+        <div class="editor-panel">
+          <header class="editor-header">
+            <div><div class="eyebrow"><span class="eyebrow-line"></span>ЛАБОРАТОРИЯ · МУТАЦИЯ</div><h2 id="editor-title">Собери своё преимущество</h2><p>Выбери орган для активного слота. Каждая новая мутация стоит 1 ДНК.</p></div>
+            <div class="editor-dna"><span>⌬</span><small>ДОСТУПНО</small><strong id="editor-dna-value">0</strong></div>
+          </header>
+          <div class="editor-slots" aria-label="Активные слоты органов">
+            <button id="slot-a" class="editor-slot selected" type="button" data-slot="0"><small>СЛОТ 01</small><strong>Пусто</strong></button>
+            <button id="slot-b" class="editor-slot" type="button" data-slot="1"><small>СЛОТ 02</small><strong>Пусто</strong></button>
+          </div>
+          <div class="organ-grid" aria-label="Выбери орган">
+            <button class="organ-card" type="button" data-organ="flagellum"><span class="organ-glyph glyph-flagellum" aria-hidden="true">〰</span><span class="organ-card-copy"><strong>Жгутик</strong><small>СКОРОСТЬ ПЛАВАНИЯ</small><em>+35% скорость</em></span></button>
+            <button class="organ-card" type="button" data-organ="cilia"><span class="organ-glyph glyph-cilia" aria-hidden="true">✳</span><span class="organ-card-copy"><strong>Реснички</strong><small>СЕНСОРНАЯ СЕТЬ</small><em>+55% радиус сбора</em></span></button>
+            <button class="organ-card" type="button" data-organ="spines"><span class="organ-glyph glyph-spines" aria-hidden="true">✣</span><span class="organ-card-copy"><strong>Шипы</strong><small>КОНТАКТНАЯ ЗАЩИТА</small><em>Отбрасывают хищника</em></span></button>
+            <button class="organ-card" type="button" data-organ="proboscis"><span class="organ-glyph glyph-proboscis" aria-hidden="true">⊙</span><span class="organ-card-copy"><strong>Хоботок</strong><small>ДИСТАНЦИОННЫЙ УКУС</small><em>Дальше укус · +50% добычи</em></span></button>
+          </div>
+          <div class="editor-footer"><p id="editor-feedback" aria-live="polite">Выбери слот и орган для мутации.</p><div><button id="editor-cancel" class="quiet-button" type="button">Назад</button><button id="editor-apply" class="primary-button editor-apply" type="button"><span>Сохранить мутацию</span><span class="button-arrow" aria-hidden="true">↗</span></button></div></div>
+        </div>
+      </section>
+
+      <section id="loss-screen" class="loss-screen is-hidden" aria-labelledby="loss-title">
+        <div class="loss-card"><span class="loss-eyebrow">СИГНАЛ КЛЕТКИ ПРЕРВАН</span><h2 id="loss-title">Новая попытка?</h2><p>Первичный океан всё ещё полон возможностей.</p><button id="retry-button" class="primary-button" type="button"><span class="play-icon" aria-hidden="true">↻</span><span>Начать заново</span><span class="button-arrow" aria-hidden="true">↗</span></button></div>
+      </section>
+
+      <div id="joystick" class="joystick is-hidden" role="application" aria-label="Виртуальный джойстик. Перетаскивай палец, чтобы двигаться">
+        <div class="joystick-ring"><span class="joystick-cross cross-x"></span><span class="joystick-cross cross-y"></span><span class="joystick-knob"></span></div>
+        <span class="joystick-caption">ДВИЖЕНИЕ</span>
+      </div>
+
+      <aside class="iteration-stamp" aria-hidden="true"><span>SOUP / 01</span><span>FIELD NOTES</span></aside>
+      <div id="orientation-hint" class="orientation-hint" role="status">
+        <div class="rotate-icon" aria-hidden="true"><span></span></div>
+        <strong>Поверни устройство</strong>
+        <small>Экспедиция удобнее в альбомном режиме</small>
+      </div>
+      <div id="loading-status" class="loading-status" role="status">Создаём микромир…</div>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
