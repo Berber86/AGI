@@ -574,6 +574,7 @@ export function createCar(opts = {}) {
   body.add(decals);
 
   // ---------------- headlights (set into the front fenders)
+  const bulbMat = new THREE.MeshBasicMaterial({ color: '#fff8e0', toneMapped: false });
   for (const side of [-1, 1]) {
     const H = HEADLIGHT;
     const h = { point: new THREE.Vector3(side * H.p[0], H.p[1], H.p[2]), normal: new THREE.Vector3(side * H.n[0], H.n[1], H.n[2]).normalize() };
@@ -583,7 +584,7 @@ export function createCar(opts = {}) {
     refl.position.z = -0.045;
     const lens = new THREE.Mesh(new THREE.SphereGeometry(0.2, 28, 6, 0, Math.PI * 2, 0, 0.78), glass);
     lens.rotation.x = Math.PI / 2; lens.position.z = -0.135;
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), new THREE.MeshBasicMaterial({ color: '#fff8e0' }));
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.035, 16, 10), bulbMat);
     bulb.position.z = -0.03;
     g.add(bezel, refl, lens, bulb);
     mount(g, h, 0.012);
@@ -1096,6 +1097,62 @@ export function createCar(opts = {}) {
   underglow.rotation.x = -Math.PI / 2;
   underglow.position.y = 0.05;
   root.add(underglow);
+
+  // tunnel headlights: one real spot (always in the scene so the light count —
+  // and therefore every compiled shader — stays the same; intensity 0 in the
+  // open), two additive light beams and brighter reflectors/bulbs.
+  const headSpot = new THREE.SpotLight(0xfff1d8, 0, 46, 0.62, 0.55, 1.4);
+  headSpot.position.set(0, 0.85, 2.0);
+  headSpot.target.position.set(0, -0.6, 16);
+  headSpot.castShadow = false;
+  root.add(headSpot, headSpot.target);
+  const beamTex = canvasTex(16, 128, (g) => {
+    const grd = g.createLinearGradient(0, 0, 0, 128); // canvas top = far end (v = 1)
+    grd.addColorStop(0, 'rgba(0,0,0,1)');
+    grd.addColorStop(0.55, 'rgba(70,60,45,1)');
+    grd.addColorStop(1, 'rgba(255,240,210,1)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 16, 128);
+  }, { srgb: false });
+  const beamMat = new THREE.MeshBasicMaterial({
+    map: beamTex, color: '#fff0d0', transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false,
+  });
+  const beams = new THREE.Group();
+  {
+    // narrow end at the lamp, opening forward (+Z)
+    const geo = new THREE.CylinderGeometry(1.5, 0.12, 9, 20, 1, true).rotateX(Math.PI / 2).translate(0, 0, 4.5);
+    for (const side of [-1, 1]) {
+      const b = new THREE.Mesh(geo, beamMat);
+      b.position.set(side * HEADLIGHT.p[0], HEADLIGHT.p[1], HEADLIGHT.p[2] + 0.05);
+      b.rotation.x = 0.07; // dipped beams
+      b.rotation.y = side * 0.04;
+      b.renderOrder = 3;
+      beams.add(b);
+    }
+  }
+  beams.visible = false;
+  root.add(beams);
+  const envMats = [];
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      if (m && m.envMap && !envMats.some((e) => e.m === m)) envMats.push({ m, k: m.envMapIntensity });
+    }
+  });
+  const GLOW0 = headGlow.emissiveIntensity, BULB0 = bulbMat.color.clone();
+  let headK = -1;
+  function setHeadlights(k) {
+    if (k === headK) return;
+    headK = k;
+    headSpot.intensity = 70 * k;
+    beams.visible = k > 0.02;
+    beamMat.opacity = 0.2 * k;
+    headGlow.emissiveIntensity = GLOW0 + 3.2 * k;
+    bulbMat.color.copy(BULB0).multiplyScalar(1 + 5 * k);
+    for (const e of envMats) e.m.envMapIntensity = e.k * (1 - 0.72 * k);
+  }
+
   root.traverse((o) => { o.userData.noCollide = true; }); // the car belongs on the road
 
   let wheelSpin = 0;
@@ -1115,6 +1172,8 @@ export function createCar(opts = {}) {
     lily: lily.root,
     lilyRig: lily,
     stats,
+    setHeadlights,
+    headSpot,
     update(dt, { speed = 0, steer = 0, boost = false, offRoad = false } = {}) {
       const t = performance.now() * 0.001;
       wheelSpin += (speed / wheelR) * dt;

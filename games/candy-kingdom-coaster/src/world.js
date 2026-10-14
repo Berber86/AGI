@@ -1862,7 +1862,17 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     instanceGroups(world, coasterCars, 'coasterTrain'),
   ];
 
+  // tunnel darkness (0 = open sky, 1 = deep inside the Swiss roll)
+  const HEMI0 = hemi.intensity, SUN0 = sun.intensity;
+  let darkK = -1;
+  function setDarkness(k) {
+    if (k === darkK) return;
+    darkK = k;
+    hemi.intensity = HEMI0 * (1 - 0.86 * k);
+    sun.intensity = SUN0 * (1 - 0.93 * k);
+  }
   return {
+    hemi, setDarkness,
     sky, sun,
     mountainDebug: () => mountainDebug,
     knockedCount: () => knockItems.reduce((n, it) => n + (it.state ? 1 : 0), 0),

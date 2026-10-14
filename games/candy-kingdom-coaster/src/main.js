@@ -15,6 +15,7 @@ import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
 import { createBridge } from './bridge.js';
+import { createTunnel } from './tunnel.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
@@ -60,11 +61,24 @@ await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
-const world = createWorld(scene, track, renderer, TEX, bridge);
+const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (cocoa → marshmallow)
+// props avoid both the river valley and the cake body
+const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) });
 const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);
+// Inside the tunnel the daylight fades (hemi + sun dim, car reflections dim)
+// and the car's headlight spot comes on; the sponge walls carry baked lantern
+// light, so this is the only real-time light change.
+let tunnelK = 0;
+function tunnelTick(dt, s) {
+  const k = tunnel.darkness(s);
+  tunnelK = k;
+  world.setDarkness(k);
+  car.setHeadlights(k);
+  tunnel.update(dt, performance.now() * 0.001, s);
+}
 const sweets = createSweets(scene, track, ramps);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
@@ -492,6 +506,7 @@ function updateGameplay(dt) {
     car.update(dt, { speed: 0, steer: 0, boost: false });
     const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
     bridge.update(dt, performance.now() * 0.001);
+    tunnelTick(dt, game.s);
     finishFx.update(dt);
     if (game.introT >= T && game.state === 'intro') beginCountdown();
     return;
@@ -680,6 +695,7 @@ function updateGameplay(dt) {
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
   bridge.update(dt, performance.now() * 0.001);
+  tunnelTick(dt, game.s);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
   finishFx.update(dt);
   // driving sound layer follows speed
@@ -715,6 +731,7 @@ function frame(now, dt) {
     trail.update(dt, car.root, 6, false);
     world.update(dt, camera.position, 0.01, now * 0.001);
     bridge.update(dt, now * 0.001);
+    tunnelTick(dt, 12);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
     if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
@@ -821,7 +838,10 @@ window.__TEST__ = {
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
   // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
-  internals() { return { renderer, scene, camera, composer, world, car, governor }; },
+  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel }; },
+  tunnelInfo() {
+    return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
+  },
   // perf QA: compiled shader programs / GPU textures / governor tier
   perf() {
     return { programs: renderer.info.programs.length, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, tier: governor.tier };
