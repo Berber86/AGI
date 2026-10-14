@@ -11,6 +11,7 @@ import { SFX } from './audio.js';
 import { Input } from './input.js';
 import { createTrack } from './track.js';
 import { createCar, createTrail } from './car.js';
+import { createDust } from './dust.js';
 import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
@@ -68,6 +69,7 @@ const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);
+const dust = createDust(scene, track); // off-road sugar puffs (see the offRoad flag below)
 // Inside the tunnel the daylight fades (hemi + sun dim, car reflections dim)
 // and the car's headlight spot comes on; the sponge walls carry baked lantern
 // light, so this is the only real-time light change.
@@ -192,6 +194,7 @@ function startRace() {
   game.introT = 0;
   resetJump();
   sweets.reset();
+  dust.reset();
   input.releaseAll();
   showScreen(null);
   el.countdown.classList.add('hidden');
@@ -635,13 +638,16 @@ function updateGameplay(dt) {
     const k = Math.sin((game.landSquash / 0.42) * Math.PI) * Math.min(1, game.landSquash / 0.42 + 0.4);
     car.root.scale.set(1 + k * 0.10, 1 - k * 0.20, 1 + k * 0.06);
   } else car.root.scale.setScalar(1);
+  // past the curb: the car rumbles, slows and now throws sugar dust
+  const offRoad = Math.abs(game.lateral) > TUNING.roadHalfWidth + 0.6;
   car.update(dt, {
     speed: game.speed,
     steer: input.steer || (game.lateral < -0.3 ? -0.25 : game.lateral > 0.3 ? 0.25 : 0),
     boost: game.boostActive,
-    offRoad: Math.abs(game.lateral) > TUNING.roadHalfWidth + 0.6,
+    offRoad,
   });
   trail.update(dt, car.root, game.speed, game.boostActive);
+  dust.update(dt, car.root, game.speed, offRoad, game.lateral, game.s);
 
   // camera: readable chase view with a slight 3/4 flank offset
   // (getPose extrapolates along the pseudo road behind the start, so the
@@ -839,6 +845,7 @@ window.__TEST__ = {
   },
   // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
   internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel }; },
+  dustInfo() { return { puffs: dust.count() }; },
   tunnelInfo() {
     return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
   },
