@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "title": "Белая ночь: находки",
+  "elevatorPitch": "Спокойный поиск вещей в мусорном баке петербургского двора белой ночью.",
+  "playerFantasy": "Замечать маленькие сокровища в забытых вещах",
+  "genre": "3D collection arcade",
+  "audience": "mobile and desktop casual players",
+  "coreLoop": [
+    "3 taps on bin",
+    "inspect and rotate 3D find",
+    "discard or keep",
+    "fill persistent unique catalog"
+  ],
+  "perspective": "Fixed perspective courtyard, in-world inspection",
+  "orientation": "portrait",
+  "sessionLength": "Open-ended, 1–5 minute visits",
+  "controls": [
+    "tap bin or search button three times",
+    "drag found object to rotate",
+    "cross discards",
+    "checkmark keeps",
+    "touch catalog cards to review"
+  ],
+  "progression": "12 interesting objects + 6 junk objects; unique catalog, duplicates marked; local save",
+  "difficulty": "No timer, no loss, weighted rarities",
+  "visualDirection": "White night in Saint Petersburg; realistic procedural geometry, PBR materials, soft shadows, aged courtyard; Three.js; no AAA claim",
+  "audioDirection": "Silent",
+  "winCondition": "All 18 unique finds kept; completion notification, continue searching",
+  "loseCondition": "None by explicit user selection; discard is a reversible choice through future finds",
+  "mustHave": [
+    "One courtyard and detailed bin",
+    "12 interesting finds and 6 junk finds",
+    "Three-tap search animation",
+    "In-world rotating inspection",
+    "Keep/discard and duplicate marking",
+    "Saved catalog with reinspection",
+    "Portrait touch-first UI"
+  ],
+  "outOfScope": [
+    "Full AAA production",
+    "Trading",
+    "Sound",
+    "Timer",
+    "Fail state",
+    "Multiple courtyards",
+    "Backend",
+    "Multiplayer",
+    "Physical Android performance certification"
+  ],
+  "acceptanceCriteria": [
+    "Search opens exactly one object after three taps",
+    "Drag changes object rotation",
+    "Discard does not add collection entry",
+    "Keep adds unique entry; duplicates do not inflate progress",
+    "All 18 objects can be displayed and collected",
+    "Reload preserves progress",
+    "Completion state at 18/18 and reset works",
+    "Touch controls usable at 360x800 and 412x915",
+    "Visibility pause and resume",
+    "Static production build works under subpath with local assets and offline after cache"
+  ],
+  "platform": {
+    "primary": "mobile-browser",
+    "device": "Android",
+    "installablePwa": true,
+    "offline": "After first successful production load"
+  },
+  "technical": {
+    "profile": "threejs-vite-javascript",
+    "rendererDprCap": 1.5,
+    "targetFps": 30,
+    "fallbackFps": 30,
+    "maxInitialAssetMb": 8,
+    "deployment": "Static build, GitHub Pages compatible"
+  },
+  "approvedAt": "2026-10-14T17:29:22.525512+00:00",
+  "updatedAt": "2026-10-14T17:29:22.525512+00:00",
+  "initialRequestPath": ".studio/request.md"
+}

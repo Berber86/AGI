@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Search, inspection and persistent collection vertical slice",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Three taps opens one find",
+        "Keep/discard/duplicate/restart reducer unit tests pass"
+      ],
+      "evidence": [
+        "games/white-night/tests/state.test.js",
+        ".studio/evidence/reports/core.json"
+      ]
+    },
+    {
+      "id": "ART-001",
+      "title": "Courtyard, bin, 18 object models and responsive UI",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "18 recognizable models",
+        "Portrait and desktop composition",
+        "In-world rotation and catalogue"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/desktop-final.png",
+        ".studio/evidence/screenshots/mobile-412-inspect.png",
+        ".studio/evidence/screenshots/mobile-360-junk.png"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Production browser, touch and persistence verification",
+      "ownerRole": "mobile-qa",
+      "status": "done",
+      "dependencies": [
+        "ART-001"
+      ],
+      "acceptanceCriteria": [
+        "Mobile screenshots at both required viewports",
+        "Console errors absent",
+        "Production offline and subpath tests",
+        "Keep/discard/review/reload/complete/reset assertions"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/reports/desktop.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Preview and documented static release",
+      "ownerRole": "release-manager",
+      "status": "done",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Live preview available",
+        "Known limitations and evidence recorded"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json",
+        "games/white-night/README.md"
+      ]
+    }
+  ],
+  "updatedAt": "2026-10-14T18:07:14.293992+00:00"
+}
