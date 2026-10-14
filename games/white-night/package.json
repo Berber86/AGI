@@ -11,7 +11,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "test:e2e": "node tests/e2e.mjs",
     "gate": "npm run check && npm test && npm run build && npm run test:e2e",
-    "test:desktop": "node tests/desktop.mjs"
+    "test:desktop": "node tests/desktop.mjs",
+    "export:static": "npm run build && node scripts/export-static.mjs",
+    "test:catalog": "node tests/catalog.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",

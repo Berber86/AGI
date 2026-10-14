@@ -86,7 +86,7 @@
 <body>
   <header>
     <h1>Наши игры</h1>
-    <p class="sub">Статические браузерные игры для детей — запускаются сразу, без сети и аккаунтов. Собраны агентом Arena.ai.</p>
+    <p class="sub">Браузерные игры — без установки и аккаунтов. Выбирайте мир и начинайте играть. Собраны агентом Arena.ai.</p>
   </header>
 
   <main class="grid" id="games">
@@ -110,11 +110,31 @@
         <a class="play" href="./games/candy-kingdom-coaster/index.html">▶ Играть</a>
       </div>
     </article>
+    <article class="card" data-game="white-night">
+      <a href="./games/white-night/play/index.html" aria-label="Белая ночь — Бюро находок">
+        <img class="thumb"
+             src="./games/white-night/cover.webp"
+             alt="Белая ночь — мусорный бак в петербургском дворе-колодце"
+             loading="lazy">
+      </a>
+      <div class="body">
+        <h2>Белая ночь — Бюро находок</h2>
+        <p>Атмосферная 3D-игра про поиск находок в петербургском дворе. Три касания бака — и перед вами объёмная вещь: покрутите её, выбросьте или заберите в коллекцию. Найдите 12 вещей с историей и 6 видов хлама. Без спешки, звука и проигрыша.</p>
+        <div class="tags">
+          <span class="tag">Three.js</span>
+          <span class="tag">18 находок</span>
+          <span class="tag">Тач и мышь</span>
+          <span class="tag">Сохранение коллекции</span>
+          <span class="tag">PWA · offline после загрузки</span>
+        </div>
+        <a class="play" href="./games/white-night/play/index.html">▶ Играть</a>
+      </div>
+    </article>
     <!-- Новые игры добавляются карточкой в этот список -->
   </main>
 
   <footer>
-    Игры лежат в <code>games/</code> и работают как статические страницы — их можно открыть локально,
+    Игры лежат в <code>games/</code> и работают как статические страницы — их можно запустить через локальный HTTP-сервер,
     из любого подкаталога или опубликовать как GitHub Pages. Подробности проекта — в
     <a href="./README.md">README</a> и <a href="./AGENTS.md">AGENTS.md</a>.
   </footer>

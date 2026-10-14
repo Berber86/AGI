@@ -2,6 +2,23 @@
 
 Небольшая самостоятельная 3D-игра на **Three.js + Vite**. Белая ночь, двор-колодец на Петроградской стороне, один бак и 18 находок. Предыдущая игра и исходники skill не изменены.
 
+## Запуск из общего каталога
+
+В корневом `index.html` есть карточка «Белая ночь» с обложкой и кнопкой **Играть**. Она открывает `games/white-night/play/index.html`: готовую локальную сборку, которая хранится в Git, чтобы обычный статический хостинг работал **без Node.js и Vite**.
+
+Из корня репозитория: `python3 -m http.server 8000` — затем откройте общий каталог. На статическом хостинге достаточно файлов репозитория; никаких дополнительных настроек сборки не нужно. Для WebGL используйте браузер с аппаратным ускорением, а для service worker — HTTPS или localhost.
+
+После изменения исходников обновляйте опубликованные файлы:
+
+```sh
+cd games/white-night
+npm ci
+npm run export:static
+npm run test:catalog
+```
+
+`export:static` пересобирает `dist/`, затем полностью обновляет `play/`, удаляя устаревшие хешированные файлы. Коммитьте исходники и обновлённый `play/` вместе. Это намеренное небольшое исключение для каталога статических игр: `node_modules/` и промежуточный `dist/` по-прежнему не входят в Git.
+
 ## Играть
 
 - Трижды нажмите на бак либо на «Порыться в баке».
@@ -44,6 +61,7 @@ npm run build       # relative static bundle + generated offline cache
 npm run test:e2e    # production subpath server + real Chromium touch checks
 npm run gate        # all four above
 npm run test:desktop # production preview must be running at port 5173
+npm run test:catalog # переход из корневого каталога на обычном статическом сервере
 npm audit
 ```
 

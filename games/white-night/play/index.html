@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#1c2825" />
+  <meta name="description" content="Белая ночь. Петербургский двор. И целая жизнь в забытых вещах. Атмосферная 3D-игра о маленьких находках." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <title>Белая ночь — Бюро находок</title>
+  <script type="module" crossorigin src="./assets/index-D7B7-QLm.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C9HJWZBs.css">
+</head>
+<body>
+  <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-mark" viewBox="0 0 32 32"><path d="m16 3 12 7v13l-12 7L4 23V10l12-7Z M4 10l12 7 12-7M16 17v13M10 6.5l12 7v7"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M8 12V5a2 2 0 0 1 4 0v6-3a2 2 0 0 1 4 0v4-2a2 2 0 0 1 4 0v5c0 5-3 7-7 7-3 0-4-2-5-3L3 13a2 2 0 0 1 3-2l2 1Z"/></symbol>
+    <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14-3l2 3M20 3v6h-6M20 15a8 8 0 0 1-14 3l-2-3M4 21v-6h6"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.7 7.3L22 12l-7.3 2.7L12 22l-2.7-7.3L2 12l7.3-2.7L12 2Z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  </defs></svg>
+  <main id="app">
+    <canvas id="world" aria-label="Петербургский двор. Нажмите на мусорный бак три раза, чтобы найти предмет."></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <div class="inspection-shade" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="wordmark" href="./" aria-label="Белая ночь — главная"><svg><use href="#i-mark"/></svg><span>БЮРО<br>НАХОДОК</span></a>
+      <div class="top-location"><span class="live-dot"></span> САНКТ-ПЕТЕРБУРГ <span class="divider">/</span> 02:17</div>
+      <nav aria-label="Игра"><button class="collection-trigger" id="open-collection"><svg><use href="#i-grid"/></svg><span class="nav-label">Коллекция</span><span id="header-count" class="count">00 <small>/ 18</small></span></button><button id="open-settings" class="icon-button" aria-label="Настройки и помощь"><svg><use href="#i-settings"/></svg></button></nav>
+    </header>
+    <section class="hero search-only">
+      <div class="eyebrow"><span></span> МАЛЕНЬКИЕ ИСТОРИИ БОЛЬШОГО ГОРОДА</div>
+      <h1>Белая<br class="desktop-break"> ночь<span>.</span></h1>
+      <p>Ничего не бывает совсем ненужным.</p>
+      <div class="edition">ПЕТЕРБУРГ, ИЮНЬ <i></i> ГЛАВА 01</div>
+    </section>
+    <aside class="field-note search-only"><span class="note-number">01 — 18</span><p>У каждой вещи<br>есть продолжение.</p><div class="note-rule"></div><span>НАЙДИТЕ СВОЁ</span></aside>
+    <div class="bin-tag search-only"><span class="target-dot"></span><span>БАК № 017<small>Нажмите, чтобы поискать</small></span></div>
+    <section class="search-controls search-only" aria-label="Поиск находок">
+      <div class="search-status"><span id="search-caption">Интересно, что там сегодня?</span><div class="tap-dots" aria-label="Нажатий: 0 из 3"><i></i><i></i><i></i></div></div>
+      <button id="search-button" class="primary"><svg><use href="#i-hand"/></svg><span>Порыться в баке</span><svg class="arrow"><use href="#i-arrow"/></svg></button>
+      <p class="control-hint">Три касания. Одна маленькая история.</p>
+    </section>
+    <section class="inspection" hidden aria-label="Осмотр находки">
+      <div class="find-header"><span id="find-rarity" class="rarity"><i></i> РЕДКАЯ НАХОДКА</span><span id="find-number">НАХОДКА № 001</span></div>
+      <div class="rotation-hint"><svg><use href="#i-rotate"/></svg> Вращайте предмет</div>
+      <div class="find-info"><span id="find-era" class="eyebrow"></span><h2 id="find-name"></h2><p id="find-description"></p><span id="duplicate-badge" hidden>Уже есть в коллекции</span></div>
+      <div class="decision-buttons"><button id="discard" class="decision discard"><svg><use href="#i-close"/></svg><span>Выбросить</span></button><button id="keep" class="decision keep"><svg><use href="#i-check"/></svg><span>Забрать</span></button></div>
+      <button id="close-review" class="primary" hidden><svg><use href="#i-arrow"/></svg> Вернуться в коллекцию</button>
+    </section>
+    <footer class="bottom-meta search-only"><div class="place"><svg><use href="#i-pin"/></svg><div>Петроградская сторона<small>59°57′ N &nbsp; 30°18′ E</small></div></div><div class="session-stat"><span id="search-total">00</span><small>НАХОДОК ЗА ВСЁ ВРЕМЯ</small></div><span class="quiet-label">БЕЗ СПЕШКИ. БЕЗ ЗВУКА.</span></footer>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="loading"><svg><use href="#i-mark"/></svg><h2>Уже почти белая ночь.</h2><span>Открываем дверь во двор…</span><div class="loading-line"></div></div>
+    <div id="webgl-error" hidden><h2>Двор пока не открылся</h2><p>Для игры нужен браузер с WebGL 2. Попробуйте включить аппаратное ускорение или открыть игру в свежей версии Chrome.</p><button onclick="location.reload()" class="primary">Попробовать снова</button></div>
+  </main>
+  <dialog id="collection-dialog" class="collection-dialog">
+    <div class="dialog-header"><div><span class="eyebrow">ВАШ ЛИЧНЫЙ АРХИВ</span><h2>Найдено и сохранено<span>.</span></h2></div><button class="icon-button" data-close="collection-dialog" aria-label="Закрыть коллекцию"><svg><use href="#i-close"/></svg></button></div>
+    <div class="collection-summary"><span><strong id="collection-count">0</strong> / 18 <small>вещей с продолжением</small></span><div class="progress-track"><div id="collection-progress"></div></div></div>
+    <div class="filter-tabs" role="group" aria-label="Фильтр коллекции"><button data-filter="all" class="active">Все находки <span>18</span></button><button data-filter="treasures">Вещи с историей <span>12</span></button><button data-filter="junk">Просто хлам <span>6</span></button></div>
+    <p class="catalog-hint">Сохранённую вещь можно открыть и рассмотреть ещё раз.</p><div id="collection-grid"></div>
+    <div class="dialog-foot"><span>Забытые вещи. Новые истории.</span><span id="save-status">Прогресс сохраняется на этом устройстве</span></div>
+  </dialog>
+  <dialog id="settings-dialog" class="small-dialog"><div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ</span><h2>Без спешки.</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="Закрыть настройки"><svg><use href="#i-close"/></svg></button></div><div class="instructions"><div><b>01</b><p>Нажмите на бак три раза.<small>Или используйте кнопку внизу экрана.</small></p></div><div><b>02</b><p>Рассмотрите находку.<small>Тяните пальцем или мышью, чтобы вращать.</small></p></div><div><b>03</b><p>Выбросите или сохраните.<small>Крестик — оставить. Галочка — забрать себе.</small></p></div></div><label class="quality-setting"><span>Облегчённая графика<small>Меньше нагрузки на телефон, без теней</small></span><input type="checkbox" id="low-quality" role="switch"></label><p class="settings-note">12 вещей с историей и 6 видов хлама. Без таймера, проигрыша и звука. Прогресс хранится только в этом браузере.</p><button id="reset-button" class="text-button">Начать коллекцию заново</button><div id="reset-confirm" hidden><p>Удалить все сохранённые находки?</p><div class="reset-actions"><button id="reset-cancel">Нет, оставить</button><button id="reset-yes">Да, начать заново</button></div></div></dialog>
+  <dialog id="complete-dialog" class="small-dialog completion"><div class="completion-icon"><svg><use href="#i-spark"/></svg></div><span class="eyebrow">18 ИЗ 18 · КОЛЛЕКЦИЯ СОБРАНА</span><h2>Ничего<br>не потеряно.</h2><p>У всех этих вещей появилось продолжение.<br>И у этой белой ночи — тоже.</p><button id="continue-button" class="primary">Ещё немного погулять <svg><use href="#i-arrow"/></svg></button><button id="view-complete" class="text-button">Посмотреть коллекцию</button></dialog>
+</body>
+</html>
