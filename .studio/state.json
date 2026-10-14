@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "phase": "building",
   "activeRole": "builder",
-  "currentTask": "VISUAL-V4-5",
-  "lastAction": "Iteration 4 scene reviewed at 1280, 412 and 360; real bin touch and low quality passed",
-  "nextAction": "Iteration 5 localized wear and print/material readability",
+  "currentTask": "VISUAL-V4-6",
+  "lastAction": "Iteration 5 targeted seven-item browser review, syntax, 15 unit tests and build passed",
+  "nextAction": "Iteration 6 staged reveal, feedback and final all-item/static/offline regression",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-15-visual-v3.md",
   "sessionBenchmark": {

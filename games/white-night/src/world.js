@@ -164,6 +164,8 @@ export class World {
  show(id){
   this.dirty=true;this.zoom=1;if(this.item)this.itemAnchor.remove(this.item);
   this.item=this.getModel(id);this.itemAnchor.add(this.item);
+  this.inspectLamp.intensity=PRESENTATION[id].lamp??12;this.itemRim.intensity=PRESENTATION[id].rim??13;
+  this.inspectLamp.position.set(...(PRESENTATION[id].lightPosition??[-1.5,2,-1.8]));
   this.item.rotation.set(...PRESENTATION[id].rotation);this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;
   this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;
   this.item.traverse(o=>{if(o.isMesh)o.castShadow=false;});this.reveal=this.reduced?1:0;

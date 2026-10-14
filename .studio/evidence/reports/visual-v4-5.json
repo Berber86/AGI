@@ -1,0 +1,136 @@
+{
+  "passed": true,
+  "iteration": "5",
+  "models": [
+    {
+      "id": "book",
+      "bounds": {
+        "min": [
+          -0.7229555358599555,
+          -1.05,
+          -0.24546944071920862
+        ],
+        "max": [
+          0.7229555358599555,
+          1.05,
+          0.24546944071920862
+        ]
+      },
+      "modeledParts": 68,
+      "materialBatches": 7
+    },
+    {
+      "id": "badge",
+      "bounds": {
+        "min": [
+          -0.7293531963644387,
+          -1.05,
+          -0.1265256588520747
+        ],
+        "max": [
+          0.7293531963644387,
+          1.05,
+          0.1265256588520747
+        ]
+      },
+      "modeledParts": 9,
+      "materialBatches": 5
+    },
+    {
+      "id": "record",
+      "bounds": {
+        "min": [
+          -1.05,
+          -1.05,
+          -0.03415662807882233
+        ],
+        "max": [
+          1.05,
+          1.05,
+          0.03415662807882233
+        ]
+      },
+      "modeledParts": 7,
+      "materialBatches": 5
+    },
+    {
+      "id": "box",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.530304624390368,
+          -0.7892261633741444
+        ],
+        "max": [
+          1.05,
+          0.530304624390368,
+          0.7892261633741444
+        ]
+      },
+      "modeledParts": 49,
+      "materialBatches": 5
+    },
+    {
+      "id": "can",
+      "bounds": {
+        "min": [
+          -0.7145319914877832,
+          -1.05,
+          -0.713198972005731
+        ],
+        "max": [
+          0.7145319914877832,
+          1.05,
+          0.713198972005731
+        ]
+      },
+      "modeledParts": 14,
+      "materialBatches": 3
+    },
+    {
+      "id": "cup",
+      "bounds": {
+        "min": [
+          -0.8761723631298971,
+          -1.05,
+          -0.8411525972897724
+        ],
+        "max": [
+          0.8761723631298971,
+          1.05,
+          0.8411525972897724
+        ]
+      },
+      "modeledParts": 5,
+      "materialBatches": 3
+    },
+    {
+      "id": "paper",
+      "bounds": {
+        "min": [
+          -0.8370629572624678,
+          -1.05,
+          -0.15360902802827245
+        ],
+        "max": [
+          0.8370629572624678,
+          1.05,
+          0.15360902802827245
+        ]
+      },
+      "modeledParts": 2,
+      "materialBatches": 1
+    }
+  ],
+  "checks": [
+    "Zoom endpoints disable controls and reset restores baseline",
+    "360x800: safe framing, no horizontal overflow",
+    "844x390: safe framing, no horizontal overflow",
+    "1280x900: safe framing, no horizontal overflow"
+  ],
+  "errors": [],
+  "limitations": [
+    "SwiftShader, not Android hardware.",
+    "Reduced motion; screenshots do not certify animation quality."
+  ]
+}

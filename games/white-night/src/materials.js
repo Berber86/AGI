@@ -33,7 +33,7 @@ function surface(kind){
         c.strokeStyle='#525653';c.lineWidth=.2;c.stroke();
       }
     } else if(kind==='cloth'){
-      for(let i=0;i<s;i+=3){c.strokeStyle=i%2?'#a49d8c':'#736d64';c.lineWidth=.6;c.beginPath();c.moveTo(i,0);c.lineTo(i,s);c.moveTo(0,i);c.lineTo(s,i);c.stroke();}
+      for(let i=0;i<s;i+=3){c.strokeStyle=i%2?'rgba(185,182,170,.20)':'rgba(101,104,94,.16)';c.lineWidth=.45;c.beginPath();c.moveTo(i,0);c.lineTo(i,s);c.moveTo(0,i);c.lineTo(s,i);c.stroke();}
     } else {
       for(let i=0;i<14000;i++){
         const value=kind==='paper'?'rgba(112,94,58,.07)':'rgba(28,33,32,.09)';

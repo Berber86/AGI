@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { agePoint } from './aging.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials as M, canvasTexture, distress, seeded } from './materials.js';
@@ -210,7 +211,10 @@ function book(g){
   decal(g,.98,1.4,[.035,0,.18],(c,w,h,r)=>{
     c.strokeStyle='#b89a5c';c.lineWidth=2;c.strokeRect(30,30,w-60,h-60);c.strokeRect(44,44,w-88,h-88);
     c.textAlign='center';c.fillStyle='#c5a76b';c.font=`${w*.06}px Georgia`;c.fillText('АЛЕКСАНДР',w/2,h*.23);c.font=`${w*.16}px Georgia`;c.fillText('БЛОК',w/2,h*.37);
-    c.lineWidth=1;c.beginPath();c.moveTo(w*.3,h*.47);c.lineTo(w*.7,h*.47);c.stroke();c.font=`${w*.044}px Georgia`;c.fillText('СТИХОТВОРЕНИЯ',w/2,h*.61);c.font=`${w*.033}px Georgia`;c.fillText('ЛЕНИЗДАТ · 1982',w/2,h*.9);distress(c,w,h,r,1200);
+    c.lineWidth=1;c.beginPath();c.moveTo(w*.3,h*.47);c.lineTo(w*.7,h*.47);c.stroke();c.font=`${w*.044}px Georgia`;c.fillText('СТИХОТВОРЕНИЯ',w/2,h*.61);c.font=`${w*.033}px Georgia`;c.fillText('ЛЕНИЗДАТ · 1982',w/2,h*.9);distress(c,w,h,r,900);
+    c.strokeStyle='rgba(203,164,113,.42)';c.lineWidth=7;
+    c.beginPath();c.moveTo(w*.86,h*.035);c.quadraticCurveTo(w*.97,h*.015,w*.98,h*.11);c.stroke();
+    c.lineWidth=3;c.beginPath();c.moveTo(w*.80,h*.965);c.lineTo(w*.98,h*.94);c.stroke();
   });
   for(const y of [-.54,-.46,.46,.54])box(g,[.106,.015,.347],[-.556,y,0],M.red,.007);
   inscription(g,'А. БЛОК',.55,.068,[-.614,0,0],'#d1b57f',[0,-Math.PI/2,Math.PI/2]);
@@ -239,6 +243,7 @@ function badge(g){
     for(let y=.65;y<.74;y+=.045){c.beginPath();for(let x=0;x<=w;x+=4)c.lineTo(x,h*y+Math.sin(x*.045)*4);c.stroke();}
     c.textAlign='center';c.font=`bold ${w*.11}px Georgia`;c.fillText('ЛЕНИНГРАД',w/2,h*.92);
   });
+  for(const [x,y] of [[-.353,.46],[.353,-.17],[-.21,-.48]])ball(g,[.014,.021,.002],[x,y,.044],M.gold);
   tube(g,[[-.25,.18,-.06],[.21,.18,-.07],[.27,.03,-.07],[-.22,.03,-.07]],.012,M.silver,14);
   cyl(g,.04,.04,.045,[-.23,.18,-.059],M.silver);inscription(g,'Ц. 20 К.',.31,.063,[0,-.23,-.044],'#655733',[0,Math.PI,0]);
 }
@@ -246,7 +251,7 @@ function badge(g){
 function record(g){
   cyl(g,.83,.83,.022,[0,0,0],M.black,undefined,96);
   // Groove relief is a texture, not bright metal hoops.
-  const groove=canvasTexture((c,s)=>{c.fillStyle='#151b1a';c.fillRect(0,0,s,s);for(let r=170;r<502;r+=2){c.strokeStyle=r%5?'#252b29':'#101713';c.lineWidth=.5;c.beginPath();c.arc(s/2,s/2,r,0,TAU);c.stroke();}},1024);
+  const groove=canvasTexture((c,s)=>{c.fillStyle='#59616a';c.fillRect(0,0,s,s);for(let r=170;r<502;r+=2){c.strokeStyle=r%5?'#66707a':'#454e57';c.lineWidth=.5;c.beginPath();c.arc(s/2,s/2,r,0,TAU);c.stroke();}},1024);
   const grooveNormal=canvasTexture((c,s)=>{
     const image=c.createImageData(s,s);
     for(let y=0;y<s;y++)for(let x=0;x<s;x++){
@@ -255,7 +260,7 @@ function record(g){
     }
     c.putImageData(image,0,0);
   },1024);grooveNormal.colorSpace=THREE.NoColorSpace;
-  const vinyl=new THREE.MeshStandardMaterial({color:0x80868c,map:groove,roughness:.27,metalness:.45,normalMap:grooveNormal,normalScale:new THREE.Vector2(.65,.65),envMapIntensity:1.5});
+  const vinyl=new THREE.MeshStandardMaterial({color:0x505863,map:groove,roughness:.26,metalness:.08,normalMap:grooveNormal,normalScale:new THREE.Vector2(.65,.65),envMapIntensity:1.5});
   for(const side of [-1,1]){
     mesh(new THREE.CircleGeometry(.824,96),vinyl,g,[0,0,side*.013],[0,side===1?0:Math.PI,0]);
     const face=new THREE.Group();g.add(face);face.rotation.y=side===1?0:Math.PI;
@@ -330,7 +335,7 @@ function can(g){
 }
 
 function cup(g){
-  const map=canvasTexture((c,w,r,h)=>{c.fillStyle='#d6c5a0';c.fillRect(0,0,w,h);c.fillStyle='#6b4934';c.fillRect(0,h*.28,w,h*.37);c.fillStyle='#e6d1aa';c.textAlign='center';c.font=`bold ${h*.15}px Georgia`;c.fillText('КОФЕ',w/2,h*.51);c.fillStyle='#6d533b';c.font=`${h*.055}px Arial`;c.fillText('ПЕТЕРБУРГ НЕ СПИТ',w/2,h*.81);distress(c,w,h,r,2600);},768,768);
+  const map=canvasTexture((c,w,r,h)=>{c.fillStyle='#d6c5a0';c.fillRect(0,0,w,h);c.fillStyle='#6b4934';c.fillRect(0,h*.28,w,h*.37);c.fillStyle='#e6d1aa';c.textAlign='center';c.font=`bold ${h*.15}px Georgia`;c.fillText('КОФЕ',w/2,h*.51);c.fillStyle='#6d533b';c.font=`${h*.055}px Arial`;c.fillText('ПЕТЕРБУРГ НЕ СПИТ',w/2,h*.81);distress(c,w,h,r,1500);c.fillStyle='rgba(105,63,28,.20)';c.beginPath();c.ellipse(w*.30,h*.13,w*.09,h*.028,.2,0,TAU);c.fill();},768,768);
   const paper=new THREE.MeshStandardMaterial({map,roughness:.98,side:THREE.DoubleSide,bumpMap:M.paper.bumpMap,bumpScale:.009});
   const geo=new THREE.CylinderGeometry(.36,.235,.88,64,24,true);const pos=geo.attributes.position;
   for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);const a=Math.atan2(z,x);const dent=1-.22*Math.exp(-Math.pow((y-.04)*5,2))*(.5+.5*Math.cos(a*3));const crease=.022*Math.sin(a*8+y*18);pos.setXYZ(i,x*dent+crease,y,z*dent);}
@@ -348,6 +353,10 @@ function cardboard(g){
   box(g,[1.1,.025,.4],[0,.37,-.55],mat,.004,[.43,0,0]);box(g,[1.1,.025,.4],[0,.31,.59],mat,.004,[-.24,0,0]);
   for(let x=-.54;x<.56;x+=.031)cyl(g,.005,.005,.027,[x,.319,.399],M.paper,[0,0,0],6);
   decal(g,.39,.3,[-.24,-.01,.418],(c,w,h,r)=>{c.fillStyle='#d1c4a0';c.fillRect(0,0,w,h);c.fillStyle='#41483b';c.font=`${h*.13}px monospace`;c.fillText('ПОСЫЛКА №017',20,h*.23);for(let x=25;x<w-25;x+=7)c.fillRect(x,h*.35,2+r()*3,h*.44);distress(c,w,h,r,1200);});
+  decal(g,1.08,.27,[0,-.28,.421],(c,w,h)=>{
+    c.beginPath();c.moveTo(0,h);for(let x=0;x<=w;x+=10)c.lineTo(x,h*(.32+.09*Math.sin(x*.027)));c.lineTo(w,h);c.closePath();
+    c.fillStyle='rgba(92,57,28,.23)';c.fill();c.strokeStyle='rgba(92,57,28,.18)';c.lineWidth=3;c.stroke();
+  });
   const tape=new THREE.MeshStandardMaterial({color:0xa9996c,roughness:.4,transparent:true,opacity:.66});box(g,[.12,.74,.006],[.25,-.05,.421],tape,.001);box(g,[.116,.015,.3],[.25,-.438,.21],tape,.002);
 }
 
@@ -369,12 +378,13 @@ function newspaper(g){
     c.fillStyle='#a19c86';c.fillRect(42,315,278,193);c.strokeStyle='#505c4d';c.lineWidth=2;
     for(let x=56;x<312;x+=40){c.strokeRect(x,347,29,119);for(let y=359;y<450;y+=26){c.strokeRect(x+6,y,7,14);c.strokeRect(x+18,y,7,14);}}
     c.beginPath();c.moveTo(40,345);c.lineTo(180,319);c.lineTo(319,345);c.stroke();
-    distress(c,w,h,r,10000);c.fillStyle='rgba(92,69,29,.12)';c.fillRect(w*.493,0,7,h);
+    distress(c,w,h,r,10000);c.fillStyle='rgba(92,69,29,.12)';c.fillRect(w*.43,0,7,h);
+    c.fillStyle='rgba(99,68,36,.13)';c.beginPath();c.ellipse(w*.16,h*.90,w*.19,h*.09,.15,0,TAU);c.fill();
   },1024,1280);
   const mat=new THREE.MeshStandardMaterial({map,roughness:1,side:THREE.DoubleSide,bumpMap:M.paper.bumpMap,bumpScale:.004});
   for(let side=0;side<2;side++){
     const geo=new THREE.PlaneGeometry(1.14,1.43,40,40),p=geo.attributes.position;
-    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i);p.setZ(i,.028*Math.sin(x*8)+.016*Math.sin(y*14)+Math.abs(x)*.1+side*.004);}
+    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i);p.setZ(i,side*.004);}
     geo.computeVertexNormals();mesh(geo,mat,g);
   }
 }
@@ -399,7 +409,19 @@ function bake(group){
   group.clear();for(const {material,geometries} of parts.values()){const geo=mergeGeometries(geometries,false);mesh(geo,material,group);geometries.forEach(g=>g.dispose());}return count;
 }
 export function createItem(id){
-  const group=new THREE.Group();builders[id](group);const modeledParts=bake(group);
+  const group=new THREE.Group();builders[id](group);
+  if(['book','box','can','cup','paper'].includes(id)){
+    group.updateMatrixWorld(true);
+    group.traverse(o=>{
+      if(!o.isMesh)return;const p=o.geometry.attributes.position,inv=o.matrixWorld.clone().invert();
+      for(let i=0;i<p.count;i++){
+        const v=new THREE.Vector3().fromBufferAttribute(p,i).applyMatrix4(o.matrixWorld);
+        v.set(...agePoint(id,v.x,v.y,v.z)).applyMatrix4(inv);p.setXYZ(i,v.x,v.y,v.z);
+      }
+      o.geometry.computeVertexNormals();o.geometry.computeBoundingBox();o.geometry.computeBoundingSphere();
+    });
+  }
+  const modeledParts=bake(group);
   const bounds=new THREE.Box3().setFromObject(group),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
   group.children.forEach(c=>c.position.sub(center));group.scale.setScalar(2.1/Math.max(size.x,size.y,size.z));
   const root=new THREE.Group();root.add(group);root.rotation.set(.08,-.2,0);root.userData={id,modeledParts,materialBatches:group.children.length,bounds:{min:size.clone().multiplyScalar(-1.05/Math.max(size.x,size.y,size.z)).toArray(),max:size.clone().multiplyScalar(1.05/Math.max(size.x,size.y,size.z)).toArray()}};return root;

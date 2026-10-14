@@ -2,7 +2,8 @@ import {launch} from './browser.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const iteration=process.env.ITERATION||'final';
-const folder=`../../.studio/evidence/screenshots/visual-v3-${iteration}`;
+const series=process.env.SERIES||'v3';
+const folder=`../../.studio/evidence/screenshots/visual-${series}-${iteration}`;
 fs.mkdirSync(folder,{recursive:true});
 const browser=await launch();const errors=[],checks=[],models=[];
 let report={passed:false};
@@ -33,7 +34,7 @@ try{
  await page.click('#open-collection');await shot('collection');await page.click('[data-close="collection-dialog"]');
  await page.click('#open-settings');await shot('settings');await page.click('[data-close="settings-dialog"]');
  await find('camera');
- for(let i=0;i<5;i++)await page.click('#zoom-in').catch(()=>{});
+ for(let i=0;i<5;i++)if(!await page.$eval('#zoom-in',b=>b.disabled))await page.click('#zoom-in');
  assert.equal(await page.$eval('#zoom-in',b=>b.disabled),true);
  await page.click('#zoom-reset');assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getMetrics().zoom),1);
  await page.click('#zoom-out');assert.equal(await page.$eval('#zoom-out',b=>b.disabled),true);
@@ -49,4 +50,4 @@ try{
  assert.deepEqual(errors,[]);
  report={passed:true,iteration,models,checks,errors,limitations:['SwiftShader, not Android hardware.','Reduced motion; screenshots do not certify animation quality.']};
 }catch(e){report={passed:false,iteration,models,checks,errors,error:e.stack};throw e;}
-finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-v3-${iteration}.json`,JSON.stringify(report,null,2));await browser.close();}
+finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-${series}-${iteration}.json`,JSON.stringify(report,null,2));await browser.close();}
