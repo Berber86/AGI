@@ -1,5 +1,6 @@
 import './style.css';
 import { World } from './world.js';
+import { ZOOM } from './presentation.js';
 import { materialAssetsReady } from './materials.js';
 import { ITEMS, RARITY, initialState, chooseItem, transition, loadSave, saveState } from './state.js';
 const $=selector=>document.querySelector(selector);
@@ -11,7 +12,17 @@ const testing=new URLSearchParams(location.search).has('test');
 const dialogs=$$('dialog');
 function notify(message){$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),2600);}
 function persist(){if(!saveState(storage,state)){$('#save-status').textContent='Сохранение недоступно в этом браузере';notify('Не удалось сохранить. Прогресс останется до закрытия страницы.');}}
+function updateZoom(){
+ if(!world)return;$('#zoom-in').disabled=world.zoom>=ZOOM.max;$('#zoom-out').disabled=world.zoom<=ZOOM.min;
+ $('#zoom-reset').disabled=world.zoom===1;$('#zoom-reset').textContent=`${Math.round(world.zoom*100)}%`;
+}
+function renderComplete(){
+ $('#completion-preview').replaceChildren(...state.lastKept.map(id=>{
+  const img=document.createElement('img');img.src=world.thumbnail(id);img.alt=ITEMS.find(i=>i.id===id).name;return img;
+ }));
+}
 function updateUI(){
+ $('#app').classList.toggle('has-progress',state.searches>0);updateZoom();
  $('#app').classList.toggle('is-inspecting',state.phase==='inspect');$('.inspection').hidden=state.phase!=='inspect';
  $('#header-count').innerHTML=`${String(state.collection.length).padStart(2,'0')} <small>/ 18</small>`;
  $('#search-total').textContent=String(state.searches).padStart(2,'0');$('#open-collection').disabled=state.phase==='inspect';
@@ -25,7 +36,7 @@ function updateUI(){
  }
 }
 function search(){if(state.phase!=='search'||dialogs.some(d=>d.open)||paused)return;world.poke();let itemId=forcedItem || (state.searches===0?'camera':chooseItem().id);state=transition(state,{type:'tap',itemId});if(state.phase==='inspect'){forcedItem=null;world.show(state.current);persist();}updateUI();}
-function decide(keep){if(state.phase!=='inspect'||state.reviewing)return;const item=ITEMS.find(i=>i.id===state.current),duplicate=state.collection.includes(item.id),before=state.collection.length;state=transition(state,{type:keep?'keep':'discard'});world.hide();persist();updateUI();notify(keep?(duplicate?'Уже сохранено. Продолжим искать?':`${item.name} — теперь в коллекции`):'Оставлено во дворе. Ищем дальше.');if(before<18&&state.collection.length===18)$('#complete-dialog').showModal();}
+function decide(keep){if(state.phase!=='inspect'||state.reviewing)return;const item=ITEMS.find(i=>i.id===state.current),duplicate=state.collection.includes(item.id),before=state.collection.length;state=transition(state,{type:keep?'keep':'discard'});world.hide();persist();updateUI();notify(keep?(duplicate?'Уже сохранено. Продолжим искать?':`${item.name} — теперь в коллекции`):'Оставлено во дворе. Ищем дальше.');if(before<18&&state.collection.length===18){renderComplete();$('#complete-dialog').showModal();}}
 function renderCollection(){
  $('#collection-count').textContent=state.collection.length;$('#collection-progress').style.width=`${state.collection.length/18*100}%`;
  const list=ITEMS.filter(i=>filter==='all'||(filter==='junk'?i.rarity==='junk':i.rarity!=='junk'));
@@ -41,7 +52,7 @@ function closeReview(){if(!state.reviewing)return;state=transition(state,{type:'
 function reset(){state=initialState();world.hide();persist();updateUI();$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;$('#settings-dialog').close();notify('Новая белая ночь. Начнём сначала.');}
 function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;world.update(Math.min(rawDt,.1),rawDt);}
 function bind(){
- $('#zoom-in').addEventListener('click',()=>world.setZoom(.2));$('#zoom-out').addEventListener('click',()=>world.setZoom(-.2));
+ $('#zoom-in').addEventListener('click',()=>{world.setZoom(.2);updateZoom();});$('#zoom-out').addEventListener('click',()=>{world.setZoom(-.2);updateZoom();});$('#zoom-reset').addEventListener('click',()=>{world.setZoom(1-world.zoom);updateZoom();});
  $('#search-button').addEventListener('click',search);$('#discard').addEventListener('click',()=>decide(false));$('#keep').addEventListener('click',()=>decide(true));$('#close-review').addEventListener('click',closeReview);
  $('#open-collection').addEventListener('click',openCollection);$('#open-settings').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;$('#settings-dialog').showModal();});
  $$('[data-close]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.close).close()));

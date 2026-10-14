@@ -21,12 +21,23 @@ try{
   await find(id);const m=await page.evaluate(()=>window.__GAME_TEST__.getMetrics());
   const b=m.inspectionBounds,r=b.stage;
   assert.ok(b.left>=r.x-1&&b.right<=r.x+r.width+1&&b.top>=r.y-1&&b.bottom<=r.y+r.height+1,`${id} outside safe stage: ${JSON.stringify(b)}`);
+  const layout=await page.evaluate(()=>{
+   const info=document.querySelector('.find-info').getBoundingClientRect(),buttons=document.querySelector('.decision-buttons').getBoundingClientRect();
+   return {infoBottom:info.bottom,buttonTop:buttons.top};
+  });
+  assert.ok(layout.infoBottom+8<=layout.buttonTop,`${id}: caption overlaps decision buttons`);
   assert.ok(m.modelDetails.materialBatches<=20);models.push({id,bounds:b,...m.modelDetails});
   await shot(id);await page.click('#keep');console.log('PASS',id,'safe framing and render');
  }
  if(await page.$eval('#complete-dialog',d=>d.open)){await shot('complete');await page.click('#continue-button');}
  await page.click('#open-collection');await shot('collection');await page.click('[data-close="collection-dialog"]');
  await page.click('#open-settings');await shot('settings');await page.click('[data-close="settings-dialog"]');
+ await find('camera');
+ for(let i=0;i<5;i++)await page.click('#zoom-in').catch(()=>{});
+ assert.equal(await page.$eval('#zoom-in',b=>b.disabled),true);
+ await page.click('#zoom-reset');assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getMetrics().zoom),1);
+ await page.click('#zoom-out');assert.equal(await page.$eval('#zoom-out',b=>b.disabled),true);
+ await page.click('#zoom-reset');await page.click('#discard');checks.push('Zoom endpoints disable controls and reset restores baseline');
  for(const [w,h] of [[360,800],[844,390],[1280,900]]){
   await page.setViewport({width:w,height:h,isMobile:w<900,hasTouch:w<900,deviceScaleFactor:1});
   await page.waitForFunction(()=>window.__READY__&&window.__GAME_TEST__);

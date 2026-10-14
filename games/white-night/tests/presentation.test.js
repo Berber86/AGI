@@ -22,3 +22,8 @@ test('Perspective fit contains wide, tall and deep rotated bounds',()=>{
  }
  assert.ok(ZOOM.min<1&&ZOOM.max>1);
 });
+
+test('Safe-area insets reduce the inspection stage rather than hiding controls',()=>{
+ const a=inspectionRect(412,915),b=inspectionRect(412,915,44,34);
+ assert.equal(b.y,a.y+44);assert.equal(b.height,a.height-78);
+});

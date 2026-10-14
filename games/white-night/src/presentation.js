@@ -21,13 +21,13 @@ export const PRESENTATION = {
 };
 export const ZOOM = { min: .85, max: 1.65 };
 
-export function inspectionRect(width, height) {
+export function inspectionRect(width, height, safeTop = 0, safeBottom = 0) {
   if (height <= 520 && width > 650) {
-    return { x: 28, y: 76, width: width * .60 - 40, height: height - 142 };
+    return { x: 28, y: 76 + safeTop, width: width * .60 - 40, height: Math.max(60, height - 142 - safeTop - safeBottom) };
   }
   const mobile = width <= 650;
-  const top = mobile ? 192 : 220;
-  const bottom = height - (mobile ? 300 : 270);
+  const top = (mobile ? 192 : 220) + safeTop;
+  const bottom = height - (mobile ? 300 : 270) - safeBottom;
   const w = Math.min(width - (mobile ? 40 : 100), 660);
   return { x: (width - w) / 2, y: top, width: w, height: Math.max(70, bottom - top) };
 }

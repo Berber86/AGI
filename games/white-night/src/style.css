@@ -29,3 +29,61 @@
 .rotation-hint{top:150px;background:#122632b3;padding:0 7px;border:1px solid #c6d4db26;border-radius:24px;font-size:12px}
 @media(max-width:650px){.find-header{top:96px}.rotation-hint{top:134px}.find-info{bottom:calc(173px + env(safe-area-inset-bottom))}.find-info h2{font-size:32px}.find-info p{font-size:13px;max-width:340px}.find-info .eyebrow{font-size:10px}.rarity{font-size:9px;padding:8px}#find-number{font-size:9px}}
 @media(max-height:520px) and (min-width:651px){.find-header{top:68px;left:28px;transform:none;width:55%}.rotation-hint{top:auto;bottom:12px;left:30%}.find-info{left:79%;bottom:130px;width:36%}.find-info p{font-size:12px}.find-info h2{font-size:30px}.inspection-shade{background:linear-gradient(90deg,transparent 58%,#0f1a2480 68%,#0f1a24d9)}}
+
+/* Visual iteration 3: a readable archive rather than a grid of tiny labels. */
+.collection-dialog{background:#192c34f7;border-color:#a6c4d233;padding:28px}
+.collection-dialog .dialog-header{position:sticky;top:-28px;z-index:2;background:#192c34;padding:12px 0 16px;border-bottom:1px solid #a6c4d226}
+#collection-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.item-card{background:#22343c;border-color:#a6c4d235;min-height:210px;padding:12px}
+.item-card img{height:124px;object-fit:contain;margin-bottom:10px}
+.item-card .item-title{font-size:12px;line-height:1.45;color:#edf0e7}
+.item-card .item-type{font-size:10px;line-height:1.4;color:#c2ced0}
+.item-card .item-index{font-size:9px;color:#aec1c8}
+.item-card.locked{background:#21343b55;min-height:170px}
+.item-card.locked .item-title{color:#aec1c8}
+.item-card.locked .item-type{color:#9bafb7}
+.locked-art{opacity:.55}
+.filter-tabs{gap:8px}
+.filter-tabs button{font-size:12px;min-height:44px;padding:10px 5px;color:#c8d3d7}
+.filter-tabs button.active{color:var(--accent)}
+.filter-tabs span{font-size:10px;margin-left:4px}
+.catalog-hint{font-size:12px;color:#c1cdd2;line-height:1.5}
+.dialog-foot{font-size:11px;color:#b6c5cb;line-height:1.6}
+#duplicate-badge{font-size:12px;color:#f2d99a;line-height:1.5}
+#save-status{color:#b6c5cb}
+.search-status{font-size:12px}.control-hint{font-size:11px;color:#c0cdc5}
+.decision{font-size:13px}
+.rotation-hint{gap:5px}
+.rotation-hint button:disabled{opacity:.35}
+#zoom-reset{width:52px;font-size:11px;font-variant-numeric:tabular-nums}
+.quality-setting input{appearance:none;-webkit-appearance:none;width:48px!important;height:28px!important;min-width:48px;border-radius:20px;background:#66756e;border:1px solid #d1ddc366;position:relative;cursor:pointer;transition:background .2s}
+.quality-setting input:before{content:'';position:absolute;width:20px;height:20px;left:3px;top:3px;border-radius:50%;background:#f4f1e6;box-shadow:0 1px 4px #0004;transition:transform .2s}
+.quality-setting input:checked{background:#aabc82}
+.quality-setting input:checked:before{transform:translateX(20px);background:#21352c}
+.instructions p{font-size:14px}.instructions small,.settings-note,.quality-setting small{font-size:12px;line-height:1.6;color:#c2cec0}
+.completion-preview{display:flex;gap:8px;justify-content:center;margin:16px auto 20px}
+.completion-preview img{width:72px;height:72px;object-fit:contain;border-radius:6px;border:1px solid #a6c4d22b}
+.has-progress .hero h1{font-size:64px;margin-top:14px}
+.has-progress .hero .edition,.has-progress .field-note{display:none}
+@media(max-width:650px){
+ .collection-dialog{padding:22px 18px}.collection-dialog .dialog-header{top:-22px}
+ #collection-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .item-card{min-height:218px;padding:12px}.item-card img{height:132px}.item-card .item-title{font-size:12px}.item-card .item-type{font-size:10px}
+ .item-card .item-index{font-size:9px}.item-card .item-check{width:13px;height:13px}
+ .filter-tabs{gap:2px}.filter-tabs button{font-size:11px;padding:10px 2px}.filter-tabs span{font-size:9px;margin-left:2px}
+ .catalog-hint{font-size:12px}.dialog-foot{font-size:11px}
+ .search-status{font-size:12px}.control-hint{font-size:10px}
+ .has-progress .hero{top:94px}.has-progress .hero h1{font-size:46px;margin:12px 0 8px}.has-progress .hero .eyebrow{display:none}.has-progress .hero p{font-size:12px}
+ .decision{font-size:13px}.rotation-hint{font-size:11px}
+ .find-info h2{font-size:32px}.find-info p{font-size:13px}
+ .decision-buttons,#close-review{bottom:calc(50px + env(safe-area-inset-bottom))}
+ .find-info{bottom:calc(143px + env(safe-area-inset-bottom))}
+ .rotation-hint{top:calc(134px + env(safe-area-inset-top))}
+}
+@media(max-height:520px) and (min-width:651px){
+ .find-info{bottom:128px}.find-info h2{font-size:28px}.find-info p{font-size:12px}.decision{font-size:12px}
+ .rotation-hint{bottom:8px;top:auto}.has-progress .hero h1{font-size:42px}.has-progress .hero p{display:none}
+}
+@media(prefers-reduced-motion:reduce){.quality-setting input,.quality-setting input:before{transition:none}}
+
+:root{--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px)}

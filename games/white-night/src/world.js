@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { PRESENTATION, ZOOM, inspectionRect, fitScale } from './presentation.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -26,7 +27,7 @@ export class World {
   this.inspectionVeil.position.z=-6;this.inspectionVeil.visible=false;this.inspectionVeil.renderOrder=-10;this.camera.add(this.inspectionVeil);
   this.itemAnchor=new THREE.Group();this.camera.add(this.itemAnchor);this.itemAnchor.position.set(0,0,-4.2);this.inspectLamp=new THREE.PointLight(0xfff4e7,12,8,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
   this.itemRim=new THREE.PointLight(0xc5e3ff,13,7,2);this.itemRim.position.set(1.6,.7,-3.8);this.camera.add(this.itemRim);this.itemRim.visible=false;
-  this.pipeline=new RenderPipeline(this.renderer,this.scene,this.camera);
+  this.pipeline=new RenderPipeline(this.renderer,this.scene,this.camera);this.thumbnailOutput=new OutputPass();
   this.modelCache=new Map();this.thumbCache=new Map();this.item=null;this.zoom=1;this.targetX=.08;this.targetY=-.2;this.inspect=false;this.time=0;this.kick=0;this.pointer=new THREE.Vector2();this.raycaster=new THREE.Raycaster();this.frames=[];this.low=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   this.resize();
  }
@@ -114,7 +115,8 @@ export class World {
   const portrait=w/h<.8;this.camera.fov=portrait?47:43;
   this.camera.position.set(portrait?3.3:4.6,portrait?3.1:3.5,portrait?7.8:9.8);
   this.camera.lookAt(0,portrait?1.85:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
-  this.portrait=portrait;this.stage=inspectionRect(w,h);
+  this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
+  this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
   this.itemAnchor.position.set((this.stage.x+this.stage.width/2-w/2)*perPixel,(h/2-this.stage.y-this.stage.height/2)*perPixel,-4.2);
   this.inspectionVeil.scale.set(2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))*w/h,2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2)),1);
@@ -154,7 +156,38 @@ export class World {
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
  rotate(dx,dy){this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
  setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;this.resize();}
- thumbnail(id){if(this.thumbCache.has(id))return this.thumbCache.get(id);const model=this.getModel(id);const prev=model.parent;const scale=model.scale.clone();const rot=model.rotation.clone();const scene=new THREE.Scene();scene.environment=this.envTarget.texture;scene.environmentIntensity=1;scene.add(new THREE.HemisphereLight(0xffffff,0x596859,3));const light=new THREE.DirectionalLight(0xffe3b0,4);light.position.set(-3,5,4);scene.add(light);scene.add(model);model.rotation.set(.17,-.3,0);model.scale.setScalar(1);const cam=new THREE.PerspectiveCamera(34,1,.1,20);cam.position.set(0,.1,4.3);cam.lookAt(0,0,0);const rt=new THREE.WebGLRenderTarget(160,160);const old=this.renderer.getRenderTarget();const clearAlpha=this.renderer.getClearAlpha();this.renderer.setClearAlpha(0);this.renderer.setRenderTarget(rt);this.renderer.render(scene,cam);const pixels=new Uint8Array(160*160*4);this.renderer.readRenderTargetPixels(rt,0,0,160,160,pixels);this.renderer.setRenderTarget(old);this.renderer.setClearAlpha(clearAlpha);rt.dispose();const canvas=document.createElement('canvas');canvas.width=canvas.height=160;const ctx=canvas.getContext('2d');const image=ctx.createImageData(160,160);for(let y=0;y<160;y++)image.data.set(pixels.subarray((159-y)*640,(160-y)*640),y*640);ctx.putImageData(image,0,0);const url=canvas.toDataURL('image/png');this.thumbCache.set(id,url);scene.remove(model);if(prev)prev.add(model);model.scale.copy(scale);model.rotation.copy(rot);return url;}
+ thumbnail(id){
+  if(this.thumbCache.has(id))return this.thumbCache.get(id);
+  const model=this.getModel(id),prev=model.parent,scale=model.scale.clone(),rot=model.rotation.clone(),pos=model.position.clone();
+  const scene=new THREE.Scene();scene.background=new THREE.Color('#22343c');
+  scene.environment=this.envTarget.texture;scene.environmentIntensity=.45;
+  scene.add(new THREE.HemisphereLight(0xe5efff,0x7e7970,1.1));
+  const light=new THREE.DirectionalLight(0xfff0dd,2);light.position.set(-3,5,4);scene.add(light);
+  const rim=new THREE.DirectionalLight(0xbcdcff,.8);rim.position.set(3,1,-2);scene.add(rim);
+  // Readback must be display-encoded, not untreated linear bytes in a PNG.
+  const hdr=new THREE.WebGLRenderTarget(160,160,{type:THREE.HalfFloatType});
+  const rt=new THREE.WebGLRenderTarget(160,160,{depthBuffer:false}),old=this.renderer.getRenderTarget();
+  const oldColor=this.renderer.getClearColor(new THREE.Color()),oldAlpha=this.renderer.getClearAlpha();
+  let url;
+  try{
+   scene.add(model);model.position.set(0,0,0);model.rotation.set(...PRESENTATION[id].rotation);model.scale.setScalar(1);
+   const b=model.userData.bounds,box=new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max));
+   box.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(model.rotation));
+   const half=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
+   model.scale.setScalar(fitScale(half,{width:144,height:136},160,34));
+   const cam=new THREE.PerspectiveCamera(34,1,.1,20);cam.position.set(0,0,4.2);cam.lookAt(0,0,0);
+   this.renderer.setRenderTarget(hdr);this.renderer.render(scene,cam);
+   this.thumbnailOutput.render(this.renderer,rt,hdr);
+   const pixels=new Uint8Array(160*160*4);this.renderer.readRenderTargetPixels(rt,0,0,160,160,pixels);
+   const canvas=document.createElement('canvas');canvas.width=canvas.height=160;const ctx=canvas.getContext('2d'),image=ctx.createImageData(160,160);
+   for(let y=0;y<160;y++)image.data.set(pixels.subarray((159-y)*640,(160-y)*640),y*640);
+   ctx.putImageData(image,0,0);url=canvas.toDataURL('image/png');this.thumbCache.set(id,url);
+  }finally{
+   this.renderer.setRenderTarget(old);this.renderer.setClearColor(oldColor,oldAlpha);rt.dispose();hdr.dispose();
+   scene.remove(model);if(prev)prev.add(model);model.scale.copy(scale);model.rotation.copy(rot);model.position.copy(pos);this.dirty=true;
+  }
+  return url;
+ }
  update(dt,rawDt=dt){this.time+=dt;if(this.kick>0){this.renderer.shadowMap.needsUpdate=true;this.dirty=true;}this.kick=Math.max(0,this.kick-dt*2.8);this.lid.rotation.x=-.045-(this.reduced?0:Math.sin(this.kick*Math.PI)*.32);this.bin.rotation.z=this.reduced?0:Math.sin(this.kick*Math.PI*4)*this.kick*.009;
   if(this.item){const k=this.reduced?1:1-Math.exp(-dt*12);this.item.rotation.y=THREE.MathUtils.lerp(this.item.rotation.y,this.targetY,k);this.item.rotation.x=THREE.MathUtils.lerp(this.item.rotation.x,this.targetX,k);this.item.position.y=this.reduced?0:Math.sin(this.time*1.5)*.008;this.reveal=Math.min(1,(this.reveal||0)+dt*3.2);const s=this.baseScale*(this.zoom||1)*(this.reduced?1:1-Math.pow(1-this.reveal,3));this.item.scale.setScalar(s);}
   if(this.dirty||(this.item&&!this.reduced)){this.pipeline.render();this.dirty=false;if(rawDt>0){this.frames.push(rawDt*1000);if(this.frames.length>120)this.frames.shift();}}

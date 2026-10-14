@@ -16,7 +16,8 @@
     "test:catalog": "node tests/catalog.mjs",
     "test:art": "node tests/art-review.mjs",
     "materials": "node scripts/material-maps.mjs",
-    "test:visual": "node tests/visual.mjs"
+    "test:visual": "node tests/visual.mjs",
+    "test:thumbnails": "node tests/thumbnails.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",

@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
-  "phase": "building",
-  "activeRole": "builder",
-  "currentTask": "VISUAL-V3-3",
-  "lastAction": "Iteration 2: cast duck, glazed cup paint, 3D-space patina, bent strap and clearer glass; two browser visual checks passed",
-  "nextAction": "Iteration 3: archive lighting, readable two-column cards, controls, final production gates",
+  "phase": "done",
+  "activeRole": "release-manager",
+  "currentTask": null,
+  "lastAction": "Three visual iterations delivered and verified; tracked play export refreshed. User-requested push is the release command following this commit.",
+  "nextAction": "Optional physical Android QA; next audit pass on courtyard, wear and animated reveal",
   "blockers": [],
-  "latestHandoff": ".studio/handoffs/2026-10-14-visual-v2.md",
+  "latestHandoff": ".studio/handoffs/2026-10-15-visual-v3.md",
   "sessionBenchmark": {
     "runId": "20261014T215406Z-29de8b",
     "status": "qualified",
     "score": 100,
     "evaluatedAt": "2026-10-14T21:54:27Z",
-    "resultPath": ".studio/benchmarks/runs/20261014T215406Z-29de8b/result.json"
+    "resultPath": ".studio/benchmarks/latest-result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-14T21:54:27Z"
+  "updatedAt": "2026-10-15"
 }

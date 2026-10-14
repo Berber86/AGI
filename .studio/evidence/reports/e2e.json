@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "revision": "visual-v2",
+  "revision": "visual-v3",
   "motionPreference": "reduce (standard browser accessibility preference)",
   "checks": [
     "360×800: portrait layout does not overflow",
@@ -25,15 +25,16 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 76,
-      "triangles": 152015,
+      "drawCalls": 77,
+      "triangles": 152017,
       "geometries": 165,
-      "textures": 76,
+      "textures": 77,
       "models": 18,
       "postprocessing": false,
       "zoom": 1,
+      "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 838.1558333333348,
+      "meanFrameMs": 873.8516666666673,
       "renderer": "WebKit WebGL",
       "quality": "low"
     },
@@ -41,13 +42,14 @@
       "viewport": "412x915 SwiftShader, not a physical phone",
       "drawCalls": 63,
       "triangles": 109367,
-      "geometries": 70,
+      "geometries": 71,
       "textures": 33,
       "models": 1,
       "postprocessing": false,
       "zoom": 1,
+      "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 293.69375000000014,
+      "meanFrameMs": 319.7375000000001,
       "renderer": "WebKit WebGL",
       "quality": "low"
     }
@@ -56,96 +58,312 @@
     {
       "id": "camera",
       "modeledParts": 145,
-      "materialBatches": 13
+      "materialBatches": 13,
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.9783826474005896,
+          -0.598623779731229
+        ],
+        "max": [
+          1.05,
+          0.9783826474005896,
+          0.598623779731229
+        ]
+      }
     },
     {
       "id": "teacup",
-      "modeledParts": 63,
-      "materialBatches": 4
+      "modeledParts": 7,
+      "materialBatches": 4,
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.6989514847354331,
+          -0.809809095719592
+        ],
+        "max": [
+          1.05,
+          0.6989514847354331,
+          0.809809095719592
+        ]
+      }
     },
     {
       "id": "watch",
       "modeledParts": 119,
-      "materialBatches": 10
+      "materialBatches": 10,
+      "bounds": {
+        "min": [
+          -0.5384037677206647,
+          -1.05,
+          -0.2662839529714117
+        ],
+        "max": [
+          0.5384037677206647,
+          1.05,
+          0.2662839529714117
+        ]
+      }
     },
     {
       "id": "cassette",
       "modeledParts": 71,
-      "materialBatches": 8
+      "materialBatches": 8,
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.6562499902211132,
+          -0.17259375004889446
+        ],
+        "max": [
+          1.05,
+          0.6562499902211132,
+          0.17259375004889446
+        ]
+      }
     },
     {
       "id": "duck",
-      "modeledParts": 24,
-      "materialBatches": 5
+      "modeledParts": 16,
+      "materialBatches": 4,
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.7576240442760827,
+          -0.489777616077014
+        ],
+        "max": [
+          1.05,
+          0.7576240442760827,
+          0.489777616077014
+        ]
+      }
     },
     {
       "id": "book",
       "modeledParts": 68,
-      "materialBatches": 7
+      "materialBatches": 7,
+      "bounds": {
+        "min": [
+          -0.7229555358599555,
+          -1.05,
+          -0.21950121713791484
+        ],
+        "max": [
+          0.7229555358599555,
+          1.05,
+          0.21950121713791484
+        ]
+      }
     },
     {
       "id": "key",
       "modeledParts": 12,
-      "materialBatches": 6
+      "materialBatches": 6,
+      "bounds": {
+        "min": [
+          -0.49497235482636126,
+          -1.05,
+          -0.10379968720931776
+        ],
+        "max": [
+          0.49497235482636126,
+          1.05,
+          0.10379968720931776
+        ]
+      }
     },
     {
       "id": "badge",
       "modeledParts": 6,
-      "materialBatches": 5
+      "materialBatches": 5,
+      "bounds": {
+        "min": [
+          -0.7293531963644387,
+          -1.05,
+          -0.1265256588520747
+        ],
+        "max": [
+          0.7293531963644387,
+          1.05,
+          0.1265256588520747
+        ]
+      }
     },
     {
       "id": "record",
       "modeledParts": 7,
-      "materialBatches": 5
+      "materialBatches": 5,
+      "bounds": {
+        "min": [
+          -1.05,
+          -1.05,
+          -0.03415662807882233
+        ],
+        "max": [
+          1.05,
+          1.05,
+          0.03415662807882233
+        ]
+      }
     },
     {
       "id": "perfume",
       "modeledParts": 33,
-      "materialBatches": 4
+      "materialBatches": 4,
+      "bounds": {
+        "min": [
+          -0.468760389809574,
+          -1.05,
+          -0.4908902551686828
+        ],
+        "max": [
+          0.468760389809574,
+          1.05,
+          0.4908902551686828
+        ]
+      }
     },
     {
       "id": "horse",
-      "modeledParts": 46,
-      "materialBatches": 4
+      "modeledParts": 41,
+      "materialBatches": 4,
+      "bounds": {
+        "min": [
+          -0.9744664000348988,
+          -1.05,
+          -0.4261537250454081
+        ],
+        "max": [
+          0.9744664000348988,
+          1.05,
+          0.4261537250454081
+        ]
+      }
     },
     {
       "id": "compass",
       "modeledParts": 84,
-      "materialBatches": 7
+      "materialBatches": 7,
+      "bounds": {
+        "min": [
+          -0.856812909733191,
+          -1.05,
+          -0.2069284158177058
+        ],
+        "max": [
+          0.856812909733191,
+          1.05,
+          0.2069284158177058
+        ]
+      }
     },
     {
       "id": "bottle",
       "modeledParts": 5,
-      "materialBatches": 3
+      "materialBatches": 3,
+      "bounds": {
+        "min": [
+          -0.35755102062094835,
+          -1.05,
+          -0.3593877499420028
+        ],
+        "max": [
+          0.35755102062094835,
+          1.05,
+          0.3593877499420028
+        ]
+      }
     },
     {
       "id": "can",
       "modeledParts": 14,
-      "materialBatches": 3
+      "materialBatches": 3,
+      "bounds": {
+        "min": [
+          -0.7145393056249381,
+          -1.05,
+          -0.7145393056249381
+        ],
+        "max": [
+          0.7145393056249381,
+          1.05,
+          0.7145393056249381
+        ]
+      }
     },
     {
       "id": "cup",
       "modeledParts": 5,
-      "materialBatches": 3
+      "materialBatches": 3,
+      "bounds": {
+        "min": [
+          -0.8762649025677521,
+          -1.05,
+          -0.8651859893275583
+        ],
+        "max": [
+          0.8762649025677521,
+          1.05,
+          0.8651859893275583
+        ]
+      }
     },
     {
       "id": "box",
       "modeledParts": 48,
-      "materialBatches": 4
+      "materialBatches": 4,
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.530304624390368,
+          -0.7892261633741444
+        ],
+        "max": [
+          1.05,
+          0.530304624390368,
+          0.7892261633741444
+        ]
+      }
     },
     {
       "id": "lid",
-      "modeledParts": 64,
-      "materialBatches": 3
+      "modeledParts": 38,
+      "materialBatches": 3,
+      "bounds": {
+        "min": [
+          -1.05,
+          -1.05,
+          -0.0684121602233241
+        ],
+        "max": [
+          1.05,
+          1.05,
+          0.0684121602233241
+        ]
+      }
     },
     {
       "id": "paper",
       "modeledParts": 2,
-      "materialBatches": 1
+      "materialBatches": 1,
+      "bounds": {
+        "min": [
+          -0.8370629572624678,
+          -1.05,
+          -0.09676921770786955
+        ],
+        "max": [
+          0.8370629572624678,
+          1.05,
+          0.09676921770786955
+        ]
+      }
     }
   ],
   "build": {
-    "totalBytes": 6603790,
+    "totalBytes": 6634537,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -168,12 +386,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-B1v25Bqi.js",
-        "bytes": 627418
+        "file": "assets/index-1w5kisxk.css",
+        "bytes": 25409
       },
       {
-        "file": "assets/index-De5Y38d0.css",
-        "bytes": 20082
+        "file": "assets/index-Cze7iciF.js",
+        "bytes": 652569
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -237,7 +455,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 10711
+        "bytes": 10980
       },
       {
         "file": "manifest.webmanifest",

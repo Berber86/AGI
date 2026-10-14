@@ -93,7 +93,63 @@
         ".studio/evidence/screenshots/visual-v2/courtyard-desktop-final.png",
         ".studio/evidence/screenshots/visual-v2/teacup-final.png"
       ]
+    },
+    {
+      "id": "VISUAL-V3-1",
+      "title": "Inspection stage, perspective framing and neutral background",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "ART-002"
+      ],
+      "acceptanceCriteria": [
+        "Baseline fits portrait, desktop and landscape",
+        "Find not tinted by lower UI gradient"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3-1.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V3-2",
+      "title": "Priority cast models and material differentiation",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3-1"
+      ],
+      "acceptanceCriteria": [
+        "Duck cast has continuous neck",
+        "Cup paint follows surface",
+        "Bronze patina avoids UV stretching"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3-2.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V3-3",
+      "title": "Readable archive, display-encoded thumbnails and release checks",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3-2"
+      ],
+      "acceptanceCriteria": [
+        "All 18 baseline frames and caption clearances pass",
+        "Thumbnail output/color cache regression passes",
+        "Final catalog and desktop routes work",
+        "Tracked play export within 8 MB"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3-3.json",
+        "games/white-night/VISUAL_ITERATIONS.md",
+        ".studio/evidence/reports/visual-v3-thumbnails.json",
+        ".studio/evidence/reports/visual-v3-release.json"
+      ]
     }
   ],
-  "updatedAt": "2026-10-14T20:37:40.494662+00:00"
+  "updatedAt": "2026-10-15"
 }

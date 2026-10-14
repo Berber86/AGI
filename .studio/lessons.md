@@ -27,3 +27,8 @@ A working isolated game preview is not enough when the repository already has a 
 - Readability beat physically expensive optical transmission for thin watch covers. Dial print stays legible using a basic printed surface under a thin reflective coat; real transmission retained only where it visibly helps bottle/flacon glass.
 - Ornamental lines on a lathed cup must follow the actual radius profile, not a loose 3-point spline that falls inside the porcelain. Final targeted production capture verifies the repair.
 - Raw frame timing must not reuse capped animation dt. Rendering is skipped for idle courtyard/reduced-motion states; software GPU timings remain explicitly non-device evidence.
+
+## 2026-10-15 — Thumbnail output must be display encoded
+`readRenderTargetPixels` from a linear render target is not a ready-to-display PNG. Directly writing those bytes into Canvas produced near-black backgrounds and clipped lighting. Render miniature HDR to a HalfFloat target, then use Three OutputPass (the same ACES + sRGB output transfer as the main composer) into an unsigned-byte target before readback. Keep the OutputPass persistent, dispose both temporary targets, and restore parent/position/scale/rotation/renderer state in finally. Add a corner-pixel regression test: linear bytes (4,8,12) must not be accepted as the display background.
+
+Perspective framing must reserve UI space and account for the frontmost depth of rotated bounds; normalize-by-largest-dimension alone cannot handle portrait width or watch straps. Puppeteer changes to isMobile can reload the page: wait for the test bridge after viewport changes.

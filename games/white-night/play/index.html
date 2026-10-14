@@ -8,8 +8,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <title>Белая ночь — Бюро находок</title>
-  <script type="module" crossorigin src="./assets/index-PI22KIXl.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-De5Y38d0.css">
+  <script type="module" crossorigin src="./assets/index-BNjEl_3O.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-1w5kisxk.css">
 </head>
 <body>
   <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -49,7 +49,7 @@
     </section>
     <section class="inspection" hidden aria-label="Осмотр находки">
       <div class="find-header"><span id="find-rarity" class="rarity"><i></i> РЕДКАЯ НАХОДКА</span><span id="find-number">НАХОДКА № 001</span></div>
-      <div class="rotation-hint"><button id="zoom-out" aria-label="Отдалить находку" title="Отдалить">−</button><span><svg><use href="#i-rotate"/></svg> Вращайте предмет</span><button id="zoom-in" aria-label="Приблизить находку" title="Приблизить">+</button></div>
+      <div class="rotation-hint"><button id="zoom-out" aria-label="Отдалить находку" title="Отдалить">−</button><span><svg><use href="#i-rotate"/></svg> Вращайте предмет</span><button id="zoom-reset" aria-label="Вернуть исходный масштаб" title="Исходный масштаб">100%</button><button id="zoom-in" aria-label="Приблизить находку" title="Приблизить">+</button></div>
       <div class="find-info"><span id="find-era" class="eyebrow"></span><h2 id="find-name"></h2><p id="find-description"></p><span id="duplicate-badge" hidden>Уже есть в коллекции</span></div>
       <div class="decision-buttons"><button id="discard" class="decision discard"><svg><use href="#i-close"/></svg><span>Выбросить</span></button><button id="keep" class="decision keep"><svg><use href="#i-check"/></svg><span>Забрать</span></button></div>
       <button id="close-review" class="primary" hidden><svg><use href="#i-arrow"/></svg> Вернуться в коллекцию</button>
@@ -67,6 +67,6 @@
     <div class="dialog-foot"><span>Забытые вещи. Новые истории.</span><span id="save-status">Прогресс сохраняется на этом устройстве</span></div>
   </dialog>
   <dialog id="settings-dialog" class="small-dialog"><div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ</span><h2>Без спешки.</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="Закрыть настройки"><svg><use href="#i-close"/></svg></button></div><div class="instructions"><div><b>01</b><p>Нажмите на бак три раза.<small>Или используйте кнопку внизу экрана.</small></p></div><div><b>02</b><p>Рассмотрите находку.<small>Тяните пальцем или мышью, чтобы вращать.</small></p></div><div><b>03</b><p>Выбросите или сохраните.<small>Крестик — оставить. Галочка — забрать себе.</small></p></div></div><label class="quality-setting"><span>Облегчённая графика<small>Меньше нагрузки: без контактного затенения и теней</small></span><input type="checkbox" id="low-quality" role="switch"></label><p class="settings-note">12 вещей с историей и 6 видов хлама. Без таймера, проигрыша и звука. Прогресс хранится только в этом браузере.</p><button id="reset-button" class="text-button">Начать коллекцию заново</button><div id="reset-confirm" hidden><p>Удалить все сохранённые находки?</p><div class="reset-actions"><button id="reset-cancel">Нет, оставить</button><button id="reset-yes">Да, начать заново</button></div></div></dialog>
-  <dialog id="complete-dialog" class="small-dialog completion"><div class="completion-icon"><svg><use href="#i-spark"/></svg></div><span class="eyebrow">18 ИЗ 18 · КОЛЛЕКЦИЯ СОБРАНА</span><h2>Ничего<br>не потеряно.</h2><p>У всех этих вещей появилось продолжение.<br>И у этой белой ночи — тоже.</p><button id="continue-button" class="primary">Ещё немного погулять <svg><use href="#i-arrow"/></svg></button><button id="view-complete" class="text-button">Посмотреть коллекцию</button></dialog>
+  <dialog id="complete-dialog" class="small-dialog completion"><div class="completion-icon"><svg><use href="#i-spark"/></svg></div><span class="eyebrow">18 ИЗ 18 · КОЛЛЕКЦИЯ СОБРАНА</span><h2>Ничего<br>не потеряно.</h2><div id="completion-preview" class="completion-preview" aria-label="Последние сохранённые находки"></div><p>У всех этих вещей появилось продолжение.<br>И у этой белой ночи — тоже.</p><button id="continue-button" class="primary">Ещё немного погулять <svg><use href="#i-arrow"/></svg></button><button id="view-complete" class="text-button">Посмотреть коллекцию</button></dialog>
 </body>
 </html>
