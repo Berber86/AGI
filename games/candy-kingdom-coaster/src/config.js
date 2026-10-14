@@ -30,6 +30,23 @@ export const TUNING = {
   raceTimeLimitS: 240,        // finish is always reachable; this is only a soft target
 };
 
+// --- Twin cake serpentines, replacing an empty stretch between ramp A and
+// the tunnel. Distances of the existing landmarks below remain BASE-course
+// metres; track.fromBaseDistance() moves them past the longer detour.
+export const CAKE_COURSE = {
+  baseStart: 600,
+  baseEnd: 900,
+  approach: 36,
+  departure: 72,
+  turns: 1.25,     // opposite-handed, 450° spirals; entry/exit face forwards
+  outerRadius: 36,
+  innerRadius: 28,
+  rise: 34,
+  bridgeLength: 84,
+  deckHalfWidth: 8.8,
+  railLateral: 8.5, // outside the entire car envelope at the soft steering wall
+};
+
 // --- Jump ramps: one per lane, in different parts of the ride ---
 // s = metres along the track where the ramp starts, side = -1 left / +1 right
 // lane, len = run-up length, height = lip height above the road, width = ramp

@@ -5,7 +5,7 @@ import { RenderPass } from '../vendor/three/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/three/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three/jsm/postprocessing/OutputPass.js';
 
-import { GAME, TUNING, JUMP, ZONES, zoneAt, formatTime, MEDALS, TIME_MEDAL } from './config.js';
+import { GAME, TUNING, JUMP, formatTime, MEDALS, TIME_MEDAL } from './config.js';
 import { Storage } from './storage.js';
 import { SFX } from './audio.js';
 import { Input } from './input.js';
@@ -16,6 +16,7 @@ import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
 import { createBridge } from './bridge.js';
 import { createTunnel } from './tunnel.js';
+import { createCakes } from './cakes.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
@@ -62,8 +63,9 @@ const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
 const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (cocoa → marshmallow)
-// props avoid both the river valley and the cake body
-const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) });
+const cakes = createCakes(scene, track, TEX); // uphill cake → sky bridge → downhill cake
+// Keep the water, tunnel and elevated cake roads free of ordinary props.
+const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) || cakes.blocks(x, z) });
 const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
@@ -676,7 +678,7 @@ function updateGameplay(dt) {
 
   // zone tracking
   const u = game.s / track.length;
-  const z = zoneAt(u);
+  const z = track.zoneAt(u);
   if (z.id !== game.zoneIndex) {
     game.zoneIndex = z.id;
     // (no zone toast — removed as a distraction)
@@ -761,9 +763,11 @@ function animate(now) {
 
 // ---------------------------------------------------------------- PWA & test hooks
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  });
+  const registerWorker = () => navigator.serviceWorker.register('./sw.js').catch(() => {});
+  // Texture loading / shader warm-up can finish after the window load event.
+  // Register in both cases so the new course modules are actually cached.
+  if (document.readyState === 'complete') registerWorker();
+  else window.addEventListener('load', registerWorker, { once: true });
 }
 
 window.__TEST__ = {
@@ -838,7 +842,7 @@ window.__TEST__ = {
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
   // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
-  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel }; },
+  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel, cakes }; },
   tunnelInfo() {
     return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
   },
@@ -1033,7 +1037,7 @@ window.__TEST__ = {
       state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1),
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
       boostActive: game.boostActive, boostCharges: game.boostCharges,
-      zone: zoneAt(game.s / track.length).id,
+      zone: track.zoneAt(game.s / track.length).id,
     };
   },
   camDebug() {

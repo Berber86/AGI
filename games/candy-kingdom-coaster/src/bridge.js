@@ -95,7 +95,7 @@ function milkTexture(kind) {
 }
 
 export function createBridge(scene, track, TEX = {}) {
-  const B = BRIDGE;
+  const B = { ...BRIDGE, s: track.fromBaseDistance(BRIDGE.s) };
   const group = new THREE.Group();
   group.name = 'bridge';
   scene.add(group);

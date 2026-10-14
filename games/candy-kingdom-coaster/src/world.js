@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../vendor/three/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from '../vendor/three/jsm/utils/BufferGeometryUtils.js';
-import { ZONES, zoneAt, TUNING } from './config.js';
+import { ZONES, TUNING } from './config.js';
 import { mergeByMaterial, instanceGroups } from './merge.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -218,7 +218,8 @@ const cookieGeometry = withLod((lo) => mergeParts([
 
 export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const world = new THREE.Group();
-  // river/sea/valley from bridge.js: nothing is planted there
+  world.name = 'candyWorld';
+  // Landmark footprints (river, tunnel, cakes): nothing is planted there
   const blocked = (x, z) => !!(river && river.blocks(x, z));
   // real image textures (assets/textures) with the procedural canvases as fallback
   const mapOr = (tex, fallback) => tex || fallback();
@@ -331,6 +332,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const rainbowMats = rainbowCols.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.45, emissive: new THREE.Color(c), emissiveIntensity: 0.12 }));
   const rainbowGroup = new THREE.Group();
   [0.18, 0.55, 0.86].forEach((u, ri) => {
+    if (track.isCakeSection(track.length * u)) return;
     const p = track.getPose(track.length * u, 0);
     const rainbow = new THREE.Group();
     rainbowCols.forEach((c, i) => {
@@ -612,7 +614,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   );
   castleMain.lookAt(finPose.pos.x, castleMain.position.y + 6, finPose.pos.z);
   world.add(castleMain);
-  const midPose = track.getPose(track.length * 0.42, 0);
+  const midPose = track.getPose(track.cakeSection.s0 - 70, 0);
   const castleFar = buildCastle(1.2);
   castleFar.position.copy(midPose.pos).add(
     new THREE.Vector3(Math.cos(midPose.heading) * 95, -3.5, -Math.sin(midPose.heading) * 95)
@@ -628,6 +630,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const gates = new THREE.Group();
     world.add(gates);
     for (const u of [0.18, 0.50, 0.78]) {
+      if (track.isCakeSection(track.length * u)) continue; // cake deck has its own rails
       const gp = track.getPose(track.length * u, 0);
       const gate = new THREE.Group();
       const R = 8.9;
@@ -715,7 +718,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   }
 
   // ---------- rollercoaster rails (background fun, near mid-course) ----------
-  const c0 = track.getPose(track.length * 0.62, 0);
+  const c0 = track.getPose(track.fromBaseDistance(track.baseLength * 0.76), 0);
   const sideDir = new THREE.Vector3(Math.cos(c0.heading), 0, -Math.sin(c0.heading));
   const base = c0.pos.clone().addScaledVector(sideDir, 70);
   const coasterCurve = new THREE.CatmullRomCurve3([
@@ -816,7 +819,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const L = track.length;
   for (let s = 10; s < L - 14; s += 4.2) {
     const u = s / L;
-    const z = zoneAt(u);
+    const z = track.zoneAt(u);
     const side = Math.floor(s / 4.2) % 2 ? 1 : -1;
     // keep the road corridor clear: props never closer than 8.2 m, big scale only far away
     const far = 8.2 + rand() * 17;
@@ -1013,7 +1016,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   world.add(heroLolli);
   const heroCane = new THREE.Mesh(caneGeometry(), propMats.cane);
   heroCane.scale.setScalar(4.4);
-  heroCane.position.copy(track.getPose(L * 0.55, 17).pos).add(new THREE.Vector3(0, -1, 0));
+  heroCane.position.copy(track.getPose(track.fromBaseDistance(track.baseLength * 0.82), 17).pos).add(new THREE.Vector3(0, -1, 0));
   world.add(heroCane);
 
   // pseudo road beyond the start/finish lines (track.js run-offs): a few of
@@ -1364,12 +1367,14 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   // along the track until it is on dry candy ground
   const freePose = (u, lateral) => {
     let uu = u;
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < 40 && uu < 1; k++) {
       const p = track.getPose(track.length * uu, lateral);
-      if (!blocked(p.pos.x, p.pos.z)) return p;
+      // A wide-lateral pond/grove can clear the footprint but would still
+      // inherit a summit height. Move it to a ground-level part of the route.
+      if (!track.isCakeSection(track.length * uu) && !blocked(p.pos.x, p.pos.z)) return p;
       uu += 0.025;
     }
-    return track.getPose(track.length * uu, lateral);
+    return track.getPose(track.length * Math.min(1, uu), lateral);
   };
   {
     const icing = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 });
@@ -1546,6 +1551,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       for (let k = 0; k < 3; k++) {
         const far = 10.5 + k * 3.4 + rand() * 2.2;
         const p = track.getPose(track.length * u + (k - 1) * 3.2 + (rand() - 0.5) * 2.5, side * far);
+        if (blocked(p.pos.x, p.pos.z)) continue;
         const bear = new THREE.Mesh(gummyBearGeometry(), gumShared[(gi * 3 + k) % gumShared.length]);
         bear.position.set(p.pos.x, p.pos.y - far * 0.1 + 1.7, p.pos.z);
         bear.rotation.y = p.heading + Math.PI + (rand() - 0.5) * 1.2;
@@ -1610,11 +1616,12 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     {
       const list = [];
       let fs = 8;
-      while (fs < L * 0.22) {
+      while (fs < L * track.zones[0].u1) {
         for (const side of [-1, 1]) {
           if (rand() < DECOR.flowerKeep) {
             const far = 12 + rand() * 14;
             const p = track.getPose(fs + (rand() - 0.5) * 4, side * far);
+            if (blocked(p.pos.x, p.pos.z)) continue;
             list.push({ x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.8 + rand() * 0.9, c: ['#ff6b9e', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7'][Math.floor(rand() * 5)] });
           }
         }
@@ -1639,12 +1646,13 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const gumMat2 = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.9, clearcoat: 0.9, clearcoatRoughness: 0.25, emissive: 0x301018, emissiveIntensity: 0.25 });
     {
       const list = [];
-      let gs = L * 0.22;
-      while (gs < L * 0.46) {
+      let gs = L * track.zones[1].u0;
+      while (gs < L * track.zones[1].u1) {
         for (const side of [-1, 1]) {
           if (rand() < 0.5) {
             const far = 13 + rand() * 15;
             const p = track.getPose(gs + (rand() - 0.5) * 6, side * far);
+            if (blocked(p.pos.x, p.pos.z)) continue;
             list.push({ x: p.pos.x, y: p.pos.y - 0.25, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.4 + rand() * 1.6, c: ['#ff5f7a', '#56c8ff', '#ffd45e', '#8ef07e', '#b18aff', '#ff8ad0'][Math.floor(rand() * 6)] });
           }
         }
@@ -1668,12 +1676,13 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const chocMat2 = new THREE.MeshStandardMaterial({ color: '#6b3a1e', roughness: 0.42, metalness: 0.1, flatShading: true });
     {
       const list = [];
-      let cs = L * 0.46;
-      while (cs < L * 0.68) {
+      let cs = L * track.zones[2].u0;
+      while (cs < L * track.zones[2].u1) {
         for (const side of [-1, 1]) {
           if (rand() < DECOR.chocKeep) {
             const far = 13 + rand() * 16;
             const p = track.getPose(cs + (rand() - 0.5) * 7, side * far);
+            if (blocked(p.pos.x, p.pos.z)) continue;
             list.push({ x: p.pos.x, y: p.pos.y - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.6 + rand() * 2.6 });
           }
         }
@@ -1698,10 +1707,11 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     {
       const list = [];
       for (let i = 0; i < 16; i++) {
-        const u = 0.68 + (i / 16) * 0.2 + (rand() - 0.5) * 0.01;
+        const u = track.zones[3].u0 + (i / 16) * (track.zones[3].u1 - track.zones[3].u0) + (rand() - 0.5) * 0.01;
         const side = i % 2 ? 1 : -1;
         const far = 22 + rand() * 26;
         const p = track.getPose(L * u, side * far);
+        if (blocked(p.pos.x, p.pos.z)) continue;
         list.push({ x: p.pos.x, y: p.pos.y - far * 0.12 - 1.2, z: p.pos.z, sc: 5 + rand() * 6, c: ['#fff2f7', '#ffd6e8', '#f2e8ff', '#fff0d8'][i % 4] });
       }
       const im = new THREE.InstancedMesh(marshGeo, marshMat2, list.length);
@@ -1726,12 +1736,13 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const poleMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.5 });
     {
       const poles = [], flags = [];
-      let bs = L * 0.88;
+      let bs = L * track.zones[4].u0;
       while (bs < L - 26) {
         for (const side of [-1, 1]) {
           if (rand() < DECOR.buntingKeep) {
             const far = 13 + rand() * 4;
             const p = track.getPose(bs + (rand() - 0.5) * 3, side * far);
+            if (blocked(p.pos.x, p.pos.z)) continue;
             poles.push({ x: p.pos.x, y: p.pos.y - 0.1, z: p.pos.z, ry: p.heading });
             flags.push({ x: p.pos.x, y: p.pos.y + 3.0, z: p.pos.z, ry: p.heading, c: ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff'][Math.floor(rand() * 5)] });
           }
@@ -1884,7 +1895,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     lodStats: () => ({ chunks: lodChunks.length, lo: lodChunks.filter((c) => c.inst.geometry === c.lo).length }),
     update(dt, cameraPos, u, time, carS = -1, carLateral = 0) {
       // Sky stays candy-blue; only the horizon warms up with the zone tint.
-      const z = zoneAt(u);
+      const z = track.zoneAt(u);
       const fogC = tmpColor.copy(zoneFog[z.id]).lerp(zoneSky[z.id], 0.45);
       scene.fog.color.copy(fogC);
       sky.material.uniforms.bottomColor.value.copy(zoneFog[z.id]).lerp(WHITE, 0.25);

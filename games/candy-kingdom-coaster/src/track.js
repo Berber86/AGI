@@ -1,32 +1,9 @@
 // Spline track: road mesh, curbs, terrain shoulders, start/finish, pose queries.
 import * as THREE from 'three';
-import { TUNING, ZONES, zoneAt, BRIDGE } from './config.js';
+import { TUNING, ZONES, BRIDGE } from './config.js';
+import { buildCourse } from './course.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function buildWaypoints() {
-  // A snaking coaster course with alternating LEFT and RIGHT sweeps plus
-  // gentle hills — every bend stays readable from the chase camera.
-  const pts = [];
-  const STEPS = 230;
-  const ds = 6.4; // ~1470 m total
-  let x = 0, z = 0, y = 2.4;
-  for (let i = 0; i <= STEPS; i++) {
-    const t = i / STEPS;
-    const heading =
-      0.62 * Math.sin(2 * Math.PI * 1.9 * t + 0.42) +
-      0.34 * Math.sin(2 * Math.PI * 3.25 * t + 1.15) +
-      0.1 * Math.sin(2 * Math.PI * 5.6 * t);
-    y = 2.4 + 3.3 * Math.sin(2 * Math.PI * 1.55 * t + 0.2) + 0.95 * Math.sin(2 * Math.PI * 3.9 * t + 0.9);
-    // arched bridge over the milk river: the deck humps up around BRIDGE.s
-    const db = i * ds - BRIDGE.s;
-    if (Math.abs(db) < BRIDGE.halfSpan) y += BRIDGE.hump * Math.pow(Math.cos((db / BRIDGE.halfSpan) * Math.PI / 2), 2);
-    pts.push(new THREE.Vector3(x, y, z));
-    x += Math.sin(heading) * ds;
-    z += Math.cos(heading) * ds;
-  }
-  return pts;
-}
 
 // Across-the-ribbon layout of the road map (fraction of texture height).
 // The road mesh covers curb → road → curb; the curbs are tinted by vertex
@@ -152,11 +129,17 @@ function checkerTexture() {
 }
 
 export function createTrack(scene, TEX = {}) {
-  const curve = new THREE.CatmullRomCurve3(buildWaypoints(), false, 'centripetal', 0.5);
+  const { curve, baseLength, fromBaseDistance, cakeSection } = buildCourse();
   const length = curve.getLength();
+  const zones = ZONES.map((z) => ({ ...z,
+    u0: fromBaseDistance(z.u0 * baseLength) / length,
+    u1: fromBaseDistance(z.u1 * baseLength) / length,
+  }));
+  const zoneAt = (u) => zones.find((z) => u >= z.u0 && u < z.u1) || zones[zones.length - 1];
+  const isCakeSection = (s) => s >= cakeSection.deckStart && s <= cakeSection.deckEnd;
   const halfW = TUNING.roadHalfWidth;
 
-  const SAMPLES = Math.max(240, Math.round(length / 2.8));
+  const SAMPLES = Math.max(240, Math.ceil(length / 1.4));
   const centers = [], tangents = [], rights = [];
   for (let i = 0; i <= SAMPLES; i++) {
     const u = i / SAMPLES;
@@ -267,7 +250,7 @@ export function createTrack(scene, TEX = {}) {
   // river valley under the bridge: 0 = normal embankment, 1 = dipped to the
   // river floor (flat around the river, smooth slopes up to ±valleyHalf)
   const valleyDip = (sM) => {
-    const d = Math.abs(sM - BRIDGE.s);
+    const d = Math.abs(sM - fromBaseDistance(BRIDGE.s));
     const a = BRIDGE.riverHalf + 2, b = BRIDGE.valleyHalf;
     if (d <= a) return 1;
     if (d >= b) return 0;
@@ -302,6 +285,8 @@ export function createTrack(scene, TEX = {}) {
         const touchesCurb = profile[kFrom + k].kind === 'curb' || profile[kFrom + k + 1].kind === 'curb';
         const hasGrass = profile[kFrom + k].kind === 'grass' || profile[kFrom + k + 1].kind === 'grass';
         if (touchesCurb && hasGrass && inValley[i] && inValley[i + 1]) continue;
+        // The cake roads have a wafer deck, not airborne grass embankments.
+        if (hasGrass && isCakeSection((src.sAt(iFrom + i) + src.sAt(iFrom + i + 1)) / 2)) continue;
         const a = base + i * n + k, b = a + n;
         idx.push(a, a + 1, b, b, a + 1, b + 1);
       }
@@ -323,7 +308,7 @@ export function createTrack(scene, TEX = {}) {
   // meshes share their boundary sample row, so there is no gap.
   const roadUv = (u, k, pr, sM) => [sM / ROAD_TILE_M, roadV(k)];
   const roadMeshes = [];
-  const zoneRanges = ZONES.map((z) => [Math.round(Math.max(0, z.u0) * SAMPLES), Math.round(Math.min(1, z.u1) * SAMPLES)]);
+  const zoneRanges = zones.map((z) => [Math.round(Math.max(0, z.u0) * SAMPLES), Math.round(Math.min(1, z.u1) * SAMPLES)]);
   zoneRanges.forEach(([i0, i1], zi) => {
     if (i1 <= i0) return;
     const surface = ROAD_SURFACES[zi % ROAD_SURFACES.length];
@@ -404,7 +389,7 @@ export function createTrack(scene, TEX = {}) {
   // bar laid over the join
   const seamGeo = new THREE.PlaneGeometry(halfW * 2.1, 1.1);
   const seamMat = new THREE.MeshStandardMaterial({ color: '#fff6f0', roughness: 0.45 });
-  for (const z of ZONES.slice(1)) {
+  for (const z of zones.slice(1)) {
     const f = roadFrame(z.u0);
     const m = new THREE.Mesh(seamGeo, seamMat);
     m.position.copy(f.p).addScaledVector(f.normal, 0.04);
@@ -528,6 +513,7 @@ export function createTrack(scene, TEX = {}) {
 
   return {
     curve, length, halfW, getPose, bounds,
+    baseLength, fromBaseDistance, cakeSection, isCakeSection, zones, zoneAt,
     roadMeshes, // one per zone (all named 'road')
     runoffMeshes, // pseudo road before the start / after the finish
     runoff: { pre: EXT_PRE, post: EXT_POST },

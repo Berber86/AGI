@@ -53,8 +53,8 @@ export function createRamps(scene, track, TEX = {}) {
     const center = cfg.side * (half + 0.3); // lane centre: 0.3 m off the dash
     const r = {
       ...cfg,
-      s0: cfg.s,
-      s1: cfg.s + cfg.len,
+      s0: track.fromBaseDistance(cfg.s),
+      s1: track.fromBaseDistance(cfg.s) + cfg.len,
       latMin: center - half,
       latMax: center + half,
       center,

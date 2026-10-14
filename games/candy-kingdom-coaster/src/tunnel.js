@@ -162,7 +162,7 @@ function bakedMaterial(map, base) {
 }
 
 export function createTunnel(scene, track, TEX = {}) {
-  const T = TUNNEL;
+  const T = { ...TUNNEL, s0: track.fromBaseDistance(TUNNEL.s0), s1: track.fromBaseDistance(TUNNEL.s1) };
   const group = new THREE.Group();
   group.name = 'tunnel';
   group.userData.noCollide = true; // the road corridor stays clear by design
