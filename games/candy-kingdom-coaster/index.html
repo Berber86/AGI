@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#ff5fa2">
+  <meta name="theme-color" content="#fff8f1">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,6 +11,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icon-192.png" sizes="192x192">
   <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="preload" href="./assets/ui/welcome.webp" as="image" fetchpriority="high">
   <link rel="stylesheet" href="./styles.css">
   <script type="importmap">
   {
@@ -20,58 +21,90 @@
   }
   </script>
 </head>
-<body>
+<body data-boot="loading" data-screen="menu">
+  <svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="icon-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7Z" fill="currentColor" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></symbol>
+<symbol id="icon-left" viewBox="0 0 24 24"><path d="m13.5 5-7 7 7 7M7 12h13" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-right" viewBox="0 0 24 24"><path d="m10.5 5 7 7-7 7M17 12H4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-pause" viewBox="0 0 24 24"><rect x="5" y="4" width="5" height="16" rx="1.8" fill="currentColor"/><rect x="14" y="4" width="5" height="16" rx="1.8" fill="currentColor"/></symbol>
+<symbol id="icon-sound" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M17 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-mute" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m17 9 5 6m0-6-5 6" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/></symbol>
+<symbol id="icon-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-candy" viewBox="0 0 24 24"><path d="m6 10-4-2 1 5-2 4 6-1m11-6 5-2-1 5 2 4-7-1" fill="#ffd29b" stroke="#e4a25d" stroke-width=".7"/><g transform="rotate(-24 12 12)"><rect x="5" y="5" width="14" height="14" rx="6" fill="#f478aa"/><path d="M8 6v12m5-13v14m4-12v10" stroke="#ffcedf" stroke-width="2.4"/><rect x="5" y="5" width="14" height="14" rx="6" fill="none" stroke="#d64e89" stroke-width="1"/></g></symbol>
+<symbol id="icon-cupcake" viewBox="0 0 24 24"><path d="m5 14 2 8h10l2-8" fill="#ecb674" stroke="#cd9054" stroke-width="1"/><path d="m9 16 1 5m5-5-1 5" stroke="#fff1cf" stroke-width="1.5"/><path d="M6 15c-6-2-2-7 1-6 0-3 3-6 5-6 0 3 7 2 6 6 4 0 5 5 1 6Z" fill="#ffb9d2" stroke="#e584af" stroke-width="1"/><path d="M7 10c3 1 6 1 9-1" stroke="#ffe8f1" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="3" r="2" fill="#e25585"/></symbol>
+<symbol id="icon-star" viewBox="0 0 24 24"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2L5.8 21 7 14.2l-5-4.9 6.9-1Z" fill="#ffc861" stroke="#de9b3d" stroke-width="1.1" stroke-linejoin="round"/></symbol>
+<symbol id="icon-medal" viewBox="0 0 24 24"><path d="M6 2h5l2 8-6 1Z" fill="#79c6ce"/><path d="M13 2h5l-1 9-6-1Z" fill="#f182ad"/><circle cx="12" cy="15" r="7" fill="#ffd378" stroke="#e4ad55" stroke-width="1.2"/><path d="m12 10 1.4 2.7 3 .4-2.2 2.1.5 3-2.7-1.4-2.7 1.4.5-3-2.2-2.1 3-.4Z" fill="#fff5d4"/></symbol>
+<symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="13" r="8" fill="#dceef0" stroke="#75a8b6" stroke-width="1.4"/><path d="M12 8v5l3 2m-6-14h6m-3 0v3" fill="none" stroke="#6593a4" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="icon-flag" viewBox="0 0 24 24"><path d="M5 22V3m0 0c4-3 9 3 15 0v11c-6 3-11-3-15 0" fill="#fff8ee" stroke="#95819b" stroke-width="1.6" stroke-linejoin="round"/><path d="M6 4h4v4H6Zm4 4h4v4h-4Zm4-4h5v4h-5Z" fill="#a387b5"/></symbol>
+<symbol id="icon-retry" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5m10-3a7.5 7.5 0 0 0-13-3m-1 9a7.5 7.5 0 0 0 13 3" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="icon-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M6 9v12h12V9m-9 12v-7h6v7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</defs></svg>
   <div id="game-root">
     <canvas id="game-canvas"></canvas>
     <div id="vignette"></div>
     <div id="speed-lines"></div>
 
-    <!-- ============ HUD (icon-first: minimal, kid-focused) ============ -->
-    <div id="hud">
+    <!-- Controls are inert/hidden until a ride starts, never behind a menu. -->
+    <div id="hud" aria-label="Управление заездом" aria-hidden="true" inert>
       <div id="hud-top-right">
         <div class="hud-buttons">
-          <button id="btn-sound" class="icon-btn" aria-label="Звук">🔊</button>
-          <button id="btn-pause" class="icon-btn" aria-label="Пауза">⏸</button>
-          <button id="btn-full" class="icon-btn" aria-label="Полный экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+          <button type="button" id="btn-sound" class="icon-btn" data-sound-toggle aria-label="Выключить звук" aria-pressed="true"><svg class="ui-icon sound-on" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sound"/></svg><svg class="ui-icon sound-off" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-mute"/></svg></button>
+          <button type="button" id="btn-pause" class="icon-btn" aria-label="Пауза"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-pause"/></svg></button>
+          <button type="button" id="btn-full" class="icon-btn" aria-label="Полный экран" aria-pressed="false"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-full"/></svg></button>
         </div>
       </div>
-
-      <div id="hud-bottom-right">
-        <div class="sweets-big">🍬 <span id="hud-sweets">0</span></div>
-        <div class="sweets-bar"><div id="hud-sweets-fill"></div></div>
-        <div class="cake-row" id="hud-cakes">
-          <span class="cake">🧁</span><span class="cake">🧁</span><span class="cake">🧁</span><span class="cake">🧁</span>
+      <div id="hud-bottom-right" class="race-pocket">
+        <div class="sweets-big" aria-label="Собрано сладостей"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-candy"/></svg><span id="hud-sweets">0</span></div>
+        <div class="pocket-energy">
+          <div class="cake-row" id="hud-cakes" aria-label="Заряд ускорения: 0 из 4">
+            <span class="cake"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-cupcake"/></svg></span><span class="cake"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-cupcake"/></svg></span><span class="cake"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-cupcake"/></svg></span><span class="cake"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-cupcake"/></svg></span>
+          </div>
+          <div class="sweets-bar" aria-hidden="true"><div id="hud-sweets-fill"></div></div>
         </div>
       </div>
-
       <div id="popup-layer"></div>
-
-      <button id="btn-left" class="ctl-btn" aria-label="Влево">◀</button>
-      <button id="btn-right" class="ctl-btn" aria-label="Вправо">▶</button>
-
+      <button type="button" id="btn-left" class="ctl-btn" aria-label="Влево" aria-pressed="false"><span class="ctl-face"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-left"/></svg><span class="thumb-grip" aria-hidden="true"></span></span></button>
+      <button type="button" id="btn-right" class="ctl-btn" aria-label="Вправо" aria-pressed="false"><span class="ctl-face"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-right"/></svg><span class="thumb-grip" aria-hidden="true"></span></span></button>
       <div id="countdown" class="hidden"><span id="countdown-num">3</span></div>
     </div>
 
-    <!-- ============ MENU ============ -->
-    <div id="screen-menu" class="screen">
-      <div class="menu-card">
-        <div class="garland" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <h1 class="game-title">Candy Kingdom<br>Coaster</h1>
-        <p class="game-subtitle">Сладкое приключение Лили 🍭</p>
-        <button id="btn-play" class="big-btn" disabled>▶ ИГРАТЬ</button>
-        <p class="hint loading" id="loading-hint">Загружаем сладости…</p>
-        <div class="records" id="records-menu"></div>
-        <p class="hint">Управление: две кнопки ◀ ▶ · клавиши ← → · M — звук</p>
-      </div>
+    <!-- One responsive welcome screen, with distinct loading / ready states. -->
+    <div id="screen-menu" class="screen welcome-screen">
+      <main class="welcome-card" aria-labelledby="welcome-title">
+        <div class="welcome-visual">
+          <img class="welcome-art" src="./assets/ui/welcome.webp" alt="Лили в розовой машинке на сладкой трассе с двумя тортами" width="960" height="720" fetchpriority="high">
+          <div class="world-badge"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-flag"/></svg><span>Маленькая гонщица. Большое приключение.</span></div>
+          <div class="visual-caption">Поворот за поворотом —<br><b>навстречу сладостям!</b></div>
+        </div>
+        <div class="welcome-copy">
+          <div class="welcome-heading">
+            <div class="eyebrow"><span></span>Сладкое приключение Лили</div>
+            <h1 id="welcome-title" class="game-title"><span>Candy Kingdom</span><strong>Coaster</strong></h1>
+            <p class="game-subtitle">Твоя самая сладкая гонка.</p>
+          </div>
+          <div class="welcome-action" aria-busy="true">
+            <div id="loading-panel">
+              <div class="loading-status"><span id="loading-hint" role="status">Открываем конфетный мир…</span><b id="loading-percent" aria-hidden="true">0<span>%</span></b></div>
+              <div id="loading-progress" class="loading-track" role="progressbar" aria-label="Загрузка игры" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="loading-fill"></div><svg class="ui-icon loading-candy" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-candy"/></svg></div>
+              <div class="loading-stages" aria-hidden="true"><span data-load-step="0" class="current"><i></i>Мир</span><span data-load-step="1"><i></i>Машинка</span><span data-load-step="2"><i></i>Поехали!</span></div>
+            </div>
+            <button type="button" id="btn-play" class="big-btn play-btn hidden" disabled><span class="play-disc"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg></span><span>Играть</span><span class="play-spark" aria-hidden="true">✦</span></button>
+            <div id="loading-error" class="hidden" role="alert"><p id="loading-error-text"></p><button type="button" id="btn-reload" class="mid-btn"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"/></svg>Попробовать ещё раз</button></div>
+          </div>
+          <div class="drive-hint"><span class="mini-controls" aria-hidden="true"><i><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-left"/></svg></i><i><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-right"/></svg></i></span><p>Лили едет сама.<br><b>Ты выбираешь путь!</b></p><span class="keyboard-hint" title="Также работают клавиши-стрелки">← →</span></div>
+          <div class="welcome-footer"><div id="records-menu" class="records" aria-label="Твои рекорды"></div><button type="button" id="btn-menu-sound" class="icon-btn" data-sound-toggle data-ready-control disabled aria-label="Выключить звук" aria-pressed="true"><svg class="ui-icon sound-on" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-sound"/></svg><svg class="ui-icon sound-off" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-mute"/></svg></button></div>
+        </div>
+      </main>
     </div>
 
     <!-- ============ PAUSE ============ -->
     <div id="screen-pause" class="screen hidden">
       <div class="menu-card small">
         <h2>Пауза</h2>
-        <button id="btn-resume" class="big-btn">▶ ПРОДОЛЖИТЬ</button>
-        <button id="btn-restart" class="mid-btn">🔄 Начать заново</button>
-        <button id="btn-menu" class="mid-btn">🏠 В меню</button>
+        <button type="button" id="btn-resume" class="big-btn"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg>Продолжить</button>
+        <button type="button" id="btn-restart" class="mid-btn"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"/></svg>Начать заново</button>
+        <button type="button" id="btn-menu" class="mid-btn"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-home"/></svg>В меню</button>
         <button id="btn-sound2" class="mid-btn">🔊 Звук включён</button>
       </div>
     </div>
@@ -104,6 +137,6 @@
     </div>
   </div>
 
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/boot.js"></script>
 </body>
 </html>

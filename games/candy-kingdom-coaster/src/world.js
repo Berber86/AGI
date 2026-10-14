@@ -720,7 +720,10 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   // ---------- rollercoaster rails (background fun, near mid-course) ----------
   const c0 = track.getPose(track.fromBaseDistance(track.baseLength * 0.76), 0);
   const sideDir = new THREE.Vector3(Math.cos(c0.heading), 0, -Math.sin(c0.heading));
-  const base = c0.pos.clone().addScaledVector(sideDir, 70);
+  // 70 m put the near supports across the post-cake route at s ≈ 1480.
+  // Move the WHOLE attraction (including the train path) 25 m outward.
+  // The nearest rail/support now has >18 m centreline clearance.
+  const base = c0.pos.clone().addScaledVector(sideDir, 95);
   const coasterCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(base.x - 60, 6, base.z - 25), new THREE.Vector3(base.x - 20, 26, base.z),
     new THREE.Vector3(base.x + 20, 34, base.z - 7),
@@ -730,6 +733,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   ], true, 'catmullrom', 0.6);
   const railMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.35, metalness: 0.35 });
   const coasterRig = new THREE.Group();
+  coasterRig.name = 'backgroundCoaster';
   world.add(coasterRig);
   const railA = new THREE.Mesh(new THREE.TubeGeometry(coasterCurve, 120, 0.55, 8, true), railMat);
   coasterRig.add(railA);
@@ -1884,6 +1888,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   }
   return {
     hemi, setDarkness,
+    coaster: { curve: coasterCurve, group: coasterRig, cars: coasterCars },
     sky, sun,
     mountainDebug: () => mountainDebug,
     knockedCount: () => knockItems.reduce((n, it) => n + (it.state ? 1 : 0), 0),

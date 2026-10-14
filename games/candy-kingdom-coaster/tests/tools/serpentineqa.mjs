@@ -235,11 +235,11 @@ try {
   const cache = await page.evaluate(async () => {
     const ready = await Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((r) => setTimeout(() => r(false), 15000))]);
     if (!ready) return { error: 'service worker did not activate within 15 seconds' };
-    const keys = await caches.keys(), key = keys.find((k) => k === 'ckc-v15');
+    const keys = await caches.keys(), key = keys.find((k) => k === 'ckc-v16');
     const c = key && await caches.open(key);
     return { key, course: !!(c && await c.match('./src/course.js')), cakes: !!(c && await c.match('./src/cakes.js')) };
   });
-  record('new route and cake modules are precached for offline play', cache.key === 'ckc-v15' && cache.course && cache.cakes, cache);
+  record('new route and cake modules are precached for offline play', cache.key === 'ckc-v16' && cache.course && cache.cakes, cache);
   if (process.argv.includes('--offline')) {
     await page.setOfflineMode(true);
     await page.reload({ waitUntil: 'networkidle0', timeout: 120000 });

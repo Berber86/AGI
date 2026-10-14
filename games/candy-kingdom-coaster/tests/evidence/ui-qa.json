@@ -1,0 +1,386 @@
+{
+  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
+  "results": [
+    {
+      "name": "real progress, no rollback, hidden/inert controls during loading",
+      "pass": true,
+      "detail": {
+        "value": "56",
+        "fill": 0.5607793898809523,
+        "hint": "Добавляем краски и сладости…",
+        "hiddenHUD": true,
+        "locked": true,
+        "art": 960,
+        "motion": "none"
+      }
+    },
+    {
+      "name": "welcome fits 844x390 without scrolling",
+      "pass": true,
+      "detail": {
+        "allFit": true,
+        "scroll": 0,
+        "button": [
+          340.46875,
+          58
+        ],
+        "bounds": [
+          171.03125,
+          229.03125
+        ],
+        "height": 390,
+        "noHUD": true,
+        "ready": true
+      }
+    },
+    {
+      "name": "welcome fits 915x412 without scrolling",
+      "pass": true,
+      "detail": {
+        "allFit": true,
+        "scroll": 0,
+        "button": [
+          374.609375,
+          58
+        ],
+        "bounds": [
+          184.46875,
+          242.46875
+        ],
+        "height": 412,
+        "noHUD": true,
+        "ready": true
+      }
+    },
+    {
+      "name": "welcome fits 851x326 without scrolling",
+      "pass": true,
+      "detail": {
+        "allFit": true,
+        "scroll": 0,
+        "button": [
+          347.828125,
+          58
+        ],
+        "bounds": [
+          129.25,
+          187.25
+        ],
+        "height": 326,
+        "noHUD": true,
+        "ready": true
+      }
+    },
+    {
+      "name": "welcome fits 640x280 without scrolling",
+      "pass": true,
+      "detail": {
+        "allFit": true,
+        "scroll": 0,
+        "button": [
+          291,
+          55
+        ],
+        "bounds": [
+          93.640625,
+          148.640625
+        ],
+        "height": 280,
+        "noHUD": true,
+        "ready": true
+      }
+    },
+    {
+      "name": "welcome fits 1366x768 without scrolling",
+      "pass": true,
+      "detail": {
+        "allFit": true,
+        "scroll": 0,
+        "button": [
+          445.3125,
+          68
+        ],
+        "bounds": [
+          378.890625,
+          446.890625
+        ],
+        "height": 768,
+        "noHUD": true,
+        "ready": true
+      }
+    },
+    {
+      "name": "startup error has a visible retry, not a disabled-menu dead end",
+      "pass": true,
+      "detail": {
+        "state": "error",
+        "alert": true,
+        "retry": 44,
+        "locked": true
+      }
+    },
+    {
+      "name": "real cold boot reports completed stages and unlocks Play",
+      "pass": true,
+      "detail": {
+        "values": [
+          4,
+          6,
+          8,
+          10,
+          12,
+          14,
+          16,
+          18,
+          20,
+          22,
+          24,
+          26,
+          28,
+          30,
+          32,
+          34,
+          36,
+          38,
+          40,
+          42,
+          44,
+          46,
+          48,
+          50,
+          52,
+          54,
+          56,
+          60,
+          70,
+          78,
+          86,
+          88,
+          89,
+          90,
+          91,
+          92,
+          93,
+          94,
+          96,
+          100
+        ],
+        "state": "ready",
+        "ui": "menu",
+        "ready": true,
+        "busy": "false"
+      }
+    },
+    {
+      "name": "menu sound control toggles and preserves SVG icons",
+      "pass": true,
+      "detail": {
+        "muted": true,
+        "unmuted": true
+      }
+    },
+    {
+      "name": "Play starts a real ride and only then enables controls",
+      "pass": true,
+      "detail": {
+        "state": "racing",
+        "ui": "game",
+        "inert": false
+      }
+    },
+    {
+      "name": "btn-left: held touch, press feedback and release",
+      "pass": true,
+      "detail": {
+        "held": {
+          "lateral": -2.78,
+          "pressed": true,
+          "aria": "true"
+        },
+        "released": true,
+        "target": [
+          97.046875,
+          81.890625
+        ]
+      }
+    },
+    {
+      "name": "btn-right: held touch, press feedback and release",
+      "pass": true,
+      "detail": {
+        "held": {
+          "lateral": 2.49,
+          "pressed": true,
+          "aria": "true"
+        },
+        "released": true,
+        "target": [
+          97.046875,
+          81.890625
+        ]
+      }
+    },
+    {
+      "name": "multitouch, keyboard and blur share non-sticky feedback",
+      "pass": true,
+      "detail": {
+        "multipointer": {
+          "stillHeld": true,
+          "released": true
+        },
+        "keyboard": true,
+        "blur": true
+      }
+    },
+    {
+      "name": "pause hides/disables controls; resume restores them",
+      "pass": true,
+      "detail": {
+        "paused": {
+          "state": "paused",
+          "inert": true,
+          "visible": "hidden"
+        },
+        "resumed": true
+      }
+    },
+    {
+      "name": "fullscreen button enters/exits and reports its real state",
+      "pass": true,
+      "detail": {
+        "entered": true,
+        "exited": true
+      }
+    },
+    {
+      "name": "all coaster supports/rails clear road; moving train stays aligned",
+      "pass": true,
+      "detail": {
+        "railClearance": 17.872726466054306,
+        "postClearance": 18.21196065613496,
+        "trainError": 0,
+        "blocked": 0,
+        "rig": "backgroundCoaster"
+      }
+    },
+    {
+      "name": "all live controls fit, every target at least 44px",
+      "pass": true,
+      "detail": [
+        {
+          "id": "btn-left",
+          "size": [
+            105.21875,
+            86.515625
+          ],
+          "fits": true
+        },
+        {
+          "id": "btn-right",
+          "size": [
+            105.21875,
+            86.515625
+          ],
+          "fits": true
+        },
+        {
+          "id": "btn-sound",
+          "size": [
+            46,
+            46
+          ],
+          "fits": true
+        },
+        {
+          "id": "btn-pause",
+          "size": [
+            46,
+            46
+          ],
+          "fits": true
+        },
+        {
+          "id": "btn-full",
+          "size": [
+            46,
+            46
+          ],
+          "fits": true
+        }
+      ]
+    },
+    {
+      "name": "finish and back-to-menu also hide/inactivate driving controls",
+      "pass": true,
+      "detail": {
+        "finished": {
+          "state": "finish",
+          "ui": "finish",
+          "inert": true
+        },
+        "back": true
+      }
+    },
+    {
+      "name": "portrait 360x800: rotate hint, no overflow",
+      "pass": true,
+      "detail": {
+        "shown": true,
+        "overflow": false
+      }
+    },
+    {
+      "name": "portrait 412x915: rotate hint, no overflow",
+      "pass": true,
+      "detail": {
+        "shown": true,
+        "overflow": false
+      }
+    },
+    {
+      "name": "new UI, artwork, fonts and loader are cached",
+      "pass": true,
+      "detail": [
+        {
+          "url": "./src/boot.js",
+          "cached": true
+        },
+        {
+          "url": "./src/loading.js",
+          "cached": true
+        },
+        {
+          "url": "./assets/ui/welcome.webp",
+          "cached": true
+        },
+        {
+          "url": "./assets/ui/fonts/nunito-latin.woff2",
+          "cached": true
+        },
+        {
+          "url": "./assets/ui/fonts/nunito-cyrillic.woff2",
+          "cached": true
+        },
+        {
+          "url": "./assets/textures/fonts/Fredoka-Bold.woff2",
+          "cached": true
+        }
+      ]
+    },
+    {
+      "name": "real offline reload reaches the illustrated ready screen",
+      "pass": true,
+      "detail": {
+        "state": "ready",
+        "art": 960,
+        "ready": true
+      }
+    },
+    {
+      "name": "no browser errors in the real game",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

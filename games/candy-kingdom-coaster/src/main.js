@@ -21,6 +21,7 @@ import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { loadTextures, countLoaded } from './textures.js';
+import { setLoading, finishLoading, paintLoading } from './loading.js';
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('game-canvas');
@@ -47,16 +48,15 @@ composer.addPass(new OutputPass());
 // ---------------------------------------------------------------- textures
 // Real image textures are fetched before the world is built so every material
 // starts with its final map. Missing files fall back to procedural canvases.
-const loadingHint = document.getElementById('loading-hint');
+setLoading(4, 0, 'Открываем конфетный мир…');
 const TEX = await loadTextures({
   renderer,
   onProgress: (n, total) => {
-    if (loadingHint) loadingHint.textContent = `Загружаем сладости… ${Math.round((n / total) * 100)}%`;
+    setLoading(4 + (n / total) * 52, 0, 'Добавляем краски и сладости…');
   },
 });
-if (loadingHint) loadingHint.textContent = 'Собираем машинку…';
-// let the hint paint before the (synchronous) world + car build
-await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+setLoading(60, 0, 'Строим сладкую трассу…');
+await paintLoading();
 
 // ---------------------------------------------------------------- world
 const track = createTrack(scene, TEX);
@@ -64,8 +64,12 @@ const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
 const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (cocoa → marshmallow)
 const cakes = createCakes(scene, track, TEX); // uphill cake → sky bridge → downhill cake
+setLoading(70, 0, 'Расставляем сладости…');
+await paintLoading();
 // Keep the water, tunnel and elevated cake roads free of ordinary props.
 const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) || cakes.blocks(x, z) });
+setLoading(78, 1, 'Лили пристёгивается…');
+await paintLoading();
 const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
@@ -81,6 +85,8 @@ function tunnelTick(dt, s) {
   car.setHeadlights(k);
   tunnel.update(dt, performance.now() * 0.001, s);
 }
+setLoading(86, 1, 'Проверяем машинку…');
+await paintLoading();
 const sweets = createSweets(scene, track, ramps);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
@@ -154,10 +160,20 @@ const HAPTIC = {
 
 function showScreen(name) {
   for (const [k, node] of Object.entries(screens)) node.classList.toggle('hidden', k !== name);
+  const playing = name === null;
+  document.body.dataset.screen = playing ? 'game' : name;
+  const root = document.getElementById('hud');
+  root.inert = !playing;
+  root.setAttribute('aria-hidden', String(!playing));
 }
 
 function setSoundIcons() {
   hud.setMuted(SFX.isMuted());
+  document.querySelectorAll('[data-sound-toggle]').forEach((button) => {
+    button.classList.toggle('is-muted', SFX.isMuted());
+    button.setAttribute('aria-label', SFX.isMuted() ? 'Включить звук' : 'Выключить звук');
+    button.setAttribute('aria-pressed', String(!SFX.isMuted()));
+  });
   el.btnSound2.textContent = SFX.isMuted() ? '🔇 Звук выключен' : '🔊 Звук включён';
 }
 
@@ -292,9 +308,9 @@ el.btnRestart.addEventListener('click', () => { SFX.play('click'); startRace(); 
 el.btnRestart2.addEventListener('click', () => { SFX.play('click'); startRace(); });
 el.btnMenu.addEventListener('click', () => { SFX.play('click'); toMenu(); });
 el.btnMenu2.addEventListener('click', () => { SFX.play('click'); toMenu(); });
-document.getElementById('btn-sound').addEventListener('click', () => {
+document.querySelectorAll('[data-sound-toggle]').forEach((button) => button.addEventListener('click', () => {
   SFX.unlock(); SFX.toggleMute(); setSoundIcons(); SFX.play('click');
-});
+}));
 // fullscreen toggle — hides the browser UI (Android Chrome: user gesture required)
 document.getElementById('btn-full').addEventListener('click', () => {
   SFX.unlock(); SFX.play('click');
@@ -320,6 +336,14 @@ document.getElementById('btn-full').addEventListener('click', () => {
     }
   } catch { /* ignore */ }
 });
+for (const event of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(event, () => {
+    const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const button = document.getElementById('btn-full');
+    button.setAttribute('aria-pressed', String(active));
+    button.setAttribute('aria-label', active ? 'Выйти из полного экрана' : 'Полный экран');
+  });
+}
 el.btnSound2.addEventListener('click', () => {
   SFX.unlock(); SFX.toggleMute(); setSoundIcons(); SFX.play('click');
 });
@@ -329,6 +353,7 @@ input.attachButton(document.getElementById('btn-left'), 'left');
 input.attachButton(document.getElementById('btn-right'), 'right');
 
 window.addEventListener('keydown', (e) => {
+  if (document.body.dataset.boot !== 'ready') return;
   if (e.key.toLowerCase() === 'm') { SFX.toggleMute(); setSoundIcons(); }
   if (e.key === ' ' || e.key === 'Enter') {
     if (game.state === 'menu') { SFX.unlock(); startRace(); }
@@ -1405,7 +1430,6 @@ function compileAll({ shadows = true } = {}) {
 }
 async function prewarm() {
   const t0 = performance.now();
-  const job = compileAll();
   const seen = new Set();
   scene.traverse((o) => {
     const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
@@ -1415,11 +1439,22 @@ async function prewarm() {
         if (!t || !t.isTexture || seen.has(t) || t.isRenderTargetTexture) continue;
         seen.add(t);
         const img = t.image;
-        if (img && (img.width || img.data || t.isCubeTexture)) renderer.initTexture(t);
+        if (!img || !(img.width || img.data || t.isCubeTexture)) seen.delete(t);
       }
     }
   });
+  let uploaded = 0;
+  for (const texture of seen) {
+    renderer.initTexture(texture);
+    if (++uploaded % 8 === 0) {
+      setLoading(88 + uploaded / seen.size * 6, 2, 'Готовим трассу к заезду…');
+      await paintLoading();
+    }
+  }
   const syncMs = Math.round(performance.now() - t0);
+  setLoading(96, 2, 'Последний штрих — и поехали!');
+  await paintLoading();
+  const job = compileAll();
   // parallel compile (KHR_parallel_shader_compile) finishes in the background;
   // never hold the menu hostage for more than a few seconds
   await Promise.race([job, new Promise((r) => setTimeout(r, 5000))]);
@@ -1430,11 +1465,10 @@ async function prewarm() {
     compileAll({ shadows: false }).then(() => { window.__PREWARM__.lowTier = renderer.info.programs.length; });
   }, 1500);
 }
-if (loadingHint) loadingHint.textContent = 'Разогреваем трассу…';
-await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+setLoading(88, 2, 'Готовим трассу к заезду…');
+await paintLoading();
 await prewarm();
-if (loadingHint) loadingHint.remove();
-document.getElementById('btn-play').disabled = false;
+finishLoading();
 
 setSoundIcons();
 fillRecordsPanel(el.recordsMenu, Storage.getRecords());
