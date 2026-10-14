@@ -8,6 +8,12 @@
 //   race   – full band
 //   boost  – race + 16th hats + sparkling arpeggio
 // setMode(mode, { restart: true }) restarts from the downbeat (used at GO!).
+//
+// Custom soundtrack: drop an mp3 at assets/music/soundtrack.mp3 and it
+// replaces the chiptune (same modes: menu softer, race full, boost a touch
+// louder; GO! restarts the song). Without the file — or if it fails to
+// decode — the procedural loop plays exactly as before. While the mp3 is
+// still downloading the chiptune covers and crossfades into the song.
 import { audioGraph, SFX } from './audio.js';
 
 const BPM = 150;
@@ -256,7 +262,7 @@ function scheduleStep(step, t) {
 }
 
 function tick() {
-  if (!state.playing || !graph) return;
+  if (!state.playing || !graph || !state.timer) return;
   const now = graph.ctx.currentTime;
   if (state.nextTime < now - 0.5) state.nextTime = now + 0.05; // clock jumped (tab hidden): resync
   while (state.nextTime < now + LOOKAHEAD) {
@@ -271,16 +277,124 @@ function fadeTo(v, tc = 0.25) {
   bus.gain.setTargetAtTime(v, graph.ctx.currentTime, tc);
 }
 
+// ---- custom soundtrack (assets/music/soundtrack.mp3) ----------------------
+const TRACK_URL = new URL('../assets/music/soundtrack.mp3', import.meta.url).href;
+// a mastered song is ~12 dB hotter than the chiptune: keep it under the SFX
+const TRACK_LEVEL = { menu: 0.3, race: 0.42, boost: 0.5 };
+const track = { status: 'idle', el: null, node: null, gain: null, error: null, blocked: false, bytes: 0 };
+const usingTrack = () => track.status === 'ready';
+
+function loadTrack() {
+  if (track.status !== 'idle' || typeof fetch !== 'function') return;
+  track.status = 'loading';
+  // fetched whole (not streamed by <audio>) so the service worker can cache it
+  // for offline play and a missing file falls back cleanly
+  fetch(TRACK_URL, { cache: 'no-cache' })
+    .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.arrayBuffer(); })
+    .then((buf) => {
+      if (buf.byteLength < 2048) throw new Error('file too small');
+      track.bytes = buf.byteLength;
+      const el = new Audio();
+      el.loop = true;
+      el.preload = 'auto';
+      el.src = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }));
+      el.addEventListener('error', () => { // undecodable file → back to the chiptune
+        track.error = 'decode error';
+        const was = usingTrack();
+        track.status = 'missing';
+        if (was && state.playing) { trackOff(0.05); chipOn(); fadeTo(SFX.isMuted() ? 0 : VOLUME[state.mode] ?? 0.25, 0.3); }
+      });
+      track.el = el;
+      track.status = 'ready';
+      if (state.playing) { // crossfade: chiptune out, song in
+        chipOff(0.6);
+        trackOn(state.mode, true);
+      }
+    })
+    .catch((e) => { track.status = 'missing'; track.error = String(e && e.message || e); });
+}
+
+function trackNode() {
+  if (track.node || !track.el || !ensureGraph()) return !!track.node;
+  try {
+    track.node = graph.ctx.createMediaElementSource(track.el);
+    track.gain = graph.ctx.createGain();
+    track.gain.gain.value = 0;
+    track.node.connect(track.gain);
+    track.gain.connect(graph.master); // master = the mute switch
+  } catch (e) {
+    track.node = null;
+  }
+  return !!track.node;
+}
+
+function trackLevel(mode, tc) {
+  if (!track.gain) return;
+  track.gain.gain.setTargetAtTime(TRACK_LEVEL[mode] ?? 0.4, graph.ctx.currentTime, tc);
+}
+
+function retryOnGesture() {
+  if (track.blocked) return;
+  track.blocked = true;
+  const go = () => {
+    track.blocked = false;
+    if (state.playing && usingTrack() && track.el.paused) trackOn(state.mode, false);
+  };
+  window.addEventListener('pointerdown', go, { once: true, capture: true });
+  window.addEventListener('keydown', go, { once: true, capture: true });
+}
+
+function trackOn(mode, restart) {
+  if (!trackNode()) return;
+  clearTimeout(track.pauseTimer);
+  if (restart) { try { track.el.currentTime = 0; } catch (e) { /* not seekable yet */ } }
+  if (track.el.paused) {
+    const p = track.el.play();
+    if (p && p.catch) p.catch(() => retryOnGesture()); // autoplay policy: next tap
+  }
+  trackLevel(mode, restart ? 0.08 : 0.35);
+}
+
+function trackOff(fade = 0.3) {
+  if (!track.gain) return;
+  track.gain.gain.setTargetAtTime(0, graph.ctx.currentTime, fade / 3);
+  clearTimeout(track.pauseTimer);
+  track.pauseTimer = setTimeout(() => { if (!state.playing && track.el) track.el.pause(); }, fade * 1000 + 120);
+}
+
+function chipOn() {
+  if (state.timer || !graph) return;
+  state.step = 0;
+  state.nextTime = graph.ctx.currentTime + 0.08;
+  state.timer = setInterval(tick, TICK_MS);
+}
+
+function chipOff(fade = 0.3) {
+  if (state.timer) { clearInterval(state.timer); state.timer = null; }
+  fadeTo(0, fade / 3);
+}
+
+// a backgrounded tab must not keep singing (the ctx graph may stay alive)
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (!track.el || !usingTrack()) return;
+    if (document.hidden) track.el.pause();
+    else if (state.playing) trackOn(state.mode, false);
+  });
+}
+
 export const MUSIC = {
   start(mode = 'menu') {
     if (!ensureGraph()) return false;
+    loadTrack();
     state.mode = mode;
-    if (!state.playing) {
-      state.playing = true;
-      state.step = 0;
-      state.nextTime = graph.ctx.currentTime + 0.08;
-      state.timer = setInterval(tick, TICK_MS);
+    const wasPlaying = state.playing;
+    state.playing = true;
+    if (usingTrack()) {
+      trackOn(mode, false); // resumes where the song paused
+      return true;
     }
+    if (!wasPlaying || !state.timer) chipOn();
     fadeTo(SFX.isMuted() ? 0 : VOLUME[mode] ?? 0.25, 0.4);
     tick();
     return true;
@@ -288,6 +402,10 @@ export const MUSIC = {
   setMode(mode, { restart = false } = {}) {
     if (!state.playing) return this.start(mode);
     state.mode = mode;
+    if (usingTrack()) {
+      trackOn(mode, restart);
+      return mode;
+    }
     if (restart && graph) {
       // start the loop again on the downbeat (e.g. right at GO!)
       state.step = 0;
@@ -300,8 +418,8 @@ export const MUSIC = {
   stop(fade = 0.3) {
     if (!state.playing) return;
     state.playing = false;
-    clearInterval(state.timer); state.timer = null;
-    fadeTo(0, fade);
+    chipOff(fade * 3);
+    trackOff(fade);
   },
   isPlaying() { return state.playing; },
   mode() { return state.mode; },
@@ -341,6 +459,11 @@ export const MUSIC = {
   // QA: structural facts about the tune
   info() {
     return { bpm: BPM, bars: BARS, steps: STEPS, playing: state.playing, mode: state.mode, step: state.step,
-      notes: MELODY.flat().filter(Boolean).length, busGain: bus ? +bus.gain.value.toFixed(3) : null };
+      notes: MELODY.flat().filter(Boolean).length, busGain: bus ? +bus.gain.value.toFixed(3) : null,
+      source: usingTrack() ? 'mp3' : 'chiptune',
+      track: { url: TRACK_URL, status: track.status, error: track.error, bytes: track.bytes,
+        paused: track.el ? track.el.paused : null, time: track.el ? +track.el.currentTime.toFixed(2) : null,
+        duration: track.el && isFinite(track.el.duration) ? +track.el.duration.toFixed(2) : null,
+        gain: track.gain ? +track.gain.gain.value.toFixed(3) : null } };
   },
 };
