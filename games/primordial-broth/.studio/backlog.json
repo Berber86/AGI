@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Runtime shell: index.html, canvas, game loop, test bridge, живые слои воды",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Страница открывается в landscape без ошибок в консоли",
+        "window.__GAME_TEST__ умеет reset/getState/spawn/tick",
+        "Кадр содержит не менее 3 слоёв воды (дальний/средний/ближний) с параллаксом"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-shell.json",
+        ".studio/evidence/reports/acceptance.json"
+      ],
+      "files": [
+        "index.html",
+        "styles.css",
+        "src/*"
+      ]
+    },
+    {
+      "id": "CORE-002",
+      "title": "Игрок-клетка: плавание с инерцией, свободный стик, рывок, камера, рост",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "Палец в любом месте задаёт тягу; отпустил — клетка плавно тормозит",
+        "8 ступеней роста меняют радиус, скорость и здоровье",
+        "Камера следит без рывков, zoom зависит от размера"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-player.json",
+        ".studio/evidence/reports/acceptance.json"
+      ],
+      "files": [
+        "src/cell.js",
+        "src/camera.js",
+        "src/input.js"
+      ]
+    },
+    {
+      "id": "CORE-003",
+      "title": "Живая вода и существа: планктон, обломки, стайки, хищники, споры",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-002"
+      ],
+      "acceptanceCriteria": [
+        "Пищевая цепочка работает: планктон едят все, мелкую клетку ест игрок, игрока ест хищник",
+        "Хвосты и жгутики изгибаются за движением (сегментная цепочка)",
+        "Поедание даёт сочные частицы и звук"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-foodchain.json",
+        ".studio/evidence/reports/acceptance.json"
+      ],
+      "files": [
+        "src/water.js",
+        "src/fauna.js",
+        "src/fx.js",
+        "src/audio.js"
+      ]
+    },
+    {
+      "id": "CORE-004",
+      "title": "Мутации, здоровье, мягкое поражение, победа на отмели",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-003"
+      ],
+      "acceptanceCriteria": [
+        "Экран мутации предлагает 1 из 3 частей и применяет эффект",
+        "Здоровье падает от укусов; при нуле — продолжение рядом с потерей части добычи",
+        "Победа достигается ростом 8/8 и достижением отмели; кнопка рестарта сбрасывает заплыв"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-mutations.json",
+        ".studio/evidence/reports/acceptance.json"
+      ],
+      "files": [
+        "src/mutations.js",
+        "src/hud.js"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Mobile QA: 360×800 и 412×915, консоль, победа/поражение пальцем, скриншоты",
+      "ownerRole": "qa",
+      "status": "ready",
+      "dependencies": [
+        "CORE-004"
+      ],
+      "acceptanceCriteria": [
+        "Обе ветки достижимы на обоих viewport без клавиатуры",
+        "Консоль чистая, запросы без 404",
+        "Скриншоты состояний сохранены в evidence"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/qa-mobile.json",
+        ".studio/evidence/screenshots/"
+      ],
+      "files": [
+        "tests/tools/acceptance.mjs"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "PWA, офлайн, публикация из подкаталога",
+      "ownerRole": "release",
+      "status": "blocked",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "manifest + иконки + service worker только в проде",
+        "Перезагрузка из подкаталога и офлайн после первой загрузки",
+        "README и handoff с ограничениями"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json"
+      ],
+      "files": [
+        "manifest.webmanifest",
+        "sw.js",
+        "README.md"
+      ]
+    },
+    {
+      "id": "ART-001",
+      "title": "Циклы улучшения: контрольные кадры против референса Spore",
+      "ownerRole": "designer",
+      "status": "in_progress",
+      "dependencies": [
+        "CORE-004"
+      ],
+      "acceptanceCriteria": [
+        "tests/reference/ содержит эталонные кадры",
+        "Каждая 4-я итерация: commit + push + отчёт с самооценкой",
+        "Каждый контрольный кадр сравнивается с эталоном и сохраняется"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/"
+      ],
+      "files": [
+        "tests/tools/shot.mjs"
+      ]
+    }
+  ],
+  "updatedAt": "2026-10-14T08:05:40Z"
+}
