@@ -102,16 +102,11 @@ export function createRoutes(reference, fromBaseDistance) {
     }
     return events;
   }
-  function hint(s) {
-    const f = forks.find((f) => s >= f.s0 - f.warning && s < f.s0 + 22);
-    return f ? { id: f.id, index: forks.indexOf(f) + 1, routes: f.branches,
-      selected: f.selected, pending: f.pending, metres: Math.max(0, Math.ceil(distance(s, f.s0))) } : null;
-  }
   const curve = new THREE.Curve();
   curve.getLength = () => length;
   curve.getPoint = curve.getPointAt = (u, target) => point(u * length, target);
   curve.getTangent = curve.getTangentAt = (u, target) => tangent(u * length, target);
   curve.sections = reference.sections; // existing landmark joints, untouched
-  return { reference, curve, forks, at, branchAt, choice, point, tangent, metric, advance, distance, reset, select, update, hint,
+  return { reference, curve, forks, at, branchAt, choice, point, tangent, metric, advance, distance, reset, select, update,
     routeLength: () => distance(0, length) };
 }

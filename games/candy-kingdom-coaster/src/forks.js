@@ -1,4 +1,4 @@
-// The four destinations and their physical signposts. Roads themselves live
+// The four destinations, without direction spoilers. Roads themselves live
 // in track.js, and routing lives in routes.js: scenery never decides a path.
 import * as THREE from 'three';
 import { gummyBearGeometry } from './world.js';
@@ -21,27 +21,6 @@ function starGeometry(r = 1) {
   }
   shape.closePath(); return new THREE.ExtrudeGeometry(shape, { depth: .22, bevelEnabled: false });
 }
-function icon(g, kind, x, y, color) {
-  g.save(); g.translate(x, y); g.fillStyle = color; g.strokeStyle = color; g.lineWidth = 8; g.lineCap = 'round';
-  const circle = (x, y, r) => { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
-  if (kind === 'bear') { circle(-19, -22, 11); circle(19, -22, 11); circle(0, -7, 28); circle(0, 29, 30); g.fillStyle = '#fff9ee'; circle(-9, -9, 4); circle(9, -9, 4); }
-  else if (kind === 'star') { g.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 19 : 40; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.closePath(); g.fill(); }
-  else if (kind === 'cloud') { circle(-20, 12, 24); circle(8, -5, 31); circle(31, 17, 21); g.fillRect(-20, 8, 52, 30); }
-  else { g.beginPath(); g.moveTo(-37, 31); g.lineTo(22, -6); g.lineTo(22, 31); g.closePath(); g.fill(); g.beginPath(); g.moveTo(-28, -15); g.quadraticCurveTo(0, -55, 35, -25); g.stroke(); g.beginPath(); g.moveTo(20, -29); g.lineTo(35, -25); g.lineTo(33, -42); g.stroke(); }
-  g.restore();
-}
-function signTexture(feature, direction) {
-  const c = document.createElement('canvas'); c.width = 640; c.height = 256; const g = c.getContext('2d');
-  g.fillStyle = '#fff9ed'; g.beginPath(); g.roundRect(3, 3, 634, 250, 42); g.fill();
-  g.lineWidth = 13; g.strokeStyle = feature.color; g.stroke(); icon(g, feature.icon, 86, 121, feature.color);
-  g.fillStyle = '#694b70'; g.font = '900 37px Nunito, sans-serif'; g.textAlign = 'center';
-  feature.short.forEach((t, i) => g.fillText(t, 330, 109 + 46 * i));
-  g.strokeStyle = feature.color; g.lineWidth = 14; g.lineJoin = 'round'; g.lineCap = 'round';
-  g.beginPath(); g.moveTo(direction < 0 ? 605 : 557, 128); g.lineTo(direction < 0 ? 557 : 605, 128);
-  g.moveTo(581, 103); g.lineTo(direction < 0 ? 557 : 605, 128); g.lineTo(581, 153); g.stroke();
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
-}
-
 export function createForks(scene, track, TEX = {}) {
   const group = new THREE.Group(); group.name = 'forkDestinations'; scene.add(group);
   const staticParts = new THREE.Group(); staticParts.name = 'forkScenery'; group.add(staticParts);
@@ -55,8 +34,7 @@ export function createForks(scene, track, TEX = {}) {
   const gumColors = ['#efa754', '#ed84af', '#82cbb5', '#e5cb65'];
 
   for (const f of track.routes.forks) {
-    // Keep the entire decision approach clear of random lollipops/canes so
-    // they cannot hide a direction board or its arrow.
+    // Keep the approach clear of random props so both roads remain readable.
     for (let s = f.s0 - f.warning; s < f.s0; s += 5) corridors.push(track.getBasePose(s).pos);
     // A low meadow island, not airborne grass over either playable ribbon.
     const a = [], uv = [], idx = [], n = 110;
@@ -74,30 +52,8 @@ export function createForks(scene, track, TEX = {}) {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
     mesh(staticParts, geo, bedMat).name = 'forkMeadow';
 
-    // Signs stand OUTSIDE the complete car envelope, never on the split nose.
-    for (const route of f.branches) {
-      const side = route.index ? 1 : -1, pose = track.getBasePose(f.s0 - 30, side * 12.5);
-      const poleTop = pose.pos.clone().addScaledVector(UP, 6.0);
-      bar(staticParts, pose.pos.clone().addScaledVector(UP, -2), poleTop, .22, cane);
-      const face = mesh(staticParts, new THREE.PlaneGeometry(7.8, 3.12), new THREE.MeshBasicMaterial({ map: signTexture(route, side), color: '#b8a7b7', alphaTest: .1, side: THREE.DoubleSide }), poleTop);
-      face.rotation.y = pose.heading + Math.PI;
-      face.position.addScaledVector(pose.tangent, -.36); // board IN FRONT of its pole, never text crossed by a cane
-      mesh(staticParts, new THREE.SphereGeometry(.36, 8, 5), gold, poleTop.clone().addScaledVector(UP, 1.85));
-      // Painted arrows mark the actual decision landing before the roads fan
-      // out. They are not extra buttons: selecting still uses normal steering.
-      const paint = document.createElement('canvas'); paint.width = 128; paint.height = 256;
-      const g = paint.getContext('2d'), tip = side < 0 ? 28 : 100;
-      g.lineCap = 'round'; g.lineJoin = 'round';
-      for (const [color, width] of [['#fff8ea', 25], [route.color, 16]]) {
-        g.strokeStyle = color; g.lineWidth = width; g.beginPath(); g.moveTo(64, 228); g.lineTo(64, 137); g.quadraticCurveTo(64, 99, tip, 56); g.stroke();
-        g.beginPath(); g.moveTo(tip - side * 4, 95); g.lineTo(tip, 56); g.lineTo(tip - side * 35, 57); g.stroke();
-      }
-      const texture = new THREE.CanvasTexture(paint); texture.colorSpace = THREE.SRGBColorSpace;
-      const arrowPose = track.getBasePose(f.s0 - 13, side * 2.35), normal = new THREE.Vector3().crossVectors(arrowPose.right, arrowPose.tangent).normalize();
-      const arrow = mesh(staticParts, new THREE.PlaneGeometry(2.7, 4.6), new THREE.MeshBasicMaterial({ map: texture, color: '#d8cad8', transparent: true, alphaTest: .1, depthWrite: false }), arrowPose.pos.addScaledVector(UP, .045));
-      arrow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(arrowPose.right, arrowPose.tangent, normal));
-
-    }
+    // No named signboards or painted direction arrows: both destinations
+    // are discovered through the roads and their scenery, not advance labels.
     for (const route of f.branches) {
       const pose = (q, lat = 0) => track.getPose(f.s0 + f.span * q, lat, route.index);
       const point = (q, lat = 0, dy = 0) => pose(q, lat).pos.addScaledVector(UP, dy);

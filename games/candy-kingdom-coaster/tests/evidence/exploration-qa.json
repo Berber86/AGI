@@ -1,0 +1,93 @@
+{
+  "baseURL": "http://127.0.0.1:8900/index.html",
+  "results": [
+    {
+      "name": "no direction overlay, live announcement, named signboards or painted fork arrows",
+      "pass": true,
+      "detail": {
+        "absentDOM": true,
+        "directionTextures": 0
+      }
+    },
+    {
+      "name": "fork 1: left touch still selects, silently",
+      "pass": true,
+      "detail": {
+        "selected": 0,
+        "noHints": true,
+        "state": "racing",
+        "released": true
+      }
+    },
+    {
+      "name": "fork 1: right touch still selects, silently",
+      "pass": true,
+      "detail": {
+        "selected": 1,
+        "noHints": true,
+        "state": "racing",
+        "released": true
+      }
+    },
+    {
+      "name": "fork 2: left touch still selects, silently",
+      "pass": true,
+      "detail": {
+        "selected": 0,
+        "noHints": true,
+        "state": "racing",
+        "released": true
+      }
+    },
+    {
+      "name": "fork 2: right touch still selects, silently",
+      "pass": true,
+      "detail": {
+        "selected": 1,
+        "noHints": true,
+        "state": "racing",
+        "released": true
+      }
+    },
+    {
+      "name": "no hints before, at, within or after either fork",
+      "pass": true,
+      "detail": {
+        "checked": 20,
+        "unexpected": 0
+      }
+    },
+    {
+      "name": "post-race recap is retained",
+      "pass": true,
+      "detail": {
+        "state": "finish",
+        "recap": "Твой маршрут: Мармеладные холмы → Печеньевый трамплин",
+        "visible": true
+      }
+    },
+    {
+      "name": "v23 cache replaces the previous hint UI",
+      "pass": true,
+      "detail": {
+        "present": true,
+        "noOverlay": true
+      }
+    },
+    {
+      "name": "offline reload keeps both forks without restoring hints",
+      "pass": true,
+      "detail": {
+        "ready": "ready",
+        "forks": 2,
+        "noHints": true
+      }
+    },
+    {
+      "name": "no browser errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

@@ -84,14 +84,14 @@ try {
       for (let i = 0; i < 200 && T.jumpInfo().s < f.s0 + 4; i++) {
         T.step(1 / 60, 1, false); maxStep = Math.max(maxStep, previous.distanceTo(car.root.position)); previous.copy(car.root.position);
       }
-      return { selected: f.selected, maxStep, state: T.state(), hint: !document.getElementById('fork-hint').classList.contains('hidden') };
+      return { selected: f.selected, maxStep, state: T.state(), noHints: !document.querySelector('#fork-hint, #fork-live, [data-fork-side]') };
     }, fi);
     await page.touchscreen.touchEnd();
     const released = await page.$eval(id, (b) => b.getAttribute('aria-pressed') === 'false');
     await page.evaluate((fi) => { const T = __TEST__, f = T.internals().track.routes.forks[fi]; T.holdSteer(f.selected === 0 ? 1 : -1); T.step(1 / 60, 65, false); T.holdSteer(null); }, fi);
     const latched = await page.evaluate((fi) => __TEST__.internals().track.routes.forks[fi].selected, fi);
     check(`fork ${fi + 1}, real ${side < 0 ? 'left' : 'right'} touch selects and latches without teleport`, result.selected === (side < 0 ? 0 : 1)
-      && latched === result.selected && result.maxStep < .8 && result.state === 'racing' && result.hint && released, { ...result, latched, released });
+      && latched === result.selected && result.maxStep < .8 && result.state === 'racing' && result.noHints && released, { ...result, latched, released });
   }
 
   const framing = await page.evaluate(async () => {

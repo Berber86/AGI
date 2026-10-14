@@ -198,13 +198,14 @@ try {
     await view(page, width, height);
     const panel = await page.evaluate(() => {
       const T = __TEST__, { track } = T.internals(); T.startRace(); T.setProgress((track.routes.forks[0].s0 - 35) / track.length, 0, true); T.step(1 / 60, 1, false);
-      const el = document.getElementById('fork-hint'), r = el.getBoundingClientRect();
-      const hits = ['hud-bottom-right', 'hud-top-right', 'btn-left', 'btn-right'].filter((id) => {
-        const b = document.getElementById(id).getBoundingClientRect(); return r.left < b.right && r.right > b.left && r.top < b.bottom && r.bottom > b.top;
+      const absent = !document.querySelector('#fork-hint, #fork-live, [data-fork-side]');
+      const controls = ['btn-left', 'btn-right'].map((id) => {
+        const b = document.getElementById(id), r = b.getBoundingClientRect();
+        return r.width >= 44 && r.height >= 44 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && getComputedStyle(b).visibility === 'visible';
       });
-      return { shown: !el.classList.contains('hidden'), fits: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight, overlaps: hits };
+      return { absent, controls };
     });
-    check(`active fork chooser fits ${width}x${height} without covering controls`, panel.shown && panel.fits && panel.overlaps.length === 0, panel);
+    check(`fork approach ${width}x${height}: no route hints, steering remains usable`, panel.absent && panel.controls.every(Boolean), panel);
   }
   await view(page, 915, 412);
   const finished = await page.evaluate(() => {
@@ -223,7 +224,7 @@ try {
   // is controlled before disabling the network, not just until caches exist.
   await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 30000 });
   const cached = await page.evaluate(async () => {
-    const c = await caches.open('ckc-v22'), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2', './src/routes.js', './src/forks.js'];
+    const c = await caches.open('ckc-v23'), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2', './src/routes.js', './src/forks.js'];
     return await Promise.all(urls.map(async (url) => ({ url, cached: !!(await c.match(url)) })));
   });
   check('new UI, artwork, fonts and loader are cached', cached.every((r) => r.cached), cached);

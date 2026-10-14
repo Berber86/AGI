@@ -4,9 +4,10 @@
 
 - First fork (base stations 115–335): gummy hills with animated bears, or a lit star tunnel.
 - Second fork (base stations 1110–1360): cookie ramps, or an 8.5 m-high cloud bridge.
-- A hint appears 65 m before the split. Steer toward a side with the existing
-  touch pads/arrow keys. The selection latches at the common landing; neutral
-  input safely takes the left route. Both alternatives rejoin the same course.
+- Steer toward a side with the existing touch pads/arrow keys. The selection
+  latches silently at the common landing; neutral input safely takes the left
+  route. Both alternatives rejoin the same course. No advance direction panel,
+  confirmation announcement, named signboards or painted fork arrows.
 - The finish panel records the two chosen destinations. Restart resets both.
 
 ## Architecture
@@ -18,7 +19,7 @@ travel, cameras, ramp lengths and pickup distances; do not add metres directly
 inside a fork. Both the road renderer and gameplay query these same curves.
 
 `track.js` renders both branches with shared, clipped junction seams and wider
-paved shoulders. `forks.js` builds the destinations, signs and painted arrows.
+paved shoulders. `forks.js` builds the destinations without directional spoilers.
 Random scenery is excluded from all alternatives and their decision approaches;
 coaster clearance uses every route, not just the default branch.
 
@@ -27,7 +28,27 @@ count only the 151 reachable sweets, not all 176 rendered sweets. Ramps inside
 the second fork belong to the cookie path; no invisible jumps on the cloud path.
 The existing river, cakes, sagging bridge and chocolate tunnel remain common.
 
-## Verified — closure on 2026-10-15
+## Exploration mode — v23
+
+Directional guidance was removed from both the HUD and the decision approaches.
+The route-update/steering logic is unchanged; selection no longer produces a
+click or haptic confirmation. The finish screen retains the recap of paths
+already explored. Steering buttons, collectibles and their feedback remain.
+
+**10/10 focused checks passed**: no overlay/live announcement/direction textures,
+real left/right touch selection at both forks, absence of hints through 20 route
+positions, finish recap, v23 cache and an actual offline reload. No browser errors.
+Evidence: `evidence/exploration-qa.json`, `evidence/fork-without-hints.webp`.
+Root tests: 11/11; validator self-test, syntax and diff checks passed. Earlier
+v22 reports/images below are historical; the full suites were not repeated for
+this presentation-only removal.
+
+```sh
+cp games/candy-kingdom-coaster/tests/tools/explorationqa.mjs /home/user/tools/
+node /home/user/tools/explorationqa.mjs http://127.0.0.1:8900/index.html
+```
+
+## Previous v22 verification — closure on 2026-10-15
 
 The existing implementation was resumed, not rebuilt. No gameplay/source
 changes were needed in this closure; only the remaining regression checks,

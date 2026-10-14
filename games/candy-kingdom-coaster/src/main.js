@@ -215,7 +215,6 @@ function startRace() {
   game.introT = 0;
   resetJump();
   track.routes.reset();
-  hud.updateFork(null);
   sweets.reset();
   input.releaseAll();
   showScreen(null);
@@ -639,9 +638,9 @@ function updateGameplay(dt) {
     }
 
     // progress
-    for (const event of track.routes.update(game.s, game.lateral, steer, game.speed * dt)) {
-      SFX.play('click'); HAPTIC.buzz(12);
-    }
+    // Choose silently: the player discovers destinations rather than receiving
+    // directional prompts or a selection confirmation during the ride.
+    track.routes.update(game.s, game.lateral, steer, game.speed * dt);
     game.s = track.advance(game.s, game.speed * dt);
     if (game.s >= track.length) {
       game.s = track.length;
@@ -740,7 +739,6 @@ function updateGameplay(dt) {
   }
 
   // HUD
-  hud.updateFork(game.state === 'racing' ? track.routes.hint(game.s) : null);
   hud.update({
     timeS: game.timeS,
     speedKmh: game.speed * 3.6,

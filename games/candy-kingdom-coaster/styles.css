@@ -304,16 +304,5 @@ body.is-boosting[data-screen='game'] #speed-lines { opacity: 1; animation: lineR
   #speed-lines { display: none; }
 }
 
-/* Route choices: informative only; the two existing steering pads do the work. */
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.fork-hint { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: min(370px, calc(100% - 40px)); padding: 7px 9px 9px; border-radius: 19px; border: 2px solid #fff; background: #fffaf3f5; box-shadow: 0 4px 0 #d3a1b566, 0 8px 18px #64426625; pointer-events: none; }
-.fork-caption { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 5px 5px; font-size: 10px; color: #987791; }
-.fork-caption b { font-weight: 900; }.fork-caption > span { font-weight: 950; color: #cc719c; }
-.fork-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.fork-chip { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; padding: 5px 6px; min-height: 39px; border: 2px solid #eee3e8; border-radius: 12px; color: #987a96; background: #fff; transition: border-color .15s, opacity .15s, transform .15s; }
-.fork-chip.is-selected { border-color: var(--route-color); color: #624767; box-shadow: 0 2px 0 var(--route-color); transform: translateY(-1px); }
-.fork-name { font-size: 11px; line-height: 1.1; font-weight: 950; }.fork-arrow { font-size: 18px; font-weight: 950; }
-.fork-chip .ui-icon { width: 24px; height: 24px; }.fork-hint.is-chosen .fork-chip:not(.is-selected) { opacity: .38; }
+/* Post-race recap only; no in-race route spoilers. */
 .finish-route { margin: 3px 0 8px; color: #a07096; font-size: 11px; font-weight: 850; line-height: 1.3; }
-@media (max-height: 340px) { .fork-hint { top: 65px; width: min(345px, calc(100% - 36px)); padding: 4px 7px 6px; border-radius: 14px; }.fork-caption { font-size: 9px; padding-bottom: 3px; }.fork-chip { min-height: 31px; padding: 3px 5px; }.fork-chip .ui-icon { width: 19px; height: 19px; }.fork-name { font-size: 10px; } }
-@media (prefers-reduced-motion: reduce) { .fork-chip { transition: none; } }
