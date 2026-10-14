@@ -90,8 +90,8 @@ export const MEDALS = [
   { id: 'gold',   icon: '🏆', name: 'Unicorn Legend', requirement: 'Собери ≥ 92% сладостей',   minFraction: 0.92 },
 ];
 
-// Bonus time medal (explicit threshold in seconds)
-export const TIME_MEDAL = { id: 'speed', icon: '⏱️', name: 'Speed Racer', requirement: 'Финиш быстрее 105 секунд', maxSeconds: 105 };
+// Bonus time medal (explicit threshold in seconds); scaled for the longer cake course.
+export const TIME_MEDAL = { id: 'speed', icon: '⏱️', name: 'Speed Racer', requirement: 'Финиш быстрее 165 секунд', maxSeconds: 165 };
 
 export function zoneAt(u) {
   for (const z of ZONES) if (u >= z.u0 && u < z.u1) return z;

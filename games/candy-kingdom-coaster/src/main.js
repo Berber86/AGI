@@ -16,6 +16,7 @@ import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
 import { createBridge } from './bridge.js';
 import { createTunnel } from './tunnel.js';
+import { createCakes } from './cakes.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
@@ -62,8 +63,10 @@ const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
 const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (cocoa → marshmallow)
-// props avoid both the river valley and the cake body
-const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) });
+// Preserve the original scenery progression before/after the inserted pass.
+// No trees, villages or candy fences should float beside the elevated turns.
+const cakes = createCakes(scene, track, TEX);
+const world = createWorld(scene, track.scenery, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) || cakes.blocks(x, z) });
 const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
@@ -504,7 +507,7 @@ function updateGameplay(dt) {
     car.root.position.y += 0.02;
     car.root.rotation.y = pose.heading;
     car.update(dt, { speed: 0, steer: 0, boost: false });
-    const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
+    const knocked = world.update(dt, camera.position, track.sourceU(game.s), performance.now() * 0.001, -1, 0);
     bridge.update(dt, performance.now() * 0.001);
     tunnelTick(dt, game.s);
     finishFx.update(dt);
@@ -675,8 +678,7 @@ function updateGameplay(dt) {
   camera.updateProjectionMatrix();
 
   // zone tracking
-  const u = game.s / track.length;
-  const z = zoneAt(u);
+  const z = zoneAt(track.sourceU(game.s));
   if (z.id !== game.zoneIndex) {
     game.zoneIndex = z.id;
     // (no zone toast — removed as a distraction)
@@ -693,7 +695,9 @@ function updateGameplay(dt) {
     score: game.score,
   });
 
-  const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
+  const inCakePass = game.s > track.cakes.s0 && game.s < track.cakes.s1;
+  const knocked = world.update(dt, camera.position, track.sourceU(game.s), performance.now() * 0.001,
+    inCakePass ? -1 : track.toSourceS(game.s), game.lateral);
   bridge.update(dt, performance.now() * 0.001);
   tunnelTick(dt, game.s);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
@@ -761,9 +765,11 @@ function animate(now) {
 
 // ---------------------------------------------------------------- PWA & test hooks
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  });
+  const registerOffline = () => navigator.serviceWorker.register('./sw.js').catch(() => {});
+  // Texture loading / shader prewarming uses top-level await, so load may
+  // already have fired by the time this module resumes.
+  if (document.readyState === 'complete') registerOffline();
+  else window.addEventListener('load', registerOffline, { once: true });
 }
 
 window.__TEST__ = {
@@ -838,7 +844,15 @@ window.__TEST__ = {
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
   // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
-  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel }; },
+  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel, cakes }; },
+  cakeInfo() {
+    const r = track.cakes;
+    const span = (v) => ({ s0: v.s0, s1: v.s1, y0: track.getPose(v.s0).pos.y, y1: track.getPose(v.s1).pos.y });
+    return { s0: r.s0, s1: r.s1, rise: r.rise, turns: r.turns,
+      up: { ...span(r.up), center: r.up.center.toArray() },
+      bridge: span(r.bridge), down: { ...span(r.down), center: r.down.center.toArray() },
+      surfaces: track.cakeRoadMeshes.map((m) => m.userData.surface), sourceLength: track.sourceLength };
+  },
   tunnelInfo() {
     return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
   },
@@ -1033,7 +1047,7 @@ window.__TEST__ = {
       state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1),
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
       boostActive: game.boostActive, boostCharges: game.boostCharges,
-      zone: zoneAt(game.s / track.length).id,
+      zone: zoneAt(track.sourceU(game.s)).id,
     };
   },
   camDebug() {

@@ -1,32 +1,9 @@
 // Spline track: road mesh, curbs, terrain shoulders, start/finish, pose queries.
 import * as THREE from 'three';
 import { TUNING, ZONES, zoneAt, BRIDGE } from './config.js';
+import { createCourse } from './cake-course.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function buildWaypoints() {
-  // A snaking coaster course with alternating LEFT and RIGHT sweeps plus
-  // gentle hills — every bend stays readable from the chase camera.
-  const pts = [];
-  const STEPS = 230;
-  const ds = 6.4; // ~1470 m total
-  let x = 0, z = 0, y = 2.4;
-  for (let i = 0; i <= STEPS; i++) {
-    const t = i / STEPS;
-    const heading =
-      0.62 * Math.sin(2 * Math.PI * 1.9 * t + 0.42) +
-      0.34 * Math.sin(2 * Math.PI * 3.25 * t + 1.15) +
-      0.1 * Math.sin(2 * Math.PI * 5.6 * t);
-    y = 2.4 + 3.3 * Math.sin(2 * Math.PI * 1.55 * t + 0.2) + 0.95 * Math.sin(2 * Math.PI * 3.9 * t + 0.9);
-    // arched bridge over the milk river: the deck humps up around BRIDGE.s
-    const db = i * ds - BRIDGE.s;
-    if (Math.abs(db) < BRIDGE.halfSpan) y += BRIDGE.hump * Math.pow(Math.cos((db / BRIDGE.halfSpan) * Math.PI / 2), 2);
-    pts.push(new THREE.Vector3(x, y, z));
-    x += Math.sin(heading) * ds;
-    z += Math.cos(heading) * ds;
-  }
-  return pts;
-}
 
 // Across-the-ribbon layout of the road map (fraction of texture height).
 // The road mesh covers curb → road → curb; the curbs are tinted by vertex
@@ -152,8 +129,9 @@ function checkerTexture() {
 }
 
 export function createTrack(scene, TEX = {}) {
-  const curve = new THREE.CatmullRomCurve3(buildWaypoints(), false, 'centripetal', 0.5);
-  const length = curve.getLength();
+  const course = createCourse();
+  const { curve, length, cakes, sourceLength, toSourceS, fromSourceS, shoulderWeight } = course;
+  const sourceU = (s) => toSourceS(s) / sourceLength;
   const halfW = TUNING.roadHalfWidth;
 
   const SAMPLES = Math.max(240, Math.round(length / 2.8));
@@ -204,7 +182,7 @@ export function createTrack(scene, TEX = {}) {
     if (pr.kind === 'curb') return RAINBOW[pr.band].clone();
     if (pr.kind === 'road') return white.clone();
     // candy grass with zone tint, fading to a soft universal green-pink at distance
-    const zc = zoneAt(THREE.MathUtils.clamp(u, 0, 1));
+    const zc = zoneAt(THREE.MathUtils.clamp(sourceU(u * length), 0, 1));
     const col = new THREE.Color(zc.fog).lerp(new THREE.Color('#9fe3a8'), 0.62); // soft mint field — the pink road pops against it
     const away = (Math.abs(pr.off) - 7.6) / 14.4;
     col.lerp(grassEdge, away * 0.35);
@@ -274,7 +252,7 @@ export function createTrack(scene, TEX = {}) {
     const x = (d - a) / (b - a);
     return 1 - x * x * (3 - 2 * x);
   };
-  const buildStrip = (arrays, kFrom, kTo, uvFn, iFrom = 0, iTo = SAMPLES, src = mainSrc) => {
+  const buildStrip = (arrays, kFrom, kTo, uvFn, iFrom = 0, iTo = SAMPLES, src = mainSrc, skip = () => false) => {
     const { pos, col, uv, idx } = arrays;
     const base = pos.length / 3;
     const n = kTo - kFrom + 1;
@@ -288,7 +266,14 @@ export function createTrack(scene, TEX = {}) {
         const pr = profile[k];
         let y = c.y + pr.dy + (pr.kind === 'road' ? 0.02 : 0);
         if (pr.kind === 'grass' && dip > 0) y = THREE.MathUtils.lerp(y, BRIDGE.floorY, dip);
-        pos.push(c.x + right.x * pr.off, y, c.z + right.z * pr.off);
+        // Grass tapers away at the cake approaches. No floating green skirts
+        // between the elevated spiral turns or underneath the sky bridge.
+        const w = shoulderWeight(sM);
+        const off = Math.sign(pr.off) * (6.62 + (Math.abs(pr.off) - 6.62) * w);
+        const isShoulder = kTo <= K_CURB_L || kFrom >= K_CURB_R;
+        if (isShoulder) y = THREE.MathUtils.lerp(c.y - 0.075, y, w);
+        const lateral = isShoulder ? off : pr.off;
+        pos.push(c.x + right.x * lateral, y, c.z + right.z * lateral);
         const vc = vertexColor(u, k);
         col.push(vc.r, vc.g, vc.b);
         const t = uvFn(u, k, pr, sM);
@@ -296,6 +281,9 @@ export function createTrack(scene, TEX = {}) {
       }
     }
     for (let i = 0; i < iTo - iFrom; i++) {
+      if (skip(i + iFrom)) continue;
+      const isShoulder = kTo <= K_CURB_L || kFrom >= K_CURB_R;
+      if (isShoulder && shoulderWeight(src.sAt(i + iFrom)) === 0 && shoulderWeight(src.sAt(i + iFrom + 1)) === 0) continue;
       for (let k = 0; k < n - 1; k++) {
         // the curb→grass quad is left out inside the valley: the bridge's
         // spandrel walls stand there and the arch must stay open underneath
@@ -323,12 +311,19 @@ export function createTrack(scene, TEX = {}) {
   // meshes share their boundary sample row, so there is no gap.
   const roadUv = (u, k, pr, sM) => [sM / ROAD_TILE_M, roadV(k)];
   const roadMeshes = [];
-  const zoneRanges = ZONES.map((z) => [Math.round(Math.max(0, z.u0) * SAMPLES), Math.round(Math.min(1, z.u1) * SAMPLES)]);
+  const rowAt = (s) => Math.round(s / length * SAMPLES);
+  const cakeRanges = [
+    { i0: rowAt(cakes.up.s0), i1: rowAt(cakes.up.s1), surface: 0, name: 'cakeRoadUp' },
+    { i0: rowAt(cakes.bridge.s0), i1: rowAt(cakes.bridge.s1), surface: 4, name: 'cakeRoadBridge' },
+    { i0: rowAt(cakes.down.s0), i1: rowAt(cakes.down.s1), surface: 2, name: 'cakeRoadDown' },
+  ];
+  const cakeRow = (i) => cakeRanges.some((r) => i >= r.i0 && i < r.i1);
+  const zoneRanges = ZONES.map((z) => [rowAt(fromSourceS(Math.max(0, z.u0) * sourceLength)), rowAt(fromSourceS(Math.min(1, z.u1) * sourceLength))]);
   zoneRanges.forEach(([i0, i1], zi) => {
     if (i1 <= i0) return;
     const surface = ROAD_SURFACES[zi % ROAD_SURFACES.length];
     const arrays = { pos: [], col: [], uv: [], idx: [] };
-    buildStrip(arrays, K_CURB_L, K_CURB_R, roadUv, i0, i1);
+    buildStrip(arrays, K_CURB_L, K_CURB_R, roadUv, i0, i1, mainSrc, cakeRow);
     const img = TEX[surface.key] ? TEX[surface.key].image : null;
     const mat = new THREE.MeshStandardMaterial({
       map: roadTexture(img, surface), vertexColors: true, roughness: 0.58, metalness: 0.08,
@@ -339,6 +334,18 @@ export function createTrack(scene, TEX = {}) {
     mesh.userData.surface = surface.key;
     scene.add(mesh);
     roadMeshes.push(mesh);
+  });
+  // The serpentines have their own flavors; the bridge is a golden wafer.
+  // Reuse existing maps/materials, with shared boundary rows (no cracks).
+  const cakeRoadMeshes = cakeRanges.map((r) => {
+    const arrays = { pos: [], col: [], uv: [], idx: [] };
+    buildStrip(arrays, K_CURB_L, K_CURB_R, roadUv, r.i0, r.i1);
+    const mesh = new THREE.Mesh(toGeometry(arrays), roadMeshes[r.surface].material);
+    mesh.name = r.name;
+    mesh.userData.surface = ROAD_SURFACES[r.surface].key;
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    return mesh;
   });
   // run-off road: same profile, shares the material of the adjoining zone
   const runoffMeshes = [];
@@ -396,8 +403,10 @@ export function createTrack(scene, TEX = {}) {
     scene.add(m);
     return m;
   };
-  mkStrip(0.0025).name = 'startStrip';
-  mkStrip(0.9975).name = 'finishStrip';
+  const startU = fromSourceS(sourceLength * 0.0025) / length;
+  const finishU = fromSourceS(sourceLength * 0.9975) / length;
+  mkStrip(startU).name = 'startStrip';
+  mkStrip(finishU).name = 'finishStrip';
 
   // cream "icing seam" across the road where one surface hands over to the
   // next (zone boundaries) — hides the hard texture cut and reads as a candy
@@ -405,7 +414,7 @@ export function createTrack(scene, TEX = {}) {
   const seamGeo = new THREE.PlaneGeometry(halfW * 2.1, 1.1);
   const seamMat = new THREE.MeshStandardMaterial({ color: '#fff6f0', roughness: 0.45 });
   for (const z of ZONES.slice(1)) {
-    const f = roadFrame(z.u0);
+    const f = roadFrame(fromSourceS(z.u0 * sourceLength) / length);
     const m = new THREE.Mesh(seamGeo, seamMat);
     m.position.copy(f.p).addScaledVector(f.normal, 0.04);
     m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(f.right, f.t, f.normal));
@@ -447,8 +456,8 @@ export function createTrack(scene, TEX = {}) {
     scene.add(gate);
     return gate;
   };
-  makeGate(0.9975, 'FINISH', '#ff4f96', 'finishArch');
-  makeGate(0.0025, 'START', '#7a3cff', 'startArch');
+  makeGate(finishU, 'FINISH', '#ff4f96', 'finishArch');
+  makeGate(startU, 'START', '#7a3cff', 'startArch');
 
   // ---- Pose helpers ----
   const tmpRight = new THREE.Vector3();
@@ -528,6 +537,14 @@ export function createTrack(scene, TEX = {}) {
 
   return {
     curve, length, halfW, getPose, bounds,
+    cakes, sourceLength, toSourceS, fromSourceS, sourceU, cakeRoadMeshes,
+    // Scenery keeps its original progression, rather than sprouting floating
+    // trees on every turn. Only the final straight is translated downstream.
+    scenery: {
+      length: sourceLength, bounds, samples: centers,
+      runoff: { pre: EXT_PRE, post: EXT_POST },
+      getPose: (s, lateral = 0) => getPose(fromSourceS(s), lateral),
+    },
     roadMeshes, // one per zone (all named 'road')
     runoffMeshes, // pseudo road before the start / after the finish
     runoff: { pre: EXT_PRE, post: EXT_POST },

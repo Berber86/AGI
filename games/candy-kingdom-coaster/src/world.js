@@ -370,14 +370,21 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   world.add(mountainGroup);
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2 + 0.35;
-    const r = 560 + (i % 3) * 160;
+    let r = 560 + (i % 3) * 160;
     const h = 52 + (i * 29) % 48; // soft candy hills, not giant pyramids
-    const mx = track.bounds.center.x + Math.cos(a) * r;
-    const mz = track.bounds.center.z + Math.sin(a) * r;
-    // clamp base radius so the cone keeps clear of the track (bug: slopes on the road)
-    const mdist = minDistToTrack(mx, mz);
-    const rMax = Math.max(45, mdist - 90);
-    const baseR = Math.min(90 + (i % 4) * 35, rMax);
+    const baseR = 90 + (i % 4) * 35;
+    let mx = track.bounds.center.x + Math.cos(a) * r;
+    let mz = track.bounds.center.z + Math.sin(a) * r;
+    // A longer course can reach the old mountain ring. Move the mountain,
+    // rather than clamping its radius to a minimum that still cuts the road.
+    // Test the full course samples, including both elevated cake spirals.
+    let mdist = minDistToTrack(mx, mz);
+    while (mdist < baseR + 90) {
+      r += 100;
+      mx = track.bounds.center.x + Math.cos(a) * r;
+      mz = track.bounds.center.z + Math.sin(a) * r;
+      mdist = minDistToTrack(mx, mz);
+    }
     mountainDebug.push({ mx: Math.round(mx), mz: Math.round(mz), mdist: Math.round(mdist), baseR: Math.round(baseR), h });
     const m = new THREE.Mesh(new THREE.ConeGeometry(baseR, h, 10), i % 2 ? mountainMat : mountainMatB);
     m.position.set(
