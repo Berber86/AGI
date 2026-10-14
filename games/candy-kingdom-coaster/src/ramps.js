@@ -51,16 +51,18 @@ export function createRamps(scene, track, TEX = {}) {
   const list = RAMPS.map((cfg) => {
     const half = cfg.width / 2;
     const center = cfg.side * (half + 0.3); // lane centre: 0.3 m off the dash
+    const s0 = track.fromBaseDistance(cfg.s), fork = track.routes.at(s0), branch = fork ? (cfg.branch ?? 0) : undefined;
     const r = {
       ...cfg,
-      s0: cfg.s,
-      s1: cfg.s + cfg.len,
+      forkId: fork?.id || null, branch,
+      s0,
+      s1: track.advance(s0, cfg.len, branch),
       latMin: center - half,
       latMax: center + half,
       center,
       angle: Math.atan2(cfg.height, cfg.len),
     };
-    r.heightAt = (s) => (s <= r.s0 ? 0 : s >= r.s1 ? r.height : r.height * ((s - r.s0) / r.len));
+    r.heightAt = (s) => (s <= r.s0 ? 0 : s >= r.s1 ? r.height : r.height * ((s - r.s0) / (r.s1 - r.s0)));
     return r;
   });
 
@@ -79,10 +81,10 @@ export function createRamps(scene, track, TEX = {}) {
     const walls = { pos: [], idx: [] };
     const edgeL = [], edgeR = []; // world points of the top edges (for walls)
     for (let i = 0; i <= n; i++) {
-      const s = r.s0 + (r.len * i) / n;
+      const s = r.s0 + ((r.s1 - r.s0) * i) / n;
       const h = r.heightAt(s) + 0.03;
-      const pl = track.getPose(s, r.latMin).pos.clone().addScaledVector(UP, h);
-      const pr = track.getPose(s, r.latMax).pos.clone().addScaledVector(UP, h);
+      const pl = track.getPose(s, r.latMin, r.branch).pos.clone().addScaledVector(UP, h);
+      const pr = track.getPose(s, r.latMax, r.branch).pos.clone().addScaledVector(UP, h);
       edgeL.push(pl); edgeR.push(pr);
       top.pos.push(pl.x, pl.y, pl.z, pr.x, pr.y, pr.z);
       top.uv.push(0, i / n, 1, i / n);
@@ -113,8 +115,8 @@ export function createRamps(scene, track, TEX = {}) {
         walls.idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3);
       }
     };
-    const bottomL = edgeL.map((p, i) => track.getPose(r.s0 + (r.len * i) / n, r.latMin).pos.clone().addScaledVector(UP, -0.05));
-    const bottomR = edgeR.map((p, i) => track.getPose(r.s0 + (r.len * i) / n, r.latMax).pos.clone().addScaledVector(UP, -0.05));
+    const bottomL = edgeL.map((p, i) => track.getPose(r.s0 + ((r.s1 - r.s0) * i) / n, r.latMin, r.branch).pos.clone().addScaledVector(UP, -0.05));
+    const bottomR = edgeR.map((p, i) => track.getPose(r.s0 + ((r.s1 - r.s0) * i) / n, r.latMax, r.branch).pos.clone().addScaledVector(UP, -0.05));
     pushWall(edgeL, bottomL);
     pushWall(edgeR.slice().reverse(), bottomR.slice().reverse());
     pushWall([edgeR[n], edgeL[n]], [bottomR[n], bottomL[n]]); // back wall
@@ -130,7 +132,7 @@ export function createRamps(scene, track, TEX = {}) {
 
     // candy-cane posts with a ball on the two lip corners: the lip reads from afar
     const posts = new THREE.Group();
-    for (const corner of [edgeL[n], edgeR[n]]) {
+    for (const corner of (r.side === 0 ? [] : [edgeL[n], edgeR[n]])) {
       const pole = new THREE.Mesh(poleGeo, caneMat);
       pole.position.copy(corner).addScaledVector(UP, 0.8);
       const ball = new THREE.Mesh(ballGeo, new THREE.MeshStandardMaterial({ color: r.color, roughness: 0.3, emissive: r.color, emissiveIntensity: 0.25 }));
@@ -152,8 +154,10 @@ export function createRamps(scene, track, TEX = {}) {
    *   inside — the car centre is within the ramp's lateral span while over
    *   its run-up; h — ramp surface height there; past — just beyond the lip
    */
-  function sample(s, lateral) {
+  const enabled = (r, option) => !r.forkId || r.branch === (option ?? track.routes.choice(track.routes.forks.find((f) => f.id === r.forkId)));
+  function sample(s, lateral, option) {
     for (const r of list) {
+      if (!enabled(r, option)) continue;
       if (s < r.s0 || s > r.s1 + 0.01) continue;
       const inside = lateral >= r.latMin && lateral <= r.latMax;
       return { ramp: r, inside, h: r.heightAt(s), past: s >= r.s1 };
@@ -162,8 +166,8 @@ export function createRamps(scene, track, TEX = {}) {
   }
 
   /** The ramp whose run-up contains s (ignoring lateral), or null. */
-  function at(s) {
-    return list.find((r) => s >= r.s0 && s <= r.s1) || null;
+  function at(s, option) {
+    return list.find((r) => enabled(r, option) && s >= r.s0 && s <= r.s1) || null;
   }
 
   return { group, list, sample, at };

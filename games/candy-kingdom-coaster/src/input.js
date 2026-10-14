@@ -5,6 +5,7 @@ export class Input {
     this.right = false;
     this._keyLeft = false;
     this._keyRight = false;
+    this.buttons = new Map();
     this._ptr = new Map(); // pointerId -> 'left' | 'right'
     this.onPause = null;
 
@@ -28,16 +29,15 @@ export class Input {
   }
 
   attachButton(el, side) {
+    this.buttons.set(side, el);
     const down = (e) => {
       e.preventDefault();
-      el.classList.add('is-pressed');
       try { el.setPointerCapture(e.pointerId); } catch { /* older browsers */ }
       this._ptr.set(e.pointerId, side);
       this._recalc();
     };
     const up = (e) => {
       if (!this._ptr.has(e.pointerId)) return;
-      el.classList.remove('is-pressed');
       this._ptr.delete(e.pointerId);
       this._recalc();
     };
@@ -54,15 +54,18 @@ export class Input {
     const sides = new Set(this._ptr.values());
     this.left = this._keyLeft || sides.has('left');
     this.right = this._keyRight || sides.has('right');
+    // Pointer, multitouch and keyboard share one source of truth for feedback.
+    for (const [side, el] of this.buttons) {
+      el.classList.toggle('is-pressed', this[side]);
+      el.setAttribute('aria-pressed', String(this[side]));
+    }
   }
 
   releaseAll() {
     this._ptr.clear();
     this._keyLeft = false;
     this._keyRight = false;
-    this.left = false;
-    this.right = false;
-    document.querySelectorAll('.ctl-btn.is-pressed').forEach((b) => b.classList.remove('is-pressed'));
+    this._recalc();
   }
 
   get steer() {

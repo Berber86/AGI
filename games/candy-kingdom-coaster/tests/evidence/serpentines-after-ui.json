@@ -1,0 +1,323 @@
+{
+  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
+  "results": [
+    {
+      "name": "opposite uphill/downhill spirals + level connecting bridge",
+      "pass": true,
+      "detail": {
+        "length": 1862.9857,
+        "ascent": {
+          "winding": 1.25,
+          "wrongSlope": 0,
+          "rise": 37.7654
+        },
+        "descent": {
+          "winding": -1.25,
+          "wrongSlope": 0,
+          "rise": -34.5909
+        },
+        "bridgeLength": 84,
+        "bridgeError": 0,
+        "joins": [
+          {
+            "id": "approach",
+            "gap": 0,
+            "dot": 0.9999999999965586
+          },
+          {
+            "id": "ascent",
+            "gap": 0,
+            "dot": 0.9999999999991398
+          },
+          {
+            "id": "cakeBridge",
+            "gap": 0,
+            "dot": 1
+          },
+          {
+            "id": "descent",
+            "gap": 0,
+            "dot": 0.9999999999999999
+          },
+          {
+            "id": "departure",
+            "gap": 0,
+            "dot": 0.9999999987918952
+          },
+          {
+            "id": "after",
+            "gap": 0,
+            "dot": 0.9999999987917042
+          }
+        ],
+        "minRadius": 28.5402,
+        "maxGrade": 12.7968,
+        "stepError": 0.0002,
+        "intersections": []
+      }
+    },
+    {
+      "name": "continuous metre mapping, gentle joins, no self-intersections",
+      "pass": true,
+      "detail": {
+        "joins": [
+          {
+            "id": "approach",
+            "gap": 0,
+            "dot": 0.9999999999965586
+          },
+          {
+            "id": "ascent",
+            "gap": 0,
+            "dot": 0.9999999999991398
+          },
+          {
+            "id": "cakeBridge",
+            "gap": 0,
+            "dot": 1
+          },
+          {
+            "id": "descent",
+            "gap": 0,
+            "dot": 0.9999999999999999
+          },
+          {
+            "id": "departure",
+            "gap": 0,
+            "dot": 0.9999999987918952
+          },
+          {
+            "id": "after",
+            "gap": 0,
+            "dot": 0.9999999987917042
+          }
+        ],
+        "radius": 28.5402,
+        "grade": 12.7968,
+        "stepError": 0.0002
+      }
+    },
+    {
+      "name": "road/curbs present and full car envelope clears cake/props",
+      "pass": true,
+      "detail": {
+        "missing": [],
+        "missingCount": 0,
+        "intrusions": [],
+        "intrusionCount": 0,
+        "tooClose": []
+      }
+    },
+    {
+      "name": "chase camera sees car and near road through both serpentines",
+      "pass": true,
+      "detail": {
+        "checked": 153,
+        "bad": [],
+        "badCount": 0,
+        "occluded": []
+      }
+    },
+    {
+      "name": "normal/boost traverse + soft walls stay grounded",
+      "pass": true,
+      "detail": [
+        {
+          "boost": false,
+          "frames": 2544,
+          "air": 0,
+          "maxPitch": 0.145,
+          "maxHeadingStep": 0.009554879559255935,
+          "cleared": true,
+          "end": {
+            "jump": "ground",
+            "air": 0,
+            "vy": 0,
+            "s": 1295.6,
+            "lateral": 0.34,
+            "speed": 16.5,
+            "t": 0,
+            "boost": false,
+            "roll": 0,
+            "pitch": -0.004,
+            "bounces": 0
+          }
+        },
+        {
+          "boost": true,
+          "frames": 1463,
+          "air": 0,
+          "maxPitch": 0.145,
+          "maxHeadingStep": 0.016793431887362376,
+          "cleared": true,
+          "end": {
+            "jump": "ground",
+            "air": 0,
+            "vy": 0,
+            "s": 1295.51,
+            "lateral": 0.26,
+            "speed": 29,
+            "t": 0,
+            "boost": true,
+            "roll": 0,
+            "pitch": -0.004,
+            "bounces": 0
+          }
+        },
+        {
+          "steer": -1,
+          "edge": -6.4,
+          "air": 0,
+          "phase": "ground"
+        },
+        {
+          "steer": 1,
+          "edge": 6.4,
+          "air": 0,
+          "phase": "ground"
+        }
+      ]
+    },
+    {
+      "name": "old landmarks retain order; distinct cakes fit geometry budget",
+      "pass": true,
+      "detail": {
+        "ramps": [
+          {
+            "id": "cookie-left",
+            "s0": 500,
+            "s1": 510,
+            "latMin": -4.3,
+            "latMax": -0.3,
+            "height": 1.5,
+            "angleDeg": 8.5,
+            "side": -1,
+            "children": 3
+          },
+          {
+            "id": "cream-right",
+            "s0": 1615.4,
+            "s1": 1627.4,
+            "latMin": 0.3,
+            "latMax": 4.3,
+            "height": 2.6,
+            "angleDeg": 12.2,
+            "side": 1,
+            "children": 3
+          }
+        ],
+        "tunnel": [
+          1340.4108852983272,
+          1455.4108852983272
+        ],
+        "river": 400,
+        "cakeStart": 600,
+        "cakeEnd": 1290.4108852983272,
+        "flavors": [
+          "strawberry-vanilla",
+          "chocolate-blueberry"
+        ],
+        "zones": [
+          {
+            "id": 0,
+            "u0": 0,
+            "u1": 0.1738963744498916
+          },
+          {
+            "id": 1,
+            "u0": 0.1738963744498916,
+            "u1": 0.417657599903481
+          },
+          {
+            "id": 2,
+            "u0": 0.417657599903481,
+            "u1": 0.7470598189819758
+          },
+          {
+            "id": 3,
+            "u0": 0.7470598189819758,
+            "u1": 0.9051474321182409
+          },
+          {
+            "id": 4,
+            "u0": 0.9051474321182409,
+            "u1": 1.0007904380656814
+          }
+        ],
+        "draws": 28,
+        "triangles": 87040
+      }
+    },
+    {
+      "name": "complete ride reaches finish and restarts",
+      "pass": true,
+      "detail": {
+        "result": {
+          "trackLength": 1863,
+          "totalSweets": 166,
+          "state": "finish",
+          "timeS": 107.18,
+          "speedKmh": 59.4,
+          "lateral": 0.26,
+          "collected": 97,
+          "boostActive": false,
+          "boostCharges": 0,
+          "zone": 4
+        },
+        "restart": {
+          "trackLength": 1863,
+          "totalSweets": 166,
+          "state": "intro",
+          "timeS": 0,
+          "speedKmh": 32.7,
+          "lateral": 0,
+          "collected": 0,
+          "boostActive": false,
+          "boostCharges": 0,
+          "zone": 0
+        }
+      }
+    },
+    {
+      "name": "touch steering and release on the sky bridge",
+      "pass": true,
+      "detail": {
+        "held": -2.99,
+        "released": -2.21,
+        "width": 97.046875,
+        "height": 81.890625
+      }
+    },
+    {
+      "name": "portrait 360x800: rotate hint, no page overflow",
+      "pass": true,
+      "detail": {
+        "shown": true,
+        "fits": true
+      }
+    },
+    {
+      "name": "portrait 412x915: rotate hint, no page overflow",
+      "pass": true,
+      "detail": {
+        "shown": true,
+        "fits": true
+      }
+    },
+    {
+      "name": "new route and cake modules are precached for offline play",
+      "pass": true,
+      "detail": {
+        "key": "ckc-v16",
+        "course": true,
+        "cakes": true
+      }
+    },
+    {
+      "name": "no browser errors",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "errors": []
+}

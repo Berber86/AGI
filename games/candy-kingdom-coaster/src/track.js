@@ -1,32 +1,10 @@
 // Spline track: road mesh, curbs, terrain shoulders, start/finish, pose queries.
 import * as THREE from 'three';
-import { TUNING, ZONES, zoneAt, BRIDGE } from './config.js';
+import { TUNING, ZONES, BRIDGE } from './config.js';
+import { buildCourse } from './course.js';
+import { createRoutes } from './routes.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-
-function buildWaypoints() {
-  // A snaking coaster course with alternating LEFT and RIGHT sweeps plus
-  // gentle hills — every bend stays readable from the chase camera.
-  const pts = [];
-  const STEPS = 230;
-  const ds = 6.4; // ~1470 m total
-  let x = 0, z = 0, y = 2.4;
-  for (let i = 0; i <= STEPS; i++) {
-    const t = i / STEPS;
-    const heading =
-      0.62 * Math.sin(2 * Math.PI * 1.9 * t + 0.42) +
-      0.34 * Math.sin(2 * Math.PI * 3.25 * t + 1.15) +
-      0.1 * Math.sin(2 * Math.PI * 5.6 * t);
-    y = 2.4 + 3.3 * Math.sin(2 * Math.PI * 1.55 * t + 0.2) + 0.95 * Math.sin(2 * Math.PI * 3.9 * t + 0.9);
-    // arched bridge over the milk river: the deck humps up around BRIDGE.s
-    const db = i * ds - BRIDGE.s;
-    if (Math.abs(db) < BRIDGE.halfSpan) y += BRIDGE.hump * Math.pow(Math.cos((db / BRIDGE.halfSpan) * Math.PI / 2), 2);
-    pts.push(new THREE.Vector3(x, y, z));
-    x += Math.sin(heading) * ds;
-    z += Math.cos(heading) * ds;
-  }
-  return pts;
-}
 
 // Across-the-ribbon layout of the road map (fraction of texture height).
 // The road mesh covers curb → road → curb; the curbs are tinted by vertex
@@ -152,18 +130,32 @@ function checkerTexture() {
 }
 
 export function createTrack(scene, TEX = {}) {
-  const curve = new THREE.CatmullRomCurve3(buildWaypoints(), false, 'centripetal', 0.5);
+  const { curve: reference, baseLength, fromBaseDistance, cakeSection } = buildCourse();
+  const routes = createRoutes(reference, fromBaseDistance), curve = routes.curve;
   const length = curve.getLength();
+  const zones = ZONES.map((z) => ({ ...z,
+    u0: fromBaseDistance(z.u0 * baseLength) / length,
+    u1: fromBaseDistance(z.u1 * baseLength) / length,
+  }));
+  const zoneAt = (u) => zones.find((z) => u >= z.u0 && u < z.u1) || zones[zones.length - 1];
+  const isCakeSection = (s) => s >= cakeSection.deckStart && s <= cakeSection.deckEnd;
   const halfW = TUNING.roadHalfWidth;
 
-  const SAMPLES = Math.max(240, Math.round(length / 2.8));
+  // Include graph and zone boundaries exactly; a fork must not start midway
+  // through an old road quad (that leaves a crack or a hidden third road).
+  const steps = Math.max(240, Math.ceil(length / 1.4));
+  const stations = [...new Set([...Array.from({ length: steps + 1 }, (_, i) => i / steps * length),
+    ...routes.forks.flatMap((f) => [f.s0, f.s1]), ...zones.flatMap((z) => [z.u0, z.u1]).filter((u) => u >= 0 && u <= 1).map((u) => u * length)])].sort((a, b) => a - b);
+  const SAMPLES = stations.length - 1;
   const centers = [], tangents = [], rights = [];
-  for (let i = 0; i <= SAMPLES; i++) {
-    const u = i / SAMPLES;
-    const p = curve.getPointAt(u);
-    const t = curve.getTangentAt(u).normalize();
-    const r = new THREE.Vector3().crossVectors(t, UP).normalize();
-    centers.push(p); tangents.push(t); rights.push(r);
+  for (const s of stations) {
+    const p = routes.point(s), t = routes.tangent(s).normalize();
+    centers.push(p); tangents.push(t); rights.push(new THREE.Vector3().crossVectors(t, UP).normalize());
+  }
+  const allSamples = [...centers], samplePaths = [centers];
+  for (const f of routes.forks) for (const b of f.branches) {
+    const n = Math.ceil(b.length / 1.4), path = Array.from({ length: n + 1 }, (_, i) => b.curve.getPointAt(i / n));
+    allSamples.push(...path); samplePaths.push(path);
   }
 
   // ---- Road ribbon (road band + rainbow curbs) and grass shoulders ----
@@ -259,7 +251,7 @@ export function createTrack(scene, TEX = {}) {
   const postRun = buildRunoff(centers[SAMPLES], tangents[SAMPLES], 1, EXT_POST, 0.5); // past the finish, curls right
 
   // sample sources for the strip builder: the course itself and the two run-offs
-  const mainSrc = { centers, rights, n: SAMPLES, uAt: (i) => i / SAMPLES, sAt: (i) => (i / SAMPLES) * length };
+  const mainSrc = { centers, rights, n: SAMPLES, uAt: (i) => stations[i] / length, sAt: (i) => stations[i] };
   const preSrc = { centers: preRun.centers, rights: preRun.rights, n: preRun.n, uAt: () => 0, sAt: (i) => (i - preRun.n) * EXT_STEP };
   const postSrc = { centers: postRun.centers, rights: postRun.rights, n: postRun.n, uAt: () => 1, sAt: (i) => length + i * EXT_STEP };
 
@@ -267,7 +259,7 @@ export function createTrack(scene, TEX = {}) {
   // river valley under the bridge: 0 = normal embankment, 1 = dipped to the
   // river floor (flat around the river, smooth slopes up to ±valleyHalf)
   const valleyDip = (sM) => {
-    const d = Math.abs(sM - BRIDGE.s);
+    const d = Math.abs(sM - fromBaseDistance(BRIDGE.s));
     const a = BRIDGE.riverHalf + 2, b = BRIDGE.valleyHalf;
     if (d <= a) return 1;
     if (d >= b) return 0;
@@ -296,12 +288,15 @@ export function createTrack(scene, TEX = {}) {
       }
     }
     for (let i = 0; i < iTo - iFrom; i++) {
+      if (src === mainSrc && routes.at((src.sAt(iFrom + i) + src.sAt(iFrom + i + 1)) / 2)) continue;
       for (let k = 0; k < n - 1; k++) {
         // the curb→grass quad is left out inside the valley: the bridge's
         // spandrel walls stand there and the arch must stay open underneath
         const touchesCurb = profile[kFrom + k].kind === 'curb' || profile[kFrom + k + 1].kind === 'curb';
         const hasGrass = profile[kFrom + k].kind === 'grass' || profile[kFrom + k + 1].kind === 'grass';
         if (touchesCurb && hasGrass && inValley[i] && inValley[i + 1]) continue;
+        // The cake roads have a wafer deck, not airborne grass embankments.
+        if (hasGrass && isCakeSection((src.sAt(iFrom + i) + src.sAt(iFrom + i + 1)) / 2)) continue;
         const a = base + i * n + k, b = a + n;
         idx.push(a, a + 1, b, b, a + 1, b + 1);
       }
@@ -323,7 +318,8 @@ export function createTrack(scene, TEX = {}) {
   // meshes share their boundary sample row, so there is no gap.
   const roadUv = (u, k, pr, sM) => [sM / ROAD_TILE_M, roadV(k)];
   const roadMeshes = [];
-  const zoneRanges = ZONES.map((z) => [Math.round(Math.max(0, z.u0) * SAMPLES), Math.round(Math.min(1, z.u1) * SAMPLES)]);
+  const sampleIndex = (s) => { const i = stations.findIndex((v) => v >= s - 1e-7); return i < 0 ? SAMPLES : i; };
+  const zoneRanges = zones.map((z) => [sampleIndex(Math.max(0, z.u0) * length), sampleIndex(Math.min(1, z.u1) * length)]);
   zoneRanges.forEach(([i0, i1], zi) => {
     if (i1 <= i0) return;
     const surface = ROAD_SURFACES[zi % ROAD_SURFACES.length];
@@ -340,9 +336,77 @@ export function createTrack(scene, TEX = {}) {
     scene.add(mesh);
     roadMeshes.push(mesh);
   });
+  // Each fork is two visible roads. At the common landings their inner edges
+  // are clipped to the SAME seam; as the paths separate the seam opens into
+  // an island. No overlapping coplanar ribbons, fake centre road or teleport.
+  const forkDecks = new THREE.Group(); forkDecks.name = 'forkDecks'; scene.add(forkDecks);
+  const wafer = new THREE.MeshStandardMaterial({ color: '#e7c596', roughness: .86 });
+  for (const f of routes.forks) {
+    const n = Math.ceil(Math.max(...f.branches.map((b) => b.length)) / 1.15), rows = [];
+    for (let i = 0; i <= n; i++) {
+      const q = i / n, p = f.branches.map((b) => b.curve.getPointAt(q));
+      const r = f.branches.map((b) => new THREE.Vector3().crossVectors(b.curve.getTangentAt(q), UP).normalize());
+      // A generous paved shoulder at the fan-in/fan-out keeps the complete
+      // soft-wall steering range covered even on the skewed shared seam.
+      const width = 6.62 + 1.38 * THREE.MathUtils.smoothstep(q, 0, .08) * (1 - THREE.MathUtils.smoothstep(q, .92, 1));
+      const inner = [p[0].clone().addScaledVector(r[0], width), p[1].clone().addScaledVector(r[1], -width)];
+      const across = r[0].clone().add(r[1]).normalize();
+      const gap = inner[1].clone().sub(inner[0]).dot(across);
+      const opening = THREE.MathUtils.smoothstep(gap, 0, 3);
+      const seam = inner[0].clone().add(inner[1]).multiplyScalar(.5);
+      rows.push({ opening, sides: [
+        [p[0].clone().addScaledVector(r[0], -width), seam.clone().lerp(inner[0], opening)],
+        [seam.clone().lerp(inner[1], opening), p[1].clone().addScaledVector(r[1], width)],
+      ] });
+    }
+    for (const branch of f.branches) {
+      const a = { pos: [], col: [], uv: [], idx: [] }, d = { pos: [], col: [], uv: [], idx: [] };
+      const count = K_CURB_R - K_CURB_L + 1;
+      for (let i = 0; i <= n; i++) {
+        const row = rows[i], [left, right] = row.sides[branch.index];
+        for (let k = K_CURB_L; k <= K_CURB_R; k++) {
+          const pr = profile[k], innerCurb = branch.index === 0 ? k >= 10 : k <= 7;
+          const p = left.clone().lerp(right, (pr.off + 6.62) / 13.24);
+          const color = vertexColor((f.s0 + f.span * i / n) / length, k);
+          let dy = pr.kind === 'road' ? .02 : pr.dy, v = roadV(k);
+          if (innerCurb) { color.lerp(white, 1 - row.opening); dy = THREE.MathUtils.lerp(.02, dy, row.opening); v = THREE.MathUtils.lerp(.5, v, row.opening); }
+          a.pos.push(p.x, p.y + dy, p.z); a.col.push(color.r, color.g, color.b); a.uv.push(branch.length * i / n / ROAD_TILE_M, v);
+        }
+        const across = right.clone().sub(left).normalize();
+        const deckLeft = left.clone().addScaledVector(across, -.9 * (branch.index === 1 ? row.opening : 1));
+        const deckRight = right.clone().addScaledVector(across, .9 * (branch.index === 0 ? row.opening : 1));
+        for (const [p, dy] of [[deckLeft, -.12], [deckRight, -.12], [deckRight, -.85], [deckLeft, -.85]]) {
+          d.pos.push(p.x, p.y + dy, p.z); d.col.push(1, 1, 1); d.uv.push(i / 4, dy);
+        }
+        if (i < n) {
+          for (let k = 0; k < count - 1; k++) { const j = i * count + k; a.idx.push(j, j + 1, j + count, j + count, j + 1, j + count + 1); }
+          for (let k = 0; k < 4; k++) { const j = i * 4 + k, v = i * 4 + (k + 1) % 4; d.idx.push(j, v, j + 4, v, v + 4, j + 4); }
+        }
+      }
+      const material = roadMeshes.find((m) => m.userData.surface === branch.surface).material;
+      const road = new THREE.Mesh(toGeometry(a), material); road.name = `fork-road:${f.id}:${branch.id}`;
+      road.receiveShadow = true; road.userData.fork = f.id; road.userData.branch = branch.index; road.userData.surface = branch.surface;
+      scene.add(road); roadMeshes.push(road); branch.road = road;
+      const deck = new THREE.Mesh(toGeometry(d), wafer); deck.name = `fork-deck:${branch.id}`;
+      deck.receiveShadow = true; forkDecks.add(deck);
+    }
+  }
+
+  // Small coplanar landing stitches cover float32 edge-rounding cracks at
+  // the exact graph joins. They use the original profile, with only 4 mm of
+  // elevation: never a bump or a third drivable route through the island.
+  for (const f of routes.forks) for (const s of [f.s0, f.s1]) {
+    const ss = [s - .18, s + .18], ps = ss.map((v) => reference.getPointAt(v / length).addScaledVector(UP, .004));
+    const rs = ss.map((v) => new THREE.Vector3().crossVectors(reference.getTangentAt(v / length), UP).normalize());
+    const source = { centers: ps, rights: rs, n: 1, uAt: (i) => ss[i] / length, sAt: (i) => ss[i] };
+    const a = { pos: [], col: [], uv: [], idx: [] }; buildStrip(a, K_CURB_L, K_CURB_R, roadUv, 0, 1, source);
+    const m = new THREE.Mesh(toGeometry(a), roadMeshes[zoneAt(s / length).id].material);
+    m.name = 'fork-landing'; m.userData.surface = roadMeshes[zoneAt(s / length).id].userData.surface; m.receiveShadow = true; scene.add(m); roadMeshes.push(m);
+  }
+
   // run-off road: same profile, shares the material of the adjoining zone
   const runoffMeshes = [];
-  [[preSrc, roadMeshes[0], 'roadRunoffStart'], [postSrc, roadMeshes[roadMeshes.length - 1], 'roadRunoffFinish']].forEach(([src, twin, name]) => {
+  [[preSrc, roadMeshes[0], 'roadRunoffStart'], [postSrc, roadMeshes[ZONES.length - 1], 'roadRunoffFinish']].forEach(([src, twin, name]) => {
     if (!twin) return;
     const arrays = { pos: [], col: [], uv: [], idx: [] };
     buildStrip(arrays, K_CURB_L, K_CURB_R, roadUv, 0, src.n, src);
@@ -404,7 +468,7 @@ export function createTrack(scene, TEX = {}) {
   // bar laid over the join
   const seamGeo = new THREE.PlaneGeometry(halfW * 2.1, 1.1);
   const seamMat = new THREE.MeshStandardMaterial({ color: '#fff6f0', roughness: 0.45 });
-  for (const z of ZONES.slice(1)) {
+  for (const z of zones.slice(1)) {
     const f = roadFrame(z.u0);
     const m = new THREE.Mesh(seamGeo, seamMat);
     m.position.copy(f.p).addScaledVector(f.normal, 0.04);
@@ -462,12 +526,12 @@ export function createTrack(scene, TEX = {}) {
     return { p, t };
   };
 
-  function getPose(s, lateral = 0) {
+  function getPose(s, lateral = 0, branch) {
     const u = THREE.MathUtils.clamp(s / length, 0, 1);
     let p, t;
     if (s < 0) ({ p, t } = runoffPose(preRun, -s, true));
     else if (s > length) ({ p, t } = runoffPose(postRun, s - length, false));
-    else { p = curve.getPointAt(u); t = curve.getTangentAt(u).normalize(); }
+    else { p = routes.point(s, new THREE.Vector3(), branch); t = routes.tangent(s, new THREE.Vector3(), branch).normalize(); }
     tmpRight.crossVectors(t, UP).normalize();
     const pos = p.clone().addScaledVector(tmpRight, lateral);
     const heading = Math.atan2(t.x, t.z);
@@ -478,7 +542,7 @@ export function createTrack(scene, TEX = {}) {
 
   // bounds for scenery placement
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of centers) {
+  for (const p of allSamples) {
     minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
     minZ = Math.min(minZ, p.z); maxZ = Math.max(maxZ, p.z);
   }
@@ -527,11 +591,18 @@ export function createTrack(scene, TEX = {}) {
   scene.add(ground);
 
   return {
-    curve, length, halfW, getPose, bounds,
+    curve, length, halfW, getPose, bounds, routes,
+    advance: routes.advance,
+    getBasePose: (s, lateral = 0) => {
+      const p = reference.getPointAt(THREE.MathUtils.clamp(s / length, 0, 1)), t = reference.getTangentAt(THREE.MathUtils.clamp(s / length, 0, 1));
+      const r = new THREE.Vector3().crossVectors(t, UP).normalize();
+      return { pos: p.addScaledVector(r, lateral), tangent: t, right: r, heading: Math.atan2(t.x, t.z) };
+    },
+    baseLength, fromBaseDistance, cakeSection, isCakeSection, zones, zoneAt,
     roadMeshes, // one per zone (all named 'road')
     runoffMeshes, // pseudo road before the start / after the finish
     runoff: { pre: EXT_PRE, post: EXT_POST },
-    samples: centers,
-    sampleAt: (s) => centers[THREE.MathUtils.clamp(Math.round((s / length) * SAMPLES), 0, SAMPLES)],
+    samples: centers, allSamples, samplePaths, forkDecks,
+    sampleAt: (s) => getPose(s).pos,
   };
 }

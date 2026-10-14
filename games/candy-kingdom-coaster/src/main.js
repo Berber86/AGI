@@ -5,7 +5,7 @@ import { RenderPass } from '../vendor/three/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from '../vendor/three/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from '../vendor/three/jsm/postprocessing/OutputPass.js';
 
-import { GAME, TUNING, JUMP, ZONES, zoneAt, formatTime, MEDALS, TIME_MEDAL } from './config.js';
+import { GAME, TUNING, JUMP, formatTime, MEDALS, TIME_MEDAL } from './config.js';
 import { Storage } from './storage.js';
 import { SFX } from './audio.js';
 import { Input } from './input.js';
@@ -16,10 +16,13 @@ import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
 import { createBridge } from './bridge.js';
 import { createTunnel } from './tunnel.js';
+import { createCakes } from './cakes.js';
+import { createForks } from './forks.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { loadTextures, countLoaded } from './textures.js';
+import { setLoading, finishLoading, paintLoading } from './loading.js';
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('game-canvas');
@@ -46,24 +49,30 @@ composer.addPass(new OutputPass());
 // ---------------------------------------------------------------- textures
 // Real image textures are fetched before the world is built so every material
 // starts with its final map. Missing files fall back to procedural canvases.
-const loadingHint = document.getElementById('loading-hint');
+setLoading(4, 0, 'Открываем конфетный мир…');
 const TEX = await loadTextures({
   renderer,
   onProgress: (n, total) => {
-    if (loadingHint) loadingHint.textContent = `Загружаем сладости… ${Math.round((n / total) * 100)}%`;
+    setLoading(4 + (n / total) * 52, 0, 'Добавляем краски и сладости…');
   },
 });
-if (loadingHint) loadingHint.textContent = 'Собираем машинку…';
-// let the hint paint before the (synchronous) world + car build
-await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+setLoading(60, 0, 'Строим сладкую трассу…');
+await paintLoading();
 
 // ---------------------------------------------------------------- world
 const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
 const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (cocoa → marshmallow)
-// props avoid both the river valley and the cake body
-const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) });
+const cakes = createCakes(scene, track, TEX); // uphill cake → sky bridge → downhill cake
+await document.fonts.ready;
+const forks = createForks(scene, track, TEX);
+setLoading(70, 0, 'Расставляем сладости…');
+await paintLoading();
+// Keep the water, tunnel and elevated cake roads free of ordinary props.
+const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) || cakes.blocks(x, z) || forks.blocks(x, z) });
+setLoading(78, 1, 'Лили пристёгивается…');
+await paintLoading();
 const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
@@ -73,12 +82,15 @@ const trail = createTrail(scene);
 // light, so this is the only real-time light change.
 let tunnelK = 0;
 function tunnelTick(dt, s) {
-  const k = tunnel.darkness(s);
+  const k = Math.max(tunnel.darkness(s), forks.darkness(s));
   tunnelK = k;
   world.setDarkness(k);
   car.setHeadlights(k);
   tunnel.update(dt, performance.now() * 0.001, s);
+  forks.update(dt, performance.now() * 0.001, s);
 }
+setLoading(86, 1, 'Проверяем машинку…');
+await paintLoading();
 const sweets = createSweets(scene, track, ramps);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
@@ -140,6 +152,7 @@ const el = {
   finishSweets: document.getElementById('finish-sweets'),
   finishScore: document.getElementById('finish-score'),
   finishStars: document.getElementById('finish-stars'),
+  finishRoute: document.getElementById('finish-route'),
   medalsList: document.getElementById('medals-list'),
   recordsMenu: document.getElementById('records-menu'),
   boostCount: document.getElementById('hud-boost-count'),
@@ -152,10 +165,20 @@ const HAPTIC = {
 
 function showScreen(name) {
   for (const [k, node] of Object.entries(screens)) node.classList.toggle('hidden', k !== name);
+  const playing = name === null;
+  document.body.dataset.screen = playing ? 'game' : name;
+  const root = document.getElementById('hud');
+  root.inert = !playing;
+  root.setAttribute('aria-hidden', String(!playing));
 }
 
 function setSoundIcons() {
   hud.setMuted(SFX.isMuted());
+  document.querySelectorAll('[data-sound-toggle]').forEach((button) => {
+    button.classList.toggle('is-muted', SFX.isMuted());
+    button.setAttribute('aria-label', SFX.isMuted() ? 'Включить звук' : 'Выключить звук');
+    button.setAttribute('aria-pressed', String(!SFX.isMuted()));
+  });
   el.btnSound2.textContent = SFX.isMuted() ? '🔇 Звук выключен' : '🔊 Звук включён';
 }
 
@@ -191,6 +214,7 @@ function startRace() {
   game.camSnap = true;
   game.introT = 0;
   resetJump();
+  track.routes.reset();
   sweets.reset();
   input.releaseAll();
   showScreen(null);
@@ -247,6 +271,7 @@ function resumeGame() {
 }
 
 function finishRace() {
+  el.finishRoute.textContent = 'Твой маршрут: ' + track.routes.forks.map((f) => f.branches[track.routes.choice(f)].title).join(' → ');
   game.state = 'finish';
   input.releaseAll();
   SFX.engineStop();
@@ -290,9 +315,9 @@ el.btnRestart.addEventListener('click', () => { SFX.play('click'); startRace(); 
 el.btnRestart2.addEventListener('click', () => { SFX.play('click'); startRace(); });
 el.btnMenu.addEventListener('click', () => { SFX.play('click'); toMenu(); });
 el.btnMenu2.addEventListener('click', () => { SFX.play('click'); toMenu(); });
-document.getElementById('btn-sound').addEventListener('click', () => {
+document.querySelectorAll('[data-sound-toggle]').forEach((button) => button.addEventListener('click', () => {
   SFX.unlock(); SFX.toggleMute(); setSoundIcons(); SFX.play('click');
-});
+}));
 // fullscreen toggle — hides the browser UI (Android Chrome: user gesture required)
 document.getElementById('btn-full').addEventListener('click', () => {
   SFX.unlock(); SFX.play('click');
@@ -318,6 +343,14 @@ document.getElementById('btn-full').addEventListener('click', () => {
     }
   } catch { /* ignore */ }
 });
+for (const event of ['fullscreenchange', 'webkitfullscreenchange']) {
+  document.addEventListener(event, () => {
+    const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const button = document.getElementById('btn-full');
+    button.setAttribute('aria-pressed', String(active));
+    button.setAttribute('aria-label', active ? 'Выйти из полного экрана' : 'Полный экран');
+  });
+}
 el.btnSound2.addEventListener('click', () => {
   SFX.unlock(); SFX.toggleMute(); setSoundIcons(); SFX.play('click');
 });
@@ -327,6 +360,7 @@ input.attachButton(document.getElementById('btn-left'), 'left');
 input.attachButton(document.getElementById('btn-right'), 'right');
 
 window.addEventListener('keydown', (e) => {
+  if (document.body.dataset.boot !== 'ready') return;
   if (e.key.toLowerCase() === 'm') { SFX.toggleMute(); setSoundIcons(); }
   if (e.key === ' ' || e.key === 'Enter') {
     if (game.state === 'menu') { SFX.unlock(); startRace(); }
@@ -470,6 +504,20 @@ function updateJump(dt) {
   if (game.camKick > 0) game.camKick = Math.max(0, game.camKick - dt * 1.6);
 }
 
+// At the bottom of the hanging bridge, aiming at the distant uphill road
+// alone tilts the camera up and crops the car. Keep most of the local tangent
+// framing while retaining the road's rise farther ahead. This has no effect
+// outside the bridge or on convex crests (the approach still looks downhill).
+function chaseTarget(s, ahead, pose = track.getPose(s)) {
+  const target = ahead.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
+  const B = track.cakeSection.bridge;
+  if ((s >= B.s0 && s <= B.s1) || track.routes.at(s)) {
+    const tangentY = pose.pos.y + pose.tangent.y * TUNING.camAhead;
+    target.y -= Math.max(0, ahead.pos.y - tangentY) * 0.85;
+  }
+  return target;
+}
+
 function updateGameplay(dt) {
   // cinematic intro: camera starts front-top, sweeps around, settles behind
   if (game.state === 'intro') {
@@ -478,14 +526,14 @@ function updateGameplay(dt) {
     const p = Math.min(1, game.introT / T);
     const e = p * p * (3 - 2 * p); // smoothstep
     const pose = track.getPose(game.s, game.lateral);
-    const chase = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
+    const chase = track.getPose(Math.max(0, track.advance(game.s, -TUNING.camBack)), game.lateral * 0.55 - TUNING.camSide);
     if (game.s < TUNING.camBack) {
       const p0 = track.getPose(0, game.lateral * 0.55);
       const t0 = track.getPose(Math.min(track.length, 8), game.lateral * 0.55);
       const dir = t0.pos.clone().sub(p0.pos).normalize();
       chase.pos.copy(p0.pos).addScaledVector(dir, game.s - TUNING.camBack);
     }
-    const chaseAhead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22);
+    const chaseAhead = track.getPose(Math.min(track.length, track.advance(game.s, TUNING.camAhead)), game.lateral * 0.22);
     const w0 = track.getPose(Math.min(track.length, game.s + 15), 0).pos.clone().add(new THREE.Vector3(0, 9.5, 0));
     const w1 = track.getPose(game.s + 7, -12).pos.clone().add(new THREE.Vector3(0, 6.5, 0));
     const w2 = track.getPose(Math.max(0, game.s - 2), -11).pos.clone().add(new THREE.Vector3(0, 5, 0));
@@ -590,7 +638,10 @@ function updateGameplay(dt) {
     }
 
     // progress
-    game.s += game.speed * dt;
+    // Choose silently: the player discovers destinations rather than receiving
+    // directional prompts or a selection confirmation during the ride.
+    track.routes.update(game.s, game.lateral, steer, game.speed * dt);
+    game.s = track.advance(game.s, game.speed * dt);
     if (game.s >= track.length) {
       game.s = track.length;
       finishRace();
@@ -624,7 +675,11 @@ function updateGameplay(dt) {
   car.root.position.y += 0.02 + game.air;
   car.root.rotation.y = pose.heading;
   // lean into the road slope; nose up on the ramp, follow the arc in the air
-  let pitch = -pose.pitch * 0.65;
+  // The dipped bridge is steeper than the ordinary road: align the chassis
+  // to that deck rather than leaving the front/rear wheels inside the wafer.
+  const sky = track.cakeSection.bridge;
+  const onSkyBridge = game.s >= sky.s0 && game.s <= sky.s1;
+  let pitch = -pose.pitch * (onSkyBridge || track.routes.at(game.s) ? 1 : 0.65);
   if (game.jump === 'ramp') pitch -= game.jumpRamp.angle;
   else if (game.jump === 'air' || game.jump === 'drop') pitch -= Math.atan2(game.vy, Math.max(4, game.speed)) * 0.55;
   game.carPitch = THREE.MathUtils.lerp(game.carPitch, pitch, 1 - Math.exp(-9 * dt));
@@ -646,10 +701,11 @@ function updateGameplay(dt) {
   // camera: readable chase view with a slight 3/4 flank offset
   // (getPose extrapolates along the pseudo road behind the start, so the
   // camera is framed normally from the very first frame)
-  const back = track.getPose(game.s - TUNING.camBack, game.lateral * 0.55 - TUNING.camSide);
-  const ahead = track.getPose(game.s + TUNING.camAhead, game.lateral * 0.22 + TUNING.camSide * 1.15);
+  const back = track.getPose(track.advance(game.s, -TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
+  const ahead = track.getPose(track.advance(game.s, TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
   const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6 + game.air * 0.35, 0));
-  const desiredTgt = ahead.pos.clone().add(new THREE.Vector3(0, 1.05 + game.air * 0.7, 0));
+  const desiredTgt = chaseTarget(game.s, ahead, pose);
+  desiredTgt.y += game.air * 0.7;
   const k = game.camSnap ? 1 : 1 - Math.exp(-TUNING.camLerp * dt);
   game.camSnap = false;
   game.camPos.lerp(desiredPos, k);
@@ -676,7 +732,7 @@ function updateGameplay(dt) {
 
   // zone tracking
   const u = game.s / track.length;
-  const z = zoneAt(u);
+  const z = track.zoneAt(u);
   if (z.id !== game.zoneIndex) {
     game.zoneIndex = z.id;
     // (no zone toast — removed as a distraction)
@@ -761,9 +817,11 @@ function animate(now) {
 
 // ---------------------------------------------------------------- PWA & test hooks
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => {});
-  });
+  const registerWorker = () => navigator.serviceWorker.register('./sw.js').catch(() => {});
+  // Texture loading / shader warm-up can finish after the window load event.
+  // Register in both cases so the new course modules are actually cached.
+  if (document.readyState === 'complete') registerWorker();
+  else window.addEventListener('load', registerWorker, { once: true });
 }
 
 window.__TEST__ = {
@@ -798,10 +856,10 @@ window.__TEST__ = {
     el.countdown.classList.add('hidden');
   },
   snapCamera() {
-    const back = track.getPose(Math.max(0, game.s - TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
-    const ahead = track.getPose(Math.min(track.length, game.s + TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
+    const back = track.getPose(Math.max(0, track.advance(game.s, -TUNING.camBack)), game.lateral * 0.55 - TUNING.camSide);
+    const ahead = track.getPose(Math.min(track.length, track.advance(game.s, TUNING.camAhead)), game.lateral * 0.22 + TUNING.camSide * 1.15);
     game.camPos.copy(back.pos).add(new THREE.Vector3(0, TUNING.camUp + 0.6, 0));
-    game.camTarget.copy(ahead.pos).add(new THREE.Vector3(0, 1.05, 0));
+    game.camTarget.copy(chaseTarget(game.s, ahead));
     camera.position.copy(game.camPos);
     camera.lookAt(game.camTarget);
   },
@@ -838,7 +896,10 @@ window.__TEST__ = {
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
   // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
-  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel }; },
+  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel, cakes, forks, ramps, sweets }; },
+  forks() { return track.routes.forks.map((f) => ({ id: f.id, s0: f.s0, s1: f.s1, selected: f.selected, pending: f.pending,
+    routes: f.branches.map((b) => ({ id: b.id, title: b.title, length: b.length, kind: b.kind })) })); },
+  chooseFork(id, option) { track.routes.select(id, option); },
   tunnelInfo() {
     return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
   },
@@ -1020,7 +1081,7 @@ window.__TEST__ = {
     const v = new THREE.Vector3();
     camera.updateMatrixWorld(true);
     for (let d = aheadFrom; d <= aheadTo; d += step) {
-      const s = Math.min(track.length - 1, game.s + d);
+      const s = Math.min(track.length - 1, track.advance(game.s, d));
       const p = track.getPose(s, 0).pos.clone();
       v.copy(p).project(camera);
       pts.push({ d, x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight, onScreen: Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 && v.z <= 1 });
@@ -1029,11 +1090,11 @@ window.__TEST__ = {
   },
   gameInfo() {
     return {
-      trackLength: Math.round(track.length), totalSweets: sweets.total,
+      trackLength: Math.round(track.routes.routeLength()), referenceLength: Math.round(track.length), totalSweets: sweets.total,
       state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1),
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
       boostActive: game.boostActive, boostCharges: game.boostCharges,
-      zone: zoneAt(game.s / track.length).id,
+      zone: track.zoneAt(game.s / track.length).id,
     };
   },
   camDebug() {
@@ -1401,7 +1462,6 @@ function compileAll({ shadows = true } = {}) {
 }
 async function prewarm() {
   const t0 = performance.now();
-  const job = compileAll();
   const seen = new Set();
   scene.traverse((o) => {
     const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
@@ -1411,11 +1471,22 @@ async function prewarm() {
         if (!t || !t.isTexture || seen.has(t) || t.isRenderTargetTexture) continue;
         seen.add(t);
         const img = t.image;
-        if (img && (img.width || img.data || t.isCubeTexture)) renderer.initTexture(t);
+        if (!img || !(img.width || img.data || t.isCubeTexture)) seen.delete(t);
       }
     }
   });
+  let uploaded = 0;
+  for (const texture of seen) {
+    renderer.initTexture(texture);
+    if (++uploaded % 8 === 0) {
+      setLoading(88 + uploaded / seen.size * 6, 2, 'Готовим трассу к заезду…');
+      await paintLoading();
+    }
+  }
   const syncMs = Math.round(performance.now() - t0);
+  setLoading(96, 2, 'Последний штрих — и поехали!');
+  await paintLoading();
+  const job = compileAll();
   // parallel compile (KHR_parallel_shader_compile) finishes in the background;
   // never hold the menu hostage for more than a few seconds
   await Promise.race([job, new Promise((r) => setTimeout(r, 5000))]);
@@ -1426,11 +1497,10 @@ async function prewarm() {
     compileAll({ shadows: false }).then(() => { window.__PREWARM__.lowTier = renderer.info.programs.length; });
   }, 1500);
 }
-if (loadingHint) loadingHint.textContent = 'Разогреваем трассу…';
-await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+setLoading(88, 2, 'Готовим трассу к заезду…');
+await paintLoading();
 await prewarm();
-if (loadingHint) loadingHint.remove();
-document.getElementById('btn-play').disabled = false;
+finishLoading();
 
 setSoundIcons();
 fillRecordsPanel(el.recordsMenu, Storage.getRecords());

@@ -21,7 +21,8 @@ export class HUD {
 
   setMuted(m) {
     this.el.btnSound.classList.toggle('is-muted', m);
-    this.el.btnSound.textContent = m ? '🔇' : '🔊';
+    this.el.btnSound.setAttribute('aria-pressed', String(!m));
+    this.el.btnSound.setAttribute('aria-label', m ? 'Включить звук' : 'Выключить звук');
   }
 
   popup(text, color = '#fff') {
@@ -45,6 +46,7 @@ export class HUD {
     this.el.sweetsFill.style.width = `${Math.min(100, total ? (sweets / total) * 100 : 0)}%`;
     this.cakes.forEach((c, i) => c.classList.toggle('charged', boostActive || i < boostCharges));
     this.el.cakeRow.classList.toggle('is-boosting', !!boostActive);
+    this.el.cakeRow.setAttribute('aria-label', boostActive ? 'Ускорение!' : `Заряд ускорения: ${boostCharges} из 4`);
     document.body.classList.toggle('is-boosting', !!boostActive);
   }
 
@@ -69,14 +71,19 @@ export class HUD {
 }
 
 export function fillRecordsPanel(el, records) {
-  const best = records.bestTimeMs != null ? formatTime(records.bestTimeMs / 1000) : '—:—:—';
-  el.innerHTML = `
-    <div class="rec"><span>🏆 Медали всего</span><b>${records.totalMedals}</b></div>
-    <div class="rec"><span>⭐ Звёзды всего</span><b>${records.totalStars}</b></div>
-    <div class="rec"><span>⏱️ Лучшее время</span><b>${best}</b></div>
-    <div class="rec"><span>🍬 Сладостей за раз</span><b>${records.bestSweets}</b></div>
-    <div class="rec"><span>🎮 Заездов</span><b>${records.rides}</b></div>
-  `;
+  const best = records.bestTimeMs != null ? formatTime(records.bestTimeMs / 1000) : '—';
+  const stats = [
+    ['medal', records.totalMedals, 'медали', 'Медали всего'],
+    ['star', records.totalStars, 'звёзды', 'Звёзды всего'],
+    ['clock', best, 'рекорд', 'Лучшее время'],
+    ['candy', records.bestSweets, 'сладости', 'Больше всего сладостей за заезд'],
+    ['flag', records.rides, 'заезды', 'Заездов сыграно'],
+  ];
+  el.innerHTML = stats.map(([icon, value, label, title]) => `
+    <div class="rec" title="${title}" aria-label="${title}: ${value}">
+      <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-${icon}"/></svg>
+      <b>${value}</b><small>${label}</small>
+    </div>`).join('');
 }
 
 export { GAME, ZONES };
