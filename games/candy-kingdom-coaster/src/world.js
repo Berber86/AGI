@@ -1324,8 +1324,14 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
 
   const zoneFog = ZONES.map((z) => new THREE.Color(z.fog));
   const zoneSky = ZONES.map((z) => new THREE.Color(z.sky));
-  const tmpColor = new THREE.Color();
   const WHITE = new THREE.Color('#fff2f7');
+  // Zone palette eases instead of snapping: fog + horizon glide from the old
+  // zone's colours into the new one's over ~1.5 s, so crossing a boundary reads
+  // as the light changing, not as a bug. The targets themselves are cheap
+  // colours; PAL_TARGET/PAL_HORIZON are scratch to avoid per-frame allocation.
+  const PAL_RATE = 1.4; // easing speed: k = 1 - e^(-PAL_RATE·dt) per frame
+  const zoneMix = { fog: new THREE.Color(), horizon: new THREE.Color(), id: -1 };
+  const palTarget = new THREE.Color(), palHorizon = new THREE.Color();
 
   // ---------- candy field dressing: gumdrop pebbles scattered on the grass ----
   {
@@ -1875,6 +1881,13 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     hemi, setDarkness,
     sky, sun,
     mountainDebug: () => mountainDebug,
+    // QA: the eased zone palette (fog + horizon tint) and its target zone
+    paletteInfo: () => ({
+      id: zoneMix.id,
+      fog: `#${zoneMix.fog.getHexString()}`,
+      horizon: `#${zoneMix.horizon.getHexString()}`,
+      targetFog: `#${palTarget.getHexString()}`,
+    }),
     knockedCount: () => knockItems.reduce((n, it) => n + (it.state ? 1 : 0), 0),
     // prewarm / QA: pin every chunk to one detail level (null = by distance)
     forceLod(level) {
@@ -1884,10 +1897,22 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     lodStats: () => ({ chunks: lodChunks.length, lo: lodChunks.filter((c) => c.inst.geometry === c.lo).length }),
     update(dt, cameraPos, u, time, carS = -1, carLateral = 0) {
       // Sky stays candy-blue; only the horizon warms up with the zone tint.
+      // Both the fog colour and the horizon band EASE between zones (see
+      // `zoneMix` above): a hard cut at 70 km/h looked like a rendering glitch.
       const z = zoneAt(u);
-      const fogC = tmpColor.copy(zoneFog[z.id]).lerp(zoneSky[z.id], 0.45);
-      scene.fog.color.copy(fogC);
-      sky.material.uniforms.bottomColor.value.copy(zoneFog[z.id]).lerp(WHITE, 0.25);
+      palTarget.copy(zoneFog[z.id]).lerp(zoneSky[z.id], 0.45);
+      palHorizon.copy(zoneFog[z.id]).lerp(WHITE, 0.25);
+      if (zoneMix.id < 0) { // first frame after a reset: adopt the zone outright
+        zoneMix.fog.copy(palTarget);
+        zoneMix.horizon.copy(palHorizon);
+      } else {
+        const k = 1 - Math.exp(-PAL_RATE * Math.min(dt, 0.25));
+        zoneMix.fog.lerp(palTarget, k);
+        zoneMix.horizon.lerp(palHorizon, k);
+      }
+      zoneMix.id = z.id;
+      scene.fog.color.copy(zoneMix.fog);
+      sky.material.uniforms.bottomColor.value.copy(zoneMix.horizon);
       sky.position.copy(cameraPos);
 
       // prop chunks: full detail near the camera, low-poly twin farther out
