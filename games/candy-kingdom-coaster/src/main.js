@@ -60,7 +60,7 @@ const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
 const world = createWorld(scene, track, renderer, TEX, bridge);
-const car = createCar();
+const car = createCar(TEX, { renderer, anisotropy: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);
@@ -834,6 +834,10 @@ window.__TEST__ = {
     return { crossingS: s, deckY: +deck.toFixed(2), deckBefore: +before.toFixed(2), deckAfter: +after.toFixed(2),
       archApexY: +bridge.archApexY.toFixed(2), riverY: +river.geometry.boundingBox.max.y.toFixed(2),
       riverLength: +bridge.riverLength.toFixed(0), sea: bridge.sea, parts: names };
+  },
+  // Hero car facts for QA: geometry budget, merged draw calls, texture usage.
+  carInfo() {
+    return { ...car.stats(), materials: Object.keys(car.materials).length, maps: Object.keys(car.maps).length, env: !!(car.stats() && car.stats().env) };
   },
   // Music sequencer facts (mode, bar position, note count).
   music() { return MUSIC.info(); },

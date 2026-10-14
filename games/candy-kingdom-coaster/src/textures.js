@@ -32,6 +32,17 @@ export const TEXTURE_MANIFEST = {
   gumdrop:      { file: 'gumdrop.webp', wrap: 'mirror', repeat: [2, 1] },      // candy-tree foliage + roadside gumdrops
   marshmallow:  { file: 'marshmallow.webp', wrap: 'mirror', repeat: [2, 1] },  // marshmallow stacks + ice-cream scoops
   gingerbread:  { file: 'gingerbread.webp' },                                  // village house walls (one tile per face)
+  // hero car: the body paint (flakes + swirl), quilted upholstery, the wheel
+  // rim artwork, satin for the hood bow/ribbon, and the small decals. U/V
+  // scaling for the body panels is baked into the loft in car.js.
+  carPaint:     { file: 'car-paint.webp', wrap: 'mirror' },
+  carInterior:  { file: 'car-interior.webp', wrap: 'mirror' },
+  carRim:       { file: 'car-rim.webp' },                                      // planar disc UV, no wrap
+  carSatin:     { file: 'car-satin.webp', wrap: 'mirror' },
+  carHelmet:    { file: 'car-helmet.webp', wrap: 'mirror' },
+  carUnicorn:   { file: 'car-unicorn.webp' },                                  // door badge, chroma-keyed at runtime
+  carHeadlight: { file: 'car-headlight.webp' },                                // lamp lens, planar disc UV
+  carTaillight: { file: 'car-taillight.webp' },                                // lamp lens, planar disc UV
 };
 
 const WRAP = {

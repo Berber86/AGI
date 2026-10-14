@@ -174,6 +174,20 @@ def build() -> list[Path]:
     ginger = ImageEnhance.Brightness(fit(load("gingerbread"), 512, 0.5)).enhance(1.06)
     written.append(save(ginger, "gingerbread", 74))
 
+    # ---- hero car "Star Racer 7". The car is on screen for the whole ride and
+    # gets close-ups in the intro cinematic, so it carries the finest texels in
+    # the game: paint with its own sparkle, quilted upholstery, a wheel-rim
+    # design, satin for the ribbon, plus the small decals (driver helmet,
+    # unicorn door badge, head/tail light lenses).
+    written.append(save(fit(load("car-paint"), 512, 0.0), "car-paint", 78))
+    written.append(save(fit(load("car-interior"), 512, 0.15), "car-interior", 76))
+    written.append(save(fit(load("car-rim"), 512, 0.3), "car-rim", 82))
+    written.append(save(fit(load("car-satin"), 256, 0.1), "car-satin", 76))
+    written.append(save(fit(load("car-helmet"), 512, 0.15), "car-helmet", 78))
+    written.append(save(fit(load("car-unicorn"), 384, 0.25), "car-unicorn", 80))
+    written.append(save(fit(load("car-headlight"), 256, 0.2), "car-headlight", 78))
+    written.append(save(fit(load("car-taillight"), 256, 0.15), "car-taillight", 78))
+
     return written
 
 

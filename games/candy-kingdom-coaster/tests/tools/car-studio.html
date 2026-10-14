@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Car studio — Candy Kingdom Coaster</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #eef2f7; overflow: hidden; }
+    canvas { display: block; }
+    #stats {
+      position: fixed; left: 8px; top: 8px; z-index: 5;
+      font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace;
+      color: #1c2331; background: rgba(255,255,255,0.82);
+      border: 1px solid rgba(28,35,49,0.14); border-radius: 8px;
+      padding: 6px 9px; white-space: pre; pointer-events: none;
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../../vendor/three/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+  <div id="stats">booting…</div>
+<script type="module">
+// ---------------------------------------------------------------------------
+// Car studio — a light, standalone stage that renders ONLY the hero car.
+// The full game world costs ~2.9 M triangles, which makes software-GL
+// screenshot loops painfully slow; this page is the fast visual workbench for
+// the car model (paint, chrome, decals, wheels, driver). Geometry, materials
+// and createCar() are the very same modules the game loads.
+// ---------------------------------------------------------------------------
+import * as THREE from 'three';
+import { createCar, createTrail } from '../../src/car.js';
+import { loadTextures } from '../../src/textures.js';
+
+const canvas = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(1); // deterministic screenshots
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NoToneMapping; // same candy look as main.js
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#e8eef6');
+
+const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.05, 200);
+
+// --- studio floor: neutral light disc with a soft radial falloff + a warm rim
+function floorTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(256, 256, 20, 256, 256, 250);
+  grd.addColorStop(0, '#ffffff');
+  grd.addColorStop(0.55, '#e7ecf3');
+  grd.addColorStop(1, '#c9d2de');
+  g.fillStyle = grd; g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(40, 64),
+  new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.92, metalness: 0 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.001;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// --- lights: the game's hemi + sun, plus fill and rim so chrome has something
+// to reflect (the game gets the same effect from its sky dome and scenery).
+scene.add(new THREE.HemisphereLight(0xbfe4ff, 0xffb8dc, 0.92));
+const sun = new THREE.DirectionalLight(0xffedc9, 1.78);
+sun.position.set(6, 9.5, -5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 0.5;
+sun.shadow.camera.far = 30;
+const sc = sun.shadow.camera;
+sc.left = -5; sc.right = 5; sc.top = 5; sc.bottom = -5;
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xcfe6ff, 0.55);
+fill.position.set(-7, 5, 4);
+scene.add(fill);
+const frontFill = new THREE.DirectionalLight(0xfff2f8, 0.85);
+frontFill.position.set(1.5, 3.2, 6);
+scene.add(frontFill);
+const rim = new THREE.DirectionalLight(0xffd9ec, 0.7);
+rim.position.set(-2, 3.5, -8);
+scene.add(rim);
+
+// ---------------------------------------------------------------------------
+const TEX = await loadTextures({ renderer, timeoutMs: 6000 });
+const car = createCar(TEX, { renderer, anisotropy: 8 });
+scene.add(car.root);
+const trail = createTrail(scene);
+car.update(1 / 60, { speed: 0, steer: 0, boost: false });
+
+const stats = document.getElementById('stats');
+function refreshStats() {
+  let tri = 0; let meshes = 0; const mats = new Set();
+  car.root.traverse((o) => {
+    if (!o.isMesh) return;
+    meshes++;
+    const g = o.geometry;
+    if (g) {
+      const n = g.index ? g.index.count : (g.attributes.position ? g.attributes.position.count : 0);
+      tri += Math.floor(n / 3) * (o.isInstancedMesh ? o.count : 1);
+    }
+    if (o.material) mats.add(o.material.uuid);
+  });
+  const texKeys = Object.keys(TEX).filter((k) => TEX[k]);
+  stats.textContent =
+    `car: ${meshes} meshes · ${tri.toLocaleString('en-US')} tris · ${mats.size} materials\n` +
+    `textures loaded: ${texKeys.length}/${Object.keys(TEX).length}\n` +
+    `view: ${currentView}`;
+  return { meshes, tri, materials: mats.size };
+}
+
+// --- views -----------------------------------------------------------------
+const BODY_CENTER = new THREE.Vector3(0, 0.85, 0);
+const VIEWS = {
+  'hero-front':  { pos: [4.6, 2.05, 6.4],  look: [0, 0.92, 0.25], fov: 30 },
+  'hero-rear':   { pos: [-4.4, 2.0, -6.2], look: [0, 0.92, -0.2], fov: 30 },
+  'hero-low':    { pos: [3.6, 0.62, 5.4],  look: [0, 0.78, 0.1],  fov: 30 },
+  'side-left':   { pos: [-9.5, 1.15, 0.0], look: [0, 0.85, 0],    fov: 22 },
+  'side-right':  { pos: [9.5, 1.15, 0.0],  look: [0, 0.85, 0],    fov: 22 },
+  'front':       { pos: [0, 1.15, 8.6],    look: [0, 0.85, 0],    fov: 22 },
+  'rear':        { pos: [0, 1.2, -8.6],    look: [0, 0.9, -0.2],  fov: 22 },
+  'top':         { pos: [0.001, 9.2, 0.0], look: [0, 0, 0],       fov: 30 },
+  'chase':       { pos: [0.9, 2.35, -5.4], look: [0, 1.05, 2.2],  fov: 34 },
+  'wheel':       { pos: [-1.9, 0.62, 2.6], look: [-0.98, 0.45, 1.30], fov: 30 },
+  'wheel-rear':  { pos: [1.9, 0.6, -2.7],  look: [1.0, 0.45, -1.36], fov: 30 },
+  'cockpit':     { pos: [1.35, 2.25, 2.1], look: [0, 1.28, -0.45], fov: 32 },
+  'face':        { pos: [1.15, 2.05, 0.75], look: [0.03, 1.72, -0.3], fov: 30 },
+  'tail-light':  { pos: [1.5, 1.05, -3.2], look: [0.62, 0.95, -2.1], fov: 32 },
+  'head-on':     { pos: [1.75, 1.0, 3.0],  look: [0.66, 0.86, 2.0],  fov: 32 },
+};
+let currentView = 'hero-front';
+
+function setView(spec) {
+  let v;
+  if (spec.startsWith('custom:')) {
+    const n = spec.slice(7).split(',').map(Number);
+    v = { pos: [n[0], n[1], n[2]], look: [n[3], n[4], n[5]], fov: n[6] || 30 };
+  } else if (spec.startsWith('yaw:')) {
+    const n = spec.slice(4).split(',').map(Number);
+    const yaw = THREE.MathUtils.degToRad(n[0]);
+    const dist = n[1] ?? 7.2;
+    const height = n[2] ?? 1.9;
+    const look = n[3] ?? 0.85;
+    v = { pos: [Math.sin(yaw) * dist, height, Math.cos(yaw) * dist], look: [0, look, 0], fov: n[4] ?? 30 };
+  } else {
+    v = VIEWS[spec];
+    if (!v) throw new Error(`unknown view: ${spec}`);
+  }
+  currentView = spec;
+  camera.fov = v.fov;
+  camera.position.set(...v.pos);
+  camera.near = 0.05;
+  camera.far = 200;
+  camera.updateProjectionMatrix();
+  const target = new THREE.Vector3(...v.look);
+  // keep a gentle depth of field feel out of the picture: plain lookAt
+  camera.lookAt(target);
+  refreshStats();
+  return { view: spec, pos: v.pos, look: v.look, fov: v.fov };
+}
+
+// --- animation state --------------------------------------------------------
+let speed = 0; let steer = 0; let boost = false; let running = true;
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (running) {
+    car.update(dt, { speed, steer, boost, offRoad: false });
+    trail.update(dt, car.root, speed, boost);
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function renderFrames(n) {
+  // deterministic frames rendered straight from the loop's state
+  return new Promise((resolve) => {
+    let c = 0;
+    const step = () => {
+      if (++c >= n) resolve(true);
+      else requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+window.__THREE__ = THREE;   // QA hook: raycasts / geometry probing from tests
+window.__STUDIO__ = {
+  setView,
+  views: Object.keys(VIEWS),
+  stats: refreshStats,
+  setDrive(s = 0, st = 0, b = false) { speed = s; steer = st; boost = b; return { speed, steer, boost }; },
+  pause() { running = false; },
+  resume() { running = true; },
+  renderFrames,
+  car,
+  scene,
+  camera,
+  renderer,
+  raycast(nx, ny, all = false) {
+    const rc = new THREE.Raycaster();
+    rc.setFromCamera({ x: nx, y: ny }, camera);
+    const hits = rc.intersectObject(car.root, true).filter((h) => h.object.visible);
+    const map = hits.map((h) => ({
+      dist: +h.distance.toFixed(2),
+      geo: h.object.geometry.type,
+      mat: (h.object.material.map ? 'map:' : '') + (h.object.material.color ? '#' + h.object.material.color.getHexString() : '?'),
+      world: h.object.getWorldPosition(new THREE.Vector3()).toArray().map((v) => +v.toFixed(2)),
+    }));
+    return all ? map : map.slice(0, 1);
+  },
+  hideStats() { stats.style.display = 'none'; },
+  showStats() { stats.style.display = ''; },
+  setFloorColor(hex) { floor.material.color.set(hex); },
+  setBackground(hex) { scene.background = new THREE.Color(hex); },
+  glow(on = true) {
+    // generous studio spotlight pool under the car for hero shots
+    if (on && !window.__POOL__) {
+      const m = new THREE.Mesh(
+        new THREE.CircleGeometry(3.4, 48),
+        new THREE.MeshBasicMaterial({ color: '#fff3fa', transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending })
+      );
+      m.rotation.x = -Math.PI / 2;
+      m.position.y = 0.004;
+      scene.add(m);
+      window.__POOL__ = m;
+    }
+  },
+};
+refreshStats();
+window.__READY__ = true;
+</script>
+</body>
+</html>

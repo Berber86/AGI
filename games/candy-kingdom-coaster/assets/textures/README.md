@@ -63,3 +63,36 @@ no text, fills the entire frame, stylized 3D game texture. Бесшовност�
 - **gumdrop** — «surface of a sugar-coated gumdrop candy filling the entire frame, dense coarse white sugar crystals on a very pale pastel base, bright high-key» (в сборке обесцвечивается и осветляется — это подложка под `instanceColor`).
 - **marshmallow** — «soft white marshmallow surface filling the entire frame, fine powdered sugar dusting, subtle pillowy dimples, very bright high-key white».
 - **gingerbread** — «gingerbread house wall filling the entire frame, warm brown gingerbread with white royal icing scallop lines and dots, a few small pastel candy buttons, flat front orthographic view».
+
+## Текстуры героической машины «Star Racer 7» (`car-*.webp`)
+
+Машина видна весь заезд и попадает в крупные планы кино-интро, поэтому несёт
+самые плотные тексели в игре. Все арты — квадратные PNG из генератора в `_raw/`,
+обрабатываются тем же `build-textures.py`.
+
+| Файл | Где используется | UV / особенности |
+|---|---|---|
+| `car-paint.webp` 512² | лак кузова (обшивка, капот, багажник, борта, зеркала, «утиный хвост») | UV в метрах, тайл ≈ 1.15 м; из него же выводятся `paintRough` (roughness), `paintNormal` и `paintFlakeNormal` (clearcoat-искры) |
+| `car-interior.webp` 512² | стёганая обивка: сиденья, дверные карты, панель, консоль | `MirroredRepeat`; из него `interiorRough` |
+| `car-rim.webp` 512² | лицевая часть диска колеса | планарный круг; **alpha-силуэт рисуется процедурно** (`car-textures.js`): обод + 5 вентиляционных отверстий, сквозь которые виден тормозной диск |
+| `car-satin.webp` 256² | бант на капоте, шарф/комбинезон водителя, оплётка руля | `MirroredRepeat`; `satinRough` даёт шёлковый блик |
+| `car-helmet.webp` 512² | шлем Лили (полусфера с вырезом для лица) | `MirroredRepeat`; `helmetRough` |
+| `car-unicorn.webp` 384² | жетон-наклейка на дверях | хромакей: розовый фон вырезается в alpha при загрузке, рядом рисуется надпись «Star Racer» + номер «7» |
+| `car-headlight.webp` 256² | линзы фар (+ emissive-карта) | планарный круг, затухание к краю |
+| `car-taillight.webp` 256² | линзы стоп-сигналов с сердцем (+ emissive-карта) | планарный круг |
+
+Промпты (для повторной генерации):
+
+- **car-paint** — «glossy hot-pink candy-car paint, dense micro glitter flakes and sugar sparkles, subtle lighter pink swirls, high-gloss clearcoat».
+- **car-interior** — «candy-pink quilted leather car upholstery, diamond bubble-quilt, creamy white baseball stitching». 
+- **car-rim** — «front view of a cute toy-car alloy wheel rim, five glossy pink enamel petals, chrome lip, chrome centre cap with a star, dark gaps between spokes».
+- **car-satin** — «hot-pink satin ribbon fabric, soft folds, gentle sheen».
+- **car-helmet** — «glossy pink candy racing helmet shell, thin baby-blue and cream diagonal stripe, small white star decals, fine glitter».
+- **car-unicorn** — «cute cartoon unicorn head sticker, thick white die-cut outline, plain solid pink background» (фон нужен для хромакея).
+- **car-headlight** — «round vintage car headlight lens, warm cream glow, chrome ring».
+- **car-taillight** — «round car tail light lens, candy pink-red glass, bright glowing heart, chrome ring».
+
+Плюс процедурные карты, которые в файлы не пишутся (рисуются в `src/car-textures.js`
+на canvas при старте): грани протектора и надписи на боковине шины (`CANDY RACER`,
+`SUGAR RIDE 7`), шкалы спидометра и «SWEETS», номерной знак «★ 7», пламя выхлопа,
+подсветка днища, спрайт блёстки и эмиссивная «искра» лака.
