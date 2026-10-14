@@ -18,3 +18,6 @@ The user pointed out the missing entry in root index.html. Added the White Night
 
 ## Visual revision requested
 Verbatim: «Для начала неплохо, но надо сделать графику в пару раз лучше, а находки детальнее». Treat as approved bounded visual revision, not a new game or gameplay redesign. Upgrade PBR maps, lighting/contact shading, architectural details, all 18 inspectable objects including backs. Keep catalog, saves, controls, silent white-night atmosphere and lightweight mode. The phrase “twice as good” is an aesthetic aim, not a measurable performance claim. Refresh tracked static export and cover.
+
+## 2026-10-15 — Three visual iterations approved
+User: «Хорошо. Приступай к реализации. Как сделаешь три итерации - пуш». Implement the bounded visual audit in three reviewable passes: presentation; priority models/materials; archive/UI. Keep the approved mechanics, silent courtyard, item IDs and saves. Push only the Arena session branch after the third pass and applicable checks. Remaining audit proposals are not implicitly declared completed.

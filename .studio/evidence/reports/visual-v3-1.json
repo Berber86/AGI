@@ -1,0 +1,118 @@
+{
+  "passed": true,
+  "iteration": "1",
+  "models": [
+    {
+      "id": "teacup",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.6632136598063412,
+          -0.763307726151141
+        ],
+        "max": [
+          1.05,
+          0.6632136598063412,
+          0.763307726151141
+        ]
+      },
+      "modeledParts": 63,
+      "materialBatches": 4
+    },
+    {
+      "id": "watch",
+      "bounds": {
+        "min": [
+          -0.44514412522082136,
+          -1.05,
+          -0.16364634352464388
+        ],
+        "max": [
+          0.44514412522082136,
+          1.05,
+          0.16364634352464388
+        ]
+      },
+      "modeledParts": 119,
+      "materialBatches": 10
+    },
+    {
+      "id": "key",
+      "bounds": {
+        "min": [
+          -0.49497235482636126,
+          -1.05,
+          -0.10379968720931776
+        ],
+        "max": [
+          0.49497235482636126,
+          1.05,
+          0.10379968720931776
+        ]
+      },
+      "modeledParts": 12,
+      "materialBatches": 6
+    },
+    {
+      "id": "horse",
+      "bounds": {
+        "min": [
+          -0.9927445649156482,
+          -1.05,
+          -0.4261537250454081
+        ],
+        "max": [
+          0.9927445649156482,
+          1.05,
+          0.4261537250454081
+        ]
+      },
+      "modeledParts": 41,
+      "materialBatches": 4
+    },
+    {
+      "id": "perfume",
+      "bounds": {
+        "min": [
+          -0.468760389809574,
+          -1.05,
+          -0.4908902551686828
+        ],
+        "max": [
+          0.468760389809574,
+          1.05,
+          0.4908902551686828
+        ]
+      },
+      "modeledParts": 33,
+      "materialBatches": 4
+    },
+    {
+      "id": "record",
+      "bounds": {
+        "min": [
+          -1.05,
+          -1.05,
+          -0.03415662807882233
+        ],
+        "max": [
+          1.05,
+          1.05,
+          0.03415662807882233
+        ]
+      },
+      "modeledParts": 7,
+      "materialBatches": 5
+    }
+  ],
+  "checks": [
+    "360x800: safe framing, no horizontal overflow",
+    "844x390: safe framing, no horizontal overflow",
+    "1280x900: safe framing, no horizontal overflow"
+  ],
+  "errors": [],
+  "limitations": [
+    "SwiftShader, not Android hardware.",
+    "Reduced motion; screenshots do not certify animation quality."
+  ]
+}

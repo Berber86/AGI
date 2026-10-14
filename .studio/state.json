@@ -1,19 +1,19 @@
 {
   "schemaVersion": 1,
-  "phase": "done",
-  "activeRole": "release-manager",
-  "currentTask": null,
-  "lastAction": "Visual v2 delivered: refined 18 models, PBR environment, AO, zoom, static catalog refreshed and tested",
-  "nextAction": "Optional physical Android QA and push/publish if requested",
+  "phase": "building",
+  "activeRole": "builder",
+  "currentTask": "VISUAL-V3-2",
+  "lastAction": "Iteration 1: safe perspective framing, individual poses, depth-tested background veil, readable lower model",
+  "nextAction": "Iteration 2: organic forms, porcelain, patina and glass",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-14-visual-v2.md",
   "sessionBenchmark": {
-    "runId": "20261014T171940Z-85e871",
+    "runId": "20261014T215406Z-29de8b",
     "status": "qualified",
     "score": 100,
-    "evaluatedAt": "2026-10-14T17:20:01Z",
-    "resultPath": ".studio/benchmarks/latest-result.json"
+    "evaluatedAt": "2026-10-14T21:54:27Z",
+    "resultPath": ".studio/benchmarks/runs/20261014T215406Z-29de8b/result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-14T20:37:40.494662+00:00"
+  "updatedAt": "2026-10-14T21:54:27Z"
 }

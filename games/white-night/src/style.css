@@ -16,3 +16,16 @@
 .rotation-hint button{width:44px;height:44px;font-size:20px;color:var(--accent);pointer-events:auto}
 @media(max-width:650px){.rotation-hint{top:153px}}
 @media(max-height:520px) and (min-width:651px){.rotation-hint{top:auto;bottom:18px;left:22%}}
+
+/* Visual iteration 1: keep the photograph-like courtyard behind, not on the find. */
+.is-inspecting .vignette{opacity:0}
+.inspection-shade{background:linear-gradient(180deg,transparent var(--stage-bottom,65%),rgba(15,26,36,.75) calc(var(--stage-bottom,65%) + 55px),#0f1a24 100%)}
+.find-info{bottom:130px}
+.find-info p{font-size:13px;line-height:1.55;color:#d0d8dc}
+.find-info .eyebrow{font-size:10px;color:#b9c8d1;letter-spacing:1px}
+.find-header{width:min(620px,calc(100% - 48px));top:106px}
+.rarity{font-size:10px;letter-spacing:1px;background:#132735a6}
+#find-number{font-size:10px;letter-spacing:.5px;color:#c4d0d7}
+.rotation-hint{top:150px;background:#122632b3;padding:0 7px;border:1px solid #c6d4db26;border-radius:24px;font-size:12px}
+@media(max-width:650px){.find-header{top:96px}.rotation-hint{top:134px}.find-info{bottom:calc(173px + env(safe-area-inset-bottom))}.find-info h2{font-size:32px}.find-info p{font-size:13px;max-width:340px}.find-info .eyebrow{font-size:10px}.rarity{font-size:9px;padding:8px}#find-number{font-size:9px}}
+@media(max-height:520px) and (min-width:651px){.find-header{top:68px;left:28px;transform:none;width:55%}.rotation-hint{top:auto;bottom:12px;left:30%}.find-info{left:79%;bottom:130px;width:36%}.find-info p{font-size:12px}.find-info h2{font-size:30px}.inspection-shade{background:linear-gradient(90deg,transparent 58%,#0f1a2480 68%,#0f1a24d9)}}

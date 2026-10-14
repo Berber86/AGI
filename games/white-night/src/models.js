@@ -372,6 +372,6 @@ export function createItem(id){
   const group=new THREE.Group();builders[id](group);const modeledParts=bake(group);
   const bounds=new THREE.Box3().setFromObject(group),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
   group.children.forEach(c=>c.position.sub(center));group.scale.setScalar(2.1/Math.max(size.x,size.y,size.z));
-  const root=new THREE.Group();root.add(group);root.rotation.set(.08,-.2,0);root.userData={id,modeledParts,materialBatches:group.children.length};return root;
+  const root=new THREE.Group();root.add(group);root.rotation.set(.08,-.2,0);root.userData={id,modeledParts,materialBatches:group.children.length,bounds:{min:size.clone().multiplyScalar(-1.05/Math.max(size.x,size.y,size.z)).toArray(),max:size.clone().multiplyScalar(1.05/Math.max(size.x,size.y,size.z)).toArray()}};return root;
 }
 export function disposeItem(root){root.traverse(o=>{if(o.isMesh)o.geometry.dispose();});}
