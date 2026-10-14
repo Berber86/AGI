@@ -809,6 +809,8 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     buntingKeep: 0.6, // finish-run bunting poles (was 0.9)
   };
   const placements = { lolli0: [], lolli1: [], lolli2: [], cane: [], bear: [], tree: [], marsh: [], ice: [], cookie: [] };
+  // finish grandstand: gummy-bear fans in two staggered rows ALONG the road
+  const GRAND = { s0: track.length * 0.935, s1: track.length * 0.985, step: 6.5, lat: [10.1, 11.3] };
   const rand = (() => { let s = 1234567; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
   const L = track.length;
@@ -1076,6 +1078,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       { geo: new THREE.BoxGeometry(5.6, 0.09, 0.09), pos: [0, 0.6, 0] },
     ]);
     const FENCE_STEP = 5.6, FENCE_LAT = 9.1;
+    GRAND.lat = [FENCE_LAT + 1.0, FENCE_LAT + 2.2]; // two rows just behind the fence
     {
       const slots = [];
       // the fence keeps running along the pseudo road beyond both lines, so
@@ -1093,7 +1096,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         const fd = new THREE.Object3D();
         const p = track.getPose(slot.s, slot.side * FENCE_LAT);
         fd.position.set(p.pos.x, p.pos.y - 0.12, p.pos.z);
-        fd.rotation.set(0, p.heading, 0);
+        // the unit is modelled along local X (posts at +-2.7); heading maps local Z
+        // onto the road tangent, so turn a further 90 deg to run ALONG the road
+        fd.rotation.set(0, p.heading + Math.PI / 2, 0);
         fd.scale.setScalar(1);
         fd.updateMatrix();
         inst.setMatrixAt(i, fd.matrix);
@@ -1120,6 +1125,8 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         });
       }
     }
+    // the finish grandstand owns its stretch: no regular clusters inside it
+    for (let i = crowdItems.length - 1; i >= 0; i--) if (crowdItems[i].s > GRAND.s0 - 6 && crowdItems[i].s < GRAND.s1 + 6) crowdItems.splice(i, 1);
     const crowdMeshes = [];
     for (const type of ['bear', 'kitty', 'bunny']) {
       const list = crowdItems.filter((c) => c.type === type);
@@ -1154,6 +1161,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         else strip.cane.push(slot);
       }
     }
+    for (const k of Object.keys(strip)) strip[k] = strip[k].filter((q) => q.s < GRAND.s0 - 3 || q.s > GRAND.s1 + 3);
     makeInstanced(lollipopGeometry(), propMats.lolli[2], strip.lolli);
     makeInstanced(marshGeometry(), propMats.marsh, strip.gum,
       (i) => new THREE.Color(['#fff2f7', '#ffd6e8', '#fff0d8', '#e8d6ff', '#ffc9dd'][i % 5]));
@@ -1188,13 +1196,18 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   }
 
   // grandstand gummy-bears near the finish (like the reference crowd)
+  // Used to be rows of 3 bears stacked straight OUTWARD from the road (and on
+  // the left side INWARD, onto the curb), with every 43rd+ bear duplicated in
+  // place. Now: two staggered rows running along the road behind the fence,
+  // every bear facing the cars.
   const crowd = [];
-  for (let i = 0; i < 58; i++) {
-    const u = 0.935 + (i % 7) * 0.008;
-    const side = i % 2 ? 7.0 : -7.0;
-    const cs = track.length * u;
-    const p = track.getPose(cs, side + (i % 3) * 1.15);
-    crowd.push({ s: cs, x: p.pos.x, y: p.pos.y - 0.35, z: p.pos.z, ry: p.heading + Math.PI, sc: 1.15 + (i % 3) * 0.2 });
+  for (const side of [-1, 1]) {
+    GRAND.lat.forEach((lat, row) => {
+      for (let cs = GRAND.s0 + row * GRAND.step * 0.5; cs <= GRAND.s1; cs += GRAND.step) {
+        const p = track.getPose(cs, side * lat);
+        crowd.push({ s: cs, x: p.pos.x, y: p.pos.y - 0.2, z: p.pos.z, ry: p.heading + side * (Math.PI / 2 + 0.4), sc: row ? 1.45 : 1.2 }); // face the road, a bit toward the oncoming car
+      }
+    });
   }
   makeInstanced(gummyBearGeometry(), propMats.bear, crowd, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
 
