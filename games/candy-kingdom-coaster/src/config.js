@@ -61,6 +61,19 @@ export const BRIDGE = {
   wallLat: 7.6,    // spandrel wall / deck edge lateral (m)
 };
 
+// --- Chocolate Swiss-roll tunnel (cocoa → marshmallow border). The road runs
+// through a giant bûche: glossy ganache shell outside, sponge-and-cream layers
+// inside, lit by rock-candy lanterns and a bulb garland (tunnel.js).
+export const TUNNEL = {
+  s0: 950,         // entrance portal (m along the track)
+  s1: 1065,        // exit portal
+  R: 17,           // outer shell radius (m)
+  hole: 8.6,       // inner bore radius (m)
+  cy: 3.0,         // bore / shell axis height above the road (m)
+  floorDy: -0.07,  // inner floor height relative to the road (covers the shoulders)
+  lampStep: 9,     // wall lantern spacing (m)
+};
+
 // --- Zones along the ride (u = 0..1 of track length) ---
 export const ZONES = [
   { id: 0, name: 'Lollipop Meadows',  u0: 0.00, u1: 0.22, fog: 0x9fd8ff, sky: 0x7ec9f2 },

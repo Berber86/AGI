@@ -348,6 +348,37 @@ const record = (name, pass, detail) => {
   record('5f. arched bridge over the milk river → milk sea, smooth drive-over', ok, info);
 }
 
+// ---------- 5g. chocolate Swiss-roll tunnel: dark inside, headlights on, clean drive-through ----------
+{
+  const info = await page.evaluate(() => {
+    const T = window.__TEST__; const L = T.gameInfo().trackLength;
+    const ti0 = T.tunnelInfo(); const [s0, s1] = ti0.range;
+    T.forceBoost(0.001);
+    T.setProgress((s0 - 40) / L, 0, false);
+    T.step(1 / 60, 2, false);
+    const before = T.tunnelInfo();
+    let mid = null, air = 0;
+    for (let i = 0; i < 900; i++) {
+      T.step(1 / 60, 1, false);
+      const j = T.jumpInfo();
+      if (j.jump !== 'ground') air++;
+      if (!mid && j.s > (s0 + s1) / 2) mid = T.tunnelInfo();
+      if (j.s > s1 + 30) break;
+    }
+    const after = T.tunnelInfo();
+    const parts = {};
+    T.internals().scene.traverse((o) => { if (/^tunnel/.test(o.name)) parts[o.name] = (parts[o.name] || 0) + 1; });
+    return { range: ti0.range, before, mid, after, air, end: T.jumpInfo(), parts };
+  });
+  const ok = info.before.k === 0 && info.before.spot === 0
+    && info.mid && info.mid.k > 0.95 && info.mid.spot > 10 && info.mid.hemi < info.before.hemi * 0.3
+    && info.after.k === 0 && info.after.spot === 0 && Math.abs(info.after.hemi - info.before.hemi) < 1e-6
+    && info.parts.tunnelBore === 1 && info.parts.tunnelShell === 1 && info.parts.tunnelEntrance === 1 && info.parts.tunnelExit === 1
+    && info.mid.lanterns >= 8 && info.mid.bulbs >= 30
+    && info.air === 0 && info.end.s > info.range[1] + 20;
+  record('5g. Swiss-roll tunnel: dark inside, headlights on, clean drive-through', ok, info);
+}
+
 // ---------- 6. no page errors ----------
 {
   await sleep(500);

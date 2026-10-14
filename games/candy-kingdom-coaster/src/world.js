@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../vendor/three/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from '../vendor/three/jsm/utils/BufferGeometryUtils.js';
 import { ZONES, zoneAt, TUNING } from './config.js';
+import { mergeByMaterial, instanceGroups } from './merge.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -145,114 +146,75 @@ function mergeParts(parts) {
   return mergeGeometries(geos, false);
 }
 
-// Collapse a scenery group into one mesh per material: a castle built from
-// 300+ primitives costs 300+ draw calls (x3 once the shadow and bloom passes
-// re-render the scene). Merging by material keeps the exact same look and cuts
-// it to ~10 calls per landmark — the difference between smooth and 15 FPS on
-// a phone. Falls back to the original meshes if a material cannot merge.
-function mergeByMaterial(group) {
-  group.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
-  const byMat = new Map();
-  const meshes = [];
-  group.traverse((o) => { if (o.isMesh) meshes.push(o); });
-  if (meshes.length < 3) return;
-  // mergeGeometries refuses to mix indexed and non-indexed geometry
-  // (RoundedBoxGeometry is non-indexed), so bucket by material AND index-ness
-  for (const m of meshes) {
-    const g = m.geometry.clone();
-    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
-    const key = m.material.id + (g.index ? ':i' : ':n');
-    if (!byMat.has(key)) byMat.set(key, { mat: m.material, geos: [] });
-    byMat.get(key).geos.push(g);
-  }
-  const merged = [];
-  const ok = new Set();
-  for (const { mat, geos } of byMat.values()) {
-    const g = mergeGeometries(geos, false);
-    if (g) { merged.push([mat, g]); ok.add(mat); }
-    for (const x of geos) x.dispose();
-  }
-  if (!merged.length) return;
-  for (const m of meshes) if (ok.has(m.material)) m.parent.remove(m);
-  for (const [mat, g] of merged) {
-    const m = new THREE.Mesh(g, mat);
-    m.castShadow = true;
-    m.receiveShadow = true;
-    m.userData.noCollide = true; // landmark scenery, never on the racing line
-    group.add(m);
-  }
-}
+// Every prop geometry comes in two detail levels: `lo` is used by instanced
+// chunks far from the camera (fog + distance hide the facets) — see LOD in
+// buildChunks. The full-detail geometry carries its low twin in userData.lod.
+const withLod = (fn) => (lo = false) => {
+  const g = fn(lo);
+  if (!lo) g.userData.lod = fn(true);
+  return g;
+};
 
-function gummyBearGeometry() {
+const gummyBearGeometry = withLod((lo) => {
+  const [a, b] = lo ? [8, 6] : [12, 9];
+  const [c, d] = lo ? [5, 4] : [7, 5];
   return mergeParts([
-    { geo: new THREE.SphereGeometry(0.55, 12, 10), pos: [0, 0.62, 0], scale: [1, 1.15, 0.82] },
-    { geo: new THREE.SphereGeometry(0.38, 12, 10), pos: [0, 1.5, 0.05] },
-    { geo: new THREE.SphereGeometry(0.15, 8, 6), pos: [-0.3, 1.82, 0] },
-    { geo: new THREE.SphereGeometry(0.15, 8, 6), pos: [0.3, 1.82, 0] },
-    { geo: new THREE.SphereGeometry(0.17, 8, 6), pos: [-0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
-    { geo: new THREE.SphereGeometry(0.17, 8, 6), pos: [0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
-    { geo: new THREE.SphereGeometry(0.2, 8, 6), pos: [-0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
-    { geo: new THREE.SphereGeometry(0.2, 8, 6), pos: [0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
-    { geo: new THREE.SphereGeometry(0.16, 8, 6), pos: [0, 1.45, 0.36], scale: [1.15, 0.9, 0.8] }, // muzzle
+    { geo: new THREE.SphereGeometry(0.55, a, b), pos: [0, 0.62, 0], scale: [1, 1.15, 0.82] },
+    { geo: new THREE.SphereGeometry(0.38, a, b), pos: [0, 1.5, 0.05] },
+    { geo: new THREE.SphereGeometry(0.15, c, d), pos: [-0.3, 1.82, 0] },
+    { geo: new THREE.SphereGeometry(0.15, c, d), pos: [0.3, 1.82, 0] },
+    { geo: new THREE.SphereGeometry(0.17, c, d), pos: [-0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
+    { geo: new THREE.SphereGeometry(0.17, c, d), pos: [0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
+    { geo: new THREE.SphereGeometry(0.2, c, d), pos: [-0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
+    { geo: new THREE.SphereGeometry(0.2, c, d), pos: [0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
+    { geo: new THREE.SphereGeometry(0.16, c, d), pos: [0, 1.45, 0.36], scale: [1.15, 0.9, 0.8] }, // muzzle
   ]);
-}
+});
 
-function lollipopGeometry() {
-  return mergeParts([
-    { geo: new THREE.CylinderGeometry(0.085, 0.1, 2.6, 8), pos: [0, 1.3, 0] },
-    { geo: new THREE.CylinderGeometry(1.05, 1.05, 0.3, 26), pos: [0, 3.15, 0], rot: [Math.PI / 2, 0, 0] },
-    { geo: new THREE.TorusGeometry(1.05, 0.12, 8, 26), pos: [0, 3.15, 0] },
-  ]);
-}
+const lollipopGeometry = withLod((lo) => mergeParts([
+  { geo: new THREE.CylinderGeometry(0.085, 0.1, 2.6, lo ? 5 : 8), pos: [0, 1.3, 0] },
+  { geo: new THREE.CylinderGeometry(1.05, 1.05, 0.3, lo ? 14 : 24), pos: [0, 3.15, 0], rot: [Math.PI / 2, 0, 0] },
+  { geo: new THREE.TorusGeometry(1.05, 0.12, lo ? 4 : 6, lo ? 14 : 24), pos: [0, 3.15, 0] },
+]));
 
-function caneGeometry() {
-  return mergeParts([
-    { geo: new THREE.CylinderGeometry(0.14, 0.16, 3.4, 10), pos: [0, 1.7, 0] },
-    { geo: new THREE.TorusGeometry(0.72, 0.15, 10, 20, Math.PI), pos: [0.72, 3.4, 0], rot: [0, 0, Math.PI] },
-  ]);
-}
+const caneGeometry = withLod((lo) => mergeParts([
+  { geo: new THREE.CylinderGeometry(0.14, 0.16, 3.4, lo ? 6 : 10), pos: [0, 1.7, 0] },
+  { geo: new THREE.TorusGeometry(0.72, 0.15, lo ? 5 : 10, lo ? 10 : 20, Math.PI), pos: [0.72, 3.4, 0], rot: [0, 0, Math.PI] },
+]));
 
-function treeGeometry() {
-  return mergeParts([
-    { geo: new THREE.CylinderGeometry(0.22, 0.3, 1.6, 8), pos: [0, 0.8, 0] },
-    { geo: new THREE.SphereGeometry(1.15, 12, 10), pos: [0, 2.15, 0], scale: [1, 0.95, 1] },
-    { geo: new THREE.SphereGeometry(0.85, 10, 8), pos: [-0.75, 1.85, 0.25] },
-    { geo: new THREE.SphereGeometry(0.85, 10, 8), pos: [0.8, 1.9, -0.15] },
-  ]);
-}
+const treeGeometry = withLod((lo) => mergeParts([
+  { geo: new THREE.CylinderGeometry(0.22, 0.3, 1.6, lo ? 5 : 8), pos: [0, 0.8, 0] },
+  { geo: new THREE.SphereGeometry(1.15, lo ? 8 : 12, lo ? 6 : 10), pos: [0, 2.15, 0], scale: [1, 0.95, 1] },
+  { geo: new THREE.SphereGeometry(0.85, lo ? 7 : 10, lo ? 5 : 8), pos: [-0.75, 1.85, 0.25] },
+  { geo: new THREE.SphereGeometry(0.85, lo ? 7 : 10, lo ? 5 : 8), pos: [0.8, 1.9, -0.15] },
+]));
 
-function marshGeometry() {
+const marshGeometry = withLod((lo) => {
+  const sg = lo ? 1 : 2;
   return mergeParts([
-    { geo: new RoundedBoxGeometry(1.5, 1.0, 1.5, 3, 0.34), pos: [0, 0.5, 0] },
-    { geo: new RoundedBoxGeometry(1.15, 0.8, 1.15, 3, 0.3), pos: [0, 1.4, 0] },
-    { geo: new RoundedBoxGeometry(0.8, 0.62, 0.8, 3, 0.24), pos: [0, 2.05, 0] },
+    { geo: new RoundedBoxGeometry(1.5, 1.0, 1.5, sg, 0.34), pos: [0, 0.5, 0] },
+    { geo: new RoundedBoxGeometry(1.15, 0.8, 1.15, sg, 0.3), pos: [0, 1.4, 0] },
+    { geo: new RoundedBoxGeometry(0.8, 0.62, 0.8, sg, 0.24), pos: [0, 2.05, 0] },
   ]);
-}
+});
 
 // Ice cream = two instanced meshes sharing one placement list: the waffle
 // cone keeps its golden map, the scoops take the per-instance pastel tint.
-function iceConeGeometry() {
-  return mergeParts([
-    { geo: new THREE.ConeGeometry(0.95, 1.9, 14), pos: [0, 0.95, 0], rot: [Math.PI, 0, 0] },
-  ]);
-}
-function iceScoopsGeometry() {
-  return mergeParts([
-    { geo: new THREE.SphereGeometry(1.02, 14, 12), pos: [0, 2.25, 0] },
-    { geo: new THREE.SphereGeometry(0.72, 12, 10), pos: [-0.55, 2.95, 0.1] },
-    { geo: new THREE.SphereGeometry(0.2, 10, 8), pos: [0, 3.35, 0] }, // cherry
-  ]);
-}
+const iceConeGeometry = withLod((lo) => mergeParts([
+  { geo: new THREE.ConeGeometry(0.95, 1.9, lo ? 8 : 14), pos: [0, 0.95, 0], rot: [Math.PI, 0, 0] },
+]));
+const iceScoopsGeometry = withLod((lo) => mergeParts([
+  { geo: new THREE.SphereGeometry(1.02, lo ? 9 : 14, lo ? 7 : 12), pos: [0, 2.25, 0] },
+  { geo: new THREE.SphereGeometry(0.72, lo ? 8 : 12, lo ? 6 : 10), pos: [-0.55, 2.95, 0.1] },
+  { geo: new THREE.SphereGeometry(0.2, lo ? 5 : 10, lo ? 4 : 8), pos: [0, 3.35, 0] }, // cherry
+]));
 
-function cookieGeometry() {
-  return mergeParts([
-    { geo: new THREE.CylinderGeometry(1.5, 1.35, 0.65, 16), pos: [0, 0.32, 0] },
-    { geo: new THREE.CylinderGeometry(1.05, 1.0, 0.5, 14), pos: [0.3, 0.85, 0.1] },
-    { geo: new THREE.SphereGeometry(0.3, 8, 6), pos: [-0.7, 0.75, 0.6], scale: [1, 0.6, 1] },
-    { geo: new THREE.SphereGeometry(0.25, 8, 6), pos: [0.95, 0.55, -0.5], scale: [1, 0.6, 1] },
-  ]);
-}
+const cookieGeometry = withLod((lo) => mergeParts([
+  { geo: new THREE.CylinderGeometry(1.5, 1.35, 0.65, lo ? 10 : 16), pos: [0, 0.32, 0] },
+  { geo: new THREE.CylinderGeometry(1.05, 1.0, 0.5, lo ? 9 : 14), pos: [0.3, 0.85, 0.1] },
+  { geo: new THREE.SphereGeometry(0.3, lo ? 5 : 8, lo ? 4 : 6), pos: [-0.7, 0.75, 0.6], scale: [1, 0.6, 1] },
+  { geo: new THREE.SphereGeometry(0.25, lo ? 5 : 8, lo ? 4 : 6), pos: [0.95, 0.55, -0.5], scale: [1, 0.6, 1] },
+]));
 
 export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const world = new THREE.Group();
@@ -358,6 +320,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const a = (i / 7) * Math.PI * 2 + 0.7;
     const rr = 150 + Math.random() * 150;
     cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 42, track.bounds.center.z + Math.sin(a) * rr);
+    mergeByMaterial(cluster); // 8-11 transparent puffs -> 1 draw call
     world.add(cluster);
     clouds.push({ sprite: cluster, drift: 0.5 + Math.random() * 0.9 });
   }
@@ -661,6 +624,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   {
     const gateMat = new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture('#ff4b6e', '#fff6f0')), roughness: 0.42 });
     const gumdropMat = new THREE.MeshStandardMaterial({ color: '#8f6bff', roughness: 0.35, emissive: '#2c1270', emissiveIntensity: 0.25 });
+    const dropMats = ['#ff6b81', '#ffd45e', '#6bd96b', '#56c8ff', '#ff8ad0'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.32 }));
+    const gates = new THREE.Group();
+    world.add(gates);
     for (const u of [0.18, 0.50, 0.78]) {
       const gp = track.getPose(track.length * u, 0);
       const gate = new THREE.Group();
@@ -681,7 +647,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       for (let k = 0; k < 5; k++) {
         const a = Math.PI * (0.18 + k * 0.16);
         const hx = Math.cos(a) * R, hy = 8.6 + Math.sin(a) * R;
-        const drop = new THREE.Mesh(new THREE.SphereGeometry(0.85, 10, 8), new THREE.MeshStandardMaterial({ color: ['#ff6b81', '#ffd45e', '#6bd96b', '#56c8ff', '#ff8ad0'][k], roughness: 0.32 }));
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(0.85, 10, 8), dropMats[k]);
         drop.position.set(hx, hy - 1.35, 0);
         const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 5), gateMat);
         cord.position.set(hx, hy - 0.55, 0);
@@ -690,8 +656,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       gate.position.copy(gp.pos);
       gate.rotation.y = gp.heading;
       gate.traverse((o) => { if (o.isMesh) o.userData.noCollide = true; });
-      world.add(gate);
+      gates.add(gate);
     }
+    mergeByMaterial(gates); // 3 gates x 17 meshes -> 7 draws
   }
 
   // ---------- castle grounds: chocolate apron, candy bridge, royal garden ----
@@ -699,6 +666,8 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   {
     const chocMat = new THREE.MeshStandardMaterial({ color: '#5a2f1a', roughness: 0.35, metalness: 0.12 });
     const stoneMat = new THREE.MeshStandardMaterial({ color: '#ffd7ea', roughness: 0.55 });
+    const knobMats = ['#fff2f7', '#ff6b9e'].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.4 }));
+    const crownMats = ['#8f6bff', '#ff5fa2'].map((c) => new THREE.MeshStandardMaterial({ map: swirlTexture(c, '#fff2f7'), roughness: 0.42 }));
     const grounds = (pos, toward, sc) => {
       const dir = toward.clone().sub(pos).setY(0).normalize(); // toward the track
       const side = new THREE.Vector3(-dir.z, 0, dir.x);
@@ -716,7 +685,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         for (let k = 0; k < 4; k++) {
           const post = new THREE.Mesh(new THREE.CylinderGeometry(0.45 * sc, 0.45 * sc, 2.1 * sc, 8), stoneMat);
           post.position.set(s * 3.7 * sc, 1.15 * sc, (-4.5 + k * 3) * sc);
-          const ball = new THREE.Mesh(new THREE.SphereGeometry(0.58 * sc, 10, 8), new THREE.MeshStandardMaterial({ color: k % 2 ? '#ff6b9e' : '#fff2f7', roughness: 0.4 }));
+          const ball = new THREE.Mesh(new THREE.SphereGeometry(0.58 * sc, 10, 8), knobMats[k % 2]);
           ball.position.set(s * 3.7 * sc, 2.5 * sc, (-4.5 + k * 3) * sc);
           bridge.add(post, ball);
         }
@@ -732,12 +701,13 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         const base = dir.clone().multiplyScalar(along * sc).addScaledVector(side, s * 15.5 * sc);
         const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.62, 5.2, 8), stoneMat);
         trunk.position.set(base.x, 1.2, base.z);
-        const crown = new THREE.Mesh(new THREE.SphereGeometry(2.5, 12, 10), new THREE.MeshStandardMaterial({ map: swirlTexture(k % 2 ? '#ff5fa2' : '#8f6bff', '#fff2f7'), roughness: 0.42 }));
+        const crown = new THREE.Mesh(new THREE.SphereGeometry(2.5, 12, 10), crownMats[k % 2]);
         crown.position.set(base.x, 5.4, base.z);
         grp.add(trunk, crown);
       }
       grp.position.copy(pos);
       grp.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      mergeByMaterial(grp, { noCollide: false }); // ~34 meshes (16 own textures) -> 5 draws
       world.add(grp);
     };
     grounds(castleMain.position, finPose.pos, 1.5);
@@ -756,14 +726,17 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     new THREE.Vector3(base.x - 72, 18, base.z - 40), new THREE.Vector3(base.x - 60, 6, base.z - 25),
   ], true, 'catmullrom', 0.6);
   const railMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.35, metalness: 0.35 });
+  const coasterRig = new THREE.Group();
+  world.add(coasterRig);
   const railA = new THREE.Mesh(new THREE.TubeGeometry(coasterCurve, 120, 0.55, 8, true), railMat);
-  world.add(railA);
+  coasterRig.add(railA);
   for (let i = 0; i < 22; i++) {
     const p = coasterCurve.getPointAt(i / 22);
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, Math.max(2, p.y), 8), railMat);
     post.position.set(p.x, p.y / 2 - 2, p.z);
-    world.add(post);
+    coasterRig.add(post);
   }
+  mergeByMaterial(coasterRig, { castShadow: false, receiveShadow: false, noCollide: false }); // 23 -> 1 draw
 
   // ---------- a candy coaster train riding the loop (living background) -----
   const coasterCars = [];
@@ -808,7 +781,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     lolli: [['#ff5fa2', TEX.lolliPink], ['#56c8ff', TEX.lolliBlue], ['#ffd45e', TEX.lolliYellow]].map(([c, tex]) =>
       new THREE.MeshStandardMaterial({ map: mapOr(tex, () => swirlTexture(c, '#fff2f7')), roughness: 0.36, metalness: 0.05 })),
     cane: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture()), roughness: 0.42 }),
-    bear: new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2, emissive: 0x301018, emissiveIntensity: 0.25 }),
+    bear: new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.9, clearcoat: 0.9, clearcoatRoughness: 0.25, emissive: 0x301018, emissiveIntensity: 0.25 }),
     // tint bases: the near-white sugar maps are multiplied by the instance colours
     tree: new THREE.MeshStandardMaterial({ map: TEX.gumdrop || null, roughness: 0.6 }),
     marsh: new THREE.MeshStandardMaterial({ map: TEX.marshmallow || null, roughness: 0.7 }),
@@ -819,7 +792,25 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     stick: new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 }),
   };
 
+  // Roadside density. The course used to stack 8 bands of props (knock fence,
+  // shoulder bears, main props, crowd, pebbles, candy strip, two wall bands) at
+  // ~2.5 props per metre — the eye had nowhere to rest and every frame drew
+  // thousands of instances. These keep each band's identity but thin it out.
+  const DECOR = {
+    main: 0.65,       // main zone props 8-25 m: share of slots used (was every slot)
+    wall: 0.28,       // small candy wall, 13.6-17 m (was 0.85 per slot/side)
+    filler: 0.15,     // mid-field filler band (was 0.55)
+    shoulderBear: 0.12, // mini bears just past the curb (was 0.38)
+    knockCanes: 210, knockLollis: 110, // knockable shoulder fence (was 430 + 230)
+    stripSkip: 0.7,   // candy strip behind the fence: share of slots left empty (was 0.22)
+    pebbles: 300,     // gumdrop pebbles on the grass (was 520)
+    flowerKeep: 0.6,  // meadow flowers (was 0.8)
+    chocKeep: 0.4,    // cocoa canyon crystals (was 0.55)
+    buntingKeep: 0.6, // finish-run bunting poles (was 0.9)
+  };
   const placements = { lolli0: [], lolli1: [], lolli2: [], cane: [], bear: [], tree: [], marsh: [], ice: [], cookie: [] };
+  // finish grandstand: gummy-bear fans in two staggered rows ALONG the road
+  const GRAND = { s0: track.length * 0.935, s1: track.length * 0.985, step: 6.5, lat: [10.1, 11.3] };
   const rand = (() => { let s = 1234567; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
 
   const L = track.length;
@@ -836,7 +827,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const slot = { s: ps, x: pos.x, y: pos.y - far * 0.1 - 0.35, z: pos.z, ry: heading + (rand() - 0.5) * 1.2, sc: 1.0 + rand() * (scMax - 1.0) };
 
     const roll = rand();
-    if (z.id === 0) {
+    if (rand() > DECOR.main) { /* breathing room: no main prop on this slot */ } else if (z.id === 0) {
       if (roll < 0.42) placements[`lolli${Math.floor(rand() * 3)}`].push(slot);
       else if (roll < 0.62) placements.tree.push(slot);
       else if (roll < 0.82) placements.cane.push(slot);
@@ -865,7 +856,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     }
     // roadside candy walls both sides (small, just off the shoulder — knockable zone)
     for (const wallSide of [-1, 1]) {
-      if (rand() < 0.85) {
+      if (rand() < DECOR.wall) {
         const ws = s + (rand() - 0.5) * 3;
         const wp = track.getPose(ws, wallSide * (13.6 + rand() * 3.4));
         const slotW = { s: ws, x: wp.pos.x, y: wp.pos.y - 0.3, z: wp.pos.z, ry: rand() * Math.PI * 2, sc: 0.5 + rand() * 0.35 };
@@ -876,7 +867,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         else placements.bear.push({ ...slotW, sc: 0.65 + rand() * 0.35, ry: wp.heading + Math.PI });
       }
       // mid-field filler band (8.6-12 m) — fills the frame edges, clear of the corridor
-      if (rand() < 0.55) {
+      if (rand() < DECOR.filler) {
         const ms = s + (rand() - 0.5) * 4;
         const mp = track.getPose(ms, wallSide * (13.8 + rand() * 3.2));
         const slotM = { s: ms, x: mp.pos.x, y: mp.pos.y - 0.5, z: mp.pos.z, ry: rand() * Math.PI * 2, sc: 0.55 + rand() * 0.6 };
@@ -888,7 +879,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         else placements.tree.push(slotM);
       }
     }
-    if (rand() < 0.38) {
+    if (rand() < DECOR.shoulderBear) {
       const bp = track.getPose(s + 1, side * (7.2 + rand() * 1.4));
       placements.bear.push({ s: s + 1, x: bp.pos.x, y: bp.pos.y - 0.3, z: bp.pos.z, ry: bp.heading + Math.PI + (rand() - 0.5) * 0.8, sc: 0.95 + rand() * 0.5 });
     }
@@ -911,6 +902,11 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   // each prop type into ~150 m chunks lets three.js frustum-cull the ~90% of
   // props behind the camera, which is the single biggest mobile GPU saving.
   const CHUNK = 150;
+  // Distance LOD for instanced prop chunks: a chunk whose nearest point is
+  // farther than LOD_NEAR from the camera draws the low-poly twin.
+  const lodChunks = [];
+  let lodForce = null; // 'hi' | 'lo' | null (prewarm uploads both twins)
+  const LOD_NEAR = 45;
   function buildChunks(geo, mat, list, fill, opts = {}) {
     if (river) list = list.filter((p) => !(typeof p.x === 'number' && typeof p.z === 'number' && blocked(p.x, p.z)));
     if (!list.length) return [];
@@ -937,6 +933,8 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
       world.add(inst);
       out.push(inst);
+      const lo = opts.lod !== undefined ? opts.lod : geo.userData.lod;
+      if (lo) lodChunks.push({ inst, hi: geo, lo, sphere: null });
     }
     return out;
   }
@@ -944,7 +942,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   // Sits on the grass strip just off the curb (5.8-8.2 m from the centerline):
   // outside the road, inside the fun. Topples & flies when the car clips it.
   // Marked noCollide so the corridor sweep leaves the fringe alone.
-  const KNOCK_C = 430, KNOCK_L = 230;
+  const KNOCK_C = DECOR.knockCanes, KNOCK_L = DECOR.knockLollis;
   const knockItems = [];
   for (let i = 0; i < KNOCK_C + KNOCK_L; i++) {
     const isCane = i < KNOCK_C;
@@ -1080,6 +1078,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       { geo: new THREE.BoxGeometry(5.6, 0.09, 0.09), pos: [0, 0.6, 0] },
     ]);
     const FENCE_STEP = 5.6, FENCE_LAT = 9.1;
+    GRAND.lat = [FENCE_LAT + 1.0, FENCE_LAT + 2.2]; // two rows just behind the fence
     {
       const slots = [];
       // the fence keeps running along the pseudo road beyond both lines, so
@@ -1097,7 +1096,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         const fd = new THREE.Object3D();
         const p = track.getPose(slot.s, slot.side * FENCE_LAT);
         fd.position.set(p.pos.x, p.pos.y - 0.12, p.pos.z);
-        fd.rotation.set(0, p.heading, 0);
+        // the unit is modelled along local X (posts at +-2.7); heading maps local Z
+        // onto the road tangent, so turn a further 90 deg to run ALONG the road
+        fd.rotation.set(0, p.heading + Math.PI / 2, 0);
         fd.scale.setScalar(1);
         fd.updateMatrix();
         inst.setMatrixAt(i, fd.matrix);
@@ -1124,6 +1125,8 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         });
       }
     }
+    // the finish grandstand owns its stretch: no regular clusters inside it
+    for (let i = crowdItems.length - 1; i >= 0; i--) if (crowdItems[i].s > GRAND.s0 - 6 && crowdItems[i].s < GRAND.s1 + 6) crowdItems.splice(i, 1);
     const crowdMeshes = [];
     for (const type of ['bear', 'kitty', 'bunny']) {
       const list = crowdItems.filter((c) => c.type === type);
@@ -1147,7 +1150,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       const onRunoff = s < 0 || s > L;
       if (onRunoff && rand() < 0.5) continue; // thinner beyond the lines
       for (const side of [-1, 1]) {
-        if (rand() < 0.22) continue; // small breathing gaps
+        if (rand() < DECOR.stripSkip) continue; // breathing gaps
         const far = 11.6 + rand() * 2.1;
         const ss = s + (rand() - 0.5) * 3;
         const p = track.getPose(ss, side * far);
@@ -1158,6 +1161,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         else strip.cane.push(slot);
       }
     }
+    for (const k of Object.keys(strip)) strip[k] = strip[k].filter((q) => q.s < GRAND.s0 - 3 || q.s > GRAND.s1 + 3);
     makeInstanced(lollipopGeometry(), propMats.lolli[2], strip.lolli);
     makeInstanced(marshGeometry(), propMats.marsh, strip.gum,
       (i) => new THREE.Color(['#fff2f7', '#ffd6e8', '#fff0d8', '#e8d6ff', '#ffc9dd'][i % 5]));
@@ -1192,13 +1196,18 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   }
 
   // grandstand gummy-bears near the finish (like the reference crowd)
+  // Used to be rows of 3 bears stacked straight OUTWARD from the road (and on
+  // the left side INWARD, onto the curb), with every 43rd+ bear duplicated in
+  // place. Now: two staggered rows running along the road behind the fence,
+  // every bear facing the cars.
   const crowd = [];
-  for (let i = 0; i < 58; i++) {
-    const u = 0.935 + (i % 7) * 0.008;
-    const side = i % 2 ? 7.0 : -7.0;
-    const cs = track.length * u;
-    const p = track.getPose(cs, side + (i % 3) * 1.15);
-    crowd.push({ s: cs, x: p.pos.x, y: p.pos.y - 0.35, z: p.pos.z, ry: p.heading + Math.PI, sc: 1.15 + (i % 3) * 0.2 });
+  for (const side of [-1, 1]) {
+    GRAND.lat.forEach((lat, row) => {
+      for (let cs = GRAND.s0 + row * GRAND.step * 0.5; cs <= GRAND.s1; cs += GRAND.step) {
+        const p = track.getPose(cs, side * lat);
+        crowd.push({ s: cs, x: p.pos.x, y: p.pos.y - 0.2, z: p.pos.z, ry: p.heading + side * (Math.PI / 2 + 0.4), sc: row ? 1.45 : 1.2 }); // face the road, a bit toward the oncoming car
+      }
+    });
   }
   makeInstanced(gummyBearGeometry(), propMats.bear, crowd, (i) => new THREE.Color(BEAR_COLORS[i % BEAR_COLORS.length]));
 
@@ -1208,6 +1217,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const fin = track.getPose(track.length * 0.9975, 0);
     const FLAG_COLS = ['#ff4f96', '#ffd45e', '#56c8ff', '#8ef07e', '#b18aff', '#ff8a5c'];
     const poleMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.4 });
+    const flagMats = FLAG_COLS.map((c) => new THREE.MeshStandardMaterial({ color: c, side: THREE.DoubleSide, roughness: 0.55 }));
+    const flagGroup = new THREE.Group();
+    world.add(flagGroup);
     for (let k = 0; k < 12; k++) {
       const side = k % 2 ? 1 : -1;
       const p = track.getPose(track.length - 30 + Math.floor(k / 2) * 5.2, side * 12.8);
@@ -1215,7 +1227,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       pole.position.set(p.pos.x, p.pos.y + 2.3, p.pos.z);
       const flag = new THREE.Mesh(
         new THREE.PlaneGeometry(1.8, 1.05),
-        new THREE.MeshStandardMaterial({ color: FLAG_COLS[k % FLAG_COLS.length], side: THREE.DoubleSide, roughness: 0.55 })
+        flagMats[k % FLAG_COLS.length]
       );
       flag.position.set(
         p.pos.x + Math.cos(p.heading) * 1.0,
@@ -1224,8 +1236,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       );
       flag.rotation.y = p.heading;
       pole.castShadow = false;
-      world.add(pole, flag);
+      flagGroup.add(pole, flag);
     }
+    mergeByMaterial(flagGroup, { castShadow: false, receiveShadow: false, noCollide: false }); // 24 -> 7 draws
   }
 
   // ---------- air confetti ----------
@@ -1319,7 +1332,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const pebbleGeo = new THREE.SphereGeometry(0.42, 8, 6);
     pebbleGeo.scale(1, 0.72, 1);
     const pebbleMat = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0, flatShading: true });
-    const N = 520;
+    const N = DECOR.pebbles;
     const d2 = new THREE.Object3D();
     const cTmp = new THREE.Color();
     const COLS = ['#ff8fc6', '#ffd45e', '#8ef07e', '#56c8ff', '#b18aff', '#fff2f7', '#ff6b81'];
@@ -1333,7 +1346,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         const p = track.getPose(ss, side * far);
         slots.push({ s: ss, x: p.pos.x, y: p.pos.y - far * 0.13 - 0.3, z: p.pos.z, far });
       }
-      fs += 3.2;
+      fs += (L - 24) / (N / 2); // spread over the whole course (used to stop at ~830 m)
     }
     buildChunks(pebbleGeo, pebbleMat, slots, (inst, i, slot, gi) => {
       d2.position.set(slot.x, slot.y, slot.z);
@@ -1362,7 +1375,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const icing = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 });
     const choc = new THREE.MeshStandardMaterial({ color: '#7a4526', roughness: 0.6 });
     const dark = new THREE.MeshStandardMaterial({ color: '#5a2f1a', roughness: 0.45 });
-    const gumMat = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2, emissive: 0x301018, emissiveIntensity: 0.25 });
+    const gumMat = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.9, clearcoat: 0.9, clearcoatRoughness: 0.25, emissive: 0x301018, emissiveIntensity: 0.25 });
     const gumShared = BEAR_COLORS.map((c) => {
       const m = gumMat.clone();
       m.color.set(c);
@@ -1599,7 +1612,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       let fs = 8;
       while (fs < L * 0.22) {
         for (const side of [-1, 1]) {
-          if (rand() < 0.8) {
+          if (rand() < DECOR.flowerKeep) {
             const far = 12 + rand() * 14;
             const p = track.getPose(fs + (rand() - 0.5) * 4, side * far);
             list.push({ x: p.pos.x, y: p.pos.y - 0.12, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 0.8 + rand() * 0.9, c: ['#ff6b9e', '#ffd45e', '#8fd6ff', '#c8a0ff', '#fff2f7'][Math.floor(rand() * 5)] });
@@ -1623,7 +1636,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
 
     // 1. Gummy Bear Grove — big gumdrop bushes
     const gumGeo = new THREE.SphereGeometry(1, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62);
-    const gumMat2 = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.92, clearcoat: 0.9, clearcoatRoughness: 0.25, transmission: 0.12, thickness: 1.2 });
+    const gumMat2 = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.9, clearcoat: 0.9, clearcoatRoughness: 0.25, emissive: 0x301018, emissiveIntensity: 0.25 });
     {
       const list = [];
       let gs = L * 0.22;
@@ -1658,7 +1671,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       let cs = L * 0.46;
       while (cs < L * 0.68) {
         for (const side of [-1, 1]) {
-          if (rand() < 0.55) {
+          if (rand() < DECOR.chocKeep) {
             const far = 13 + rand() * 16;
             const p = track.getPose(cs + (rand() - 0.5) * 7, side * far);
             list.push({ x: p.pos.x, y: p.pos.y - 0.4, z: p.pos.z, ry: rand() * Math.PI * 2, sc: 1.6 + rand() * 2.6 });
@@ -1716,7 +1729,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       let bs = L * 0.88;
       while (bs < L - 26) {
         for (const side of [-1, 1]) {
-          if (rand() < 0.9) {
+          if (rand() < DECOR.buntingKeep) {
             const far = 13 + rand() * 4;
             const p = track.getPose(bs + (rand() - 0.5) * 3, side * far);
             poles.push({ x: p.pos.x, y: p.pos.y - 0.1, z: p.pos.z, ry: p.heading });
@@ -1815,10 +1828,60 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   }
   world.updateMatrixWorld(true);
 
+  // Hopping gummy bears are built as plain meshes so the sweep above can place
+  // them, then collapse into ONE instanced draw (29 transparent physical draws
+  // before). Each keeps a light proxy that update() animates.
+  let bearIM = null;
+  if (bounceList.length) {
+    const first = bounceList[0].m;
+    const mat = first.material.clone();
+    mat.color.set(0xffffff);
+    bearIM = new THREE.InstancedMesh(first.geometry, mat, bounceList.length);
+    bearIM.frustumCulled = false; // spread along the whole course
+    bearIM.userData.noCollide = true;
+    bearIM.name = 'hoppingBears';
+    bounceList.forEach((bn, i) => {
+      const proxy = new THREE.Object3D();
+      proxy.position.copy(bn.m.position);
+      proxy.rotation.copy(bn.m.rotation);
+      proxy.scale.copy(bn.m.scale);
+      proxy.updateMatrix();
+      bearIM.setMatrixAt(i, proxy.matrix);
+      bearIM.setColorAt(i, bn.m.material.color);
+      world.remove(bn.m);
+      bn.m = proxy;
+    });
+    bearIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    world.add(bearIM);
+  }
+  // moving decorations: ~150 tiny draws (a fresh material per balloon/car) -> ~12
+  const animSets = [
+    instanceGroups(world, balloons.map((b) => b.g), 'balloons'),
+    instanceGroups(world, butterflies.map((b) => b.g), 'butterflies'),
+    instanceGroups(world, birds.map((b) => b.g), 'birds'),
+    instanceGroups(world, coasterCars, 'coasterTrain'),
+  ];
+
+  // tunnel darkness (0 = open sky, 1 = deep inside the Swiss roll)
+  const HEMI0 = hemi.intensity, SUN0 = sun.intensity;
+  let darkK = -1;
+  function setDarkness(k) {
+    if (k === darkK) return;
+    darkK = k;
+    hemi.intensity = HEMI0 * (1 - 0.86 * k);
+    sun.intensity = SUN0 * (1 - 0.93 * k);
+  }
   return {
+    hemi, setDarkness,
     sky, sun,
     mountainDebug: () => mountainDebug,
     knockedCount: () => knockItems.reduce((n, it) => n + (it.state ? 1 : 0), 0),
+    // prewarm / QA: pin every chunk to one detail level (null = by distance)
+    forceLod(level) {
+      lodForce = level;
+      for (const c of lodChunks) c.inst.geometry = level === 'lo' ? c.lo : c.hi;
+    },
+    lodStats: () => ({ chunks: lodChunks.length, lo: lodChunks.filter((c) => c.inst.geometry === c.lo).length }),
     update(dt, cameraPos, u, time, carS = -1, carLateral = 0) {
       // Sky stays candy-blue; only the horizon warms up with the zone tint.
       const z = zoneAt(u);
@@ -1826,6 +1889,14 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       scene.fog.color.copy(fogC);
       sky.material.uniforms.bottomColor.value.copy(zoneFog[z.id]).lerp(WHITE, 0.25);
       sky.position.copy(cameraPos);
+
+      // prop chunks: full detail near the camera, low-poly twin farther out
+      for (const c of lodChunks) {
+        if (!c.inst.boundingSphere) c.inst.computeBoundingSphere();
+        const bs = c.inst.boundingSphere;
+        const g = (lodForce || (bs.center.distanceTo(cameraPos) - bs.radius > LOD_NEAR ? 'lo' : 'hi')) === 'lo' ? c.lo : c.hi;
+        if (c.inst.geometry !== g) c.inst.geometry = g;
+      }
 
       // sun follows the car for tight shadows
       sun.position.set(cameraPos.x + 60, cameraPos.y + 95, cameraPos.z - 50);
@@ -1914,6 +1985,14 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         bn.m.scale.set(bn.sc * sq, bn.sc * (2 - sq), bn.sc * sq);
         bn.m.rotation.y += bn.spin * dt;
       }
+      if (bearIM) {
+        for (let i = 0; i < bounceList.length; i++) {
+          bounceList[i].m.updateMatrix();
+          bearIM.setMatrixAt(i, bounceList[i].m.matrix);
+        }
+        bearIM.instanceMatrix.needsUpdate = true;
+      }
+      for (const a of animSets) a.sync();
       // finish confetti curtain swirls and falls, wrapping around the line
       if (curtainData) {
         const arr = curtainData.geo.attributes.position.array;

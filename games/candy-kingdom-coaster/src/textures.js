@@ -32,6 +32,15 @@ export const TEXTURE_MANIFEST = {
   gumdrop:      { file: 'gumdrop.webp', wrap: 'mirror', repeat: [2, 1] },      // candy-tree foliage + roadside gumdrops
   marshmallow:  { file: 'marshmallow.webp', wrap: 'mirror', repeat: [2, 1] },  // marshmallow stacks + ice-cream scoops
   gingerbread:  { file: 'gingerbread.webp' },                                  // village house walls (one tile per face)
+  // Star Racer 7 (src/car.js, src/lily.js) — built by build-car-textures.py
+  carUnicorn:   { file: 'car-unicorn.webp' },                    // RGBA door + helmet decal
+  carLettering: { file: 'car-lettering.webp' },                  // RGBA "STAR RACER 7"
+  carRoundel:   { file: 'car-roundel.webp' },                    // RGBA hood number
+  carEmblem:    { file: 'car-emblem.webp' },                     // RGBA hubcaps, wheel hub, helmet
+  carPlate:     { file: 'car-plate.webp' },                      // licence plate
+  carQuilt:     { file: 'car-quilt.webp', wrap: 'repeat' },      // seats
+  carPolka:     { file: 'car-polka.webp', wrap: 'repeat' },      // hood bow
+  carPlush:     { file: 'car-plush.webp' },                      // fuzzy dice
 };
 
 const WRAP = {

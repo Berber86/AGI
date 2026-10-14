@@ -1,5 +1,5 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v7';
+const CACHE = 'ckc-v14';
 const ASSETS = [
   './',
   './index.html',
@@ -12,6 +12,9 @@ const ASSETS = [
   './src/input.js',
   './src/track.js',
   './src/car.js',
+  './src/sdf.js',
+  './src/lily.js',
+  './src/ponytail.js',
   './src/world.js',
   './src/sweets.js',
   './src/hud.js',
@@ -20,6 +23,9 @@ const ASSETS = [
   './src/ramps.js',
   './src/music.js',
   './src/bridge.js',
+  './src/tunnel.js',
+  './src/merge.js',
+  './src/billboards.js',
   './vendor/three/three.module.js',
   './vendor/three/jsm/postprocessing/EffectComposer.js',
   './vendor/three/jsm/postprocessing/RenderPass.js',
@@ -54,7 +60,15 @@ const ASSETS = [
   './assets/textures/donut-lilac.webp',
   './assets/textures/gumdrop.webp',
   './assets/textures/marshmallow.webp',
-  './assets/textures/gingerbread.webp'
+  './assets/textures/gingerbread.webp',
+  './assets/textures/car-unicorn.webp',
+  './assets/textures/car-lettering.webp',
+  './assets/textures/car-roundel.webp',
+  './assets/textures/car-emblem.webp',
+  './assets/textures/car-plate.webp',
+  './assets/textures/car-quilt.webp',
+  './assets/textures/car-polka.webp',
+  './assets/textures/car-plush.webp'
 ];
 
 self.addEventListener('install', (e) => {
@@ -68,13 +82,25 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// only complete, successful responses are cached — a 404 for a file that is
+// added later (e.g. the soundtrack) must not stick in the cache
+const cacheable = (res) => res && res.ok && res.status === 200 && res.type !== 'opaque';
+const store = (req, res) => { if (cacheable(res)) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {}); } return res; };
+
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  // custom soundtrack (assets/music/): network first so a new/replaced mp3 is
+  // picked up, cached copy for offline play; no index.html fallback for audio
+  if (url.pathname.includes('/assets/music/')) {
+    e.respondWith(
+      fetch(e.request).then((res) => store(e.request, res))
+        .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || new Response('', { status: 404 })))
+    );
+    return;
+  }
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).then((res) => {
-      const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put(e.request, copy));
-      return res;
-    }).catch(() => caches.match('./index.html')))
+    caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).then((res) => store(e.request, res))
+      .catch(() => caches.match('./index.html')))
   );
 });

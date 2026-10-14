@@ -22,7 +22,16 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 const pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(String(e).slice(0, 140)));
-page.on('console', (m) => { if (m.type() === 'error') pageErrors.push('console: ' + m.text().slice(0, 140)); });
+// a missing optional soundtrack (assets/music/soundtrack.mp3 → chiptune
+// fallback) logs a 404 — that one is expected, any other 404 is an error
+const missing = [];
+page.on('response', (r) => { if (r.status() === 404) missing.push(r.url()); });
+page.on('console', (m) => {
+  if (m.type() !== 'error') return;
+  const t = m.text();
+  if (/status of 404/.test(t) && missing.length && missing.every((u) => /\/assets\/music\/soundtrack\.mp3/.test(u))) return;
+  pageErrors.push('console: ' + t.slice(0, 140));
+});
 
 const results = [];
 const record = (name, pass, detail) => {

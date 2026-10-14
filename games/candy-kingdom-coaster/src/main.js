@@ -15,6 +15,7 @@ import { createWorld } from './world.js';
 import { createSweets, Burst } from './sweets.js';
 import { createRamps } from './ramps.js';
 import { createBridge } from './bridge.js';
+import { createTunnel } from './tunnel.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
@@ -52,18 +53,32 @@ const TEX = await loadTextures({
     if (loadingHint) loadingHint.textContent = `Загружаем сладости… ${Math.round((n / total) * 100)}%`;
   },
 });
-if (loadingHint) loadingHint.remove();
-document.getElementById('btn-play').disabled = false;
+if (loadingHint) loadingHint.textContent = 'Собираем машинку…';
+// let the hint paint before the (synchronous) world + car build
+await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 // ---------------------------------------------------------------- world
 const track = createTrack(scene, TEX);
 const ramps = createRamps(scene, track, TEX);
 const bridge = createBridge(scene, track, TEX); // milk river + arched bridge (before the world: props avoid the river)
-const world = createWorld(scene, track, renderer, TEX, bridge);
-const car = createCar();
+const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (cocoa → marshmallow)
+// props avoid both the river valley and the cake body
+const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) });
+const car = createCar({ renderer, TEX });
 car.root.rotation.order = 'YXZ'; // heading first, then pitch / roll in the car's own frame
 scene.add(car.root);
 const trail = createTrail(scene);
+// Inside the tunnel the daylight fades (hemi + sun dim, car reflections dim)
+// and the car's headlight spot comes on; the sponge walls carry baked lantern
+// light, so this is the only real-time light change.
+let tunnelK = 0;
+function tunnelTick(dt, s) {
+  const k = tunnel.darkness(s);
+  tunnelK = k;
+  world.setDarkness(k);
+  car.setHeadlights(k);
+  tunnel.update(dt, performance.now() * 0.001, s);
+}
 const sweets = createSweets(scene, track, ramps);
 const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
@@ -158,6 +173,7 @@ function toMenu() {
 }
 
 function startRace() {
+  governor.hold(2);
   game.s = 0;
   game.lateral = 0;
   game.speed = TUNING.cruiseSpeed * 0.55;
@@ -490,6 +506,7 @@ function updateGameplay(dt) {
     car.update(dt, { speed: 0, steer: 0, boost: false });
     const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
     bridge.update(dt, performance.now() * 0.001);
+    tunnelTick(dt, game.s);
     finishFx.update(dt);
     if (game.introT >= T && game.state === 'intro') beginCountdown();
     return;
@@ -678,6 +695,7 @@ function updateGameplay(dt) {
 
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
   bridge.update(dt, performance.now() * 0.001);
+  tunnelTick(dt, game.s);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
   finishFx.update(dt);
   // driving sound layer follows speed
@@ -713,6 +731,7 @@ function frame(now, dt) {
     trail.update(dt, car.root, 6, false);
     world.update(dt, camera.position, 0.01, now * 0.001);
     bridge.update(dt, now * 0.001);
+    tunnelTick(dt, 12);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
     if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
@@ -817,6 +836,15 @@ window.__TEST__ = {
       qaNoGovernor = prevGov;
     }
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
+  },
+  // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
+  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel }; },
+  tunnelInfo() {
+    return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
+  },
+  // perf QA: compiled shader programs / GPU textures / governor tier
+  perf() {
+    return { programs: renderer.info.programs.length, textures: renderer.info.memory.textures, geometries: renderer.info.memory.geometries, tier: governor.tier };
   },
   pinQuality(tier = 2) {
     governor.tier = tier;
@@ -1348,6 +1376,61 @@ window.__TEST__ = {
     if (world && world.children[i]) world.children[i].visible = !hide;
   },
 };
+
+// ---------------------------------------------------------------- prewarm
+// Without this every material compiles its shader the first time it comes into
+// view — sweets, ramps, boost flames, finish confetti… — each a synchronous
+// stall of tens to hundreds of ms on phones, i.e. the stutter of the first
+// race seconds. Compile EVERYTHING now (hidden objects included, plus the
+// shadow-less variants the Low tier switches to) and upload every texture.
+function compileAll({ shadows = true } = {}) {
+  const hidden = [];
+  scene.traverse((o) => { if (!o.visible) { hidden.push(o); o.visible = true; } });
+  const sunCast = world.sun.castShadow, smEnabled = renderer.shadowMap.enabled;
+  let job = Promise.resolve();
+  try {
+    if (!shadows) { world.sun.castShadow = false; renderer.shadowMap.enabled = false; }
+    job = renderer.compileAsync(scene, camera).catch(() => {});
+  } catch (e) {
+    console.warn('prewarm compile failed', e);
+  } finally {
+    world.sun.castShadow = sunCast; renderer.shadowMap.enabled = smEnabled;
+    for (const o of hidden) o.visible = false;
+  }
+  return job;
+}
+async function prewarm() {
+  const t0 = performance.now();
+  const job = compileAll();
+  const seen = new Set();
+  scene.traverse((o) => {
+    const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    for (const m of mats) {
+      for (const k in m) {
+        const t = m[k];
+        if (!t || !t.isTexture || seen.has(t) || t.isRenderTargetTexture) continue;
+        seen.add(t);
+        const img = t.image;
+        if (img && (img.width || img.data || t.isCubeTexture)) renderer.initTexture(t);
+      }
+    }
+  });
+  const syncMs = Math.round(performance.now() - t0);
+  // parallel compile (KHR_parallel_shader_compile) finishes in the background;
+  // never hold the menu hostage for more than a few seconds
+  await Promise.race([job, new Promise((r) => setTimeout(r, 5000))]);
+  window.__PREWARM__ = { syncMs, ms: Math.round(performance.now() - t0), programs: renderer.info.programs.length, textures: seen.size };
+  // The Low tier turns the sun shadow off = a different shader variant of
+  // every lit material. Prepare those while the player looks at the menu.
+  setTimeout(() => {
+    compileAll({ shadows: false }).then(() => { window.__PREWARM__.lowTier = renderer.info.programs.length; });
+  }, 1500);
+}
+if (loadingHint) loadingHint.textContent = 'Разогреваем трассу…';
+await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+await prewarm();
+if (loadingHint) loadingHint.remove();
+document.getElementById('btn-play').disabled = false;
 
 setSoundIcons();
 fillRecordsPanel(el.recordsMenu, Storage.getRecords());
