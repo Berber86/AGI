@@ -86,11 +86,11 @@ function camera(g){
     c.fillStyle='#171d1a';c.fillRect(0,0,s,s);
     radialText(c,'ТРИПЛЕТ 43 • 4/40',420);radialText(c,'ЛОМО • 52 мм',417,Math.PI,'#babdaa',23);
   });
-  cyl(lens,.204,.204,.025,[0,0,.717],M.lens);
+  cyl(lens,.204,.204,.025,[0,0,.717],M.black);
   // Visible iris blades behind the convex coated glass.
-  for(let i=0;i<7;i++){const a=i*TAU/7;const shape=new THREE.Shape();shape.moveTo(.02,.035);shape.lineTo(.06,.17);shape.lineTo(-.075,.16);shape.lineTo(-.03,.06);shape.closePath();mesh(new THREE.ShapeGeometry(shape),M.rubber,lens,[0,0,.731],[0,0,a]);}
-  cyl(lens,.052,.052,.006,[0,0,.736],M.rubber);
-  dome(lens,.196,.022,[0,0,.738],M.clear);
+  for(let i=0;i<7;i++){const a=i*TAU/7;const shape=new THREE.Shape();shape.moveTo(.02,.035);shape.lineTo(.06,.17);shape.lineTo(-.075,.16);shape.lineTo(-.03,.06);shape.closePath();mesh(new THREE.ShapeGeometry(shape),M.rubber,lens,[0,0,.733],[0,0,a]);}
+  cyl(lens,.082,.082,.006,[0,0,.740],M.black);
+  dome(lens,.196,.028,[0,0,.748],M.clear);
   torus(lens,.204,.006,[0,0,.736],M.silver);
   // Readable exposure scale around the barrel.
   decal(g,.63,.055,[.12,-.351,.498],(c,w,h)=>{c.fillStyle='#252b26';c.fillRect(0,0,w,h);c.fillStyle='#d0c9ac';c.font=`${h*.64}px Arial`;c.fillText('4   5,6   8   11   16',15,h*.7);});
@@ -110,26 +110,20 @@ function camera(g){
 
 function teacup(g){
   const pts=[[0,-.53],[.24,-.53],[.27,-.5],[.27,-.45],[.31,-.43],[.37,-.34],[.43,-.18],[.49,.08],[.53,.33],[.53,.38],[.508,.38],[.495,.31],[.454,.08],[.397,-.17],[.33,-.34],[.23,-.416],[0,-.416]];
-  lathe(g,pts,M.cream);torus(g,.519,.009,[0,.377,0],M.gold,[Math.PI/2,0,0]);torus(g,.259,.009,[0,-.489,0],M.gold,[Math.PI/2,0,0]);
-  tube(g,[[.49,.23,0],[.76,.28,0],[.87,.1,0],[.79,-.21,0],[.48,-.27,0]],.05,M.cream);
-  tube(g,[[.51,.253,.034],[.75,.305,.036],[.873,.09,.032],[.776,-.238,.03],[.48,-.28,.03]],.009,M.gold);
-  // Underglaze lattice, modeled just above the porcelain rather than chunky wires.
-  for(let i=0;i<18;i++){
-    const a=i*TAU/18;
-    for(const sign of [-1,1]){
-      const path=[];const outer=pts.slice(4,10);
-      for(let j=0;j<=24;j++){
-        const y=-.4+j*.72/24;let radius=.31;
-        for(let k=1;k<outer.length;k++)if(y>=outer[k-1][1]&&y<=outer[k][1]){const t=(y-outer[k-1][1])/(outer[k][1]-outer[k-1][1]);radius=THREE.MathUtils.lerp(outer[k-1][0],outer[k][0],t);break;}
-        const theta=a+sign*j/24*.36;path.push([(radius+.003)*Math.cos(theta),y,(radius+.003)*Math.sin(theta)]);
-      }
-      tube(g,path,.0038,M.blue,48);
+  lathe(g,pts,M.cream);torus(g,.519,.006,[0,.377,0],M.gold,[Math.PI/2,0,0]);torus(g,.259,.006,[0,-.489,0],M.gold,[Math.PI/2,0,0]);
+  tube(g,[[.49,.23,0],[.72,.25,0],[.81,.08,0],[.73,-.19,0],[.412,-.25,0]],.036,M.cream);
+  tube(g,[[.50,.25,.025],[.72,.27,.025],[.815,.075,.025],[.72,-.21,.025],[.412,-.26,.025]],.004,M.gold);
+  // Underglaze paint follows the exterior lathe, never a cage of blue tubes.
+  const map=canvasTexture((c,w)=>{
+    c.strokeStyle='#143b85';c.lineWidth=5;
+    for(let i=-2;i<21;i++)for(const sign of [-1,1]){
+      c.beginPath();c.moveTo(i*w/18-sign*w*.035,w);c.lineTo(i*w/18+sign*w*.035,0);c.stroke();
     }
-    ball(g,[.014,.014,.014],[.474*Math.cos(a),.04,.474*Math.sin(a)],M.gold);
-  }
-  // Fine glazing craze and potter's stamp on the underside.
+    c.fillStyle='#b38d40';for(let i=0;i<18;i++){c.beginPath();c.arc(i*w/18,w*.50,3.6,0,TAU);c.fill();}
+  },1024);
+  const glaze=new THREE.MeshStandardMaterial({map,transparent:true,depthWrite:false,roughness:.55,envMapIntensity:.2,polygonOffset:true,polygonOffsetFactor:-1});
+  lathe(g,pts.slice(4,10).map(([r,y])=>[r+.0018,y]),glaze);
   inscription(g,'ЛФЗ',.19,.08,[0,-.535,0],'#244786',[-Math.PI/2,0,0]);
-  for(let i=0;i<3;i++)torus(g,.46+i*.016,.0018,[0,.355,0],M.gold,[Math.PI/2,0,0]);
 }
 
 function watch(g){
@@ -154,6 +148,17 @@ function watch(g){
   for(let i=0;i<18;i++){let a=i*TAU/18;box(g,[.1,.008,.008],[.468,Math.cos(a)*.056,.04+Math.sin(a)*.056],M.silver,.001,[a,0,0]);}
   const buckle=new THREE.Shape();buckle.moveTo(-.22,-.12);buckle.lineTo(.22,-.12);buckle.lineTo(.22,.12);buckle.lineTo(-.22,.12);buckle.closePath();const hole=new THREE.Path();hole.moveTo(-.16,-.07);hole.lineTo(-.16,.07);hole.lineTo(.16,.07);hole.lineTo(.16,-.07);buckle.holes.push(hole);extrude(g,buckle,.025,M.silver,[0,1.0,.02]);box(g,[.02,.23,.018],[0,1,.065],M.silver,.003);
   cyl(g,.392,.392,.02,[0,0,-.104],M.silver);inscription(g,'ПЕТРОДВОРЕЦ • 2609',.53,.05,[0,.07,-.118],'#4d594d',[0,Math.PI,0]);inscription(g,'СДЕЛАНО В СССР',.45,.045,[0,-.07,-.118],'#4d594d',[0,Math.PI,0]);for(let i=0;i<4;i++){const a=i*Math.PI/2+.75;screw(g,Math.sin(a)*.31,Math.cos(a)*.31,-.12,.014);}
+  g.updateMatrixWorld(true);
+  g.traverse(o=>{
+    if(!o.isMesh)return;const pos=o.geometry.attributes.position,inv=o.matrixWorld.clone().invert();
+    for(let i=0;i<pos.count;i++){
+      const v=new THREE.Vector3().fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld);
+      if(Math.abs(v.y)>.43)v.y=Math.sign(v.y)*(.43+(Math.abs(v.y)-.43)*.72);
+      v.z-=.18*v.y*v.y;v.applyMatrix4(inv);pos.setXYZ(i,v.x,v.y,v.z);
+    }
+    o.geometry.computeVertexNormals();
+  });
+
 }
 
 function cassette(g){
@@ -180,15 +185,21 @@ function cassette(g){
 }
 
 function duck(g){
-  ball(g,[.51,.31,.31],[-.025,-.16,0]);ball(g,[.205,.33,.19],[.29,.115,0]);ball(g,[.247,.234,.215],[.375,.382,0]);
-  const beak=lathe(g,[[0,0],[.08,0],[.095,.035],[.07,.19],[0,.26]],M.gold,[.525,.325,0],32);beak.rotation.z=-Math.PI/2;beak.scale.z=.7;
-  ball(g,[.018,.021,.012],[.44,.438,.196],M.black);ball(g,[.018,.021,.012],[.44,.438,-.196],M.black);
+  // One cast body: the neck and head no longer intersect as separate spheres.
+  mesh(castEllipsoids([
+    [-.09,-.13,0,.51,.28,.29],[-.38,-.02,0,.25,.15,.21,-.25],
+    [.25,.04,0,.18,.25,.17,-.2],[.31,.23,0,.15,.25,.16,-.2],
+    [.36,.36,0,.215,.19,.18],[-.50,.02,0,.16,.09,.14,-.3],
+  ],M.cream,44),M.cream,g);
+  const beak=new THREE.Shape();beak.moveTo(.51,.38);beak.lineTo(.68,.34);beak.quadraticCurveTo(.74,.31,.66,.30);beak.lineTo(.51,.31);beak.closePath();
+  extrude(g,beak,.13,M.gold,[0,0,-.065],[0,0,0],.008);
   for(const side of [-1,1]){
-    ball(g,[.34,.175,.045],[-.07,-.07,side*.273],M.cream);
-    for(let i=0;i<6;i++)tube(g,[[-.34+i*.047,-.06,side*.294],[-.16+i*.06,-.155,side*.307],[.1+i*.04,-.14,side*.264]],.0045,M.gold,12);
+    ball(g,[.012,.014,.007],[.43,.405,side*.164],M.black);
+    tube(g,[[-.40,-.06,side*.20],[-.20,.02,side*.283],[.08,-.08,side*.25],[-.10,-.25,side*.26],[-.40,-.06,side*.20]],.003,M.gold,30);
+    for(let i=0;i<4;i++)tube(g,[[-.30+i*.055,-.07,side*.278],[-.19+i*.065,-.15,side*.28],[.01+i*.033,-.14,side*.26]],.002,M.gold,12);
   }
-  ball(g,[.24,.115,.17],[-.435,-.003,0]);torus(g,.198,.006,[.29,.135,0],M.blue,[Math.PI/2,0,0]);
-  cyl(g,.32,.35,.055,[-.04,-.44,0],M.cream,[0,0,0]);inscription(g,'ЛФЗ',.16,.065,[-.04,-.47,0],'#284985',[-Math.PI/2,0,0]);
+  cyl(g,.29,.32,.045,[-.04,-.415,0],M.cream,[0,0,0]);
+  inscription(g,'ЛФЗ',.16,.065,[-.04,-.44,0],'#284985',[-Math.PI/2,0,0]);
 }
 
 function book(g){
@@ -236,7 +247,15 @@ function record(g){
   cyl(g,.83,.83,.022,[0,0,0],M.black,undefined,96);
   // Groove relief is a texture, not bright metal hoops.
   const groove=canvasTexture((c,s)=>{c.fillStyle='#151b1a';c.fillRect(0,0,s,s);for(let r=170;r<502;r+=2){c.strokeStyle=r%5?'#252b29':'#101713';c.lineWidth=.5;c.beginPath();c.arc(s/2,s/2,r,0,TAU);c.stroke();}},1024);
-  const vinyl=new THREE.MeshStandardMaterial({color:0x7b827c,map:groove,roughness:.3,metalness:.2,bumpMap:groove,bumpScale:.0018});
+  const grooveNormal=canvasTexture((c,s)=>{
+    const image=c.createImageData(s,s);
+    for(let y=0;y<s;y++)for(let x=0;x<s;x++){
+      const dx=x-s/2,dy=s/2-y,r=Math.hypot(dx,dy)||1,v=Math.sin(r*2.2)*.22,i=(y*s+x)*4;
+      image.data[i]=128+127*v*dx/r;image.data[i+1]=128+127*v*dy/r;image.data[i+2]=253;image.data[i+3]=255;
+    }
+    c.putImageData(image,0,0);
+  },1024);grooveNormal.colorSpace=THREE.NoColorSpace;
+  const vinyl=new THREE.MeshStandardMaterial({color:0x80868c,map:groove,roughness:.27,metalness:.45,normalMap:grooveNormal,normalScale:new THREE.Vector2(.65,.65),envMapIntensity:1.5});
   for(const side of [-1,1]){
     mesh(new THREE.CircleGeometry(.824,96),vinyl,g,[0,0,side*.013],[0,side===1?0:Math.PI,0]);
     const face=new THREE.Group();g.add(face);face.rotation.y=side===1?0:Math.PI;
@@ -246,9 +265,9 @@ function record(g){
 }
 
 function perfume(g){
-  const crystal=new THREE.MeshPhysicalMaterial({color:0xf5e0b0,transmission:.86,roughness:.07,ior:1.51,thickness:.5,attenuationColor:0xb98332,attenuationDistance:2,clearcoat:1});
+  const crystal=new THREE.MeshPhysicalMaterial({color:0xf7f4e9,transmission:.96,roughness:.045,ior:1.48,thickness:.08,attenuationColor:0xf2d7a4,attenuationDistance:3,clearcoat:.3,envMapIntensity:.65});
   const bottle=lathe(g,[[0,-.55],[.3,-.55],[.36,-.47],[.36,.16],[.29,.31],[.095,.41],[.095,.54],[.067,.54],[.067,.39],[.26,.26],[.31,.12],[.31,-.45],[0,-.45]],crystal,[0,0,0],8);
-  const liquid=new THREE.MeshPhysicalMaterial({color:0x9f621d,roughness:.16,metalness:.05,transparent:true,opacity:.58});cyl(g,.294,.294,.19,[0,-.345,0],liquid,[0,0,0],8);
+  const liquid=new THREE.MeshStandardMaterial({color:0xa96017,roughness:.22,metalness:0});cyl(g,.294,.294,.19,[0,-.345,0],liquid,[0,0,0],8);
   cyl(g,.11,.11,.16,[0,.49,0],M.gold,[0,0,0]);knurl(g,.112,.1,[0,.49,0],28,M.gold,'y');
   lathe(g,[[0,.55],[.12,.55],[.2,.64],[.16,.85],[.1,.94],[0,.94]],crystal,[0,0,0],8);
   decal(g,.38,.38,[0,-.085,.364],(c,w,h,r)=>{c.fillStyle='#e0c991';c.fillRect(0,0,w,h);c.strokeStyle='#84713f';c.lineWidth=8;c.strokeRect(16,16,w-32,h-32);c.fillStyle='#594b30';c.textAlign='center';c.font=`${w*.12}px Georgia`;c.fillText('ДУХИ',w/2,h*.28);c.font=`italic ${w*.16}px Georgia`;c.fillText('Белая ночь',w/2,h*.55);c.font=`${w*.06}px Georgia`;c.fillText('ЛЕНИНГРАД · 1965',w/2,h*.81);distress(c,w,h,r,1800);});
@@ -257,7 +276,7 @@ function perfume(g){
 
 function horse(g){
   box(g,[1.27,.08,.55],[0,-.72,0],M.bronze,.032);box(g,[1.35,.04,.61],[0,-.78,0],M.black,.02);
-  mesh(castEllipsoids([[0,-.13,0,.41,.235,.195],[.25,-.09,0,.235,.27,.18],[-.27,-.14,0,.24,.24,.193],[.3,.17,0,.143,.37,.145,.25],[.44,.465,0,.215,.127,.132],[.603,.399,0,.12,.085,.108]],M.bronze),M.bronze,g);
+  mesh(castEllipsoids([[0,-.15,0,.35,.19,.16],[.23,-.07,0,.21,.245,.165],[-.25,-.13,0,.235,.21,.18],[.29,.14,0,.13,.31,.125,.3],[.36,.36,0,.12,.21,.115,.35],[.45,.455,0,.17,.108,.11,.25],[.59,.39,0,.11,.067,.086,.35]],M.bronze),M.bronze,g);
   for(const side of [-1,1])for(const x of [-.3,.26]){
     const z=side*.13;const bend=x<0?-.12:.075;
     tube(g,[[x,-.24,z],[x+bend,-.42,z+.012],[x+bend*.7,-.66,z]],.034,M.bronze);
@@ -334,7 +353,7 @@ function cardboard(g){
 
 function lid(g){
   cyl(g,.507,.507,.036,[0,0,0],M.rust,undefined,80);torus(g,.504,.014,[0,0,.017],M.silver);for(const r of [.448,.408])torus(g,r,.009,[0,0,.024],M.rust);
-  const r=seeded(77);for(let i=0;i<35;i++){const a=r()*TAU,rad=.38*Math.sqrt(r());ball(g,[.01+r()*.014,.008+r()*.016,.001],[Math.cos(a)*rad,Math.sin(a)*rad,.022],i%3?M.rust:M.silver);}
+  const r=seeded(77);for(let i=0;i<9;i++){const a=r()*TAU,rad=.465+r()*.015;ball(g,[.008+r()*.009,.005+r()*.012,.0006],[Math.cos(a)*rad,Math.sin(a)*rad,.022],M.silver);}
   for(let i=0;i<24;i++){const a=i*TAU/24;box(g,[.03,.027,.023],[Math.sin(a)*.487,Math.cos(a)*.487,-.018],M.rust,.007,[0,0,-a]);}
   inscription(g,'ГОСТ 5981–88',.44,.056,[0,-.23,.038],'#523d2a');
 }
@@ -365,7 +384,18 @@ const builders={camera,teacup,watch,cassette,duck,book,key,badge,record,perfume,
 // This keeps finer geometry affordable and caches do not grow on reinspection.
 function bake(group){
   group.updateMatrixWorld(true);const parts=new Map();let count=0;
-  group.traverse(object=>{if(!object.isMesh)return;count++;const geo=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geo.applyMatrix4(object.matrixWorld);const key=object.material.uuid;if(!parts.has(key))parts.set(key,{material:object.material,geometries:[]});parts.get(key).geometries.push(geo);object.geometry.dispose();});
+  group.traverse(object=>{if(!object.isMesh)return;count++;const geo=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geo.applyMatrix4(object.matrixWorld);
+    if(object.material===M.bronze){
+      const p=geo.attributes.position,colors=new Float32Array(p.count*3),copper=new THREE.Color('#977145'),green=new THREE.Color('#355d53');
+      for(let i=0;i<p.count;i++){
+        const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
+        const noise=Math.sin(x*15+Math.sin(y*9))*Math.sin(y*19+z*12)*Math.cos(z*21-x*6);
+        const t=THREE.MathUtils.clamp((noise+.12)*.85,0,.8);
+        const c=copper.clone().lerp(green,t);c.toArray(colors,i*3);
+      }
+      geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+    }
+    const key=object.material.uuid;if(!parts.has(key))parts.set(key,{material:object.material,geometries:[]});parts.get(key).geometries.push(geo);object.geometry.dispose();});
   group.clear();for(const {material,geometries} of parts.values()){const geo=mergeGeometries(geometries,false);mesh(geo,material,group);geometries.forEach(g=>g.dispose());}return count;
 }
 export function createItem(id){

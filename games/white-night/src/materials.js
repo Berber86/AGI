@@ -37,11 +37,11 @@ function surface(kind){
     } else {
       for(let i=0;i<14000;i++){
         const value=kind==='paper'?'rgba(112,94,58,.07)':'rgba(28,33,32,.09)';
-        c.fillStyle=value;c.fillRect(r()*s,r()*s,kind==='metal'?r()*65+4:r()*2+1,.3+r()*.6);
+        c.fillStyle=value;c.fillRect(r()*s,r()*s,kind==='metal'?r()*8+1:r()*2+1,.3+r()*.6);
       }
       if(kind==='metal')for(let i=0;i<60;i++){
         const x=r()*s,y=r()*s;c.strokeStyle='rgba(52,57,49,.16)';c.lineWidth=.5;
-        c.beginPath();c.moveTo(x,y);c.lineTo(x+r()*40,y+r()*8);c.stroke();
+        c.beginPath();c.moveTo(x,y);c.lineTo(x+r()*15,y+r()*2);c.stroke();
       }
     }
   });
@@ -52,23 +52,23 @@ const leather=surface('leather'),metal=surface('metal'),cloth=surface('cloth');
 const roughMetal=metal.clone();roughMetal.colorSpace=THREE.NoColorSpace;
 const leatherBump=leather.clone();leatherBump.colorSpace=THREE.NoColorSpace;
 const paperBump=grain.clone();paperBump.colorSpace=THREE.NoColorSpace;
-const patina=canvasTexture((c,s,r)=>{
-  c.fillStyle='#5b7362';c.fillRect(0,0,s,s);
-  for(let i=0;i<7000;i++){c.fillStyle=['#2b5146','#718878','#706447','#9c8355'][i%4];c.globalAlpha=.15+r()*.25;c.beginPath();c.arc(r()*s,r()*s,.5+r()*5,0,7);c.fill();}
-});
 const corrosion=canvasTexture((c,s,r)=>{
-  c.fillStyle='#6c432b';c.fillRect(0,0,s,s);
-  for(let i=0;i<23000;i++){c.fillStyle=['#6d3f22','#9a6b3c','#473a28','#b48b57','#2e3930'][i%5];c.globalAlpha=.3;c.fillRect(r()*s,r()*s,1+r()*4,1+r()*3);}
+  c.fillStyle='#68513c';c.fillRect(0,0,s,s);
+  for(let i=0;i<35;i++){
+    const x=r()*s,y=r()*s,rad=12+r()*85;
+    const g=c.createRadialGradient(x,y,0,x,y,rad);g.addColorStop(0,i%2?'#a96d36':'#3e4037');g.addColorStop(1,'#68513c00');c.fillStyle=g;c.fillRect(x-rad,y-rad,rad*2,rad*2);
+  }
+  for(let i=0;i<23000;i++){c.fillStyle=['#6d3f22','#9a6b3c','#473a28','#b48b57','#2e3930'][i%5];c.globalAlpha=.10;c.fillRect(r()*s,r()*s,1+r()*4,1+r()*3);}
 });
 export const materials={
   black:new THREE.MeshStandardMaterial({color:0x19211f,roughness:.42,metalness:.38,map:metal,bumpMap:roughMetal,bumpScale:.004}),
   leather:new THREE.MeshStandardMaterial({color:0x666e67,map:leather,roughness:.78,bumpMap:leatherBump,bumpScale:.01}),
   silver:new THREE.MeshStandardMaterial({color:0xbac2be,map:metal,roughnessMap:roughMetal,roughness:.35,metalness:.93,bumpMap:roughMetal,bumpScale:.003}),
   gold:new THREE.MeshStandardMaterial({color:0xbda16b,map:metal,roughness:.29,metalness:.88,bumpMap:roughMetal,bumpScale:.003}),
-  bronze:new THREE.MeshStandardMaterial({map:patina,roughness:.48,metalness:.78,bumpMap:paperBump,bumpScale:.014}),
-  cream:new THREE.MeshPhysicalMaterial({color:0xf0e7d4,roughness:.2,clearcoat:.85,clearcoatRoughness:.15,bumpMap:paperBump,bumpScale:.0012}),
+  bronze:new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.43,metalness:.83}),
+  cream:new THREE.MeshPhysicalMaterial({color:0xc9c6bb,roughness:.22,envMapIntensity:.45,clearcoat:.6,clearcoatRoughness:.12,bumpMap:paperBump,bumpScale:.0004}),
   blue:new THREE.MeshPhysicalMaterial({color:0x123974,roughness:.24,clearcoat:1,clearcoatRoughness:.1}),
-  glass:new THREE.MeshPhysicalMaterial({color:0xc0ddb0,roughness:.075,metalness:0,transmission:.84,thickness:.16,ior:1.5,attenuationColor:0x214923,attenuationDistance:.7,clearcoat:1}),
+  glass:new THREE.MeshPhysicalMaterial({color:0xd0e2bc,roughness:.045,metalness:0,transmission:.96,thickness:.055,ior:1.48,attenuationColor:0x568f4b,attenuationDistance:2.5,clearcoat:.4,envMapIntensity:.7}),
   clear:new THREE.MeshStandardMaterial({color:0xb7d6df,roughness:.09,metalness:.03,transparent:true,opacity:.055,depthWrite:false,envMapIntensity:.18}),
   lens:new THREE.MeshPhysicalMaterial({color:0x142c37,roughness:.055,metalness:.38,clearcoat:1,iridescence:.75,iridescenceIOR:1.3,iridescenceThicknessRange:[250,440]}),
   paper:new THREE.MeshStandardMaterial({color:0xe1d2ae,map:grain,roughness:.96,bumpMap:paperBump,bumpScale:.006,side:THREE.DoubleSide}),

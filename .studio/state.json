@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "phase": "building",
   "activeRole": "builder",
-  "currentTask": "VISUAL-V3-2",
-  "lastAction": "Iteration 1: safe perspective framing, individual poses, depth-tested background veil, readable lower model",
-  "nextAction": "Iteration 2: organic forms, porcelain, patina and glass",
+  "currentTask": "VISUAL-V3-3",
+  "lastAction": "Iteration 2: cast duck, glazed cup paint, 3D-space patina, bent strap and clearer glass; two browser visual checks passed",
+  "nextAction": "Iteration 3: archive lighting, readable two-column cards, controls, final production gates",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-14-visual-v2.md",
   "sessionBenchmark": {
