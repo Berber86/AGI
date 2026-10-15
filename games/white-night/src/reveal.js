@@ -9,7 +9,9 @@ export function revealFrame(progress, reduced = false) {
     visible: p >= .22,
     silhouette: 1 - detail,
     scale: .94 + .06 * smooth(p),
-    veil: .45 + .51 * smooth(Math.min(1, p / .50)),
+    // The veil starts dense and deepens: the courtyard dims away instead of
+    // flashing bright through a thin veil for the first fifth of a second.
+    veil: .82 + .14 * smooth(Math.min(1, p / .50)),
     ready: p === 1,
   };
 }

@@ -32,7 +32,7 @@ export class World {
   // White night: a cold moon from high above, a weak cool bounce, and warm sodium
   // spill from the street. The light count is unchanged on purpose - a point light
   // costs every lit fragment, so warmth comes from emissive surfaces instead.
-  this.scene.add(new THREE.HemisphereLight(0x8aabd6,0x141e27,1.12));
+  this.hemi=new THREE.HemisphereLight(0x8aabd6,0x141e27,1.12);this.scene.add(this.hemi);
   const sun=new THREE.DirectionalLight(0xa9c8f0,1.62);sun.position.set(-6,11,2);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-6;sun.shadow.camera.right=6;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-6;sun.shadow.normalBias=.012;sun.shadow.bias=-.00025;sun.shadow.radius=3;this.scene.add(sun);this.sun=sun;
   const fill=new THREE.DirectionalLight(0x51739c,.62);fill.position.set(5,5,-4);this.scene.add(fill);
   this.static=new THREE.Group();this.scene.add(this.static);this.buildCourtyard();batch(this.static);
@@ -42,7 +42,10 @@ export class World {
   this.inspectionVeil=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x172b3c,transparent:true,opacity:.96,depthWrite:false,toneMapped:false,fog:false}));
   this.inspectionVeil.position.z=-6;this.inspectionVeil.visible=false;this.inspectionVeil.renderOrder=-10;this.camera.add(this.inspectionVeil);
   this.silhouette=new THREE.Group();this.silhouetteMat=new THREE.MeshBasicMaterial({color:0x101d2b,transparent:true,opacity:1,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
-  this.itemAnchor=new THREE.Group();this.camera.add(this.itemAnchor);this.itemAnchor.position.set(0,0,-4.2);this.inspectLamp=new THREE.PointLight(0xfff4e7,17,9,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
+  this.itemAnchor=new THREE.Group();this.camera.add(this.itemAnchor);this.itemAnchor.position.set(0,0,-4.2);
+  const shadowTex=canvasTexture((c,s2)=>{const g=c.createRadialGradient(s2/2,s2/2,0,s2/2,s2/2,s2/2);g.addColorStop(0,'rgba(3,7,11,.62)');g.addColorStop(.55,'rgba(3,7,11,.34)');g.addColorStop(1,'rgba(3,7,11,0)');c.fillStyle=g;c.fillRect(0,0,s2,s2);},128);
+  this.itemShadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,toneMapped:false}));
+  this.itemShadow.renderOrder=-5;this.itemShadow.visible=false;this.itemAnchor.add(this.itemShadow);this.inspectLamp=new THREE.PointLight(0xfff4e7,17,9,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
   this.itemRim=new THREE.PointLight(0xc5e3ff,18,8,2);this.itemRim.position.set(1.6,.7,-3.8);this.camera.add(this.itemRim);this.itemRim.visible=false;
   this.pipeline=new RenderPipeline(this.renderer,this.scene,this.camera);this.thumbnailOutput=new OutputPass();
   this.modelCache=new Map();this.thumbCache=new Map();this.item=null;this.zoom=1;this.targetX=.08;this.targetY=-.2;this.inspect=false;this.time=0;this.kick=0;this.pointer=new THREE.Vector2();this.raycaster=new THREE.Raycaster();this.frames=[];this.low=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -168,6 +171,9 @@ export class World {
   const size=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
   this.baseScale=fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth);
   this.item.scale.setScalar(this.baseScale*this.zoom);
+  const s=this.baseScale*this.zoom;
+  this.itemShadow.scale.set(Math.max(size.x*s*2.5,.3),Math.max(size.x*s*.85,.16),1);
+  this.itemShadow.position.set(0,-size.y*s-.05,-.3);
  }
  inspectionBounds(){
   if(!this.item)return null;
@@ -190,7 +196,7 @@ export class World {
   this.inspectLamp.intensity=PRESENTATION[id].lamp??17;this.itemRim.intensity=PRESENTATION[id].rim??18;
   this.updateItemLights();
   this.item.rotation.set(...PRESENTATION[id].rotation);this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
-  this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;
+  this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemShadow.visible=true;
   const meshes=[];this.item.traverse(o=>{if(o.isMesh){o.castShadow=false;meshes.push(o);}});
   if(!this.reduced&&!review){
     this.item.updateMatrixWorld(true);const inverseRoot=this.item.matrixWorld.clone().invert();
@@ -198,7 +204,7 @@ export class World {
   }
   this.reveal=this.reduced||review?1:0;this.applyReveal();
  }
- hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;}
+ hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;}
  finishReveal(){this.testRevealHold=false;this.reveal=1;this.applyReveal();this.dirty=true;}
  applyReveal(){
   this.revealState=revealFrame(this.reveal,this.reduced);
@@ -215,7 +221,8 @@ export class World {
  setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.pose=pose;this.dirty=true;}
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
  rotate(dx,dy){this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
- setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;this.resize();}
+ setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
+  this.sun.intensity=low?2.05:1.62;this.hemi.intensity=low?.82:1.12;this.scene.environmentIntensity=low?.07:.15;this.resize();}
  thumbnail(id){
   if(this.thumbCache.has(id))return this.thumbCache.get(id);
   const model=this.getModel(id),prev=model.parent,scale=model.scale.clone(),rot=model.rotation.clone(),pos=model.position.clone();

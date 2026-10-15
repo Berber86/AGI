@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import sharp from 'sharp';
 
-const folder = '../../.studio/evidence/screenshots/visual-v6-audit';
+const folder = process.env.FOLDER || '../../.studio/evidence/screenshots/visual-v6-audit';
 const files = fs.readdirSync(folder).filter(f => f.startsWith('item-') && f.endsWith('.webp')).sort();
 const rows = [];
 for (const f of files) {
