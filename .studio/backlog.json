@@ -230,7 +230,7 @@
       "id": "VISUAL-V5-8",
       "title": "Coherent landscape inspection",
       "ownerRole": "builder",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "VISUAL-V5-7"
       ],
@@ -239,13 +239,15 @@
         "Production screenshot/runtime check",
         "No new audio or external assets"
       ],
-      "evidence": []
+      "evidence": [
+        ".studio/evidence/reports/visual-v5-8-landscape.json"
+      ]
     },
     {
       "id": "VISUAL-V5-9",
       "title": "Multi-angle framing and cavity inspection",
       "ownerRole": "builder",
-      "status": "ready",
+      "status": "in_progress",
       "dependencies": [
         "VISUAL-V5-8"
       ],

@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "phase": "production",
   "activeRole": "builder",
-  "currentTask": "VISUAL-V5-8",
-  "lastAction": "Iteration 7 scene tests passed, desktop frame reviewed",
-  "nextAction": "Landscape panel and stage composition",
+  "currentTask": "VISUAL-V5-9",
+  "lastAction": "Iteration 8 landscape review passed at three sizes",
+  "nextAction": "Accessible pose presets, rotation-safe fit and underside/cavity review",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-15-visual-v4.md",
   "sessionBenchmark": {

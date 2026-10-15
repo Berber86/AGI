@@ -23,7 +23,8 @@ export const ZOOM = { min: .85, max: 1.65 };
 
 export function inspectionRect(width, height, safeTop = 0, safeBottom = 0) {
   if (height <= 520 && width > 650) {
-    return { x: 28, y: 76 + safeTop, width: width * .60 - 40, height: Math.max(60, height - 142 - safeTop - safeBottom) };
+    const panel=Math.min(360,Math.max(280,width*.34));
+    return { x: 28, y: 90 + safeTop, width: width-panel-64, height: Math.max(60,height-166-safeTop-safeBottom) };
   }
   const mobile = width <= 650;
   const top = (mobile ? 192 : 220) + safeTop;

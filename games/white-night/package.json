@@ -19,7 +19,8 @@
     "test:visual": "node tests/visual.mjs",
     "test:thumbnails": "node tests/thumbnails.mjs",
     "test:scene": "node tests/scene-review.mjs",
-    "test:reveal": "node tests/reveal.mjs"
+    "test:reveal": "node tests/reveal.mjs",
+    "test:landscape": "node tests/landscape.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
