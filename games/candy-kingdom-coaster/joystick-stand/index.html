@@ -341,14 +341,38 @@ function pushSteer() {
 
 // ---------------------------------------------------------------- Firebase boot
 function parseConfig(text) {
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('Не нашёл объект конфига в тексте');
-  let t = m[0]
-    .replace(/\/\/.*$/gm, '')
-    .replace(/'([^']*)'/g, '"$1"')
-    .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
-    .replace(/,\s*([}\]])/g, '$1');
-  return JSON.parse(t);
+  // Конфиг из консоли Firebase — это JS-объект, а не строгий JSON: ключи без
+  // кавычек, бывают комментарии и одинарные кавычки. Идём посимвольно и
+  // собираем валидный JSON, не трогая содержимое строк (важно: https:// в
+  // databaseURL — не комментарий, прошлая версия ломалась именно на этом).
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a < 0 || b <= a) throw new Error('Не нашёл объект конфига в тексте');
+  const src = text.slice(a, b + 1);
+  let out = '', inStr = false, quote = '', esc = false;
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue; }
+      if (c === '\\') { out += c; esc = true; continue; }
+      if (c === quote) { inStr = false; out += '"'; continue; }
+      if (c < ' ') continue; // управляющие символы внутри строк выбрасываем
+      out += c; continue;
+    }
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (c === '"' || c === "'") { inStr = true; quote = c; out += '"'; continue; }
+    if (/[A-Za-z_$]/.test(c)) {
+      let j = i;
+      while (j < src.length && /[\w$]/.test(src[j])) j++;
+      const word = src.slice(i, j);
+      let k = j;
+      while (k < src.length && /\s/.test(src[k])) k++;
+      out += src[k] === ':' ? `"${word}"` : word;
+      i = j - 1; continue;
+    }
+    out += c;
+  }
+  out = out.replace(/,\s*([}\]])/g, '$1');
+  return JSON.parse(out);
 }
 
 async function bootFirebase(config) {
