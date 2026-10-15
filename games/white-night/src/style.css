@@ -122,3 +122,13 @@
  #toast{top:76px;font-size:11px}
 }
 @media(max-height:380px) and (min-width:651px){.find-info{bottom:100px}.find-info h2{font-size:24px}.find-info p{font-size:11px}}
+
+/* v5 / 9: accessible view selection; drag keeps free rotation. */
+.view-controls{position:absolute;top:204px;left:50%;transform:translateX(-50%);display:flex;gap:4px;max-width:calc(100% - 32px);padding:2px;border-radius:24px;background:#132735b3;border:1px solid #c6d4db26}
+.view-controls button{pointer-events:auto;min-height:44px;padding:0 11px;font-size:11px;border-radius:22px;color:#c8d4d9;white-space:nowrap}
+.view-controls button[aria-pressed="true"]{background:#c6d4db1c;color:var(--accent)}
+.is-revealing .view-controls{opacity:0;pointer-events:none}
+@media(max-width:650px){.view-controls{top:184px}.view-controls button{padding:0 9px;font-size:11px}}
+@media(max-height:520px) and (min-width:651px){.view-controls{top:auto;bottom:64px;left:calc((100% - var(--inspection-panel-width))/2)}.reveal-note{bottom:118px}}
+
+.is-revealing .view-controls button{pointer-events:none}

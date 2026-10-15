@@ -93,5 +93,11 @@
     "implemented": "Iterations 4–6: inhabited courtyard/bin; localized item wear and highlights; staged reveal/feedback. Book warp reverted to preserve its print. Saves, IDs, silence and rules unchanged.",
     "journal": "games/white-night/VISUAL_ITERATIONS.md",
     "evidence": ".studio/evidence/reports/visual-v4-release.json"
+  },
+  "visualIterationsV5": {
+    "request": "Хорошо, делай ещё 3 итерации",
+    "implemented": "7 twilight lighting; 8 coherent landscape panel; 9 accessible view presets, rotation/off-axis-safe fit, stage-relative lights and outward underside print. No changes to rules, IDs, saves or silence.",
+    "journal": "games/white-night/VISUAL_ITERATIONS.md",
+    "evidence": ".studio/evidence/reports/visual-v5-release.json"
   }
 }

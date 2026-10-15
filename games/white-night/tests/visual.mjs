@@ -31,7 +31,7 @@ try{
   assert.ok(m.modelDetails.materialBatches<=20);models.push({id,bounds:b,...m.modelDetails});
   await shot(id);
   if(id==='book'){
-   const {data,info}=await sharp(`${folder}/book.webp`).extract({left:155,top:290,width:110,height:105}).raw().toBuffer({resolveWithObject:true});let ink=0;
+   const {data,info}=await sharp(`${folder}/book.webp`).extract({left:Math.floor(b.left+(b.right-b.left)*.22),top:Math.floor(b.top+(b.bottom-b.top)*.19),width:Math.floor((b.right-b.left)*.55),height:Math.floor((b.bottom-b.top)*.27)}).raw().toBuffer({resolveWithObject:true});let ink=0;
    for(let p=0;p<data.length;p+=info.channels)if(data[p]>140&&data[p+1]>110&&data[p+2]<180&&data[p]>data[p+2]*1.15)ink++;
    assert.ok(ink>40,`Book title occluded by bent cover: ${ink} gold pixels`);checks.push('Book gold title remains visible after deformation');
   }

@@ -1,3 +1,4 @@
+import {inspectionRect} from '../src/presentation.js';
 import {launch} from './browser.mjs';import fs from 'node:fs';import assert from 'node:assert/strict';
 const series=process.env.SERIES||'v5',iteration=process.env.ITERATION||'8';
 const dir=`../../.studio/evidence/screenshots/visual-${series}-${iteration}`;fs.mkdirSync(dir,{recursive:true});
@@ -9,6 +10,7 @@ try{
  await p.goto('http://127.0.0.1:5173/?test=1',{waitUntil:'networkidle0'});await p.waitForFunction(()=>window.__READY__);
  for(const [w,h] of [[844,390],[740,360],[932,430]]){
   await p.setViewport({width:w,height:h,isMobile:true,hasTouch:true,deviceScaleFactor:1});
+  const expected=inspectionRect(w,h);await p.waitForFunction(bottom=>parseFloat(document.querySelector('#app').style.getPropertyValue('--stage-bottom'))===bottom,{},expected.y+expected.height);
   for(const id of ['record','watch','bottle','camera']){
    await p.evaluate(id=>window.__GAME_TEST__.forceNext(id),id);for(let i=0;i<3;i++)await p.tap('#search-button');await p.evaluate(()=>window.__GAME_TEST__.settle());
    const m=await p.evaluate(()=>window.__GAME_TEST__.getMetrics()),b=m.inspectionBounds,s=b.stage;

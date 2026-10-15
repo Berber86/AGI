@@ -27,3 +27,23 @@ test('Safe-area insets reduce the inspection stage rather than hiding controls',
  const a=inspectionRect(412,915),b=inspectionRect(412,915,44,34);
  assert.equal(b.y,a.y+44);assert.equal(b.height,a.height-78);
 });
+
+test('Inspection presets cover all IDs without mutating authored poses',async()=>{
+ const {inspectionPose}=await import('../src/presentation.js');
+ for(const {id} of ITEMS){for(const pose of ['front','back','top','bottom','side'])assert.ok(inspectionPose(id,pose).every(Number.isFinite));const a=inspectionPose(id,'front');a[0]=999;assert.notEqual(PRESENTATION[id].rotation[0],999);}
+ assert.throws(()=>inspectionPose('unknown','front'));assert.throws(()=>inspectionPose('camera','unknown'));
+});
+test('Landscape stage ends before both view-control rows and right panel',()=>{
+ for(const [w,h] of [[740,360],[844,390],[932,430]]){const r=inspectionRect(w,h,24,18),panel=Math.min(360,Math.max(280,w*.34));assert.ok(r.x+r.width<w-panel);assert.ok(r.y+r.height<=h-100);}
+});
+
+test('Off-axis fit contains all corners, including deep horizontal watch poses',()=>{
+ for(const [w,h] of [[844,390],[740,360],[412,915],[360,800]])for(const e of [{x:.2,y:.3,z:1.1},{x:1.1,y:.2,z:.7},{x:.4,y:1,z:.3}]){
+  const r=inspectionRect(w,h),fov=43,d=4.2,p=h/(2*Math.tan(fov*Math.PI/360)),s=fitScale(e,r,h,fov,d,w);
+  const ax=(r.x+r.width/2-w/2)*d/p,ay=(h/2-r.y-r.height/2)*d/p;
+  for(const x of [-e.x,e.x])for(const y of [-e.y,e.y])for(const z of [-e.z,e.z]){
+   const px=w/2+(ax+x*s)/(d-z*s)*p,py=h/2-(ay+y*s)/(d-z*s)*p;
+   assert.ok(px>=r.x&&px<=r.x+r.width&&py>=r.y&&py<=r.y+r.height,JSON.stringify({w,h,e,px,py,r}));
+  }
+ }
+});

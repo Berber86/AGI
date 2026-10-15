@@ -1,0 +1,1095 @@
+{
+  "passed": true,
+  "frames": [
+    {
+      "id": "camera",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "camera",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "camera",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "camera",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "camera",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "teacup",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "teacup",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "teacup",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "teacup",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "teacup",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "watch",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "watch",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "watch",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "watch",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "watch",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cassette",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cassette",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cassette",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cassette",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cassette",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "duck",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "duck",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "duck",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "duck",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "duck",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "book",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "book",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "book",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "book",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "book",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "key",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "key",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "key",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "key",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "key",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "badge",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "badge",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "badge",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "badge",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "badge",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "record",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "record",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "record",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "record",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "record",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "perfume",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "perfume",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "perfume",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "perfume",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "perfume",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "horse",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "horse",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "horse",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "horse",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "horse",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "compass",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "compass",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "compass",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "compass",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "compass",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "bottle",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "bottle",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "bottle",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "bottle",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "bottle",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "can",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "can",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "can",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "can",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "can",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cup",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cup",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cup",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cup",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "cup",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "box",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "box",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "box",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "box",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "box",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "lid",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "lid",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "lid",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "lid",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "lid",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "paper",
+      "pose": "front",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "paper",
+      "pose": "back",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "paper",
+      "pose": "top",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "paper",
+      "pose": "bottom",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "paper",
+      "pose": "side",
+      "w": 412,
+      "h": 915
+    },
+    {
+      "id": "camera",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "camera",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "camera",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "camera",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "camera",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "teacup",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "teacup",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "teacup",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "teacup",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "teacup",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "watch",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "watch",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "watch",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "watch",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "watch",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cassette",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cassette",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cassette",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cassette",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cassette",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "duck",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "duck",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "duck",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "duck",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "duck",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "book",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "book",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "book",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "book",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "book",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "key",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "key",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "key",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "key",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "key",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "badge",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "badge",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "badge",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "badge",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "badge",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "record",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "record",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "record",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "record",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "record",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "perfume",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "perfume",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "perfume",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "perfume",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "perfume",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "horse",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "horse",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "horse",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "horse",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "horse",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "compass",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "compass",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "compass",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "compass",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "compass",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "bottle",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "bottle",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "bottle",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "bottle",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "bottle",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "can",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "can",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "can",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "can",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "can",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cup",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cup",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cup",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cup",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "cup",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "box",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "box",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "box",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "box",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "box",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "lid",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "lid",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "lid",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "lid",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "lid",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "paper",
+      "pose": "front",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "paper",
+      "pose": "back",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "paper",
+      "pose": "top",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "paper",
+      "pose": "bottom",
+      "w": 844,
+      "h": 390
+    },
+    {
+      "id": "paper",
+      "pose": "side",
+      "w": 844,
+      "h": 390
+    }
+  ],
+  "checks": [
+    "180 baseline poses: all 18 at front/back/top/bottom/side on portrait and landscape; no GPU growth while changing poses",
+    "Keyboard and touch select views; drag restores free rotation, front restores default"
+  ],
+  "errors": [],
+  "limitations": [
+    "Pose matrix rendered in low quality; final baseline visual suite covers high quality.",
+    "Finite presets, not an exhaustive continuous turntable; max zoom is intentional close-up.",
+    "Software GPU, no physical Android performance claim."
+  ]
+}

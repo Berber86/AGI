@@ -247,7 +247,7 @@
       "id": "VISUAL-V5-9",
       "title": "Multi-angle framing and cavity inspection",
       "ownerRole": "builder",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "VISUAL-V5-8"
       ],
@@ -256,7 +256,11 @@
         "Production screenshot/runtime check",
         "No new audio or external assets"
       ],
-      "evidence": []
+      "evidence": [
+        ".studio/evidence/reports/visual-v5-release.json",
+        ".studio/evidence/reports/visual-v5-9-poses.json",
+        ".studio/evidence/reports/visual-v5-9.json"
+      ]
     }
   ],
   "updatedAt": "2026-10-15"

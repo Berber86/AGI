@@ -25,16 +25,17 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 82,
-      "triangles": 169806,
-      "geometries": 167,
+      "drawCalls": 83,
+      "triangles": 170334,
+      "geometries": 168,
       "textures": 80,
       "models": 18,
       "postprocessing": false,
       "zoom": 1,
+      "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 51.47676767676783,
+      "meanFrameMs": 45.248484848484836,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -49,16 +50,17 @@
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 68,
-      "triangles": 127156,
-      "geometries": 76,
+      "drawCalls": 69,
+      "triangles": 127684,
+      "geometries": 77,
       "textures": 35,
       "models": 1,
       "postprocessing": false,
       "zoom": 1,
+      "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 610.9666666666664,
+      "meanFrameMs": 491.5166666666658,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -283,14 +285,14 @@
       "materialBatches": 3,
       "bounds": {
         "min": [
-          -0.35755102062094835,
+          -0.3565116290916554,
           -1.05,
-          -0.3593877499420028
+          -0.3583430190882839
         ],
         "max": [
-          0.35755102062094835,
+          0.3565116290916554,
           1.05,
-          0.3593877499420028
+          0.3583430190882839
         ]
       }
     },
@@ -381,7 +383,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6643872,
+    "totalBytes": 6648425,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -404,12 +406,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-Dcn0vzJy.css",
-        "bytes": 26663
+        "file": "assets/index-DcVNAVlF.css",
+        "bytes": 29069
       },
       {
-        "file": "assets/index-XmK9jd2B.js",
-        "bytes": 660592
+        "file": "assets/index-DchKPt5I.js",
+        "bytes": 662376
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -473,7 +475,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 11038
+        "bytes": 11401
       },
       {
         "file": "manifest.webmanifest",

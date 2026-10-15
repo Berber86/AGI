@@ -124,7 +124,7 @@ function teacup(g){
   },1024);
   const glaze=new THREE.MeshStandardMaterial({map,transparent:true,depthWrite:false,roughness:.55,envMapIntensity:.2,polygonOffset:true,polygonOffsetFactor:-1});
   lathe(g,pts.slice(4,10).map(([r,y])=>[r+.0018,y]),glaze);
-  inscription(g,'ЛФЗ',.19,.08,[0,-.535,0],'#244786',[-Math.PI/2,0,0]);
+  inscription(g,'ЛФЗ',.19,.08,[0,-.535,0],'#244786',[Math.PI/2,0,0]);
 }
 
 function watch(g){
@@ -200,7 +200,7 @@ function duck(g){
     for(let i=0;i<4;i++)tube(g,[[-.30+i*.055,-.07,side*.278],[-.19+i*.065,-.15,side*.28],[.01+i*.033,-.14,side*.26]],.002,M.gold,12);
   }
   cyl(g,.29,.32,.045,[-.04,-.415,0],M.cream,[0,0,0]);
-  inscription(g,'ЛФЗ',.16,.065,[-.04,-.44,0],'#284985',[-Math.PI/2,0,0]);
+  inscription(g,'ЛФЗ',.16,.065,[-.04,-.44,0],'#284985',[Math.PI/2,0,0]);
 }
 
 function book(g){
@@ -319,7 +319,7 @@ function bottle(g){
   // Curved torn label follows the glass; no floating square plate.
   const labelMap=canvasTexture((c,w,r,h)=>{c.fillStyle='#c9c4a0';c.beginPath();c.moveTo(0,15);for(let x=0;x<=w;x+=12)c.lineTo(x,8+r()*14);c.lineTo(w,h-9);for(let x=w;x>=0;x-=14)c.lineTo(x,h-10-r()*12);c.closePath();c.fill();c.strokeStyle='#526147';c.lineWidth=8;c.strokeRect(26,30,w-52,h-60);c.fillStyle='#48593c';c.textAlign='center';c.font=`bold ${h*.22}px Georgia`;c.fillText('НЕВСКОЕ',w/2,h*.44);c.font=`${h*.09}px Arial`;c.fillText('СТЕКЛО • 0,5 Л',w/2,h*.73);distress(c,w,h,r,2800);},768,460);
   const labelMat=new THREE.MeshStandardMaterial({map:labelMap,transparent:true,depthWrite:false,roughness:.94,side:THREE.DoubleSide});mesh(new THREE.CylinderGeometry(.295,.295,.52,40,1,true,-.82,1.64),labelMat,g,[0,-.21,0]);
-  inscription(g,'0,5',.08,.044,[0,-.815,0],'#6b8f5c',[-Math.PI/2,0,0]);
+  inscription(g,'0,5',.08,.044,[0,-.825,0],'#6b8f5c',[Math.PI/2,0,0]);
 }
 
 function can(g){

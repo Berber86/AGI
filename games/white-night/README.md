@@ -22,6 +22,15 @@ ID предметов, веса выпадения, ключ и версия с�
 
 Без новых render targets/bloom/звука и без изменений `white-night-finds-v1`. Силуэт временно использует существующую геометрию, а не отдельную копию GPU-буфера. Новые тесты: `test:scene` и `test:reveal`; последнее отдельно проверяет естественный порядок фаз и сравнивает пиксели силуэта с готовой моделью. Промежуточные контрольные кадры сняты с остановленным **тестовым** animation clock; это не замер плавности Android.
 
+## Визуальный проход v5 — итерации 7–9
+
+- Мягче тёплый свет фасадов, прохладнее заполнение и фон; статический vertex-gradient неба без новых текстур. Это художественная сцена, не live-погода.
+- В landscape — модель слева, единая правая панель сведений и решений. Отдельная раскладка для коротких экранов.
+- **Исходный / Сзади / Сверху / Снизу** — доступные кнопки ракурса. Поворот перетаскиванием остаётся свободным; модель заново вписывается при смене угла, ручной zoom сохраняется. Свет осмотра следует за camera-space областью модели, в том числе в landscape.
+- Исправлено направление клейм на дне чашки/утки и надписи бутылки: теперь они смотрят наружу.
+
+`npm run test:poses` проверяет 180 состояний: 18 объектов × 5 направлений × portrait/landscape. Матрица в low quality; high-quality исходные ракурсы проверяются `test:visual`. Это конечный набор ракурсов, **не** непрерывный turntable во всех углах и не аппаратный Android-тест. `test:landscape` проверяет зазоры панели на трёх горизонтальных размерах.
+
 ## Запуск из общего каталога
 
 В корневом `index.html` есть карточка «Белая ночь» с обложкой и кнопкой **Играть**. Она открывает `games/white-night/play/index.html`: готовую локальную сборку, которая хранится в Git, чтобы обычный статический хостинг работал **без Node.js и Vite**.
@@ -87,7 +96,7 @@ npm run preview -- --port 5173
 
 ```sh
 npm run check       # syntax
-npm test            # 17 deterministic state/storage/presentation/environment/wear/reveal tests
+npm test            # 20 deterministic state/storage/presentation/environment/wear/reveal tests
 npm run build       # relative static bundle + generated offline cache
 npm run test:e2e    # production subpath server + real Chromium touch checks
 npm run gate        # all four above
