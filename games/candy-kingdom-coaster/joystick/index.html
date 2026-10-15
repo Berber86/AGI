@@ -37,6 +37,14 @@
     background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.25); color: #fff;
   }
   .joy-btn.on { background: #ffd166; color: #5c1d4e; }
+  .mode-switch { display: flex; gap: 8px; margin-top: 10px; }
+  .mode-switch button { flex: 1; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); }
+  .mode-switch button[aria-pressed="true"] { background: linear-gradient(180deg, #ffd166, #f4b63f); color: #5c1d4e; }
+  .cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .cmd-btn { min-height: 74px; font-size: 17px; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.22); }
+  .cmd-btn.on { background: #ffd166; color: #5c1d4e; border-color: #ffd166; }
+  .cmd-btn.danger { border-color: rgba(255,120,140,.6); }
+  .cmd-btn.armed { background: #c22e42; color: #fff; }
   .status { font-size: 15px; font-weight: 800; text-align: center; }
   .ok { color: #9be7b4; } .err { color: #ff9db1; font-size: 13px; white-space: pre-wrap; }
   .warn { font-size: 12px; line-height: 1.5; color: #ffc9d6; }
@@ -72,12 +80,32 @@
 
   <section class="card hidden" id="card-joy">
     <p class="status" id="joy-status">Подключение…</p>
-    <div class="joy-btns" style="margin-top:10px">
-      <button type="button" class="joy-btn" id="joy-left" aria-pressed="false" aria-label="Влево">◀</button>
-      <button type="button" class="joy-btn" id="joy-right" aria-pressed="false" aria-label="Вправо">▶</button>
+    <div class="mode-switch" role="group" aria-label="Режим джойстика">
+      <button type="button" id="mode-steer" aria-pressed="true">🕹 Руль</button>
+      <button type="button" id="mode-cmd" aria-pressed="false">⚙️ Команды</button>
     </div>
-    <p class="sub" style="text-align:center; margin-top:10px" id="joy-net">Пинг: —</p>
-    <p class="sub" style="text-align:center">Если связь пропадёт, машинку подхватит автопилот — поездка не испортится.</p>
+    <div id="view-steer">
+      <div class="joy-btns" style="margin-top:10px">
+        <button type="button" class="joy-btn" id="joy-left" aria-pressed="false" aria-label="Влево">◀</button>
+        <button type="button" class="joy-btn" id="joy-right" aria-pressed="false" aria-label="Вправо">▶</button>
+      </div>
+      <p class="sub" style="text-align:center; margin-top:10px" id="joy-net">Пинг: —</p>
+      <p class="sub" style="text-align:center">Если связь пропадёт, машинку подхватит автопилот — поездка не испортится.</p>
+    </div>
+    <div id="view-cmd" class="hidden">
+      <div class="cmd-grid">
+        <button type="button" class="cmd-btn" id="cmd-restart">🔄 Начать заново</button>
+        <button type="button" class="cmd-btn" id="cmd-pause">⏸ Пауза</button>
+        <button type="button" class="cmd-btn" id="cmd-auto">🤖 Авторуление: выкл</button>
+        <button type="button" class="cmd-btn" id="cmd-look">👀 Взгляд: осматриваться</button>
+        <button type="button" class="cmd-btn" id="cmd-cm-minus">↔ Камеры −10</button>
+        <button type="button" class="cmd-btn" id="cmd-cm-plus">↔ Камеры +10</button>
+        <button type="button" class="cmd-btn" id="cmd-mute">🔊 Звук: вкл</button>
+        <button type="button" class="cmd-btn" id="cmd-finish">🏁 Финиш сейчас</button>
+        <button type="button" class="cmd-btn danger" id="cmd-menu" style="grid-column: 1 / -1">🏠 В меню (выйти из VR)</button>
+      </div>
+      <p class="sub" style="text-align:center; margin-top:10px" id="cmd-state">Состояние игры придёт с экрана…</p>
+    </div>
   </section>
 </main>
 
@@ -88,6 +116,13 @@ const els = {
   cardConfig: $('card-config'), cardJoin: $('card-join'), cardJoy: $('card-joy'),
   joinCode: $('join-code'), joinStatus: $('join-status'), joyStatus: $('joy-status'), joyNet: $('joy-net'),
   joyLeft: $('joy-left'), joyRight: $('joy-right'),
+  modeSteer: $('mode-steer'), modeCmd: $('mode-cmd'), viewSteer: $('view-steer'), viewCmd: $('view-cmd'),
+  cmdState: $('cmd-state'),
+  cmd: {
+    restart: $('cmd-restart'), pause: $('cmd-pause'), auto: $('cmd-auto'), look: $('cmd-look'),
+    cmMinus: $('cmd-cm-minus'), cmPlus: $('cmd-cm-plus'), mute: $('cmd-mute'),
+    finish: $('cmd-finish'), menu: $('cmd-menu'),
+  },
 };
 const qs = new URLSearchParams(location.search);
 const DEMO_CHANNEL = 'ckc-joystick-stand';
@@ -188,6 +223,7 @@ async function join(code) {
   state.room = code;
   if (state.kind === 'firebase') {
     state.f.onValue(roomRef('/pong'), (s) => { const v = s.val(); if (v) onPong(v.id); });
+    state.f.onValue(roomRef('/state'), (s) => { const v = s.val(); if (v) renderCmdState(v); });
     state.f.onValue(roomRef('/meta'), (s) => {
       els.joyStatus.textContent = s.val() ? '✅ Комната найдена!' : '⏳ Ждём, пока экран создаст комнату…';
     });
@@ -196,6 +232,7 @@ async function join(code) {
       const m = e.data;
       if (!m || m.room !== state.room) return;
       if (m.kind === 'pong') onPong(m.id);
+      if (m.kind === 'state') renderCmdState(m.state);
     };
     els.joyStatus.textContent = 'Демо-режим: руль работает в этой паре вкладок';
   }
@@ -247,6 +284,60 @@ window.addEventListener('keyup', (e) => {
 });
 window.addEventListener('blur', () => { state.steer.l = false; state.steer.r = false; pushSteer(); });
 
+// ---------------------------------------------------------------- commands
+let cmdSeq = 0;
+let lastState = null;
+let menuArmTimer = null;
+function sendCmd(name) {
+  try { navigator.vibrate && navigator.vibrate(12); } catch { /* ignore */ }
+  const seq = ++cmdSeq;
+  if (!state.room) return;
+  if (state.kind === 'demo') state.ch.postMessage({ kind: 'cmd', room: state.room, name, seq });
+  else state.f.set(roomRef('/cmd'), { name, seq, sts: state.f.serverTimestamp() }).catch(() => {});
+}
+function renderCmdState(st) {
+  if (!st) return;
+  lastState = st;
+  els.cmd.pause.textContent = st.paused ? '▶ Продолжить' : '⏸ Пауза';
+  els.cmd.auto.textContent = `🤖 Авторуление: ${st.auto ? 'ВКЛ' : 'выкл'}`;
+  els.cmd.auto.classList.toggle('on', !!st.auto);
+  els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : 'осматриваться'}`;
+  els.cmd.mute.textContent = st.muted ? '🔇 Звук: выкл' : '🔊 Звук: вкл';
+  els.cmdState.textContent =
+    `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ↔ камеры ${st.cm} см · ` +
+    `взгляд ${st.look === 'forward' ? 'вперёд' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}`;
+}
+function setMode(cmd) {
+  els.modeSteer.setAttribute('aria-pressed', String(!cmd));
+  els.modeCmd.setAttribute('aria-pressed', String(cmd));
+  els.viewSteer.classList.toggle('hidden', cmd);
+  els.viewCmd.classList.toggle('hidden', !cmd);
+}
+els.modeSteer.addEventListener('click', () => setMode(false));
+els.modeCmd.addEventListener('click', () => setMode(true));
+els.cmd.restart.addEventListener('click', () => sendCmd('restart'));
+els.cmd.pause.addEventListener('click', () => sendCmd('pauseToggle'));
+els.cmd.auto.addEventListener('click', () => sendCmd('autoToggle'));
+els.cmd.look.addEventListener('click', () => sendCmd('lookToggle'));
+els.cmd.cmMinus.addEventListener('click', () => sendCmd('cmMinus'));
+els.cmd.cmPlus.addEventListener('click', () => sendCmd('cmPlus'));
+els.cmd.mute.addEventListener('click', () => sendCmd('muteToggle'));
+els.cmd.finish.addEventListener('click', () => sendCmd('finish'));
+els.cmd.menu.addEventListener('click', () => {
+  const b = els.cmd.menu;
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed');
+    b.textContent = '🏠 Точно выйти в меню? Нажать ещё раз';
+    clearTimeout(menuArmTimer);
+    menuArmTimer = setTimeout(() => { b.classList.remove('armed'); b.textContent = '🏠 В меню (выйти из VR)'; }, 3000);
+    return;
+  }
+  clearTimeout(menuArmTimer);
+  b.classList.remove('armed');
+  b.textContent = '🏠 В меню (выйти из VR)';
+  sendCmd('menu');
+});
+
 try {
   const saved = localStorage.getItem('ckc_stand_cfg');
   if (saved) els.cfg.value = saved;
@@ -260,6 +351,9 @@ window.__JOY__ = {
   demo: () => $('btn-demo').click(),
   join: (code) => join(String(code)),
   setSteer: (l, r) => { state.steer.l = !!l; state.steer.r = !!r; pushSteer(); },
+  sendCmd,
+  lastState: () => lastState,
+  setMode,
 };
 </script>
 </body>

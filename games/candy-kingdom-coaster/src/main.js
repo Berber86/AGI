@@ -121,6 +121,7 @@ const game = {
   zoneIndex: -1,
   vrRide: false, // VR-поездка: заезд ведёт автопилот, игрок только смотрит
   driverMode: 'auto', // 'auto' | 'remote' (телефон-джойстик)
+  autoAssist: false, // команда джойстика: автопилот поверх руля
   vrPlan: null,
   vrSteer: 0,
   countdownT: 0,
@@ -284,6 +285,7 @@ function pauseGame() {
   if (game.state === 'racing' || game.state === 'countdown') {
     game.state = 'paused';
     stopVrStereo();
+    publishRemoteState();
     input.releaseAll();
     showScreen('pause');
     setSoundIcons();
@@ -298,6 +300,7 @@ function pauseGame() {
 
 function resumeGame() {
   game.state = 'racing';
+  publishRemoteState();
   input.releaseAll();
   showScreen(null);
   el.countdown.classList.add('hidden'); // a countdown digit must not survive the pause
@@ -451,8 +454,55 @@ function vrSteerTarget() {
 
 function vrEffectiveSteer() {
   // Джойстик ведёт, только пока его руль свеж; обрыв связи — автопилот.
-  if (game.driverMode === 'remote' && remoteCtrl && remoteCtrl.fresh()) return remoteCtrl.steer();
+  if (game.driverMode === 'remote' && !game.autoAssist && remoteCtrl && remoteCtrl.fresh()) return remoteCtrl.steer();
   return vrSteer();
+}
+
+let lastRemoteState = null;
+function publishRemoteState() {
+  if (!remoteCtrl) return;
+  lastRemoteState = {
+    paused: game.state === 'paused', racing: game.state === 'racing',
+    auto: !!game.autoAssist, look: vrSettings.lookMode, cm: vrSettings.baselineCm,
+    muted: SFX.isMuted(), driver: game.driverMode,
+  };
+  remoteCtrl.publishState(lastRemoteState);
+}
+
+function executeRemoteCommand(name) {
+  if (!game.vrRide && name !== 'menu') return;
+  switch (name) {
+    case 'restart': startVrRide(); break;
+    case 'pauseToggle':
+      if (game.state === 'paused') { resumeGame(); enterVrStereo(); }
+      else if (game.state === 'racing') pauseGame();
+      break;
+    case 'autoToggle': game.autoAssist = !game.autoAssist; break;
+    case 'lookToggle':
+      vrSettings.lookMode = vrSettings.lookMode === 'look' ? 'forward' : 'look';
+      vr.setLookMode(vrSettings.lookMode);
+      vrSettings = Storage.saveVrSettings(vrSettings);
+      break;
+    case 'cmMinus':
+    case 'cmPlus': {
+      const d = name === 'cmPlus' ? 10 : -10;
+      vrSettings.baselineCm = vr.setBaselineCm(vrSettings.baselineCm + d);
+      vrSettings = Storage.saveVrSettings(vrSettings);
+      break;
+    }
+    case 'muteToggle': SFX.toggleMute(); setSoundIcons(); break;
+    case 'finish': if (game.state === 'racing' || game.state === 'paused') finishRace(); break;
+    case 'menu': exitVrToMenu(); break;
+  }
+  publishRemoteState();
+}
+
+function ensureRemote() {
+  if (!remoteCtrl) {
+    remoteCtrl = new RemoteControl();
+    remoteCtrl.onCommand = executeRemoteCommand;
+  }
+  return remoteCtrl;
 }
 
 function closeRemote() {
@@ -479,17 +529,23 @@ function startVrRide() {
   startRace(); // сбрасывает трассу/сладости; интро и 3-2-1 в очках не нужны
   game.vrRide = true;
   game.driverMode = vrSettings.driverMode === 'remote' ? 'remote' : 'auto';
+  game.autoAssist = false;
   game.vrPlan = planVrRide();
   game.state = 'racing';
   window.__GAME_STATE__ = 'racing';
   el.countdown.classList.add('hidden');
   hideVrPrep();
-  vr.start(vrSettings);
-  document.body.classList.add('vr-active');
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); // облегчённый стерео-рендер
+  enterVrStereo();
   try { history.pushState({ ckcVr: true }, ''); } catch { /* ignore */ }
   MUSIC.setMode('race', { restart: true });
   window.__VR_ACTIVE__ = true;
+  publishRemoteState();
+}
+
+function enterVrStereo() {
+  vr.start(vrSettings);
+  document.body.classList.add('vr-active');
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); // облегчённый стерео-рендер
 }
 
 function stopVrStereo() {
@@ -529,14 +585,14 @@ function updateRemoteUi() {
 }
 async function setupRemote(kind) {
   try {
-    if (!remoteCtrl) remoteCtrl = new RemoteControl();
-    if (kind === 'demo') remoteCtrl.useDemo();
+    const rc = ensureRemote();
+    if (kind === 'demo') rc.useDemo();
     else {
       const cfg = parseFirebaseConfig(el.vrCfg.value);
-      await remoteCtrl.connectFirebase(cfg);
+      await rc.connectFirebase(cfg);
       try { localStorage.setItem('ckc_stand_cfg', el.vrCfg.value); } catch { /* ignore */ }
     }
-    const code = await remoteCtrl.createRoom();
+    const code = await rc.createRoom();
     el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
   } catch (e) {
     el.vrCfgStatus.textContent = 'Ошибка комнаты: ' + (e && e.message ? e.message : e);
@@ -584,6 +640,7 @@ try {
   if (savedCfg) el.vrCfg.value = savedCfg;
 } catch { /* ignore */ }
 setInterval(updateRemoteUi, 700);
+setInterval(() => { if (remoteCtrl && game.vrRide) publishRemoteState(); }, 5000);
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
 el.vrIpd.addEventListener('input', () => {
   vrSettings.baselineCm = +el.vrIpd.value;
@@ -1352,11 +1409,13 @@ window.__TEST__ = {
   vrSetLook(yawDeg = null, pitchDeg = 0) { vr.setSimLook(yawDeg, pitchDeg); return this.vrInfo(); },
   async remoteDemo() {
     vrSettings.driverMode = 'remote';
-    if (!remoteCtrl) remoteCtrl = new RemoteControl();
-    if (!remoteCtrl.kind) remoteCtrl.useDemo();
-    const code = await remoteCtrl.createRoom();
-    return { code, info: remoteCtrl.info() };
+    const rc = ensureRemote();
+    if (!rc.kind) rc.useDemo();
+    const code = await rc.createRoom();
+    return { code, info: rc.info() };
   },
+  remoteState() { publishRemoteState(); return lastRemoteState; },
+  sendRemoteCommand(name) { executeRemoteCommand(name); return lastRemoteState; },
   remoteInfo() { return remoteCtrl ? remoteCtrl.info() : null; },
   state: () => game.state,
   // Acceptance helper: project the road ahead to screen space (px).

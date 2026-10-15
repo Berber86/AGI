@@ -105,6 +105,18 @@ export class VRController {
     this._sim = null;
   }
 
+  // Живые настройки из команд джойстика: взгляд перецентрируется, базис
+  // применяется со следующего кадра (render читает settings каждый кадр).
+  setLookMode(mode) {
+    this.settings.lookMode = mode === 'forward' ? 'forward' : 'look';
+    this._refQuat = null;
+    this._yaw = 0; this._pitch = 0;
+  }
+  setBaselineCm(cm) {
+    this.settings.baselineCm = Math.min(VR_BASELINE_MAX_CM, Math.max(VR_BASELINE_MIN_CM, Math.round(cm) || VR_BASELINE_MIN_CM));
+    return this.settings.baselineCm;
+  }
+
   // QA: подменить взгляд без настоящего гироскопа (null — снять подмену).
   setSimLook(yawDeg, pitchDeg) {
     this._sim = yawDeg === null || yawDeg === undefined ? null

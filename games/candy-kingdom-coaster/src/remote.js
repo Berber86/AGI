@@ -54,6 +54,8 @@ export class RemoteControl {
     this._db = null;
     this._f = null;
     this._ch = null;
+    this.onCommand = null;   // (name) => void — высокоуровневые команды джойстика
+    this._lastCmdSeq = 0;
   }
 
   async connectFirebase(config) {
@@ -82,6 +84,11 @@ export class RemoteControl {
         if (!m || m.room !== this.room) return;
         if (m.kind === 'input' && m.state) this._accept(m.state, null);
         if (m.kind === 'ping') this._ch.postMessage({ kind: 'pong', room: this.room, id: m.id });
+        if (m.kind === 'cmd' && m.name && m.seq !== this._lastCmdSeq) {
+          this._lastCmdSeq = m.seq;
+          this.connected = true;
+          if (this.onCommand) this.onCommand(m.name);
+        }
         if (m.kind === 'input' || m.kind === 'ping') this.connected = true;
       };
       return this.room;
@@ -97,6 +104,13 @@ export class RemoteControl {
         if (!v) return;
         const lag = typeof v.sts === 'number' ? Math.max(0, Date.now() + this._timeOffset - v.sts) : null;
         this._accept({ l: !!v.l, r: !!v.r }, lag);
+      }),
+      f.onValue(ref(`${this._roomPath}/cmd`), (s) => {
+        const v = s.val();
+        if (!v || !v.name || v.seq === this._lastCmdSeq) return;
+        this._lastCmdSeq = v.seq;
+        this.connected = true;
+        if (this.onCommand) this.onCommand(v.name);
       }),
       f.onValue(ref(`${this._roomPath}/ping`), (s) => {
         const v = s.val();
@@ -114,6 +128,16 @@ export class RemoteControl {
     this.lastInputAt = performance.now();
     if (typeof lag === 'number') this.lastLag = lag;
     this.connected = true;
+  }
+
+  // Состояние игры для экрана команд джойстика (пауза/авто/взгляд/базис/звук).
+  publishState(obj) {
+    if (!this.room) return;
+    if (this.kind === 'demo') {
+      if (this._ch) this._ch.postMessage({ kind: 'state', room: this.room, state: obj });
+    } else if (this.kind === 'firebase') {
+      this._f.set(this._f.ref(this._db, `${this._roomPath}/state`), obj).catch(() => {});
+    }
   }
 
   steer() {

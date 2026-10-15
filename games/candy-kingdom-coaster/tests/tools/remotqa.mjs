@@ -67,6 +67,44 @@ await game.evaluate(() => window.__TEST__.step(1 / 60, 150, false));
 const lat2 = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
 record('удержание ◀ уводит машинку влево', lat2 < lat1 - 0.8, { lat1, lat2 });
 
+// 3b. высокоуровневые команды: круг джойстик → игра → состояние на джойстике
+async function joyState(pred, tries = 60) {
+  for (let i = 0; i < tries; i++) {
+    const st = await joy.evaluate(() => window.__JOY__.lastState());
+    if (st && pred(st)) return st;
+    await sleep(500);
+  }
+  return joy.evaluate(() => window.__JOY__.lastState());
+}
+await joy.evaluate(() => window.__JOY__.setMode(true));
+await joy.evaluate(() => window.__JOY__.sendCmd('autoToggle'));
+const stAuto = await joyState((st) => st.auto === true);
+record('команда: авторуление включается, состояние вернулось на джойстик', !!stAuto && stAuto.auto === true, stAuto);
+
+await joy.evaluate(() => window.__JOY__.sendCmd('lookToggle'));
+const stLook = await joyState((st) => st.look === 'forward');
+record('команда: взгляд переключается в «вперёд»', !!stLook && stLook.look === 'forward', stLook);
+
+await joy.evaluate(() => window.__JOY__.sendCmd('cmPlus'));
+const stCm = await joyState((st) => st.cm === (stLook ? stLook.cm + 10 : 40));
+record('команда: камеры +10 см применяются и видны', !!stCm && stCm.cm === 40, stCm);
+
+await joy.evaluate(() => window.__JOY__.sendCmd('pauseToggle'));
+let paused = false;
+for (let i = 0; i < 30 && !paused; i++) { paused = (await game.evaluate(() => window.__TEST__.state())) === 'paused'; if (!paused) await sleep(500); }
+record('команда: пауза с джойстика', paused, paused);
+await joy.evaluate(() => window.__JOY__.sendCmd('pauseToggle'));
+let resumed = false;
+for (let i = 0; i < 30 && !resumed; i++) { const g = await game.evaluate(() => ({ st: window.__TEST__.state(), vr: window.__TEST__.vrInfo().active })); resumed = g.st === 'racing' && g.vr; if (!resumed) await sleep(500); }
+record('команда: продолжить — гонка и VR-стерео вернулись', resumed, resumed);
+
+await game.evaluate(() => window.__TEST__.setProgress(0.5, 0, false));
+await joy.evaluate(() => window.__JOY__.sendCmd('restart'));
+let restarted = false;
+for (let i = 0; i < 30 && !restarted; i++) { const g = await game.evaluate(() => window.__TEST__.gameInfo()); restarted = g.state === 'racing' && g.timeS < 3; if (!restarted) await sleep(500); }
+record('команда: заезд начинается заново, не вынимая телефон из очков', restarted, restarted);
+await joy.evaluate(() => window.__JOY__.setMode(false));
+
 // 4. обрыв: вкладку джойстика закрыли — автопилот подхватывает, поездка жива
 await joy.close();
 // Ждём именно истечения свежести руля (в headless главный поток игры занят
