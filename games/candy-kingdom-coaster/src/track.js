@@ -23,6 +23,8 @@ export const ROAD_SURFACES = [
   { key: 'roadChoco',  name: 'chocolate bar',    edge: '#ffe6c8', dash: '#ffd23e', shade: 'rgba(35,12,4,0.30)',    fill: '#7a4526', pattern: 'bar' },
   { key: 'roadCream',  name: 'vanilla frosting', edge: '#ff9fc9', dash: '#ff5f9e', shade: 'rgba(200,120,170,0.18)', fill: '#fff6f0', pattern: 'dots' },
   { key: 'roadWaffle', name: 'waffle',           edge: '#fff3dc', dash: '#ff4f96', shade: 'rgba(120,70,20,0.26)',  fill: '#f0b85c', pattern: 'waffle' },
+  // The crystal candy grotto's own surface: frosted sugar with facets.
+  { key: 'roadCrystal', name: 'sugar crystal',   edge: '#efe6ff', dash: '#a98bf0', shade: 'rgba(58,32,120,0.30)',  fill: '#cfe0ff', pattern: 'crystal' },
 ];
 
 // Builds the road strip map for one surface. With `image` the band is the
@@ -77,6 +79,19 @@ function roadTexture(image, surface = ROAD_SURFACES[0]) {
       g.lineCap = 'round';
       for (let x = cell / 2; x < W; x += cell) { g.beginPath(); g.moveTo(x, y0 + 8); g.lineTo(x, y1 - 8); g.stroke(); }
       for (let y = y0 + cell / 2; y < y1; y += cell) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    } else if (surface.pattern === 'crystal') {
+      // frost: angular facets of pale blue and lilac plus a few sparkles
+      for (let i = 0; i < 240; i++) {
+        const x = rnd() * W, y = y0 + rnd() * bandH, s2 = 26 + rnd() * 44;
+        g.fillStyle = ['rgba(255,255,255,0.55)', 'rgba(196,220,255,0.5)', 'rgba(216,196,255,0.5)', 'rgba(176,204,255,0.45)'][i % 4];
+        g.beginPath();
+        g.moveTo(x, y - s2); g.lineTo(x + s2 * .8, y); g.lineTo(x, y + s2); g.lineTo(x - s2 * .8, y);
+        g.closePath(); g.fill();
+      }
+      for (let i = 0; i < 150; i++) {
+        g.fillStyle = 'rgba(255,255,255,0.9)';
+        g.beginPath(); g.arc(rnd() * W, y0 + rnd() * bandH, 1.5 + rnd() * 2.5, 0, Math.PI * 2); g.fill();
+      }
     } else if (surface.pattern === 'dots') {
       const pastel = ['#ffd6e8', '#d8f2ff', '#fff2c8', '#e2d2ff', '#d6f5e3'];
       for (let i = 0; i < 260; i++) {
@@ -336,6 +351,19 @@ export function createTrack(scene, TEX = {}) {
     scene.add(mesh);
     roadMeshes.push(mesh);
   });
+  // A branch may use a surface no zone uses (the grotto's sugar-crystal road):
+  // build that material lazily, once, from the same recipe as a zone road.
+  const extraSurfaces = new Map();
+  const surfaceMaterial = (key) => {
+    const own = roadMeshes.find((m) => m.userData.surface === key);
+    if (own) return own.material;
+    if (!extraSurfaces.has(key)) {
+      const surface = ROAD_SURFACES.find((s) => s.key === key) || ROAD_SURFACES[0];
+      const img = TEX[surface.key] ? TEX[surface.key].image : null;
+      extraSurfaces.set(key, new THREE.MeshStandardMaterial({ map: roadTexture(img, surface), vertexColors: true, roughness: 0.58, metalness: 0.08 }));
+    }
+    return extraSurfaces.get(key);
+  };
   // Each fork is two visible roads. At the common landings their inner edges
   // are clipped to the SAME seam; as the paths separate the seam opens into
   // an island. No overlapping coplanar ribbons, fake centre road or teleport.
@@ -383,7 +411,7 @@ export function createTrack(scene, TEX = {}) {
           for (let k = 0; k < 4; k++) { const j = i * 4 + k, v = i * 4 + (k + 1) % 4; d.idx.push(j, v, j + 4, v, v + 4, j + 4); }
         }
       }
-      const material = roadMeshes.find((m) => m.userData.surface === branch.surface).material;
+      const material = surfaceMaterial(branch.surface);
       const road = new THREE.Mesh(toGeometry(a), material); road.name = `fork-road:${f.id}:${branch.id}`;
       road.receiveShadow = true; road.userData.fork = f.id; road.userData.branch = branch.index; road.userData.surface = branch.surface;
       scene.add(road); roadMeshes.push(road); branch.road = road;

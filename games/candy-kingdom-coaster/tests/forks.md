@@ -2,8 +2,10 @@
 
 ## Routes and controls
 
-- First fork (base stations 115–335): gummy hills with animated bears, or a lit star tunnel.
-- Second fork (base stations 1110–1360): cookie ramps, or an 8.5 m-high cloud bridge.
+- First fork (base stations 115–335): gummy hills with animated bears, or a
+  crystal candy grotto (a real closed, dark geode tunnel).
+- Second fork (base stations 1110–1360): a cookie canyon with drop-off rocks,
+  or an 8.5 m-high cloud skyway with rainbow arches.
 - Steer toward a side with the existing touch pads/arrow keys. The selection
   latches silently at the common landing; neutral input safely takes the left
   route. Both alternatives rejoin the same course. No advance direction panel,
@@ -27,6 +29,40 @@ Pickups carry a branch identity. Unchosen pickups never score, and medal totals
 count only the 151 reachable sweets, not all 176 rendered sweets. Ramps inside
 the second fork belong to the cookie path; no invisible jumps on the cloud path.
 The existing river, cakes, sagging bridge and chocolate tunnel remain common.
+
+## Fork destinations rebuilt — v24
+
+The four destinations were rebuilt after the first playable version: the thin
+arch "tunnel" with floating lighter-than-air crystals was replaced by a real
+crystal candy grotto, and both second-fork branches gained scale and character.
+
+- **Gates.** Every branch now opens with a colossal candy arch right after the
+  split: candy-cane columns 2.2 m thick standing 12.2 m out, a 12 m arch and a
+  round picture emblem (bear / star / cookie / cloud) above the road. No
+  painted arrows, no HUD panel — the choice is read from the world.
+- **Beacons.** A gummy-bear stack, a cookie tower and a 25 m cloud tower rise
+  beside the shared approach, so each branch is announced while the road is
+  still single.
+- **Gummy hills** — gumdrop mounds, striped bear plinths, cane arches.
+- **Crystal candy grotto** (was "star tunnel") — a closed geode: an inner
+  crystal shell 12 m wide with flared mouths, a crystal skirt growing out of
+  the meadow, crystal crust breaking through the outside, glowing ribs, vault
+  gems and wall lanterns that throw soft pools of light on the road, plus a
+  bright star above each mouth. Daylight fades to 0.8 inside, exactly like the
+  chocolate tunnel, so the branch has a real identity.
+- **Cookie canyon** — a canyon of dark cookie rocks and chocolate chips beside
+  a 1.4 m jump ramp on a cookie road.
+- **Cloud skyway** — a fluffy cloud bank hugging the deck, under-deck cloud
+  shores (only where the deck actually rises), five fat rainbow arches, floating
+  candy islands on the horizon and a cloud tower at the gate.
+- **Keep-out rule.** Nothing may sit closer than 8.3 m + its own radius to
+  either branch of the same fork; near the split and the merge the two roads
+  are only a few metres apart. The QA suite verifies the whole car envelope
+  (rays every metre, |lateral| ≤ 8 m, 3.4 m up) and the chase camera on all
+  four routes: 0 intrusions, 0 blocked frames.
+- Cost: **20 draw calls / 74k triangles** for all four destinations (the cake
+  landmark set uses 30 / 89k). Everything is merged by material; clouds,
+  crystals, chips and gems are instanced.
 
 ## Exploration mode — v23
 
