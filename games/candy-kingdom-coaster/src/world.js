@@ -16,6 +16,9 @@ function skyDome() {
       topColor: { value: new THREE.Color('#0f7fd4') },
       midColor: { value: new THREE.Color('#5cb8f5') },
       bottomColor: { value: new THREE.Color('#ffd0e8') },
+      hazeColor: { value: new THREE.Color('#cfe9ff') }, // matches the zone fog
+      sunDir: { value: new THREE.Vector3(60, 95, -50).normalize() },
+      sunWarm: { value: 0.30 },
     },
     vertexShader: `
       varying vec3 vWorld;
@@ -26,11 +29,20 @@ function skyDome() {
       }`,
     fragmentShader: `
       uniform vec3 topColor; uniform vec3 midColor; uniform vec3 bottomColor;
+      uniform vec3 hazeColor; uniform vec3 sunDir; uniform float sunWarm;
       varying vec3 vWorld;
       void main() {
-        float h = normalize(vWorld).y;
-        vec3 col = mix(bottomColor, midColor, smoothstep(-0.05, 0.22, h));
-        col = mix(col, topColor, smoothstep(0.2, 0.75, h));
+        vec3 dir = normalize(vWorld);
+        float h = dir.y;
+        // the haze band is the zone fog colour, so distant meadow melts into
+        // the dome instead of hitting a hard horizon line
+        vec3 col = mix(hazeColor, bottomColor, smoothstep(-0.03, 0.05, h));
+        col = mix(col, midColor, smoothstep(0.02, 0.20, h));
+        col = mix(col, topColor, smoothstep(0.18, 0.72, h));
+        // warm bloom around the sun, which also sells the light direction
+        float s = max(dot(dir, sunDir), 0.0);
+        col += vec3(1.0, 0.86, 0.64) * pow(s, 5.0) * sunWarm;
+        col += vec3(1.0, 0.94, 0.82) * pow(s, 42.0) * sunWarm * 1.4;
         gl_FragColor = vec4(col, 1.0);
       }`,
   });
@@ -237,6 +249,15 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   sunGlow.scale.setScalar(430);
   sunGlow.position.set(60, 95, -50).normalize().multiplyScalar(640);
   sky.add(sunGlow);
+  // wide, faint halo: air + distance, so the sun sits in the sky instead of
+  // looking pasted on
+  const sunHalo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: sunTexture(), transparent: true, depthWrite: false,
+    blending: THREE.AdditiveBlending, opacity: 0.34,
+  }));
+  sunHalo.scale.setScalar(1150);
+  sunHalo.position.copy(sunGlow.position);
+  sky.add(sunHalo);
   world.add(sky);
   scene.fog = new THREE.Fog(0x9fd8ff, 150, 620);
 
@@ -275,17 +296,17 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   // ---------- clouds (soft, puffy — candy-cotton sky) ----------
   const cloudTex = cloudTexture();
   const clouds = [];
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 30; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({
       map: cloudTex, transparent: true, opacity: 0.62 + Math.random() * 0.28, depthWrite: false,
     }));
-    const s = 80 + Math.random() * 110;
+    const s = 80 + Math.random() * 130;
     m.scale.set(s * 1.8, s, 1);
     const a = Math.random() * Math.PI * 2;
     const r = 300 + Math.random() * 380;
-    m.position.set(track.bounds.center.x + Math.cos(a) * r, 110 + Math.random() * 140, track.bounds.center.z + Math.sin(a) * r);
+    m.position.set(track.bounds.center.x + Math.cos(a) * r, 110 + Math.random() * 150, track.bounds.center.z + Math.sin(a) * r);
     world.add(m);
-    clouds.push({ sprite: m, drift: 1.2 + Math.random() * 2.2 });
+    clouds.push({ sprite: m, drift: 1.2 + Math.random() * 2.2, bob: Math.random() * 6.28, bobAmp: 1.5 + Math.random() * 3, baseY: m.position.y, tintable: true });
   }
 
   // ---------- 3D puff-cloud clusters (cotton-candy volumes near the horizon) ----------
@@ -305,7 +326,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 75, track.bounds.center.z + Math.sin(a) * rr);
     mergeByMaterial(cluster); // 5-9 puffs -> 1 draw call, still drifts as a unit
     world.add(cluster);
-    clouds.push({ sprite: cluster, drift: 0.8 + Math.random() * 1.6 });
+    clouds.push({ sprite: cluster, drift: 0.8 + Math.random() * 1.6, bob: Math.random() * 6.28, bobAmp: 1.2 + Math.random() * 2, baseY: cluster.position.y });
   }
 
   // ---------- hero clouds: big soft volumes near the course (frame the sky) --
@@ -324,7 +345,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     cluster.position.set(track.bounds.center.x + Math.cos(a) * rr, 52 + Math.random() * 42, track.bounds.center.z + Math.sin(a) * rr);
     mergeByMaterial(cluster); // 8-11 transparent puffs -> 1 draw call
     world.add(cluster);
-    clouds.push({ sprite: cluster, drift: 0.5 + Math.random() * 0.9 });
+    clouds.push({ sprite: cluster, drift: 0.5 + Math.random() * 0.9, bob: Math.random() * 6.28, bobAmp: 1.4 + Math.random() * 2.6, baseY: cluster.position.y });
   }
 
   // ---------- rainbows arching over the road (plus the castle one) ----------
@@ -1343,7 +1364,36 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   const zoneFog = ZONES.map((z) => new THREE.Color(z.fog));
   const zoneSky = ZONES.map((z) => new THREE.Color(z.sky));
   const tmpColor = new THREE.Color();
+  const tmpColor2 = new THREE.Color();
+  const tmpColor3 = new THREE.Color();
   const WHITE = new THREE.Color('#fff2f7');
+  const HAZE = new THREE.Color('#cfe9ff');
+  // per-zone light mood: 0 neutral, 1 cocoa-canyon warmth
+  const ZONE_WARMTH = [0, 0.5, 1, 0.35, 0.15];
+  // A sky per zone: zenith, mid and horizon. The three colours cross-fade with
+  // the fog, so the whole world changes mood as the ride moves between zones
+  // instead of every zone sharing one blue lid.
+  const SKY_SETS = [
+    { top: '#1c82d6', mid: '#63bcf6', hor: '#ffe4f0' }, // meadows: fresh blue
+    { top: '#2b8ce0', mid: '#82cbf7', hor: '#ffe9c9' }, // grove: warm sand haze
+    { top: '#5f7ec9', mid: '#b3c6ee', hor: '#ffd6bd' }, // canyon: dusty, hazy
+    { top: '#7d9ce8', mid: '#bcd9f8', hor: '#ffe1f1' }, // marshmallow: milky
+    { top: '#5a8ce2', mid: '#a7cbf7', hor: '#ffd8ee' }, // castle: lilac blue
+  ];
+  const skyTop = SKY_SETS.map((z) => new THREE.Color(z.top));
+  const skyMid = SKY_SETS.map((z) => new THREE.Color(z.mid));
+  const skyHor = SKY_SETS.map((z) => new THREE.Color(z.hor));
+  // A zone change used to snap the fog and sky colour; now the last and first
+  // 6% of each zone cross-fade into its neighbour, so the horizon warms up
+  // gradually instead of stepping.
+  const ZONE_FADE = 0.06;
+  function zoneBlend(u) {
+    const z = track.zoneAt(u);
+    const t = (u - z.u0) / Math.max(1e-6, z.u1 - z.u0);
+    if (t < ZONE_FADE && z.id > 0) return { a: z.id - 1, b: z.id, w: 0.5 + t / (2 * ZONE_FADE) };
+    if (t > 1 - ZONE_FADE && z.id < ZONES.length - 1) return { a: z.id, b: z.id + 1, w: (1 - t) / (2 * ZONE_FADE) };
+    return { a: z.id, b: z.id, w: 1 };
+  }
 
   // ---------- candy field dressing: gumdrop pebbles scattered on the grass ----
   {
@@ -1910,12 +1960,34 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     },
     lodStats: () => ({ chunks: lodChunks.length, lo: lodChunks.filter((c) => c.inst.geometry === c.lo).length }),
     update(dt, cameraPos, u, time, carS = -1, carLateral = 0) {
-      // Sky stays candy-blue; only the horizon warms up with the zone tint.
+      // Sky stays candy-blue; the horizon warms up with the zone tint and the
+      // two zone colours cross-fade over 6% of each zone.
       const z = track.zoneAt(u);
-      const fogC = tmpColor.copy(zoneFog[z.id]).lerp(zoneSky[z.id], 0.45);
+      const zb = zoneBlend(u);
+      const fogC = tmpColor.copy(zoneFog[zb.a]).lerp(zoneFog[zb.b], 1 - zb.w)
+        .lerp(tmpColor3.copy(zoneSky[zb.a]).lerp(zoneSky[zb.b], 1 - zb.w), 0.45);
       scene.fog.color.copy(fogC);
-      sky.material.uniforms.bottomColor.value.copy(zoneFog[z.id]).lerp(WHITE, 0.25);
+      const skyU = sky.material.uniforms;
+      const w2 = 1 - zb.w;
+      const horC = tmpColor2.copy(skyHor[zb.a]).lerp(skyHor[zb.b], w2);
+      skyU.topColor.value.copy(skyTop[zb.a]).lerp(skyTop[zb.b], w2);
+      skyU.midColor.value.copy(skyMid[zb.a]).lerp(skyMid[zb.b], w2);
+      skyU.hazeColor.value.copy(horC).lerp(zoneSky[zb.a], 0.18);
+      skyU.bottomColor.value.copy(horC);
+      // ground haze leans on the same horizon colour, so meadow and dome meet
+      scene.fog.color.copy(fogC).lerp(horC, 0.3);
       sky.position.copy(cameraPos);
+
+      // light follows the zone too: the canyon reads warmer and darker, the
+      // marshmallow valley softer and pinker
+      const warmth = ZONE_WARMTH[z.id] ?? 0;
+      hemi.color.copy(tmpColor2.set('#bfe4ff').lerp(tmpColor3.copy(fogC), 0.35));
+      hemi.groundColor.set('#ffb8dc').lerp(tmpColor3.set('#e8b06a'), warmth * 0.5);
+      sun.color.set('#ffedc9').lerp(tmpColor3.set('#ffd79a'), warmth * 0.7);
+      // keep the tunnel/grotto dimming (setDarkness) on top of the zone mood
+      const dim = Math.max(0, darkK);
+      sun.intensity = (SUN0 - warmth * 0.16) * (1 - 0.93 * dim);
+      hemi.intensity = (HEMI0 + warmth * 0.05) * (1 - 0.86 * dim);
 
       // prop chunks: full detail near the camera, low-poly twin farther out
       for (const c of lodChunks) {
@@ -1952,10 +2024,18 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
         if (knockDirty) { for (const m of knockMeshes) m.instanceMatrix.needsUpdate = true; }
       }
 
-      // clouds drift
+      // clouds drift, breathe and pick up the zone tint
       for (const c of clouds) {
         c.sprite.position.x += c.drift * dt * 0.55;
         if (c.sprite.position.x > cameraPos.x + 620) c.sprite.position.x = cameraPos.x - 520;
+        if (c.bob !== undefined) {
+          c.sprite.position.y = c.baseY + Math.sin(time * 0.16 + c.bob) * c.bobAmp;
+        }
+      }
+      puffMat.color.copy(tmpColor2.set('#ffffff').lerp(tmpColor3.copy(fogC), 0.16));
+      for (const c of clouds) {
+        const m = c.sprite.material;
+        if (m && m.color && c.tintable) m.color.copy(tmpColor2.set('#ffffff').lerp(tmpColor3.copy(fogC), 0.3));
       }
 
       // confetti flutter (wrap around the camera region)

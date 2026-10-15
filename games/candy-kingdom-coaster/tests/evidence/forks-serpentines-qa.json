@@ -317,8 +317,8 @@
       "name": "touch steering and release on the sky bridge",
       "pass": true,
       "detail": {
-        "held": -2.78,
-        "released": -2.26,
+        "held": -2.46,
+        "released": -2.04,
         "width": 97.046875,
         "height": 81.890625
       }

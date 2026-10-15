@@ -189,6 +189,31 @@ from `forks.js`, so nothing is duplicated between modules).
 - Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25
   (cache `ckc-v25`), root unit tests 11/11.
 
+### Iteration 2 (sky and light) — `src/world.js`
+
+- **A sky per zone**: the dome now blends a zenith / mid / horizon trio per zone
+  (`SKY_SETS`), cross-faded over 6% of each zone by `zoneBlend(u)`, instead of
+  one blue lid over the whole ride. Meadows stay fresh blue, the grove warms to
+  a sand haze, the cocoa canyon turns dusty and hazy, the marshmallow valley
+  milky and the castle run lilac.
+- **Horizon haze**: the dome's lowest band is the zone fog colour, and the
+  scene fog leans 30% toward the horizon colour, so distant meadow melts into
+  the sky instead of ending on a hard line.
+- **Sun**: the dome shader adds a warm bloom plus a tight core along the real
+  light direction, and a second 1150-unit halo sprite sits behind the glow.
+- **Light follows the mood**: hemisphere and sun colours/intensity now shift per
+  zone (warmest in the canyon, softest in the marshmallow valley) while still
+  honouring the tunnel/grotto `setDarkness()` dimming.
+- **Clouds**: 30 drifting sprites (up from 22), every cloud now breathes on its
+  own bob phase and picks up the zone tint, so the sky is never a static
+  backdrop.
+- Metrics: 601 meshes / 601 draw calls, `corridorScan(8)` 0 problems, `perf()`
+  tier 2, 0 page errors.
+- Evidence: `iter2-zones.webp` (one frame per zone), `iter2-sky-before-after.webp`,
+  `iter2-canyon-horizon.webp`, `iter2-bridge-sky.webp`.
+- Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25,
+  root unit tests 11/11.
+
 ### Known limitations
 
 - The suite runs Chromium/SwiftShader with touch emulation, not a physical

@@ -249,6 +249,11 @@ export function createLandmarks(scene, track, TEX = {}) {
             scale: [1, Ry / Rg, 1], pos: [cx, cy + 9.6, cz],
           }));
         }
+        // a dark disc closes the envelope: without it you look straight
+        // through the balloon into the sky
+        pieces.push(bake(new THREE.CircleGeometry(Rg * .97, 12), C('#8a5a30'), {
+          rot: [-Math.PI / 2, 0, 0], pos: [cx, cy + 9.6 - Ry * Math.cos(Math.PI * .78), cz],
+        }));
         // basket, ropes and a gumball finial
         pieces.push(bake(new THREE.CylinderGeometry(2.1, 2.4, 2.6, 10), C('#c98b4b'), { pos: [cx, cy + .6, cz] }));
         pieces.push(bake(new THREE.TorusGeometry(2.5, .22, 5, 12), C('#f6e0c0'), { rot: [Math.PI / 2, 0, 0], pos: [cx, cy + 1.9, cz] }));
