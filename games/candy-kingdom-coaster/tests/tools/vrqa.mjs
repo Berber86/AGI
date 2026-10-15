@@ -62,7 +62,7 @@ await sleep(600);
     got.visible && got.prepVisible && got.range[0] === '10' && got.range[1] === '150'
       && got.saved && got.saved.baselineCm === 80 && /80 см/.test(got.label), got);
 
-  await page.reload({ waitUntil: 'networkidle0' });
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 90000 }); // networkidle под SwiftShader флачит
   await page.waitForFunction('window.__READY__ === true', { timeout: 90000 });
   const back = await page.evaluate(() => {
     document.getElementById('btn-vr').click();

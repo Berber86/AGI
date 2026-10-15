@@ -41,6 +41,7 @@ export const Storage = {
   saveVrSettings(s) {
     const clean = {
       lookMode: s && s.lookMode === 'forward' ? 'forward' : 'look',
+      driverMode: s && s.driverMode === 'remote' ? 'remote' : 'auto',
       baselineCm: Math.min(150, Math.max(10, Math.round(+((s && s.baselineCm) || 10)) || 10)),
     };
     write('vr', clean);

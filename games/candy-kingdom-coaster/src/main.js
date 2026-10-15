@@ -24,6 +24,7 @@ import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { VRController, normalizeVrSettings } from './vr.js';
+import { RemoteControl, parseFirebaseConfig } from './remote.js';
 import { loadTextures, countLoaded } from './textures.js';
 import { setLoading, finishLoading, paintLoading } from './loading.js';
 
@@ -102,6 +103,7 @@ const hud = new HUD(document.getElementById('hud'), track);
 const input = new Input();
 const governor = new QualityGovernor(renderer, composer, world);
 const vr = new VRController(renderer, scene, camera);
+let remoteCtrl = null; // телефон-джойстик (создаётся из экрана подготовки)
 let vrSettings = normalizeVrSettings(Storage.getVrSettings());
 
 // ---------------------------------------------------------------- state
@@ -118,6 +120,7 @@ const game = {
   boostT: 0,
   zoneIndex: -1,
   vrRide: false, // VR-поездка: заезд ведёт автопилот, игрок только смотрит
+  driverMode: 'auto', // 'auto' | 'remote' (телефон-джойстик)
   vrPlan: null,
   vrSteer: 0,
   countdownT: 0,
@@ -176,6 +179,15 @@ const el = {
   btnVrCancel: document.getElementById('btn-vr-cancel'),
   vrCount: document.getElementById('vr-count'),
   vrCountNum: document.getElementById('vr-count-num'),
+  vrDriverAuto: document.getElementById('vr-driver-auto'),
+  vrDriverRemote: document.getElementById('vr-driver-remote'),
+  vrRemotePanel: document.getElementById('vr-remote-panel'),
+  vrCfg: document.getElementById('vr-cfg'),
+  vrCfgConnect: document.getElementById('vr-cfg-connect'),
+  vrRoomDemo: document.getElementById('vr-room-demo'),
+  vrCfgStatus: document.getElementById('vr-cfg-status'),
+  vrRoomCode: document.getElementById('vr-room-code'),
+  vrRoomStatus: document.getElementById('vr-room-status'),
 };
 
 // gentle haptics where supported (Android Chrome) — silent no-op elsewhere
@@ -204,6 +216,7 @@ function setSoundIcons() {
 
 // ---------------------------------------------------------------- flow
 function toMenu() {
+  closeRemote();
   stopVrStereo();
   game.vrRide = false;
   hideVrPrep();
@@ -297,6 +310,7 @@ function resumeGame() {
 }
 
 function finishRace() {
+  closeRemote();
   stopVrStereo(); // VR сам выключается на финише — дальше обычный экран медалей
   game.vrRide = false;
   el.finishRoute.textContent = 'Твой маршрут: ' + track.routes.forks.map((f) => f.branches[track.routes.choice(f)].title).join(' → ');
@@ -435,6 +449,16 @@ function vrSteerTarget() {
   return Math.sin(s * 0.021) * 0.4;
 }
 
+function vrEffectiveSteer() {
+  // Джойстик ведёт, только пока его руль свеж; обрыв связи — автопилот.
+  if (game.driverMode === 'remote' && remoteCtrl && remoteCtrl.fresh()) return remoteCtrl.steer();
+  return vrSteer();
+}
+
+function closeRemote() {
+  if (remoteCtrl) { remoteCtrl.close(); remoteCtrl = null; }
+}
+
 function vrSteer() {
   return THREE.MathUtils.clamp((vrSteerTarget() - game.lateral) * 0.55, -1, 1);
 }
@@ -454,6 +478,7 @@ function requestFullscreenLandscape() {
 function startVrRide() {
   startRace(); // сбрасывает трассу/сладости; интро и 3-2-1 в очках не нужны
   game.vrRide = true;
+  game.driverMode = vrSettings.driverMode === 'remote' ? 'remote' : 'auto';
   game.vrPlan = planVrRide();
   game.state = 'racing';
   window.__GAME_STATE__ = 'racing';
@@ -489,11 +514,45 @@ function exitVrToMenu() {
 }
 
 // --- экран подготовки: режим взгляда, ползунок камер, обратный отсчёт
+function updateRemoteUi() {
+  const info = remoteCtrl ? remoteCtrl.info() : null;
+  if (!info || !info.room) {
+    el.vrRoomCode.classList.add('hidden');
+    el.vrRoomStatus.textContent = 'Джойстик не подключён — до его появления ведёт автопилот';
+    return;
+  }
+  el.vrRoomCode.textContent = info.room;
+  el.vrRoomCode.classList.remove('hidden');
+  el.vrRoomStatus.textContent = info.connected
+    ? `🕹 Джойстик на связи${info.lastLagMs !== null ? ` · задержка ≈ ${info.lastLagMs} мс` : ''} — он ведёт машинку`
+    : `Код комнаты ${info.room} — ждём джойстик на втором телефоне…`;
+}
+async function setupRemote(kind) {
+  try {
+    if (!remoteCtrl) remoteCtrl = new RemoteControl();
+    if (kind === 'demo') remoteCtrl.useDemo();
+    else {
+      const cfg = parseFirebaseConfig(el.vrCfg.value);
+      await remoteCtrl.connectFirebase(cfg);
+      try { localStorage.setItem('ckc_stand_cfg', el.vrCfg.value); } catch { /* ignore */ }
+    }
+    const code = await remoteCtrl.createRoom();
+    el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
+  } catch (e) {
+    el.vrCfgStatus.textContent = 'Ошибка комнаты: ' + (e && e.message ? e.message : e);
+  }
+  updateRemoteUi();
+}
+
 function syncVrUi() {
   el.vrModeLook.setAttribute('aria-pressed', String(vrSettings.lookMode === 'look'));
   el.vrModeForward.setAttribute('aria-pressed', String(vrSettings.lookMode === 'forward'));
   el.vrIpd.value = String(vrSettings.baselineCm);
   el.vrIpdVal.textContent = `${vrSettings.baselineCm} см`;
+  el.vrDriverAuto.setAttribute('aria-pressed', String(vrSettings.driverMode !== 'remote'));
+  el.vrDriverRemote.setAttribute('aria-pressed', String(vrSettings.driverMode === 'remote'));
+  el.vrRemotePanel.classList.toggle('hidden', vrSettings.driverMode !== 'remote');
+  updateRemoteUi();
 }
 function saveVrUi() {
   vrSettings = Storage.saveVrSettings(vrSettings);
@@ -516,6 +575,15 @@ function stopVrCountdown() {
 el.btnVr.addEventListener('click', () => { SFX.unlock(); SFX.play('click'); openVrPrep(); });
 el.btnVrCancel.addEventListener('click', () => { SFX.play('click'); hideVrPrep(); });
 el.vrModeLook.addEventListener('click', () => { vrSettings.lookMode = 'look'; saveVrUi(); SFX.play('click'); });
+el.vrDriverAuto.addEventListener('click', () => { vrSettings.driverMode = 'auto'; saveVrUi(); SFX.play('click'); });
+el.vrDriverRemote.addEventListener('click', () => { vrSettings.driverMode = 'remote'; saveVrUi(); SFX.play('click'); });
+el.vrCfgConnect.addEventListener('click', () => { SFX.play('click'); setupRemote('firebase'); });
+el.vrRoomDemo.addEventListener('click', () => { SFX.play('click'); setupRemote('demo'); });
+try {
+  const savedCfg = localStorage.getItem('ckc_stand_cfg');
+  if (savedCfg) el.vrCfg.value = savedCfg;
+} catch { /* ignore */ }
+setInterval(updateRemoteUi, 700);
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
 el.vrIpd.addEventListener('input', () => {
   vrSettings.baselineCm = +el.vrIpd.value;
@@ -795,7 +863,7 @@ function updateGameplay(dt) {
     }
 
     // steering (only a little authority while airborne)
-    const steer = qaSteer !== null ? qaSteer : (game.vrRide ? vrSteer() : input.steer);
+    const steer = qaSteer !== null ? qaSteer : (game.vrRide ? vrEffectiveSteer() : input.steer);
     game.vrSteer = steer;
     const airborne = game.jump === 'air' || game.jump === 'drop';
     game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed)) * (airborne ? JUMP.airSteer : 1);
@@ -1274,7 +1342,7 @@ window.__TEST__ = {
     return { boost: game.boostActive, t: game.boostT };
   },
   vrStart(lookMode = 'look', baselineCm = 10) {
-    vrSettings = normalizeVrSettings({ lookMode, baselineCm });
+    vrSettings = normalizeVrSettings({ lookMode, baselineCm, driverMode: vrSettings.driverMode });
     Storage.saveVrSettings(vrSettings);
     startVrRide();
     return this.vrInfo();
@@ -1282,6 +1350,14 @@ window.__TEST__ = {
   vrStop() { exitVrToMenu(); return this.vrInfo(); },
   vrInfo() { return { ...vr.info(), vrRide: game.vrRide, plan: game.vrPlan, state: game.state }; },
   vrSetLook(yawDeg = null, pitchDeg = 0) { vr.setSimLook(yawDeg, pitchDeg); return this.vrInfo(); },
+  async remoteDemo() {
+    vrSettings.driverMode = 'remote';
+    if (!remoteCtrl) remoteCtrl = new RemoteControl();
+    if (!remoteCtrl.kind) remoteCtrl.useDemo();
+    const code = await remoteCtrl.createRoom();
+    return { code, info: remoteCtrl.info() };
+  },
+  remoteInfo() { return remoteCtrl ? remoteCtrl.info() : null; },
   state: () => game.state,
   // Acceptance helper: project the road ahead to screen space (px).
   roadScreenPoints(aheadFrom = 20, aheadTo = 110, step = 10) {
@@ -1303,7 +1379,7 @@ window.__TEST__ = {
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
       boostActive: game.boostActive, boostCharges: game.boostCharges,
       zone: track.zoneAt(game.s / track.length).id,
-      vrActive: vr.active, vrRide: game.vrRide,
+      vrActive: vr.active, vrRide: game.vrRide, driverMode: game.driverMode, remote: remoteCtrl ? remoteCtrl.info() : null,
     };
   },
   camDebug() {

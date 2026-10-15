@@ -16,6 +16,7 @@ export function normalizeVrSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
   return {
     lookMode: s.lookMode === 'forward' ? 'forward' : 'look',
+    driverMode: s.driverMode === 'remote' ? 'remote' : 'auto',
     baselineCm: Math.min(VR_BASELINE_MAX_CM, Math.max(VR_BASELINE_MIN_CM,
       Number.isFinite(+s.baselineCm) ? Math.round(+s.baselineCm) : VR_BASELINE_MIN_CM)),
   };
