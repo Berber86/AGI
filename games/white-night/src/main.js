@@ -41,6 +41,9 @@ function collectionFeedback(){
 function updateUI(){
  $('#app').classList.toggle('has-progress',state.searches>0);syncReveal();updateZoom();
  $('#app').classList.toggle('is-inspecting',state.phase==='inspect');$('.inspection').hidden=state.phase!=='inspect';
+ // The toast reports on the previous find; it must not cover the next one's
+ // rarity chip while that find is being inspected.
+ if(state.phase==='inspect'){clearTimeout(toastTimer);$('#toast').classList.remove('visible');}
  $('#header-count').innerHTML=`${String(state.collection.length).padStart(2,'0')} <small>/ 18</small>`;
  $('#search-total').textContent=String(state.searches).padStart(2,'0');$('#open-collection').disabled=state.phase==='inspect';
  $$('.tap-dots i').forEach((dot,index)=>dot.classList.toggle('active',index<state.taps));$('.tap-dots').setAttribute('aria-label',`Нажатий: ${state.taps} из 3`);

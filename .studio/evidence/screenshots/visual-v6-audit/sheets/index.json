@@ -14,103 +14,85 @@
       "item-book.webp",
       "item-bottle.webp",
       "item-box.webp",
-      "item-camera.webp"
+      "item-can.webp"
     ]
   },
   {
     "name": "sheet-03.webp",
     "files": [
-      "item-can.webp",
       "item-cassette.webp",
       "item-compass.webp",
-      "item-cup.webp"
+      "item-cup.webp",
+      "item-duck.webp"
     ]
   },
   {
     "name": "sheet-04.webp",
     "files": [
-      "item-duck.webp",
-      "item-horse.webp",
       "item-key.webp",
-      "item-lid.webp"
+      "item-lid.webp",
+      "item-paper.webp",
+      "item-perfume.webp"
     ]
   },
   {
     "name": "sheet-05.webp",
     "files": [
-      "item-paper.webp",
-      "item-perfume.webp",
-      "item-record.webp",
-      "item-teacup.webp"
+      "item-teacup.webp",
+      "item-watch.webp",
+      "landscape-740-record.webp",
+      "landscape-844-record.webp"
     ]
   },
   {
     "name": "sheet-06.webp",
     "files": [
-      "item-watch.webp",
-      "landscape-740-record.webp",
-      "landscape-844-record.webp",
-      "landscape-932-record.webp"
+      "landscape-932-record.webp",
+      "pose-can-back.webp",
+      "pose-can-bottom.webp",
+      "pose-can-top.webp"
     ]
   },
   {
     "name": "sheet-07.webp",
     "files": [
-      "pose-can-back.webp",
-      "pose-can-bottom.webp",
-      "pose-can-top.webp",
-      "pose-duck-back.webp"
+      "pose-duck-back.webp",
+      "pose-duck-bottom.webp",
+      "pose-duck-top.webp",
+      "pose-record-back.webp"
     ]
   },
   {
     "name": "sheet-08.webp",
     "files": [
-      "pose-duck-bottom.webp",
-      "pose-duck-top.webp",
-      "pose-record-back.webp",
-      "pose-record-bottom.webp"
+      "pose-record-bottom.webp",
+      "pose-record-top.webp",
+      "pose-teacup-back.webp",
+      "pose-teacup-bottom.webp"
     ]
   },
   {
     "name": "sheet-09.webp",
     "files": [
-      "pose-record-top.webp",
-      "pose-teacup-back.webp",
-      "pose-teacup-bottom.webp",
-      "pose-teacup-top.webp"
+      "pose-teacup-top.webp",
+      "pose-watch-back.webp",
+      "pose-watch-bottom.webp",
+      "pose-watch-top.webp"
     ]
   },
   {
     "name": "sheet-10.webp",
     "files": [
-      "pose-watch-back.webp",
-      "pose-watch-bottom.webp",
-      "pose-watch-top.webp",
-      "reveal-0_05.webp"
+      "reveal-0_05.webp",
+      "reveal-0_3.webp",
+      "reveal-0_45.webp",
+      "reveal-0_7.webp"
     ]
   },
   {
     "name": "sheet-11.webp",
     "files": [
-      "reveal-0_3.webp",
-      "reveal-0_45.webp",
-      "reveal-0_7.webp",
-      "reveal-1.webp"
-    ]
-  },
-  {
-    "name": "sheet-12.webp",
-    "files": [
-      "search-1280.webp",
-      "search-360.webp",
-      "search-412-low.webp",
-      "search-412.webp"
-    ]
-  },
-  {
-    "name": "sheet-13.webp",
-    "files": [
-      "search-844.webp",
+      "reveal-1.webp",
       "settings.webp",
       "zoom-max-camera.webp",
       "zoom-min-camera.webp"

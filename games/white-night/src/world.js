@@ -234,7 +234,7 @@ export class World {
    const b=model.userData.bounds,box=new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max));
    box.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(model.rotation));
    const half=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
-   model.scale.setScalar(fitScale(half,{width:144,height:136},160,34));
+   model.scale.setScalar(fitScale(half,{x:8,y:12,width:144,height:136},160,34));
    const cam=new THREE.PerspectiveCamera(34,1,.1,20);cam.position.set(0,0,4.2);cam.lookAt(0,0,0);
    this.renderer.setRenderTarget(hdr);this.renderer.render(scene,cam);
    this.thumbnailOutput.render(this.renderer,rt,hdr);

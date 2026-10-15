@@ -136,3 +136,7 @@
 /* The bin callout is anchored to the bin in the frame, not to a screen corner. */
 .bin-tag{left:0;top:0;transform:translate(-100%,-50%);flex-direction:row-reverse;gap:14px;white-space:nowrap}
 .bin-tag:before{left:100%;right:auto;margin-left:10px;margin-right:0}
+
+/* Keep the toast below the find header instead of on top of the rarity chip. */
+#toast{top:158px}
+@media(max-width:650px){#toast{top:calc(150px + env(safe-area-inset-top))}}
