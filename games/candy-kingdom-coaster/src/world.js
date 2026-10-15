@@ -1280,6 +1280,84 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     mergeByMaterial(flagGroup, { castShadow: false, receiveShadow: false, noCollide: false }); // 24 -> 7 draws
   }
 
+  // ---------- finish arch: the party gate the car drives under -----------
+  {
+    const s = track.length * 0.9945;
+    const left = track.getPose(s, -11.4), right = track.getPose(s, 11.4);
+    const mid = track.getPose(s, 0);
+    const arch = new THREE.Group();
+    const whiteMat = new THREE.MeshStandardMaterial({ color: '#fff2f7', roughness: 0.45 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: '#ff4f96', roughness: 0.5 });
+    const V = (p, y) => new THREE.Vector3(p.pos.x, p.pos.y + y, p.pos.z);
+    for (const p of [left, right]) {
+      // the pole is planted 7 m into the ground so it stands on the meadow too
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.78, 20, 12), whiteMat);
+      pole.position.copy(V(p, -4.4));
+      arch.add(pole);
+      for (let k = 0; k < 5; k++) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.14, 5, 14), trimMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.copy(V(p, 0.6 + k * 2.6));
+        arch.add(ring);
+      }
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(1.15, 12, 9), trimMat);
+      ball.position.copy(V(p, 12.7));
+      arch.add(ball);
+    }
+    // the arc: a quadratic tube from pole top to pole top, so no rotation
+    // conventions are involved
+    const curve = new THREE.QuadraticBezierCurve3(V(left, 11.4), V(mid, 17.4), V(right, 11.4));
+    arch.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 26, 0.55, 9, false), whiteMat));
+    // every third tube ring is candy pink
+    for (let k = 1; k < 9; k += 2) {
+      const t = k / 9;
+      const pt = curve.getPoint(t);
+      const tang = curve.getTangent(t);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.13, 5, 14), trimMat);
+      ring.position.copy(pt);
+      ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), tang);
+      arch.add(ring);
+    }
+    // checkered banner hanging inside the arc
+    {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 24;
+      const g = c.getContext('2d');
+      for (let x = 0; x < 8; x++) for (let y = 0; y < 3; y++) {
+        g.fillStyle = (x + y) % 2 ? '#ffffff' : '#2b2b38';
+        g.fillRect(x * 16, y * 8, 16, 8);
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const quad = new THREE.BufferGeometry();
+      const a = curve.getPoint(0.28), b = curve.getPoint(0.72);
+      const yTop = 2.1, yBot = -0.9;
+      const pos = [
+        a.x, a.y + yBot, a.z, b.x, b.y + yBot, b.z, b.x, b.y + yTop, b.z,
+        a.x, a.y + yBot, a.z, b.x, b.y + yTop, b.z, a.x, a.y + yTop, a.z,
+      ];
+      quad.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      quad.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
+      quad.computeVertexNormals();
+      arch.add(new THREE.Mesh(quad, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, side: THREE.DoubleSide })));
+    }
+    // two giant lollipops flanking the gate
+    for (const side of [-1, 1]) {
+      const p = track.getPose(s - 6, side * 15.5);
+      const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 9.5, 9), whiteMat);
+      stick.position.copy(V(p, 1.6));
+      arch.add(stick);
+      for (let ring = 4; ring >= 1; ring--) {
+        const disc = new THREE.Mesh(new THREE.TorusGeometry(ring * 0.95, 0.5, 6, 20),
+          new THREE.MeshStandardMaterial({ color: ring % 2 ? '#56c8ff' : '#fff2f7', roughness: 0.45 }));
+        disc.position.copy(V(p, 8.4));
+        arch.add(disc);
+      }
+    }
+    mergeByMaterial(arch, { castShadow: false, receiveShadow: false, noCollide: false });
+    world.add(arch);
+  }
+
   // ---------- air confetti ----------
   const CONFETTI = 680;
   const confGeo = new THREE.BufferGeometry();

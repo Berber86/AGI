@@ -23,6 +23,12 @@ const KINDS = [
   { id: 'sugar', count: 340, size: .4, fall: .11, swing: 1.15, windK: .2, lift: .06, near: 1.2, far: 7,
     weights: [.4, .3, .22, .75, 1.0],
     colors: ['#ffffff', '#d8f2ff', '#ffe9a8', '#ffd9f2'] },
+  // Speed only: streaks that fly past once the car is really moving. They are
+  // boxed tight around the camera (55 m) so they never read as scenery.
+  { id: 'rush', count: 200, size: 1.5, fall: 0, swing: 0, windK: 1.8, lift: 0, near: 3, far: 26,
+    boxR: 55, boxTop: 11, boxDrop: 7, speedOnly: true,
+    weights: [1, 1, 1, 1, 1],
+    colors: ['#ffffff', '#eaf6ff', '#fff3d0', '#ffe6f4'] },
 ];
 
 // a tiny round/soft sprite; sugar uses a 4-point star
@@ -44,6 +50,14 @@ function airTexture(kind) {
     grd.addColorStop(1, 'rgba(255,255,255,0)');
     g.fillStyle = grd;
     g.fillRect(0, 0, 32, 32);
+  } else if (kind === 'rush') {
+    // a soft vertical streak: the motion-line silhouette
+    const grd = g.createLinearGradient(0, 0, 0, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,0)');
+    grd.addColorStop(.5, 'rgba(255,255,255,.9)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.beginPath(); g.roundRect(13, 0, 6, 32, 3); g.fill();
   } else {
     // confetti / cocoa: a small rectangle, the classic sprinkle silhouette
     g.fillStyle = '#fff';
@@ -70,9 +84,9 @@ export function createAmbient(scene, track) {
     const vel = new Float32Array(k.count * 3);
     const palette = k.colors.map((h) => new THREE.Color(h));
     for (let i = 0; i < k.count; i++) {
-      pos[i * 3] = (Math.random() - .5) * R * 2;
-      pos[i * 3 + 1] = Math.random() * TOP;
-      pos[i * 3 + 2] = (Math.random() - .5) * R * 2;
+      pos[i * 3] = (Math.random() - .5) * (k.boxR ?? R) * 2;
+      pos[i * 3 + 1] = Math.random() * (k.boxTop ?? TOP);
+      pos[i * 3 + 2] = (Math.random() - .5) * (k.boxR ?? R) * 2;
       const c = palette[i % palette.length];
       col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
       vel[i * 3] = (Math.random() - .5) * .6;
@@ -86,6 +100,9 @@ export function createAmbient(scene, track) {
     const mat = new THREE.PointsMaterial({
       size: k.size, map: airTexture(k.id), vertexColors: true, transparent: true,
       opacity: 0, depthWrite: false, sizeAttenuation: true,
+      // the speed streaks add light instead of painting white: that is what
+      // makes them read against a bright candy sky
+      blending: k.speedOnly ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     // Sprites fade out inside `near` metres: that is what lets the flakes be
     // big enough to read at 30 m without ever becoming a wall of colour when
@@ -117,7 +134,7 @@ export function createAmbient(scene, track) {
     if (!seeded) {
       for (const l of layers) for (let i = 0; i < l.count; i++) {
         l.pos[i * 3] += cameraPos.x; l.pos[i * 3 + 2] += cameraPos.z;
-        l.pos[i * 3 + 1] += Math.max(0, cameraPos.y - DROP);
+        l.pos[i * 3 + 1] += Math.max(0, cameraPos.y - (l.kind.boxDrop ?? DROP));
       }
       prev.copy(cameraPos); seeded = true;
     }
@@ -133,9 +150,11 @@ export function createAmbient(scene, track) {
       const k = l.kind;
       // zone weight, dimmed by tunnel/grotto darkness; the sparkles survive it
       const base = k.weights[zi] ?? 0;
-      const target = k.id === 'sugar'
-        ? Math.max(base * (1 - dark * .45), dark * .8)
-        : base * (1 - dark * .82);
+      const target = k.speedOnly
+        ? THREE.MathUtils.clamp((speed - 11) / 7.5, 0, 1) * (1 - dark * .55)
+        : k.id === 'sugar'
+          ? Math.max(base * (1 - dark * .45), dark * .8)
+          : base * (1 - dark * .82);
       l.mat.opacity += (target - l.mat.opacity) * Math.min(1, dt * 1.6);
       l.points.visible = l.mat.opacity > .015;
       if (!l.points.visible) continue;
@@ -147,10 +166,11 @@ export function createAmbient(scene, track) {
         arr[ix] += (l.vel[ix] + Math.sin(time * 1.2 + i * .7) * k.swing) * dt + stirX;
         arr[ix + 1] += (l.vel[ix + 1] + k.lift) * dt;
         arr[ix + 2] += (l.vel[ix + 2] + Math.cos(time * 1.05 + i * .9) * k.swing) * dt + stirZ;
+        const boxR = k.boxR ?? R, boxTop = k.boxTop ?? TOP, boxDrop = k.boxDrop ?? DROP;
         const dx = arr[ix] - cameraPos.x, dz = arr[ix + 2] - cameraPos.z;
-        if (dx > R) arr[ix] -= R * 2; else if (dx < -R) arr[ix] += R * 2;
-        if (dz > R) arr[ix + 2] -= R * 2; else if (dz < -R) arr[ix + 2] += R * 2;
-        const floor = cameraPos.y - DROP, ceil = cameraPos.y + TOP;
+        if (dx > boxR) arr[ix] -= boxR * 2; else if (dx < -boxR) arr[ix] += boxR * 2;
+        if (dz > boxR) arr[ix + 2] -= boxR * 2; else if (dz < -boxR) arr[ix + 2] += boxR * 2;
+        const floor = cameraPos.y - boxDrop, ceil = cameraPos.y + boxTop;
         if (arr[ix + 1] < floor) { arr[ix + 1] = ceil - Math.random() * 6; }
         else if (arr[ix + 1] > ceil) { arr[ix + 1] = floor + Math.random() * 4; }
       }

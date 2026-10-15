@@ -707,7 +707,8 @@ function updateGameplay(dt) {
   // camera: readable chase view with a slight 3/4 flank offset
   // (getPose extrapolates along the pseudo road behind the start, so the
   // camera is framed normally from the very first frame)
-  const back = track.getPose(track.advance(game.s, -TUNING.camBack), game.lateral * 0.55 - TUNING.camSide);
+  const spdK = Math.min(1, game.speed / TUNING.maxSpeed);
+  const back = track.getPose(track.advance(game.s, -(TUNING.camBack + spdK * 0.7)), game.lateral * 0.55 - TUNING.camSide);
   const ahead = track.getPose(track.advance(game.s, TUNING.camAhead), game.lateral * 0.22 + TUNING.camSide * 1.15);
   const desiredPos = back.pos.clone().add(new THREE.Vector3(0, TUNING.camUp + 0.6 + game.air * 0.35, 0));
   const desiredTgt = chaseTarget(game.s, ahead, pose);
@@ -719,7 +720,6 @@ function updateGameplay(dt) {
   camera.position.copy(game.camPos);
   camera.lookAt(game.camTarget);
   // speed feel: micro shake that grows with speed, lean into the steering
-  const spdK = Math.min(1, game.speed / TUNING.maxSpeed);
   const shake = (game.boostActive ? 0.055 : 0.013) * spdK + game.camKick * 0.5;
   if (shake > 0.001) {
     const tn = performance.now() * 0.001;
@@ -727,9 +727,15 @@ function updateGameplay(dt) {
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
   camera.rotateZ(-(input.steer || 0) * 0.02);
-  // subtle FOV kick on boost
-  const targetFov = game.boostActive ? 59 : 52;
-  camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, dt * 2.2);
+  // FOV reads the actual speed, not just the boost button: the world opens up
+  // as the car winds up, and boost adds its own extra kick on top.
+  // normalised over the speeds the car actually reaches (cruise → flat out),
+  // so the widening is felt inside a normal run, not only near the cap
+  const spdN = Math.min(1, Math.max(0, (game.speed - 8) / 13.5));
+  const fovTarget = 50 + spdN * 8 + (game.boostActive ? 4.5 : 0);
+  camera.fov = THREE.MathUtils.lerp(camera.fov, fovTarget, dt * 2.2);
+  // and the highlights bloom harder the faster the car goes
+  bloom.strength += ((0.5 + spdN * 0.26 + (game.boostActive ? 0.2 : 0)) - bloom.strength) * Math.min(1, dt * 2.4);
   if (qaCamFixed) { // QA: absolute camera for scenery screenshots
     camera.position.set(qaCamFixed[0], qaCamFixed[1], qaCamFixed[2]);
     camera.lookAt(qaCamFixed[3], qaCamFixed[4], qaCamFixed[5]);
@@ -854,6 +860,10 @@ window.__TEST__ = {
     game.introT = 6 * p;
   },
   dbg() { return { goHideT: game.goHideT, cdT: game.countdownT, st: game.state, hid: el.countdown.classList.contains('hidden') }; },
+  // QA only: forces the current speed. Call it every frame while stepping to
+  // hold a speed, so speed-feel effects (FOV, glow, streaks) can be compared
+  // frame to frame. The game itself never calls this.
+  setSpeed(v) { game.speed = v; },
   setProgress(u, lateral = 0, freeze = false) {
     game.s = track.length * u;
     game.lateral = lateral;

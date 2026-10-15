@@ -214,6 +214,30 @@ from `forks.js`, so nothing is duplicated between modules).
 - Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25,
   root unit tests 11/11.
 
+### Iteration 3 (speed and finale) — `src/main.js`, `src/ambient.js`, `src/world.js`
+
+- **Speed reads on screen**: the chase camera now widens from FOV 50 at cruise
+  speed to 55 at full tilt and ~59 with boost (`spdN` normalised over the speeds
+  the car really reaches), pulls 0.7 m further back as it winds up, and the
+  bloom strength follows speed as well (0.5 → 0.76, +0.2 on boost). Measured:
+  4.5 m/s → FOV 50.2, 16.5 m/s → FOV 54.5.
+- **Speed streaks** (`ambient.js`): a fifth `Points` layer of additive light
+  streaks, boxed to 55 m around the camera, invisible below ~11 m/s and ramping
+  to 0.73 opacity at full speed, dimmed inside the tunnel/grotto.
+- **Finish party** (`world.js`): a checkered 22 m finish arch — candy poles,
+  pink tube rings, a quadratic arc, a black-and-white banner and two giant
+  lollipops beside it (merged into a handful of draws).
+- **Start and finish canopy** (`landmarks.js`): the pennant builder was
+  refactored into `festiveRows()` and now also dresses stations 24/42/60 and the
+  last 84 m of the ride, so the ride opens and closes under bunting.
+- Metrics: `corridorScan(8)` 0 problems, `perf()` tier 2, 0 page errors.
+- Evidence: `iter3-speed-fov.webp`, `iter3-speed.webp`, `iter3-start-canopy.webp`,
+  `iter3-finish-arch.webp`, `iter3-finish-straight.webp`, `iter3-finale.webp`.
+- Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25,
+  root unit tests 11/11.
+- Test hook added: `__TEST__.setSpeed(v)` (QA only, never called by the game) so
+  the speed-feel effects can be compared frame to frame.
+
 ### Known limitations
 
 - The suite runs Chromium/SwiftShader with touch emulation, not a physical

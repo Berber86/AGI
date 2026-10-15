@@ -155,57 +155,59 @@ export function createLandmarks(scene, track, TEX = {}) {
   }
 
   // ------------------------------------------------------ festival approaches
-  // Bunting and candy poles frame the run-up to each fork. No letters, no
-  // arrows: the road simply gets dressed up, which is what makes a child look
-  // up. Poles stand 13 m off the centre-line, the lines fly at 11–13 m.
-  for (const f of track.routes.forks) {
-    const poles = [];
-    const lines = [];
-    const pennants = [];
-    const stations = approachStations(f);
+  // Bunting frames the start, every fork run-up and the finish straight: poles
+  // stand 13.2 m off the centre-line, the lines fly at 11.2 m with 1.5 m
+  // pennants. Environment only — no letters, no arrows.
+  const clearPoints = [];
+  function festiveRows(stations, tag, opts = {}) {
+    const lat = opts.lat ?? 13.2;
+    const H = opts.H ?? 11.4;
+    const top = opts.top ?? 11.2;
+    const flagCount = opts.flags ?? 11;
+    const cols = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0'];
+    const poles = [], lines = [], pennants = [];
     for (let k = 0; k < stations.length; k++) {
       const s = stations[k];
-      const left = track.getBasePose(s, -13.2), right = track.getBasePose(s, 13.2);
+      const left = track.getBasePose(s, -lat), right = track.getBasePose(s, lat);
       const baseY = floorY(s) - .2;
       for (const p of [left, right]) {
-        const H = 11.4;
         const post = bake(new THREE.CylinderGeometry(.44, .58, H, 8), '#ffffff', { pos: [0, H / 2, 0] });
         post.rotateY(p.heading);
         post.translate(p.pos.x, baseY, p.pos.z);
         poles.push(post);
         poles.push(bake(new THREE.SphereGeometry(.95, 10, 7), C(k % 2 ? '#ffd166' : '#ff8ad0'), { pos: [p.pos.x, baseY + H + .5, p.pos.z] }));
         poles.push(bake(new THREE.CylinderGeometry(1.5, 1.9, .9, 10), C('#f6e6cc'), { pos: [p.pos.x, baseY + .45, p.pos.z] }));
+        clearPoints.push({ x: p.pos.x, z: p.pos.z, r: 9 });
       }
-      // bunting: a sagging line of little flags between the two poles
-      const a = new THREE.Vector3(left.pos.x, baseY + 11.2, left.pos.z);
-      const b = new THREE.Vector3(right.pos.x, baseY + 11.2, right.pos.z);
-      const flags = 11, cols = ['#ff6b81', '#ffd166', '#6bd96b', '#56c8ff', '#c86bff', '#ff8ad0'];
-      for (let i = 0; i < flags; i++) {
-        const t0 = i / flags, t1 = (i + 1) / flags;
-        const P = (t) => a.clone().lerp(b, t).addScaledVector(UP, -Math.sin(t * Math.PI) * 1.5);
+      const a2 = new THREE.Vector3(left.pos.x, baseY + top, left.pos.z);
+      const b2 = new THREE.Vector3(right.pos.x, baseY + top, right.pos.z);
+      for (let i = 0; i < flagCount; i++) {
+        const t0 = i / flagCount, t1 = (i + 1) / flagCount;
+        const P = (t) => a2.clone().lerp(b2, t).addScaledVector(UP, -Math.sin(t * Math.PI) * 1.45);
         const p0 = P(t0), p1 = P(t1);
         lines.push(tubeBetween(p0, p1, .14, '#fff3dc', 4));
         const mid = p0.clone().add(p1).multiplyScalar(.5).addScaledVector(UP, -1.45);
         const tri = new THREE.BufferGeometry();
-        const verts = [p0.clone().addScaledVector(UP, -.08), p1.clone().addScaledVector(UP, -.08), mid];
         const cc = C(cols[i % cols.length]);
         const pos = [], col = [], uv = [];
-        for (const v of verts) { pos.push(v.x, v.y, v.z); col.push(cc.r, cc.g, cc.b); uv.push(0, 0); }
+        for (const v of [p0.clone().addScaledVector(UP, -.08), p1.clone().addScaledVector(UP, -.08), mid]) {
+          pos.push(v.x, v.y, v.z); col.push(cc.r, cc.g, cc.b); uv.push(0, 0);
+        }
         tri.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
         tri.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
         tri.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
         tri.computeVertexNormals();
         pennants.push(tri);
       }
-      // a couple of gumdrops at the pole bases
-      for (const p of [left, right]) {
-        lines.push(bake(gumdropGeometry(1), C(k % 2 ? '#82cbb5' : '#ed84af'), { scale: 1.3, pos: [p.pos.x + 1.9, baseY + .2, p.pos.z + 1.2] }));
-      }
     }
-    add(meshes, join(poles), caneMat).name = `festival-poles-${f.id}`;
-    add(meshes, join(lines), vcMat).name = `festival-lines-${f.id}`;
-    add(meshes, join(pennants), flagMat).name = `festival-flags-${f.id}`;
+    add(meshes, join(poles), caneMat).name = `festival-poles-${tag}`;
+    add(meshes, join(lines), vcMat).name = `festival-lines-${tag}`;
+    add(meshes, join(pennants), flagMat).name = `festival-flags-${tag}`;
   }
+  for (const f of track.routes.forks) festiveRows(approachStations(f), f.id);
+  festiveRows([24, 42, 60], 'start');
+  const len = track.length;
+  festiveRows([len - 84, len - 66, len - 48], 'finish');
 
   // ------------------------------------------------------------- sky parade
   // The two giant cakes (ascent stations 636–891, descent 977–1232) carry the
@@ -323,16 +325,8 @@ export function createLandmarks(scene, track, TEX = {}) {
   mergeByMaterial(meshes, { castShadow: true, receiveShadow: true, noCollide: false });
   // Keep-out for the world's random props: the plaza, the towers and every
   // pennant pole. The driving corridor itself is never blocked by this.
-  const clears = [];
+  const clears = clearPoints.slice();
   clears.push({ x: plazaPose.pos.x, z: plazaPose.pos.z, r: 30 });
-  for (const f of track.routes.forks) {
-    for (const s of approachStations(f)) {
-      for (const lat of [-13.2, 13.2]) {
-        const p = track.getBasePose(s, lat);
-        clears.push({ x: p.pos.x, z: p.pos.z, r: 9 });
-      }
-    }
-  }
   for (const sp of TOWERS) {
     const p = track.getPose(sp.s, sp.lat);
     clears.push({ x: p.pos.x, z: p.pos.z, r: 16 });

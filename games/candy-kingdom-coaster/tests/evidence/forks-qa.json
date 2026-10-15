@@ -201,7 +201,7 @@
       "pass": true,
       "detail": {
         "selected": 0,
-        "maxStep": 0.30095578515580534,
+        "maxStep": 0.3011742112996716,
         "state": "racing",
         "noHints": true,
         "latched": 0,
@@ -213,7 +213,7 @@
       "pass": true,
       "detail": {
         "selected": 1,
-        "maxStep": 0.29364500505287167,
+        "maxStep": 0.2936517890280859,
         "state": "racing",
         "noHints": true,
         "latched": 1,
@@ -249,7 +249,7 @@
       "pass": true,
       "detail": {
         "checked": 204,
-        "minBodyY": -0.6340051822371954,
+        "minBodyY": -0.6571796392744289,
         "cropped": [],
         "croppedCount": 0,
         "blocked": [],
