@@ -27,3 +27,17 @@ User: «Хорошо. Сделай ещё 3 итерации и тоже зап�
 
 ## 2026-10-15 — Third set of visual passes
 User: «Хорошо, делай ещё 3 итерации». Continue approved visual scope: 7 twilight lighting, 8 landscape composition, 9 controlled multi-angle inspection/cavity review. Preserve saves/rules/silence. Same session branch; follow previous delivery pattern and push after three commits. Git metadata reset again: fetched remote and mixed-reset only; working tree matched pushed 6f1c8f8 without replacing files. Existing session benchmark remains qualified 100; no new session challenge repeated.
+
+## 2026-10-15 — VR-поездка для Candy Kingdom Coaster: контракт утверждён с правками
+
+- **Decision:** Добавить в Candy Kingdom Coaster режим «VR-поездка» для линзовых очков: автономный полный заезд, экран делится на два квадратных стереокадра, два предстартовых режима взгляда («Осматриваться» гироскопом в окне вокруг трассы с авто-обзором без гироскопа / «Смотреть вперёд»), запоминаемый ползунок стереобазиса 10–150 см. Без дисторсии линз, WebXR и управления внутри очков. Контракт: `games/candy-kingdom-coaster/VR_BRAINSTORM.md`.
+- **Alternatives:** Простое деление экрана без стерео; полная игра с рулением в VR; настройка внутри очков взглядом/громкостью — отклонены пользователем на этапах 1–4R.
+- **Reason:** Брейншторм из 4 этапов + уточнение 4R завершён; пользователь утвердил MVP со своими правками дословно: «Давай два режима внутри очков. В одной камера осматривается, а в другой нет. Плюс настройка расстояния между двумя камерами. Ну там 20см-150см например.»; уточнение: переключение перед стартом, ползунок перед стартом с началом в 10 см.
+- **Affected artifacts:** `games/candy-kingdom-coaster/VR_BRAINSTORM.md` (контракт). Код не изменялся.
+- **Evidence or user answer:** Ответы этапов 1–4R в VR_BRAINSTORM.md. Осознанные риски: полная тряска/ускорения в VR (`same_ride`) и гиперстерео до 150 см — выбор пользователя.
+
+## 2026-10-15 — VR-поездка реализована
+
+- **Decision:** Реализован утверждённый контракт «VR-поездка» для Candy Kingdom Coaster: `src/vr.js` (стереопара из двух квадратов, взгляд гироскопом в окне ±35°/±20° или авто-обзор, ползунок камер 10–150 см из `Storage`), автопилот полного заезда с вариативными развилками в `src/main.js`, экран подготовки и кнопка в меню, кэш SW v26.
+- **Evidence:** `tests/tools/vrqa.mjs` 15/15 (автопилот: финиш ~107 с, 136/151 сладостей, развилки по плану); uiqa 24/24; Python 15/15; скриншоты `tests/evidence/vr-stereo.png`, `vr-prep.png`. gameqa 6/7 — падение knock-теста воспроизводится на чистом дереве (не регрессия).
+- **Limitations:** гироскоп не проверен на физическом устройстве (только подмена событий); дисторсии линз нет по контракту.

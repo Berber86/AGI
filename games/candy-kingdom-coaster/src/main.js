@@ -23,6 +23,7 @@ import { createAmbient } from './ambient.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
+import { VRController, normalizeVrSettings } from './vr.js';
 import { loadTextures, countLoaded } from './textures.js';
 import { setLoading, finishLoading, paintLoading } from './loading.js';
 
@@ -100,6 +101,8 @@ const finishFx = new Burst(scene);
 const hud = new HUD(document.getElementById('hud'), track);
 const input = new Input();
 const governor = new QualityGovernor(renderer, composer, world);
+const vr = new VRController(renderer, scene, camera);
+let vrSettings = normalizeVrSettings(Storage.getVrSettings());
 
 // ---------------------------------------------------------------- state
 const game = {
@@ -114,6 +117,9 @@ const game = {
   boostActive: false,
   boostT: 0,
   zoneIndex: -1,
+  vrRide: false, // VR-поездка: заезд ведёт автопилот, игрок только смотрит
+  vrPlan: null,
+  vrSteer: 0,
   countdownT: 0,
   countdownN: 3,
   introT: 0,
@@ -160,6 +166,16 @@ const el = {
   medalsList: document.getElementById('medals-list'),
   recordsMenu: document.getElementById('records-menu'),
   boostCount: document.getElementById('hud-boost-count'),
+  btnVr: document.getElementById('btn-vr'),
+  vrScreen: document.getElementById('screen-vr'),
+  vrModeLook: document.getElementById('vr-mode-look'),
+  vrModeForward: document.getElementById('vr-mode-forward'),
+  vrIpd: document.getElementById('vr-ipd'),
+  vrIpdVal: document.getElementById('vr-ipd-val'),
+  btnVrStart: document.getElementById('btn-vr-start'),
+  btnVrCancel: document.getElementById('btn-vr-cancel'),
+  vrCount: document.getElementById('vr-count'),
+  vrCountNum: document.getElementById('vr-count-num'),
 };
 
 // gentle haptics where supported (Android Chrome) — silent no-op elsewhere
@@ -188,6 +204,9 @@ function setSoundIcons() {
 
 // ---------------------------------------------------------------- flow
 function toMenu() {
+  stopVrStereo();
+  game.vrRide = false;
+  hideVrPrep();
   game.state = 'menu';
   input.releaseAll();
   showScreen('menu');
@@ -219,6 +238,8 @@ function startRace() {
   game.introT = 0;
   resetJump();
   track.routes.reset();
+  game.vrRide = false;
+  game.vrPlan = null;
   sweets.reset();
   input.releaseAll();
   showScreen(null);
@@ -249,6 +270,7 @@ function skipIntro() {
 function pauseGame() {
   if (game.state === 'racing' || game.state === 'countdown') {
     game.state = 'paused';
+    stopVrStereo();
     input.releaseAll();
     showScreen('pause');
     setSoundIcons();
@@ -275,6 +297,8 @@ function resumeGame() {
 }
 
 function finishRace() {
+  stopVrStereo(); // VR сам выключается на финише — дальше обычный экран медалей
+  game.vrRide = false;
   el.finishRoute.textContent = 'Твой маршрут: ' + track.routes.forks.map((f) => f.branches[track.routes.choice(f)].title).join(' → ');
   game.state = 'finish';
   input.releaseAll();
@@ -374,6 +398,154 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// ---------------------------------------------------------------- VR ride
+// Контракт: VR_BRAINSTORM.md. Автопилот ведёт машинку сам: целится в ближайшие
+// сладости своей ветки, заранее занимает сторону запланированной развилки и
+// иногда заезжает на трамплины. Выбор веток — новый на каждую поездку.
+function planVrRide() {
+  const choices = {}, rampTake = {};
+  for (const f of track.routes.forks) choices[f.id] = Math.random() < 0.5 ? 0 : 1;
+  for (const r of ramps.list) rampTake[r.id] = Math.random() < 0.5;
+  return { choices, rampTake };
+}
+
+function vrSteerTarget() {
+  const plan = game.vrPlan, s = game.s;
+  if (!plan) return 0;
+  for (const f of track.routes.forks) {
+    if (f.selected === null && s < f.s0 && s > f.s0 - 75) return plan.choices[f.id] ? 3.6 : -3.6;
+  }
+  for (const r of ramps.list) {
+    if (!plan.rampTake[r.id]) continue;
+    if (r.forkId) {
+      const f = track.routes.forks.find((x) => x.id === r.forkId);
+      if (f && plan.choices[f.id] !== r.branch) continue;
+    }
+    if (s > r.s0 - 32 && s < r.s1) return r.center;
+  }
+  let bestD = 55, target = null;
+  for (const it of sweets.list) {
+    if (it.collected) continue;
+    const d = it.s - s;
+    if (d < -2 || d > bestD) continue;
+    if (it.fork && track.routes.choice(it.fork) !== it.branch) continue;
+    bestD = d; target = it.lateral;
+  }
+  if (target !== null) return THREE.MathUtils.clamp(target, -5.6, 5.6);
+  return Math.sin(s * 0.021) * 0.4;
+}
+
+function vrSteer() {
+  return THREE.MathUtils.clamp((vrSteerTarget() - game.lateral) * 0.55, -1, 1);
+}
+
+function requestFullscreenLandscape() {
+  try {
+    const root = document.documentElement;
+    const req = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (req && !document.fullscreenElement) {
+      const pr = req.call(root);
+      if (pr && pr.catch) pr.catch(() => {});
+      try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch { /* ignore */ }
+    }
+  } catch { /* ignore */ }
+}
+
+function startVrRide() {
+  startRace(); // сбрасывает трассу/сладости; интро и 3-2-1 в очках не нужны
+  game.vrRide = true;
+  game.vrPlan = planVrRide();
+  game.state = 'racing';
+  window.__GAME_STATE__ = 'racing';
+  el.countdown.classList.add('hidden');
+  hideVrPrep();
+  vr.start(vrSettings);
+  document.body.classList.add('vr-active');
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); // облегчённый стерео-рендер
+  try { history.pushState({ ckcVr: true }, ''); } catch { /* ignore */ }
+  MUSIC.setMode('race', { restart: true });
+  window.__VR_ACTIVE__ = true;
+}
+
+function stopVrStereo() {
+  if (!vr.active) return;
+  vr.stop();
+  document.body.classList.remove('vr-active');
+  window.__VR_ACTIVE__ = false;
+  try {
+    if (document.fullscreenElement) {
+      const pr = document.exitFullscreen();
+      if (pr && pr.catch) pr.catch(() => {});
+    }
+  } catch { /* ignore */ }
+  governor.apply(); // вернуть обычное разрешение и bloom по уровню качества
+  onResize();
+}
+
+function exitVrToMenu() {
+  stopVrStereo();
+  game.vrRide = false;
+  toMenu();
+}
+
+// --- экран подготовки: режим взгляда, ползунок камер, обратный отсчёт
+function syncVrUi() {
+  el.vrModeLook.setAttribute('aria-pressed', String(vrSettings.lookMode === 'look'));
+  el.vrModeForward.setAttribute('aria-pressed', String(vrSettings.lookMode === 'forward'));
+  el.vrIpd.value = String(vrSettings.baselineCm);
+  el.vrIpdVal.textContent = `${vrSettings.baselineCm} см`;
+}
+function saveVrUi() {
+  vrSettings = Storage.saveVrSettings(vrSettings);
+  syncVrUi();
+}
+function openVrPrep() {
+  syncVrUi();
+  el.vrScreen.classList.remove('hidden');
+}
+function hideVrPrep() {
+  stopVrCountdown();
+  el.vrScreen.classList.add('hidden');
+}
+let vrCountTimer = null;
+function stopVrCountdown() {
+  if (vrCountTimer) { clearInterval(vrCountTimer); vrCountTimer = null; }
+  el.vrCount.classList.add('hidden');
+  el.btnVrStart.disabled = false;
+}
+el.btnVr.addEventListener('click', () => { SFX.unlock(); SFX.play('click'); openVrPrep(); });
+el.btnVrCancel.addEventListener('click', () => { SFX.play('click'); hideVrPrep(); });
+el.vrModeLook.addEventListener('click', () => { vrSettings.lookMode = 'look'; saveVrUi(); SFX.play('click'); });
+el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
+el.vrIpd.addEventListener('input', () => {
+  vrSettings.baselineCm = +el.vrIpd.value;
+  el.vrIpdVal.textContent = `${vrSettings.baselineCm} см`;
+});
+el.vrIpd.addEventListener('change', () => { vrSettings.baselineCm = +el.vrIpd.value; saveVrUi(); });
+el.btnVrStart.addEventListener('click', async () => {
+  SFX.unlock();
+  SFX.play('click');
+  vrSettings.baselineCm = +el.vrIpd.value;
+  saveVrUi();
+  await vr.requestPermission(); // жест пользователя: iOS спрашивает доступ к гироскопу здесь
+  requestFullscreenLandscape();
+  // обратный отсчёт: время вставить телефон в очки
+  stopVrCountdown();
+  el.btnVrStart.disabled = true;
+  el.vrCount.classList.remove('hidden');
+  let left = 5;
+  el.vrCountNum.textContent = String(left);
+  vrCountTimer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) { stopVrCountdown(); startVrRide(); }
+    else el.vrCountNum.textContent = String(left);
+  }, 900);
+});
+// системная «Назад» во время поездки — выход из VR в меню
+window.addEventListener('popstate', () => {
+  if (vr.active || (game.vrRide && game.state === 'racing')) exitVrToMenu();
+});
+
 // any tap during the cinematic intro jumps straight to the 3-2-1
 window.addEventListener('pointerdown', () => { if (game.state === 'intro') skipIntro(); }, { capture: true });
 
@@ -392,6 +564,8 @@ function onResize() {
   renderer.setSize(w, h);
   composer.setSize(w, h);
   bloom.setSize(w, h);
+  // сняли очки и повернули телефон вертикально — VR-поездка завершается в меню
+  if (vr.active && game.state === 'racing' && h > w) exitVrToMenu();
 }
 window.addEventListener('resize', onResize);
 window.addEventListener('orientationchange', () => setTimeout(onResize, 250));
@@ -621,7 +795,8 @@ function updateGameplay(dt) {
     }
 
     // steering (only a little authority while airborne)
-    const steer = qaSteer !== null ? qaSteer : input.steer;
+    const steer = qaSteer !== null ? qaSteer : (game.vrRide ? vrSteer() : input.steer);
+    game.vrSteer = steer;
     const airborne = game.jump === 'air' || game.jump === 'drop';
     game.lateral += steer * TUNING.steerSpeed * dt * (0.72 + 0.28 * Math.min(1, game.speed / TUNING.cruiseSpeed)) * (airborne ? JUMP.airSteer : 1);
     if (steer === 0 && !airborne) {
@@ -698,7 +873,7 @@ function updateGameplay(dt) {
   } else car.root.scale.setScalar(1);
   car.update(dt, {
     speed: game.speed,
-    steer: input.steer || (game.lateral < -0.3 ? -0.25 : game.lateral > 0.3 ? 0.25 : 0),
+    steer: (game.vrRide ? game.vrSteer : input.steer) || (game.lateral < -0.3 ? -0.25 : game.lateral > 0.3 ? 0.25 : 0),
     boost: game.boostActive,
     offRoad: Math.abs(game.lateral) > TUNING.roadHalfWidth + 0.6,
   });
@@ -726,7 +901,8 @@ function updateGameplay(dt) {
     camera.position.x += Math.sin(tn * 37.1) * shake;
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
-  camera.rotateZ(-(input.steer || 0) * 0.02);
+  camera.rotateZ(-((game.vrRide ? game.vrSteer : input.steer) || 0) * 0.02);
+  vr.applyLook(camera, dt); // взгляд головой (или авто-обзор) поверх очковой камеры
   // FOV reads the actual speed, not just the boost button: the world opens up
   // as the car winds up, and boost adds its own extra kick on top.
   // normalised over the speeds the car actually reaches (cruise → flat out),
@@ -815,7 +991,8 @@ function frame(now, dt) {
   updateGameplay(dt);
   if (qaNoGovernor ? qaForceRender : (governor.frame(dt) || qaForceRender)) {
     renderer.info.reset(); // accumulate every pass of this frame, not just the last
-    composer.render();
+    if (vr.active) vr.render(renderer, scene, camera); // стереопара без bloom: облегчённый рендер на два глаза
+    else composer.render();
   }
   window.__FPS__ = Math.round(governor.fps);
   window.__GAME_STATE__ = game.state;
@@ -1096,6 +1273,15 @@ window.__TEST__ = {
     game.boostCharges = 0;
     return { boost: game.boostActive, t: game.boostT };
   },
+  vrStart(lookMode = 'look', baselineCm = 10) {
+    vrSettings = normalizeVrSettings({ lookMode, baselineCm });
+    Storage.saveVrSettings(vrSettings);
+    startVrRide();
+    return this.vrInfo();
+  },
+  vrStop() { exitVrToMenu(); return this.vrInfo(); },
+  vrInfo() { return { ...vr.info(), vrRide: game.vrRide, plan: game.vrPlan, state: game.state }; },
+  vrSetLook(yawDeg = null, pitchDeg = 0) { vr.setSimLook(yawDeg, pitchDeg); return this.vrInfo(); },
   state: () => game.state,
   // Acceptance helper: project the road ahead to screen space (px).
   roadScreenPoints(aheadFrom = 20, aheadTo = 110, step = 10) {
@@ -1117,6 +1303,7 @@ window.__TEST__ = {
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
       boostActive: game.boostActive, boostCharges: game.boostCharges,
       zone: track.zoneAt(game.s / track.length).id,
+      vrActive: vr.active, vrRide: game.vrRide,
     };
   },
   camDebug() {
@@ -1527,6 +1714,7 @@ finishLoading();
 setSoundIcons();
 fillRecordsPanel(el.recordsMenu, Storage.getRecords());
 toMenu();
+el.btnVr.classList.remove('hidden');
 onResize();
 requestAnimationFrame(animate);
 window.__READY__ = true;

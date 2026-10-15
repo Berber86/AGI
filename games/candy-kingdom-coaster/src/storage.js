@@ -34,6 +34,18 @@ export const Storage = {
     r.muted = !!m;
     this.saveRecords(r);
   },
+  // VR-поездка: режим взгляда и расстояние между стереокамерами (см).
+  getVrSettings() {
+    return read('vr', { lookMode: 'look', baselineCm: 10 });
+  },
+  saveVrSettings(s) {
+    const clean = {
+      lookMode: s && s.lookMode === 'forward' ? 'forward' : 'look',
+      baselineCm: Math.min(150, Math.max(10, Math.round(+((s && s.baselineCm) || 10)) || 10)),
+    };
+    write('vr', clean);
+    return clean;
+  },
   // Returns updated records after a finished ride.
   commitRun({ timeMs, sweets, total, score, medalsEarned, starsEarned }) {
     const r = this.getRecords();

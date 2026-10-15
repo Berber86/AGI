@@ -295,6 +295,23 @@ body:not([data-screen='game']) #hud { visibility: hidden; pointer-events: none; 
 }
 
 /* Existing in-ride FX. No effects or game HUD bleed through the welcome art. */
+/* ---------------- VR ride (lens glasses, split stereo) ---------------- */
+.vr-btn { margin-top: 2px; }
+.vr-card { width: min(92vw, 430px); padding: 16px 22px; }
+.vr-card h2 { margin: 0 0 6px; font-size: 24px; }
+.vr-note { color: #a0839c; font-size: 13px; line-height: 1.45; margin: 8px 0; font-weight: 700; }
+.vr-modes { display: flex; gap: 8px; margin: 8px 0 2px; }
+.vr-mode { flex: 1; margin: 0; }
+.vr-mode[aria-pressed='true'] { background: linear-gradient(#ffd9e9, #ffc2da); border-color: #f0a8c6; color: #8c4a6d; box-shadow: 0 3px 0 #e39bbd; }
+.vr-slider-label { display: block; margin: 10px 0 2px; color: #906084; font-size: 14px; font-weight: 850; }
+.vr-slider-label b { color: #c2547f; font-variant-numeric: tabular-nums; }
+#vr-ipd { width: 100%; min-height: 36px; accent-color: #e2608f; }
+#vr-count { margin: 10px 0 2px; color: #a3658c; font-weight: 900; }
+#vr-count-num { font-size: 58px; line-height: 1; color: #e2608f; font-variant-numeric: tabular-nums; }
+#vr-count p { margin: 4px 0 0; font-size: 15px; }
+#vr-divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: rgba(10, 2, 8, .6); z-index: 6; display: none; pointer-events: none; }
+body.vr-active #vr-divider { display: block; }
+body.vr-active #hud, body.vr-active #vignette, body.vr-active #speed-lines, body.vr-active #portrait-hint { display: none !important; }
 #vignette { position: absolute; inset: 0; pointer-events: none; z-index: 3; background: radial-gradient(ellipse at 50% 42%, transparent 60%, #60103c38 100%); }
 #speed-lines { position: absolute; inset: -12%; pointer-events: none; z-index: 3; opacity: 0; background: repeating-radial-gradient(circle at 50% 46%, transparent 0 40px, #ffffff3d 42px 46px, transparent 48px 88px); -webkit-mask-image: radial-gradient(circle at 50% 46%, transparent 28%, #000 78%); mask-image: radial-gradient(circle at 50% 46%, transparent 28%, #000 78%); transition: opacity .35s; }
 body.is-boosting[data-screen='game'] #speed-lines { opacity: 1; animation: lineRush .55s linear infinite; }

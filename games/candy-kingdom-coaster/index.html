@@ -47,6 +47,7 @@
     <canvas id="game-canvas"></canvas>
     <div id="vignette"></div>
     <div id="speed-lines"></div>
+    <div id="vr-divider" aria-hidden="true"></div>
 
     <!-- Controls are inert/hidden until a ride starts, never behind a menu. -->
     <div id="hud" aria-label="Управление заездом" aria-hidden="true" inert>
@@ -93,6 +94,7 @@
               <div class="loading-stages" aria-hidden="true"><span data-load-step="0" class="current"><i></i>Мир</span><span data-load-step="1"><i></i>Машинка</span><span data-load-step="2"><i></i>Поехали!</span></div>
             </div>
             <button type="button" id="btn-play" class="big-btn play-btn hidden" disabled><span class="play-disc"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg></span><span>Играть</span><span class="play-spark" aria-hidden="true">✦</span></button>
+            <button type="button" id="btn-vr" class="mid-btn vr-btn hidden" disabled data-ready-control>🥽 VR-поездка в очках</button>
             <div id="loading-error" class="hidden" role="alert"><p id="loading-error-text"></p><button type="button" id="btn-reload" class="mid-btn"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"/></svg>Попробовать ещё раз</button></div>
           </div>
           <div class="drive-hint"><span class="mini-controls" aria-hidden="true"><i><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-left"/></svg></i><i><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-right"/></svg></i></span><p>Лили едет сама.<br><b>Ты выбираешь путь!</b></p><span class="keyboard-hint" title="Также работают клавиши-стрелки">← →</span></div>
@@ -131,6 +133,24 @@
         <div class="finish-btns">
           <button id="btn-menu2" class="mid-btn">🏠 В меню</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ============ VR RIDE PREP ============ -->
+    <div id="screen-vr" class="screen hidden">
+      <div class="menu-card vr-card">
+        <h2>🥽 VR-поездка</h2>
+        <p class="vr-note">Машинка поедет сама по всей трассе. Ты только смотри по сторонам из очков!</p>
+        <div class="vr-modes" role="group" aria-label="Режим взгляда">
+          <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Осматриваться</button>
+          <button type="button" id="vr-mode-forward" class="mid-btn vr-mode" aria-pressed="false">🚗 Смотреть вперёд</button>
+        </div>
+        <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
+        <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">
+        <p class="vr-note">Шире — объём сильнее, мир как миниатюра. Закружилась голова — снимите очки.</p>
+        <button type="button" id="btn-vr-start" class="big-btn">▶ Надеть очки</button>
+        <div id="vr-count" class="hidden" role="status"><span id="vr-count-num">5</span><p>Вставьте телефон в очки…</p></div>
+        <button type="button" id="btn-vr-cancel" class="mid-btn">← Назад</button>
       </div>
     </div>
 
