@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Стенд задержки — телефон-джойстик</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Trebuchet MS', Arial, sans-serif;
+    background: linear-gradient(160deg, #241031, #3d1650 55%, #5c1d4e);
+    color: #fdf3ff; min-height: 100vh; padding: 16px;
+  }
+  main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 22px; margin: 4px 0 0; }
+  .sub { opacity: .8; font-size: 13px; line-height: 1.45; margin: 0; }
+  .card {
+    background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+    border-radius: 18px; padding: 14px 16px;
+  }
+  .card h2 { margin: 0 0 10px; font-size: 16px; }
+  textarea, input[type="text"] {
+    width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.35); color: #fff; padding: 10px; font-size: 13px;
+  }
+  textarea { min-height: 92px; font-family: monospace; font-size: 11px; }
+  button {
+    border: 0; border-radius: 14px; padding: 13px 16px; font-size: 16px; font-weight: 800;
+    background: linear-gradient(180deg, #ff6aa8, #e8358c); color: #fff; cursor: pointer;
+  }
+  button.secondary { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); }
+  button[aria-pressed="true"] { outline: 3px solid #ffd166; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .hidden { display: none !important; }
+  .code { font-size: 42px; font-weight: 900; letter-spacing: 6px; text-align: center; color: #ffd166; }
+  .steer-view { display: flex; gap: 10px; justify-content: center; margin: 8px 0; }
+  .steer-arrow {
+    width: 110px; height: 84px; border-radius: 18px; display: grid; place-items: center;
+    font-size: 44px; background: rgba(255,255,255,.1); border: 2px solid rgba(255,255,255,.18);
+    transition: background .08s, transform .08s;
+  }
+  .steer-arrow.on { background: #ffd166; color: #5c1d4e; transform: scale(1.05); }
+  .joy-btns { display: flex; gap: 12px; }
+  .joy-btn {
+    flex: 1; height: 148px; font-size: 64px; border-radius: 24px; user-select: none;
+    -webkit-user-select: none; touch-action: none;
+    background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.25); color: #fff;
+  }
+  .joy-btn.on { background: #ffd166; color: #5c1d4e; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 14px; }
+  .stats b { color: #ffd166; font-variant-numeric: tabular-nums; }
+  .verdict { border-radius: 16px; padding: 14px; font-size: 17px; font-weight: 900; text-align: center; line-height: 1.4; }
+  .verdict.good { background: #1d5c38; }
+  .verdict.mid { background: #7a5a12; }
+  .verdict.bad { background: #7c2230; }
+  .verdict.idle { background: rgba(255,255,255,.1); font-weight: 700; font-size: 14px; }
+  .warn { font-size: 12px; line-height: 1.5; color: #ffc9d6; }
+  .err { color: #ff9db1; font-size: 13px; white-space: pre-wrap; }
+  .ok { color: #9be7b4; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎮 Стенд задержки «телефон-джойстик»</h1>
+  <p class="sub">Прототип к режиму «экран + джойстик» для Candy Kingdom Coaster. Замерить задержку
+  нажатие → экран на ваших двух телефонах с VPN и решить по цифрам: хватит Firebase или нужен WebRTC.
+  В игру стенд не встроен. Инструкция по бесплатному Firebase — в файле README рядом.</p>
+
+  <section class="card" id="card-config">
+    <h2>1. Подключение к Firebase (или демо без него)</h2>
+    <textarea id="cfg" placeholder='Вставьте firebaseConfig из консоли Firebase, например:
+{
+  "apiKey": "…",
+  "authDomain": "…",
+  "databaseURL": "https://ВАШ-ПРОЕКТ-default-rtdb.europe-west1.firebasedatabase.app",
+  "projectId": "…"
+}'></textarea>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="btn-cfg">Подключить Firebase</button>
+      <button type="button" id="btn-demo" class="secondary">Демо в двух вкладках (без Firebase)</button>
+    </div>
+    <p id="cfg-status" class="ok"></p>
+    <p id="cfg-error" class="err"></p>
+    <p class="warn">⚠️ Стенд — только для замера. Правила базы для него открыты «по коду комнаты»:
+    не публикуйте ссылку на стенд с боевым проектом и удалите тестовую базу после замеров.</p>
+  </section>
+
+  <section class="card hidden" id="card-role">
+    <h2>2. Кто этот телефон?</h2>
+    <div class="row">
+      <button type="button" id="btn-host">📺 Экран (создать комнату)</button>
+      <button type="button" id="btn-join">🕹 Джойстик (ввести код)</button>
+    </div>
+  </section>
+
+  <section class="card hidden" id="card-host">
+    <h2>📺 Экран — комната</h2>
+    <div class="code" id="room-code">------</div>
+    <p class="sub" style="text-align:center">Введите этот код на телефоне-джойстике</p>
+    <div class="steer-view">
+      <div class="steer-arrow" id="view-left">◀</div>
+      <div class="steer-arrow" id="view-right">▶</div>
+    </div>
+    <p class="sub" id="host-link" style="text-align:center">Ожидание джойстика…</p>
+  </section>
+
+  <section class="card hidden" id="card-join">
+    <h2>🕹 Джойстик — подключение</h2>
+    <div class="row">
+      <input type="text" id="join-code" inputmode="numeric" maxlength="6" placeholder="Код комнаты, 6 цифр" style="flex:2">
+      <button type="button" id="btn-join-go">Войти</button>
+    </div>
+    <p class="sub" id="join-status"></p>
+  </section>
+
+  <section class="card hidden" id="card-joy">
+    <h2>🕹 Джойстик — руль</h2>
+    <div class="joy-btns">
+      <button type="button" class="joy-btn" id="joy-left" aria-pressed="false">◀</button>
+      <button type="button" class="joy-btn" id="joy-right" aria-pressed="false">▶</button>
+    </div>
+    <p class="sub" style="text-align:center; margin-top:8px">Работают касания (и обе кнопки сразу), мышь и стрелки ← →</p>
+  </section>
+
+  <section class="card">
+    <h2>📊 Замеры</h2>
+    <div class="stats">
+      <span>Задержка события (последняя):</span><b id="st-event">—</b>
+      <span>Пинг-понг RTT, медиана:</span><b id="st-rtt">—</b>
+      <span>В одну сторону ≈ RTT/2, медиана:</span><b id="st-oneway">—</b>
+      <span>В одну сторону, p95:</span><b id="st-p95">—</b>
+      <span>Замеров пинга:</span><b id="st-n">0</b>
+      <span>Сообщений отправлено / получено:</span><b id="st-msgs">0 / 0</b>
+      <span>Трафик ≈, отправлено / получено:</span><b id="st-bytes">0 Б / 0 Б</b>
+    </div>
+    <div class="verdict idle" id="verdict" style="margin-top:12px">Соберите хотя бы 5 замеров пинга — появится вердикт</div>
+  </section>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const els = {
+  cfg: $('cfg'), cfgStatus: $('cfg-status'), cfgError: $('cfg-error'),
+  cardRole: $('card-role'), cardHost: $('card-host'), cardJoin: $('card-join'), cardJoy: $('card-joy'),
+  roomCode: $('room-code'), viewLeft: $('view-left'), viewRight: $('view-right'), hostLink: $('host-link'),
+  joinCode: $('join-code'), joinStatus: $('join-status'),
+  joyLeft: $('joy-left'), joyRight: $('joy-right'),
+  event: $('st-event'), rtt: $('st-rtt'), oneway: $('st-oneway'), p95: $('st-p95'),
+  n: $('st-n'), msgs: $('st-msgs'), bytes: $('st-bytes'), verdict: $('verdict'),
+};
+
+const state = {
+  transport: null, // 'firebase' | 'demo'
+  role: null,      // 'host' | 'joy'
+  room: null,
+  steer: { l: false, r: false },
+  seq: 0,
+  sent: 0, received: 0, sentBytes: 0, receivedBytes: 0,
+  rttSamples: [],          // последние 30 RTT, мс
+  pendingPing: null,       // {id, t0}
+  pingSeq: 0,
+  lastEventLag: null,
+  medianOneWay: null,
+};
+
+const countMsg = (dir, payload) => {
+  const bytes = new Blob([JSON.stringify(payload ?? '')]).size;
+  if (dir === 'out') { state.sent++; state.sentBytes += bytes; } else { state.received++; state.receivedBytes += bytes; }
+  renderStats();
+};
+const fmtBytes = (b) => b < 1024 ? `${b} Б` : `${(b / 1024).toFixed(1)} КБ`;
+const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
+const p95 = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * 0.95))] : null; };
+
+function renderStats() {
+  const med = median(state.rttSamples), p = p95(state.rttSamples);
+  state.medianOneWay = med === null ? null : med / 2;
+  els.event.textContent = state.lastEventLag === null ? '—' : `${Math.round(state.lastEventLag)} мс`;
+  els.rtt.textContent = med === null ? '—' : `${Math.round(med)} мс`;
+  els.oneway.textContent = med === null ? '—' : `${Math.round(med / 2)} мс`;
+  els.p95.textContent = p === null ? '—' : `${Math.round(p / 2)} мс`;
+  els.n.textContent = String(state.rttSamples.length);
+  els.msgs.textContent = `${state.sent} / ${state.received}`;
+  els.bytes.textContent = `${fmtBytes(state.sentBytes)} / ${fmtBytes(state.receivedBytes)}`;
+  const v = els.verdict;
+  if (state.rttSamples.length < 5 || med === null) {
+    v.className = 'verdict idle'; v.textContent = 'Соберите хотя бы 5 замеров пинга — появится вердикт';
+  } else if (med / 2 <= 300) {
+    v.className = 'verdict good';
+    v.textContent = `✅ Медиана в одну сторону ≈ ${Math.round(med / 2)} мс — играбельно на Firebase, WebRTC не нужен`;
+  } else if (med / 2 <= 500) {
+    v.className = 'verdict mid';
+    v.textContent = `🟡 Медиана ≈ ${Math.round(med / 2)} мс — погранично: для этой игры сойдёт, но WebRTC будет приятнее`;
+  } else {
+    v.className = 'verdict bad';
+    v.textContent = `🔴 Медиана ≈ ${Math.round(med / 2)} мс — на Firebase будет заметно дёргано, нужен WebRTC`;
+  }
+}
+
+function setSteerView(l, r, fresh) {
+  els.viewLeft.classList.toggle('on', !!l);
+  els.viewRight.classList.toggle('on', !!r);
+  els.hostLink.textContent = fresh ? 'Джойстик на связи' : 'Нет связи с джойстиком — руль считается отпущенным';
+}
+
+// ---------------------------------------------------------------- transport
+class DemoTransport {
+  // Две вкладки одного браузера: BroadcastChannel, задержка ~0. Только проверка UI и логики.
+  constructor() {
+    this.kind = 'demo';
+    this.ch = new BroadcastChannel('ckc-joystick-stand');
+    this.handlers = {};
+    this.ch.onmessage = (e) => this._route(e.data);
+  }
+  _route(m) {
+    if (!m || m.room !== state.room) return;
+    if (m.kind === 'input' && this.handlers.input) { countMsg('in', m); this.handlers.input(m.state, Date.now()); }
+    if (m.kind === 'ping' && this.handlers.ping) { countMsg('in', m); this.handlers.ping(m.id); }
+    if (m.kind === 'pong' && this.handlers.pong) { countMsg('in', m); this.handlers.pong(m.id); }
+    if (m.kind === 'stats' && this.handlers.stats) { countMsg('in', m); this.handlers.stats(m.stats); }
+  }
+  send(kind2, payload) { countMsg('out', payload); this.ch.postMessage({ kind: kind2, room: state.room, ...payload }); }
+}
+
+class FirebaseTransport {
+  constructor(db, fns) { this.kind = 'firebase'; this.db = db; this.f = fns; this.handlers = {}; this.timeOffset = 0; }
+  roomRef(path) { return this.f.ref(this.db, `rooms/${state.room}${path || ''}`); }
+  async createRoom() {
+    await this.f.set(this.roomRef('/meta'), { created: this.f.serverTimestamp(), proto: 1 });
+    this.f.onDisconnect(this.roomRef()).remove();
+    this.f.onValue(this.f.ref(this.db, '.info/serverTimeOffset'), (s) => { this.timeOffset = s.val() || 0; });
+    this.f.onValue(this.roomRef('/input'), (s) => {
+      const v = s.val(); if (!v) return;
+      countMsg('in', v);
+      if (this.handlers.input) {
+        const lag = typeof v.sts === 'number' ? Math.max(0, Date.now() + this.timeOffset - v.sts) : null;
+        this.handlers.input({ l: !!v.l, r: !!v.r }, lag);
+      }
+    });
+    this.f.onValue(this.roomRef('/ping'), (s) => {
+      const v = s.val(); if (!v || v.id === this._lastPing) return;
+      this._lastPing = v.id; countMsg('in', v);
+      if (this.handlers.ping) this.handlers.ping(v.id);
+    });
+    this.f.onValue(this.roomRef('/stats'), (s) => {
+      const v = s.val(); if (!v) return;
+      countMsg('in', v);
+      if (this.handlers.stats) this.handlers.stats(v);
+    });
+  }
+  async joinRoom() {
+    this.f.onValue(this.f.ref(this.db, '.info/serverTimeOffset'), (s) => { this.timeOffset = s.val() || 0; });
+    this.f.onValue(this.roomRef('/pong'), (s) => {
+      const v = s.val(); if (!v) return;
+      countMsg('in', v);
+      if (this.handlers.pong) this.handlers.pong(v.id);
+    });
+  }
+  sendInput(st) {
+    const payload = { l: st.l ? 1 : 0, r: st.r ? 1 : 0, seq: ++state.seq, sts: this.f.serverTimestamp() };
+    countMsg('out', payload);
+    this.f.set(this.roomRef('/input'), payload).catch(() => {});
+  }
+  sendPing(id) { const p = { id }; countMsg('out', p); this.f.set(this.roomRef('/ping'), p).catch(() => {}); }
+  sendPong(id) { const p = { id }; countMsg('out', p); this.f.set(this.roomRef('/pong'), p).catch(() => {}); }
+  sendStats(stats) { countMsg('out', stats); this.f.set(this.roomRef('/stats'), stats).catch(() => {}); }
+  heartbeat() { /* Firebase: обновление sts показывает живость без смены руля */ this.sendInput(state.steer); }
+}
+
+let transport = null;
+let lastInputAt = 0;
+
+function bindHost() {
+  transport.handlers.input = (st, lag) => {
+    lastInputAt = Date.now();
+    if (typeof lag === 'number') state.lastEventLag = lag;
+    setSteerView(st.l, st.r, true);
+    renderStats();
+  };
+  transport.handlers.ping = (id) => {
+    if (transport.kind === 'demo') transport.send('pong', { id }); else transport.sendPong(id);
+  };
+  transport.handlers.stats = (stats) => {
+    // экран показывает медиану/p95, посчитанные джойстиком по пинг-понгу
+    if (typeof stats.rttMed === 'number') {
+      els.rtt.textContent = `${Math.round(stats.rttMed)} мс`;
+      els.oneway.textContent = `${Math.round(stats.rttMed / 2)} мс`;
+      state.medianOneWay = stats.rttMed / 2;
+    }
+    if (typeof stats.rttP95 === 'number') els.p95.textContent = `${Math.round(stats.rttP95 / 2)} мс`;
+    if (typeof stats.n === 'number') els.n.textContent = String(stats.n);
+    renderStatsKeepVerdict(stats);
+  };
+  setInterval(() => {
+    if (state.role === 'host' && Date.now() - lastInputAt > 1500) setSteerView(false, false, false);
+  }, 500);
+}
+function renderStatsKeepVerdict(stats) {
+  const med = typeof stats.rttMed === 'number' ? stats.rttMed / 2 : null;
+  const v = els.verdict;
+  if (med === null || (stats.n || 0) < 5) { v.className = 'verdict idle'; v.textContent = 'Соберите хотя бы 5 замеров пинга — появится вердикт'; return; }
+  if (med <= 300) { v.className = 'verdict good'; v.textContent = `✅ Медиана в одну сторону ≈ ${Math.round(med)} мс — играбельно на Firebase, WebRTC не нужен`; }
+  else if (med <= 500) { v.className = 'verdict mid'; v.textContent = `🟡 Медиана ≈ ${Math.round(med)} мс — погранично: для этой игры сойдёт, но WebRTC будет приятнее`; }
+  else { v.className = 'verdict bad'; v.textContent = `🔴 Медиана ≈ ${Math.round(med)} мс — на Firebase будет заметно дёргано, нужен WebRTC`; }
+}
+
+function bindJoy() {
+  transport.handlers.pong = (id) => {
+    if (!state.pendingPing || state.pendingPing.id !== id) return;
+    const rtt = performance.now() - state.pendingPing.t0;
+    state.pendingPing = null;
+    state.rttSamples.push(rtt);
+    if (state.rttSamples.length > 30) state.rttSamples.shift();
+    renderStats();
+    if (transport.kind === 'firebase') {
+      const med = median(state.rttSamples), p = p95(state.rttSamples);
+      transport.sendStats({ rttMed: med, rttP95: p, n: state.rttSamples.length, at: Date.now() });
+    }
+  };
+  const pingLoop = () => {
+    if (state.role !== 'joy' || document.hidden) return;
+    const id = ++state.pingSeq;
+    state.pendingPing = { id, t0: performance.now() };
+    if (transport.kind === 'demo') transport.send('ping', { id }); else transport.sendPing(id);
+  };
+  setInterval(pingLoop, 2000);
+  setInterval(() => { if (state.role === 'joy' && transport.kind === 'firebase') transport.heartbeat(); }, 5000);
+}
+
+function pushSteer() {
+  if (!transport || state.role !== 'joy') return;
+  if (transport.kind === 'demo') transport.send('input', { state: { ...state.steer } });
+  else transport.sendInput(state.steer);
+  els.joyLeft.classList.toggle('on', state.steer.l);
+  els.joyRight.classList.toggle('on', state.steer.r);
+  els.joyLeft.setAttribute('aria-pressed', String(state.steer.l));
+  els.joyRight.setAttribute('aria-pressed', String(state.steer.r));
+}
+
+// ---------------------------------------------------------------- Firebase boot
+function parseConfig(text) {
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Не нашёл объект конфига в тексте');
+  let t = m[0]
+    .replace(/\/\/.*$/gm, '')
+    .replace(/'([^']*)'/g, '"$1"')
+    .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
+    .replace(/,\s*([}\]])/g, '$1');
+  return JSON.parse(t);
+}
+
+async function bootFirebase(config) {
+  const appMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js');
+  const dbMod = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js');
+  const app = appMod.initializeApp(config);
+  const db = dbMod.getDatabase(app);
+  if (!config.databaseURL) throw new Error('В конфиге нет databaseURL — включите Realtime Database в проекте');
+  return new FirebaseTransport(db, dbMod);
+}
+
+$('btn-cfg').addEventListener('click', async () => {
+  els.cfgError.textContent = ''; els.cfgStatus.textContent = '';
+  try {
+    const config = parseConfig(els.cfg.value);
+    transport = await bootFirebase(config);
+    try { localStorage.setItem('ckc_stand_cfg', els.cfg.value); } catch { /* ignore */ }
+    els.cfgStatus.textContent = 'Firebase подключён. Выберите роль ниже.';
+    els.cardRole.classList.remove('hidden');
+  } catch (e) {
+    els.cfgError.textContent = 'Не удалось подключить Firebase: ' + (e && e.message ? e.message : e);
+  }
+});
+$('btn-demo').addEventListener('click', () => {
+  transport = new DemoTransport();
+  els.cfgError.textContent = '';
+  els.cfgStatus.textContent = 'Демо-режим: откройте эту же страницу во второй вкладке, один телефон — Экран, второй — Джойстик, код комнаты общий.';
+  els.cardRole.classList.remove('hidden');
+});
+
+$('btn-host').addEventListener('click', async () => {
+  if (!transport) return;
+  state.role = 'host';
+  state.room = String(Math.floor(100000 + Math.random() * 900000));
+  els.roomCode.textContent = state.room;
+  els.cardHost.classList.remove('hidden');
+  els.cardJoin.classList.add('hidden');
+  els.cardJoy.classList.add('hidden');
+  if (transport.kind === 'firebase') await transport.createRoom();
+  bindHost();
+});
+$('btn-join').addEventListener('click', () => {
+  els.cardJoin.classList.remove('hidden');
+  els.cardHost.classList.add('hidden');
+});
+$('btn-join-go').addEventListener('click', async () => {
+  if (!transport) return;
+  const code = els.joinCode.value.trim();
+  if (!/^\d{6}$/.test(code)) { els.joinStatus.textContent = 'Код — ровно 6 цифр, как на экране'; return; }
+  state.role = 'joy';
+  state.room = code;
+  if (transport.kind === 'firebase') await transport.joinRoom();
+  bindJoy();
+  pushSteer();
+  els.cardJoy.classList.remove('hidden');
+  els.joinStatus.textContent = `Подключено к комнате ${code}. Пинг считается каждые 2 секунды.`;
+});
+
+// ---------------------------------------------------------------- joystick input
+function bindJoyButton(el, side) {
+  const on = (e) => { e.preventDefault(); state.steer[side] = true; pushSteer(); };
+  const off = (e) => { e.preventDefault(); state.steer[side] = false; pushSteer(); };
+  el.addEventListener('pointerdown', on);
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
+  el.addEventListener('lostpointercapture', off);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+bindJoyButton(els.joyLeft, 'l');
+bindJoyButton(els.joyRight, 'r');
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') { state.steer.l = true; pushSteer(); }
+  if (e.key === 'ArrowRight') { state.steer.r = true; pushSteer(); }
+});
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft') { state.steer.l = false; pushSteer(); }
+  if (e.key === 'ArrowRight') { state.steer.r = false; pushSteer(); }
+});
+window.addEventListener('blur', () => { state.steer.l = false; state.steer.r = false; pushSteer(); });
+
+try {
+  const saved = localStorage.getItem('ckc_stand_cfg');
+  if (saved) els.cfg.value = saved;
+} catch { /* ignore */ }
+renderStats();
+
+// QA hooks (демо-режим): тесты гоняют две вкладки без настоящего Firebase.
+window.__STAND__ = {
+  state: () => ({ ...state, steer: { ...state.steer } }),
+  demo: () => { $('btn-demo').click(); },
+  host: () => $('btn-host').click(),
+  join: (code) => { els.joinCode.value = String(code); $('btn-join-go').click(); },
+  setSteer: (l, r) => { state.steer.l = !!l; state.steer.r = !!r; pushSteer(); },
+  room: () => state.room,
+  verdict: () => els.verdict.textContent,
+};
+</script>
+</body>
+</html>
