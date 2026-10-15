@@ -1,14 +1,14 @@
 // Visual metadata only: never part of the save schema or weighted item catalog.
 export const PRESENTATION = {
   camera: { rotation: [.10, -.28, 0] },
-  teacup: { rotation: [.28, -.24, 0], lamp: 5, rim: 7 },
+  teacup: { rotation: [.28, -.24, 0], lamp: 8, rim: 10 },
   watch: { rotation: [.08, -.24, -.08] },
   cassette: { rotation: [.10, -.20, -.04] },
-  duck: { rotation: [.10, -.34, 0], lamp: 5, rim: 7 },
+  duck: { rotation: [.10, -.34, 0], lamp: 8, rim: 10 },
   book: { rotation: [.07, -.30, -.04] },
   key: { rotation: [.08, -.24, -.12] },
   badge: { rotation: [.08, -.24, 0] },
-  record: { rotation: [.14, -.32, -.07], lamp: 16, lightPosition: [-1.7, .55, -1.6] },
+  record: { rotation: [.14, -.32, -.07], lamp: 23, lightPosition: [-1.7, .55, -1.6] },
   perfume: { rotation: [.09, -.30, 0] },
   horse: { rotation: [.08, -.30, 0] },
   compass: { rotation: [.12, -.23, -.07] },

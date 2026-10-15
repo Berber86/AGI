@@ -1,0 +1,56 @@
+{
+  "passed": true,
+  "shots": [
+    {
+      "name": "pose-teacup-back",
+      "note": "inspection, back pose",
+      "mean": null
+    },
+    {
+      "name": "pose-teacup-top",
+      "note": "inspection, top pose",
+      "mean": null
+    },
+    {
+      "name": "pose-teacup-bottom",
+      "note": "inspection, bottom pose",
+      "mean": null
+    },
+    {
+      "name": "collection-empty",
+      "note": "collection, nothing owned yet",
+      "mean": null
+    },
+    {
+      "name": "collection-full",
+      "note": "collection, 18/18 owned",
+      "mean": null
+    },
+    {
+      "name": "collection-junk",
+      "note": "collection, junk filter",
+      "mean": null
+    },
+    {
+      "name": "reveal-0.05",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-0.3",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-0.45",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-0.7",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-1",
+      "note": "reveal sequence, real motion"
+    }
+  ],
+  "errors": []
+}

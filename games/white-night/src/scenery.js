@@ -69,14 +69,15 @@ export function addCourtyardDetails(g,scene){
   torus(g,.56,.015,[2.5,.033,2.5],M.rust,[Math.PI/2,0,0]);torus(g,.62,.014,[2.5,.033,2.5],M.silver,[Math.PI/2,0,0]);
   for(let i=-5;i<=5;i++){const len=Math.sqrt(.52**2-(i*.085)**2)*2;box(g,[len,.012,.018],[2.5,.04,2.5+i*.085],M.black,.003);}
   for(const x of [2.23,2.77])box(g,[.05,.01,.11],[x,.049,2.5],M.black,.005);
-  // Dim warm fixtures contrast with cool white-night skylight, no flashing.
-  const bulb=new THREE.MeshStandardMaterial({color:0xffda94,emissive:0xffad52,emissiveIntensity:3,roughness:.35});
+  // Warm sodium fixtures against the cold white-night skylight. Emissive carries the
+  // glow; the point light only spreads it, so the light count stays fixed.
+  const bulb=new THREE.MeshStandardMaterial({color:0xffd894,emissive:0xffab4e,emissiveIntensity:6.5,roughness:.35});
   for(const x of [-5.35,-2.26]){
-    box(g,[.09,.38,.14],[x,2.49,-6.43],iron,.02);
-    cyl(g,.018,.018,.42,[x,2.78,-6.22],iron,[Math.PI/2,0,0],12);
-    cyl(g,.19,.09,.12,[x,2.7,-6.03],iron,[0,0,0],32);
-    ball(g,[.085,.14,.085],[x,2.56,-6.03],bulb);
-    const glow=new THREE.PointLight(0xffbf77,1.5,3.5,2);glow.position.set(x,2.48,-5.97);scene.add(glow);
+   box(g,[.09,.38,.14],[x,2.49,-6.43],iron,.02);
+   cyl(g,.018,.018,.42,[x,2.78,-6.22],iron,[Math.PI/2,0,0],12);
+   cyl(g,.19,.09,.12,[x,2.7,-6.03],iron,[0,0,0],32);
+   ball(g,[.085,.14,.085],[x,2.56,-6.03],bulb);
+   const glow=new THREE.PointLight(0xffb266,2.4,4.2,2);glow.position.set(x,2.48,-5.97);scene.add(glow);
   }
   // Old steps and worn threshold at the passage.
   box(g,[2.26,.11,.46],[-3.8,.038,-6.13],stone,.025);

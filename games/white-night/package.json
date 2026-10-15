@@ -21,7 +21,10 @@
     "test:scene": "node tests/scene-review.mjs",
     "test:reveal": "node tests/reveal.mjs",
     "test:landscape": "node tests/landscape.mjs",
-    "test:poses": "node tests/poses.mjs"
+    "test:poses": "node tests/poses.mjs",
+    "test:audit": "node tests/audit-thumbnails.mjs && node tests/audit-tone.mjs && node tests/audit-flat-poses.mjs && node tests/audit-quality-diff.mjs",
+    "audit:capture": "node tests/audit-capture.mjs",
+    "audit:sheets": "node tests/audit-sheets.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
