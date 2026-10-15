@@ -46,3 +46,8 @@ User: «Хорошо, делай ещё 3 итерации». Continue approved 
 
 - **Decision:** После мини-брейншторма (сценарий «один игрок, два телефона», подключение 6-значным кодом, вердикт по цифрам) утверждён и собран стенд `games/candy-kingdom-coaster/joystick-stand/`: Firebase RTDB событиями + пинг-понг медиана/p95, критерий 300 мс, демо-режим без Firebase. В игру режим пока не встраивается.
 - **Evidence:** `tests/tools/joystickqa.mjs` 7/7 (демо-транспорт), `tests/evidence/joystick-stand.png`. Firebase-путь ждёт замера на устройствах пользователя.
+
+## 2026-10-15 — Замер задержки джойстика: Firebase достаточно, WebRTC не нужен
+
+- **Decision:** По замерам пользователя (два телефона через VPN): RTT медиана 295 мс, в одну сторону медиана 148 мс, p95 225 мс, 30 замеров — критерий «медиана ≤ 300 мс» пройден с двукратным запасом. Транспорт будущего режима «экран + джойстик» — Firebase Realtime Database; WebRTC отложен.
+- **Evidence:** `games/candy-kingdom-coaster/JOYSTICK_BRAINSTORM.md`, стенд `joystick-stand/`.
