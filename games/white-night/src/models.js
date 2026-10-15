@@ -111,7 +111,7 @@ function camera(g){
 
 function teacup(g){
   const pts=[[0,-.53],[.24,-.53],[.27,-.5],[.27,-.45],[.31,-.43],[.37,-.34],[.43,-.18],[.49,.08],[.53,.33],[.53,.38],[.508,.38],[.495,.31],[.454,.08],[.397,-.17],[.33,-.34],[.23,-.416],[0,-.416]];
-  lathe(g,pts,M.cream);torus(g,.519,.006,[0,.377,0],M.gold,[Math.PI/2,0,0]);torus(g,.259,.006,[0,-.489,0],M.gold,[Math.PI/2,0,0]);
+  lathe(g,pts,M.cream);torus(g,.531,.007,[0,.377,0],M.gold,[Math.PI/2,0,0]);torus(g,.272,.006,[0,-.489,0],M.gold,[Math.PI/2,0,0]);
   tube(g,[[.49,.23,0],[.72,.25,0],[.81,.08,0],[.73,-.19,0],[.412,-.25,0]],.036,M.cream);
   tube(g,[[.50,.25,.025],[.72,.27,.025],[.815,.075,.025],[.72,-.21,.025],[.412,-.26,.025]],.004,M.gold);
   // Underglaze paint follows the exterior lathe, never a cage of blue tubes.
@@ -192,6 +192,7 @@ function duck(g){
     [.25,.04,0,.18,.25,.17,-.2],[.31,.23,0,.15,.25,.16,-.2],
     [.36,.36,0,.215,.19,.18],[-.50,.02,0,.16,.09,.14,-.3],
   ],M.cream,44),M.cream,g);
+  for(const f of [-1,0,1]){const feather=ball(g,[.14,.045,.05],[-.56,.09+f*.012,f*.055],M.cream);feather.rotation.z=.5;feather.rotation.y=f*.35;}
   const beak=new THREE.Shape();beak.moveTo(.51,.38);beak.lineTo(.68,.34);beak.quadraticCurveTo(.74,.31,.66,.30);beak.lineTo(.51,.31);beak.closePath();
   extrude(g,beak,.13,M.gold,[0,0,-.065],[0,0,0],.008);
   for(const side of [-1,1]){
@@ -272,9 +273,9 @@ function record(g){
 function perfume(g){
   const crystal=new THREE.MeshPhysicalMaterial({color:0xf7f4e9,transmission:.96,roughness:.045,ior:1.48,thickness:.08,attenuationColor:0xf2d7a4,attenuationDistance:3,clearcoat:.3,envMapIntensity:.65});
   const bottle=lathe(g,[[0,-.55],[.3,-.55],[.36,-.47],[.36,.16],[.29,.31],[.095,.41],[.095,.54],[.067,.54],[.067,.39],[.26,.26],[.31,.12],[.31,-.45],[0,-.45]],crystal,[0,0,0],8);
-  const liquid=new THREE.MeshStandardMaterial({color:0xa96017,roughness:.22,metalness:0});cyl(g,.294,.294,.19,[0,-.345,0],liquid,[0,0,0],8);
+  const liquid=new THREE.MeshPhysicalMaterial({color:0xc07f26,roughness:.12,transmission:.55,thickness:.35,ior:1.36,transparent:true,opacity:.92});cyl(g,.294,.294,.19,[0,-.345,0],liquid,[0,0,0],8);
   cyl(g,.11,.11,.16,[0,.49,0],M.gold,[0,0,0]);knurl(g,.112,.1,[0,.49,0],28,M.gold,'y');
-  lathe(g,[[0,.55],[.12,.55],[.2,.64],[.16,.85],[.1,.94],[0,.94]],crystal,[0,0,0],8);
+  lathe(g,[[0,.55],[.10,.55],[.165,.63],[.125,.82],[.065,.93],[0,.93]],crystal,[0,0,0],8);
   decal(g,.38,.38,[0,-.085,.364],(c,w,h,r)=>{c.fillStyle='#e0c991';c.fillRect(0,0,w,h);c.strokeStyle='#84713f';c.lineWidth=8;c.strokeRect(16,16,w-32,h-32);c.fillStyle='#594b30';c.textAlign='center';c.font=`${w*.12}px Georgia`;c.fillText('ДУХИ',w/2,h*.28);c.font=`italic ${w*.16}px Georgia`;c.fillText('Белая ночь',w/2,h*.55);c.font=`${w*.06}px Georgia`;c.fillText('ЛЕНИНГРАД · 1965',w/2,h*.81);distress(c,w,h,r,1800);});
   bottle.rotation.y=Math.PI/8;
 }
@@ -325,17 +326,18 @@ function bottle(g){
 function can(g){
   const tin=M.silver.clone();tin.roughness=.46;
   lathe(g,[[.415,-.42],[.439,-.41],[.444,-.375],[.425,-.35],[.425,.32],[.444,.35],[.444,.388],[.418,.397],[.406,.378],[.406,-.36],[0,-.36]],tin);
-  for(let i=0;i<7;i++)torus(g,.431,.01,[0,-.28+i*.089,0],tin,[Math.PI/2,0,0]);
+  for(let i=0;i<7;i++)torus(g,.428,.006,[0,-.28+i*.089,0],tin,[Math.PI/2,0,0]);
   cyl(g,.404,.404,.015,[0,-.347,0],M.rust,[0,0,0]);
   const top=new THREE.Group();top.position.set(0,.386,-.365);top.rotation.x=-.68;g.add(top);
   cyl(top,.421,.421,.012,[0,0,.365],tin,[0,0,0]);torus(top,.397,.008,[0,.01,.365],tin,[Math.PI/2,0,0]);
   torus(top,.111,.022,[0,.025,.45],tin,[Math.PI/2,0,0]);box(top,[.067,.025,.11],[0,.028,.33],tin,.015);
+  decal(g,.4,.39,[0,-.03,.427],(c,w,h,r)=>{c.fillStyle='#d8d2ba';c.beginPath();c.moveTo(14,10);c.lineTo(w*.8,0);c.lineTo(w,h*.62);c.lineTo(w*.66,h);c.lineTo(0,h*.8);c.closePath();c.fill();c.fillStyle='#37455e';c.textAlign='center';c.font=`bold ${w*.11}px Georgia`;c.fillText('КОНСЕРВЫ',w/2,h*.42);c.font=`${w*.06}px Arial`;c.fillText('МОЛОЧНЫЕ',w/2,h*.58);distress(c,w,h,r,2600);});
   // Remains of a paper label on the reverse side.
   decal(g,.42,.41,[0,-.02,-.427],(c,w,h,r)=>{c.fillStyle='#998459';c.beginPath();c.moveTo(20,0);c.lineTo(w*.75,0);c.lineTo(w,h*.5);c.lineTo(w*.7,h);c.lineTo(0,h*.7);c.closePath();c.fill();c.fillStyle='#71523c';c.font=`bold ${w*.15}px Georgia`;c.fillText('ГОСТ',w*.13,h*.46);distress(c,w,h,r,2400);},[0,Math.PI,0]);
 }
 
 function cup(g){
-  const map=canvasTexture((c,w,r,h)=>{c.fillStyle='#d6c5a0';c.fillRect(0,0,w,h);c.fillStyle='#6b4934';c.fillRect(0,h*.28,w,h*.37);c.fillStyle='#e6d1aa';c.textAlign='center';c.font=`bold ${h*.15}px Georgia`;c.fillText('КОФЕ',w/2,h*.51);c.fillStyle='#6d533b';c.font=`${h*.055}px Arial`;c.fillText('ПЕТЕРБУРГ НЕ СПИТ',w/2,h*.81);distress(c,w,h,r,1500);c.fillStyle='rgba(105,63,28,.20)';c.beginPath();c.ellipse(w*.30,h*.13,w*.09,h*.028,.2,0,TAU);c.fill();},768,768);
+  const map=canvasTexture((c,w,r,h)=>{c.fillStyle='#d6c5a0';c.fillRect(0,0,w,h);c.fillStyle='#6b4934';c.fillRect(0,h*.28,w,h*.37);c.fillStyle='#e6d1aa';c.textAlign='center';c.font=`bold ${h*.115}px Georgia`;c.fillText('КОФЕ',w*.24,h*.50);c.fillStyle='#6d533b';c.font=`${h*.04}px Arial`;c.fillText('ПЕТЕРБУРГ НЕ СПИТ',w*.24,h*.81);distress(c,w,h,r,1500);c.fillStyle='rgba(105,63,28,.20)';c.beginPath();c.ellipse(w*.30,h*.13,w*.09,h*.028,.2,0,TAU);c.fill();},768,768);
   const paper=new THREE.MeshStandardMaterial({map,roughness:.98,side:THREE.DoubleSide,bumpMap:M.paper.bumpMap,bumpScale:.009});
   const geo=new THREE.CylinderGeometry(.36,.235,.88,64,24,true);const pos=geo.attributes.position;
   for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i);const a=Math.atan2(z,x);const dent=1-.22*Math.exp(-Math.pow((y-.04)*5,2))*(.5+.5*Math.cos(a*3));const crease=.022*Math.sin(a*8+y*18);pos.setXYZ(i,x*dent+crease,y,z*dent);}

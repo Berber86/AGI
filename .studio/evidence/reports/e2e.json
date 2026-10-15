@@ -25,17 +25,17 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 83,
-      "triangles": 170334,
-      "geometries": 168,
-      "textures": 80,
+      "drawCalls": 85,
+      "triangles": 181684,
+      "geometries": 170,
+      "textures": 83,
       "models": 18,
       "postprocessing": false,
       "zoom": 1,
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 45.248484848484836,
+      "meanFrameMs": 60.74141414141478,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -50,17 +50,17 @@
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 69,
-      "triangles": 127684,
-      "geometries": 77,
-      "textures": 35,
+      "drawCalls": 70,
+      "triangles": 139032,
+      "geometries": 79,
+      "textures": 37,
       "models": 1,
       "postprocessing": false,
       "zoom": 1,
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 491.5166666666658,
+      "meanFrameMs": 533.1999999999998,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -99,13 +99,13 @@
       "bounds": {
         "min": [
           -1.05,
-          -0.6989514847354331,
-          -0.809809095719592
+          -0.6965811869091828,
+          -0.8155835862136505
         ],
         "max": [
           1.05,
-          0.6989514847354331,
-          0.809809095719592
+          0.6965811869091828,
+          0.8155835862136505
         ]
       }
     },
@@ -145,18 +145,18 @@
     },
     {
       "id": "duck",
-      "modeledParts": 16,
+      "modeledParts": 19,
       "materialBatches": 4,
       "bounds": {
         "min": [
           -1.05,
-          -0.7576240442760827,
-          -0.489777616077014
+          -0.7433991782493105,
+          -0.4805817345256775
         ],
         "max": [
           1.05,
-          0.7576240442760827,
-          0.489777616077014
+          0.7433991782493105,
+          0.4805817345256775
         ]
       }
     },
@@ -234,14 +234,14 @@
       "materialBatches": 4,
       "bounds": {
         "min": [
-          -0.468760389809574,
+          -0.47192768667932866,
           -1.05,
-          -0.4908902551686828
+          -0.4942070780112025
         ],
         "max": [
-          0.468760389809574,
+          0.47192768667932866,
           1.05,
-          0.4908902551686828
+          0.4942070780112025
         ]
       }
     },
@@ -298,8 +298,8 @@
     },
     {
       "id": "can",
-      "modeledParts": 14,
-      "materialBatches": 3,
+      "modeledParts": 15,
+      "materialBatches": 4,
       "bounds": {
         "min": [
           -0.7145319914877832,
@@ -383,7 +383,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6648425,
+    "totalBytes": 6652778,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -406,12 +406,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-DcVNAVlF.css",
-        "bytes": 29069
+        "file": "assets/index-DRS1NPCf.css",
+        "bytes": 29339
       },
       {
-        "file": "assets/index-DchKPt5I.js",
-        "bytes": 662376
+        "file": "assets/index-ONdac4sw.js",
+        "bytes": 666488
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -483,7 +483,7 @@
       },
       {
         "file": "sw.js",
-        "bytes": 1741
+        "bytes": 1712
       }
     ]
   },

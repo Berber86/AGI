@@ -53,12 +53,14 @@ const roughMetal=metal.clone();roughMetal.colorSpace=THREE.NoColorSpace;
 const leatherBump=leather.clone();leatherBump.colorSpace=THREE.NoColorSpace;
 const paperBump=grain.clone();paperBump.colorSpace=THREE.NoColorSpace;
 const corrosion=canvasTexture((c,s,r)=>{
-  c.fillStyle='#68513c';c.fillRect(0,0,s,s);
+  // Rust reads as matte grey-brown with localised orange blooms. A warm orange
+  // base under a warm lamp made every rusty part look like polished copper.
+  c.fillStyle='#46382c';c.fillRect(0,0,s,s);
   for(let i=0;i<35;i++){
     const x=r()*s,y=r()*s,rad=12+r()*85;
-    const g=c.createRadialGradient(x,y,0,x,y,rad);g.addColorStop(0,i%2?'#a96d36':'#3e4037');g.addColorStop(1,'#68513c00');c.fillStyle=g;c.fillRect(x-rad,y-rad,rad*2,rad*2);
+    const g=c.createRadialGradient(x,y,0,x,y,rad);g.addColorStop(0,i%2?'#6e4525':'#33382f');g.addColorStop(1,'#46382c00');c.fillStyle=g;c.fillRect(x-rad,y-rad,rad*2,rad*2);
   }
-  for(let i=0;i<23000;i++){c.fillStyle=['#6d3f22','#9a6b3c','#473a28','#b48b57','#2e3930'][i%5];c.globalAlpha=.10;c.fillRect(r()*s,r()*s,1+r()*4,1+r()*3);}
+  for(let i=0;i<23000;i++){c.fillStyle=['#59371f','#7a5a34','#3a3126','#86643c','#2c332c'][i%5];c.globalAlpha=.10;c.fillRect(r()*s,r()*s,1+r()*4,1+r()*3);}
 });
 export const materials={
   black:new THREE.MeshStandardMaterial({color:0x19211f,roughness:.42,metalness:.38,map:metal,bumpMap:roughMetal,bumpScale:.004}),
@@ -73,7 +75,7 @@ export const materials={
   lens:new THREE.MeshPhysicalMaterial({color:0x142c37,roughness:.055,metalness:.38,clearcoat:1,iridescence:.75,iridescenceIOR:1.3,iridescenceThicknessRange:[250,440]}),
   paper:new THREE.MeshStandardMaterial({color:0xe1d2ae,map:grain,roughness:.96,bumpMap:paperBump,bumpScale:.006,side:THREE.DoubleSide}),
   red:new THREE.MeshStandardMaterial({color:0x6d2528,map:cloth,roughness:.82,bumpMap:cloth,bumpScale:.009}),
-  rust:new THREE.MeshStandardMaterial({map:corrosion,roughness:.89,metalness:.36,bumpMap:paperBump,bumpScale:.022}),
+  rust:new THREE.MeshStandardMaterial({map:corrosion,roughness:.92,metalness:.08,bumpMap:paperBump,bumpScale:.022}),
   rubber:new THREE.MeshStandardMaterial({color:0x151b18,roughness:.88,bumpMap:leatherBump,bumpScale:.008}),
   copper:new THREE.MeshStandardMaterial({color:0xb87746,map:metal,roughness:.37,metalness:.9}),
 };
