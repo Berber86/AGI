@@ -19,7 +19,7 @@ export const PRESENTATION = {
   lid: { rotation: [.15, -.28, 0], flat: true, lamp: 21, rim: 22 },
   paper: { rotation: [.06, -.18, -.04], flat: true, lamp: 9, rim: 9 },
 };
-export const ZOOM = { min: .85, max: 1.65 };
+export const ZOOM = { min: .85, max: 1.35 };
 
 export function inspectionRect(width, height, safeTop = 0, safeBottom = 0) {
   if (height <= 520 && width > 650) {
