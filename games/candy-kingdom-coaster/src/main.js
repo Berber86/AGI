@@ -18,6 +18,8 @@ import { createBridge } from './bridge.js';
 import { createTunnel } from './tunnel.js';
 import { createCakes } from './cakes.js';
 import { createForks } from './forks.js';
+import { createLandmarks } from './landmarks.js';
+import { createAmbient } from './ambient.js';
 import { MUSIC } from './music.js';
 import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
@@ -67,10 +69,12 @@ const tunnel = createTunnel(scene, track, TEX); // chocolate Swiss-roll tunnel (
 const cakes = createCakes(scene, track, TEX); // uphill cake → sky bridge → downhill cake
 await document.fonts.ready;
 const forks = createForks(scene, track, TEX);
+const landmarks = createLandmarks(scene, track, TEX);
+const ambient = createAmbient(scene, track);
 setLoading(70, 0, 'Расставляем сладости…');
 await paintLoading();
 // Keep the water, tunnel and elevated cake roads free of ordinary props.
-const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) || cakes.blocks(x, z) || forks.blocks(x, z) });
+const world = createWorld(scene, track, renderer, TEX, { blocks: (x, z) => bridge.blocks(x, z) || tunnel.blocks(x, z) || cakes.blocks(x, z) || forks.blocks(x, z) || landmarks.blocks(x, z) });
 setLoading(78, 1, 'Лили пристёгивается…');
 await paintLoading();
 const car = createCar({ renderer, TEX });
@@ -555,6 +559,8 @@ function updateGameplay(dt) {
     const knocked = world.update(dt, camera.position, game.s / track.length, performance.now() * 0.001, -1, 0);
     bridge.update(dt, performance.now() * 0.001);
     tunnelTick(dt, game.s);
+    ambient.update(dt, camera.position, game.s / track.length, 0, Math.max(tunnel.darkness(game.s), forks.darkness(game.s)));
+    landmarks.update(dt);
     finishFx.update(dt);
     if (game.introT >= T && game.state === 'intro') beginCountdown();
     return;
@@ -752,6 +758,8 @@ function updateGameplay(dt) {
   const knocked = world.update(dt, camera.position, u, performance.now() * 0.001, game.s, game.lateral);
   bridge.update(dt, performance.now() * 0.001);
   tunnelTick(dt, game.s);
+  ambient.update(dt, camera.position, u, game.speed, Math.max(tunnel.darkness(game.s), forks.darkness(game.s)));
+  landmarks.update(dt);
   if (knocked > 0) { SFX.play('knock'); HAPTIC.buzz(28); }
   finishFx.update(dt);
   // driving sound layer follows speed
@@ -788,6 +796,8 @@ function frame(now, dt) {
     world.update(dt, camera.position, 0.01, now * 0.001);
     bridge.update(dt, now * 0.001);
     tunnelTick(dt, 12);
+    ambient.update(dt, camera.position, 12 / track.length, 0, 0);
+    landmarks.update(dt);
     // the attract scene MUST render too — otherwise the menu card floats on a
     // black void instead of the living candy world behind it
     if ((qaNoGovernor ? qaForceRender : governor.frame(dt) || qaForceRender)) composer.render();
@@ -896,10 +906,12 @@ window.__TEST__ = {
     return { state: game.state, timeS: +game.timeS.toFixed(2), speedKmh: +(game.speed * 3.6).toFixed(1), lateral: +game.lateral.toFixed(2) };
   },
   // perf QA: raw handles for in-page draw-call profiling (tests/tools/drawprof.mjs)
-  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel, cakes, forks, ramps, sweets }; },
+  internals() { return { renderer, scene, camera, composer, world, car, governor, track, tunnel, cakes, forks, ramps, sweets, landmarks, ambient }; },
   forks() { return track.routes.forks.map((f) => ({ id: f.id, s0: f.s0, s1: f.s1, selected: f.selected, pending: f.pending,
     routes: f.branches.map((b) => ({ id: b.id, title: b.title, length: b.length, kind: b.kind })) })); },
   chooseFork(id, option) { track.routes.select(id, option); },
+  // Zone-aware air layers: which one is visible and how strong (QA + tuning).
+  ambient() { return ambient.info(); },
   tunnelInfo() {
     return { range: tunnel.range, k: tunnelK, spot: car.headSpot.intensity, hemi: world.hemi.intensity, sun: world.sun.intensity, ...tunnel.info() };
   },

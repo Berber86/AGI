@@ -158,6 +158,37 @@ Historical v22 images (`fork-choice-*.webp`, `fork-star-tunnel.webp`,
 | 1 (s 115–335) | bear emblem gate → gumdrop hills, bouncing bears, cane arches | star emblem gate → dark crystal candy grotto with lit walls |
 | 2 (s 1503–1753) | cookie emblem gate → cookie canyon, chocolate chips, 1.4 m jump ramp | cloud emblem gate → cloud skyway, 5 rainbow arches, floating islands |
 
+### Iteration 1 (air + landmarks) — `src/ambient.js`, `src/landmarks.js`
+
+Built on the shared candy kit in `src/candykit.js` (geometry helpers extracted
+from `forks.js`, so nothing is duplicated between modules).
+
+- **Zone air** (`ambient.js`): four `Points` layers — confetti sprinkles, cocoa
+  canyon dust, cotton floss, castle glitter — one draw call each, weighted per
+  zone (`ZONES` order), wrapped in a 115 m box that follows the chase camera so
+  density does not scale with track length. Sprites fade out inside 1.2–2.6 m,
+  which is what lets them be big enough to read at 30 m. In the tunnel and the
+  grotto the daylight layers fade to `base · (1 − dark · 0.82)` while the
+  sparkles hold `max(base · (1 − dark · 0.45), dark · 0.8)`.
+- **Pennants** : six sagging flag lines with big pennants, candy-cane poles and
+  light toppers dress the full 65 m run-up to both forks (poles at
+  |lateral| 13.2 m, lines at 11.2 m). Environment only: no arrows, no letters.
+- **Chocolate plaza** (`s ≈ 1483`, |lateral| 22 m): a wafer platform with three
+  pouring chocolate bowls, caramel lamps, cocoa beans, wafers and a glowing
+  cocoa-cup sign, standing beside the road right after the Swiss-roll tunnel.
+- **Sky parade**: ten gore-striped balloons and four 19 m lollipop wheels the
+  road spirals past the two giant cakes (placement rejects anything closer than
+  62 m to the far cake axis or 30 m to the inter-cake bridge line).
+- Metrics after iteration 1: 592 meshes / 592 draw calls / 1.04 M tris,
+  `corridorScan(8)` **0 problems**, landmark scenery 39.4k triangles,
+  `perf()` tier 2, 0 page errors.
+- Evidence: `iter1-pennants.webp`, `iter1-chocolate-plaza.webp`,
+  `iter1-tunnel-exit.webp`, `iter1-sky-parade.webp`, `iter1-sky-spinner.webp`,
+  `iter1-cake-ascent.webp`, `iter1-air-meadows.webp`, plus the panels
+  `landmarks.webp` and `air-zones.webp`.
+- Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25
+  (cache `ckc-v25`), root unit tests 11/11.
+
 ### Known limitations
 
 - The suite runs Chromium/SwiftShader with touch emulation, not a physical
