@@ -1,0 +1,89 @@
+{
+  "passed": true,
+  "iteration": "7",
+  "checks": [
+    "Three real touch taps still hit the detailed bin",
+    "Low-quality path retains scene and interaction"
+  ],
+  "metrics": [
+    {
+      "w": 1280,
+      "h": 900,
+      "drawCalls": 139,
+      "triangles": 259744,
+      "geometries": 75,
+      "textures": 43,
+      "models": 0,
+      "postprocessing": true,
+      "zoom": 1,
+      "inspectionBounds": null,
+      "modelDetails": null,
+      "meanFrameMs": 16,
+      "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
+      "quality": "high"
+    },
+    {
+      "w": 412,
+      "h": 915,
+      "drawCalls": 131,
+      "triangles": 254930,
+      "geometries": 72,
+      "textures": 39,
+      "models": 0,
+      "postprocessing": true,
+      "zoom": 1,
+      "inspectionBounds": null,
+      "modelDetails": null,
+      "meanFrameMs": 16,
+      "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
+      "quality": "high"
+    },
+    {
+      "w": 360,
+      "h": 800,
+      "drawCalls": 131,
+      "triangles": 254930,
+      "geometries": 72,
+      "textures": 39,
+      "models": 0,
+      "postprocessing": true,
+      "zoom": 1,
+      "inspectionBounds": null,
+      "modelDetails": null,
+      "meanFrameMs": 16,
+      "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
+      "quality": "high"
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "SwiftShader screenshots do not establish physical Android FPS."
+  ]
+}

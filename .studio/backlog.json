@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Search, inspection and persistent collection vertical slice",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Three taps opens one find",
+        "Keep/discard/duplicate/restart reducer unit tests pass"
+      ],
+      "evidence": [
+        "games/white-night/tests/state.test.js",
+        ".studio/evidence/reports/core.json"
+      ]
+    },
+    {
+      "id": "ART-001",
+      "title": "Courtyard, bin, 18 object models and responsive UI",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "18 recognizable models",
+        "Portrait and desktop composition",
+        "In-world rotation and catalogue"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/desktop-final.png",
+        ".studio/evidence/screenshots/mobile-412-inspect.png",
+        ".studio/evidence/screenshots/mobile-360-junk.png"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Production browser, touch and persistence verification",
+      "ownerRole": "mobile-qa",
+      "status": "done",
+      "dependencies": [
+        "ART-001"
+      ],
+      "acceptanceCriteria": [
+        "Mobile screenshots at both required viewports",
+        "Console errors absent",
+        "Production offline and subpath tests",
+        "Keep/discard/review/reload/complete/reset assertions"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/reports/desktop.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Preview and documented static release",
+      "ownerRole": "release-manager",
+      "status": "done",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Live preview available",
+        "Known limitations and evidence recorded"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json",
+        "games/white-night/README.md"
+      ]
+    },
+    {
+      "id": "ART-002",
+      "title": "Second visual pass: PBR environment, contact shadows and detailed 18 finds",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "acceptanceCriteria": [
+        "Visually reviewed before/after courtyard and close-up models",
+        "All 18 models have detailed front and back surfaces",
+        "High and lightweight render paths work on mobile viewports",
+        "Bounded model/texture caches, no repeated-inspection GPU growth",
+        "Root catalog and static offline export kept functional"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/reports/art-v2.json",
+        ".studio/evidence/reports/catalog.json",
+        ".studio/evidence/screenshots/visual-v2/courtyard-desktop-final.png",
+        ".studio/evidence/screenshots/visual-v2/teacup-final.png"
+      ]
+    },
+    {
+      "id": "VISUAL-V3-1",
+      "title": "Inspection stage, perspective framing and neutral background",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "ART-002"
+      ],
+      "acceptanceCriteria": [
+        "Baseline fits portrait, desktop and landscape",
+        "Find not tinted by lower UI gradient"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3-1.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V3-2",
+      "title": "Priority cast models and material differentiation",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3-1"
+      ],
+      "acceptanceCriteria": [
+        "Duck cast has continuous neck",
+        "Cup paint follows surface",
+        "Bronze patina avoids UV stretching"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3-2.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V3-3",
+      "title": "Readable archive, display-encoded thumbnails and release checks",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3-2"
+      ],
+      "acceptanceCriteria": [
+        "All 18 baseline frames and caption clearances pass",
+        "Thumbnail output/color cache regression passes",
+        "Final catalog and desktop routes work",
+        "Tracked play export within 8 MB"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3-3.json",
+        "games/white-night/VISUAL_ITERATIONS.md",
+        ".studio/evidence/reports/visual-v3-thumbnails.json",
+        ".studio/evidence/reports/visual-v3-release.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V4-4",
+      "title": "Inhabited courtyard and localized bin wear",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3-3"
+      ],
+      "acceptanceCriteria": [
+        "Real rear-wall arch geometry",
+        "Deterministic varied window treatments",
+        "Asymmetric rubbish with aligned contact shadows"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4-4.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V4-5",
+      "title": "Individualized aging and highlight readability",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4-4"
+      ],
+      "acceptanceCriteria": [
+        "Deformations follow assembled labels and rims",
+        "Localized stains retain printed details",
+        "Targeted item framing and zoom regression"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4-5.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
+    },
+    {
+      "id": "VISUAL-V4-6",
+      "title": "Staged reveal, restrained feedback and static release",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4-5"
+      ],
+      "acceptanceCriteria": [
+        "Natural anticipation, silhouette and detail sequence",
+        "Reduced motion and owned review skip delay",
+        "All 18 models, saves, offline and static subpath regression",
+        "Final tracked play export under 8 MB"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4-6.json",
+        "games/white-night/VISUAL_ITERATIONS.md",
+        ".studio/evidence/reports/visual-v4-release.json",
+        ".studio/evidence/reports/visual-v4-6-reveal.json",
+        ".studio/evidence/reports/visual-v4-6-scene.json",
+        ".studio/evidence/reports/visual-v4-thumbnails.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V5-7",
+      "title": "Twilight light and courtyard planes",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4-6"
+      ],
+      "acceptanceCriteria": [
+        "Preserve 18 IDs and saved collection",
+        "Production screenshot/runtime check",
+        "No new audio or external assets"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v5-7-scene.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V5-8",
+      "title": "Coherent landscape inspection",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V5-7"
+      ],
+      "acceptanceCriteria": [
+        "Preserve 18 IDs and saved collection",
+        "Production screenshot/runtime check",
+        "No new audio or external assets"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v5-8-landscape.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V5-9",
+      "title": "Multi-angle framing and cavity inspection",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V5-8"
+      ],
+      "acceptanceCriteria": [
+        "Preserve 18 IDs and saved collection",
+        "Production screenshot/runtime check",
+        "No new audio or external assets"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v5-release.json",
+        ".studio/evidence/reports/visual-v5-9-poses.json",
+        ".studio/evidence/reports/visual-v5-9.json"
+      ]
+    }
+  ],
+  "updatedAt": "2026-10-15"
+}

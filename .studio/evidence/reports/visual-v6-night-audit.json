@@ -1,0 +1,261 @@
+{
+  "passed": true,
+  "shots": [
+    {
+      "name": "search-412",
+      "note": "courtyard, search phase, portrait",
+      "mean": null
+    },
+    {
+      "name": "search-360",
+      "note": "courtyard, search phase, narrow phone",
+      "mean": null
+    },
+    {
+      "name": "search-1280",
+      "note": "courtyard, search phase, desktop",
+      "mean": null
+    },
+    {
+      "name": "search-844",
+      "note": "courtyard, search phase, landscape phone",
+      "mean": null
+    },
+    {
+      "name": "item-camera",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-teacup",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-watch",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-cassette",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-duck",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-book",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-key",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-badge",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-record",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-perfume",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-horse",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-compass",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-bottle",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-can",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-cup",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-box",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-lid",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "item-paper",
+      "note": "inspection, authored pose",
+      "mean": null
+    },
+    {
+      "name": "pose-teacup-back",
+      "note": "inspection, back pose",
+      "mean": null
+    },
+    {
+      "name": "pose-teacup-top",
+      "note": "inspection, top pose",
+      "mean": null
+    },
+    {
+      "name": "pose-teacup-bottom",
+      "note": "inspection, bottom pose",
+      "mean": null
+    },
+    {
+      "name": "pose-can-back",
+      "note": "inspection, back pose",
+      "mean": null
+    },
+    {
+      "name": "pose-can-top",
+      "note": "inspection, top pose",
+      "mean": null
+    },
+    {
+      "name": "pose-can-bottom",
+      "note": "inspection, bottom pose",
+      "mean": null
+    },
+    {
+      "name": "pose-watch-back",
+      "note": "inspection, back pose",
+      "mean": null
+    },
+    {
+      "name": "pose-watch-top",
+      "note": "inspection, top pose",
+      "mean": null
+    },
+    {
+      "name": "pose-watch-bottom",
+      "note": "inspection, bottom pose",
+      "mean": null
+    },
+    {
+      "name": "pose-record-back",
+      "note": "inspection, back pose",
+      "mean": null
+    },
+    {
+      "name": "pose-record-top",
+      "note": "inspection, top pose",
+      "mean": null
+    },
+    {
+      "name": "pose-record-bottom",
+      "note": "inspection, bottom pose",
+      "mean": null
+    },
+    {
+      "name": "pose-duck-back",
+      "note": "inspection, back pose",
+      "mean": null
+    },
+    {
+      "name": "pose-duck-top",
+      "note": "inspection, top pose",
+      "mean": null
+    },
+    {
+      "name": "pose-duck-bottom",
+      "note": "inspection, bottom pose",
+      "mean": null
+    },
+    {
+      "name": "zoom-max-camera",
+      "note": "inspection, maximum zoom",
+      "mean": null
+    },
+    {
+      "name": "zoom-min-camera",
+      "note": "inspection, minimum zoom",
+      "mean": null
+    },
+    {
+      "name": "collection-empty",
+      "note": "collection, nothing owned yet",
+      "mean": null
+    },
+    {
+      "name": "collection-full",
+      "note": "collection, 18/18 owned",
+      "mean": null
+    },
+    {
+      "name": "collection-junk",
+      "note": "collection, junk filter",
+      "mean": null
+    },
+    {
+      "name": "settings",
+      "note": "settings dialog",
+      "mean": null
+    },
+    {
+      "name": "reveal-0.05",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-0.3",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-0.45",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-0.7",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "reveal-1",
+      "note": "reveal sequence, real motion"
+    },
+    {
+      "name": "search-412-low",
+      "note": "courtyard, low quality mode",
+      "mean": null
+    },
+    {
+      "name": "landscape-844-record",
+      "note": "inspection, landscape phone, 844x390",
+      "mean": null
+    },
+    {
+      "name": "landscape-740-record",
+      "note": "inspection, landscape phone, 740x360",
+      "mean": null
+    },
+    {
+      "name": "landscape-932-record",
+      "note": "inspection, landscape phone, 932x430",
+      "mean": null
+    }
+  ],
+  "errors": []
+}

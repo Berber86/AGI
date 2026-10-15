@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "checks": [
+    "Desktop mouse drag rotates the item",
+    "Desktop keep, collection review and Escape work",
+    "Adverse 844×390 landscape remains playable by touch without horizontal overflow"
+  ],
+  "errors": []
+}

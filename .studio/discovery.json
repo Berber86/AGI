@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 4,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "optionsUsed": true,
+      "answers": {
+        "atmosphere": "white-night",
+        "finds": "realistic",
+        "motivation": "collection"
+      }
+    },
+    {
+      "stage": 2,
+      "name": "play-experience",
+      "optionsUsed": true,
+      "answers": {
+        "search_rhythm": "rummage",
+        "collection_rules": "album",
+        "screen": "portrait"
+      }
+    },
+    {
+      "stage": 3,
+      "name": "presentation-and-scope",
+      "optionsUsed": true,
+      "answers": {
+        "first_release": "focused",
+        "inspection": "in-world",
+        "sound": "silent"
+      }
+    },
+    {
+      "stage": 4,
+      "name": "contract-lock",
+      "optionsUsed": true,
+      "answers": {
+        "approval": "approve-with-custom-edits",
+        "verbatim": "Утверждаю + 6 находок хлама типа бутылки или пустой консервной банки",
+        "totalFinds": 18,
+        "interestingFinds": 12,
+        "junkFinds": 6
+      }
+    }
+  ],
+  "answers": {
+    "atmosphere": "white-night",
+    "finds": "realistic",
+    "motivation": "collection",
+    "search_rhythm": "rummage",
+    "collection_rules": "album",
+    "screen": "portrait",
+    "first_release": "focused",
+    "inspection": "in-world",
+    "sound": "silent",
+    "approval": "approve-with-custom-edits",
+    "verbatim": "Утверждаю + 6 находок хлама типа бутылки или пустой консервной банки",
+    "totalFinds": 18,
+    "interestingFinds": 12,
+    "junkFinds": 6
+  },
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-14T17:20:06Z",
+  "updatedAt": "2026-10-14T17:29:22.525512+00:00"
+}

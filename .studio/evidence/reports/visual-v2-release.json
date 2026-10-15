@@ -1,0 +1,25 @@
+{
+  "revision": "visual-v2",
+  "generatedAt": "2026-10-14T20:37:40.494662+00:00",
+  "staticBytes": 6623961,
+  "sourceBudgetBytes": 8000000,
+  "unitTests": 7,
+  "rootTests": 15,
+  "mobileGroups": 17,
+  "all18ModelsTested": true,
+  "finalTargetedModels": [
+    "teacup",
+    "horse"
+  ],
+  "catalogPassed": true,
+  "knownLimits": [
+    "No real Android FPS validation",
+    "Generated/derived textures, not scans",
+    "Full E2E followed by two targeted model fixes; final targeted production checks passed"
+  ],
+  "evidence": [
+    ".studio/evidence/reports/e2e.json",
+    ".studio/evidence/reports/art-v2.json",
+    ".studio/evidence/reports/catalog.json"
+  ]
+}

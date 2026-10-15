@@ -1,0 +1,3 @@
+# Published Vite bundle; shader template literals retain upstream whitespace.
+games/white-night/play/** linguist-generated=true
+games/white-night/play/assets/*.js whitespace=-blank-at-eol

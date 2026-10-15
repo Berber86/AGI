@@ -1,0 +1,159 @@
+{
+  "passed": true,
+  "revision": "visual-v5",
+  "iterations": [
+    7,
+    8,
+    9
+  ],
+  "branch": "arena/47c2b990-agi",
+  "checkedAt": "2026-10-15T01:30:07.674572+00:00",
+  "unitTests": 20,
+  "rootPythonTests": 15,
+  "poseFrames": 180,
+  "checks": {
+    "visual-v5-9-poses": {
+      "passed": true,
+      "report": ".studio/evidence/reports/visual-v5-9-poses.json"
+    },
+    "visual-v5-9": {
+      "passed": true,
+      "report": ".studio/evidence/reports/visual-v5-9.json"
+    },
+    "visual-v5-9-landscape": {
+      "passed": true,
+      "report": ".studio/evidence/reports/visual-v5-9-landscape.json"
+    },
+    "visual-v5-thumbnails": {
+      "passed": true,
+      "report": ".studio/evidence/reports/visual-v5-thumbnails.json"
+    },
+    "e2e": {
+      "passed": true,
+      "report": ".studio/evidence/reports/e2e.json"
+    },
+    "desktop": {
+      "passed": true,
+      "report": ".studio/evidence/reports/desktop.json"
+    },
+    "catalog": {
+      "passed": true,
+      "report": ".studio/evidence/reports/catalog.json"
+    }
+  },
+  "staticExport": {
+    "path": "games/white-night/play",
+    "identicalToDist": true,
+    "totalBytes": 6648425,
+    "budgetBytes": 8000000,
+    "files": {
+      "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2": {
+        "bytes": 12776,
+        "sha256": "0d23162e67528fdc5fe1b12bedc525a69bbdc86d5d9f3c2ee9e9ee459934ecd4"
+      },
+      "assets/cormorant-garamond-latin-400-normal-B-1hWBU7.woff2": {
+        "bytes": 22876,
+        "sha256": "8048ac209bec741e1c29cd0cfac5aac1c0c2ba8c3ddbd4a58fa9bd92ef5c63c2"
+      },
+      "assets/courtyard-stone-normal.png": {
+        "bytes": 2254214,
+        "sha256": "04c8a7ac39a34620eec225ed8ca63286c9ca284241f760eb306feecd7767019e"
+      },
+      "assets/courtyard-stone-roughness.png": {
+        "bytes": 764315,
+        "sha256": "a3e5a4248fbfa9a2b8b27b5aed196912aa07bbadc7ca9a06b979f2eed487d070"
+      },
+      "assets/courtyard-stone.jpg": {
+        "bytes": 404997,
+        "sha256": "f6bc3058c43512e9392fa9b156f3f06857f61b5c5b23bff0a7a2c91a8608b7a1"
+      },
+      "assets/index-DcVNAVlF.css": {
+        "bytes": 29069,
+        "sha256": "1551ecd0994ee56970cefe2be116ee620211762001fa0a9bfc9cbde9e9feda36"
+      },
+      "assets/index-DchKPt5I.js": {
+        "bytes": 662376,
+        "sha256": "ff2bd795e9956a90abd9558f6a875d1580cde857d33e47cd346dd473330f4c89"
+      },
+      "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2": {
+        "bytes": 7840,
+        "sha256": "5a987d1484070f1ea54de7c10ebfa4057a18e379361dbe5fd5c4fa4c2d95ef39"
+      },
+      "assets/manrope-cyrillic-400-normal-Dvx59UGC.woff": {
+        "bytes": 10032,
+        "sha256": "377eaffaf00d2fe381870f08f098e3ad266618253c9d4197647b89816784e49c"
+      },
+      "assets/manrope-cyrillic-600-normal-DvRl3Mj-.woff2": {
+        "bytes": 7872,
+        "sha256": "80b86efbef1c9fb66557cc4cc7b6db42db2fd631f1a9b8735f3bbefbb5128799"
+      },
+      "assets/manrope-cyrillic-600-normal-It4mZcQk.woff": {
+        "bytes": 10060,
+        "sha256": "716a12f36cf789e399e0ad0bd205e3d1c66e4de66fe0c7e94a59ab7f007fce89"
+      },
+      "assets/manrope-latin-400-normal-8tf8FM3T.woff": {
+        "bytes": 18292,
+        "sha256": "1bf66c29a29f1b71d507cb97fc138cd130b856ed05b55decd3a2944b413cb636"
+      },
+      "assets/manrope-latin-400-normal-PaqtzbVb.woff2": {
+        "bytes": 14108,
+        "sha256": "849290ef12a2eeb9af5c11924120d11aa4ae8b435ed3347d7fc8bc240c293ca3"
+      },
+      "assets/manrope-latin-600-normal-4f0koTD-.woff2": {
+        "bytes": 14172,
+        "sha256": "f7ac6258da20ab7541939b59851155753d1d24f1b30cbcb949077a3faa3d1593"
+      },
+      "assets/manrope-latin-600-normal-BqgrALkZ.woff": {
+        "bytes": 18384,
+        "sha256": "8d1f509774bca963fa02faf674678ce9244474306361ca2798583fa600346df6"
+      },
+      "assets/plaster.jpg": {
+        "bytes": 252679,
+        "sha256": "f24936cc4bff266b4f7b23274c55d64ea124a63e657417a17d3cc66552850551"
+      },
+      "assets/steel-paint-normal.png": {
+        "bytes": 1449384,
+        "sha256": "ef616a4cd707da6678d2576c029fa360a0ad9bfe32de1b4354244642c55cc1d0"
+      },
+      "assets/steel-paint-roughness.png": {
+        "bytes": 405675,
+        "sha256": "53e6e78875731c5a77007418c4c44bdd762a6e3e6b17c6120331953b5d34a9bc"
+      },
+      "assets/steel-paint.jpg": {
+        "bytes": 250715,
+        "sha256": "2d96271007311ccde81f40e6ce2024b29f6457e93c51f444b679cf91db34a562"
+      },
+      "icon-192.png": {
+        "bytes": 4960,
+        "sha256": "4467b248242172ce4403e561088bf6f83551f7da6f2e05d6a423d3c1c149f25b"
+      },
+      "icon-512.png": {
+        "bytes": 19583,
+        "sha256": "3be7f5c5109c9c3fcd9411e99f5155c27138b75951871f59b15eb6511073bb36"
+      },
+      "icon.svg": {
+        "bytes": 334,
+        "sha256": "8afa02be92b297e76028466b17f464da0e03edc887cc25121ff4811c61609697"
+      },
+      "index.html": {
+        "bytes": 11401,
+        "sha256": "c4f11ef411fa03527ebe2e417d156a7ee3ab9b5e43ac36ec29c1768b872c7b70"
+      },
+      "manifest.webmanifest": {
+        "bytes": 570,
+        "sha256": "8ef375dca25d03f8281a49d9f9f782abf37d46f93bdaa6f8dd58a5b67500581a"
+      },
+      "sw.js": {
+        "bytes": 1741,
+        "sha256": "8a1173accf3240bea1f29d947a05b0fe19efc088ade777de2e1dc73ad6c57610"
+      }
+    }
+  },
+  "limitations": [
+    "No physical Android FPS/heat/cutout/contrast certification.",
+    "Finite 180-pose matrix in low quality, not a continuous full-angle turntable. High-quality baselines tested separately.",
+    "Natural-motion desktop tested; dedicated reveal suite was not rerun this set.",
+    "Real text zoom/system panels and real screen locking unverified."
+  ],
+  "delivery": "Prepared for iteration 9 commit and explicit push; git/chat records the actual push result."
+}

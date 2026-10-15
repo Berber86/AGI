@@ -1,0 +1,177 @@
+{
+  "passed": true,
+  "samples": [
+    {
+      "id": "camera",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "teacup",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "watch",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "cassette",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "duck",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "book",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "key",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "badge",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "record",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "perfume",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "horse",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "compass",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "bottle",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "can",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "cup",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "box",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "lid",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    },
+    {
+      "id": "paper",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ]
+    }
+  ],
+  "errors": [],
+  "checks": [
+    "All 18 thumbnails are sRGB/ACES output, verified by corner pixels",
+    "Cached re-opening does not grow GPU geometry or texture counts",
+    "Completion shows three recent finds",
+    "Final production build reloads with all 18 thumbnails offline"
+  ],
+  "limitations": [
+    "Color tests detect missing output transfer, not aesthetic accuracy on physical displays."
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "command": "npm test --prefix games/white-night",
+  "passed": 7,
+  "failed": 0,
+  "scope": "Immutable transitions, three taps, discard/keep, unique catalog, all18, review, save recovery, weighted selection and reset"
+}

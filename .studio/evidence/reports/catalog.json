@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "checks": [
+    "Both games and the White Night cover load from the root catalog",
+    "Play link boots real WebGL game on plain static hosting under /AGI/",
+    "Three-tap search, keep and saved collection work through catalog entry",
+    "No browser or HTTP errors"
+  ],
+  "errors": []
+}

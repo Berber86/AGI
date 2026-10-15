@@ -1,0 +1,113 @@
+{
+  "status": "playable-preview-ready",
+  "updatedAt": "2026-10-14T18:07:14.293992+00:00",
+  "previewPort": 5173,
+  "productionBuildBytes": 1015006,
+  "files": [
+    {
+      "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
+      "bytes": 12776
+    },
+    {
+      "file": "assets/cormorant-garamond-latin-400-normal-B-1hWBU7.woff2",
+      "bytes": 22876
+    },
+    {
+      "file": "assets/index-C9HJWZBs.css",
+      "bytes": 19681
+    },
+    {
+      "file": "assets/index-D7B7-QLm.js",
+      "bytes": 568794
+    },
+    {
+      "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
+      "bytes": 7840
+    },
+    {
+      "file": "assets/manrope-cyrillic-400-normal-Dvx59UGC.woff",
+      "bytes": 10032
+    },
+    {
+      "file": "assets/manrope-cyrillic-600-normal-DvRl3Mj-.woff2",
+      "bytes": 7872
+    },
+    {
+      "file": "assets/manrope-cyrillic-600-normal-It4mZcQk.woff",
+      "bytes": 10060
+    },
+    {
+      "file": "assets/manrope-latin-400-normal-8tf8FM3T.woff",
+      "bytes": 18292
+    },
+    {
+      "file": "assets/manrope-latin-400-normal-PaqtzbVb.woff2",
+      "bytes": 14108
+    },
+    {
+      "file": "assets/manrope-latin-600-normal-4f0koTD-.woff2",
+      "bytes": 14172
+    },
+    {
+      "file": "assets/manrope-latin-600-normal-BqgrALkZ.woff",
+      "bytes": 18384
+    },
+    {
+      "file": "assets/plaster.jpg",
+      "bytes": 252679
+    },
+    {
+      "file": "icon-192.png",
+      "bytes": 4960
+    },
+    {
+      "file": "icon-512.png",
+      "bytes": 19583
+    },
+    {
+      "file": "icon.svg",
+      "bytes": 334
+    },
+    {
+      "file": "index.html",
+      "bytes": 10460
+    },
+    {
+      "file": "manifest.webmanifest",
+      "bytes": 570
+    },
+    {
+      "file": "sw.js",
+      "bytes": 1533
+    }
+  ],
+  "unitTests": {
+    "passed": 7,
+    "failed": 0
+  },
+  "rootRepositoryTests": {
+    "passed": 11,
+    "failed": 0
+  },
+  "auditVulnerabilities": 0,
+  "browserEvidence": [
+    ".studio/evidence/reports/e2e.json",
+    ".studio/evidence/reports/desktop.json"
+  ],
+  "visuallyInspected": [
+    "desktop-final.png",
+    "mobile-360-junk.png",
+    "mobile-412-inspect.png",
+    "portrait-initial.png",
+    "portrait-find.png",
+    "landscape-inspect.png"
+  ],
+  "regressionNote": "Full mobile E2E passed before narrow Escape preventDefault and short-landscape min-height fixes. Final build, syntax, unit tests and targeted production desktop/landscape tests passed after both fixes.",
+  "limits": [
+    "Not physically tested on Android",
+    "AAA production quality is not claimed",
+    "No permanent hosting deployment",
+    "Synthetic visibility test, not real device lock/unlock"
+  ],
+  "nextRecommendedTask": "Real Android playtest; optionally publish static dist on HTTPS"
+}

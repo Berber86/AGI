@@ -1,0 +1,69 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "w": 844,
+      "h": 390,
+      "id": "record"
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "id": "watch"
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "id": "bottle"
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "id": "camera"
+    },
+    {
+      "w": 740,
+      "h": 360,
+      "id": "record"
+    },
+    {
+      "w": 740,
+      "h": 360,
+      "id": "watch"
+    },
+    {
+      "w": 740,
+      "h": 360,
+      "id": "bottle"
+    },
+    {
+      "w": 740,
+      "h": 360,
+      "id": "camera"
+    },
+    {
+      "w": 932,
+      "h": 430,
+      "id": "record"
+    },
+    {
+      "w": 932,
+      "h": 430,
+      "id": "watch"
+    },
+    {
+      "w": 932,
+      "h": 430,
+      "id": "bottle"
+    },
+    {
+      "w": 932,
+      "h": 430,
+      "id": "camera"
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "Software WebGL, no physical cutout test."
+  ]
+}

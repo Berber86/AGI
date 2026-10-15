@@ -1,0 +1,26 @@
+{
+  "revision": "visual-v3",
+  "date": "2026-10-15",
+  "iterations": 3,
+  "staticBytes": 6634669,
+  "budgetBytes": 8000000,
+  "unitTests": 11,
+  "rootTests": 15,
+  "baselineModels": 18,
+  "mobileE2eGroups": 17,
+  "finalThumbnailPixelTests": 18,
+  "catalogPassed": true,
+  "desktopPassed": true,
+  "finalOfflineThumbnailReloadPassed": true,
+  "finalBundle": [
+    "sw.js",
+    "assets/index-BNjEl_3O.js"
+  ],
+  "verificationSequence": "Full 18-model framing and 17-group E2E before thumbnail-only output-transfer correction; final 18-thumbnail pixel/cache/completion/offline checks, catalog and normal-motion desktop after correction.",
+  "limitations": [
+    "No physical Android FPS validation",
+    "Organic figurines remain stylized procedural casts",
+    "Vinyl front remains dark; porcelain highlights and individual wear still need art tuning",
+    "Not all recommendations in VISUAL_REVIEW.md implemented"
+  ]
+}
