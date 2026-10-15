@@ -212,7 +212,7 @@ export function createForks(scene, track, TEX = {}) {
       const GATE_Q = .26, GATE_W = 12.2, LEG_H = 9.6, badgeY = LEG_H + GATE_W + 1.6;
       const gate = route.gate || {};
       const gp = pose(GATE_Q);
-      const legs = [], caneLegs = [], arch = [], emblem = [];
+      const legs = [], caneLegs = [], arch = [], emblem = [], signLights = [];
       for (const s2 of [-1, 1]) {
         // candy-cane columns 2.2 m thick: a gate a car can drive through
         caneLegs.push(bake(new THREE.CylinderGeometry(1.9, 2.2, LEG_H, 12), '#ffffff', { pos: [s2 * GATE_W, LEG_H / 2, 0] }));
@@ -222,19 +222,21 @@ export function createForks(scene, track, TEX = {}) {
       }
       arch.push(bake(new THREE.TorusGeometry(GATE_W, 1.5, 6, 20, Math.PI), gate.arch || '#fff1de', { pos: [0, LEG_H, 0] }));
       arch.push(bake(new THREE.TorusGeometry(GATE_W + .4, .6, 5, 20, Math.PI), gate.accent || '#ffd77a', { pos: [0, LEG_H + 1.5, 0] }));
-      emblem.push(bake(plateGeometry(5.2), '#fff7ea', { pos: [0, badgeY, 0] }));
+      // +Z side faces away from the driver: rim and halo, the -Z face carries
+      // the emblem (see the offsets below).
+      emblem.push(bake(new THREE.TorusGeometry(5.9, .5, 5, 22), C(gate.accent || '#ffd77a'), { pos: [0, badgeY, .25] }));
+      signLights.push(bake(plateGeometry(5.6), '#eee5d2', { pos: [0, badgeY, 0] }));
+      signLights.push(bake(new THREE.TorusGeometry(6.35, .34, 5, 22), C(gate.accent || '#ffd77a'), { pos: [0, badgeY, .1] }));
       const kind = route.emblem || 'star';
-      emblem.push(kind === 'bear' ? join([
-        bake(bearGeo, C('#8fd6ae'), { scale: 2.6, pos: [0, badgeY - 6.4, .6] }),
-        bake(new THREE.TorusGeometry(4.2, .3, 6, 22), C('#7ec9a4'), { pos: [0, badgeY - 3.4, .5] }),
-      ])
-        : kind === 'star' ? bake(star, C('#ffe27a'), { scale: 3.2, rot: [0, 0, Math.PI / 5], pos: [0, badgeY - 3.9, .5] })
-          : kind === 'cookie' ? bake(cookieGeometry(3.9, .9, 6), C('#c4854a'), { rot: [0, 0, 0], pos: [0, badgeY - 3.9, .5] })
-            : join([0, 1, 2, 3, 4].map((i) => bake(puffGeometry(), C(i % 3 ? '#fff6fb' : '#b9e6f5'), {
-              scale: 2.5 - (i % 2) * .4, pos: [(i - 2) * 2.4, badgeY - 3.9 + (i % 2) * 1.1, .5],
-            }))));
+      emblem.push(kind === 'bear' ? bake(bearGeo, C('#6cbb90'), { scale: 4.0, pos: [0, badgeY - 5.4, -.62] })
+        : kind === 'star' ? bake(star, C('#f5c33f'), { scale: 4.4, rot: [0, 0, Math.PI / 5], pos: [0, badgeY - .1, -.5] })
+          : kind === 'cookie' ? bake(cookieGeometry(4.6, 1.05, 7), C('#b3733a'), { pos: [0, badgeY - .1, -.5] })
+            : join([[0, -1.7, -1.5, 2.7, '#f2f9ff'], [1, 1.7, -1.5, 2.5, '#a7dcf2'],
+              [2, -1.55, 1.5, 2.5, '#a7dcf2'], [3, 1.7, 1.5, 2.7, '#f2f9ff']]
+              .map(([, x, y, sc, col]) => bake(puffGeometry(), C(col), { scale: sc, pos: [x, badgeY - .1 + y, -.55] }))));
       placeAll(overhead, caneLegs, gp, caneMat);
       placeAll(overhead, legs.concat(arch, emblem), gp);
+      placeAll(overhead, signLights, gp, glowMat);
 
       // ------------------------------------------------- gummy bear hills --
       if (route.kind === 'hills') {
@@ -421,11 +423,11 @@ export function createForks(scene, track, TEX = {}) {
         for (const q of [Q0, Q1]) {
           const p = pose(q);
           const g = join([
-            bake(star, C('#ffeeb0'), { scale: 2.2, rot: [0, 0, Math.PI / 5], pos: [0, 9.9, 0] }),
-            bake(new THREE.TorusGeometry(4.6, .34, 6, 22), C('#ffe89b'), { pos: [0, 9.9, 0] }),
+            bake(star, C('#ffe9a6'), { scale: 2.1, rot: [0, 0, Math.PI / 5], pos: [0, 9.9, 0] }),
+            bake(new THREE.TorusGeometry(4.6, .3, 5, 18), C('#f7d98a'), { pos: [0, 9.9, 0] }),
           ]);
           placeAll(overhead, [g], p, glowMat);
-          for (const [rs, op] of [[2.8, .06], [1.8, .1]]) {
+          for (const [rs, op] of [[2.4, .04], [1.5, .07]]) {
             const glow = bake(new THREE.SphereGeometry(rs, 10, 7), C('#fff0c0'), { scale: [1, 1, .3], pos: [0, 9.9, 0] });
             placeAll(overhead, [glow], p, new THREE.MeshBasicMaterial({ transparent: true, opacity: op,
               blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));

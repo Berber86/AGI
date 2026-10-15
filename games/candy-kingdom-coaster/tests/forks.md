@@ -38,8 +38,11 @@ crystal candy grotto, and both second-fork branches gained scale and character.
 
 - **Gates.** Every branch now opens with a colossal candy arch right after the
   split: candy-cane columns 2.2 m thick standing 12.2 m out, a 12 m arch and a
-  round picture emblem (bear / star / cookie / cloud) above the road. No
-  painted arrows, no HUD panel — the choice is read from the world.
+  self-lit badge with a big picture emblem (bear / star / cookie / cloud) above
+  the road. The badge is lit by an unlit candy ring, so it stays readable in
+  any sun direction; the emblem sits on the face the driver actually sees (the
+  first version had it on the far side of the plate — found in a screenshot and
+  fixed). No painted arrows, no HUD panel — the choice is read from the world.
 - **Beacons.** A gummy-bear stack, a cookie tower and a 25 m cloud tower rise
   beside the shared approach, so each branch is announced while the road is
   still single.
@@ -115,8 +118,12 @@ Captured from the actual v24 build (no mockups), with `tests/tools/forkview.mjs`
 (a new tool that parks the car and camera at exact fork stations and branch
 options, with the HUD off unless `HUD=1`):
 
-- `evidence/fork-approach.webp` — the shared approach: both gates and the bear
-  beacon of the left branch are already visible.
+- `evidence/fork-v24-before-after.webp` — one panel: the old arch "star tunnel"
+  and the old raised cloud bridge next to the new grotto and skyway.
+- `evidence/fork-approach.webp` — the shared approach: both gates with their
+  bear and star emblems, plus the bear beacon of the left branch.
+- `evidence/fork-2-approach.webp` — the same for the second fork: cookie rocks
+  on the left, cloud bank and rainbow arches on the right.
 - `evidence/fork-split.webp` — the split with both gates at 12 m.
 - `evidence/fork-gate-hills.webp` / `fork-gate-grotto.webp` — the two emblems
   (bear / star) on their colossal arches.
