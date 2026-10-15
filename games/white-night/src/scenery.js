@@ -111,64 +111,8 @@ export function addCourtyardDetails(g,scene){
     const shape=new THREE.Shape();shape.moveTo(-.012,0);shape.quadraticCurveTo(.014,hei*.7,.025,hei);shape.lineTo(.006,0);mesh(new THREE.ShapeGeometry(shape),green,g,[x,.025,z],[0,r()*6,0]);
   }
 }
-// Warm light leaking from a window. Shared by the facade and the courtyard well so
-// the well adds no new material to the batched static group.
+// Warm light leaking from a window, shared with the facade.
 export const LIT=new THREE.MeshStandardMaterial({color:0x5c4a2e,emissive:0xffb765,emissiveIntensity:1.9,roughness:.65});
-
-export function addCourtyardWell(g,x,z){
-  // The premise names a courtyard well; until now the courtyard had none. A stone
-  // curb, an iron grating, a small canopy and a bucket give the yard a focal point
-  // and a sense of depth.
-  //
-  // Budget note: a new material inside the batched static group costs a draw call
-  // in the colour pass, in the shadow pass and in the contact pass - three of them.
-  // So the well borrows every material the yard already uses and adds none.
-  yardMaterials();
-  const stone=YARD.stone,iron=YARD.iron,green=YARD.green,contact=YARD.contact;
-
-  // Stone curb with a worn top rim and a damp, mossy base.
-  cyl(g,.82,.88,.44,[x,.22,z],stone,[0,0,0],30);
-  torus(g,.83,.055,[x,.45,z],stone,[Math.PI/2,0,0]);
-  cyl(g,.86,.9,.1,[x,.06,z],stone,[0,0,0],30);
-  cyl(g,.9,.92,.07,[x,.035,z],green,[0,0,0],30);
-  // Water far below, with the same warm glow the windows carry.
-  cyl(g,.7,.7,.02,[x,.3,z],LIT,[0,0,0],26);
-
-  // Iron grating: two rings and radial bars over the shaft.
-  for(const r of [.3,.55])torus(g,r,.022,[x,.47,z],iron,[Math.PI/2,0,0]);
-  for(let i=0;i<8;i++){const a=i*Math.PI/8;box(g,[.62,.028,.05],[x,.47,z],iron,.006,[0,-a,0]);}
-  cyl(g,.075,.075,.05,[x,.49,z],iron,[0,0,0],16);
-
-  // Canopy on two iron posts, with a small pitched roof.
-  for(const s of [-1,1]){
-    box(g,[.08,1.78,.08],[x+s*.82,.92,z],iron,.01);
-    box(g,[.18,.06,.18],[x+s*.82,.05,z],stone,.01);
-  }
-  box(g,[1.92,.06,.07],[x,1.82,z],iron,.01);
-  const roof=mesh(new THREE.ConeGeometry(1.34,.56,4),M.rust,g,[x,2.1,z],[0,Math.PI/4,0]);
-  roof.scale.set(1,.95,.74);
-  box(g,[2.05,.05,.98],[x,1.85,z],iron,.012);
-  // A galvanised ridge and eave line so the roof pitch catches the moon instead of
-  // reading as a flat black umbrella.
-  box(g,[1.12,.045,.05],[x,2.31,z],M.silver,.012);
-  for(const s2 of [-1,1])box(g,[.05,.04,1.0],[x+s2*.72,1.92,z],M.silver,.01);
-
-  // Winding drum, chain and a bucket that is not quite empty.
-  cyl(g,.06,.06,.34,[x,1.6,z],iron,[0,0,Math.PI/2],14);
-  cyl(g,.022,.022,.5,[x,1.34,z],iron,[0,0,0],10);
-  cyl(g,.17,.13,.28,[x,1.04,z],M.rust,[0,0,0],18);
-  torus(g,.168,.018,[x,1.18,z],iron,[Math.PI/2,0,0]);
-  torus(g,.138,.018,[x,.9,z],iron,[Math.PI/2,0,0]);
-  tube2(g,[[x-.17,1.18,z],[x,1.36,z],[x+.17,1.18,z]],.013,iron);
-  // A damp patch on the stones under the bucket.
-  mesh(new THREE.PlaneGeometry(.95,.7),contact,g,[x,.021,z+.12],[-Math.PI/2,0,0]);
-  // A worn step stone next to the curb.
-  box(g,[.5,.07,.34],[x-.95,.05,z+.42],stone,.02,[0,.3,0]);
-}
-function tube2(g,points,radius,mat){
-  const curve=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p)));
-  mesh(new THREE.TubeGeometry(curve,10,radius,6,false),mat,g);
-}
 
 export function addBinDetails(g,lid,steel){
   // Pressed reinforcements, rivets, welded seams and foot brake.

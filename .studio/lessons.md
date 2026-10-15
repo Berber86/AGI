@@ -42,3 +42,12 @@ Book corner deformation was reverted at final review: RoundedBoxGeometry has spa
 A fit computed once for the authored pose is unsafe after rotation: re-fit current Euler bounds before applying user zoom. Camera-relative lights must follow the item stage, especially when it shifts left in landscape. Underside print planes need +PI/2 normals to face negative Y; bottle print must lie outside its glass base. Native buttons in the pointer-transparent inspection overlay need explicit pointer-events:auto. Puppeteer setViewport can resolve before the native resize listener updates the camera; await the expected stage-bottom before synchronous scripted searches. The initial interrupted pose run exposed this harness race, not a successful release.
 
 The pose matrix then exposed a real off-axis perspective bug on watch/top in landscape: half-stage fitting ignores how near-depth corners shift toward the viewport edge in a left-aligned stage. Fit against the most distant viewport-relative stage edge per axis. Added a projected eight-corner unit regression and the actual viewport width to fitScale.
+
+## 2026-10-15 — «Двор-колодец» is an idiom, not a prop
+
+- **Context:** Visual audit of «Белая ночь» (iteration 12 of the v6 graphics pass).
+- **Symptom:** The audit reported "the promised courtyard well is missing" and a literal stone well with a bucket and canopy was built into the courtyard.
+- **Root cause:** The audit read the Petersburg idiom «двор-колодец» literally. It names a courtyard enclosed by facades like a well shaft — which the scene already was. A text premise was treated as a missing 3D asset without checking what the term means.
+- **Fix:** Removed `addCourtyardWell` entirely at the author's direction; kept the unrelated iteration-12 work (puddles, portrait reframing, bin-anchored callout). The audit closure table now marks the finding as a false positive.
+- **Validation:** Fresh `audit-look` frames (search 412/1280) show the enclosed courtyard with no well; unit tests 20/20.
+- **Workflow change:** When an audit claims a "promised" element is missing, verify the term's meaning in the work's own context before modelling it. Idioms, titles and metaphors in a premise are not asset lists.

@@ -25,8 +25,8 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 85,
-      "triangles": 181684,
+      "drawCalls": 69,
+      "triangles": 127326,
       "geometries": 170,
       "textures": 83,
       "models": 18,
@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 60.74141414141478,
+      "meanFrameMs": 48.30300000000072,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -50,9 +50,9 @@
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 70,
-      "triangles": 139032,
-      "geometries": 79,
+      "drawCalls": 69,
+      "triangles": 127326,
+      "geometries": 78,
       "textures": 37,
       "models": 1,
       "postprocessing": false,
@@ -60,7 +60,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 533.1999999999998,
+      "meanFrameMs": 502.6833333333332,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -383,7 +383,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6652778,
+    "totalBytes": 6651108,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -406,12 +406,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-DRS1NPCf.css",
-        "bytes": 29339
+        "file": "assets/index-B_Ks3U-Z.js",
+        "bytes": 664789
       },
       {
-        "file": "assets/index-ONdac4sw.js",
-        "bytes": 666488
+        "file": "assets/index-DRS1NPCf.css",
+        "bytes": 29339
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -483,7 +483,7 @@
       },
       {
         "file": "sw.js",
-        "bytes": 1712
+        "bytes": 1741
       }
     ]
   },

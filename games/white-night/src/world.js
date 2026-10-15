@@ -7,7 +7,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials as M, canvasTexture, textTexture, pbrMaps, seeded, distress } from './materials.js';
 import { RenderPipeline } from './rendering.js';
-import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addCourtyardWell, addBinDetails, LIT } from './scenery.js';
+import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addBinDetails, LIT } from './scenery.js';
 import { box, cyl, ball, torus, mesh, createItem } from './models.js';
 const rand=seeded(137);
 function batch(group){group.updateMatrixWorld(true);const batches=new Map();group.traverse(o=>{if(!o.isMesh||Array.isArray(o.material))return;const key=o.material.uuid;let batch=batches.get(key);if(!batch){batch={material:o.material,geos:[]};batches.set(key,batch);}const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.deleteAttribute('uv1');batch.geos.push(g);o.geometry.dispose();});group.clear();for(const {material,geos} of batches.values()){const geo=mergeGeometries(geos,false);if(geo){const m=new THREE.Mesh(geo,material);m.receiveShadow=!material.transparent;m.castShadow=!material.transparent&&!material.transmission;group.add(m);}geos.forEach(g=>g.dispose());}}
@@ -110,7 +110,7 @@ export class World {
   const leafMat=new THREE.MeshStandardMaterial({color:0x7f6940,roughness:1,side:THREE.DoubleSide});for(let i=0;i<50;i++){let x=(rand()-.5)*13,z=(rand()-.5)*14;mesh(new THREE.CircleGeometry(.025+rand()*.035,5),leafMat,this.static,[x,.008,z],[-Math.PI/2,rand()*3,rand()*6]);}
   // Soft damp patches are reflective but never perfect mirrors.
   const wet=new THREE.MeshStandardMaterial({color:0x24384a,emissive:0x16293c,emissiveIntensity:.5,transparent:true,opacity:.55,roughness:.07,metalness:.85,depthWrite:false});for(let i=0;i<10;i++){const m=mesh(new THREE.CircleGeometry(.55+rand(),40),wet,this.static,[(rand()-.5)*10,.005,(rand()-.5)*9],[-Math.PI/2,0,0]);m.scale.set(1.8,.35+rand()*.45,1);}
-  this.buildProps();addCourtyardDetails(this.static,this.scene);addCourtyardWell(this.static,.75,-4.4);
+  this.buildProps();addCourtyardDetails(this.static,this.scene);
  }
  buildProps(){
   const g=this.static;const bagMat=new THREE.MeshStandardMaterial({color:0x19251d,roughness:.64,metalness:.03,bumpMap:M.leather.bumpMap,bumpScale:.005});
