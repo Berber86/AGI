@@ -7,7 +7,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials as M, canvasTexture, textTexture, pbrMaps, seeded, distress } from './materials.js';
 import { RenderPipeline } from './rendering.js';
-import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addBinDetails } from './scenery.js';
+import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addCourtyardWell, addBinDetails, LIT } from './scenery.js';
 import { box, cyl, ball, torus, mesh, createItem } from './models.js';
 const rand=seeded(137);
 function batch(group){group.updateMatrixWorld(true);const batches=new Map();group.traverse(o=>{if(!o.isMesh||Array.isArray(o.material))return;const key=o.material.uuid;let batch=batches.get(key);if(!batch){batch={material:o.material,geos:[]};batches.set(key,batch);}const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.deleteAttribute('uv1');batch.geos.push(g);o.geometry.dispose();});group.clear();for(const {material,geos} of batches.values()){const geo=mergeGeometries(geos,false);if(geo){const m=new THREE.Mesh(geo,material);m.receiveShadow=!material.transparent;m.castShadow=!material.transparent&&!material.transmission;group.add(m);}geos.forEach(g=>g.dispose());}}
@@ -55,7 +55,7 @@ export class World {
   const plaster=new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/plaster.jpg`);plaster.colorSpace=THREE.SRGBColorSpace;plaster.wrapS=plaster.wrapT=THREE.RepeatWrapping;plaster.repeat.set(3,3);plaster.anisotropy=4;
   const wall=new THREE.MeshStandardMaterial({map:plaster,color:0x8a877b,roughness:.92,bumpMap:plaster,bumpScale:.065});const side=wall.clone();side.color.set(0x79837f);const stone=new THREE.MeshStandardMaterial({color:0x7d827a,roughness:.9});const trim=new THREE.MeshStandardMaterial({color:0xa3a496,roughness:.84});const dark=new THREE.MeshStandardMaterial({color:0x2c3630,roughness:.78});
   const reflected=canvasTexture((c,s)=>{const sky=c.createLinearGradient(0,0,s,s);sky.addColorStop(0,'#788b91');sky.addColorStop(.48,'#495b60');sky.addColorStop(1,'#1d302c');c.fillStyle=sky;c.fillRect(0,0,s,s);c.save();c.transform(1,.16,-.07,1,0,0);for(let x=-30;x<s;x+=94){c.fillStyle='#283b3a';c.fillRect(x,70,65,s);for(let y=94;y<s;y+=104){c.fillStyle='#83938b';c.globalAlpha=.24;c.fillRect(x+6,y,24,66);c.fillRect(x+34,y,24,66);}}c.restore();});
-  const glassMats=[0x687d7c,0x859794,0x9eaea4,0x465957].map(c=>new THREE.MeshStandardMaterial({color:c,map:reflected,metalness:.24,roughness:.28}));const lit=new THREE.MeshStandardMaterial({color:0x5c4a2e,emissive:0xffb765,emissiveIntensity:1.9,roughness:.65});
+  const glassMats=[0x687d7c,0x859794,0x9eaea4,0x465957].map(c=>new THREE.MeshStandardMaterial({color:c,map:reflected,metalness:.24,roughness:.28}));const lit=LIT;
   const facade=(width,height,pos,rotation,mat)=>{
    const g=new THREE.Group();g.position.set(...pos);g.rotation.y=rotation;this.static.add(g);
    if(rotation===0){
@@ -106,8 +106,8 @@ export class World {
   for(const x of [-7.2,8.2])box(this.static,[.24,.17,22],[x,.065,0],stone,.025);
   const leafMat=new THREE.MeshStandardMaterial({color:0x7f6940,roughness:1,side:THREE.DoubleSide});for(let i=0;i<50;i++){let x=(rand()-.5)*13,z=(rand()-.5)*14;mesh(new THREE.CircleGeometry(.025+rand()*.035,5),leafMat,this.static,[x,.008,z],[-Math.PI/2,rand()*3,rand()*6]);}
   // Soft damp patches are reflective but never perfect mirrors.
-  const wet=new THREE.MeshStandardMaterial({color:0x526160,transparent:true,opacity:.32,roughness:.07,metalness:.68,depthWrite:false});for(let i=0;i<10;i++){const m=mesh(new THREE.CircleGeometry(.55+rand(),40),wet,this.static,[(rand()-.5)*10,.005,(rand()-.5)*9],[-Math.PI/2,0,0]);m.scale.set(1.8,.35+rand()*.45,1);}
-  this.buildProps();addCourtyardDetails(this.static,this.scene);
+  const wet=new THREE.MeshStandardMaterial({color:0x24384a,emissive:0x16293c,emissiveIntensity:.5,transparent:true,opacity:.55,roughness:.07,metalness:.85,depthWrite:false});for(let i=0;i<10;i++){const m=mesh(new THREE.CircleGeometry(.55+rand(),40),wet,this.static,[(rand()-.5)*10,.005,(rand()-.5)*9],[-Math.PI/2,0,0]);m.scale.set(1.8,.35+rand()*.45,1);}
+  this.buildProps();addCourtyardDetails(this.static,this.scene);addCourtyardWell(this.static,.75,-4.4);
  }
  buildProps(){
   const g=this.static;const bagMat=new THREE.MeshStandardMaterial({color:0x19251d,roughness:.64,metalness:.03,bumpMap:M.leather.bumpMap,bumpScale:.005});
@@ -147,8 +147,11 @@ export class World {
   this.dirty=true;const w=innerWidth,h=innerHeight;
   this.renderer.setSize(w,h);this.camera.aspect=w/h;
   const portrait=w/h<.8;this.camera.fov=portrait?47:43;
-  this.camera.position.set(portrait?3.3:4.6,portrait?3.1:3.5,portrait?7.8:9.8);
-  this.camera.lookAt(0,portrait?1.85:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
+  // The portrait frame is narrow, so the search view steps back far enough to show
+  // the yard (well, lamps, arch) instead of a close-up of one bin. The inspection
+  // item is anchored in camera space, so this only reframes the courtyard.
+  this.camera.position.set(portrait?3.35:4.6,portrait?3.45:3.5,portrait?10.3:9.8);
+  this.camera.lookAt(portrait?.62:0,portrait?1.52:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
   this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
   this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
@@ -178,6 +181,8 @@ export class World {
  poke(step=1){this.kick=this.reduced?0:1;this.kickAmp=[.12,.24,.42][Math.min(2,Math.max(0,step-1))];this.dirty=true;}
  hitBin(x,y){this.pointer.set(x/innerWidth*2-1,-y/innerHeight*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;}
  binScreen(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(0,1.2,0).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
+ // The left edge of the bin, used to anchor the callout to the bin itself.
+ binEdge(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(-1.26,1.12,.22).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
  getModel(id){if(!this.modelCache.has(id))this.modelCache.set(id,createItem(id));return this.modelCache.get(id);}
  show(id,{review=false}={}){
   this.dirty=true;this.testRevealHold=false;this.zoom=1;if(this.item){this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();

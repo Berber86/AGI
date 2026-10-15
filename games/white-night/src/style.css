@@ -132,3 +132,7 @@
 @media(max-height:520px) and (min-width:651px){.view-controls{top:auto;bottom:64px;left:calc((100% - var(--inspection-panel-width))/2)}.reveal-note{bottom:118px}}
 
 .is-revealing .view-controls button{pointer-events:none}
+
+/* The bin callout is anchored to the bin in the frame, not to a screen corner. */
+.bin-tag{left:0;top:0;transform:translate(-100%,-50%);flex-direction:row-reverse;gap:14px;white-space:nowrap}
+.bin-tag:before{left:100%;right:auto;margin-left:10px;margin-right:0}

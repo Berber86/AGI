@@ -67,7 +67,14 @@ function renderCollection(){
 function openCollection(){if(state.phase==='inspect')return;renderCollection();$('#collection-dialog').showModal();}
 function closeReview(){if(!state.reviewing)return;state=transition(state,{type:'close'});world.hide();updateUI();openCollection();}
 function reset(){state=initialState();world.hide();persist();updateUI();$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;$('#settings-dialog').close();notify('Новая белая ночь. Начнём сначала.');}
-function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;world.update(Math.min(rawDt,.1),rawDt);syncReveal();}
+function syncBinTag(){
+ // The callout follows the bin in the frame instead of sitting in a fixed corner,
+ // so it keeps pointing at the bin when the courtyard is reframed.
+ const tag=$('.bin-tag');if(!tag)return;
+ const p=world.binEdge();
+ tag.style.left=`${Math.round(p.x)}px`;tag.style.top=`${Math.round(p.y)}px`;
+}
+function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;world.update(Math.min(rawDt,.1),rawDt);syncReveal();syncBinTag();}
 function bind(){
  $$('[data-pose]').forEach(b=>b.addEventListener('click',()=>{world.setPose(b.dataset.pose);updateViews();}));
  $('#zoom-in').addEventListener('click',()=>{world.setZoom(.2);updateZoom();});$('#zoom-out').addEventListener('click',()=>{world.setZoom(-.2);updateZoom();});$('#zoom-reset').addEventListener('click',()=>{world.setZoom(1-world.zoom);updateZoom();});
