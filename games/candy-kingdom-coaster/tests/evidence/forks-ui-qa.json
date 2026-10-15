@@ -1,5 +1,5 @@
 {
-  "baseURL": "http://127.0.0.1:8900/index.html",
+  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
   "results": [
     {
       "name": "real progress, no rollback, hidden/inert controls during loading",
@@ -193,7 +193,7 @@
       "pass": true,
       "detail": {
         "held": {
-          "lateral": -2.47,
+          "lateral": -2.89,
           "pressed": true,
           "aria": "true"
         },
@@ -310,21 +310,25 @@
       ]
     },
     {
-      "name": "active fork chooser fits 851x326 without covering controls",
+      "name": "fork approach 851x326: no route hints, steering remains usable",
       "pass": true,
       "detail": {
-        "shown": true,
-        "fits": true,
-        "overlaps": []
+        "absent": true,
+        "controls": [
+          true,
+          true
+        ]
       }
     },
     {
-      "name": "active fork chooser fits 640x280 without covering controls",
+      "name": "fork approach 640x280: no route hints, steering remains usable",
       "pass": true,
       "detail": {
-        "shown": true,
-        "fits": true,
-        "overlaps": []
+        "absent": true,
+        "controls": [
+          true,
+          true
+        ]
       }
     },
     {

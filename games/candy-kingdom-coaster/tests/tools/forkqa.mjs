@@ -71,7 +71,10 @@ try {
   });
   check('both road surfaces cover the full steering range, including exact joins', geometry.missingCount === 0, geometry);
   check('no scenery, poles or clouds in either car envelope', geometry.intrusionCount === 0, geometry);
-  check('four destinations fit a modest scenery budget', geometry.draws <= 35 && geometry.triangles < 60000, { draws: geometry.draws, triangles: geometry.triangles });
+  // Budget: four fully decorated destinations (colossal gates, geode grotto,
+  // cookie canyon, cloud skyway) for the same order of cost as the cake
+  // landmark set (30 draws / 89k triangles).
+  check('four destinations fit a modest scenery budget', geometry.draws <= 30 && geometry.triangles < 95000, { draws: geometry.draws, triangles: geometry.triangles });
 
   // Real pointer capture and release; no mocked route choice or steering.
   for (let fi = 0; fi < 2; fi++) for (const side of [-1, 1]) {
@@ -143,8 +146,8 @@ try {
     T.chooseFork(f.id, 0); T.step(1 / 60, 1, false); const light = T.tunnelInfo().k;
     return { maxHill, maxCloud, dark, light, ramp: ramps.list.find((r) => r.id === 'fork-cookie').height, worlds: forks.group.children.length };
   });
-  check('destinations differ in actual gameplay: hills, lit tunnel, jump and raised bridge', identities.maxHill > 2.7 && identities.maxCloud > 8.4
-    && identities.dark > .55 && identities.light === 0 && identities.ramp >= 1.4, identities);
+  check('destinations differ in actual gameplay: hills, dark grotto, jump and raised skyway', identities.maxHill > 2.7 && identities.maxCloud > 8.4
+    && identities.dark > .72 && identities.light === 0 && identities.ramp >= 1.4, identities);
 
   for (const choices of [[0, 0], [0, 1], [1, 0], [1, 1]]) {
     const ride = await page.evaluate((choices) => {

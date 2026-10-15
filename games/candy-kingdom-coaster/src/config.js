@@ -54,13 +54,17 @@ export const CAKE_COURSE = {
 export const FORKS = [
   { id: 'gummy-or-stars', baseStart: 115, baseEnd: 335, spread: 27, warning: 65,
     routes: [
-      { id: 'gummy', title: 'Мармеладные холмы', short: ['МАРМЕЛАДНЫЕ', 'ХОЛМЫ'], color: '#82caa5', surface: 'road', lift: 2.8, kind: 'hills', icon: 'bear' },
-      { id: 'stars', title: 'Звёздный тоннель', short: ['ЗВЁЗДНЫЙ', 'ТОННЕЛЬ'], color: '#b394e7', surface: 'roadCream', lift: 0, kind: 'tunnel', icon: 'star' },
+      { id: 'gummy', title: 'Мармеладные холмы', short: ['МАРМЕЛАДНЫЕ', 'ХОЛМЫ'], color: '#82caa5', surface: 'road', lift: 2.8, kind: 'hills', icon: 'bear',
+        emblem: 'bear', gate: { leg: '#f7e6c8', arch: '#fff3e2', accent: '#7fc9a0' } },
+      { id: 'stars', title: 'Леденцовый грот', short: ['ЛЕДЕНЦОВЫЙ', 'ГРОТ'], color: '#b394e7', surface: 'roadCrystal', lift: 0, kind: 'grotto', icon: 'star',
+        emblem: 'star', gate: { leg: '#cfc2ff', arch: '#efe6ff', accent: '#9f7ae8' } },
     ] },
   { id: 'cookie-or-clouds', baseStart: 1110, baseEnd: 1360, spread: 29, warning: 65,
     routes: [
-      { id: 'cookie', title: 'Печеньевый трамплин', short: ['ПЕЧЕНЬЕВЫЙ', 'ТРАМПЛИН'], color: '#e9b363', surface: 'roadCookie', lift: 0, kind: 'jump', icon: 'jump' },
-      { id: 'clouds', title: 'Облачный мост', short: ['ОБЛАЧНЫЙ', 'МОСТ'], color: '#8fc8e9', surface: 'roadCream', lift: 8.5, kind: 'cloud', icon: 'cloud' },
+      { id: 'cookie', title: 'Печеньевый трамплин', short: ['ПЕЧЕНЬЕВЫЙ', 'ТРАМПЛИН'], color: '#e9b363', surface: 'roadCookie', lift: 0, kind: 'jump', icon: 'jump',
+        emblem: 'cookie', gate: { leg: '#e0b184', arch: '#f6d6a6', accent: '#c98b4b' } },
+      { id: 'clouds', title: 'Облачный мост', short: ['ОБЛАЧНЫЙ', 'МОСТ'], color: '#8fc8e9', surface: 'roadCream', lift: 8.5, kind: 'cloud', icon: 'cloud',
+        emblem: 'cloud', gate: { leg: '#dff0ff', arch: '#ffffff', accent: '#8fc8e9' } },
     ] },
 ];
 

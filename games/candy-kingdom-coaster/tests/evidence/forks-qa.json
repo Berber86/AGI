@@ -1,5 +1,5 @@
 {
-  "baseURL": "http://127.0.0.1:8900/index.html",
+  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
   "results": [
     {
       "name": "two actual forks, four distinct routes, shared tangent-continuous joins",
@@ -172,8 +172,8 @@
         "missingCount": 0,
         "intrusions": [],
         "intrusionCount": 0,
-        "draws": 21,
-        "triangles": 25088
+        "draws": 20,
+        "triangles": 75030
       }
     },
     {
@@ -184,16 +184,16 @@
         "missingCount": 0,
         "intrusions": [],
         "intrusionCount": 0,
-        "draws": 21,
-        "triangles": 25088
+        "draws": 20,
+        "triangles": 75030
       }
     },
     {
       "name": "four destinations fit a modest scenery budget",
       "pass": true,
       "detail": {
-        "draws": 21,
-        "triangles": 25088
+        "draws": 20,
+        "triangles": 75030
       }
     },
     {
@@ -201,9 +201,9 @@
       "pass": true,
       "detail": {
         "selected": 0,
-        "maxStep": 0.3007359968072685,
+        "maxStep": 0.3011742112996716,
         "state": "racing",
-        "hint": true,
+        "noHints": true,
         "latched": 0,
         "released": true
       }
@@ -213,9 +213,9 @@
       "pass": true,
       "detail": {
         "selected": 1,
-        "maxStep": 0.293524945817272,
+        "maxStep": 0.2936517890280859,
         "state": "racing",
-        "hint": true,
+        "noHints": true,
         "latched": 1,
         "released": true
       }
@@ -227,7 +227,7 @@
         "selected": 0,
         "maxStep": 0.30460035737231406,
         "state": "racing",
-        "hint": true,
+        "noHints": true,
         "latched": 0,
         "released": true
       }
@@ -239,7 +239,7 @@
         "selected": 1,
         "maxStep": 0.29348668090129726,
         "state": "racing",
-        "hint": true,
+        "noHints": true,
         "latched": 1,
         "released": true
       }
@@ -249,7 +249,7 @@
       "pass": true,
       "detail": {
         "checked": 204,
-        "minBodyY": -0.6340051822371412,
+        "minBodyY": -0.6571796392744289,
         "cropped": [],
         "croppedCount": 0,
         "blocked": [],
@@ -307,15 +307,15 @@
       }
     },
     {
-      "name": "destinations differ in actual gameplay: hills, lit tunnel, jump and raised bridge",
+      "name": "destinations differ in actual gameplay: hills, dark grotto, jump and raised skyway",
       "pass": true,
       "detail": {
         "maxHill": 2.8,
         "maxCloud": 8.5,
-        "dark": 0.62,
+        "dark": 0.8,
         "light": 0,
         "ramp": 1.4,
-        "worlds": 11
+        "worlds": 15
       }
     },
     {
@@ -411,7 +411,7 @@
           0
         ],
         "reachable": 151,
-        "message": "Твой маршрут: Звёздный тоннель → Печеньевый трамплин"
+        "message": "Твой маршрут: Леденцовый грот → Печеньевый трамплин"
       }
     },
     {
@@ -443,7 +443,7 @@
           1
         ],
         "reachable": 151,
-        "message": "Твой маршрут: Звёздный тоннель → Облачный мост"
+        "message": "Твой маршрут: Леденцовый грот → Облачный мост"
       }
     },
     {
@@ -466,7 +466,7 @@
       "name": "both route modules are in the offline cache",
       "pass": true,
       "detail": {
-        "key": "ckc-v22",
+        "key": "ckc-v25",
         "routes": true,
         "scenery": true
       }

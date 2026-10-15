@@ -1,5 +1,5 @@
 {
-  "baseURL": "http://127.0.0.1:8900/index.html",
+  "baseURL": "http://127.0.0.1:8899/games/candy-kingdom-coaster/index.html",
   "results": [
     {
       "name": "opposite uphill/downhill spirals + genuinely sagging bridge",
@@ -131,7 +131,7 @@
         "badCount": 0,
         "occluded": [],
         "cropped": [],
-        "minBridgeBodyY": -0.767195452225008
+        "minBridgeBodyY": -0.8004619043159346
       }
     },
     {
@@ -317,8 +317,8 @@
       "name": "touch steering and release on the sky bridge",
       "pass": true,
       "detail": {
-        "held": -2.46,
-        "released": -2.17,
+        "held": -2.67,
+        "released": -2.19,
         "width": 97.046875,
         "height": 81.890625
       }
@@ -343,9 +343,11 @@
       "name": "new route and cake modules are precached for offline play",
       "pass": true,
       "detail": {
-        "key": "ckc-v22",
+        "key": "ckc-v25",
         "course": true,
-        "cakes": true
+        "cakes": true,
+        "forks": true,
+        "routes": true
       }
     },
     {

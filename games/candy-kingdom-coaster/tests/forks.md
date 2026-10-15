@@ -2,8 +2,10 @@
 
 ## Routes and controls
 
-- First fork (base stations 115–335): gummy hills with animated bears, or a lit star tunnel.
-- Second fork (base stations 1110–1360): cookie ramps, or an 8.5 m-high cloud bridge.
+- First fork (base stations 115–335): gummy hills with animated bears, or a
+  crystal candy grotto (a real closed, dark geode tunnel).
+- Second fork (base stations 1110–1360): a cookie canyon with drop-off rocks,
+  or an 8.5 m-high cloud skyway with rainbow arches.
 - Steer toward a side with the existing touch pads/arrow keys. The selection
   latches silently at the common landing; neutral input safely takes the left
   route. Both alternatives rejoin the same course. No advance direction panel,
@@ -27,6 +29,43 @@ Pickups carry a branch identity. Unchosen pickups never score, and medal totals
 count only the 151 reachable sweets, not all 176 rendered sweets. Ramps inside
 the second fork belong to the cookie path; no invisible jumps on the cloud path.
 The existing river, cakes, sagging bridge and chocolate tunnel remain common.
+
+## Fork destinations rebuilt — v24
+
+The four destinations were rebuilt after the first playable version: the thin
+arch "tunnel" with floating lighter-than-air crystals was replaced by a real
+crystal candy grotto, and both second-fork branches gained scale and character.
+
+- **Gates.** Every branch now opens with a colossal candy arch right after the
+  split: candy-cane columns 2.2 m thick standing 12.2 m out, a 12 m arch and a
+  self-lit badge with a big picture emblem (bear / star / cookie / cloud) above
+  the road. The badge is lit by an unlit candy ring, so it stays readable in
+  any sun direction; the emblem sits on the face the driver actually sees (the
+  first version had it on the far side of the plate — found in a screenshot and
+  fixed). No painted arrows, no HUD panel — the choice is read from the world.
+- **Beacons.** A gummy-bear stack, a cookie tower and a 25 m cloud tower rise
+  beside the shared approach, so each branch is announced while the road is
+  still single.
+- **Gummy hills** — gumdrop mounds, striped bear plinths, cane arches.
+- **Crystal candy grotto** (was "star tunnel") — a closed geode: an inner
+  crystal shell 12 m wide with flared mouths, a crystal skirt growing out of
+  the meadow, crystal crust breaking through the outside, glowing ribs, vault
+  gems and wall lanterns that throw soft pools of light on the road, plus a
+  bright star above each mouth. Daylight fades to 0.8 inside, exactly like the
+  chocolate tunnel, so the branch has a real identity.
+- **Cookie canyon** — a canyon of dark cookie rocks and chocolate chips beside
+  a 1.4 m jump ramp on a cookie road.
+- **Cloud skyway** — a fluffy cloud bank hugging the deck, under-deck cloud
+  shores (only where the deck actually rises), five fat rainbow arches, floating
+  candy islands on the horizon and a cloud tower at the gate.
+- **Keep-out rule.** Nothing may sit closer than 8.3 m + its own radius to
+  either branch of the same fork; near the split and the merge the two roads
+  are only a few metres apart. The QA suite verifies the whole car envelope
+  (rays every metre, |lateral| ≤ 8 m, 3.4 m up) and the chase camera on all
+  four routes: 0 intrusions, 0 blocked frames.
+- Cost: **20 draw calls / 74k triangles** for all four destinations (the cake
+  landmark set uses 30 / 89k). Everything is merged by material; clouds,
+  crystals, chips and gems are instanced.
 
 ## Exploration mode — v23
 
@@ -73,32 +112,137 @@ final screenshots and documentation were completed.
 The earlier v21 offline run remains in `evidence/forks-offline-qa.json` as
 historical evidence. Its final-v22 offline gap is now closed by the UI run above.
 
-## Final visual evidence
+## Final visual evidence — v24
 
-All images below were captured from the actual final v22 game, after the sign
-and gummy-bear polish; no mockup or generated game screenshot:
+Captured from the actual v24 build (no mockups), with `tests/tools/forkview.mjs`
+(a new tool that parks the car and camera at exact fork stations and branch
+options, with the HUD off unless `HUD=1`):
 
-- `evidence/fork-choice-1.webp` / `fork-choice-2.webp` — decision approaches.
-- `evidence/fork-gummy-hills.webp` — visible bears on their raised plinths.
-- `evidence/fork-star-tunnel.webp` — the optional lit tunnel.
-- `evidence/fork-cookie-jump.webp` — the wide, route-specific jump ramp.
-- `evidence/fork-cloud-bridge.webp` — the elevated alternative.
+- `evidence/fork-v24-before-after.webp` — one panel: the old arch "star tunnel"
+  and the old raised cloud bridge next to the new grotto and skyway.
+- `evidence/fork-approach.webp` — the shared approach: both gates with their
+  bear and star emblems, plus the bear beacon of the left branch.
+- `evidence/fork-2-approach.webp` — the same for the second fork: cookie rocks
+  on the left, cloud bank and rainbow arches on the right.
+- `evidence/fork-split.webp` — the split with both gates at 12 m.
+- `evidence/fork-gate-hills.webp` / `fork-gate-grotto.webp` — the two emblems
+  (bear / star) on their colossal arches.
+- `evidence/fork-gummy-hills.webp` — gumdrop mounds, striped plinths, bears.
+- `evidence/fork-grotto-inside.webp` / `fork-grotto-exit.webp` — the dark geode
+  from inside: crystal walls, glowing ribs, wall lanterns, light pools, and the
+  star marking the exit.
+- `evidence/fork-cookie-canyon.webp` — dark cookie rocks with chocolate chips.
+- `evidence/fork-cloud-skyway.webp` — cloud curb, rainbow arches and the deck
+  riding on its cloud bank.
 
-Browser checks use Chromium/SwiftShader with mobile touch emulation, not a
-physical Android phone or a device-FPS benchmark. The older broad acceptance suite was not rerun; the focused UI and
-serpentine suites above were run on the final fork build.
+Historical v22 images (`fork-choice-*.webp`, `fork-star-tunnel.webp`,
+`fork-cookie-jump.webp`, `fork-cloud-bridge.webp`) are kept for comparison.
 
-```sh
-cp games/candy-kingdom-coaster/tests/tools/forkqa.mjs /home/user/tools/
-node /home/user/tools/forkqa.mjs http://127.0.0.1:8900/index.html --screenshots --offline
+## Verified numbers — v24
 
-# Close UI/offline + capture final fork views in the same already-booted page:
-cp games/candy-kingdom-coaster/tests/tools/uiqa.mjs /home/user/tools/
-node /home/user/tools/uiqa.mjs http://127.0.0.1:8900/index.html --offline --fork-views
+- Fork gameplay suite (`forkqa.mjs`): **20/20**.
+  - 0 scenery intrusions across the full car envelope (rays every 1 m,
+    |lateral| ≤ 8 m, 3.4 m up, both branch options).
+  - 0 blocked chase-camera frames out of 204 fork poses on all four routes.
+  - 20 draw calls / 73.8k triangles for all four destinations.
+  - All four route combinations finish (107.6–109.0 s) with their own rewards.
+- Serpentines/cakes regression (`serpentineqa.mjs`): **12/12** after v24.
+- UI/controls/offline (`uiqa.mjs --offline`): **25/25**, including a real
+  offline reload from the `ckc-v24` cache.
+- Root unit tests: **11/11**; validator self-test passes.
 
-cp games/candy-kingdom-coaster/tests/tools/serpentineqa.mjs /home/user/tools/
-node /home/user/tools/serpentineqa.mjs http://127.0.0.1:8900/index.html
-```
+### One-tap review of what a child sees at each fork
 
-Install the shared browser runtime with the repository's headless-browser setup.
-Large/transient outputs stay in ignored `test-results/`, not Git.
+| station | left branch | right branch |
+|---|---|---|
+| 1 (s 115–335) | bear emblem gate → gumdrop hills, bouncing bears, cane arches | star emblem gate → dark crystal candy grotto with lit walls |
+| 2 (s 1503–1753) | cookie emblem gate → cookie canyon, chocolate chips, 1.4 m jump ramp | cloud emblem gate → cloud skyway, 5 rainbow arches, floating islands |
+
+### Iteration 1 (air + landmarks) — `src/ambient.js`, `src/landmarks.js`
+
+Built on the shared candy kit in `src/candykit.js` (geometry helpers extracted
+from `forks.js`, so nothing is duplicated between modules).
+
+- **Zone air** (`ambient.js`): four `Points` layers — confetti sprinkles, cocoa
+  canyon dust, cotton floss, castle glitter — one draw call each, weighted per
+  zone (`ZONES` order), wrapped in a 115 m box that follows the chase camera so
+  density does not scale with track length. Sprites fade out inside 1.2–2.6 m,
+  which is what lets them be big enough to read at 30 m. In the tunnel and the
+  grotto the daylight layers fade to `base · (1 − dark · 0.82)` while the
+  sparkles hold `max(base · (1 − dark · 0.45), dark · 0.8)`.
+- **Pennants** : six sagging flag lines with big pennants, candy-cane poles and
+  light toppers dress the full 65 m run-up to both forks (poles at
+  |lateral| 13.2 m, lines at 11.2 m). Environment only: no arrows, no letters.
+- **Chocolate plaza** (`s ≈ 1483`, |lateral| 22 m): a wafer platform with three
+  pouring chocolate bowls, caramel lamps, cocoa beans, wafers and a glowing
+  cocoa-cup sign, standing beside the road right after the Swiss-roll tunnel.
+- **Sky parade**: ten gore-striped balloons and four 19 m lollipop wheels the
+  road spirals past the two giant cakes (placement rejects anything closer than
+  62 m to the far cake axis or 30 m to the inter-cake bridge line).
+- Metrics after iteration 1: 592 meshes / 592 draw calls / 1.04 M tris,
+  `corridorScan(8)` **0 problems**, landmark scenery 39.4k triangles,
+  `perf()` tier 2, 0 page errors.
+- Evidence: `iter1-pennants.webp`, `iter1-chocolate-plaza.webp`,
+  `iter1-tunnel-exit.webp`, `iter1-sky-parade.webp`, `iter1-sky-spinner.webp`,
+  `iter1-cake-ascent.webp`, `iter1-air-meadows.webp`, plus the panels
+  `landmarks.webp` and `air-zones.webp`.
+- Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25
+  (cache `ckc-v25`), root unit tests 11/11.
+
+### Iteration 2 (sky and light) — `src/world.js`
+
+- **A sky per zone**: the dome now blends a zenith / mid / horizon trio per zone
+  (`SKY_SETS`), cross-faded over 6% of each zone by `zoneBlend(u)`, instead of
+  one blue lid over the whole ride. Meadows stay fresh blue, the grove warms to
+  a sand haze, the cocoa canyon turns dusty and hazy, the marshmallow valley
+  milky and the castle run lilac.
+- **Horizon haze**: the dome's lowest band is the zone fog colour, and the
+  scene fog leans 30% toward the horizon colour, so distant meadow melts into
+  the sky instead of ending on a hard line.
+- **Sun**: the dome shader adds a warm bloom plus a tight core along the real
+  light direction, and a second 1150-unit halo sprite sits behind the glow.
+- **Light follows the mood**: hemisphere and sun colours/intensity now shift per
+  zone (warmest in the canyon, softest in the marshmallow valley) while still
+  honouring the tunnel/grotto `setDarkness()` dimming.
+- **Clouds**: 30 drifting sprites (up from 22), every cloud now breathes on its
+  own bob phase and picks up the zone tint, so the sky is never a static
+  backdrop.
+- Metrics: 601 meshes / 601 draw calls, `corridorScan(8)` 0 problems, `perf()`
+  tier 2, 0 page errors.
+- Evidence: `iter2-zones.webp` (one frame per zone), `iter2-sky-before-after.webp`,
+  `iter2-canyon-horizon.webp`, `iter2-bridge-sky.webp`.
+- Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25,
+  root unit tests 11/11.
+
+### Iteration 3 (speed and finale) — `src/main.js`, `src/ambient.js`, `src/world.js`
+
+- **Speed reads on screen**: the chase camera now widens from FOV 50 at cruise
+  speed to 55 at full tilt and ~59 with boost (`spdN` normalised over the speeds
+  the car really reaches), pulls 0.7 m further back as it winds up, and the
+  bloom strength follows speed as well (0.5 → 0.76, +0.2 on boost). Measured:
+  4.5 m/s → FOV 50.2, 16.5 m/s → FOV 54.5.
+- **Speed streaks** (`ambient.js`): a fifth `Points` layer of additive light
+  streaks, boxed to 55 m around the camera, invisible below ~11 m/s and ramping
+  to 0.73 opacity at full speed, dimmed inside the tunnel/grotto.
+- **Finish party** (`world.js`): a checkered 22 m finish arch — candy poles,
+  pink tube rings, a quadratic arc, a black-and-white banner and two giant
+  lollipops beside it (merged into a handful of draws).
+- **Start and finish canopy** (`landmarks.js`): the pennant builder was
+  refactored into `festiveRows()` and now also dresses stations 24/42/60 and the
+  last 84 m of the ride, so the ride opens and closes under bunting.
+- Metrics: `corridorScan(8)` 0 problems, `perf()` tier 2, 0 page errors.
+- Evidence: `iter3-speed-fov.webp`, `iter3-speed.webp`, `iter3-start-canopy.webp`,
+  `iter3-finish-arch.webp`, `iter3-finish-straight.webp`, `iter3-finale.webp`.
+- Regressions: `forkqa` 20/20, `serpentineqa` 12/12, `uiqa --offline` 25/25,
+  root unit tests 11/11.
+- Test hook added: `__TEST__.setSpeed(v)` (QA only, never called by the game) so
+  the speed-feel effects can be compared frame to frame.
+
+### Known limitations
+
+- The suite runs Chromium/SwiftShader with touch emulation, not a physical
+  Android device; frame-rate measurements on real hardware are still pending.
+- The grotto interior is deliberately dark (0.8 of the tunnel darkness): on a
+  very dim phone screen the wall crystals are the brightest object inside.
+- Evidence images are 915×412 PNG→WebP captures; the game's own PWA/offline
+  behaviour is covered by the UI suite above.
