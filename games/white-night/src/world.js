@@ -153,8 +153,9 @@ export class World {
   // The portrait frame is narrow, so the search view steps back far enough to show
   // the yard (well, lamps, arch) instead of a close-up of one bin. The inspection
   // item is anchored in camera space, so this only reframes the courtyard.
-  this.camera.position.set(portrait?3.35:4.6,portrait?3.45:3.5,portrait?10.3:9.8);
-  this.camera.lookAt(portrait?.62:0,portrait?1.52:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
+  const landscape=!portrait&&h<=520&&w>650;
+  this.camera.position.set(landscape?4.15:portrait?3.35:4.6,landscape?2.65:portrait?3.45:3.5,landscape?8.3:portrait?10.3:9.8);
+  this.camera.lookAt(landscape?.25:portrait?.62:0,landscape?1.32:portrait?1.52:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
   this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
   this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;

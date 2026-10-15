@@ -140,3 +140,12 @@
 /* Keep the toast below the find header instead of on top of the rarity chip. */
 #toast{top:158px}
 @media(max-width:650px){#toast{top:calc(150px + env(safe-area-inset-top))}}
+
+/* v6 / 16: landscape search layout - compact hero, controls as a right panel. */
+@media(max-height:520px) and (min-width:651px){
+ .hero{top:82px;left:28px}
+ .hero h1{font-size:48px;line-height:.95;margin:10px 0 8px}
+ .search-controls{left:auto;right:24px;bottom:20px;transform:none;width:296px}
+ .search-status{margin-bottom:9px}
+ .bottom-meta{display:none}
+}

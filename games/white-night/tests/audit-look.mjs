@@ -24,6 +24,13 @@ for (const id of ['camera', 'teacup', 'record', 'duck']) {
   await page.evaluate(() => document.querySelector('#discard').click());
   await new Promise(r => setTimeout(r, 150));
 }
+await page.setViewport({width: 844, height: 390, isMobile: true, hasTouch: true, deviceScaleFactor: 1});
+await new Promise(r => setTimeout(r, 600));
+await page.screenshot({path: `${folder}/search-844.webp`, type: 'webp', quality: 88});
+await open('record');
+await page.screenshot({path: `${folder}/landscape-844-record.webp`, type: 'webp', quality: 88});
+await page.evaluate(() => document.querySelector('#discard').click());
+await new Promise(r => setTimeout(r, 200));
 await page.setViewport({width: 1280, height: 900, deviceScaleFactor: 1});
 await new Promise(r => setTimeout(r, 600));
 await page.screenshot({path: `${folder}/search-1280.webp`, type: 'webp', quality: 88});
