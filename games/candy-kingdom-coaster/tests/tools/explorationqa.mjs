@@ -66,7 +66,8 @@ try {
   check('post-race recap is retained', finish.state === 'finish' && finish.visible && finish.recap.includes('Твой маршрут:'), finish);
   await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 15000 });
   const cache = await page.evaluate(async () => {
-    const c = await caches.open('ckc-v23'), html = await c.match('./index.html');
+    const keys = await caches.keys(), key = keys.find((k) => /^ckc-v/.test(k));
+    const c = await caches.open(key), html = await c.match('./index.html');
     return { present: !!html, noOverlay: html ? !(await html.text()).includes('id="fork-hint"') : false };
   });
   check('v23 cache replaces the previous hint UI', cache.present && cache.noOverlay, cache);

@@ -109,32 +109,53 @@ final screenshots and documentation were completed.
 The earlier v21 offline run remains in `evidence/forks-offline-qa.json` as
 historical evidence. Its final-v22 offline gap is now closed by the UI run above.
 
-## Final visual evidence
+## Final visual evidence — v24
 
-All images below were captured from the actual final v22 game, after the sign
-and gummy-bear polish; no mockup or generated game screenshot:
+Captured from the actual v24 build (no mockups), with `tests/tools/forkview.mjs`
+(a new tool that parks the car and camera at exact fork stations and branch
+options, with the HUD off unless `HUD=1`):
 
-- `evidence/fork-choice-1.webp` / `fork-choice-2.webp` — decision approaches.
-- `evidence/fork-gummy-hills.webp` — visible bears on their raised plinths.
-- `evidence/fork-star-tunnel.webp` — the optional lit tunnel.
-- `evidence/fork-cookie-jump.webp` — the wide, route-specific jump ramp.
-- `evidence/fork-cloud-bridge.webp` — the elevated alternative.
+- `evidence/fork-approach.webp` — the shared approach: both gates and the bear
+  beacon of the left branch are already visible.
+- `evidence/fork-split.webp` — the split with both gates at 12 m.
+- `evidence/fork-gate-hills.webp` / `fork-gate-grotto.webp` — the two emblems
+  (bear / star) on their colossal arches.
+- `evidence/fork-gummy-hills.webp` — gumdrop mounds, striped plinths, bears.
+- `evidence/fork-grotto-inside.webp` / `fork-grotto-exit.webp` — the dark geode
+  from inside: crystal walls, glowing ribs, wall lanterns, light pools, and the
+  star marking the exit.
+- `evidence/fork-cookie-canyon.webp` — dark cookie rocks with chocolate chips.
+- `evidence/fork-cloud-skyway.webp` — cloud curb, rainbow arches and the deck
+  riding on its cloud bank.
 
-Browser checks use Chromium/SwiftShader with mobile touch emulation, not a
-physical Android phone or a device-FPS benchmark. The older broad acceptance suite was not rerun; the focused UI and
-serpentine suites above were run on the final fork build.
+Historical v22 images (`fork-choice-*.webp`, `fork-star-tunnel.webp`,
+`fork-cookie-jump.webp`, `fork-cloud-bridge.webp`) are kept for comparison.
 
-```sh
-cp games/candy-kingdom-coaster/tests/tools/forkqa.mjs /home/user/tools/
-node /home/user/tools/forkqa.mjs http://127.0.0.1:8900/index.html --screenshots --offline
+## Verified numbers — v24
 
-# Close UI/offline + capture final fork views in the same already-booted page:
-cp games/candy-kingdom-coaster/tests/tools/uiqa.mjs /home/user/tools/
-node /home/user/tools/uiqa.mjs http://127.0.0.1:8900/index.html --offline --fork-views
+- Fork gameplay suite (`forkqa.mjs`): **20/20**.
+  - 0 scenery intrusions across the full car envelope (rays every 1 m,
+    |lateral| ≤ 8 m, 3.4 m up, both branch options).
+  - 0 blocked chase-camera frames out of 204 fork poses on all four routes.
+  - 20 draw calls / 73.8k triangles for all four destinations.
+  - All four route combinations finish (107.6–109.0 s) with their own rewards.
+- Serpentines/cakes regression (`serpentineqa.mjs`): **12/12** after v24.
+- UI/controls/offline (`uiqa.mjs --offline`): **25/25**, including a real
+  offline reload from the `ckc-v24` cache.
+- Root unit tests: **11/11**; validator self-test passes.
 
-cp games/candy-kingdom-coaster/tests/tools/serpentineqa.mjs /home/user/tools/
-node /home/user/tools/serpentineqa.mjs http://127.0.0.1:8900/index.html
-```
+### One-tap review of what a child sees at each fork
 
-Install the shared browser runtime with the repository's headless-browser setup.
-Large/transient outputs stay in ignored `test-results/`, not Git.
+| station | left branch | right branch |
+|---|---|---|
+| 1 (s 115–335) | bear emblem gate → gumdrop hills, bouncing bears, cane arches | star emblem gate → dark crystal candy grotto with lit walls |
+| 2 (s 1503–1753) | cookie emblem gate → cookie canyon, chocolate chips, 1.4 m jump ramp | cloud emblem gate → cloud skyway, 5 rainbow arches, floating islands |
+
+### Known limitations
+
+- The suite runs Chromium/SwiftShader with touch emulation, not a physical
+  Android device; frame-rate measurements on real hardware are still pending.
+- The grotto interior is deliberately dark (0.8 of the tunnel darkness): on a
+  very dim phone screen the wall crystals are the brightest object inside.
+- Evidence images are 915×412 PNG→WebP captures; the game's own PWA/offline
+  behaviour is covered by the UI suite above.

@@ -274,11 +274,15 @@ try {
   const cache = await page.evaluate(async () => {
     const ready = await Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise((r) => setTimeout(() => r(false), 15000))]);
     if (!ready) return { error: 'service worker did not activate within 15 seconds' };
-    const keys = await caches.keys(), key = keys.find((k) => k === 'ckc-v23');
+    // Version-agnostic: the cache name carries the build revision, so assert
+    // the contents of whatever ckc-v* cache the service worker actually made.
+    const keys = await caches.keys(), key = keys.find((k) => /^ckc-v/.test(k));
     const c = key && await caches.open(key);
-    return { key, course: !!(c && await c.match('./src/course.js')), cakes: !!(c && await c.match('./src/cakes.js')) };
+    return { key, course: !!(c && await c.match('./src/course.js')), cakes: !!(c && await c.match('./src/cakes.js')),
+      forks: !!(c && await c.match('./src/forks.js')), routes: !!(c && await c.match('./src/routes.js')) };
   });
-  record('new route and cake modules are precached for offline play', cache.key === 'ckc-v23' && cache.course && cache.cakes, cache);
+  record('new route and cake modules are precached for offline play', /^ckc-v/.test(cache.key || '') && cache.course && cache.cakes
+    && cache.forks && cache.routes, cache);
   if (process.argv.includes('--offline')) {
     await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 15000 });
     await page.setOfflineMode(true);
