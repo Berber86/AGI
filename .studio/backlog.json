@@ -208,6 +208,53 @@
         ".studio/evidence/reports/visual-v4-6-scene.json",
         ".studio/evidence/reports/visual-v4-thumbnails.json"
       ]
+    },
+    {
+      "id": "VISUAL-V5-7",
+      "title": "Twilight light and courtyard planes",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4-6"
+      ],
+      "acceptanceCriteria": [
+        "Preserve 18 IDs and saved collection",
+        "Production screenshot/runtime check",
+        "No new audio or external assets"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v5-7-scene.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V5-8",
+      "title": "Coherent landscape inspection",
+      "ownerRole": "builder",
+      "status": "in_progress",
+      "dependencies": [
+        "VISUAL-V5-7"
+      ],
+      "acceptanceCriteria": [
+        "Preserve 18 IDs and saved collection",
+        "Production screenshot/runtime check",
+        "No new audio or external assets"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "VISUAL-V5-9",
+      "title": "Multi-angle framing and cavity inspection",
+      "ownerRole": "builder",
+      "status": "ready",
+      "dependencies": [
+        "VISUAL-V5-8"
+      ],
+      "acceptanceCriteria": [
+        "Preserve 18 IDs and saved collection",
+        "Production screenshot/runtime check",
+        "No new audio or external assets"
+      ],
+      "evidence": []
     }
   ],
   "updatedAt": "2026-10-15"

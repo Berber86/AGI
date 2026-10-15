@@ -102,3 +102,6 @@
 #toast[data-tone="duplicate"]:before{content:'↗';color:#c3d0bd;margin-right:9px}
 #toast[data-tone="discarded"]{color:#c5cdc7;border-style:dashed}
 @media(max-height:520px) and (min-width:651px){.reveal-note{left:30%;top:auto;bottom:38px;width:52%}}
+
+/* v5 / 7: cool open sky, warm masonry; no full-screen color filter. */
+.vignette{background:linear-gradient(180deg,#122634b3 0,#2134411f 34%,transparent 59%,#12282ac2 80%,#102629ee 100%),linear-gradient(90deg,#172e3733,transparent 45%);box-shadow:inset 0 0 100px #10263420}

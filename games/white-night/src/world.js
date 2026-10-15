@@ -15,12 +15,21 @@ export class World {
  constructor(canvas){
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
   this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.shadowMap.autoUpdate=false;this.renderer.shadowMap.needsUpdate=true;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
-  this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#b7c8c6');this.scene.fog=new THREE.FogExp2('#a9bdcd',.008);
+  this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#c3d0db');this.scene.fog=new THREE.FogExp2('#becdd8',.005);
+  // Static twilight sky: vertex gradient, no texture download or extra render pass.
+  const skyGeo=new THREE.SphereGeometry(55,24,12),skyColors=[];
+  const horizon=new THREE.Color('#e0cec0'),zenith=new THREE.Color('#829dbb');
+  for(let i=0;i<skyGeo.attributes.position.count;i++){
+    const h=THREE.MathUtils.smoothstep(skyGeo.attributes.position.getY(i)/55,-.04,.55);
+    horizon.clone().lerp(zenith,h).toArray(skyColors,i*3);
+  }
+  skyGeo.setAttribute('color',new THREE.Float32BufferAttribute(skyColors,3));
+  this.scene.add(new THREE.Mesh(skyGeo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,depthWrite:false,fog:false})));
   this.camera=new THREE.PerspectiveCamera(46,1,.1,70);this.scene.add(this.camera);
   const pmrem=new THREE.PMREMGenerator(this.renderer);const room=new RoomEnvironment();this.envTarget=pmrem.fromScene(room,.03);this.scene.environment=this.envTarget.texture;this.scene.environmentIntensity=.65;room.dispose();pmrem.dispose();
-  this.scene.add(new THREE.HemisphereLight(0xc4dcef,0x657989,1.25));
-  const sun=new THREE.DirectionalLight(0xffeedb,2.8);sun.position.set(-3,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-6;sun.shadow.camera.right=6;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-6;sun.shadow.normalBias=.012;sun.shadow.bias=-.00025;sun.shadow.radius=3;this.scene.add(sun);this.sun=sun;
-  const fill=new THREE.DirectionalLight(0xa8ceff,.75);fill.position.set(5,5,-4);this.scene.add(fill);
+  this.scene.add(new THREE.HemisphereLight(0xd9e7f5,0x526a7b,1.45));
+  const sun=new THREE.DirectionalLight(0xffe7c8,2.15);sun.position.set(-5,9,3);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-6;sun.shadow.camera.right=6;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-6;sun.shadow.normalBias=.012;sun.shadow.bias=-.00025;sun.shadow.radius=3;this.scene.add(sun);this.sun=sun;
+  const fill=new THREE.DirectionalLight(0xb2d0f2,.9);fill.position.set(5,5,-4);this.scene.add(fill);
   this.static=new THREE.Group();this.scene.add(this.static);this.buildCourtyard();batch(this.static);
   this.bin=new THREE.Group();this.scene.add(this.bin);this.buildBin();this.bin.rotation.y=-.18;
   // A depth-tested veil sits BEHIND the find, not over it like a CSS filter.

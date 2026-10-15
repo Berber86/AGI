@@ -78,3 +78,9 @@
 
 ### Финальная приёмка v4
 После последней коррекции переплёта повторён весь последовательный browser-прогон, **exit 0**: visual (18), thumbnails, E2E (17 групп), desktop, catalog, scene, reveal (9 проверок). Синтаксис, 17 unit и 15 root Python прошли; validator/self-test и diff-check — тоже. `play/` побайтово соответствует `dist/`: **6 643 872 байта**, 25 файлов (24 в precache), SW `white-night-5c2eac01266b`, JS `index-XmK9jd2B.js`, CSS `index-Dcn0vzJy.css`. Сводный отчёт с SHA-256: `.studio/evidence/reports/visual-v4-release.json`.
+
+# v5 — Итерации 7–9
+
+## 7 — Свет белой ночи
+Прохладнее небо и заполнение, мягче тёплый направленный свет на кладке, меньше зелёной виньетки; двор светлее, бак сохраняет контраст. Статический vertex-gradient неба: один простой mesh, без новых texture downloads или постпроходов. Небо видно лишь в открытых направлениях камеры, обычный двор всё ещё ограничен фасадами.
+Синтаксис/17 unit/build прошли; `SERIES=v5 ITERATION=7 test:scene` — три размера, touch и low quality, без ошибок. Desktop-кадр просмотрен. Evidence: `visual-v5-7-scene.json`, `visual-v5-7/`. Аппаратный Android не измерен.

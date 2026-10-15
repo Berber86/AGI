@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "phase": "done",
-  "activeRole": "release",
-  "currentTask": null,
-  "lastAction": "Three further visual iterations complete: final 17 unit tests, all 18 framing, 17 E2E groups, thumbnails, desktop, catalog, courtyard and reveal passed; static export 6643872 bytes matches dist",
-  "nextAction": "Review physical Android performance and remaining visual audit if requested; git/chat records final branch delivery",
+  "phase": "production",
+  "activeRole": "builder",
+  "currentTask": "VISUAL-V5-8",
+  "lastAction": "Iteration 7 scene tests passed, desktop frame reviewed",
+  "nextAction": "Landscape panel and stage composition",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-15-visual-v4.md",
   "sessionBenchmark": {

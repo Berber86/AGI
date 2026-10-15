@@ -1,8 +1,8 @@
 import {launch} from './browser.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-const iteration=process.env.ITERATION||'4';
-const folder=`../../.studio/evidence/screenshots/visual-v4-${iteration}`;fs.mkdirSync(folder,{recursive:true});
+const iteration=process.env.ITERATION||'4';const series=process.env.SERIES||'v4';
+const folder=`../../.studio/evidence/screenshots/visual-${series}-${iteration}`;fs.mkdirSync(folder,{recursive:true});
 const browser=await launch();const errors=[],checks=[],metrics=[];let report={passed:false};
 try{
  const p=await browser.newPage();p.setDefaultTimeout(120000);p.setDefaultNavigationTimeout(120000);
@@ -25,4 +25,4 @@ try{
  assert.equal(await p.evaluate(()=>window.__GAME_TEST__.getMetrics().quality),'low');checks.push('Low-quality path retains scene and interaction');
  assert.deepEqual(errors,[]);report={passed:true,iteration,checks,metrics,errors,limitations:['SwiftShader screenshots do not establish physical Android FPS.']};
 }catch(e){report={passed:false,iteration,checks,metrics,errors,error:e.stack};throw e;}
-finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-v4-${iteration}-scene.json`,JSON.stringify(report,null,2));await browser.close();}
+finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-${series}-${iteration}-scene.json`,JSON.stringify(report,null,2));await browser.close();}
