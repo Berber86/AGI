@@ -464,7 +464,7 @@ function publishRemoteState() {
   lastRemoteState = {
     paused: game.state === 'paused', racing: game.state === 'racing',
     auto: !!game.autoAssist, look: vrSettings.lookMode, cm: vrSettings.baselineCm,
-    muted: SFX.isMuted(), driver: game.driverMode,
+    muted: SFX.isMuted(), driver: game.vrRide ? game.driverMode : vrSettings.driverMode,
   };
   remoteCtrl.publishState(lastRemoteState);
 }
@@ -593,6 +593,7 @@ async function setupRemote(kind) {
       try { localStorage.setItem('ckc_stand_cfg', el.vrCfg.value); } catch { /* ignore */ }
     }
     const code = await rc.createRoom();
+    publishRemoteState(); // джойстик видит экран сразу, ещё до старта поездки
     el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
   } catch (e) {
     el.vrCfgStatus.textContent = 'Ошибка комнаты: ' + (e && e.message ? e.message : e);
@@ -640,7 +641,7 @@ try {
   if (savedCfg) el.vrCfg.value = savedCfg;
 } catch { /* ignore */ }
 setInterval(updateRemoteUi, 700);
-setInterval(() => { if (remoteCtrl && game.vrRide) publishRemoteState(); }, 5000);
+setInterval(() => { if (remoteCtrl && remoteCtrl.room) publishRemoteState(); }, 5000);
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
 el.vrIpd.addEventListener('input', () => {
   vrSettings.baselineCm = +el.vrIpd.value;
@@ -1412,6 +1413,7 @@ window.__TEST__ = {
     const rc = ensureRemote();
     if (!rc.kind) rc.useDemo();
     const code = await rc.createRoom();
+    publishRemoteState();
     return { code, info: rc.info() };
   },
   remoteState() { publishRemoteState(); return lastRemoteState; },

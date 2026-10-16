@@ -37,19 +37,26 @@ for (const p of [game, joy]) {
 await game.goto(GAME, { waitUntil: 'networkidle0', timeout: 90000 });
 await game.waitForFunction('window.__READY__ === true', { timeout: 90000 });
 
-// 1. экран создаёт демо-комнату и стартует VR-поездку в режиме джойстика
-const room = await game.evaluate(async () => {
-  const r = await window.__TEST__.remoteDemo();
-  window.__TEST__.vrStart('look', 30);
-  return r;
-});
-record('комната создана, VR едет в режиме джойстика', /^\d{6}$/.test(room.code) && room.info.room === room.code, room);
-await game.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
+// 1. экран создаёт демо-комнату (поездка ещё НЕ стартовала)
+const room = await game.evaluate(async () => window.__TEST__.remoteDemo());
+record('комната создана', /^\d{6}$/.test(room.code) && room.info.room === room.code, room);
 
-// 2. второй телефон: страница джойстика входит по коду
+// 2. второй телефон входит по коду и видит состояние экрана ещё до старта
 await joy.goto(JOY, { waitUntil: 'networkidle0', timeout: 60000 });
 await joy.waitForFunction('!!window.__JOY__', { timeout: 30000 });
 await joy.evaluate((code) => window.__JOY__.join(code), room.code);
+let prepState = null;
+for (let i = 0; i < 30 && !prepState; i++) {
+  prepState = await joy.evaluate(() => window.__JOY__.lastState());
+  if (!prepState) await sleep(500);
+}
+record('экран публикует состояние ещё до старта поездки', !!prepState && prepState.driver === 'remote', prepState);
+
+// 2b. теперь старт поездки
+await game.evaluate(() => window.__TEST__.vrStart('look', 30));
+const started = await game.evaluate(() => { const g = window.__TEST__.gameInfo(); return g.vrRide && g.driverMode === 'remote'; });
+record('VR едет в режиме джойстика', !!started, started);
+await game.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
 await sleep(400);
 await joy.evaluate(() => window.__JOY__.setSteer(false, true)); // вправо
 await sleep(300);

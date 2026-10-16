@@ -163,17 +163,37 @@ function parseFirebaseConfig(text) {
 const roomRef = (p) => state.f.ref(state.db, `rooms/${state.room}${p || ''}`);
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 
-function pushSteer() {
-  els.joyLeft.classList.toggle('on', state.steer.l);
-  els.joyRight.classList.toggle('on', state.steer.r);
-  els.joyLeft.setAttribute('aria-pressed', String(state.steer.l));
-  els.joyRight.setAttribute('aria-pressed', String(state.steer.r));
-  if (!state.room) return;
+// ВАЖНО (INP): обработчики нажатий не должны трогать сеть синхронно —
+// запись в Firebase внутри pointerdown блокировала UI на слабых телефонах
+// (Chrome показывал «Event handlers blocked UI updates» на сотни мс).
+// Поэтому обработчик только меняет визуал, а отправка уезжает в отдельный
+// тик после отрисовки и коалесцируется (не чаще ~33 раз/с, только изменения).
+let steerDirty = false;
+let steerTimer = null;
+let lastSteerSent = 0;
+function scheduleSteerSend() {
+  if (steerTimer) return;
+  const wait = Math.max(0, 30 - (performance.now() - lastSteerSent));
+  steerTimer = setTimeout(flushSteer, wait);
+}
+function flushSteer() {
+  steerTimer = null;
+  if (!steerDirty || !state.room) return;
+  steerDirty = false;
+  lastSteerSent = performance.now();
   if (state.kind === 'demo') {
     state.ch.postMessage({ kind: 'input', room: state.room, state: { ...state.steer } });
   } else {
     state.f.set(roomRef('/input'), { l: state.steer.l ? 1 : 0, r: state.steer.r ? 1 : 0, seq: ++state.seq, sts: state.f.serverTimestamp() }).catch(() => {});
   }
+}
+function pushSteer() {
+  els.joyLeft.classList.toggle('on', state.steer.l);
+  els.joyRight.classList.toggle('on', state.steer.r);
+  els.joyLeft.setAttribute('aria-pressed', String(state.steer.l));
+  els.joyRight.setAttribute('aria-pressed', String(state.steer.r));
+  steerDirty = true;
+  scheduleSteerSend();
 }
 
 async function bootFirebase(config) {
@@ -198,12 +218,9 @@ function startLoops() {
     else state.f.set(roomRef('/ping'), { id }).catch(() => {});
   }, 2000);
 }
-function pushSteerKeepVisual() { // heartbeat не должен менять seq чаще событий кнопок — но обязан обновлять sts
-  if (state.kind === 'firebase' && state.room) {
-    state.f.set(roomRef('/input'), { l: state.steer.l ? 1 : 0, r: state.steer.r ? 1 : 0, seq: state.seq, sts: state.f.serverTimestamp() }).catch(() => {});
-  } else if (state.kind === 'demo' && state.room) {
-    state.ch.postMessage({ kind: 'input', room: state.room, state: { ...state.steer } });
-  }
+function pushSteerKeepVisual() { // heartbeat: освежить sts той же отложенной отправкой
+  steerDirty = true;
+  scheduleSteerSend();
 }
 
 function onPong(id) {
@@ -224,8 +241,25 @@ async function join(code) {
   if (state.kind === 'firebase') {
     state.f.onValue(roomRef('/pong'), (s) => { const v = s.val(); if (v) onPong(v.id); });
     state.f.onValue(roomRef('/state'), (s) => { const v = s.val(); if (v) renderCmdState(v); });
+    let metaSeen = false;
+    let hintTimer = null;
     state.f.onValue(roomRef('/meta'), (s) => {
-      els.joyStatus.textContent = s.val() ? '✅ Комната найдена!' : '⏳ Ждём, пока экран создаст комнату…';
+      if (s.val()) {
+        metaSeen = true;
+        if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
+        els.joyStatus.textContent = '✅ Комната найдена!';
+        els.joyStatus.className = 'status ok';
+        return;
+      }
+      els.joyStatus.textContent = '⏳ Ждём, пока экран создаст комнату…';
+      if (!hintTimer) {
+        hintTimer = setTimeout(() => {
+          hintTimer = null;
+          if (metaSeen) return;
+          els.joyStatus.textContent = 'Комната не найдена. Проверьте: 1) на главном телефоне в подготовке VR выбран «🕹 Джойстик» и комната создана; 2) код совпадает цифра в цифру; 3) конфиг Firebase на ОБОИХ телефонах одинаковый (один проект, один databaseURL). Продолжаю ждать…';
+          els.joyStatus.className = 'status warn';
+        }, 8000);
+      }
     });
   } else {
     state.ch.onmessage = (e) => {
@@ -292,8 +326,10 @@ function sendCmd(name) {
   try { navigator.vibrate && navigator.vibrate(12); } catch { /* ignore */ }
   const seq = ++cmdSeq;
   if (!state.room) return;
-  if (state.kind === 'demo') state.ch.postMessage({ kind: 'cmd', room: state.room, name, seq });
-  else state.f.set(roomRef('/cmd'), { name, seq, sts: state.f.serverTimestamp() }).catch(() => {});
+  setTimeout(() => { // сеть после отрисовки нажатия (INP)
+    if (state.kind === 'demo') state.ch.postMessage({ kind: 'cmd', room: state.room, name, seq });
+    else state.f.set(roomRef('/cmd'), { name, seq, sts: state.f.serverTimestamp() }).catch(() => {});
+  }, 0);
 }
 function renderCmdState(st) {
   if (!st) return;
