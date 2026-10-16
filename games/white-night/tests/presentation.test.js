@@ -56,3 +56,10 @@ test('Callout mirrors and stays inside narrow and wide viewports',async()=>{
   assert.ok(p.x>=20&&p.x+172<=width-20);assert.ok(Number.isFinite(p.y));
  }
 });
+
+
+test('Object-specific labels preserve pose keys and explain cavities and flat faces',async()=>{
+ const {poseLabels}=await import('../src/presentation.js');
+ for(const {id} of ITEMS)assert.deepEqual(Object.keys(poseLabels(id)),['front','back','top','bottom']);
+ assert.equal(poseLabels('teacup').bottom,'Клеймо');assert.equal(poseLabels('record').back,'Оборот');assert.equal(poseLabels('can').top,'Внутри');
+});

@@ -1,6 +1,7 @@
 import './style.css';
+import './interface.css';
 import { World } from './world.js';
-import { ZOOM, calloutPosition } from './presentation.js';
+import { ZOOM, calloutPosition, poseLabels } from './presentation.js';
 import { materialAssetsReady } from './materials.js';
 import { ITEMS, RARITY, initialState, chooseItem, transition, loadSave, saveState } from './state.js';
 const $=selector=>document.querySelector(selector);
@@ -12,8 +13,10 @@ const testing=new URLSearchParams(location.search).has('test');
 const dialogs=$$('dialog');
 function notify(message,tone='neutral'){$('#toast').dataset.tone=tone;$('#toast').textContent=message;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),2600);}
 function persist(){if(!saveState(storage,state)){$('#save-status').textContent='Сохранение недоступно в этом браузере';notify('Не удалось сохранить. Прогресс останется до закрытия страницы.');}}
+function setViewsOpen(open){$('#find-views').hidden=!open;$('#toggle-views').setAttribute('aria-expanded',String(open));}
 function updateViews(){
- $$('[data-pose]').forEach(b=>{b.disabled=state.phase!=='inspect'||!world?.revealState?.ready;b.setAttribute('aria-pressed',String(b.dataset.pose===world?.pose));});
+ const labels=poseLabels(state.current||'camera');
+ $$('[data-pose]').forEach(b=>{b.textContent=labels[b.dataset.pose];b.disabled=state.phase!=='inspect'||!world?.revealState?.ready;b.setAttribute('aria-pressed',String(b.dataset.pose===world?.pose));});
 }
 function updateZoom(){updateViews();
  if(!world)return;
@@ -30,7 +33,7 @@ function syncReveal(){
  if(phase===lastRevealPhase)return;lastRevealPhase=phase;
  $('#app').dataset.revealPhase=phase;$('#app').classList.toggle('is-revealing',phase!=='ready');
  $('.inspection').setAttribute('aria-busy',String(phase!=='ready'));
- $('#keep').disabled=$('#discard').disabled=phase!=='ready';updateZoom();
+ $('#toggle-views').disabled=$('#keep').disabled=$('#discard').disabled=phase!=='ready';updateZoom();
  const notes={anticipation:'Что-то осталось на дне…',silhouette:'Знакомый силуэт…',detail:'У каждой вещи — своя история.'};
  $('#reveal-note').textContent=notes[phase]||'';$('#reveal-note').hidden=phase==='ready';
 }
@@ -40,7 +43,7 @@ function collectionFeedback(){
 }
 function updateUI(){
  $('#app').classList.toggle('has-progress',state.searches>0);syncReveal();updateZoom();
- $('#app').classList.toggle('is-inspecting',state.phase==='inspect');$('.inspection').hidden=state.phase!=='inspect';
+ $('#app').classList.toggle('is-inspecting',state.phase==='inspect');setViewsOpen(false);$('.inspection').hidden=state.phase!=='inspect';
  // The toast reports on the previous find; it must not cover the next one's
  // rarity chip while that find is being inspected.
  if(state.phase==='inspect'){clearTimeout(toastTimer);$('#toast').classList.remove('visible');}
@@ -81,7 +84,8 @@ function syncBinTag(){
 }
 function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;world.update(Math.min(rawDt,.1),rawDt);syncReveal();syncBinTag();}
 function bind(){
- $$('[data-pose]').forEach(b=>b.addEventListener('click',()=>{world.setPose(b.dataset.pose);updateViews();}));
+ $('#toggle-views').addEventListener('click',()=>setViewsOpen($('#find-views').hidden));
+ $$('[data-pose]').forEach(b=>b.addEventListener('click',()=>{world.setPose(b.dataset.pose);updateViews();setViewsOpen(false);$('#toggle-views').focus({preventScroll:true});}));
  $('#zoom-in').addEventListener('click',()=>{world.setZoom(.2);updateZoom();});$('#zoom-out').addEventListener('click',()=>{world.setZoom(-.2);updateZoom();});$('#zoom-reset').addEventListener('click',()=>{world.setZoom(1-world.zoom);updateZoom();});
  $('#search-button').addEventListener('click',search);$('#discard').addEventListener('click',()=>decide(false));$('#keep').addEventListener('click',()=>decide(true));$('#close-review').addEventListener('click',closeReview);
  $('#open-collection').addEventListener('click',openCollection);$('#open-settings').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;$('#settings-dialog').showModal();});
@@ -91,11 +95,11 @@ function bind(){
  $('#low-quality').addEventListener('change',e=>{world.setQuality(e.target.checked);world.update(.016);try{storage.setItem('white-night-quality',e.target.checked?'low':'high');}catch{}});
  $('#reset-button').addEventListener('click',()=>{$('#reset-confirm').hidden=false;$('#reset-button').hidden=true;});$('#reset-cancel').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;});$('#reset-yes').addEventListener('click',reset);
  $('#continue-button').addEventListener('click',()=>$('#complete-dialog').close());$('#view-complete').addEventListener('click',()=>{$('#complete-dialog').close();openCollection();});
- const canvas=$('#world');canvas.addEventListener('pointerdown',e=>{if(dialogs.some(d=>d.open)||drag||!e.isPrimary)return;if(state.phase==='inspect'){world.finishReveal();syncReveal();}drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
+ const canvas=$('#world');canvas.addEventListener('pointerdown',e=>{if(dialogs.some(d=>d.open)||drag||!e.isPrimary)return;if(state.phase==='inspect'){setViewsOpen(false);world.finishReveal();syncReveal();}drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
  canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>10)drag.moved=true;if(state.phase==='inspect'){world.rotate(dx,dy);updateViews();}drag.x=e.clientX;drag.y=e.clientY;});
  canvas.addEventListener('pointerup',e=>{if(!drag||drag.id!==e.pointerId)return;const tap=!drag.moved;drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(tap&&state.phase==='search'&&world.hitBin(e.clientX,e.clientY))search();});canvas.addEventListener('pointercancel',()=>drag=null);canvas.addEventListener('lostpointercapture',()=>drag=null);
  document.addEventListener('visibilitychange',()=>{paused=document.hidden;drag=null;lastTime=0;});window.addEventListener('blur',()=>drag=null);window.addEventListener('resize',()=>{world.resize();if(dialogs.some(d=>d.open))world.update(.016);});
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialogs.some(d=>d.open)&&state.phase==='inspect'){e.preventDefault();if(state.reviewing)closeReview();else{world.finishReveal();syncReveal();decide(false);}}});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialogs.some(d=>d.open)&&state.phase==='inspect'){e.preventDefault();if(!$('#find-views').hidden){setViewsOpen(false);$('#toggle-views').focus();return;}if(state.reviewing)closeReview();else{world.finishReveal();syncReveal();decide(false);}}});
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;$('#webgl-error').hidden=false;});
 }
 async function start(){

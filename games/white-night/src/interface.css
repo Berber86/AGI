@@ -1,0 +1,53 @@
+/* v7 / 21 — a small, legible inspection toolbar; surfaces shared by dialogs. */
+:root {
+ --surface:#182e38; --surface-raised:#203842; --text-secondary:#cbd6d7;
+ --ui-border:#b6cbd438; --ui-radius:6px;
+}
+#safe-area-probe {position:absolute;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.find-header {top:104px}.rarity {font-size:11px;letter-spacing:.6px}#find-number {font-size:11px;letter-spacing:0}
+.rotation-hint {top:154px;gap:4px;padding:3px 6px;border-radius:var(--ui-radius);background:var(--surface);z-index:4}
+.rotation-hint button {min-width:44px;height:44px}.rotation-hint #toggle-views {width:auto;display:flex;align-items:center;gap:7px;padding:0 12px;font-size:12px;color:var(--cream);border-right:1px solid var(--ui-border);border-radius:0;margin-right:4px}
+#toggle-views svg {width:16px;height:16px}#zoom-reset {font-size:12px}
+.view-controls {top:212px;z-index:6;max-width:calc(100% - 32px);border-radius:var(--ui-radius);background:var(--surface);box-shadow:0 12px 30px #020a1299;padding:4px;gap:2px}
+.view-controls button {border-radius:4px;font-size:12px;min-width:44px;padding:0 10px}
+.view-controls button[aria-pressed=true] {background:#dce9b029;color:var(--accent);box-shadow:inset 0 -2px var(--accent)}
+.find-info {bottom:136px}.find-info p {font-size:15px;line-height:1.55;color:#d4dfe1;max-width:400px}.find-info .eyebrow {font-size:12px;letter-spacing:.6px}
+.find-info h2 {font-size:42px;margin:10px 0}.decision {font-size:14px;border-radius:var(--ui-radius)}
+#duplicate-badge {font-size:12px;margin-top:6px}
+.reveal-note {font-size:13px}
+#toast {max-width:calc(100% - 32px);white-space:normal;text-align:center;font-size:13px;background:var(--surface);color:var(--cream);border:1px solid var(--ui-border);top:110px}
+dialog {background:var(--surface);border-color:var(--ui-border);border-radius:8px}
+.dialog-header .eyebrow {font-size:10px;letter-spacing:1.2px}.settings-note,.instructions small,.quality-setting small {font-size:13px;color:var(--text-secondary)}
+.text-button {min-height:44px;font-size:13px}.instructions p {font-size:15px}
+@media(max-width:650px) {
+ .find-header {top:calc(84px + env(safe-area-inset-top));width:calc(100% - 40px)}
+ .rarity {font-size:10px;padding:8px;letter-spacing:.3px}#find-number {font-size:10px}
+ .rotation-hint {top:calc(128px + env(safe-area-inset-top))}
+ .view-controls {top:calc(184px + env(safe-area-inset-top));width:max-content}
+ .find-info {bottom:calc(132px + env(safe-area-inset-bottom));width:calc(100% - 40px);max-width:400px}
+ .find-info h2 {font-size:33px}.find-info p {font-size:14px;line-height:1.5}.find-info .eyebrow {font-size:11px}
+ .decision-buttons,#close-review {bottom:calc(38px + env(safe-area-inset-bottom));width:calc(100% - 40px);max-width:400px}
+ .decision {font-size:14px;height:58px}
+ .has-progress .hero p {font-size:13px}.control-hint {font-size:11px}
+ .edition,.bottom-meta .place small {font-size:9px}
+ #toast {top:calc(88px + env(safe-area-inset-top))}
+}
+@media(max-width:650px) and (max-height:719px) {
+ .rotation-hint {top:calc(112px + env(safe-area-inset-top))}
+ .find-header {top:calc(72px + env(safe-area-inset-top))}.rarity {padding:6px}
+ .view-controls {top:calc(166px + env(safe-area-inset-top))}
+ .find-info {bottom:calc(106px + env(safe-area-inset-bottom));max-height:150px;overflow:auto}
+ .find-info h2 {font-size:28px;margin:7px 0}.find-info p {font-size:14px}
+ .decision-buttons,#close-review {bottom:calc(22px + env(safe-area-inset-bottom))}
+ .has-progress .hero {top:76px}.hero .eyebrow,.hero .edition {display:none}.hero h1 {font-size:48px}
+}
+@media(max-height:520px) and (min-width:651px) {
+ .find-header {top:90px;right:24px}.rarity {font-size:10px}#find-number {font-size:9px}
+ .find-info {bottom:103px}.find-info .eyebrow {font-size:11px}.find-info h2 {font-size:28px;line-height:1.05;margin:8px 0}.find-info p {font-size:13px;line-height:1.45}
+ .decision {height:50px;font-size:13px}.decision-buttons,#close-review {bottom:24px}
+ .rotation-hint {top:auto;bottom:12px}.view-controls {top:auto;bottom:70px;left:calc((100% - var(--inspection-panel-width))/2)}
+ .reveal-note {bottom:80px}.rotation-hint #toggle-views {font-size:12px;padding:0 8px}
+}
+@media(max-height:380px) and (min-width:651px) {
+ .find-info h2 {font-size:24px}.find-info p {font-size:12px}.find-info {bottom:98px}
+}

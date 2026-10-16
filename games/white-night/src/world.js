@@ -164,8 +164,8 @@ export class World {
   const landscape=!portrait&&h<=520&&w>650,wide=!portrait&&!landscape&&w>1050;
   this.camera.position.set(landscape?4.15:wide?4.35:portrait?3.0:4.6,landscape?2.65:wide?3.3:portrait?3.65:3.5,landscape?8.3:wide?8.7:portrait?11.8:9.8);
   this.camera.lookAt(landscape?.25:wide?-1.15:portrait?-.15:0,landscape?1.32:wide?1.75:portrait?1.65:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
-  this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
-  this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
+  this.portrait=portrait;const styles=getComputedStyle(document.getElementById('safe-area-probe'));
+  this.stage=inspectionRect(w,h,parseFloat(styles.paddingTop)||0,parseFloat(styles.paddingBottom)||0);
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
   this.itemAnchor.position.set((this.stage.x+this.stage.width/2-w/2)*perPixel,(h/2-this.stage.y-this.stage.height/2)*perPixel,-4.2);
   this.inspectionVeil.scale.set(2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))*w/h,2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2)),1);

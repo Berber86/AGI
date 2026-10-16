@@ -29,8 +29,8 @@ export function inspectionRect(width, height, safeTop = 0, safeBottom = 0) {
     return { x: 28, y: 80 + safeTop, width: width-panel-64, height: Math.max(60,height-172-safeTop-safeBottom) };
   }
   const mobile = width <= 650;
-  const top = (mobile ? 244 : 270) + safeTop;
-  const bottom = height - (mobile ? 300 : 270) - safeBottom;
+  const top = (mobile ? (height < 720 ? 170 : 190) : 218) + safeTop;
+  const bottom = height - (mobile ? (height < 720 ? 264 : 310) : 280) - safeBottom;
   const w = Math.min(width - (mobile ? 40 : 100), 660);
   return { x: (width - w) / 2, y: top, width: w, height: Math.max(70, bottom - top) };
 }
@@ -78,4 +78,13 @@ export function calloutPosition(anchor, size, viewport, inset = 20) {
   y: Math.max(100, Math.min(viewport.height - 200, anchor.y - size.height / 2)),
   right,
  };
+}
+
+// IDs and pose keys stay stable; only the visible description is object-specific.
+export function poseLabels(id) {
+ if(PRESENTATION[id]?.flat)return {front:'Лицевая',back:'Оборот',top:'Наклон ↑',bottom:'Наклон ↓'};
+ if(id==='teacup')return {front:'Сбоку',back:'Сзади',top:'Внутри',bottom:'Клеймо'};
+ if(id==='can'||id==='box')return {front:'Сбоку',back:'Сзади',top:'Внутри',bottom:'Дно'};
+ if(id==='watch')return {front:'Циферблат',back:'Крышка',top:'Сверху',bottom:'Снизу'};
+ return {front:'Исходный',back:'Сзади',top:'Сверху',bottom:'Снизу'};
 }

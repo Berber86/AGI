@@ -296,7 +296,7 @@
       "id": "VISUAL-V7-21",
       "title": "Readable controls and meaningful poses",
       "ownerRole": "builder",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "VISUAL-V7-20"
       ],
@@ -312,7 +312,7 @@
       "id": "VISUAL-V7-22",
       "title": "Individual materials and truthful watch face",
       "ownerRole": "builder",
-      "status": "todo",
+      "status": "in_progress",
       "dependencies": [
         "VISUAL-V7-21"
       ],
