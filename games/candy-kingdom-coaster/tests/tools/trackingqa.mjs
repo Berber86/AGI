@@ -94,6 +94,35 @@ await sleep(2200);
 const drift = await page.evaluate(() => window.__TRACK__.state().lastDrift);
 record('тест покоя: цифры дрейфа получены, камера стабильна', !!drift && drift.n >= 2 && drift.camDrift < 1, drift);
 
+// 7b. посторонний объект того же цвета больше не уводит центроид
+const pair = await page.evaluate(() => {
+  window.__TRACK__.feedPair();
+  window.__TRACK__.calibrate(); // ноль — по крупной метке
+  return window.__TRACK__.feedPair();
+});
+record('крупнейшее пятно побеждает мелкий «хлебный» объект', pair.found && Math.abs(pair.yaw) < 1.2, pair);
+
+// 7c. прямоугольник: крен по моментам, заполнение, дистанция по длинной стороне
+const rect = await page.evaluate(() => {
+  window.__TRACK__.feed(160, 120, 40);
+  window.__TRACK__.calibrate();
+  window.__TRACK__.setShape('rect');
+  return window.__TRACK__.feedRect(160, 120, 120, 70, 25);
+});
+record('прямоугольник: найден, крен ≈ +25°', rect.found && Math.abs(rect.roll - 25) < 4, rect);
+record('прямоугольник: заполнение > 85%, дистанция по ширине (~31 см)',
+  rect.fill > 0.85 && rect.distCm > 24 && rect.distCm < 40, rect);
+
+// 7d. свой цвет объекта (малиновая коробка): калибровка оттенка
+const custom = await page.evaluate(() => {
+  window.__TRACK__.setShape('circle');
+  window.__TRACK__.setCustomHue(200);
+  const good = window.__TRACK__.feedColor(160, 120, 38, [0, 170, 255]);
+  const alien = window.__TRACK__.feedColor(160, 120, 38, [255, 0, 255]);
+  return { good: good.found, alien: alien.found };
+});
+record('свой оттенок: свой цвет ловится, чужой — нет', custom.good === true && custom.alien === false, custom);
+
 // 8. режим мишени запоминается после перезагрузки
 await page.reload({ waitUntil: 'networkidle0', timeout: 60000 });
 await page.waitForFunction('!!window.__TRACK__', { timeout: 30000 });
