@@ -1,5 +1,5 @@
-// Телефон-джойстик для VR-поездки: второй телефон рулит через Firebase
-// Realtime Database (только события нажатий/отпусканий), экран — хозяин игры.
+// Телефон-джойстик для VR-поездки: второй телефон передаёт аналоговые
+// значения руля и газа через Firebase Realtime Database, экран — хозяин игры.
 // Замеры стенда (../joystick-stand): медиана 148 мс в одну сторону при пороге
 // 300 мс — Firebase достаточно, WebRTC не нужен (JOYSTICK_BRAINSTORM.md).
 // Если руль молчит дольше FRESH_MS, main.js мягко возвращает автопилота.
@@ -40,12 +40,15 @@ export function parseFirebaseConfig(text) {
 }
 
 const newCode = () => String(Math.floor(100000 + Math.random() * 900000));
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number.isFinite(+v) ? +v : 0));
 
 export class RemoteControl {
   constructor() {
     this.kind = null;        // 'firebase' | 'demo'
     this.room = null;
-    this.steerState = { l: false, r: false };
+    // Continuous controls from the second phone. steer is -1..1
+    // (left..right), throttle is 0..1 (released..full gas).
+    this.driveState = { steer: 0, throttle: 0 };
     this.connected = false;
     this.lastInputAt = 0;
     this.lastLag = null;
@@ -103,7 +106,7 @@ export class RemoteControl {
         const v = s.val();
         if (!v) return;
         const lag = typeof v.sts === 'number' ? Math.max(0, Date.now() + this._timeOffset - v.sts) : null;
-        this._accept({ l: !!v.l, r: !!v.r }, lag);
+        this._accept(v, lag);
       }),
       f.onValue(ref(`${this._roomPath}/cmd`), (s) => {
         const v = s.val();
@@ -124,7 +127,13 @@ export class RemoteControl {
   }
 
   _accept(st, lag) {
-    this.steerState = { l: !!st.l, r: !!st.r };
+    // Keep accepting the old l/r shape for one cached/older joystick tab;
+    // the new page sends the analog values directly.
+    const oldSteer = (st && st.r ? 1 : 0) - (st && st.l ? 1 : 0);
+    this.driveState = {
+      steer: clamp(Number.isFinite(+st?.steer) ? +st.steer : oldSteer, -1, 1),
+      throttle: clamp(Number.isFinite(+st?.throttle) ? +st.throttle : 0, 0, 1),
+    };
     this.lastInputAt = performance.now();
     if (typeof lag === 'number') this.lastLag = lag;
     this.connected = true;
@@ -141,7 +150,11 @@ export class RemoteControl {
   }
 
   steer() {
-    return (this.steerState.r ? 1 : 0) - (this.steerState.l ? 1 : 0);
+    return this.driveState.steer;
+  }
+
+  throttle() {
+    return this.driveState.throttle;
   }
 
   fresh(now = performance.now()) {
@@ -151,7 +164,7 @@ export class RemoteControl {
   info() {
     return {
       kind: this.kind, room: this.room, connected: this.connected,
-      fresh: this.fresh(), steer: this.steer(),
+      fresh: this.fresh(), steer: +this.steer().toFixed(3), throttle: +this.throttle().toFixed(3),
       lastLagMs: this.lastLag === null ? null : Math.round(this.lastLag),
     };
   }
@@ -165,6 +178,6 @@ export class RemoteControl {
     if (this._ch) { try { this._ch.close(); } catch { /* ignore */ } this._ch = null; }
     this.room = null;
     this.connected = false;
-    this.steerState = { l: false, r: false };
+    this.driveState = { steer: 0, throttle: 0 };
   }
 }

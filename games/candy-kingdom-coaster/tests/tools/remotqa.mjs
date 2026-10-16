@@ -52,27 +52,76 @@ for (let i = 0; i < 30 && !prepState; i++) {
 }
 record('экран публикует состояние ещё до старта поездки', !!prepState && prepState.driver === 'remote', prepState);
 
+// 2a. реальные зоны: левый сенсор даёт аналоговый руль, центр правого — 30% газа
+const padProbe = await joy.evaluate(() => {
+  const fire = (el, type, x, y) => el.dispatchEvent(new PointerEvent(type, {
+    bubbles: true, pointerId: 77, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y,
+  }));
+  const steer = document.getElementById('pad-steer');
+  const gas = document.getElementById('pad-throttle');
+  const sr = steer.getBoundingClientRect(), gr = gas.getBoundingClientRect();
+  fire(steer, 'pointerdown', sr.left + sr.width * 0.25, sr.top + sr.height * 0.5);
+  const left = window.__JOY__.state();
+  fire(steer, 'pointerup', sr.left + sr.width * 0.25, sr.top + sr.height * 0.5);
+  fire(gas, 'pointerdown', gr.left + gr.width * 0.5, gr.top + gr.height * 0.5);
+  const middle = window.__JOY__.state();
+  fire(gas, 'pointerup', gr.left + gr.width * 0.5, gr.top + gr.height * 0.5);
+  fire(gas, 'pointerdown', gr.left + gr.width * 0.5, gr.top + gr.height * 0.1);
+  const top = window.__JOY__.state();
+  fire(gas, 'pointerup', gr.left + gr.width * 0.5, gr.top + gr.height * 0.1);
+  fire(gas, 'pointerdown', gr.left + gr.width * 0.5, gr.top + gr.height * 0.85);
+  const lower = window.__JOY__.state();
+  fire(gas, 'pointerup', gr.left + gr.width * 0.5, gr.top + gr.height * 0.85);
+  return { left, middle, top, lower, readout: document.getElementById('drive-readout').textContent };
+});
+record('зоны джойстика: −0,5 руля, газ 30% в центре, 100% сверху, 0% снизу',
+  padProbe.left.steer < -0.45 && padProbe.left.steer > -0.55 &&
+  Math.abs(padProbe.middle.throttle - 0.3) < 0.01 && padProbe.top.throttle === 1 && padProbe.lower.throttle === 0, padProbe);
+
 // 2b. теперь старт поездки
 await game.evaluate(() => window.__TEST__.vrStart('look', 30));
 const started = await game.evaluate(() => { const g = window.__TEST__.gameInfo(); return g.vrRide && g.driverMode === 'remote'; });
 record('VR едет в режиме джойстика', !!started, started);
 await game.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
 await sleep(400);
-await joy.evaluate(() => window.__JOY__.setSteer(false, true)); // вправо
+await joy.evaluate(() => window.__JOY__.setDrive(1, 0)); // вправо, без газа
 await sleep(300);
-const link = await game.evaluate(() => window.__TEST__.remoteInfo());
-record('игра видит джойстик и его руль', link && link.connected && link.steer === 1, link);
+const link0 = await game.evaluate(() => window.__TEST__.remoteInfo());
+record('игра видит аналоговый руль и отпущенный газ', link0 && link0.connected && link0.steer === 1 && link0.throttle === 0, link0);
 
-// 3. машинка реально поворачивает от джойстика
+// 3. свежий нулевой газ останавливает машинку, но взгляд остаётся доступен
+const stopped = await game.evaluate(() => {
+  window.__TEST__.vrSetLook(18, 0);
+  window.__TEST__.step(1 / 60, 180, false);
+  return { game: window.__TEST__.gameInfo(), vr: window.__TEST__.vrInfo() };
+});
+record('отпущенный правый сенсор: машина стоит, осматриваться можно',
+  stopped.game.state === 'racing' && stopped.game.speedKmh < 1.5 && stopped.vr.yawDeg > 8, stopped);
+
+// 3a. центр газа = 30%, верх = полный газ
+await joy.evaluate(() => window.__JOY__.setDrive(0, 0.3));
+await sleep(200);
+const middleGas = await game.evaluate(() => { window.__TEST__.step(1 / 60, 120, false); return window.__TEST__.gameInfo(); });
+record('центр правого сенсора даёт примерно 30% скорости', middleGas.speedKmh > 18 && middleGas.speedKmh < 28, middleGas);
+await joy.evaluate(() => window.__JOY__.setDrive(0, 1));
+await sleep(200);
+const fullGas = await game.evaluate(() => { window.__TEST__.step(1 / 60, 60, false); return window.__TEST__.gameInfo(); });
+record('верх правого сенсора даёт максимальный газ', fullGas.speedKmh > 65, fullGas);
+
+// 3b. машинка реально поворачивает от аналогового джойстика
+await joy.evaluate(() => window.__JOY__.setDrive(1, 0.3)); // вправо
+await sleep(250);
+const link = await game.evaluate(() => window.__TEST__.remoteInfo());
+record('игра видит аналоговый руль и газ', link && link.connected && link.steer === 1 && Math.abs(link.throttle - 0.3) < 0.01, link);
 const lat0 = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
 await game.evaluate(() => window.__TEST__.step(1 / 60, 150, false));
 const lat1 = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
-record('удержание ▶ уводит машинку вправо', lat1 > lat0 + 0.8, { lat0, lat1 });
-await joy.evaluate(() => window.__JOY__.setSteer(true, false)); // влево
+record('аналоговый руль вправо уводит машинку', lat1 > lat0 + 0.8, { lat0, lat1 });
+await joy.evaluate(() => window.__JOY__.setDrive(-1, 0.3)); // влево
 await sleep(200);
 await game.evaluate(() => window.__TEST__.step(1 / 60, 150, false));
 const lat2 = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
-record('удержание ◀ уводит машинку влево', lat2 < lat1 - 0.8, { lat1, lat2 });
+record('аналоговый руль влево уводит машинку', lat2 < lat1 - 0.8, { lat1, lat2 });
 
 // 3b. высокоуровневые команды: круг джойстик → игра → состояние на джойстике
 async function joyState(pred, tries = 60) {

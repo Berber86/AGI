@@ -467,10 +467,21 @@ function vrSteerTarget() {
   return Math.sin(s * 0.021) * 0.4;
 }
 
+function remoteDriveActive() {
+  return game.driverMode === 'remote' && !game.autoAssist && !!remoteCtrl && remoteCtrl.fresh();
+}
+
 function vrEffectiveSteer() {
-  // Джойстик ведёт, только пока его руль свеж; обрыв связи — автопилот.
-  if (game.driverMode === 'remote' && !game.autoAssist && remoteCtrl && remoteCtrl.fresh()) return remoteCtrl.steer();
+  // Джойстик ведёт, только пока его аналоговый ввод свеж; обрыв связи — автопилот.
+  if (remoteDriveActive()) return remoteCtrl.steer();
   return vrSteer();
+}
+
+function vrEffectiveThrottle() {
+  // null означает «джойстик сейчас не управляет» — тогда сохраняется
+  // прежний мягкий фолбэк на автопилот. Ноль — настоящий свежий отпуск газа:
+  // машина должна стоять, а не ехать на крейсерской скорости.
+  return remoteDriveActive() ? remoteCtrl.throttle() : null;
 }
 
 let lastRemoteState = null;
@@ -479,6 +490,9 @@ function publishRemoteState() {
     paused: game.state === 'paused', racing: game.state === 'racing',
     auto: !!game.autoAssist, look: vrSettings.lookMode, cm: vrSettings.baselineCm,
     muted: SFX.isMuted(), driver: game.vrRide ? game.driverMode : vrSettings.driverMode,
+    speedKmh: +((game.speed || 0) * 3.6).toFixed(1),
+    throttle: remoteCtrl ? +remoteCtrl.throttle().toFixed(2) : 0,
+    steer: remoteCtrl ? +remoteCtrl.steer().toFixed(2) : 0,
     cam: {
       on: vrSettings.lookMode === 'camera' && !!game.camOn,
       found: !!(camTracker && camTracker.fresh(1200)),
@@ -1098,15 +1112,26 @@ function updateGameplay(dt) {
 
   const racing = game.state === 'racing';
 
-  // speed
-  const target = game.freeze ? 0 : (game.boostActive ? TUNING.boostSpeed : (Math.abs(game.lateral) > TUNING.roadHalfWidth + 1.0 ? TUNING.cruiseSpeed * TUNING.offRoadSlow : game.boostCharges >= 4 ? TUNING.maxSpeed : TUNING.cruiseSpeed));
-  game.speed = THREE.MathUtils.lerp(game.speed, target, dt * (game.boostActive ? 1.6 : 0.9));
+  // speed: only a fresh external joystick introduces a manual throttle.
+  // Its vertical sensor maps directly to 0..maxSpeed; released/no gas is
+  // deliberately a full stop so the player can stay still and look around.
+  const remoteThrottle = vrEffectiveThrottle();
+  const manualThrottle = remoteThrottle !== null;
+  const offRoad = Math.abs(game.lateral) > TUNING.roadHalfWidth + 1.0;
+  const remoteTarget = manualThrottle
+    ? (game.boostActive && remoteThrottle > 0.02 ? TUNING.boostSpeed : remoteThrottle * TUNING.maxSpeed) * (offRoad ? TUNING.offRoadSlow : 1)
+    : null;
+  const target = game.freeze ? 0 : manualThrottle
+    ? remoteTarget
+    : (game.boostActive ? TUNING.boostSpeed : (offRoad ? TUNING.cruiseSpeed * TUNING.offRoadSlow : game.boostCharges >= 4 ? TUNING.maxSpeed : TUNING.cruiseSpeed));
+  const speedResponse = manualThrottle ? (remoteThrottle <= 0.001 ? 7.5 : 3.2) : (game.boostActive ? 1.6 : 0.9);
+  game.speed = THREE.MathUtils.lerp(game.speed, target, dt * speedResponse);
 
   if (racing) {
     game.timeS += dt;
 
     // boost auto-trigger when full
-    if (!game.boostActive && game.boostCharges >= TUNING.boostCharges) {
+    if (!game.boostActive && game.boostCharges >= TUNING.boostCharges && (!manualThrottle || remoteThrottle > 0.02)) {
       game.boostActive = true;
       game.boostT = TUNING.boostDuration;
       game.boostCharges = 0;

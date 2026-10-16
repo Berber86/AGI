@@ -30,13 +30,33 @@
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
   .row > * { flex: 1; }
   .hidden { display: none !important; }
-  .joy-btns { display: flex; gap: 12px; }
-  .joy-btn {
-    flex: 1; height: 168px; font-size: 72px; border-radius: 24px; user-select: none;
-    -webkit-user-select: none; touch-action: none;
-    background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.25); color: #fff;
+  .drive-controls { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 10px; }
+  .touch-pad {
+    --thumb-x: 50; --thumb-y: 50;
+    position: relative; flex: 0 0 auto; aspect-ratio: 1; border-radius: 50%;
+    user-select: none; -webkit-user-select: none; touch-action: none; cursor: crosshair;
+    background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.18), rgba(255,255,255,.07) 67%, rgba(0,0,0,.12));
+    border: 2px solid rgba(255,255,255,.3); box-shadow: inset 0 0 0 8px rgba(255,255,255,.035), 0 8px 20px rgba(0,0,0,.18);
   }
-  .joy-btn.on { background: #ffd166; color: #5c1d4e; }
+  .steer-pad { width: min(41vw, 158px); }
+  .throttle-pad { width: min(49vw, 184px); }
+  .pad-disc { position: absolute; inset: 15%; border: 1px dashed rgba(255,255,255,.25); border-radius: 50%; }
+  .pad-axis { position: absolute; background: rgba(255,255,255,.18); }
+  .pad-axis.x { left: 11%; right: 11%; top: 50%; height: 2px; transform: translateY(-1px); }
+  .pad-axis.y { top: 11%; bottom: 11%; left: 50%; width: 2px; transform: translateX(-1px); }
+  .pad-thumb {
+    position: absolute; left: calc(var(--thumb-x) * 1%); top: calc(var(--thumb-y) * 1%);
+    width: 28px; height: 28px; border-radius: 50%; transform: translate(-50%, -50%);
+    background: #ffd166; border: 3px solid #fff; box-shadow: 0 2px 9px rgba(0,0,0,.35);
+    opacity: .35; transition: opacity .12s, width .12s, height .12s;
+  }
+  .touch-pad.is-active { border-color: #ffd166; box-shadow: inset 0 0 0 8px rgba(255,209,102,.1), 0 8px 24px rgba(0,0,0,.24); }
+  .touch-pad.is-active .pad-thumb { opacity: 1; width: 34px; height: 34px; }
+  .pad-title, .pad-hint { position: absolute; left: 0; right: 0; text-align: center; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+  .pad-title { top: 19%; font-size: 12px; font-weight: 900; letter-spacing: .09em; }
+  .pad-hint { bottom: 17%; font-size: 11px; opacity: .82; font-weight: 700; }
+  .pad-readout { min-height: 20px; margin: 9px 0 0; text-align: center; font-size: 13px; font-weight: 800; color: #ffd166; }
+  .pad-readout small { color: #fdf3ff; opacity: .75; font-weight: 600; }
   .mode-switch { display: flex; gap: 8px; margin-top: 10px; }
   .mode-switch button { flex: 1; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); }
   .mode-switch button[aria-pressed="true"] { background: linear-gradient(180deg, #ffd166, #f4b63f); color: #5c1d4e; }
@@ -53,7 +73,7 @@
 <body>
 <main>
   <h1>🕹 Джойстик Candy Kingdom</h1>
-  <p class="sub">Этот телефон — руль. На главном телефоне откройте игру → «VR-поездка» →
+  <p class="sub">Этот телефон — управление. На главном телефоне откройте игру → «VR-поездка» →
   «Вести с джойстика»: там появится код комнаты. Введите его здесь — и ведите заезд!</p>
 
   <section class="card" id="card-config">
@@ -85,12 +105,19 @@
       <button type="button" id="mode-cmd" aria-pressed="false">⚙️ Команды</button>
     </div>
     <div id="view-steer">
-      <div class="joy-btns" style="margin-top:10px">
-        <button type="button" class="joy-btn" id="joy-left" aria-pressed="false" aria-label="Влево">◀</button>
-        <button type="button" class="joy-btn" id="joy-right" aria-pressed="false" aria-label="Вправо">▶</button>
+      <div class="drive-controls" aria-label="Управление машинкой">
+        <div class="touch-pad steer-pad" id="pad-steer" role="slider" tabindex="0" aria-label="Руль: влево вправо" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+          <div class="pad-disc"><i class="pad-axis x"></i><i class="pad-thumb"></i></div>
+          <b class="pad-title">РУЛЬ</b><span class="pad-hint">← влево · вправо →</span>
+        </div>
+        <div class="touch-pad throttle-pad" id="pad-throttle" role="slider" tabindex="0" aria-label="Газ: вверх вниз" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="pad-disc"><i class="pad-axis y"></i><i class="pad-thumb"></i></div>
+          <b class="pad-title">ГАЗ</b><span class="pad-hint">вверх — быстрее</span>
+        </div>
       </div>
+      <p class="pad-readout" id="drive-readout">Газ: 0% · машина стоит <small>— можно осматриваться</small></p>
       <p class="sub" style="text-align:center; margin-top:10px" id="joy-net">Пинг: —</p>
-      <p class="sub" style="text-align:center">Если связь пропадёт, машинку подхватит автопилот — поездка не испортится.</p>
+      <p class="sub" style="text-align:center">Левый сенсор — руль. Правый — газ: вверх максимум, центр 30%, нижняя четверть 0%. Отпустили правый сенсор — машина остановилась, осматриваться можно.</p>
     </div>
     <div id="view-cmd" class="hidden">
       <div class="cmd-grid">
@@ -116,7 +143,7 @@ const els = {
   cfg: $('cfg'), cfgStatus: $('cfg-status'), cfgError: $('cfg-error'),
   cardConfig: $('card-config'), cardJoin: $('card-join'), cardJoy: $('card-joy'),
   joinCode: $('join-code'), joinStatus: $('join-status'), joyStatus: $('joy-status'), joyNet: $('joy-net'),
-  joyLeft: $('joy-left'), joyRight: $('joy-right'),
+  padSteer: $('pad-steer'), padThrottle: $('pad-throttle'), driveReadout: $('drive-readout'),
   modeSteer: $('mode-steer'), modeCmd: $('mode-cmd'), viewSteer: $('view-steer'), viewCmd: $('view-cmd'),
   cmdState: $('cmd-state'),
   cmd: {
@@ -128,7 +155,12 @@ const els = {
 const qs = new URLSearchParams(location.search);
 const DEMO_CHANNEL = 'ckc-joystick-stand';
 
-const state = { kind: null, room: null, steer: { l: false, r: false }, seq: 0, db: null, f: null, rtt: [], pending: null, pingSeq: 0, ch: null };
+const state = {
+  kind: null, room: null, steer: 0, throttle: 0, throttleY: 75,
+  steerPointer: null, throttlePointer: null,
+  keyLeft: false, keyRight: false, keyUp: false,
+  seq: 0, db: null, f: null, rtt: [], pending: null, pingSeq: 0, ch: null,
+};
 
 function parseFirebaseConfig(text) {
   const a = text.indexOf('{'), b = text.lastIndexOf('}');
@@ -169,32 +201,45 @@ const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length 
 // (Chrome показывал «Event handlers blocked UI updates» на сотни мс).
 // Поэтому обработчик только меняет визуал, а отправка уезжает в отдельный
 // тик после отрисовки и коалесцируется (не чаще ~33 раз/с, только изменения).
-let steerDirty = false;
-let steerTimer = null;
-let lastSteerSent = 0;
-function scheduleSteerSend() {
-  if (steerTimer) return;
-  const wait = Math.max(0, 30 - (performance.now() - lastSteerSent));
-  steerTimer = setTimeout(flushSteer, wait);
+let driveDirty = false;
+let driveTimer = null;
+let lastDriveSent = 0;
+function scheduleDriveSend() {
+  if (driveTimer) return;
+  const wait = Math.max(0, 30 - (performance.now() - lastDriveSent));
+  driveTimer = setTimeout(flushDrive, wait);
 }
-function flushSteer() {
-  steerTimer = null;
-  if (!steerDirty || !state.room) return;
-  steerDirty = false;
-  lastSteerSent = performance.now();
+function flushDrive() {
+  driveTimer = null;
+  if (!driveDirty || !state.room) return;
+  driveDirty = false;
+  lastDriveSent = performance.now();
+  const packet = { steer: +state.steer.toFixed(3), throttle: +state.throttle.toFixed(3) };
   if (state.kind === 'demo') {
-    state.ch.postMessage({ kind: 'input', room: state.room, state: { ...state.steer } });
+    state.ch.postMessage({ kind: 'input', room: state.room, state: packet });
   } else {
-    state.f.set(roomRef('/input'), { l: state.steer.l ? 1 : 0, r: state.steer.r ? 1 : 0, seq: ++state.seq, sts: state.f.serverTimestamp() }).catch(() => {});
+    state.f.set(roomRef('/input'), { ...packet, seq: ++state.seq, sts: state.f.serverTimestamp() }).catch(() => {});
   }
 }
-function pushSteer() {
-  els.joyLeft.classList.toggle('on', state.steer.l);
-  els.joyRight.classList.toggle('on', state.steer.r);
-  els.joyLeft.setAttribute('aria-pressed', String(state.steer.l));
-  els.joyRight.setAttribute('aria-pressed', String(state.steer.r));
-  steerDirty = true;
-  scheduleSteerSend();
+function updatePadVisuals() {
+  const sx = 50 + state.steer * 42;
+  els.padSteer.style.setProperty('--thumb-x', sx.toFixed(1));
+  els.padSteer.style.setProperty('--thumb-y', '50');
+  els.padSteer.classList.toggle('is-active', state.steerPointer !== null);
+  els.padSteer.setAttribute('aria-valuenow', String(Math.round(state.steer * 100)));
+  els.padThrottle.style.setProperty('--thumb-x', '50');
+  els.padThrottle.style.setProperty('--thumb-y', state.throttleY.toFixed(1));
+  els.padThrottle.classList.toggle('is-active', state.throttlePointer !== null);
+  els.padThrottle.setAttribute('aria-valuenow', String(Math.round(state.throttle * 100)));
+  const pct = Math.round(state.throttle * 100);
+  els.driveReadout.innerHTML = pct === 0
+    ? 'Газ: 0% · машина стоит <small>— можно осматриваться</small>'
+    : `Газ: ${pct}% · руль ${Math.round(state.steer * 100)}%`;
+}
+function pushDrive() {
+  updatePadVisuals();
+  driveDirty = true;
+  scheduleDriveSend();
 }
 
 async function bootFirebase(config) {
@@ -209,7 +254,7 @@ async function bootFirebase(config) {
 
 function startLoops() {
   setInterval(() => { // heartbeat: экран видит живость, даже когда руль отпущен
-    if (state.room && !document.hidden) pushSteerKeepVisual();
+    if (state.room && !document.hidden) pushDriveKeepVisual();
   }, 1000);
   setInterval(() => {
     if (!state.room || document.hidden || state.pending) return;
@@ -219,9 +264,9 @@ function startLoops() {
     else state.f.set(roomRef('/ping'), { id }).catch(() => {});
   }, 2000);
 }
-function pushSteerKeepVisual() { // heartbeat: освежить sts той же отложенной отправкой
-  steerDirty = true;
-  scheduleSteerSend();
+function pushDriveKeepVisual() { // heartbeat: освежить sts той же отложенной отправкой
+  driveDirty = true;
+  scheduleDriveSend();
 }
 
 function onPong(id) {
@@ -273,7 +318,7 @@ async function join(code) {
   }
   els.cardJoy.classList.remove('hidden');
   try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
-  pushSteer();
+  pushDrive();
   startLoops();
   els.joinStatus.textContent = `Комната ${code}`;
 }
@@ -298,26 +343,101 @@ $('btn-demo').addEventListener('click', () => {
 });
 $('btn-join-go').addEventListener('click', () => join(els.joinCode.value.trim()));
 
-function bindBtn(el, side) {
-  const on = (e) => { e.preventDefault(); try { navigator.vibrate && navigator.vibrate(8); } catch { /* ignore */ } state.steer[side] = true; pushSteer(); };
-  const off = (e) => { e.preventDefault(); state.steer[side] = false; pushSteer(); };
-  el.addEventListener('pointerdown', on);
-  el.addEventListener('pointerup', off);
-  el.addEventListener('pointercancel', off);
-  el.addEventListener('lostpointercapture', off);
-  el.addEventListener('contextmenu', (e) => e.preventDefault());
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const clamp11 = (v) => Math.min(1, Math.max(-1, v));
+function setPadValue(axis, e) {
+  const pad = axis === 'steer' ? els.padSteer : els.padThrottle;
+  const r = pad.getBoundingClientRect();
+  const x = clamp01((e.clientX - r.left) / r.width);
+  const y = clamp01((e.clientY - r.top) / r.height);
+  if (axis === 'steer') {
+    state.steer = clamp11((x - 0.5) * 2);
+  } else {
+    state.throttleY = y * 100;
+    // Absolute sensor position: upper quarter = full gas, centre = 30%,
+    // lower quarter = 0%. The two middle quarters interpolate smoothly.
+    if (y <= 0.25) state.throttle = 1;
+    else if (y < 0.5) state.throttle = 0.3 + (0.5 - y) * 2.8;
+    else if (y < 0.75) state.throttle = 0.3 * (0.75 - y) / 0.25;
+    else state.throttle = 0;
+    state.throttle = clamp01(state.throttle);
+  }
+  pushDrive();
 }
-bindBtn(els.joyLeft, 'l');
-bindBtn(els.joyRight, 'r');
+function releasePad(axis, pointerId) {
+  const key = axis === 'steer' ? 'steerPointer' : 'throttlePointer';
+  if (state[key] !== pointerId) return;
+  state[key] = null;
+  if (axis === 'steer') state.steer = (state.keyRight ? 1 : 0) - (state.keyLeft ? 1 : 0);
+  else {
+    state.throttle = state.keyUp ? 1 : 0;
+    state.throttleY = state.keyUp ? 8 : 75;
+  }
+  pushDrive();
+}
+function bindPad(el, axis) {
+  const key = axis === 'steer' ? 'steerPointer' : 'throttlePointer';
+  const down = (e) => {
+    e.preventDefault();
+    if (state[key] !== null) return;
+    state[key] = e.pointerId;
+    try { el.setPointerCapture(e.pointerId); } catch { /* older browsers */ }
+    try { navigator.vibrate && navigator.vibrate(8); } catch { /* ignore */ }
+    setPadValue(axis, e);
+  };
+  const move = (e) => {
+    if (state[key] !== e.pointerId) return;
+    e.preventDefault();
+    setPadValue(axis, e);
+  };
+  const up = (e) => {
+    if (state[key] !== e.pointerId) return;
+    e.preventDefault();
+    releasePad(axis, e.pointerId);
+  };
+  el.addEventListener('pointerdown', down);
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+  el.addEventListener('lostpointercapture', up);
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  el.addEventListener('dragstart', (e) => e.preventDefault());
+}
+bindPad(els.padSteer, 'steer');
+bindPad(els.padThrottle, 'throttle');
+function syncKeyboard() {
+  if (state.steerPointer === null) state.steer = (state.keyRight ? 1 : 0) - (state.keyLeft ? 1 : 0);
+  if (state.throttlePointer === null) {
+    state.throttle = state.keyUp ? 1 : 0;
+    state.throttleY = state.keyUp ? 8 : 75;
+  }
+  pushDrive();
+}
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'ArrowLeft') { state.steer.l = true; pushSteer(); }
-  if (e.key === 'ArrowRight') { state.steer.r = true; pushSteer(); }
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+  e.preventDefault();
+  if (e.key === 'ArrowLeft') state.keyLeft = true;
+  if (e.key === 'ArrowRight') state.keyRight = true;
+  if (e.key === 'ArrowUp') state.keyUp = true;
+  if (e.key === 'ArrowDown') state.keyUp = false;
+  syncKeyboard();
 });
 window.addEventListener('keyup', (e) => {
-  if (e.key === 'ArrowLeft') { state.steer.l = false; pushSteer(); }
-  if (e.key === 'ArrowRight') { state.steer.r = false; pushSteer(); }
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp'].includes(e.key)) return;
+  e.preventDefault();
+  if (e.key === 'ArrowLeft') state.keyLeft = false;
+  if (e.key === 'ArrowRight') state.keyRight = false;
+  if (e.key === 'ArrowUp') state.keyUp = false;
+  syncKeyboard();
 });
-window.addEventListener('blur', () => { state.steer.l = false; state.steer.r = false; pushSteer(); });
+function releaseAll() {
+  state.steerPointer = null; state.throttlePointer = null;
+  state.keyLeft = false; state.keyRight = false; state.keyUp = false;
+  state.steer = 0; state.throttle = 0; state.throttleY = 75;
+  pushDrive();
+}
+window.addEventListener('blur', releaseAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
 // ---------------------------------------------------------------- commands
 let cmdSeq = 0;
@@ -346,8 +466,9 @@ function renderCmdState(st) {
       : '📷 Камера: метка потеряна')
     : '📷 Камера: выкл';
   els.cmd.cam.classList.toggle('on', !!(st.cam && st.cam.on && st.cam.found));
+  const speed = Number.isFinite(+st.speedKmh) ? `${st.speedKmh} км/ч` : 'скорость —';
   els.cmdState.textContent =
-    `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ↔ камеры ${st.cm} см · ` +
+    `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ${speed} · ↔ камеры ${st.cm} см · ` +
     `взгляд ${st.look === 'forward' ? 'вперёд' : st.look === 'camera' ? 'по метке' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
     (st.cam ? ` · 📷 ${st.cam.on ? (st.cam.found ? 'метка видна' : 'метка потеряна') : 'выкл'}` : '');
 }
@@ -392,10 +513,18 @@ if (qs.get('code')) els.joinCode.value = qs.get('code');
 
 // QA hooks
 window.__JOY__ = {
-  state: () => ({ kind: state.kind, room: state.room, steer: { ...state.steer }, samples: state.rtt.length }),
+  state: () => ({ kind: state.kind, room: state.room, steer: state.steer, throttle: state.throttle, samples: state.rtt.length }),
   demo: () => $('btn-demo').click(),
   join: (code) => join(String(code)),
-  setSteer: (l, r) => { state.steer.l = !!l; state.steer.r = !!r; pushSteer(); },
+  setDrive: (steer, throttle) => {
+    state.steerPointer = null; state.throttlePointer = null;
+    state.steer = clamp11(+steer || 0); state.throttle = clamp01(+throttle || 0);
+    state.throttleY = state.throttle > 0 ? (state.throttle >= 0.3 ? 50 - (state.throttle - 0.3) / 0.7 * 25 : 75 - state.throttle / 0.3 * 25) : 75;
+    pushDrive();
+  },
+  // Backwards-compatible QA helper: old left/right input means steering only,
+  // with no gas (the new real UI uses setDrive / the two sensors).
+  setSteer: (l, r) => { state.steer = (r ? 1 : 0) - (l ? 1 : 0); state.throttle = 0; pushDrive(); },
   sendCmd,
   lastState: () => lastState,
   setMode,
