@@ -145,30 +145,49 @@
           <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Осматриваться</button>
           <button type="button" id="vr-mode-forward" class="mid-btn vr-mode" aria-pressed="false">🚗 Смотреть вперёд</button>
           <button type="button" id="vr-mode-camera" class="mid-btn vr-mode" aria-pressed="false">📷 По метке</button>
+          <button type="button" id="vr-mode-camera-dual" class="mid-btn vr-mode" aria-pressed="false">📷📷 По двум меткам</button>
         </div>
         <div id="vr-cam-panel" class="hidden">
           <div class="vr-cam-view">
             <video id="vr-cam-video" playsinline muted></video>
             <div class="vr-cam-cross" aria-hidden="true"><span class="vr-cam-box"></span></div>
           </div>
-          <p class="vr-note">Цвет метки: <span id="vr-cam-swatch" class="vr-cam-swatch"></span> <b id="vr-cam-hue-label">Малиновый</b></p>
+          <div class="row">
+            <button type="button" id="vr-cam-start" class="mid-btn">📷 Включить камеру</button>
+          </div>
           <label class="vr-slider-label" for="vr-cam-tol">Придирчивость к оттенку: <b id="vr-cam-tol-val">±26°</b></label>
           <input id="vr-cam-tol" type="range" min="8" max="45" step="1" value="26">
           <label class="vr-slider-label" for="vr-cam-sat">Минимальная насыщенность: <b id="vr-cam-sat-val">42%</b></label>
           <input id="vr-cam-sat" type="range" min="20" max="70" step="1" value="42">
-          <div class="row">
-            <button type="button" id="vr-cam-start" class="mid-btn">📷 Включить камеру</button>
-            <button type="button" id="vr-cam-sample" class="mid-btn">🎨 Взять цвет коробки</button>
-            <button type="button" id="vr-cam-calib" class="mid-btn">🎯 Смотрю на метку</button>
+          <div id="vr-cam-single-controls">
+            <p class="vr-note">Цвет метки: <span id="vr-cam-swatch" class="vr-cam-swatch"></span> <b id="vr-cam-hue-label">Малиновый</b></p>
+            <div class="row">
+              <button type="button" id="vr-cam-sample" class="mid-btn">🎨 Взять цвет коробки</button>
+              <button type="button" id="vr-cam-calib" class="mid-btn">🎯 Смотрю на метку</button>
+            </div>
+            <div class="vr-modes" role="group" aria-label="Цвет метки">
+              <button type="button" class="mid-btn vr-cam-color" data-color="raspberry" aria-pressed="true">Малиновый</button>
+              <button type="button" class="mid-btn vr-cam-color" data-color="magenta" aria-pressed="false">Маджента</button>
+              <button type="button" class="mid-btn vr-cam-color" data-color="lime" aria-pressed="false">Лайм</button>
+              <button type="button" class="mid-btn vr-cam-color" data-color="cyan" aria-pressed="false">Циан</button>
+            </div>
+            <p id="vr-cam-status" class="vr-note">Камера выключена. Метка — яркий предмет (например, малиновая коробка) перед вами, где будет «вперёд».</p>
+            <p class="vr-note">Как: включите камеру → поднесите коробку в центр кадра → «Взять цвет коробки» → поставьте её перед собой → «Смотрю на метку».</p>
           </div>
-          <div class="vr-modes" role="group" aria-label="Цвет метки">
-            <button type="button" class="mid-btn vr-cam-color" data-color="raspberry" aria-pressed="true">Малиновый</button>
-            <button type="button" class="mid-btn vr-cam-color" data-color="magenta" aria-pressed="false">Маджента</button>
-            <button type="button" class="mid-btn vr-cam-color" data-color="lime" aria-pressed="false">Лайм</button>
-            <button type="button" class="mid-btn vr-cam-color" data-color="cyan" aria-pressed="false">Циан</button>
+          <div id="vr-cam-dual-controls" class="hidden">
+            <p class="vr-note"><b>Две метки:</b> оранжевая слева, малиновая справа. Уберите жёлтую коробку и лишние яркие предметы из кадра. Обе метки должны быть видны одновременно в момент «Калибровать: прямо».</p>
+            <p class="vr-note">Левая: <span id="vr-cam-left-swatch" class="vr-cam-swatch" style="background:#f15a24"></span> <b id="vr-cam-left-label">Оранжевая</b> · правая: <span id="vr-cam-right-swatch" class="vr-cam-swatch" style="background:#d6336c"></span> <b id="vr-cam-right-label">Малиновая</b></p>
+            <div class="row">
+              <button type="button" id="vr-cam-sample-left" class="mid-btn">🎨 Взять левую</button>
+              <button type="button" id="vr-cam-sample-right" class="mid-btn">🎨 Взять правую</button>
+              <button type="button" id="vr-cam-dual-calib" class="mid-btn">🎯 Калибровать: прямо</button>
+            </div>
+            <div class="vr-modes" role="group" aria-label="Пресеты двух меток">
+              <button type="button" class="mid-btn vr-cam-dual-preset" data-side="left" data-color="orange" aria-pressed="true">Левая: оранжевая</button>
+              <button type="button" class="mid-btn vr-cam-dual-preset" data-side="right" data-color="raspberry" aria-pressed="true">Правая: малиновая</button>
+            </div>
+            <p id="vr-cam-dual-status" class="vr-note">Камера выключена. После калибровки пара задаёт ноль и помогает продолжать движение, даже когда одна коробка ушла за край.</p>
           </div>
-          <p id="vr-cam-status" class="vr-note">Камера выключена. Метка — яркий предмет (например, малиновая коробка) перед вами, где будет «вперёд».</p>
-          <p class="vr-note">Как: включите камеру → поднесите коробку в центр кадра → «Взять цвет коробки» → поставьте её перед собой → «Смотрю на метку». Камера в очках обычно сбоку: если в одну сторону взгляд не доворачивает, поставьте коробку чуть в противоположную сторону от «прямо перед собой» и заново нажмите «Смотрю на метку».</p>
         </div>
         <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
         <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">

@@ -40,9 +40,13 @@ export const Storage = {
   },
   saveVrSettings(s) {
     const clean = {
-      lookMode: s && (s.lookMode === 'forward' || s.lookMode === 'camera') ? s.lookMode : 'look',
+      lookMode: s && (s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual') ? s.lookMode : 'look',
       camColor: s && typeof s.camColor === 'string' ? s.camColor : 'raspberry',
       camHue: s && Number.isFinite(s.camHue) ? s.camHue : null,
+      camLeftColor: s && typeof s.camLeftColor === 'string' ? s.camLeftColor : 'orange',
+      camLeftHue: s && Number.isFinite(s.camLeftHue) ? s.camLeftHue : null,
+      camRightColor: s && typeof s.camRightColor === 'string' ? s.camRightColor : 'raspberry',
+      camRightHue: s && Number.isFinite(s.camRightHue) ? s.camRightHue : null,
       camTol: Math.min(45, Math.max(8, Math.round(+((s && s.camTol) || 26)) || 26)),
       camSat: Math.min(70, Math.max(20, Math.round(+((s && s.camSat) || 42)) || 42)),
       driverMode: s && s.driverMode === 'remote' ? 'remote' : 'auto',

@@ -13,6 +13,7 @@
 
 export const CAM_COLORS = {
   raspberry: { label: 'Малиновый', hue: 338, css: '#d6336c' },
+  orange: { label: 'Оранжевый', hue: 16, css: '#f15a24' },
   magenta: { label: 'Маджента', hue: 300, css: '#ff00ff' },
   lime: { label: 'Лайм', hue: 140, css: '#22ff66' },
   cyan: { label: 'Циан', hue: 190, css: '#00e5ff' },
@@ -71,6 +72,14 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   return { found: true, count: best.count, u: best.sx / best.count, v: best.sy / best.count };
 }
 
+// Две независимые цветовые метки. Пока размеры кадра малы, повторный
+// проход дешевле и надёжнее сложной общей маски: каждая коробка получает
+// собственное крупнейшее связное пятно, а Worker всё равно забирает кадр
+// с главного потока один раз.
+export function analyzeColorBlobs(data, w, h, specHues, tol = 26, satMin = 0.42) {
+  return specHues.map((hue) => analyzeColorBlob(data, w, h, hue, tol, satMin));
+}
+
 // Углы из центроида; центр калибровки — НОРМАЛИЗОВАННЫЙ (0..1), чтобы
 // ярусы разрешения не ломали ноль.
 export function anglesFromCentroid(u, v, w, h, c0n, fovDeg) {
@@ -92,6 +101,9 @@ const TIER_MS = [100, 130, 170];
 export class CamTracker {
   constructor() {
     this.hue = CAM_COLORS.raspberry.hue;
+    this.hueA = CAM_COLORS.orange.hue;
+    this.hueB = CAM_COLORS.raspberry.hue;
+    this.dual = false;
     this.tol = 26;
     this.satMin = 0.42;
     this.fovDeg = 65;
@@ -104,6 +116,15 @@ export class CamTracker {
     this.pitch = 0;
     this.u = 0; this.v = 0; this.count = 0;
     this.frameW = 320; this.frameH = 240;
+    this.markers = [
+      { id: 'left', found: false, u: 0, v: 0, count: 0 },
+      { id: 'right', found: false, u: 0, v: 0, count: 0 },
+    ];
+    this.dualVisible = [];
+    this.lastLostMarker = null;
+    this.lostMarkers = [];
+    this.dualCalibration = null; // raw yaw/pitch for each box at «прямо»
+
     this.c0n = null; // нормализованный центр калибровки
     this.lastFoundAt = 0;
     this.lastFrame = null;
@@ -167,7 +188,61 @@ export class CamTracker {
     this.intervalMs = TIER_MS[this.tier];
   }
 
+  _applyDualResult(res, w, h) {
+    const wasFound = this.found;
+    const previous = this.markers || [];
+    const markers = (res.markers || []).map((m, i) => {
+      const id = i === 0 ? 'left' : 'right';
+      if (!m.found) return { ...m, id, rawYaw: null, rawPitch: null };
+      const a = anglesFromCentroid(m.u, m.v, w, h, this.c0n, this.fovDeg);
+      return { ...m, id, rawYaw: a.yaw, rawPitch: a.pitch };
+    });
+    while (markers.length < 2) markers.push({ id: markers.length === 0 ? 'left' : 'right', found: false, count: 0, rawYaw: null, rawPitch: null });
+    const visible = markers.filter((m) => m.found);
+    const lost = previous.filter((m) => m && m.found && !markers.find((n) => n.id === m.id && n.found));
+    const visibleIds = new Set(visible.map((m) => m.id));
+    this.lostMarkers = (this.lostMarkers || []).filter((id) => !visibleIds.has(id));
+    for (const m of lost) if (!this.lostMarkers.includes(m.id)) this.lostMarkers.push(m.id);
+    if (visible.length === 2) this.lostMarkers = [];
+    this.lastLostMarker = this.lostMarkers.length ? this.lostMarkers.join(',') : null;
+    this.markers = markers;
+    this.dualVisible = visible.map((m) => m.id);
+    this.frameW = w; this.frameH = h;
+    if (visible.length) {
+      const values = visible.map((m) => {
+        const base = this.dualCalibration && this.dualCalibration[m.id];
+        return base
+          ? { yaw: m.rawYaw - base.yaw, pitch: m.rawPitch - base.pitch }
+          : { yaw: m.rawYaw, pitch: m.rawPitch };
+      });
+      this.yaw = values.reduce((sum, v) => sum + v.yaw, 0) / values.length;
+      this.pitch = values.reduce((sum, v) => sum + v.pitch, 0) / values.length;
+      this.u = visible.reduce((sum, m) => sum + m.u, 0) / visible.length;
+      this.v = visible.reduce((sum, m) => sum + m.v, 0) / visible.length;
+      this.count = visible.reduce((sum, m) => sum + (m.count || 0), 0);
+      this.found = true;
+      this.lastFoundAt = performance.now();
+      this.heldYaw = this.yaw;
+      this.heldPitch = this.pitch;
+      this.exitSideX = null;
+      this.exitSideY = null;
+    } else {
+      if (wasFound) {
+        // Обе коробки пропали: сохраняем последний экранный край и
+        // lastLostMarker, чтобы возврат не выглядел как новая неизвестная метка.
+        const nx = this.u / (w || this.frameW || 1);
+        const ny = this.v / (h || this.frameH || 1);
+        this.exitSideX = nx > 0.78 ? 'right' : nx < 0.22 ? 'left' : null;
+        this.exitSideY = ny < 0.22 ? 'top' : ny > 0.78 ? 'bottom' : null;
+      }
+      this.found = false;
+      this.count = 0;
+    }
+    return res;
+  }
+
   _applyResult(res, w, h) {
+    if (this.dual && res && res.markers) return this._applyDualResult(res, w, h);
     const wasFound = this.found;
     this.frameW = w; this.frameH = h;
     if (res.found) {
@@ -196,7 +271,10 @@ export class CamTracker {
 
   processImageData(data, w, h) {
     this.lastFrame = { data, w, h };
-    return this._applyResult(analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin), w, h);
+    const res = this.dual
+      ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin) }
+      : analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin);
+    return this._applyResult(res, w, h);
   }
 
   // Главный поток: снять кадр и проанализировать здесь (подготовка, QA,
@@ -258,7 +336,8 @@ export class CamTracker {
     bmpPromise.then((bmp) => {
       try {
         wk.postMessage({
-          bitmap: bmp, hue: this.hue, tol: this.tol, satMin: this.satMin,
+          bitmap: bmp, hue: this.hue, hues: this.dual ? [this.hueA, this.hueB] : null,
+          dual: this.dual, tol: this.tol, satMin: this.satMin,
           c0n: this.c0n, fovDeg: this.fovDeg,
         }, [bmp]);
       } catch { this._workerBusy = false; this._noteWorkerFail(); }
@@ -305,10 +384,24 @@ export class CamTracker {
   }
 
   calibrate() {
+    if (this.dual) {
+      const a = this.markers[0], b = this.markers[1];
+      if (!a || !b || !a.found || !b.found) return false;
+      this.c0n = { x: (a.u + b.u) / (2 * this.frameW), y: (a.v + b.v) / (2 * this.frameH) };
+      const aa = anglesFromCentroid(a.u, a.v, this.frameW, this.frameH, this.c0n, this.fovDeg);
+      const bb = anglesFromCentroid(b.u, b.v, this.frameW, this.frameH, this.c0n, this.fovDeg);
+      this.dualCalibration = {
+        left: { yaw: aa.yaw, pitch: aa.pitch },
+        right: { yaw: bb.yaw, pitch: bb.pitch },
+      };
+      this.yaw = 0; this.pitch = 0;
+      return true;
+    }
     this.c0n = this.found
       ? { x: this.u / this.frameW, y: this.v / this.frameH }
       : { x: 0.5, y: 0.5 };
     if (this.found) { this.yaw = 0; this.pitch = 0; }
+    return this.found;
   }
 
   fresh(maxMs = 700) { return this.found && (performance.now() - this.lastFoundAt) <= maxMs; }
@@ -327,6 +420,24 @@ export class CamTracker {
     }
     return this.processImageData(data, w, h);
   }
+  injectDualBlob(ax, ay, bx, by, r = 26, w = 320, h = 240) {
+    this.synthetic = true;
+    const data = new Uint8ClampedArray(w * h * 4);
+    const blobs = [
+      { x: ax, y: ay, rgb: [241, 90, 36] }, // orange
+      { x: bx, y: by, rgb: [215, 51, 108] }, // raspberry
+    ].filter((blob) => Number.isFinite(blob.x) && Number.isFinite(blob.y));
+    for (const blob of blobs) for (let y = Math.max(0, blob.y - r); y < Math.min(h, blob.y + r); y++) {
+      for (let x = Math.max(0, blob.x - r); x < Math.min(w, blob.x + r); x++) {
+        const dx = x - blob.x, dy = y - blob.y;
+        if (dx * dx + dy * dy > r * r) continue;
+        const i = (y * w + x) * 4;
+        data[i] = blob.rgb[0]; data[i + 1] = blob.rgb[1]; data[i + 2] = blob.rgb[2]; data[i + 3] = 255;
+      }
+    }
+    return this.processImageData(data, w, h);
+  }
+
   injectEmpty(w = 320, h = 240) {
     this.synthetic = true;
     return this.processImageData(new Uint8ClampedArray(w * h * 4), w, h);
@@ -347,7 +458,10 @@ export class CamTracker {
     return {
       running: this.running, synthetic: this.synthetic, found: this.found,
       fresh: this.fresh(), yaw: +this.yaw.toFixed(1), pitch: +this.pitch.toFixed(1),
-      hue: Math.round(this.hue), count: this.count,
+      hue: Math.round(this.hue), hueA: Math.round(this.hueA), hueB: Math.round(this.hueB), count: this.count,
+      dual: !!this.dual, dualCalibrated: !!this.dualCalibration,
+      dualVisible: [...this.dualVisible], lastLostMarker: this.lastLostMarker, lostMarkers: [...this.lostMarkers],
+      markers: this.markers.map((m) => ({ id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null, count: m.count || 0 })),
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,
       tol: this.tol, satMin: this.satMin,
       heldYaw: +this.heldYaw.toFixed(1), heldPitch: +this.heldPitch.toFixed(1),

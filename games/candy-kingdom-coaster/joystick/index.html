@@ -458,19 +458,23 @@ function renderCmdState(st) {
   els.cmd.pause.textContent = st.paused ? '▶ Продолжить' : '⏸ Пауза';
   els.cmd.auto.textContent = `🤖 Авторуление: ${st.auto ? 'ВКЛ' : 'выкл'}`;
   els.cmd.auto.classList.toggle('on', !!st.auto);
-  els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : 'осматриваться'}`;
+  els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : st.look === 'camera-dual' ? 'по двум меткам' : 'осматриваться'}`;
   els.cmd.mute.textContent = st.muted ? '🔇 Звук: выкл' : '🔊 Звук: вкл';
   els.cmd.cam.textContent = st.cam && st.cam.on
-    ? (st.cam.found ? '📷 Камера: метка видна'
-      : st.cam.exit ? `📷 Камера: метка ушла ${st.cam.exit === 'right' ? 'вправо' : 'влево'}`
-      : '📷 Камера: метка потеряна')
+    ? (st.cam.dual
+      ? (st.cam.found ? `📷 Две метки: ${st.cam.visible}/2`
+        : st.cam.lost ? `📷 Две метки: ушла ${st.cam.lost.includes(',') ? 'обе' : st.cam.lost === 'left' ? 'левая' : 'правая'}`
+        : '📷 Две метки: потеряны')
+      : (st.cam.found ? '📷 Камера: метка видна'
+        : st.cam.exit ? `📷 Камера: метка ушла ${st.cam.exit === 'right' ? 'вправо' : 'влево'}`
+        : '📷 Камера: метка потеряна'))
     : '📷 Камера: выкл';
   els.cmd.cam.classList.toggle('on', !!(st.cam && st.cam.on && st.cam.found));
   const speed = Number.isFinite(+st.speedKmh) ? `${st.speedKmh} км/ч` : 'скорость —';
   els.cmdState.textContent =
     `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ${speed} · ↔ камеры ${st.cm} см · ` +
-    `взгляд ${st.look === 'forward' ? 'вперёд' : st.look === 'camera' ? 'по метке' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
-    (st.cam ? ` · 📷 ${st.cam.on ? (st.cam.found ? 'метка видна' : 'метка потеряна') : 'выкл'}` : '');
+    `взгляд ${st.look === 'forward' ? 'вперёд' : st.look === 'camera-dual' ? 'по двум меткам' : st.look === 'camera' ? 'по метке' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
+    (st.cam ? ` · 📷 ${!st.cam.on ? 'выкл' : st.cam.dual ? (st.cam.found ? `${st.cam.visible}/2 видны` : 'обе потеряны') : (st.cam.found ? 'метка видна' : 'метка потеряна')}` : '');
 }
 function setMode(cmd) {
   els.modeSteer.setAttribute('aria-pressed', String(!cmd));

@@ -8,17 +8,22 @@ import * as THREE from 'three';
 
 export const VR_BASELINE_MIN_CM = 10;
 export const VR_BASELINE_MAX_CM = 150;
-const MAX_YAW = THREE.MathUtils.degToRad(35);   // «как из окна»: взгляд не уезжает от трассы
+const MAX_YAW = THREE.MathUtils.degToRad(35);   // гироскоп/одна метка: «как из окна»
+const MAX_DUAL_CAMERA_YAW = THREE.MathUtils.degToRad(80); // честный потолок цели двух меток
 const MAX_PITCH = THREE.MathUtils.degToRad(20);
 const GYRO_FRESH_MS = 1500;
 
 export function normalizeVrSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
   return {
-    lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' ? s.lookMode : 'look',
+    lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual' ? s.lookMode : 'look',
     driverMode: s.driverMode === 'remote' ? 'remote' : 'auto',
     camColor: typeof s.camColor === 'string' ? s.camColor : 'raspberry',
     camHue: Number.isFinite(s.camHue) ? s.camHue : null,
+    camLeftColor: typeof s.camLeftColor === 'string' ? s.camLeftColor : 'orange',
+    camLeftHue: Number.isFinite(s.camLeftHue) ? s.camLeftHue : null,
+    camRightColor: typeof s.camRightColor === 'string' ? s.camRightColor : 'raspberry',
+    camRightHue: Number.isFinite(s.camRightHue) ? s.camRightHue : null,
     camTol: Math.min(45, Math.max(8, Math.round(Number.isFinite(+s.camTol) ? +s.camTol : 26))),
     camSat: Math.min(70, Math.max(20, Math.round(Number.isFinite(+s.camSat) ? +s.camSat : 42))),
     baselineCm: Math.min(VR_BASELINE_MAX_CM, Math.max(VR_BASELINE_MIN_CM,
@@ -112,7 +117,7 @@ export class VRController {
   // Живые настройки из команд джойстика: взгляд перецентрируется, базис
   // применяется со следующего кадра (render читает settings каждый кадр).
   setLookMode(mode) {
-    this.settings.lookMode = mode === 'forward' || mode === 'camera' ? mode : 'look';
+    this.settings.lookMode = mode === 'forward' || mode === 'camera' || mode === 'camera-dual' ? mode : 'look';
     this._refQuat = null;
     this._yaw = 0; this._pitch = 0;
   }
@@ -135,12 +140,13 @@ export class VRController {
   // гироскоп, пока события свежие; иначе — медленный авто-обзор красивых мест.
   lookTarget(now = performance.now()) {
     if (this.settings.lookMode === 'forward') return { yaw: 0, pitch: 0, source: 'forward' };
-    if (this.settings.lookMode === 'camera') {
-      // Взгляд ведёт камера (main подаёт углы метки в setSimLook);
+    if (this.settings.lookMode === 'camera' || this.settings.lookMode === 'camera-dual') {
+      // Взгляд ведёт камера (main подаёт углы одной или двух меток в setSimLook);
       // гироскоп не участвует. Нет свежих углов — мягкий авто-обзор.
       if (this._sim) {
+        const maxYaw = this.settings.lookMode === 'camera-dual' ? MAX_DUAL_CAMERA_YAW : MAX_YAW;
         return {
-          yaw: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.yaw), -MAX_YAW, MAX_YAW),
+          yaw: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.yaw), -maxYaw, maxYaw),
           pitch: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.pitch), -MAX_PITCH, MAX_PITCH),
           source: 'camera',
         };

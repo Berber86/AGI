@@ -1,7 +1,7 @@
 // camtrack-worker.js — конвейер камеры вне главного потока:
 // OffscreenCanvas -> getImageData -> крупнейшее пятно -> углы.
 // Главный поток получает только {found, yaw, pitch, count, procMs}.
-import { analyzeColorBlob, anglesFromCentroid } from './camtrack.js';
+import { analyzeColorBlob, analyzeColorBlobs, anglesFromCentroid } from './camtrack.js';
 
 let cnv = null;
 let ctx = null;
@@ -20,6 +20,11 @@ self.onmessage = (e) => {
     ctx.drawImage(m.bitmap, 0, 0);
     if (m.bitmap.close) m.bitmap.close();
     const img = ctx.getImageData(0, 0, cnv.width, cnv.height);
+    if (m.dual && Array.isArray(m.hues)) {
+      const markers = analyzeColorBlobs(img.data, cnv.width, cnv.height, m.hues, m.tol, m.satMin);
+      self.postMessage({ dual: true, markers, w: cnv.width, h: cnv.height, procMs: performance.now() - t0 });
+      return;
+    }
     const res = analyzeColorBlob(img.data, cnv.width, cnv.height, m.hue, m.tol, m.satMin);
     let yaw = 0, pitch = 0;
     if (res.found) {

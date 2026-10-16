@@ -106,6 +106,7 @@ const governor = new QualityGovernor(renderer, composer, world);
 const vr = new VRController(renderer, scene, camera);
 let remoteCtrl = null; // телефон-джойстик (создаётся из экрана подготовки)
 let vrSettings = normalizeVrSettings(Storage.getVrSettings());
+const isCameraLookMode = (mode = vrSettings.lookMode) => mode === 'camera' || mode === 'camera-dual';
 
 // ---------------------------------------------------------------- state
 const game = {
@@ -176,7 +177,10 @@ const el = {
   vrScreen: document.getElementById('screen-vr'),
   vrModeLook: document.getElementById('vr-mode-look'),
   vrModeCamera: document.getElementById('vr-mode-camera'),
+  vrModeCameraDual: document.getElementById('vr-mode-camera-dual'),
   vrCamPanel: document.getElementById('vr-cam-panel'),
+  vrCamSingleControls: document.getElementById('vr-cam-single-controls'),
+  vrCamDualControls: document.getElementById('vr-cam-dual-controls'),
   vrCamVideo: document.getElementById('vr-cam-video'),
   vrCamStart: document.getElementById('vr-cam-start'),
   vrCamSample: document.getElementById('vr-cam-sample'),
@@ -188,6 +192,14 @@ const el = {
   vrCamTolVal: document.getElementById('vr-cam-tol-val'),
   vrCamSat: document.getElementById('vr-cam-sat'),
   vrCamSatVal: document.getElementById('vr-cam-sat-val'),
+  vrCamSampleLeft: document.getElementById('vr-cam-sample-left'),
+  vrCamSampleRight: document.getElementById('vr-cam-sample-right'),
+  vrCamDualCalib: document.getElementById('vr-cam-dual-calib'),
+  vrCamDualStatus: document.getElementById('vr-cam-dual-status'),
+  vrCamLeftSwatch: document.getElementById('vr-cam-left-swatch'),
+  vrCamLeftLabel: document.getElementById('vr-cam-left-label'),
+  vrCamRightSwatch: document.getElementById('vr-cam-right-swatch'),
+  vrCamRightLabel: document.getElementById('vr-cam-right-label'),
   vrModeForward: document.getElementById('vr-mode-forward'),
   vrIpd: document.getElementById('vr-ipd'),
   vrIpdVal: document.getElementById('vr-ipd-val'),
@@ -494,10 +506,13 @@ function publishRemoteState() {
     throttle: remoteCtrl ? +remoteCtrl.throttle().toFixed(2) : 0,
     steer: remoteCtrl ? +remoteCtrl.steer().toFixed(2) : 0,
     cam: {
-      on: vrSettings.lookMode === 'camera' && !!game.camOn,
+      on: isCameraLookMode() && !!game.camOn,
       found: !!(camTracker && camTracker.fresh(1200)),
       yaw: camTracker ? Math.round(camTracker.yaw) : 0,
       exit: camTracker ? camTracker.exitSideX : null,
+      dual: !!(camTracker && camTracker.dual),
+      visible: camTracker && camTracker.dual ? camTracker.dualVisible.length : null,
+      lost: camTracker && camTracker.dual ? camTracker.lastLostMarker : null,
     },
   };
   if (remoteCtrl) remoteCtrl.publishState(lastRemoteState);
@@ -513,7 +528,7 @@ function executeRemoteCommand(name) {
       break;
     case 'autoToggle': game.autoAssist = !game.autoAssist; break;
     case 'lookToggle':
-      if (vrSettings.lookMode === 'camera') { stopCamTracker(); vrSettings.lookMode = 'look'; }
+      if (isCameraLookMode()) { stopCamTracker(); vrSettings.lookMode = 'look'; }
       else vrSettings.lookMode = vrSettings.lookMode === 'look' ? 'forward' : 'look';
       vr.setLookMode(vrSettings.lookMode);
       vrSettings = Storage.saveVrSettings(vrSettings);
@@ -527,7 +542,7 @@ function executeRemoteCommand(name) {
     }
     case 'muteToggle': SFX.toggleMute(); setSoundIcons(); break;
     case 'camToggle':
-      if (vrSettings.lookMode === 'camera' && game.vrRide) {
+      if (isCameraLookMode() && game.vrRide) {
         game.camOn = !game.camOn;
         if (game.camOn) { const t = ensureCamTracker(); t.useWorkerMode(); if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {}); }
         else stopCamTracker(), game.camOn = false;
@@ -553,9 +568,32 @@ const camSmooth = { yaw: 0, pitch: 0 };
 let camLastProcess = 0;
 function ensureCamTracker() {
   if (!camTracker) camTracker = new CamTracker();
+  const dual = vrSettings.lookMode === 'camera-dual';
+  if (camTracker.dual !== dual) {
+    camTracker.dual = dual;
+    camTracker.c0n = null;
+    camTracker.dualCalibration = null;
+    camTracker.markers = [
+      { id: 'left', found: false, count: 0 },
+      { id: 'right', found: false, count: 0 },
+    ];
+    camTracker.found = false;
+    camTracker.lastFoundAt = 0;
+    camTracker.lastLostMarker = null;
+    camTracker.lostMarkers = [];
+    camTracker.dualVisible = [];
+    camTracker.exitSideX = null;
+    camTracker.exitSideY = null;
+  }
   camTracker.hue = vrSettings.camColor === 'custom' && Number.isFinite(vrSettings.camHue)
     ? vrSettings.camHue
     : (CAM_COLORS[vrSettings.camColor] || CAM_COLORS.raspberry).hue;
+  camTracker.hueA = vrSettings.camLeftColor === 'custom' && Number.isFinite(vrSettings.camLeftHue)
+    ? vrSettings.camLeftHue
+    : (CAM_COLORS[vrSettings.camLeftColor] || CAM_COLORS.orange).hue;
+  camTracker.hueB = vrSettings.camRightColor === 'custom' && Number.isFinite(vrSettings.camRightHue)
+    ? vrSettings.camRightHue
+    : (CAM_COLORS[vrSettings.camRightColor] || CAM_COLORS.raspberry).hue;
   camTracker.tol = vrSettings.camTol || 26;
   camTracker.satMin = (vrSettings.camSat || 42) / 100;
   return camTracker;
@@ -565,6 +603,14 @@ function syncCamColorUi() {
   const preset = CAM_COLORS[vrSettings.camColor] || CAM_COLORS.raspberry;
   el.vrCamSwatch.style.background = custom ? `hsl(${vrSettings.camHue} 90% 55%)` : preset.css;
   el.vrCamHueLabel.textContent = custom ? `Свой цвет, оттенок ${vrSettings.camHue}°` : preset.label;
+  const leftCustom = vrSettings.camLeftColor === 'custom' && Number.isFinite(vrSettings.camLeftHue);
+  const rightCustom = vrSettings.camRightColor === 'custom' && Number.isFinite(vrSettings.camRightHue);
+  const left = CAM_COLORS[vrSettings.camLeftColor] || CAM_COLORS.orange;
+  const right = CAM_COLORS[vrSettings.camRightColor] || CAM_COLORS.raspberry;
+  el.vrCamLeftSwatch.style.background = leftCustom ? `hsl(${vrSettings.camLeftHue} 90% 55%)` : left.css;
+  el.vrCamLeftLabel.textContent = leftCustom ? `Свой цвет, оттенок ${vrSettings.camLeftHue}°` : left.label;
+  el.vrCamRightSwatch.style.background = rightCustom ? `hsl(${vrSettings.camRightHue} 90% 55%)` : right.css;
+  el.vrCamRightLabel.textContent = rightCustom ? `Свой цвет, оттенок ${vrSettings.camRightHue}°` : right.label;
   el.vrCamTol.value = String(vrSettings.camTol || 26);
   el.vrCamTolVal.textContent = `±${vrSettings.camTol || 26}°`;
   el.vrCamSat.value = String(vrSettings.camSat || 42);
@@ -584,7 +630,7 @@ function stopCamTracker() {
 let camSnapPending = null;
 let camWasLost = false;
 function updateCameraLook(now, force = false) {
-  if (!game.vrRide || vrSettings.lookMode !== 'camera' || !game.camOn || !camTracker) return;
+  if (!game.vrRide || !isCameraLookMode() || !game.camOn || !camTracker) return;
   if (!force && now - camLastProcess < (camTracker.intervalMs || 90)) return;
   camLastProcess = now;
   camTracker.process();
@@ -665,7 +711,7 @@ function requestFullscreenLandscape() {
 }
 
 function startVrRide() {
-  game.camOn = vrSettings.lookMode === 'camera';
+  game.camOn = isCameraLookMode();
   camSmooth.yaw = 0; camSmooth.pitch = 0;
   if (game.camOn) {
     const t = ensureCamTracker();
@@ -692,7 +738,7 @@ function enterVrStereo() {
   vr.start(vrSettings);
   document.body.classList.add('vr-active');
   // облегчённый стерео-рендер; в режиме камеры — ещё легче (телефон и так занят потоком)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, vrSettings.lookMode === 'camera' ? 1.25 : 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCameraLookMode() ? 1.25 : 1.5));
 }
 
 function stopVrStereo() {
@@ -749,8 +795,20 @@ async function setupRemote(kind) {
 }
 
 function updateCamPrepUi() {
-  if (!camTracker) { el.vrCamStatus.textContent = 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.'; return; }
+  if (!camTracker) {
+    el.vrCamStatus.textContent = 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.';
+    el.vrCamDualStatus.textContent = 'Камера выключена. Включите камеру и наведите её на две коробки.';
+    return;
+  }
   const info = camTracker.info();
+  if (vrSettings.lookMode === 'camera-dual') {
+    el.vrCamDualStatus.textContent = !info.running && !info.synthetic
+      ? 'Камера выключена. Включите камеру и наведите её на две коробки.'
+      : info.dualCalibrated
+        ? `✅ В кадре: ${info.dualVisible.length}/2 метки · yaw ${info.yaw}°, pitch ${info.pitch}° · ${info.procMs} мс${info.lastLostMarker ? ` · ушла ${info.lastLostMarker === 'left' ? 'левая' : info.lastLostMarker === 'right' ? 'правая' : 'обе'}` : ''}`
+        : `В кадре: ${info.dualVisible.length}/2 метки. Поставьте обе симметрично и нажмите «Калибровать: прямо».`;
+    return;
+  }
   el.vrCamStatus.textContent = !info.running && !info.synthetic
     ? 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.'
     : info.found
@@ -758,10 +816,21 @@ function updateCamPrepUi() {
       : 'Метка не видна: проверьте цвет (или «Взять цвет коробки») и освещение.';
 }
 function syncVrUi() {
+  const dual = vrSettings.lookMode === 'camera-dual';
   el.vrModeCamera.setAttribute('aria-pressed', String(vrSettings.lookMode === 'camera'));
-  el.vrCamPanel.classList.toggle('hidden', vrSettings.lookMode !== 'camera');
+  el.vrModeCameraDual.setAttribute('aria-pressed', String(dual));
+  el.vrCamPanel.classList.toggle('hidden', !isCameraLookMode());
+  el.vrCamSingleControls.classList.toggle('hidden', dual);
+  el.vrCamDualControls.classList.toggle('hidden', !dual);
+  if (isCameraLookMode() && camTracker) ensureCamTracker();
   document.querySelectorAll('.vr-cam-color').forEach((b) =>
     b.setAttribute('aria-pressed', String(vrSettings.camColor === b.dataset.color)));
+  document.querySelectorAll('.vr-cam-dual-preset').forEach((b) => {
+    const selected = b.dataset.side === 'left'
+      ? vrSettings.camLeftColor === b.dataset.color
+      : vrSettings.camRightColor === b.dataset.color;
+    b.setAttribute('aria-pressed', String(selected));
+  });
   syncCamColorUi();
   el.vrModeLook.setAttribute('aria-pressed', String(vrSettings.lookMode === 'look'));
   el.vrModeForward.setAttribute('aria-pressed', String(vrSettings.lookMode === 'forward'));
@@ -805,6 +874,7 @@ setInterval(updateRemoteUi, 700);
 setInterval(() => { if (remoteCtrl && remoteCtrl.room) publishRemoteState(); }, 5000);
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
 el.vrModeCamera.addEventListener('click', () => { vrSettings.lookMode = 'camera'; saveVrUi(); SFX.play('click'); });
+el.vrModeCameraDual.addEventListener('click', () => { vrSettings.lookMode = 'camera-dual'; saveVrUi(); SFX.play('click'); });
 el.vrCamStart.addEventListener('click', async () => {
   SFX.play('click');
   try {
@@ -833,6 +903,37 @@ el.vrCamCalib.addEventListener('click', () => {
   t.calibrate();
   el.vrCamStatus.textContent = t.found ? 'Ноль выставлен: метка перед вами — это «вперёд». Можно надевать очки!' : 'Метка не видна — ноль выставлен по центру кадра. Лучше повторить, когда метка видна.';
 });
+function sampleDualColor(side) {
+  SFX.play('click');
+  const t = ensureCamTracker();
+  t.processMain();
+  const hue = t.sampleColor();
+  if (hue === null) {
+    el.vrCamDualStatus.textContent = 'В прицеле нет насыщенного цвета — поднесите нужную коробку в центр.';
+    return;
+  }
+  if (side === 'left') { vrSettings.camLeftColor = 'custom'; vrSettings.camLeftHue = hue; }
+  else { vrSettings.camRightColor = 'custom'; vrSettings.camRightHue = hue; }
+  saveVrUi();
+  el.vrCamDualStatus.textContent = `${side === 'left' ? 'Левый' : 'Правый'} цвет запомнен: оттенок ${hue}°. Теперь проверьте обе метки.`;
+}
+el.vrCamSampleLeft.addEventListener('click', () => sampleDualColor('left'));
+el.vrCamSampleRight.addEventListener('click', () => sampleDualColor('right'));
+el.vrCamDualCalib.addEventListener('click', () => {
+  SFX.play('click');
+  const t = ensureCamTracker();
+  t.processMain();
+  const ok = t.calibrate();
+  el.vrCamDualStatus.textContent = ok
+    ? 'Ноль выставлен по середине двух меток. Теперь можно надевать очки.'
+    : 'Нужно, чтобы обе метки были видны одновременно. Расставьте их слева/справа и повторите.';
+});
+document.querySelectorAll('.vr-cam-dual-preset').forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.side === 'left') { vrSettings.camLeftColor = b.dataset.color; vrSettings.camLeftHue = null; }
+  else { vrSettings.camRightColor = b.dataset.color; vrSettings.camRightHue = null; }
+  ensureCamTracker(); saveVrUi(); SFX.play('click');
+}));
+
 el.vrCamTol.addEventListener('input', () => {
   vrSettings.camTol = +el.vrCamTol.value;
   el.vrCamTolVal.textContent = `±${el.vrCamTol.value}°`;
@@ -1647,12 +1748,31 @@ window.__TEST__ = {
   remoteState() { publishRemoteState(); return lastRemoteState; },
   camInfo() { return camTracker ? camTracker.info() : null; },
   camEnableSynthetic() {
+    vrSettings.lookMode = 'camera';
     const t = ensureCamTracker();
     t.synthetic = true; t.running = true;
-    vrSettings.lookMode = 'camera';
     game.camOn = true;
     t.calibrate();
     return t.info();
+  },
+  camEnableDualSynthetic() {
+    vrSettings.lookMode = 'camera-dual';
+    const t = ensureCamTracker();
+    t.synthetic = true; t.running = true;
+    game.camOn = true;
+    t.dualCalibration = null;
+    return t.info();
+  },
+  camFeedDual(ax, ay, bx, by, r = 26) {
+    const t = ensureCamTracker();
+    t.injectDualBlob(ax, ay, bx, by, r);
+    updateCameraLook(performance.now(), true);
+    return { info: t.info(), vr: vr.info() };
+  },
+  camCalibrateDual() {
+    const t = ensureCamTracker();
+    const ok = t.calibrate();
+    return { ok, info: t.info() };
   },
   camFeed(cx, cy, r) {
     const t = ensureCamTracker();

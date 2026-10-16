@@ -47,6 +47,20 @@ const ui = await page.evaluate(async () => {
 });
 record('подготовка: панель, пипетка показала цвет, ползунок работает',
   ui.panelVisible && ui.hueLabel.includes('Свой цвет') && !!ui.swatch && ui.tol === 18, ui);
+const dualUi = await page.evaluate(() => {
+  document.getElementById('vr-mode-camera-dual').click();
+  const out = {
+    pressed: document.getElementById('vr-mode-camera-dual').getAttribute('aria-pressed') === 'true',
+    panel: !document.getElementById('vr-cam-panel').classList.contains('hidden'),
+    controls: !document.getElementById('vr-cam-dual-controls').classList.contains('hidden'),
+    left: document.getElementById('vr-cam-left-label').textContent,
+    right: document.getElementById('vr-cam-right-label').textContent,
+  };
+  document.getElementById('vr-mode-camera').click();
+  return out;
+});
+record('подрежим двух меток: отдельная панель и пресеты слева/справа',
+  dualUi.pressed && dualUi.panel && dualUi.controls && /Оранж/.test(dualUi.left) && /Малин/.test(dualUi.right), dualUi);
 
 // 1. синтетическая камера + старт поездки в режиме «По метке»
 const boot = await page.evaluate(() => {
@@ -166,6 +180,25 @@ const bmp = await page.evaluate(async () => {
 });
 record('ImageBitmap с меткой: взгляд вправо, воркер доступен',
   bmp.info.workerAvailable === true && bmp.info.yaw > 12 && bmp.yaw > 9, bmp);
+
+// 9. подрежим двух меток: пара задаёт прямой, одна оставшаяся продолжает вести
+const dual = await page.evaluate(() => {
+  window.__TEST__.camEnableDualSynthetic();
+  window.__TEST__.vrStart('camera-dual', 30);
+  const straight = window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
+  const calibrated = window.__TEST__.camCalibrateDual();
+  const shifted = window.__TEST__.camFeedDual(112, 120, 268, 120, 26);
+  const one = window.__TEST__.camFeedDual(112, 120, null, null, 26);
+  const none = window.__TEST__.camFeedDual(null, null, null, null, 26);
+  return { straight: straight.info, calibrated, shifted: shifted.info, one: one.info, none: none.info };
+});
+record('две метки: симметричная пара калибрует прямой (0°)',
+  dual.straight.dual && dual.calibrated.ok && dual.calibrated.info.dualCalibrated && Math.abs(dual.straight.yaw) < 2, dual);
+record('две метки: смещение пары даёт новый угол', dual.shifted.dualVisible.length === 2 && dual.shifted.yaw > 5, dual.shifted);
+record('две метки: при потере правой левая продолжает вести',
+  dual.one.dualVisible.length === 1 && dual.one.dualVisible[0] === 'left' && dual.one.lastLostMarker === 'right', dual.one);
+record('две метки: при потере обеих сохраняется последний угол',
+  !dual.none.found && dual.none.heldYaw === dual.one.yaw, dual.none);
 
 record('ошибок на странице нет', errors.length === 0, errors);
 
