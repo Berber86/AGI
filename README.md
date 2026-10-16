@@ -32,14 +32,16 @@
 │   ├── state-contracts.md
 │   ├── workflow.md
 │   ├── headless-browser-setup.md      ← как ставить headless-браузер для скриншотов/тестов
+│   ├── immersive-vr-remote-input.md   ← VR, камера-метки, внешний джойстик и полевой QA
 │   └── workspace-resets-and-recovery.md ← что теряется при сбросах окружения и как восстанавливаться
 ├── scripts/
 └── templates/
 ```
 
-Эксплуатационные руководства (браузер, сбросы) — обязательное чтение перед визуальными проверками и после любого «исчезновения» файлов/истории:
+Эксплуатационные руководства (браузер, VR/remote, сбросы) — обязательное чтение перед визуальными/полевыми проверками и после любого «исчезновения» файлов/истории:
 
 - [Установка headless-браузера](.agents/skills/arena-game-forge/references/headless-browser-setup.md)
+- [VR, камера и внешний джойстик](.agents/skills/arena-game-forge/references/immersive-vr-remote-input.md)
 - [Сбросы окружения и восстановление](.agents/skills/arena-game-forge/references/workspace-resets-and-recovery.md)
 
 ## Использование в Arena
