@@ -59,6 +59,8 @@ export class RemoteControl {
     this._ch = null;
     this.onCommand = null;   // (name) => void — высокоуровневые команды джойстика
     this._lastCmdSeq = 0;
+    this._lastInputSeq = 0;
+    this._inputSession = null;
   }
 
   async connectFirebase(config) {
@@ -127,6 +129,22 @@ export class RemoteControl {
   }
 
   _accept(st, lag) {
+    // Firebase can deliver a queued snapshot after a newer one when a VPN
+    // briefly recovers. Ignore stale packets so an old value cannot make the
+    // game oscillate behind the actual joystick position.
+    const sid = typeof st?.sid === 'string' ? st.sid : null;
+    if (sid && sid !== this._inputSession) {
+      this._inputSession = sid;
+      this._lastInputSeq = 0;
+    }
+    // Once a current session is known, a cached pre-session tab must not be
+    // allowed to overwrite it with an old protocol packet.
+    if (!sid && this._inputSession) return;
+    if (sid && Number.isFinite(Number(st?.seq))) {
+      const seq = Number(st.seq);
+      if (seq <= this._lastInputSeq) return;
+      this._lastInputSeq = seq;
+    }
     // Keep accepting the old l/r shape for one cached/older joystick tab;
     // the new page sends the analog values directly.
     const oldSteer = (st && st.r ? 1 : 0) - (st && st.l ? 1 : 0);
@@ -179,5 +197,7 @@ export class RemoteControl {
     this.room = null;
     this.connected = false;
     this.driveState = { steer: 0, throttle: 0 };
+    this._lastInputSeq = 0;
+    this._inputSession = null;
   }
 }

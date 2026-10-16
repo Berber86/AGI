@@ -154,6 +154,13 @@ const els = {
 };
 const qs = new URLSearchParams(location.search);
 const DEMO_CHANNEL = 'ckc-joystick-stand';
+// Firebase is a remote database, not a 60 Hz input bus. Keep the latest
+// analog value locally and send a small, coalesced packet at a sane rate.
+const DRIVE_SEND_MS = 80;
+const DRIVE_HEARTBEAT_MS = 1000;
+const DRIVE_SESSION = (globalThis.crypto && globalThis.crypto.randomUUID)
+  ? globalThis.crypto.randomUUID()
+  : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const state = {
   kind: null, room: null, steer: 0, throttle: 0, throttleY: 75,
@@ -200,25 +207,42 @@ const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length 
 // запись в Firebase внутри pointerdown блокировала UI на слабых телефонах
 // (Chrome показывал «Event handlers blocked UI updates» на сотни мс).
 // Поэтому обработчик только меняет визуал, а отправка уезжает в отдельный
-// тик после отрисовки и коалесцируется (не чаще ~33 раз/с, только изменения).
+// тик после отрисовки. Firebase не является 60 Hz транспортом: более частые
+// set() создают очередь сетевых событий и могут отнимать кадры у игры на
+// слабом телефоне. Отправляем последний пакет не чаще 12,5 раз/с, а при
+// неизменном управлении — только редкий heartbeat.
 let driveDirty = false;
+let driveForce = false;
 let driveTimer = null;
 let lastDriveSent = 0;
+let lastDrivePacket = null;
+let driveSentCount = 0;
 function scheduleDriveSend() {
   if (driveTimer) return;
-  const wait = Math.max(0, 30 - (performance.now() - lastDriveSent));
+  const wait = Math.max(0, DRIVE_SEND_MS - (performance.now() - lastDriveSent));
   driveTimer = setTimeout(flushDrive, wait);
 }
 function flushDrive() {
   driveTimer = null;
   if (!driveDirty || !state.room) return;
-  driveDirty = false;
-  lastDriveSent = performance.now();
   const packet = { steer: +state.steer.toFixed(3), throttle: +state.throttle.toFixed(3) };
+  const changed = !lastDrivePacket
+    || packet.steer !== lastDrivePacket.steer
+    || packet.throttle !== lastDrivePacket.throttle;
+  const send = driveForce || changed;
+  driveDirty = false;
+  driveForce = false;
+  if (!send) return;
+  lastDriveSent = performance.now();
+  lastDrivePacket = packet;
+  const wire = { ...packet, sid: DRIVE_SESSION, seq: ++state.seq, sts: Date.now() };
+  driveSentCount++;
   if (state.kind === 'demo') {
-    state.ch.postMessage({ kind: 'input', room: state.room, state: packet });
+    state.ch.postMessage({ kind: 'input', room: state.room, state: wire });
   } else {
-    state.f.set(roomRef('/input'), { ...packet, seq: ++state.seq, sts: state.f.serverTimestamp() }).catch(() => {});
+    // Client time plus the server offset on the game phone is enough for the
+    // lag estimate and avoids a serverTimestamp transform on every input.
+    state.f.set(roomRef('/input'), wire).catch(() => {});
   }
 }
 function updatePadVisuals() {
@@ -255,7 +279,7 @@ async function bootFirebase(config) {
 function startLoops() {
   setInterval(() => { // heartbeat: экран видит живость, даже когда руль отпущен
     if (state.room && !document.hidden) pushDriveKeepVisual();
-  }, 1000);
+  }, DRIVE_HEARTBEAT_MS);
   setInterval(() => {
     if (!state.room || document.hidden || state.pending) return;
     const id = ++state.pingSeq;
@@ -264,8 +288,9 @@ function startLoops() {
     else state.f.set(roomRef('/ping'), { id }).catch(() => {});
   }, 2000);
 }
-function pushDriveKeepVisual() { // heartbeat: освежить sts той же отложенной отправкой
+function pushDriveKeepVisual() { // heartbeat: освежить состояние раз в секунду
   driveDirty = true;
+  driveForce = true;
   scheduleDriveSend();
 }
 
@@ -317,6 +342,10 @@ async function join(code) {
     els.joyStatus.textContent = 'Демо-режим: руль работает в этой паре вкладок';
   }
   els.cardJoy.classList.remove('hidden');
+  lastDrivePacket = null;
+  lastDriveSent = 0;
+  driveDirty = true;
+  driveForce = true;
   try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
   pushDrive();
   startLoops();
@@ -517,7 +546,7 @@ if (qs.get('code')) els.joinCode.value = qs.get('code');
 
 // QA hooks
 window.__JOY__ = {
-  state: () => ({ kind: state.kind, room: state.room, steer: state.steer, throttle: state.throttle, samples: state.rtt.length }),
+  state: () => ({ kind: state.kind, room: state.room, steer: state.steer, throttle: state.throttle, samples: state.rtt.length, driveSent: driveSentCount }),
   demo: () => $('btn-demo').click(),
   join: (code) => join(String(code)),
   setDrive: (steer, throttle) => {

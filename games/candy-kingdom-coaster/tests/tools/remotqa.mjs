@@ -78,6 +78,18 @@ record('зоны джойстика: −0,5 руля, газ 30% в центре
   padProbe.left.steer < -0.45 && padProbe.left.steer > -0.55 &&
   Math.abs(padProbe.middle.throttle - 0.3) < 0.01 && padProbe.top.throttle === 1 && padProbe.lower.throttle === 0, padProbe);
 
+// Частые pointermove не должны превращаться в 60 Hz Firebase очередь.
+const cadence = await joy.evaluate(async () => {
+  const before = window.__JOY__.state().driveSent;
+  for (let i = 0; i < 40; i++) {
+    window.__JOY__.setDrive(i % 2 ? 1 : -1, 0.3);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  return { sent: window.__JOY__.state().driveSent - before };
+});
+record('коалесценция: 40 частых движений дают не больше 7 пакетов', cadence.sent <= 7, cadence);
+
 // 2b. теперь старт поездки
 await game.evaluate(() => window.__TEST__.vrStart('look', 30));
 const started = await game.evaluate(() => { const g = window.__TEST__.gameInfo(); return g.vrRide && g.driverMode === 'remote'; });
