@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Стенд трекинга камерой — Candy Kingdom Coaster</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', 'Trebuchet MS', Arial, sans-serif;
+    background: linear-gradient(160deg, #0d1b2e, #123524 60%, #0e3a2e);
+    color: #eefcf3; min-height: 100vh; padding: 14px;
+  }
+  main { max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+  h1 { font-size: 21px; margin: 2px 0 0; }
+  h2 { font-size: 15px; margin: 0 0 8px; }
+  .sub { opacity: .82; font-size: 13px; line-height: 1.45; margin: 0; }
+  .card { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.16); border-radius: 16px; padding: 12px 14px; }
+  button {
+    border: 0; border-radius: 12px; padding: 11px 13px; font-size: 15px; font-weight: 800;
+    background: linear-gradient(180deg, #37d67a, #1da851); color: #fff; cursor: pointer;
+  }
+  button.secondary { background: rgba(255,255,255,.13); border: 1px solid rgba(255,255,255,.25); }
+  button[aria-pressed="true"] { background: linear-gradient(180deg, #ffd166, #f4b63f); color: #40260a; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1; }
+  .hidden { display: none !important; }
+  input[type="number"] {
+    width: 76px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.35); color: #fff; padding: 8px; font-size: 15px;
+  }
+  input[type="range"] { width: 100%; accent-color: #37d67a; }
+  .tabs { display: flex; gap: 8px; }
+  .tabs button { flex: 1; font-size: 16px; }
+  #target-stage {
+    position: relative; height: 54vh; min-height: 300px; background: #000; border-radius: 16px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #target-dot {
+    border-radius: 50%; flex: none;
+    box-shadow: 0 0 44px 6px rgba(255,255,255,.25) inset;
+  }
+  .video-wrap { position: relative; width: 100%; aspect-ratio: 4/3; background: #000; border-radius: 12px; overflow: hidden; }
+  .video-wrap video, .video-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .cell { background: rgba(0,0,0,.28); border-radius: 12px; padding: 8px 10px; }
+  .cell .k { font-size: 11px; opacity: .75; text-transform: uppercase; letter-spacing: .4px; }
+  .cell .v { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 800; font-size: 13px; }
+  .badge.ok { background: #1da851; }
+  .badge.lost { background: #c22e42; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th, td { border-bottom: 1px solid rgba(255,255,255,.12); padding: 4px 5px; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  .verdict { font-size: 14px; line-height: 1.5; background: rgba(0,0,0,.3); border-radius: 12px; padding: 10px 12px; }
+  .err { color: #ff9db1; font-size: 13px; white-space: pre-wrap; }
+  #print-sheet { display: none; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    body > main { display: none !important; }
+    #print-sheet { display: block !important; }
+    #print-rect { position: relative; border: 5mm solid #000; margin: 10mm auto 4mm; }
+    #print-dot { position: absolute; left: 6mm; top: 6mm; width: 12mm; height: 12mm; border-radius: 50%;
+      background: #fff; border: 2.5mm solid #000; }
+    #print-note { color: #000; font-size: 11pt; text-align: center; }
+  }
+  .ok-text { color: #9be7b4; }
+  label.small { font-size: 13px; opacity: .9; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎯 Стенд трекинга камерой</h1>
+  <p class="sub">Проверяем: может ли камера телефона (через шторку очков) держать угол взгляда по яркой
+    мишени на экране — стабильнее ли она гироскопа и как быстро находит метку после потери.
+    Устройство 1 открывает «Мишень», устройство 2 (в очках) — «Камеру» и смотрит на неё.</p>
+
+  <div class="tabs" role="group" aria-label="Режим стенда">
+    <button type="button" id="tab-target" aria-pressed="false">🎯 Мишень</button>
+    <button type="button" id="tab-camera" aria-pressed="true">📷 Камера</button>
+  </div>
+
+  <section class="card">
+    <h2>Общие настройки метки</h2>
+    <div class="row" role="group" aria-label="Цвет метки">
+      <button type="button" class="secondary color-btn" data-color="magenta" aria-pressed="true">Маджента</button>
+      <button type="button" class="secondary color-btn" data-color="lime" aria-pressed="false">Лайм</button>
+      <button type="button" class="secondary color-btn" data-color="cyan" aria-pressed="false">Циан</button>
+    </div>
+    <div class="row" style="margin-top:10px" role="group" aria-label="Форма метки">
+      <button type="button" class="secondary shape-btn" data-shape="circle" aria-pressed="true">● Круг</button>
+      <button type="button" class="secondary shape-btn" data-shape="rect" aria-pressed="false">▬ Прямоугольник</button>
+    </div>
+    <label class="small" style="margin-top:10px">Диаметр круга мишени, см (замерьте линейкой по экрану)
+      <input type="number" id="opt-dia" min="3" max="80" step="1" value="15"></label>
+    <label class="small">Прямоугольник: ширина × высота, см (грань коробки или печатная метка)
+      <span><input type="number" id="opt-rect-w" min="2" max="80" step="0.5" value="15"> ×
+      <input type="number" id="opt-rect-h" min="2" max="80" step="0.5" value="10"></span></label>
+    <label class="small">Допуск оттенка: <b id="opt-tol-val">±30°</b></label>
+    <input type="range" id="opt-tol" min="8" max="45" step="1" value="30">
+    <label class="small">Минимальная насыщенность: <b id="opt-sat-val">45%</b></label>
+    <input type="range" id="opt-sat" min="20" max="80" step="1" value="45">
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="btn-sample" class="secondary">🎨 Взять цвет из центра кадра</button>
+    </div>
+    <p class="sub">Для реального объекта (например, малиновой коробки лекарств): наведите её в центр
+      кадра камеры и нажмите «Взять цвет» — стенд запомнит оттенок именно при вашем освещении.</p>
+    <label class="small">Горизонтальный угол обзора камеры (FOV): <b id="opt-fov-val">65°</b></label>
+    <input type="range" id="opt-fov" min="40" max="90" step="1" value="65">
+  </section>
+
+  <!-- ---------------------------------------------------------- TARGET -->
+  <section id="view-target" class="hidden">
+    <div id="target-stage"><div id="target-dot"></div></div>
+    <section class="card">
+      <label class="small">Размер круга: <b id="target-size-val">55%</b></label>
+      <input type="range" id="target-size" min="20" max="92" step="1" value="55">
+      <p class="sub">Поставьте этот экран перед игроком на уровне глаз. Если камера видит круг
+        блекло-белым — убавьте яркость экрана до 50–70% (насыщенные цвета на полной яркости
+        «выгорают» в белый). Экран в этом режиме не гаснет.</p>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btn-print" class="secondary">🖨 Печатная метка (прямоугольник)</button>
+      </div>
+      <p class="sub">Печатает прямоугольник размером «ширина × высота» из общих настроек, в выбранном
+        цвете, с белой точкой в углу (по ней виден крен и где верх). Матовая бумага лучше глянцевой.</p>
+    </section>
+  </section>
+
+  <!-- ---------------------------------------------------------- CAMERA -->
+  <section id="view-camera">
+    <section class="card">
+      <div class="video-wrap">
+        <video id="cam-video" playsinline muted autoplay></video>
+        <canvas id="cam-overlay"></canvas>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button type="button" id="btn-camera">📷 Включить камеру</button>
+        <button type="button" id="btn-gyro" class="secondary">🧭 Гироскоп</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btn-calibrate" class="secondary">🎯 Смотрю на мишень</button>
+        <button type="button" id="btn-point" class="secondary">📍 Записать точку</button>
+      </div>
+      <p class="err" id="cam-error"></p>
+      <p class="sub">Нужна задняя камера (та, что смотрит наружу из очков через шторку).
+        «Смотрю на мишень» — нажать, когда смотрите прямо на круг: это ноль углов.</p>
+    </section>
+
+    <section class="card">
+      <h2>Углы сейчас <span class="badge lost" id="badge-found">метка не видна</span></h2>
+      <div class="grid">
+        <div class="cell"><div class="k">Камера yaw</div><div class="v" id="v-cam-yaw">—</div></div>
+        <div class="cell"><div class="k">Камера pitch</div><div class="v" id="v-cam-pitch">—</div></div>
+        <div class="cell"><div class="k">Дистанция</div><div class="v" id="v-dist">—</div></div>
+        <div class="cell"><div class="k">Крен метки</div><div class="v" id="v-roll">—</div></div>
+        <div class="cell"><div class="k">Прямоугольность</div><div class="v" id="v-fill">—</div></div>
+        <div class="cell"><div class="k">Гиро yaw</div><div class="v" id="v-gyro-yaw">—</div></div>
+        <div class="cell"><div class="k">Гиро pitch</div><div class="v" id="v-gyro-pitch">—</div></div>
+        <div class="cell"><div class="k">Слияние yaw</div><div class="v" id="v-fused-yaw">—</div></div>
+      </div>
+      <p class="sub" style="margin-top:8px">Обработка: <b id="v-fps">0</b> кадр/с · шум камеры (σ yaw за 5 с): <b id="v-noise">—</b></p>
+    </section>
+
+    <section class="card">
+      <h2>Стабильность и потери метки (главный замер)</h2>
+      <div class="grid">
+        <div class="cell"><div class="k">Метка видна</div><div class="v" id="v-vis-pct">—</div></div>
+        <div class="cell"><div class="k">Потерь</div><div class="v" id="v-losses">0</div></div>
+        <div class="cell"><div class="k">Поиск, среднее</div><div class="v" id="v-reacq">—</div></div>
+        <div class="cell"><div class="k">Поиск, макс</div><div class="v" id="v-reacq-max">—</div></div>
+        <div class="cell"><div class="k">Дрейф-тест</div><div class="v" id="v-drift-state">нет</div></div>
+        <div class="cell"><div class="k">Точек записано</div><div class="v" id="v-rows">0</div></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button type="button" id="btn-drift">▶ Тест покоя 60 с</button>
+        <button type="button" id="btn-stat-reset" class="secondary">Сбросить статистику</button>
+        <button type="button" id="btn-drift-10" class="secondary">Тест 10 с</button>
+      </div>
+      <p class="sub">Тест покоя: телефон и мишень неподвижны (положите телефон, не держите в руках).
+        Стенд сравнит дрейф камеры и гироскопа. Отдельно покрутите головой: потери и время поиска считаются сами.</p>
+      <div class="verdict" id="drift-verdict">Вердикт появится после теста покоя. Ориентиры «годится в игру»:
+        шум σ ≤ 0,5°, дрейф камеры за 60 с ≤ 1° и меньше, чем у гироскопа, поиск после потери ≤ 300 мс.</div>
+    </section>
+
+    <section class="card">
+      <h2>Журнал точек</h2>
+      <table>
+        <thead><tr><th>Время</th><th>Кам yaw</th><th>Кам pitch</th><th>Гиро yaw</th><th>Дист, см</th><th>Метка</th></tr></thead>
+        <tbody id="log-body"><tr><td colspan="6" style="text-align:left; opacity:.7">Пока пусто</td></tr></tbody>
+      </table>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btn-csv" class="secondary">📋 Скопировать CSV</button>
+      </div>
+    </section>
+  </section>
+</main>
+<div id="print-sheet" aria-hidden="true"><div id="print-rect"><span id="print-dot"></span></div><p id="print-note"></p></div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const els = {
+  tabTarget: $('tab-target'), tabCamera: $('tab-camera'),
+  viewTarget: $('view-target'), viewCamera: $('view-camera'),
+  dot: $('target-dot'), targetSize: $('target-size'), targetSizeVal: $('target-size-val'),
+  dia: $('opt-dia'), fov: $('opt-fov'), fovVal: $('opt-fov-val'),
+  rectW: $('opt-rect-w'), rectH: $('opt-rect-h'), tol: $('opt-tol'), tolVal: $('opt-tol-val'),
+  sat: $('opt-sat'), satVal: $('opt-sat-val'),
+  roll: $('v-roll'), fill: $('v-fill'),
+  video: $('cam-video'), overlay: $('cam-overlay'), camError: $('cam-error'),
+  badge: $('badge-found'),
+  camYaw: $('v-cam-yaw'), camPitch: $('v-cam-pitch'), dist: $('v-dist'),
+  gyroYaw: $('v-gyro-yaw'), gyroPitch: $('v-gyro-pitch'), fusedYaw: $('v-fused-yaw'),
+  fps: $('v-fps'), noise: $('v-noise'),
+  visPct: $('v-vis-pct'), losses: $('v-losses'), reacq: $('v-reacq'), reacqMax: $('v-reacq-max'),
+  driftState: $('v-drift-state'), rowsCount: $('v-rows'), verdict: $('drift-verdict'),
+  logBody: $('log-body'),
+};
+
+const COLORS = {
+  magenta: { css: '#ff00ff', h: 300, tol: 30, rgb: [255, 0, 255] },
+  lime: { css: '#22ff66', h: 140, tol: 34, rgb: [34, 255, 102] },
+  cyan: { css: '#00e5ff', h: 190, tol: 30, rgb: [0, 229, 255] },
+};
+const wrapDeg = (d) => { while (d > 180) d -= 360; while (d < -180) d += 360; return d; };
+const rad2deg = (r) => (r * 180) / Math.PI;
+
+const S = {
+  color: 'magenta', customHue: null, shape: 'circle',
+  tol: 30, satMin: 0.45, lastFrame: null,
+  roll: 0, rectA: 0, rectB: 0, fill: 0,
+  running: false, lastProcAt: 0, procFps: 0,
+  found: false, lastFoundAt: 0, u: 0, v: 0, area: 0, frameW: 320, frameH: 240,
+  yaw: 0, pitch: 0, distCm: null,
+  c0: null, // калибровочный центроид (пиксели рабочего кадра)
+  gyro: { on: false, a0: null, b0: null, yaw: 0, pitch: 0, lastAlpha: null },
+  fusedYaw: 0,
+  yawRing: [], // {t, yaw} для шума за 5 с
+  rows: [],
+  stat: null,
+  drift: null, lastDrift: null,
+};
+function resetStats() {
+  S.stat = { since: performance.now(), visibleMs: 0, lastTick: performance.now(), wasFound: false, losses: 0, lossStart: null, reacq: [] };
+}
+resetStats();
+
+// ------------------------------------------------------------- анализ кадра
+function hueOf(r, g, b) {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (d === 0) return { h: 0, sat: 0, val: mx / 255 };
+  let hue;
+  if (mx === r) hue = ((g - b) / d) % 6;
+  else if (mx === g) hue = (b - r) / d + 2;
+  else hue = (r - g) / d + 4;
+  hue *= 60; if (hue < 0) hue += 360;
+  return { h: hue, sat: d / mx, val: mx / 255 };
+}
+function targetHue() { return S.color === 'custom' && S.customHue !== null ? S.customHue : COLORS[S.color].h; }
+
+function analyze(data, w, h) {
+  const specH = targetHue();
+  const mask = new Uint8Array(w * h);
+  for (let i = 0, px = 0; px < w * h; px++, i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    if (Math.max(r, g, b) < 60) continue;
+    const { h: hue, sat } = hueOf(r, g, b);
+    if (sat < S.satMin) continue;
+    let dh = Math.abs(hue - specH); if (dh > 180) dh = 360 - dh;
+    if (dh <= S.tol) mask[px] = 1;
+  }
+  // связные компоненты: берём КРУПНЕЙШЕЕ пятно, а не сумму всех пикселей
+  // цвета (иначе камера «цепляет» посторонние предметы того же цвета).
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  let best = null;
+  for (let start = 0; start < w * h; start++) {
+    if (!mask[start] || seen[start]) continue;
+    let count = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+    stack.length = 0; stack.push(start); seen[start] = 1;
+    while (stack.length) {
+      const cur = stack.pop();
+      const x = cur % w, y = (cur / w) | 0;
+      count++; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y;
+      if (x > 0 && mask[cur - 1] && !seen[cur - 1]) { seen[cur - 1] = 1; stack.push(cur - 1); }
+      if (x < w - 1 && mask[cur + 1] && !seen[cur + 1]) { seen[cur + 1] = 1; stack.push(cur + 1); }
+      if (y > 0 && mask[cur - w] && !seen[cur - w]) { seen[cur - w] = 1; stack.push(cur - w); }
+      if (y < h - 1 && mask[cur + w] && !seen[cur + w]) { seen[cur + w] = 1; stack.push(cur + w); }
+    }
+    if (!best || count > best.count) best = { count, sx, sy, sxx, syy, sxy };
+  }
+  if (!best || best.count < 60 || best.count > w * h * 0.7) return { found: false, count: best ? best.count : 0 };
+  const u = best.sx / best.count, v = best.sy / best.count;
+  const mu20 = best.sxx / best.count - u * u;
+  const mu02 = best.syy / best.count - v * v;
+  const mu11 = best.sxy / best.count - u * v;
+  const theta = 0.5 * Math.atan2(2 * mu11, mu20 - mu02);
+  const tr = (mu20 + mu02) / 2, disc = Math.sqrt(Math.max(0, ((mu20 - mu02) / 2) ** 2 + mu11 ** 2));
+  const lam1 = Math.max(0.01, tr + disc), lam2 = Math.max(0.01, tr - disc);
+  const axisA = Math.sqrt(12 * lam1), axisB = Math.sqrt(12 * lam2); // длины осей пятна, px
+  return { found: true, count: best.count, u, v, roll: theta, axisA, axisB, fill: best.count / (axisA * axisB) };
+}
+
+function fxPx(w) { return (w / 2) / Math.tan(((Number(els.fov.value) * Math.PI) / 180) / 2); }
+
+function applyDetection(res, w, h) {
+  S.frameW = w; S.frameH = h;
+  const now = performance.now();
+  const st = S.stat;
+  if (res.found) {
+    if (!st.wasFound && st.lossStart !== null) {
+      const dt = now - st.lossStart;
+      st.reacq.push(dt);
+      st.lossStart = null;
+    }
+    st.wasFound = true;
+    S.found = true; S.lastFoundAt = now;
+    S.u = res.u; S.v = res.v; S.area = res.count;
+    const fx = fxPx(w);
+    const cx = S.c0 ? S.c0.x : w / 2;
+    const cy = S.c0 ? S.c0.y : h / 2;
+    S.yaw = rad2deg(Math.atan((res.u - cx) / fx));
+    S.pitch = -rad2deg(Math.atan((res.v - cy) / fx));
+    S.roll = rad2deg(res.roll || 0);
+    S.rectA = res.axisA || 0; S.rectB = res.axisB || 0; S.fill = res.fill || 0;
+    // дистанция по угловому размеру метки известного физического размера
+    if (S.shape === 'rect') {
+      const wCm = Math.max(Number(els.rectW.value) || 15, Number(els.rectH.value) || 10);
+      S.distCm = S.rectA > 4 ? wCm * fx / S.rectA : null;
+    } else {
+      const diaCm = Math.max(3, Number(els.dia.value) || 15);
+      const rPx = Math.sqrt(res.count / Math.PI);
+      S.distCm = rPx > 2 ? (diaCm / 2) * (fx / rPx) : null;
+    }
+    S.yawRing.push({ t: now, yaw: S.yaw });
+    // слияние: камера мягко тянет fused-угол к себе
+    S.fusedYaw += wrapDeg(S.yaw - S.fusedYaw) * 0.05;
+    if (S.drift && S.drift.active) {
+      S.drift.camYaw.push(S.yaw); S.drift.camPitch.push(S.pitch);
+    }
+  } else {
+    if (st.wasFound) { st.losses++; st.lossStart = now; }
+    st.wasFound = false;
+    if (now - S.lastFoundAt > 250) S.found = false;
+    S.distCm = null;
+  }
+  drawOverlay();
+  renderReadouts();
+}
+
+// ------------------------------------------------------------- камера
+const work = document.createElement('canvas');
+const wctx = work.getContext('2d', { willReadFrequently: true });
+function processVideoFrame() {
+  const vid = els.video;
+  if (!S.running || !vid.videoWidth) return;
+  const w = 320;
+  const h = Math.max(2, Math.round((w * vid.videoHeight) / vid.videoWidth));
+  work.width = w; work.height = h;
+  wctx.drawImage(vid, 0, 0, w, h);
+  const img = wctx.getImageData(0, 0, w, h);
+  S.lastFrame = { data: img.data, w, h };
+  applyDetection(analyze(img.data, w, h), w, h);
+}
+function loop() {
+  requestAnimationFrame(loop);
+  const now = performance.now();
+  if (now - S.lastProcAt < 66) return; // ~15 кадр/с обработки
+  const dt = now - S.lastProcAt;
+  S.lastProcAt = now;
+  if (dt > 0) S.procFps = S.procFps ? S.procFps * 0.85 + (1000 / dt) * 0.15 : 1000 / dt;
+  processVideoFrame();
+}
+requestAnimationFrame(loop);
+
+// статистика видимости (тикает, только когда камера работает)
+setInterval(() => {
+  const now = performance.now();
+  const st = S.stat;
+  if (S.running) {
+    if (S.found) st.visibleMs += now - st.lastTick;
+  }
+  st.lastTick = now;
+  // шум: σ yaw за последние 5 с
+  S.yawRing = S.yawRing.filter((p) => now - p.t <= 5000);
+  renderStats();
+}, 300);
+
+function drawOverlay() {
+  const c = els.overlay, ctx = c.getContext('2d');
+  const vw = els.video.videoWidth || S.frameW, vh = els.video.videoHeight || S.frameH;
+  const cw = c.clientWidth || 320, ch = c.clientHeight || 240;
+  if (c.width !== cw * 2) { c.width = cw * 2; c.height = ch * 2; }
+  ctx.setTransform(2, 0, 0, 2, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  const scale = Math.max(cw / vw, ch / vh);
+  const ox = (cw - vw * scale) / 2, oy = (ch - vh * scale) / 2;
+  const px = (S.u / S.frameW) * vw, py = (S.v / S.frameH) * vh;
+  // прицел центра
+  ctx.strokeStyle = 'rgba(255,255,255,.65)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cw / 2 - 14, ch / 2); ctx.lineTo(cw / 2 + 14, ch / 2);
+  ctx.moveTo(cw / 2, ch / 2 - 14); ctx.lineTo(cw / 2, ch / 2 + 14); ctx.stroke();
+  if (S.found) {
+    const dx = ox + px * scale, dy = oy + py * scale;
+    ctx.strokeStyle = '#37d67a'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cw / 2, ch / 2); ctx.lineTo(dx, dy); ctx.stroke();
+    if (S.shape === 'rect' && S.rectA > 4) {
+      const k = (vw / S.frameW) * scale;
+      const a = (S.rectA / 2) * k, b = (S.rectB / 2) * k;
+      const th = (S.roll * Math.PI) / 180;
+      const ux = Math.cos(th), uy = Math.sin(th), vx = -uy, vy = ux;
+      ctx.beginPath();
+      const corners = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
+      corners.forEach(([sa, sb], i) => {
+        const X = dx + sa * a * ux + sb * b * vx, Y = dy + sa * a * uy + sb * b * vy;
+        if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+      });
+      ctx.closePath(); ctx.stroke();
+    } else {
+      const r = Math.max(8, Math.sqrt(S.area / Math.PI) * (vw / S.frameW) * scale);
+      ctx.beginPath(); ctx.arc(dx, dy, r, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+}
+
+function fmt(v, unit = '°') { return v === null || v === undefined || Number.isNaN(v) ? '—' : `${v.toFixed(1)}${unit}`; }
+function renderReadouts() {
+  els.camYaw.textContent = S.found || S.lastFoundAt ? fmt(S.yaw) : '—';
+  els.camPitch.textContent = S.found || S.lastFoundAt ? fmt(S.pitch) : '—';
+  els.dist.textContent = S.distCm ? `${Math.round(S.distCm)} см` : '—';
+  els.roll.textContent = S.found ? fmt(S.roll) : '—';
+  els.fill.textContent = S.found ? `${Math.round(Math.min(1, S.fill) * 100)}%` : '—';
+  els.gyroYaw.textContent = S.gyro.on ? fmt(S.gyro.yaw) : '—';
+  els.gyroPitch.textContent = S.gyro.on ? fmt(S.gyro.pitch) : '—';
+  els.fusedYaw.textContent = S.gyro.on ? fmt(S.fusedYaw) : '—';
+  els.fps.textContent = S.running ? Math.round(Math.min(S.procFps, 30)) : 0;
+  els.badge.textContent = S.found ? '✅ метка видна' : 'метка не видна';
+  els.badge.className = 'badge ' + (S.found ? 'ok' : 'lost');
+}
+function renderStats() {
+  const st = S.stat;
+  const total = Math.max(1, performance.now() - st.since);
+  els.visPct.textContent = S.running || st.visibleMs ? `${Math.round((st.visibleMs / total) * 100)}%` : '—';
+  els.losses.textContent = st.losses;
+  if (st.reacq.length) {
+    const avg = st.reacq.reduce((a, b) => a + b, 0) / st.reacq.length;
+    els.reacq.textContent = `${Math.round(avg)} мс`;
+    els.reacqMax.textContent = `${Math.round(Math.max(...st.reacq))} мс`;
+  } else { els.reacq.textContent = '—'; els.reacqMax.textContent = '—'; }
+  if (S.yawRing.length > 8) {
+    const ys = S.yawRing.map((p) => p.yaw);
+    const mean = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const sd = Math.sqrt(ys.reduce((a, b) => a + (b - mean) ** 2, 0) / ys.length);
+    els.noise.textContent = `${sd.toFixed(2)}°`;
+  }
+  if (S.drift && S.drift.active) {
+    const left = Math.max(0, Math.ceil((S.drift.dur - (performance.now() - S.drift.t0)) / 1000));
+    els.driftState.textContent = `идёт, ${left} с`;
+  }
+}
+
+// ------------------------------------------------------------- события UI
+function setMode(target) {
+  els.tabTarget.setAttribute('aria-pressed', String(target));
+  els.tabCamera.setAttribute('aria-pressed', String(!target));
+  els.viewTarget.classList.toggle('hidden', !target);
+  els.viewCamera.classList.toggle('hidden', target);
+  try { localStorage.setItem('ckc_track_mode', target ? 'target' : 'camera'); } catch { /* ignore */ }
+  if (target) requestWake();
+}
+els.tabTarget.addEventListener('click', () => setMode(true));
+els.tabCamera.addEventListener('click', () => setMode(false));
+
+document.querySelectorAll('.color-btn').forEach((b) => {
+  b.addEventListener('click', () => {
+    S.color = b.dataset.color;
+    document.querySelectorAll('.color-btn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    paintDot();
+  });
+});
+function paintDot() {
+  const size = Number(els.targetSize.value);
+  els.dot.style.width = `${size}vmin`; els.dot.style.height = `${size}vmin`;
+  els.dot.style.background = COLORS[S.color].css;
+  els.targetSizeVal.textContent = `${size}%`;
+}
+els.targetSize.addEventListener('input', paintDot);
+els.fov.addEventListener('input', () => { els.fovVal.textContent = `${els.fov.value}°`; });
+
+document.querySelectorAll('.shape-btn').forEach((b) => {
+  b.addEventListener('click', () => {
+    S.shape = b.dataset.shape;
+    document.querySelectorAll('.shape-btn').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  });
+});
+els.tol.addEventListener('input', () => { S.tol = Number(els.tol.value); els.tolVal.textContent = `±${els.tol.value}°`; });
+els.sat.addEventListener('input', () => { S.satMin = Number(els.sat.value) / 100; els.satVal.textContent = `${els.sat.value}%`; });
+$('btn-sample').addEventListener('click', () => {
+  if (!S.lastFrame) { els.camError.textContent = 'Сначала включите камеру, чтобы было откуда брать цвет.'; return; }
+  const { data, w, h } = S.lastFrame;
+  let sx = 0, sy = 0, n = 0;
+  const x0 = Math.floor(w * 0.42), x1 = Math.floor(w * 0.58), y0 = Math.floor(h * 0.42), y1 = Math.floor(h * 0.58);
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const i = (y * w + x) * 4;
+    const { h: hue, sat, val } = hueOf(data[i], data[i + 1], data[i + 2]);
+    if (sat < 0.18 || val < 0.15) continue;
+    sx += Math.cos((hue * Math.PI) / 180); sy += Math.sin((hue * Math.PI) / 180); n++;
+  }
+  if (!n) { els.camError.textContent = 'В центре кадра нет насыщенного цвета — поднесите метку ближе к центру.'; return; }
+  let hue = (Math.atan2(sy, sx) * 180) / Math.PI; if (hue < 0) hue += 360;
+  S.customHue = hue; S.color = 'custom';
+  document.querySelectorAll('.color-btn').forEach((x) => x.setAttribute('aria-pressed', 'false'));
+  els.camError.innerHTML = `<span class="ok-text">Цвет запомнен: оттенок ≈ ${Math.round(hue)}° (пикселей: ${n}). Теперь стенд ищет именно его.</span>`;
+});
+$('btn-print').addEventListener('click', () => {
+  const wCm = Number(els.rectW.value) || 15, hCm = Number(els.rectH.value) || 10;
+  const rect = $('print-rect');
+  rect.style.width = `${wCm}cm`; rect.style.height = `${hCm}cm`;
+  rect.style.background = S.color === 'custom' ? '#d6336c' : COLORS[S.color].css;
+  $('print-note').textContent = `Метка ${wCm}×${hCm} см. Белая точка — верхний левый угол. Не ламинировать глянцем против света.`;
+  window.print();
+});
+
+let wake = null;
+async function requestWake() {
+  try { if (navigator.wakeLock && !wake) wake = await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
+}
+
+$('btn-camera').addEventListener('click', async () => {
+  els.camError.textContent = '';
+  try {
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+    catch { stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
+    els.video.srcObject = stream;
+    await els.video.play();
+    S.running = true;
+    st_reset_since();
+    els.camError.innerHTML = '<span class="ok-text">Камера работает. Наведите на мишень и нажмите «Смотрю на мишень».</span>';
+  } catch (e) {
+    els.camError.textContent = 'Камера недоступна: ' + (e && e.message ? e.message : e) + '. Нужен HTTPS и разрешение на камеру.';
+  }
+});
+function st_reset_since() { S.stat.since = performance.now(); S.stat.visibleMs = 0; }
+
+$('btn-gyro').addEventListener('click', async () => {
+  try {
+    if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== 'granted') throw new Error('нет разрешения на гироскоп');
+    }
+    if (!S.gyro.on) {
+      window.addEventListener('deviceorientation', onGyro);
+      S.gyro.on = true;
+    }
+    els.camError.innerHTML = '<span class="ok-text">Гироскоп включён.</span>';
+  } catch (e) { els.camError.textContent = 'Гироскоп: ' + (e && e.message ? e.message : e); }
+});
+function onGyro(e) {
+  if (e.alpha === null) return;
+  const g = S.gyro;
+  if (g.a0 === null) { g.a0 = e.alpha; g.b0 = e.beta || 0; }
+  if (g.lastAlpha !== null) S.fusedYaw = wrapDeg(S.fusedYaw + wrapDeg(e.alpha - g.lastAlpha));
+  g.lastAlpha = e.alpha;
+  g.yaw = wrapDeg(e.alpha - g.a0);
+  g.pitch = wrapDeg((e.beta || 0) - g.b0);
+  if (S.drift && S.drift.active) S.drift.gyroYaw.push(g.yaw);
+  renderReadouts();
+}
+
+function calibrate() {
+  if (S.found) S.c0 = { x: S.u, y: S.v };
+  else S.c0 = { x: S.frameW / 2, y: S.frameH / 2 };
+  S.gyro.a0 = S.gyro.lastAlpha; S.gyro.b0 = null;
+  if (S.gyro.lastAlpha !== null) { /* b0 подхватится на следующем событии */ }
+  S.fusedYaw = 0; S.yaw = 0; S.pitch = 0;
+  // гироскопный ноль выставится по следующему событию:
+  S.gyro.a0 = null;
+  els.camError.innerHTML = '<span class="ok-text">Ноль выставлен. Теперь поворачивайтесь и следите за углами.</span>';
+  renderReadouts();
+}
+$('btn-calibrate').addEventListener('click', calibrate);
+
+$('btn-point').addEventListener('click', () => {
+  S.rows.push({
+    t: ((performance.now() - S.stat.since) / 1000).toFixed(1),
+    camYaw: S.yaw.toFixed(1), camPitch: S.pitch.toFixed(1),
+    gyroYaw: S.gyro.on ? S.gyro.yaw.toFixed(1) : '',
+    dist: S.distCm ? Math.round(S.distCm) : '', found: S.found ? 1 : 0,
+  });
+  renderRows();
+});
+function renderRows() {
+  els.rowsCount.textContent = S.rows.length;
+  if (!S.rows.length) return;
+  els.logBody.innerHTML = S.rows.slice(-8).map((r) =>
+    `<tr><td>${r.t}с</td><td>${r.camYaw}</td><td>${r.camPitch}</td><td>${r.gyroYaw}</td><td>${r.dist}</td><td>${r.found ? '✅' : '—'}</td></tr>`).join('');
+}
+$('btn-csv').addEventListener('click', async () => {
+  const csv = 't_s,cam_yaw,cam_pitch,gyro_yaw,dist_cm,found\n' +
+    S.rows.map((r) => [r.t, r.camYaw, r.camPitch, r.gyroYaw, r.dist, r.found].join(',')).join('\n');
+  try { await navigator.clipboard.writeText(csv); els.camError.innerHTML = '<span class="ok-text">CSV скопирован.</span>'; }
+  catch { els.camError.textContent = csv; }
+});
+
+$('btn-stat-reset').addEventListener('click', () => { resetStats(); renderStats(); });
+$('btn-drift').addEventListener('click', () => startDrift(60));
+$('btn-drift-10').addEventListener('click', () => startDrift(10));
+function range(a) { return a.length ? Math.max(...a) - Math.min(...a) : 0; }
+function startDrift(sec) {
+  S.drift = { active: true, t0: performance.now(), dur: sec * 1000, camYaw: [], camPitch: [], gyroYaw: [] };
+  els.verdict.textContent = `Тест покоя идёт ${sec} с: не трогайте телефон и мишень…`;
+  setTimeout(() => {
+    if (!S.drift) return;
+    S.drift.active = false;
+    const d = S.drift;
+    const sd = d.camYaw.length > 8
+      ? Math.sqrt(d.camYaw.reduce((a, b) => a + (b - d.camYaw.reduce((x, y) => x + y, 0) / d.camYaw.length) ** 2, 0) / d.camYaw.length)
+      : null;
+    const res = {
+      sec, n: d.camYaw.length,
+      camDrift: Number(range(d.camYaw).toFixed(2)),
+      camJitter: sd === null ? null : Number(sd.toFixed(2)),
+      gyroDrift: Number(range(d.gyroYaw).toFixed(2)),
+    };
+    S.lastDrift = res;
+    els.driftState.textContent = 'готов';
+    const okCam = res.camDrift <= 1 && (res.camJitter === null || res.camJitter <= 0.5);
+    els.verdict.innerHTML =
+      `Тест покоя ${sec} с, кадров с меткой: ${res.n}.<br>` +
+      `Дрейф камеры: <b>${res.camDrift}°</b> · шум σ: <b>${res.camJitter === null ? '—' : res.camJitter + '°'}</b> · дрейф гироскопа: <b>${res.gyroDrift}°</b>.<br>` +
+      (res.n < 20 ? '⚠️ Метка почти не была видна — вердикта нет, проверьте цвет/освещение.'
+        : okCam ? '✅ Камера стабильна: годится как якорь взгляда (и, похоже, заметно стабильнее гироскопа).'
+        : '⚠️ Камера шумновата для якоря: проверьте освещение, размер метки и FOV; либо оставляем только калибровку старта.');
+    S.drift = null;
+    renderStats();
+  }, sec * 1000);
+  renderStats();
+}
+
+// восстановление режима
+try {
+  if (localStorage.getItem('ckc_track_mode') === 'target') setMode(true);
+} catch { /* ignore */ }
+paintDot();
+renderReadouts();
+renderStats();
+
+// ------------------------------------------------------------- QA hooks
+window.__TRACK__ = {
+  state: () => ({
+    color: S.color, running: S.running, found: S.found, yaw: S.yaw, pitch: S.pitch,
+    distCm: S.distCm, gyroOn: S.gyro.on, losses: S.stat.losses, reacq: [...S.stat.reacq],
+    rows: S.rows.length, lastDrift: S.lastDrift, fusedYaw: S.fusedYaw,
+    roll: S.roll, fill: S.fill, shape: S.shape, rectA: S.rectA, rectB: S.rectB,
+  }),
+  setShape(shape) {
+    S.shape = shape;
+    document.querySelectorAll('.shape-btn').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.shape === shape)));
+  },
+  setCustomHue(hDeg) { S.customHue = hDeg; S.color = 'custom'; },
+  feedRect(cx, cy, rw, rh, angleDeg, rgb, w = 320, h = 240) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    const [R, G, B] = rgb || COLORS[S.color === 'custom' ? 'magenta' : S.color].rgb;
+    const th = (angleDeg * Math.PI) / 180, c = Math.cos(th), sn = Math.sin(th);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = x - cx, dy = y - cy;
+      const lx = dx * c + dy * sn, ly = -dx * sn + dy * c;
+      if (Math.abs(lx) <= rw / 2 && Math.abs(ly) <= rh / 2) {
+        const i = (y * w + x) * 4;
+        data[i] = R; data[i + 1] = G; data[i + 2] = B; data[i + 3] = 255;
+      }
+    }
+    S.lastFrame = { data, w, h };
+    const res = analyze(data, w, h);
+    applyDetection(res, w, h);
+    return { ...res, yaw: S.yaw, pitch: S.pitch, roll: S.roll, fill: S.fill, distCm: S.distCm };
+  },
+  feedColor(cx, cy, r, rgb, w = 320, h = 240) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = x - cx, dy = y - cy;
+      if (dx * dx + dy * dy <= r * r) {
+        const i = (y * w + x) * 4;
+        data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; data[i + 3] = 255;
+      }
+    }
+    S.lastFrame = { data, w, h };
+    const res = analyze(data, w, h);
+    applyDetection(res, w, h);
+    return { ...res, yaw: S.yaw, found: res.found };
+  },
+  feedPair(w = 320, h = 240) { // большая метка + мелкий «посторонний» того же цвета
+    const data = new Uint8ClampedArray(w * h * 4);
+    const [R, G, B] = COLORS[S.color === 'custom' ? 'magenta' : S.color].rgb;
+    const disc = (cx, cy, r) => {
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const dx = x - cx, dy = y - cy;
+        if (dx * dx + dy * dy <= r * r) { const i = (y * w + x) * 4; data[i] = R; data[i + 1] = G; data[i + 2] = B; data[i + 3] = 255; }
+      }
+    };
+    disc(110, 120, 35); disc(262, 58, 14);
+    const res = analyze(data, w, h);
+    applyDetection(res, w, h);
+    return { ...res, yaw: S.yaw };
+  },
+  // синтетический кадр: чёрный фон + круг текущего цвета метки в (cx, cy, r)
+  feed(cx, cy, r, w = 320, h = 240) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    const [R, G, B] = COLORS[S.color].rgb;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const dx = x - cx, dy = y - cy;
+      if (dx * dx + dy * dy <= r * r) {
+        const i = (y * w + x) * 4;
+        data[i] = R; data[i + 1] = G; data[i + 2] = B; data[i + 3] = 255;
+      }
+    }
+    S.lastFrame = { data, w, h };
+    const res = analyze(data, w, h);
+    applyDetection(res, w, h);
+    return { ...res, yaw: S.yaw, pitch: S.pitch, distCm: S.distCm };
+  },
+  feedEmpty(w = 320, h = 240) {
+    const data = new Uint8ClampedArray(w * h * 4);
+    const res = analyze(data, w, h);
+    applyDetection(res, w, h);
+    return res;
+  },
+  setMode, calibrate, startDrift,
+  analyze,
+};
+</script>
+</body>
+</html>

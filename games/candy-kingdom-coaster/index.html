@@ -47,6 +47,7 @@
     <canvas id="game-canvas"></canvas>
     <div id="vignette"></div>
     <div id="speed-lines"></div>
+    <div id="vr-divider" aria-hidden="true"></div>
 
     <!-- Controls are inert/hidden until a ride starts, never behind a menu. -->
     <div id="hud" aria-label="Управление заездом" aria-hidden="true" inert>
@@ -93,6 +94,7 @@
               <div class="loading-stages" aria-hidden="true"><span data-load-step="0" class="current"><i></i>Мир</span><span data-load-step="1"><i></i>Машинка</span><span data-load-step="2"><i></i>Поехали!</span></div>
             </div>
             <button type="button" id="btn-play" class="big-btn play-btn hidden" disabled><span class="play-disc"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-play"/></svg></span><span>Играть</span><span class="play-spark" aria-hidden="true">✦</span></button>
+            <button type="button" id="btn-vr" class="mid-btn vr-btn hidden" disabled data-ready-control>🥽 VR-поездка в очках</button>
             <div id="loading-error" class="hidden" role="alert"><p id="loading-error-text"></p><button type="button" id="btn-reload" class="mid-btn"><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-retry"/></svg>Попробовать ещё раз</button></div>
           </div>
           <div class="drive-hint"><span class="mini-controls" aria-hidden="true"><i><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-left"/></svg></i><i><svg class="ui-icon " viewBox="0 0 24 24" aria-hidden="true"><use href="#icon-right"/></svg></i></span><p>Лили едет сама.<br><b>Ты выбираешь путь!</b></p><span class="keyboard-hint" title="Также работают клавиши-стрелки">← →</span></div>
@@ -131,6 +133,88 @@
         <div class="finish-btns">
           <button id="btn-menu2" class="mid-btn">🏠 В меню</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ============ VR RIDE PREP ============ -->
+    <div id="screen-vr" class="screen hidden">
+      <div class="menu-card vr-card">
+        <h2>🥽 VR-поездка</h2>
+        <p class="vr-note">Машинка поедет сама по всей трассе. Ты только смотри по сторонам из очков!</p>
+        <div class="vr-modes" role="group" aria-label="Режим взгляда">
+          <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Осматриваться</button>
+          <button type="button" id="vr-mode-forward" class="mid-btn vr-mode" aria-pressed="false">🚗 Смотреть вперёд</button>
+          <button type="button" id="vr-mode-camera" class="mid-btn vr-mode" aria-pressed="false">📷 По метке</button>
+          <button type="button" id="vr-mode-camera-dual" class="mid-btn vr-mode" aria-pressed="false">📷📷 По двум меткам</button>
+        </div>
+        <div id="vr-cam-panel" class="hidden">
+          <div class="vr-cam-view">
+            <video id="vr-cam-video" playsinline muted></video>
+            <div class="vr-cam-cross" aria-hidden="true"><span class="vr-cam-box"></span></div>
+          </div>
+          <div class="row">
+            <button type="button" id="vr-cam-start" class="mid-btn">📷 Включить камеру</button>
+          </div>
+          <label class="vr-slider-label" for="vr-cam-tol">Придирчивость к оттенку: <b id="vr-cam-tol-val">±26°</b></label>
+          <input id="vr-cam-tol" type="range" min="8" max="45" step="1" value="26">
+          <label class="vr-slider-label" for="vr-cam-sat">Минимальная насыщенность: <b id="vr-cam-sat-val">42%</b></label>
+          <input id="vr-cam-sat" type="range" min="20" max="70" step="1" value="42">
+          <div id="vr-cam-single-controls">
+            <p class="vr-note">Цвет метки: <span id="vr-cam-swatch" class="vr-cam-swatch"></span> <b id="vr-cam-hue-label">Малиновый</b></p>
+            <div class="row">
+              <button type="button" id="vr-cam-sample" class="mid-btn">🎨 Взять цвет коробки</button>
+              <button type="button" id="vr-cam-calib" class="mid-btn">🎯 Смотрю на метку</button>
+            </div>
+            <div class="vr-modes" role="group" aria-label="Цвет метки">
+              <button type="button" class="mid-btn vr-cam-color" data-color="raspberry" aria-pressed="true">Малиновый</button>
+              <button type="button" class="mid-btn vr-cam-color" data-color="magenta" aria-pressed="false">Маджента</button>
+              <button type="button" class="mid-btn vr-cam-color" data-color="lime" aria-pressed="false">Лайм</button>
+              <button type="button" class="mid-btn vr-cam-color" data-color="cyan" aria-pressed="false">Циан</button>
+            </div>
+            <p id="vr-cam-status" class="vr-note">Камера выключена. Метка — яркий предмет (например, малиновая коробка) перед вами, где будет «вперёд».</p>
+            <p class="vr-note">Как: включите камеру → поднесите коробку в центр кадра → «Взять цвет коробки» → поставьте её перед собой → «Смотрю на метку».</p>
+          </div>
+          <div id="vr-cam-dual-controls" class="hidden">
+            <p class="vr-note"><b>Две метки:</b> оранжевая слева, малиновая справа. Уберите жёлтую коробку и лишние яркие предметы из кадра. Обе метки должны быть видны одновременно в момент «Калибровать: прямо».</p>
+            <p class="vr-note">Левая: <span id="vr-cam-left-swatch" class="vr-cam-swatch" style="background:#f15a24"></span> <b id="vr-cam-left-label">Оранжевая</b> · правая: <span id="vr-cam-right-swatch" class="vr-cam-swatch" style="background:#d6336c"></span> <b id="vr-cam-right-label">Малиновая</b></p>
+            <div class="row">
+              <button type="button" id="vr-cam-sample-left" class="mid-btn">🎨 Взять левую</button>
+              <button type="button" id="vr-cam-sample-right" class="mid-btn">🎨 Взять правую</button>
+              <button type="button" id="vr-cam-dual-calib" class="mid-btn">🎯 Калибровать: прямо</button>
+            </div>
+            <div class="vr-modes" role="group" aria-label="Пресеты двух меток">
+              <button type="button" class="mid-btn vr-cam-dual-preset" data-side="left" data-color="orange" aria-pressed="true">Левая: оранжевая</button>
+              <button type="button" class="mid-btn vr-cam-dual-preset" data-side="right" data-color="raspberry" aria-pressed="true">Правая: малиновая</button>
+            </div>
+            <p id="vr-cam-dual-status" class="vr-note">Камера выключена. После калибровки пара задаёт ноль и помогает продолжать движение, даже когда одна коробка ушла за край.</p>
+          </div>
+        </div>
+        <div class="row vr-gesture-control">
+          <button type="button" id="vr-gesture-zoom" class="mid-btn" aria-pressed="false">✌️ Жест V — включить зум</button>
+        </div>
+        <p id="vr-gesture-status" class="vr-note" aria-live="polite">Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим. В режиме «Жесты» 👍 газует, ✌️ приближает.</p>
+        <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
+        <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">
+        <p class="vr-note">Шире — объём сильнее, мир как миниатюра. Закружилась голова — снимите очки.</p>
+        <div class="vr-modes" role="group" aria-label="Кто ведёт машинку">
+          <button type="button" id="vr-driver-auto" class="mid-btn vr-mode" aria-pressed="true">🤖 Сама едет</button>
+          <button type="button" id="vr-driver-gesture" class="mid-btn vr-mode" aria-pressed="false">👍✌️ Жесты: газ + зум</button>
+          <button type="button" id="vr-driver-remote" class="mid-btn vr-mode" aria-pressed="false">🕹 Джойстик</button>
+        </div>
+        <div id="vr-remote-panel" class="hidden">
+          <textarea id="vr-cfg" rows="3" placeholder="Тот же firebaseConfig, что и на телефоне-джойстике"></textarea>
+          <div class="row">
+            <button type="button" id="vr-cfg-connect" class="mid-btn">Подключить Firebase и создать комнату</button>
+            <button type="button" id="vr-room-demo" class="mid-btn">Комната без Firebase (две вкладки)</button>
+          </div>
+          <p id="vr-cfg-status" class="vr-note"></p>
+          <div id="vr-room-code" class="vr-room-code hidden">------</div>
+          <p id="vr-room-status" class="vr-note">Джойстик не подключён — до его появления ведёт автопилот</p>
+          <p class="vr-note">На втором телефоне: каталог игр → «Джойстик для VR-поездки» → тот же конфиг → этот код.</p>
+        </div>
+        <button type="button" id="btn-vr-start" class="big-btn">▶ Надеть очки</button>
+        <div id="vr-count" class="hidden" role="status"><span id="vr-count-num">5</span><p>Вставьте телефон в очки…</p></div>
+        <button type="button" id="btn-vr-cancel" class="mid-btn">← Назад</button>
       </div>
     </div>
 

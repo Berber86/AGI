@@ -85,7 +85,7 @@ Create the smallest playable vertical slice first. Do not produce a content-heav
 
 ## Quality gates
 
-Read `references/quality-gates.md` and `references/mobile-web.md` before claiming completion.
+Read `references/quality-gates.md` and `references/mobile-web.md` before claiming completion. If the contract includes VR/3D viewing, camera-based tracking, a second-device controller, Firebase/WebRTC, or another asynchronous input source, read `references/immersive-vr-remote-input.md` before technical planning and again before field QA.
 
 A release candidate must demonstrate:
 
@@ -125,3 +125,4 @@ Do not mark work complete if the preview was not exercised or required evidence 
 - Sandbox resets and git recovery: `references/workspace-resets-and-recovery.md`
 - Headless browser setup (no GPU, no apt): `references/headless-browser-setup.md`
 - Field-tested lifehacks and pitfalls (UV traps, corridor sweep, perf, camera, test flakes): `references/lifehacks-and-pitfalls.md`
+- VR, camera markers, stereo comfort, external Firebase joystick, low-rate input, failure semantics, and field QA: `references/immersive-vr-remote-input.md`
