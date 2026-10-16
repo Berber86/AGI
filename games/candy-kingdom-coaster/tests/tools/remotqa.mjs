@@ -161,8 +161,12 @@ for (let i = 0; i < 30 && !restarted; i++) { const g = await game.evaluate(() =>
 record('команда: заезд начинается заново, не вынимая телефон из очков', restarted, restarted);
 await joy.evaluate(() => window.__JOY__.setMode(false));
 
-// 4. обрыв: вкладку джойстика закрыли — автопилот подхватывает, поездка жива
+// 4. обрыв: вкладку джойстика закрыли — шесть секунд даём машине
+// оставаться в ручном режиме, затем автопилот мягко подхватывает.
 await joy.close();
+await sleep(3000);
+const beforeFallback = await game.evaluate(() => window.__TEST__.remoteInfo());
+record('после 3 с тишины автопилот ещё не включён', beforeFallback && beforeFallback.fresh === true, beforeFallback);
 // Ждём именно истечения свежести руля (в headless главный поток игры занят
 // рендером, и последнее сообщение может обработаться с опозданием — на
 // телефонах доставка мгновенная). Проверяем семантику, а не гонку.

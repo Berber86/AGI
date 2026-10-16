@@ -2,8 +2,8 @@
 // значения руля и газа через Firebase Realtime Database, экран — хозяин игры.
 // Замеры стенда (../joystick-stand): медиана 148 мс в одну сторону при пороге
 // 300 мс — Firebase достаточно, WebRTC не нужен (JOYSTICK_BRAINSTORM.md).
-// Если руль молчит дольше FRESH_MS, main.js мягко возвращает автопилота.
-export const REMOTE_FRESH_MS = 2500;
+// Если джойстик молчит дольше FRESH_MS (6 секунд), main.js мягко возвращает автопилота.
+export const REMOTE_FRESH_MS = 6000;
 const DEMO_CHANNEL = 'ckc-joystick-stand';
 
 // Конфиг из консоли Firebase — JS-объект, а не строгий JSON. Тот же
