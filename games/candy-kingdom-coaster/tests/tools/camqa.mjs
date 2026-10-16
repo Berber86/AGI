@@ -87,6 +87,16 @@ record('команда camToggle: состояние камеры переклю
 const st = await page.evaluate(() => window.__TEST__.remoteState());
 record('remoteState содержит cam {on, found, yaw}', !!st.cam && st.cam.on === true && typeof st.cam.yaw === 'number', st.cam);
 
+// 8. воркер-конвейер доступен; настоящий ImageBitmap ведёт взгляд
+const bmp = await page.evaluate(async () => {
+  let out;
+  for (let i = 0; i < 6; i++) out = await window.__TEST__.camFeedBitmap(227, 120, 40);
+  window.__TEST__.step(1 / 60, 40, false);
+  return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
+});
+record('ImageBitmap с меткой: взгляд вправо, воркер доступен',
+  bmp.info.workerAvailable === true && bmp.info.yaw > 12 && bmp.yaw > 9, bmp);
+
 record('ошибок на странице нет', errors.length === 0, errors);
 
 const failed = results.filter((r) => !r.pass);

@@ -508,7 +508,7 @@ function executeRemoteCommand(name) {
     case 'camToggle':
       if (vrSettings.lookMode === 'camera' && game.vrRide) {
         game.camOn = !game.camOn;
-        if (game.camOn) { const t = ensureCamTracker(); if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {}); }
+        if (game.camOn) { const t = ensureCamTracker(); t.useWorkerMode(); if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {}); }
         else stopCamTracker(), game.camOn = false;
       }
       break;
@@ -584,6 +584,7 @@ function startVrRide() {
   camSmooth.yaw = 0; camSmooth.pitch = 0;
   if (game.camOn) {
     const t = ensureCamTracker();
+    t.useWorkerMode(); // анализ — вне главного потока, иначе проседает FPS
     if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {});
   }
   startRace(); // сбрасывает трассу/сладости; интро и 3-2-1 в очках не нужны
@@ -605,7 +606,8 @@ function startVrRide() {
 function enterVrStereo() {
   vr.start(vrSettings);
   document.body.classList.add('vr-active');
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5)); // облегчённый стерео-рендер
+  // облегчённый стерео-рендер; в режиме камеры — ещё легче (телефон и так занят потоком)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, vrSettings.lookMode === 'camera' ? 1.25 : 1.5));
 }
 
 function stopVrStereo() {
@@ -730,7 +732,7 @@ el.vrCamStart.addEventListener('click', async () => {
 el.vrCamSample.addEventListener('click', () => {
   SFX.play('click');
   const t = ensureCamTracker();
-  t.process();
+  t.processMain();
   const hue = t.sampleColor();
   if (hue === null) { el.vrCamStatus.textContent = 'В центре кадра нет насыщенного цвета — поднесите коробку ближе.'; return; }
   vrSettings.camColor = 'custom'; vrSettings.camHue = hue;
@@ -740,7 +742,7 @@ el.vrCamSample.addEventListener('click', () => {
 el.vrCamCalib.addEventListener('click', () => {
   SFX.play('click');
   const t = ensureCamTracker();
-  t.process();
+  t.processMain();
   t.calibrate();
   el.vrCamStatus.textContent = t.found ? 'Ноль выставлен: метка перед вами — это «вперёд». Можно надевать очки!' : 'Метка не видна — ноль выставлен по центру кадра. Лучше повторить, когда метка видна.';
 });
@@ -752,7 +754,7 @@ document.querySelectorAll('.vr-cam-color').forEach((b) => b.addEventListener('cl
 }));
 setInterval(() => {
   if (!el.vrScreen.classList.contains('hidden') && camTracker && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
-    camTracker.process();
+    camTracker.processMain();
     updateCamPrepUi();
   }
 }, 150);
@@ -1545,6 +1547,18 @@ window.__TEST__ = {
   camFeed(cx, cy, r) {
     const t = ensureCamTracker();
     t.injectBlob(cx, cy, r);
+    updateCameraLook(performance.now(), true);
+    return { info: t.info(), vr: vr.info() };
+  },
+  async camFeedBitmap(cx, cy, r) {
+    const t = ensureCamTracker();
+    const c = document.createElement('canvas');
+    c.width = 320; c.height = 240;
+    const x = c.getContext('2d');
+    x.fillStyle = 'rgb(215,51,108)';
+    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+    const bmp = await createImageBitmap(c);
+    await t.ingestBitmap(bmp);
     updateCameraLook(performance.now(), true);
     return { info: t.info(), vr: vr.info() };
   },
