@@ -546,7 +546,7 @@ function stopCamTracker() {
 // дольше 1,5 с — vr сам уходит в мягкий авто-обзор (setSimLook(null)).
 function updateCameraLook(now, force = false) {
   if (!game.vrRide || vrSettings.lookMode !== 'camera' || !game.camOn || !camTracker) return;
-  if (!force && now - camLastProcess < 70) return;
+  if (!force && now - camLastProcess < (camTracker.intervalMs || 90)) return;
   camLastProcess = now;
   camTracker.process();
   if (camTracker.fresh(900)) {
@@ -667,7 +667,7 @@ function updateCamPrepUi() {
   el.vrCamStatus.textContent = !info.running && !info.synthetic
     ? 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.'
     : info.found
-      ? `✅ Метка видна: yaw ${info.yaw}°, pitch ${info.pitch}°. Нажмите «Смотрю на метку», когда она прямо перед вами.`
+      ? `✅ Метка видна: yaw ${info.yaw}°, pitch ${info.pitch}° · обработка ${info.procMs} мс. Нажмите «Смотрю на метку», когда она прямо перед вами.`
       : 'Метка не видна: проверьте цвет (или «Взять цвет коробки») и освещение.';
 }
 function syncVrUi() {
@@ -1141,8 +1141,7 @@ function updateGameplay(dt) {
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
   camera.rotateZ(-((game.vrRide ? game.vrSteer : input.steer) || 0) * 0.02);
-  updateCameraLook(performance.now());
-  vr.applyLook(camera, dt); // взгляд головой (или авто-обзор) поверх очковой камеры
+  vr.applyLook(camera, dt); // взгляд: гироскоп/метка (углы метки готовит updateCameraLook после рендера)
   // FOV reads the actual speed, not just the boost button: the world opens up
   // as the car winds up, and boost adds its own extra kick on top.
   // normalised over the speeds the car actually reaches (cruise → flat out),
@@ -1236,6 +1235,9 @@ function frame(now, dt) {
   }
   window.__FPS__ = Math.round(governor.fps);
   window.__GAME_STATE__ = game.state;
+  // Камера-метка обрабатывается ПОСЛЕ рендера: getImageData по видео —
+  // синхронный сброс GPU-конвейера; до рендера он ронял FPS всей игры.
+  updateCameraLook(now);
   // QA: live render budget (draw calls / triangles) for the perf audit
   const ri = renderer.info.render;
   window.__RENDER_INFO__ = { calls: ri.calls, triangles: ri.triangles, fps: window.__FPS__, tier: governor.describe() };

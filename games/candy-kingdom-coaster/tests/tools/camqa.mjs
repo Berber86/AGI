@@ -47,6 +47,7 @@ const center = await page.evaluate(() => {
   return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
 });
 record('метка по центру: взгляд ≈ 0°', center.info.found && Math.abs(center.yaw) < 2.5, center);
+record('диагностика цены обработки доступна (procMs/procW/ярус)', typeof center.info.procMs === 'number' && [160, 192, 256].includes(center.info.procW), center.info);
 
 // 3. метка справа — взгляд поворачивается вправо за меткой
 const right = await page.evaluate(() => {

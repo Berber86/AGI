@@ -26,12 +26,21 @@ function hueOf(r, g, b) {
 // цвета не уводят центроид — урок стенда с «хлебными пиктограммами»).
 export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   const mask = new Uint8Array(w * h);
+  let maskCount = 0;
+  const overflow = w * h * 0.35;
   for (let i = 0, px = 0; px < w * h; px++, i += 4) {
-    if (Math.max(data[i], data[i + 1], data[i + 2]) < 60) continue;
-    const { h: hue, sat } = hueOf(data[i], data[i + 1], data[i + 2]);
-    if (sat < satMin) continue;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const mx = Math.max(r, g, b);
+    if (mx < 60) continue;
+    const mn = Math.min(r, g, b), d = mx - mn;
+    if (d < mx * satMin) continue; // дешёвый целочисленный отсев до вычисления оттенка
+    let hue;
+    if (mx === r) hue = ((g - b) / d) % 6;
+    else if (mx === g) hue = (b - r) / d + 2;
+    else hue = (r - g) / d + 4;
+    hue *= 60; if (hue < 0) hue += 360;
     let dh = Math.abs(hue - specHue); if (dh > 180) dh = 360 - dh;
-    if (dh <= tol) mask[px] = 1;
+    if (dh <= tol) { mask[px] = 1; if (++maskCount > overflow) return { found: false, count: maskCount, overflow: true }; }
   }
   const seen = new Uint8Array(w * h);
   const stack = [];
@@ -73,6 +82,13 @@ export class CamTracker {
     this.c0 = null;
     this.lastFoundAt = 0;
     this.lastFrame = null;
+    // Адаптивная цена анализа: замеряем длительность обработки и при
+    // перегрузе снижаем разрешение/частоту, а не роняем FPS игры.
+    this.tier = 0;
+    this.procW = 256;
+    this.intervalMs = 85;
+    this.procMs = 0;
+    this._lastAdapt = 0;
     this._work = document.createElement('canvas');
     this._wctx = this._work.getContext('2d', { willReadFrequently: true });
   }
@@ -81,7 +97,10 @@ export class CamTracker {
     if (this.running && this.video === video) return;
     this.stop();
     let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+    // Поток просим маленький: полный сенсор (1080p) греет SoC и дорого
+    // декодируется/масштабируется в каждый анализируемый кадр.
+    const want = { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30, max: 30 } };
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: want, audio: false }); }
     catch { stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
     this.stream = stream;
     this.video = video || null;
@@ -103,9 +122,18 @@ export class CamTracker {
   _fx(w) { return (w / 2) / Math.tan(((this.fovDeg * Math.PI) / 180) / 2); }
 
   processImageData(data, w, h) {
+    const t0 = performance.now();
     this.frameW = w; this.frameH = h;
     this.lastFrame = { data, w, h };
     const res = analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin);
+    const ms = performance.now() - t0;
+    this.procMs = this.procMs ? this.procMs * 0.8 + ms * 0.2 : ms;
+    if (t0 - this._lastAdapt > 1000) {
+      if (this.procMs > 12 && this.tier < 2) { this.tier++; this._lastAdapt = t0; }
+      else if (this.procMs < 4 && this.tier > 0) { this.tier--; this._lastAdapt = t0; }
+      this.procW = [256, 192, 160][this.tier];
+      this.intervalMs = [85, 115, 150][this.tier];
+    }
     if (res.found) {
       const fx = this._fx(w);
       const cx = this.c0 ? this.c0.x : w / 2;
@@ -126,7 +154,7 @@ export class CamTracker {
     if (this.synthetic) return this.found;
     const vid = this.video;
     if (!this.running || !vid || !vid.videoWidth) return false;
-    const w = 320;
+    const w = this.procW;
     const h = Math.max(2, Math.round((w * vid.videoHeight) / vid.videoWidth));
     this._work.width = w; this._work.height = h;
     this._wctx.drawImage(vid, 0, 0, w, h);
@@ -185,6 +213,7 @@ export class CamTracker {
       running: this.running, synthetic: this.synthetic, found: this.found,
       fresh: this.fresh(), yaw: +this.yaw.toFixed(1), pitch: +this.pitch.toFixed(1),
       hue: Math.round(this.hue), count: this.count,
+      procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,
     };
   }
 }
