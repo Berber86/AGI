@@ -1,5 +1,5 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v41';
+const CACHE = 'ckc-v42'; // v42: VR без гироскопа, тени 1x/кадр, MSAA выключен, VR-профиль качества
 const ASSETS = [
   './',
   './index.html',

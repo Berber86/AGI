@@ -140,9 +140,9 @@
     <div id="screen-vr" class="screen hidden">
       <div class="menu-card vr-card">
         <h2>🥽 VR-поездка</h2>
-        <p class="vr-note">Машинка поедет сама по всей трассе. Ты только смотри по сторонам из очков!</p>
+        <p class="vr-note">Машинка поедет сама по всей трассе. Ты только смотри по сторонам из очков! Гироскоп не используется: взгляд ведут метки или мягкий авто-обзор.</p>
         <div class="vr-modes" role="group" aria-label="Режим взгляда">
-          <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Осматриваться</button>
+          <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Обзор сам</button>
           <button type="button" id="vr-mode-forward" class="mid-btn vr-mode" aria-pressed="false">🚗 Смотреть вперёд</button>
           <button type="button" id="vr-mode-camera" class="mid-btn vr-mode" aria-pressed="false">📷 По метке</button>
           <button type="button" id="vr-mode-camera-dual" class="mid-btn vr-mode" aria-pressed="false">📷📷 По двум меткам</button>
@@ -192,7 +192,7 @@
         <div class="row vr-gesture-control">
           <button type="button" id="vr-gesture-zoom" class="mid-btn" aria-pressed="false">✌️ Жест V — включить зум</button>
         </div>
-        <p id="vr-gesture-status" class="vr-note" aria-live="polite">Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим. В режиме «Жесты» 👍 газует, ✌️ приближает.</p>
+        <p id="vr-gesture-status" class="vr-note" aria-live="polite">Опционально: включает заднюю камеру только ради жеста и не меняет обычный режим. В режиме «Жесты» 👍 газует, ✌️ приближает.</p>
         <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
         <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">
         <p class="vr-note">Шире — объём сильнее, мир как миниатюра. Закружилась голова — снимите очки.</p>

@@ -31,7 +31,13 @@ import { setLoading, finishLoading, paintLoading } from './loading.js';
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('game-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// antialias: false — MSAA достаётся только тому пути, который рисует прямо в
+// канвас, то есть стереопаре (в обычной игре сцена идёт через EffectComposer,
+// у его таргетов сэмплов 0, и 4× сэмплы холста не давали ничего, только resolve).
+// Для стерео это была самая дорогая часть заполнения: два вьюпорта с 4×
+// сэмплами. Поэтому MSAA выключен совсем — разрешение глаз не меняется,
+// а освободившийся бюджет уходит в ровные 60 к/с.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -780,8 +786,13 @@ function startVrRide() {
 function enterVrStereo() {
   vr.start(vrSettings);
   document.body.classList.add('vr-active');
+  // VR принадлежит самому себе: разрешение задаёт VR, тени 1024², bloom не считается.
+  // Сначала VR-профиль губернатора (он не трогает pixelRatio в VR), потом разрешение.
+  governor.setVr(true);
   // облегчённый стерео-рендер; в режиме камеры — ещё легче (телефон и так занят потоком)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, (isCameraLookMode() || game.gestureOn) ? 1.25 : 1.5));
+  // первые кадры стерео всегда дороже (новые варианты программ, тени) — не судим их
+  governor.hold(3);
 }
 
 function stopVrStereo() {
@@ -795,7 +806,7 @@ function stopVrStereo() {
       if (pr && pr.catch) pr.catch(() => {});
     }
   } catch { /* ignore */ }
-  governor.apply(); // вернуть обычное разрешение и bloom по уровню качества
+  governor.setVr(false); // вернуть обычное разрешение, PCFSoft-тени и bloom по уровню
   camera.fov = 55;
   camera.updateProjectionMatrix();
   onResize();
@@ -886,7 +897,7 @@ function syncVrUi() {
   el.vrGestureZoom.textContent = vrSettings.gestureZoom ? '✌️ Жест V — зум включён' : '✌️ Жест V — включить зум';
   el.vrGestureStatus.textContent = vrSettings.gestureZoom
     ? 'После старта VR задняя камера ищет V-жест. Ладонь держите в её поле зрения.'
-    : 'Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим.';
+    : 'Опционально: включает заднюю камеру только ради жеста и не меняет обычный режим.';
   el.vrCamPanel.classList.toggle('hidden', !isCameraLookMode());
   el.vrCamSingleControls.classList.toggle('hidden', dual);
   el.vrCamDualControls.classList.toggle('hidden', !dual);
@@ -1058,7 +1069,6 @@ el.btnVrStart.addEventListener('click', async () => {
   SFX.play('click');
   vrSettings.baselineCm = +el.vrIpd.value;
   saveVrUi();
-  await vr.requestPermission(); // жест пользователя: iOS спрашивает доступ к гироскопу здесь
   requestFullscreenLandscape();
   // обратный отсчёт: время вставить телефон в очки
   stopVrCountdown();
@@ -1446,7 +1456,7 @@ function updateGameplay(dt) {
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
   camera.rotateZ(-((game.vrRide ? game.vrSteer : input.steer) || 0) * 0.02);
-  vr.applyLook(camera, dt); // взгляд: гироскоп/метка (углы метки готовит updateCameraLook после рендера)
+  vr.applyLook(camera, dt); // взгляд: углы метки (готовит updateCameraLook) или мягкий авто-обзор; гироскопа нет
   // FOV reads the actual speed, not just the boost button: the world opens up
   // as the car winds up, and boost adds its own extra kick on top.
   // normalised over the speeds the car actually reaches (cruise → flat out),

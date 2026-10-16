@@ -124,7 +124,7 @@
         <button type="button" class="cmd-btn" id="cmd-restart">🔄 Начать заново</button>
         <button type="button" class="cmd-btn" id="cmd-pause">⏸ Пауза</button>
         <button type="button" class="cmd-btn" id="cmd-auto">🤖 Авторуление: выкл</button>
-        <button type="button" class="cmd-btn" id="cmd-look">👀 Взгляд: осматриваться</button>
+        <button type="button" class="cmd-btn" id="cmd-look">👀 Взгляд: обзор сам</button>
         <button type="button" class="cmd-btn" id="cmd-cm-minus">↔ Камеры −10</button>
         <button type="button" class="cmd-btn" id="cmd-cm-plus">↔ Камеры +10</button>
         <button type="button" class="cmd-btn" id="cmd-mute">🔊 Звук: вкл</button>
@@ -489,7 +489,7 @@ function renderCmdState(st) {
   els.cmd.pause.textContent = st.paused ? '▶ Продолжить' : '⏸ Пауза';
   els.cmd.auto.textContent = `🤖 Авторуление: ${st.auto ? 'ВКЛ' : 'выкл'}`;
   els.cmd.auto.classList.toggle('on', !!st.auto);
-  els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : st.look === 'camera-dual' ? 'по двум меткам' : 'осматриваться'}`;
+  els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : st.look === 'camera-dual' ? 'по двум меткам' : st.look === 'camera' ? 'по метке' : 'обзор сам'}`;
   els.cmd.mute.textContent = st.muted ? '🔇 Звук: выкл' : '🔊 Звук: вкл';
   els.cmd.cam.textContent = st.cam && st.cam.on
     ? (st.cam.dual
@@ -504,7 +504,7 @@ function renderCmdState(st) {
   const speed = Number.isFinite(+st.speedKmh) ? `${st.speedKmh} км/ч` : 'скорость —';
   els.cmdState.textContent =
     `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ${speed} · ↔ камеры ${st.cm} см · ` +
-    `взгляд ${st.look === 'forward' ? 'вперёд' : st.look === 'camera-dual' ? 'по двум меткам' : st.look === 'camera' ? 'по метке' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
+    `взгляд ${st.look === 'forward' ? 'вперёд' : st.look === 'camera-dual' ? 'по двум меткам' : st.look === 'camera' ? 'по метке' : 'обзор сам'} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
     (st.cam ? ` · 📷 ${!st.cam.on ? 'выкл' : st.cam.dual ? (st.cam.found ? `${st.cam.visible}/2 видны` : 'обе потеряны') : (st.cam.found ? 'метка видна' : 'метка потеряна')}` : '');
 }
 function setMode(cmd) {
