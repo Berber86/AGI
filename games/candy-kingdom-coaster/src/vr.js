@@ -19,6 +19,8 @@ export function normalizeVrSettings(raw) {
     driverMode: s.driverMode === 'remote' ? 'remote' : 'auto',
     camColor: typeof s.camColor === 'string' ? s.camColor : 'raspberry',
     camHue: Number.isFinite(s.camHue) ? s.camHue : null,
+    camTol: Math.min(45, Math.max(8, Math.round(Number.isFinite(+s.camTol) ? +s.camTol : 26))),
+    camSat: Math.min(70, Math.max(20, Math.round(Number.isFinite(+s.camSat) ? +s.camSat : 42))),
     baselineCm: Math.min(VR_BASELINE_MAX_CM, Math.max(VR_BASELINE_MIN_CM,
       Number.isFinite(+s.baselineCm) ? Math.round(+s.baselineCm) : VR_BASELINE_MIN_CM)),
   };

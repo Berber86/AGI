@@ -12,10 +12,10 @@
 // «Взять цвет») и как фолбэк, если Worker недоступен.
 
 export const CAM_COLORS = {
-  raspberry: { label: 'Малиновый', hue: 338 },
-  magenta: { label: 'Маджента', hue: 300 },
-  lime: { label: 'Лайм', hue: 140 },
-  cyan: { label: 'Циан', hue: 190 },
+  raspberry: { label: 'Малиновый', hue: 338, css: '#d6336c' },
+  magenta: { label: 'Маджента', hue: 300, css: '#ff00ff' },
+  lime: { label: 'Лайм', hue: 140, css: '#22ff66' },
+  cyan: { label: 'Циан', hue: 190, css: '#00e5ff' },
 };
 
 export function hueOf(r, g, b) {
@@ -104,6 +104,11 @@ export class CamTracker {
     this.c0n = null; // нормализованный центр калибровки
     this.lastFoundAt = 0;
     this.lastFrame = null;
+    // Память потери: где метка была в последний раз и за какой край ушла.
+    this.heldYaw = 0;
+    this.heldPitch = 0;
+    this.exitSideX = null; // 'left' | 'right' | null (ушла не за край — закрыли/погасла)
+    this.exitSideY = null; // 'top' | 'bottom' | null
     // Адаптивная цена: полный замер (кадр+анализ), ярусы разрешения/темпа.
     this.tier = 0;
     this.procW = TIER_W[0];
@@ -160,6 +165,7 @@ export class CamTracker {
   }
 
   _applyResult(res, w, h) {
+    const wasFound = this.found;
     this.frameW = w; this.frameH = h;
     if (res.found) {
       const a = anglesFromCentroid(res.u, res.v, w, h, this.c0n, this.fovDeg);
@@ -167,7 +173,18 @@ export class CamTracker {
       this.u = res.u; this.v = res.v; this.count = res.count;
       this.found = true;
       this.lastFoundAt = performance.now();
+      this.heldYaw = this.yaw;
+      this.heldPitch = this.pitch;
+      this.exitSideX = null;
+      this.exitSideY = null;
     } else {
+      if (wasFound) {
+        // момент потери: запоминаем, за какой край ушла метка
+        const nx = this.u / (w || this.frameW || 1);
+        const ny = this.v / (h || this.frameH || 1);
+        this.exitSideX = nx > 0.78 ? 'right' : nx < 0.22 ? 'left' : null;
+        this.exitSideY = ny < 0.22 ? 'top' : ny > 0.78 ? 'bottom' : null;
+      }
       this.found = false;
       this.count = res.count || 0;
     }
@@ -329,6 +346,9 @@ export class CamTracker {
       fresh: this.fresh(), yaw: +this.yaw.toFixed(1), pitch: +this.pitch.toFixed(1),
       hue: Math.round(this.hue), count: this.count,
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,
+      tol: this.tol, satMin: this.satMin,
+      heldYaw: +this.heldYaw.toFixed(1), heldPitch: +this.heldPitch.toFixed(1),
+      exitSideX: this.exitSideX, exitSideY: this.exitSideY,
       worker: this.workerActive(), workerAvailable: !!this.ensureWorker() && !!this._worker,
     };
   }

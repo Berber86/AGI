@@ -341,7 +341,9 @@ function renderCmdState(st) {
   els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : 'осматриваться'}`;
   els.cmd.mute.textContent = st.muted ? '🔇 Звук: выкл' : '🔊 Звук: вкл';
   els.cmd.cam.textContent = st.cam && st.cam.on
-    ? (st.cam.found ? '📷 Камера: метка видна' : '📷 Камера: метка потеряна')
+    ? (st.cam.found ? '📷 Камера: метка видна'
+      : st.cam.exit ? `📷 Камера: метка ушла ${st.cam.exit === 'right' ? 'вправо' : 'влево'}`
+      : '📷 Камера: метка потеряна')
     : '📷 Камера: выкл';
   els.cmd.cam.classList.toggle('on', !!(st.cam && st.cam.on && st.cam.found));
   els.cmdState.textContent =

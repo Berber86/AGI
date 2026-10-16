@@ -313,7 +313,14 @@ body:not([data-screen='game']) #hud { visibility: hidden; pointer-events: none; 
 #vr-remote-panel textarea { width: 100%; border-radius: 12px; border: 1px solid #ecd4e1; background: #fff; color: #6b4a5e; padding: 8px; font-family: monospace; font-size: 10px; }
 #vr-remote-panel .row { display: flex; gap: 8px; }
 #vr-remote-panel .row .mid-btn { flex: 1; margin: 6px 0; font-size: 13px; }
-#vr-cam-video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; border-radius: 12px; display: block; margin-bottom: 8px; }
+#vr-cam-video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; border-radius: 12px; display: block; }
+.vr-cam-view { position: relative; margin-bottom: 8px; }
+.vr-cam-cross { position: absolute; inset: 0; pointer-events: none; }
+.vr-cam-cross::before, .vr-cam-cross::after { content: ''; position: absolute; background: rgba(255,255,255,.85); }
+.vr-cam-cross::before { left: 50%; top: 12%; bottom: 12%; width: 2px; transform: translateX(-1px); }
+.vr-cam-cross::after { top: 50%; left: 12%; right: 12%; height: 2px; transform: translateY(-1px); }
+.vr-cam-box { position: absolute; left: 42%; top: 42%; width: 16%; height: 16%; border: 2px dashed #ffd166; border-radius: 6px; }
+.vr-cam-swatch { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,.7); vertical-align: -4px; background: #d6336c; }
 #vr-divider { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: rgba(10, 2, 8, .6); z-index: 6; display: none; pointer-events: none; }
 body.vr-active #vr-divider { display: block; }
 body.vr-active #hud, body.vr-active #vignette, body.vr-active #speed-lines, body.vr-active #portrait-hint { display: none !important; }

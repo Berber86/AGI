@@ -182,6 +182,12 @@ const el = {
   vrCamSample: document.getElementById('vr-cam-sample'),
   vrCamCalib: document.getElementById('vr-cam-calib'),
   vrCamStatus: document.getElementById('vr-cam-status'),
+  vrCamSwatch: document.getElementById('vr-cam-swatch'),
+  vrCamHueLabel: document.getElementById('vr-cam-hue-label'),
+  vrCamTol: document.getElementById('vr-cam-tol'),
+  vrCamTolVal: document.getElementById('vr-cam-tol-val'),
+  vrCamSat: document.getElementById('vr-cam-sat'),
+  vrCamSatVal: document.getElementById('vr-cam-sat-val'),
   vrModeForward: document.getElementById('vr-mode-forward'),
   vrIpd: document.getElementById('vr-ipd'),
   vrIpdVal: document.getElementById('vr-ipd-val'),
@@ -477,6 +483,7 @@ function publishRemoteState() {
       on: vrSettings.lookMode === 'camera' && !!game.camOn,
       found: !!(camTracker && camTracker.fresh(1200)),
       yaw: camTracker ? Math.round(camTracker.yaw) : 0,
+      exit: camTracker ? camTracker.exitSideX : null,
     },
   };
   if (remoteCtrl) remoteCtrl.publishState(lastRemoteState);
@@ -535,26 +542,80 @@ function ensureCamTracker() {
   camTracker.hue = vrSettings.camColor === 'custom' && Number.isFinite(vrSettings.camHue)
     ? vrSettings.camHue
     : (CAM_COLORS[vrSettings.camColor] || CAM_COLORS.raspberry).hue;
+  camTracker.tol = vrSettings.camTol || 26;
+  camTracker.satMin = (vrSettings.camSat || 42) / 100;
   return camTracker;
+}
+function syncCamColorUi() {
+  const custom = vrSettings.camColor === 'custom' && Number.isFinite(vrSettings.camHue);
+  const preset = CAM_COLORS[vrSettings.camColor] || CAM_COLORS.raspberry;
+  el.vrCamSwatch.style.background = custom ? `hsl(${vrSettings.camHue} 90% 55%)` : preset.css;
+  el.vrCamHueLabel.textContent = custom ? `Свой цвет, оттенок ${vrSettings.camHue}°` : preset.label;
+  el.vrCamTol.value = String(vrSettings.camTol || 26);
+  el.vrCamTolVal.textContent = `±${vrSettings.camTol || 26}°`;
+  el.vrCamSat.value = String(vrSettings.camSat || 42);
+  el.vrCamSatVal.textContent = `${vrSettings.camSat || 42}%`;
 }
 function stopCamTracker() {
   game.camOn = false;
   if (camTracker) camTracker.stop();
   vr.setSimLook(null);
 }
-// Взгляд по камере: свежие углы метки сглаживаются в VR; метка пропала
-// дольше 1,5 с — vr сам уходит в мягкий авто-обзор (setSimLook(null)).
+// Взгляд по камере. Свежая метка: адаптивная скорость догона (большой
+// разрыв — быстрый). Потеря: держим последний угол, зная, за какой край
+// метка ушла; после 4 с тишины медленно возвращаемся в центр (не в
+// авто-обзор — он путал). Возврат метки в другом месте: мгновенная
+// переякорка после подтверждения вторым кадром (в VR вредно именно
+// расхождение картинки с головой, а не сам «скачок» к истине).
+let camSnapPending = null;
+let camWasLost = false;
 function updateCameraLook(now, force = false) {
   if (!game.vrRide || vrSettings.lookMode !== 'camera' || !game.camOn || !camTracker) return;
   if (!force && now - camLastProcess < (camTracker.intervalMs || 90)) return;
   camLastProcess = now;
   camTracker.process();
-  if (camTracker.fresh(900)) {
-    camSmooth.yaw += (camTracker.yaw - camSmooth.yaw) * 0.45;
-    camSmooth.pitch += (camTracker.pitch - camSmooth.pitch) * 0.45;
+  const t = camTracker;
+  if (t.fresh(900)) {
+    const dy = t.yaw - camSmooth.yaw;
+    const dp = t.pitch - camSmooth.pitch;
+    const jump = Math.hypot(dy, dp);
+    if (camSnapPending) {
+      if (Math.abs(t.yaw - camSnapPending.yaw) < 3 && Math.abs(t.pitch - camSnapPending.pitch) < 3) {
+        camSmooth.yaw = t.yaw; // переякорка подтверждена вторым кадром
+        camSmooth.pitch = t.pitch;
+        camSnapPending = null;
+        camWasLost = false;
+      } else {
+        camSnapPending = { yaw: t.yaw, pitch: t.pitch }; // кадр не согласен — ждём ещё
+        camSmooth.yaw += dy * 0.4;
+        camSmooth.pitch += dp * 0.4;
+      }
+    } else if (camWasLost && jump > 8) {
+      camSnapPending = { yaw: t.yaw, pitch: t.pitch }; // метка вернулась в другом месте
+      camSmooth.yaw += dy * 0.4;
+      camSmooth.pitch += dp * 0.4;
+    } else {
+      camWasLost = false;
+      const f = Math.min(0.85, 0.4 + jump * 0.015); // догон пропорционален разрыву
+      camSmooth.yaw += dy * f;
+      camSmooth.pitch += dp * f;
+    }
     vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
-  } else if (!camTracker.found && performance.now() - camTracker.lastFoundAt > 1500) {
-    vr.setSimLook(null);
+    return;
+  }
+  // метки нет: держим последний угол (метка за краем — голова всё ещё там)
+  camWasLost = true;
+  camSnapPending = null;
+  const lostFor = t.lastFoundAt ? now - t.lastFoundAt : Infinity;
+  if (lostFor < 4000) {
+    camSmooth.yaw = t.heldYaw;
+    camSmooth.pitch = t.heldPitch;
+    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
+  } else {
+    // долгое отсутствие: предсказуемый возврат взгляда в центр
+    camSmooth.yaw += (0 - camSmooth.yaw) * 0.05;
+    camSmooth.pitch += (0 - camSmooth.pitch) * 0.05;
+    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
   }
 }
 
@@ -677,6 +738,7 @@ function syncVrUi() {
   el.vrCamPanel.classList.toggle('hidden', vrSettings.lookMode !== 'camera');
   document.querySelectorAll('.vr-cam-color').forEach((b) =>
     b.setAttribute('aria-pressed', String(vrSettings.camColor === b.dataset.color)));
+  syncCamColorUi();
   el.vrModeLook.setAttribute('aria-pressed', String(vrSettings.lookMode === 'look'));
   el.vrModeForward.setAttribute('aria-pressed', String(vrSettings.lookMode === 'forward'));
   el.vrIpd.value = String(vrSettings.baselineCm);
@@ -737,6 +799,7 @@ el.vrCamSample.addEventListener('click', () => {
   if (hue === null) { el.vrCamStatus.textContent = 'В центре кадра нет насыщенного цвета — поднесите коробку ближе.'; return; }
   vrSettings.camColor = 'custom'; vrSettings.camHue = hue;
   saveVrUi();
+  syncCamColorUi();
   el.vrCamStatus.textContent = `Цвет коробки запомнен (оттенок ${hue}°). Теперь поставьте её перед собой и нажмите «Смотрю на метку».`;
 });
 el.vrCamCalib.addEventListener('click', () => {
@@ -746,6 +809,18 @@ el.vrCamCalib.addEventListener('click', () => {
   t.calibrate();
   el.vrCamStatus.textContent = t.found ? 'Ноль выставлен: метка перед вами — это «вперёд». Можно надевать очки!' : 'Метка не видна — ноль выставлен по центру кадра. Лучше повторить, когда метка видна.';
 });
+el.vrCamTol.addEventListener('input', () => {
+  vrSettings.camTol = +el.vrCamTol.value;
+  el.vrCamTolVal.textContent = `±${el.vrCamTol.value}°`;
+  ensureCamTracker();
+});
+el.vrCamTol.addEventListener('change', () => { vrSettings.camTol = +el.vrCamTol.value; saveVrUi(); });
+el.vrCamSat.addEventListener('input', () => {
+  vrSettings.camSat = +el.vrCamSat.value;
+  el.vrCamSatVal.textContent = `${el.vrCamSat.value}%`;
+  ensureCamTracker();
+});
+el.vrCamSat.addEventListener('change', () => { vrSettings.camSat = +el.vrCamSat.value; saveVrUi(); });
 document.querySelectorAll('.vr-cam-color').forEach((b) => b.addEventListener('click', () => {
   vrSettings.camColor = b.dataset.color; vrSettings.camHue = null;
   ensureCamTracker();
@@ -1565,7 +1640,12 @@ window.__TEST__ = {
   camFeedEmpty() {
     const t = ensureCamTracker();
     t.injectEmpty();
-    t.lastFoundAt = 0;
+    updateCameraLook(performance.now(), true);
+    return { info: t.info(), vr: vr.info() };
+  },
+  camAgeLoss(ms) {
+    const t = ensureCamTracker();
+    t.lastFoundAt = performance.now() - ms;
     updateCameraLook(performance.now(), true);
     return { info: t.info(), vr: vr.info() };
   },

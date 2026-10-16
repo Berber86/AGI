@@ -147,7 +147,15 @@
           <button type="button" id="vr-mode-camera" class="mid-btn vr-mode" aria-pressed="false">📷 По метке</button>
         </div>
         <div id="vr-cam-panel" class="hidden">
-          <video id="vr-cam-video" playsinline muted></video>
+          <div class="vr-cam-view">
+            <video id="vr-cam-video" playsinline muted></video>
+            <div class="vr-cam-cross" aria-hidden="true"><span class="vr-cam-box"></span></div>
+          </div>
+          <p class="vr-note">Цвет метки: <span id="vr-cam-swatch" class="vr-cam-swatch"></span> <b id="vr-cam-hue-label">Малиновый</b></p>
+          <label class="vr-slider-label" for="vr-cam-tol">Придирчивость к оттенку: <b id="vr-cam-tol-val">±26°</b></label>
+          <input id="vr-cam-tol" type="range" min="8" max="45" step="1" value="26">
+          <label class="vr-slider-label" for="vr-cam-sat">Минимальная насыщенность: <b id="vr-cam-sat-val">42%</b></label>
+          <input id="vr-cam-sat" type="range" min="20" max="70" step="1" value="42">
           <div class="row">
             <button type="button" id="vr-cam-start" class="mid-btn">📷 Включить камеру</button>
             <button type="button" id="vr-cam-sample" class="mid-btn">🎨 Взять цвет коробки</button>

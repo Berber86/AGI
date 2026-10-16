@@ -30,6 +30,24 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + 
 await page.goto(GAME, { waitUntil: 'networkidle0', timeout: 90000 });
 await page.waitForFunction('window.__READY__ === true', { timeout: 90000 });
 
+// 0. подготовка: панель камеры, пипетка с образцом цвета, ползунок строгости
+const ui = await page.evaluate(async () => {
+  document.getElementById('btn-vr').click();
+  document.getElementById('vr-mode-camera').click();
+  const panelVisible = !document.getElementById('vr-cam-panel').classList.contains('hidden');
+  window.__TEST__.camEnableSynthetic();
+  window.__TEST__.camFeed(160, 120, 40);
+  document.getElementById('vr-cam-sample').click();
+  const hueLabel = document.getElementById('vr-cam-hue-label').textContent;
+  const swatch = document.getElementById('vr-cam-swatch').style.background;
+  const tol = document.getElementById('vr-cam-tol');
+  tol.value = '18';
+  tol.dispatchEvent(new Event('input'));
+  return { panelVisible, hueLabel, swatch, tol: window.__TEST__.camInfo().tol };
+});
+record('подготовка: панель, пипетка показала цвет, ползунок работает',
+  ui.panelVisible && ui.hueLabel.includes('Свой цвет') && !!ui.swatch && ui.tol === 18, ui);
+
 // 1. синтетическая камера + старт поездки в режиме «По метке»
 const boot = await page.evaluate(() => {
   const info = window.__TEST__.camEnableSynthetic();
@@ -66,6 +84,34 @@ const left = await page.evaluate(() => {
   return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
 });
 record('метка слева: VR-взгляд ушёл влево (<-10°)', left.info.yaw < -12 && left.yaw < -10, left);
+
+// 4b. метка ушла за правый край — взгляд удерживается повёрнутым
+const hold = await page.evaluate(() => {
+  let out;
+  for (let i = 0; i < 6; i++) out = window.__TEST__.camFeed(300, 120, 38);
+  window.__TEST__.camFeedEmpty();
+  window.__TEST__.step(1 / 60, 25, false);
+  return { info: out.info, after: window.__TEST__.camInfo(), yaw: window.__TEST__.vrInfo().yawDeg };
+});
+record('метка ушла вправо: выход запомнен, взгляд удерживается (>20°)',
+  hold.after.exitSideX === 'right' && hold.yaw > 20, hold);
+
+// 4c. метка вернулась в другом месте — переякорка по второму кадру
+const snap = await page.evaluate(() => {
+  window.__TEST__.camFeed(60, 55, 38);
+  const out = window.__TEST__.camFeed(60, 55, 38);
+  window.__TEST__.step(1 / 60, 30, false);
+  return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg, pitch: window.__TEST__.vrInfo().pitchDeg };
+});
+record('возврат метки слева-сверху: взгляд переякорен (<-12°)', snap.info.yaw < -18 && snap.yaw < -12, snap);
+
+// 4d. долгая потеря — взгляд предсказуемо возвращается к центру
+const home = await page.evaluate(() => {
+  for (let i = 0; i < 30; i++) window.__TEST__.camAgeLoss(6000);
+  window.__TEST__.step(1 / 60, 30, false);
+  return { yaw: window.__TEST__.vrInfo().yawDeg };
+});
+record('6 с без метки: взгляд едет к центру', Math.abs(home.yaw) < 8, home);
 
 // 5. метка пропала — поездка жива, взгляд не падает
 const lost = await page.evaluate(() => {

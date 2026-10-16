@@ -43,6 +43,8 @@ export const Storage = {
       lookMode: s && (s.lookMode === 'forward' || s.lookMode === 'camera') ? s.lookMode : 'look',
       camColor: s && typeof s.camColor === 'string' ? s.camColor : 'raspberry',
       camHue: s && Number.isFinite(s.camHue) ? s.camHue : null,
+      camTol: Math.min(45, Math.max(8, Math.round(+((s && s.camTol) || 26)) || 26)),
+      camSat: Math.min(70, Math.max(20, Math.round(+((s && s.camSat) || 42)) || 42)),
       driverMode: s && s.driverMode === 'remote' ? 'remote' : 'auto',
       baselineCm: Math.min(150, Math.max(10, Math.round(+((s && s.baselineCm) || 10)) || 10)),
     };
