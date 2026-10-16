@@ -107,6 +107,7 @@ const vr = new VRController(renderer, scene, camera);
 let remoteCtrl = null; // телефон-джойстик (создаётся из экрана подготовки)
 let vrSettings = normalizeVrSettings(Storage.getVrSettings());
 const isCameraLookMode = (mode = vrSettings.lookMode) => mode === 'camera' || mode === 'camera-dual';
+const needsCameraInput = () => isCameraLookMode() || !!vrSettings.gestureZoom;
 
 // ---------------------------------------------------------------- state
 const game = {
@@ -125,6 +126,7 @@ const game = {
   driverMode: 'auto', // 'auto' | 'remote' (телефон-джойстик)
   autoAssist: false, // команда джойстика: автопилот поверх руля
   camOn: false, // режим взгляда «По метке»: камера ведёт взгляд
+  gestureOn: false, // жест V для плавного приближения в VR
   vrPlan: null,
   vrSteer: 0,
   countdownT: 0,
@@ -196,6 +198,8 @@ const el = {
   vrCamSampleRight: document.getElementById('vr-cam-sample-right'),
   vrCamDualCalib: document.getElementById('vr-cam-dual-calib'),
   vrCamDualStatus: document.getElementById('vr-cam-dual-status'),
+  vrGestureZoom: document.getElementById('vr-gesture-zoom'),
+  vrGestureStatus: document.getElementById('vr-gesture-status'),
   vrCamLeftSwatch: document.getElementById('vr-cam-left-swatch'),
   vrCamLeftLabel: document.getElementById('vr-cam-left-label'),
   vrCamRightSwatch: document.getElementById('vr-cam-right-swatch'),
@@ -513,6 +517,8 @@ function publishRemoteState() {
       dual: !!(camTracker && camTracker.dual),
       visible: camTracker && camTracker.dual ? camTracker.dualVisible.length : null,
       lost: camTracker && camTracker.dual ? camTracker.lastLostMarker : null,
+      gesture: !!(game.gestureOn && camTracker && camTracker.gestureV),
+      zoom: vr.zoomFactor(),
     },
   };
   if (remoteCtrl) remoteCtrl.publishState(lastRemoteState);
@@ -544,8 +550,13 @@ function executeRemoteCommand(name) {
     case 'camToggle':
       if (isCameraLookMode() && game.vrRide) {
         game.camOn = !game.camOn;
-        if (game.camOn) { const t = ensureCamTracker(); t.useWorkerMode(); if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {}); }
-        else stopCamTracker(), game.camOn = false;
+        if (game.camOn) {
+          game.gestureOn = !!vrSettings.gestureZoom;
+          const t = ensureCamTracker();
+          t.setGestureEnabled(game.gestureOn);
+          t.useWorkerMode();
+          if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {});
+        } else stopCamTracker(), game.camOn = false;
       }
       break;
     case 'finish': if (game.state === 'racing' || game.state === 'paused') finishRace(); break;
@@ -596,6 +607,7 @@ function ensureCamTracker() {
     : (CAM_COLORS[vrSettings.camRightColor] || CAM_COLORS.raspberry).hue;
   camTracker.tol = vrSettings.camTol || 26;
   camTracker.satMin = (vrSettings.camSat || 42) / 100;
+  camTracker.setGestureEnabled(!!vrSettings.gestureZoom);
   return camTracker;
 }
 function syncCamColorUi() {
@@ -618,8 +630,10 @@ function syncCamColorUi() {
 }
 function stopCamTracker() {
   game.camOn = false;
+  game.gestureOn = false;
   if (camTracker) camTracker.stop();
   vr.setSimLook(null);
+  vr.setGestureZoom(false);
 }
 // Взгляд по камере. Свежая метка: адаптивная скорость догона (большой
 // разрыв — быстрый). Потеря: держим последний угол, зная, за какой край
@@ -629,11 +643,21 @@ function stopCamTracker() {
 // расхождение картинки с головой, а не сам «скачок» к истине).
 let camSnapPending = null;
 let camWasLost = false;
+function updateGestureZoom() {
+  const t = camTracker;
+  const active = !!(vr.active && game.vrRide && game.gestureOn && t && t.gestureFresh(700) && t.gestureV);
+  vr.setGestureZoom(active);
+}
+
 function updateCameraLook(now, force = false) {
-  if (!game.vrRide || !isCameraLookMode() || !game.camOn || !camTracker) return;
+  const cameraLookActive = isCameraLookMode() && game.camOn;
+  if (!game.vrRide || !camTracker || (!cameraLookActive && !game.gestureOn)) return;
   if (!force && now - camLastProcess < (camTracker.intervalMs || 90)) return;
   camLastProcess = now;
+  // Even when «По метке» is off, the same Worker must keep feeding the V
+  // gesture state. Gesture-only VR deliberately never changes vr.setSimLook.
   camTracker.process();
+  if (!cameraLookActive) return;
   const t = camTracker;
   if (t.fresh(900)) {
     const dy = t.yaw - camSmooth.yaw;
@@ -712,9 +736,11 @@ function requestFullscreenLandscape() {
 
 function startVrRide() {
   game.camOn = isCameraLookMode();
+  game.gestureOn = !!vrSettings.gestureZoom;
   camSmooth.yaw = 0; camSmooth.pitch = 0;
-  if (game.camOn) {
+  if (needsCameraInput()) {
     const t = ensureCamTracker();
+    t.setGestureEnabled(game.gestureOn);
     t.useWorkerMode(); // анализ — вне главного потока, иначе проседает FPS
     if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {});
   }
@@ -738,7 +764,7 @@ function enterVrStereo() {
   vr.start(vrSettings);
   document.body.classList.add('vr-active');
   // облегчённый стерео-рендер; в режиме камеры — ещё легче (телефон и так занят потоком)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCameraLookMode() ? 1.25 : 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, (isCameraLookMode() || game.gestureOn) ? 1.25 : 1.5));
 }
 
 function stopVrStereo() {
@@ -753,6 +779,8 @@ function stopVrStereo() {
     }
   } catch { /* ignore */ }
   governor.apply(); // вернуть обычное разрешение и bloom по уровню качества
+  camera.fov = 55;
+  camera.updateProjectionMatrix();
   onResize();
 }
 
@@ -798,9 +826,17 @@ function updateCamPrepUi() {
   if (!camTracker) {
     el.vrCamStatus.textContent = 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.';
     el.vrCamDualStatus.textContent = 'Камера выключена. Включите камеру и наведите её на две коробки.';
+    el.vrGestureStatus.textContent = 'Жест V включит камеру только после старта VR.';
     return;
   }
   const info = camTracker.info();
+  if (vrSettings.gestureZoom) {
+    el.vrGestureStatus.textContent = !info.gestureFresh
+      ? 'Жест V не виден — масштаб 1×. Нужны два уверенных кадра руки.'
+      : info.gestureV
+        ? '✅ V распознан — приближение плавно растёт до 6×; отпускание возвращает обзор быстрее.'
+        : 'Камера готова: поднимите указательный и средний пальцы буквой V.';
+  }
   if (vrSettings.lookMode === 'camera-dual') {
     el.vrCamDualStatus.textContent = !info.running && !info.synthetic
       ? 'Камера выключена. Включите камеру и наведите её на две коробки.'
@@ -819,6 +855,11 @@ function syncVrUi() {
   const dual = vrSettings.lookMode === 'camera-dual';
   el.vrModeCamera.setAttribute('aria-pressed', String(vrSettings.lookMode === 'camera'));
   el.vrModeCameraDual.setAttribute('aria-pressed', String(dual));
+  el.vrGestureZoom.setAttribute('aria-pressed', String(!!vrSettings.gestureZoom));
+  el.vrGestureZoom.textContent = vrSettings.gestureZoom ? '✌️ Жест V — зум включён' : '✌️ Жест V — включить зум';
+  el.vrGestureStatus.textContent = vrSettings.gestureZoom
+    ? 'После старта VR задняя камера ищет V-жест. Ладонь держите в её поле зрения.'
+    : 'Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим.';
   el.vrCamPanel.classList.toggle('hidden', !isCameraLookMode());
   el.vrCamSingleControls.classList.toggle('hidden', dual);
   el.vrCamDualControls.classList.toggle('hidden', !dual);
@@ -875,6 +916,11 @@ setInterval(() => { if (remoteCtrl && remoteCtrl.room) publishRemoteState(); }, 
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
 el.vrModeCamera.addEventListener('click', () => { vrSettings.lookMode = 'camera'; saveVrUi(); SFX.play('click'); });
 el.vrModeCameraDual.addEventListener('click', () => { vrSettings.lookMode = 'camera-dual'; saveVrUi(); SFX.play('click'); });
+el.vrGestureZoom.addEventListener('click', () => {
+  vrSettings.gestureZoom = !vrSettings.gestureZoom;
+  saveVrUi();
+  SFX.play('click');
+});
 el.vrCamStart.addEventListener('click', async () => {
   SFX.play('click');
   try {
@@ -1347,7 +1393,9 @@ function updateGameplay(dt) {
   camera.position.copy(game.camPos);
   camera.lookAt(game.camTarget);
   // speed feel: micro shake that grows with speed, lean into the steering
-  const shake = (game.boostActive ? 0.055 : 0.013) * spdK + game.camKick * 0.5;
+  // При zoom жестом убираем большую часть игровой тряски; поворот головы
+  // всё ещё остаётся лёгким корректором направления приближения в VRController.
+  const shake = ((game.boostActive ? 0.055 : 0.013) * spdK + game.camKick * 0.5) * vr.zoomShakeFactor();
   if (shake > 0.001) {
     const tn = performance.now() * 0.001;
     camera.position.x += Math.sin(tn * 37.1) * shake;
@@ -1361,7 +1409,11 @@ function updateGameplay(dt) {
   // so the widening is felt inside a normal run, not only near the cap
   const spdN = Math.min(1, Math.max(0, (game.speed - 8) / 13.5));
   const fovTarget = 50 + spdN * 8 + (game.boostActive ? 4.5 : 0);
-  camera.fov = THREE.MathUtils.lerp(camera.fov, fovTarget, dt * 2.2);
+  // camera.fov already contains the previous zoomed value; recover the
+  // unzoomed base first, otherwise repeated frames would divide the FOV again.
+  const baseFov = camera.fov * vr.zoomFactor();
+  const smoothedBaseFov = THREE.MathUtils.lerp(baseFov, fovTarget, dt * 2.2);
+  camera.fov = vr.applyZoom(smoothedBaseFov, dt);
   // and the highlights bloom harder the faster the car goes
   bloom.strength += ((0.5 + spdN * 0.26 + (game.boostActive ? 0.2 : 0)) - bloom.strength) * Math.min(1, dt * 2.4);
   if (qaCamFixed) { // QA: absolute camera for scenery screenshots
@@ -1440,6 +1492,7 @@ function frame(now, dt) {
     return;
   }
 
+  updateGestureZoom();
   updateGameplay(dt);
   if (qaNoGovernor ? qaForceRender : (governor.frame(dt) || qaForceRender)) {
     renderer.info.reset(); // accumulate every pass of this frame, not just the last
@@ -1728,14 +1781,16 @@ window.__TEST__ = {
     game.boostCharges = 0;
     return { boost: game.boostActive, t: game.boostT };
   },
-  vrStart(lookMode = 'look', baselineCm = 10) {
-    vrSettings = normalizeVrSettings({ lookMode, baselineCm, driverMode: vrSettings.driverMode });
+  vrStart(lookMode = 'look', baselineCm = 10, gestureZoom = false) {
+    vrSettings = normalizeVrSettings({ lookMode, baselineCm, gestureZoom, driverMode: vrSettings.driverMode });
     Storage.saveVrSettings(vrSettings);
     startVrRide();
     return this.vrInfo();
   },
   vrStop() { exitVrToMenu(); return this.vrInfo(); },
-  vrInfo() { return { ...vr.info(), vrRide: game.vrRide, plan: game.vrPlan, state: game.state }; },
+  vrInfo() {
+    return { ...vr.info(), fov: +camera.fov.toFixed(2), vrRide: game.vrRide, plan: game.vrPlan, state: game.state };
+  },
   vrSetLook(yawDeg = null, pitchDeg = 0) { vr.setSimLook(yawDeg, pitchDeg); return this.vrInfo(); },
   async remoteDemo() {
     vrSettings.driverMode = 'remote';
@@ -1746,6 +1801,29 @@ window.__TEST__ = {
     return { code, info: rc.info() };
   },
   remoteState() { publishRemoteState(); return lastRemoteState; },
+  gestureEnableSynthetic(on = true) {
+    vrSettings.gestureZoom = true;
+    game.gestureOn = true;
+    const t = ensureCamTracker();
+    t.synthetic = true; t.running = true; t.setGestureEnabled(true); t.injectGestureV(on);
+    updateGestureZoom();
+    return { info: t.info(), vr: this.vrInfo() };
+  },
+  gestureSetSynthetic(on = true) {
+    const t = ensureCamTracker();
+    t.injectGestureV(on);
+    updateGestureZoom();
+    return { info: t.info(), vr: this.vrInfo() };
+  },
+  gestureFeed(on = true) {
+    vrSettings.gestureZoom = true;
+    game.gestureOn = true;
+    const t = ensureCamTracker();
+    t.synthetic = true; t.running = true; t.setGestureEnabled(true);
+    const result = t.injectGestureFrame(on);
+    updateGestureZoom();
+    return { result, info: t.info(), vr: this.vrInfo() };
+  },
   camInfo() { return camTracker ? camTracker.info() : null; },
   camEnableSynthetic() {
     vrSettings.lookMode = 'camera';

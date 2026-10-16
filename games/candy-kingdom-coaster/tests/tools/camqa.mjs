@@ -61,6 +61,17 @@ const dualUi = await page.evaluate(() => {
 });
 record('подрежим двух меток: отдельная панель и пресеты слева/справа',
   dualUi.pressed && dualUi.panel && dualUi.controls && /Оранж/.test(dualUi.left) && /Малин/.test(dualUi.right), dualUi);
+const gestureUi = await page.evaluate(() => {
+  const b = document.getElementById('vr-gesture-zoom');
+  const before = b.getAttribute('aria-pressed');
+  b.click();
+  const on = { pressed: b.getAttribute('aria-pressed'), text: b.textContent, saved: JSON.parse(localStorage.getItem('ckc_v1_vr') || 'null') };
+  b.click();
+  return { before, on, after: b.getAttribute('aria-pressed') };
+});
+record('жест V: отдельный opt-in переключатель сохраняется и выключается',
+  gestureUi.before === 'false' && gestureUi.on.pressed === 'true' && gestureUi.on.saved.gestureZoom === true
+    && gestureUi.after === 'false', gestureUi);
 
 // 1. синтетическая камера + старт поездки в режиме «По метке»
 const boot = await page.evaluate(() => {
@@ -184,7 +195,7 @@ record('ImageBitmap с меткой: взгляд вправо, воркер д�
 // 9. подрежим двух меток: пара задаёт прямой, одна оставшаяся продолжает вести
 const dual = await page.evaluate(() => {
   window.__TEST__.camEnableDualSynthetic();
-  window.__TEST__.vrStart('camera-dual', 30);
+  window.__TEST__.vrStart('camera-dual', 30, true);
   const straight = window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
   const calibrated = window.__TEST__.camCalibrateDual();
   const shifted = window.__TEST__.camFeedDual(112, 120, 268, 120, 26);
@@ -199,6 +210,27 @@ record('две метки: при потере правой левая прод�
   dual.one.dualVisible.length === 1 && dual.one.dualVisible[0] === 'left' && dual.one.lastLostMarker === 'right', dual.one);
 record('две метки: при потере обеих сохраняется последний угол',
   !dual.none.found && dual.none.heldYaw === dual.one.yaw, dual.none);
+
+// 10. V-жест: тот же analyzer, temporal debounce, 6× ceiling, fast release.
+const gesture = await page.evaluate(() => {
+  const on1 = window.__TEST__.gestureFeed(true);
+  const on2 = window.__TEST__.gestureFeed(true);
+  window.__TEST__.step(1 / 60, 70, false);
+  const held = window.__TEST__.vrInfo();
+  const off1 = window.__TEST__.gestureFeed(false);
+  const off2 = window.__TEST__.gestureFeed(false);
+  window.__TEST__.step(1 / 60, 30, false);
+  const released = window.__TEST__.vrInfo();
+  return { on1, on2, held, off1, off2, released };
+});
+record('жест V: silhouette найден, включение требует два кадра',
+  gesture.on1.result.gesture.found && gesture.on2.info.gestureV === true && gesture.on2.info.gestureFresh === true, gesture.on2.info);
+record('жест V: VR-only zoom плавно доходит почти до 6× и гасит shake',
+  gesture.held.gestureZoom && gesture.held.zoomFactor > 5.5 && gesture.held.zoomFactor <= 6
+    && gesture.held.zoomShakeFactor < 0.5 && gesture.held.zoomLookGain < 1, gesture.held);
+record('жест V: два плохих кадра отключают zoom, возврат быстрее набора',
+  gesture.off1.result.gesture.found === false && gesture.off2.info.gestureV === false
+    && gesture.released.zoomActive === false && gesture.released.zoomFactor < 1.5, gesture.released);
 
 record('ошибок на странице нет', errors.length === 0, errors);
 

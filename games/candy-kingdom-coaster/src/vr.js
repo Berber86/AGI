@@ -18,6 +18,7 @@ export function normalizeVrSettings(raw) {
   return {
     lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual' ? s.lookMode : 'look',
     driverMode: s.driverMode === 'remote' ? 'remote' : 'auto',
+    gestureZoom: s.gestureZoom === true,
     camColor: typeof s.camColor === 'string' ? s.camColor : 'raspberry',
     camHue: Number.isFinite(s.camHue) ? s.camHue : null,
     camLeftColor: typeof s.camLeftColor === 'string' ? s.camLeftColor : 'orange',
@@ -69,6 +70,8 @@ export class VRController {
     this._yaw = 0;              // сглаженный взгляд, применяемый к камере
     this._pitch = 0;
     this._sim = null;           // тестовая подмена взгляда {yaw, pitch} в градусах
+    this._zoom = 1;              // плавный множитель приближения 1..6
+    this._zoomTarget = 1;
     this._layout = null;
     this._right = new THREE.Vector3();
     this._onOrientation = (e) => this._handleOrientation(e);
@@ -106,12 +109,14 @@ export class VRController {
     this._refQuat = null;
     this._yaw = 0; this._pitch = 0; this._gyroYaw = 0; this._gyroPitch = 0;
     this._sim = null;
+    this._zoom = 1; this._zoomTarget = 1;
   }
 
   stop() {
     this.active = false;
     this._refQuat = null;
     this._sim = null;
+    this._zoom = 1; this._zoomTarget = 1;
   }
 
   // Живые настройки из команд джойстика: взгляд перецентрируется, базис
@@ -124,6 +129,26 @@ export class VRController {
   setBaselineCm(cm) {
     this.settings.baselineCm = Math.min(VR_BASELINE_MAX_CM, Math.max(VR_BASELINE_MIN_CM, Math.round(cm) || VR_BASELINE_MIN_CM));
     return this.settings.baselineCm;
+  }
+
+  // Жест V не меняет направление взгляда и не «приклеивает» камеру к
+  // несуществующей цели: он только плавно сужает FOV вокруг текущего луча.
+  // Возврат быстрее набора, чтобы отпущенная рука сразу вернула обзор.
+  setGestureZoom(active) {
+    this._zoomTarget = active ? 6 : 1;
+  }
+  updateZoom(dt) {
+    const rate = this._zoomTarget > this._zoom ? 2.8 : 7.5;
+    this._zoom += (this._zoomTarget - this._zoom) * (1 - Math.exp(-rate * Math.max(0, dt || 0)));
+    if (Math.abs(this._zoomTarget - this._zoom) < 0.002) this._zoom = this._zoomTarget;
+    return this._zoom;
+  }
+  zoomFactor() { return this._zoom; }
+  zoomShakeFactor() { return 1 - 0.72 * THREE.MathUtils.clamp((this._zoom - 1) / 5, 0, 1); }
+  zoomLookGain() { return this._zoom > 1.02 ? 0.72 : 1; }
+  applyZoom(baseFov, dt) {
+    const z = this.updateZoom(dt);
+    return THREE.MathUtils.clamp(baseFov / z, 7, baseFov);
   }
 
   // QA: подменить взгляд без настоящего гироскопа (null — снять подмену).
@@ -181,8 +206,9 @@ export class VRController {
     const k = 1 - Math.exp(-7 * Math.max(0, dt));
     this._yaw += (target.yaw - this._yaw) * k;
     this._pitch += (target.pitch - this._pitch) * k;
-    camera.rotateY(this._yaw);
-    camera.rotateX(this._pitch);
+    const lookGain = this.zoomLookGain();
+    camera.rotateY(this._yaw * lookGain);
+    camera.rotateX(this._pitch * lookGain);
   }
 
   // Два квадрата бок о бок, по центру экрана; между ними — линия-разделитель (DOM).
@@ -235,6 +261,11 @@ export class VRController {
       yawDeg: +THREE.MathUtils.radToDeg(this._yaw).toFixed(1),
       pitchDeg: +THREE.MathUtils.radToDeg(this._pitch).toFixed(1),
       layout: this._layout,
+      gestureZoom: !!this.settings.gestureZoom,
+      zoomFactor: +this._zoom.toFixed(2),
+      zoomActive: this._zoomTarget > 1,
+      zoomShakeFactor: +this.zoomShakeFactor().toFixed(2),
+      zoomLookGain: +this.zoomLookGain().toFixed(2),
     };
   }
 }

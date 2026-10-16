@@ -1,7 +1,7 @@
 // camtrack-worker.js — конвейер камеры вне главного потока:
 // OffscreenCanvas -> getImageData -> крупнейшее пятно -> углы.
-// Главный поток получает только {found, yaw, pitch, count, procMs}.
-import { analyzeColorBlob, analyzeColorBlobs, anglesFromCentroid } from './camtrack.js';
+// Главный поток получает только marker result и дешёвый gesture result; кадр не возвращается.
+import { analyzeColorBlob, analyzeColorBlobs, analyzeVGesture, anglesFromCentroid } from './camtrack.js';
 
 let cnv = null;
 let ctx = null;
@@ -20,9 +20,10 @@ self.onmessage = (e) => {
     ctx.drawImage(m.bitmap, 0, 0);
     if (m.bitmap.close) m.bitmap.close();
     const img = ctx.getImageData(0, 0, cnv.width, cnv.height);
+    const gesture = m.gesture ? analyzeVGesture(img.data, cnv.width, cnv.height) : null;
     if (m.dual && Array.isArray(m.hues)) {
       const markers = analyzeColorBlobs(img.data, cnv.width, cnv.height, m.hues, m.tol, m.satMin);
-      self.postMessage({ dual: true, markers, w: cnv.width, h: cnv.height, procMs: performance.now() - t0 });
+      self.postMessage({ dual: true, markers, gesture, w: cnv.width, h: cnv.height, procMs: performance.now() - t0 });
       return;
     }
     const res = analyzeColorBlob(img.data, cnv.width, cnv.height, m.hue, m.tol, m.satMin);
@@ -34,6 +35,7 @@ self.onmessage = (e) => {
     self.postMessage({
       found: res.found, count: res.count, u: res.u || 0, v: res.v || 0,
       yaw, pitch, w: cnv.width, h: cnv.height,
+      gesture,
       procMs: performance.now() - t0,
     });
   } catch (err) {

@@ -72,6 +72,97 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   return { found: true, count: best.count, u: best.sx / best.count, v: best.sy / best.count };
 }
 
+// Дешёвый экспериментальный детектор жеста V без тяжёлой hand-pose модели.
+// Он ищет крупнейший skin-like компонент и две высокие раздельные вершины
+// его силуэта. Это намеренно не «распознавание руки вообще»: жест включается
+// только по явному переключателю, сглаживается несколькими кадрами и имеет
+// безопасное состояние false при сомнительном силуэте.
+export function analyzeVGesture(data, w, h) {
+  const mask = new Uint8Array(w * h);
+  let skinCount = 0;
+  for (let i = 0, px = 0; px < w * h; px++, i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const y = 0.299 * r + 0.587 * g + 0.114 * b;
+    const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+    const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+    // Broad skin range: phones expose differently across children/lighting.
+    // The silhouette/temporal checks below provide the important rejection.
+    if (y < 35 || cb < 68 || cb > 145 || cr < 118 || cr > 192) continue;
+    mask[px] = 1; skinCount++;
+  }
+  if (skinCount < Math.max(70, w * h * 0.004) || skinCount > w * h * 0.75) return { found: false, confidence: 0 };
+
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  let best = null;
+  for (let start = 0; start < w * h; start++) {
+    if (!mask[start] || seen[start]) continue;
+    let count = 0, minX = w, minY = h, maxX = 0, maxY = 0;
+    const points = [];
+    stack.length = 0; stack.push(start); seen[start] = 1;
+    while (stack.length) {
+      const cur = stack.pop();
+      const x = cur % w, y = (cur / w) | 0;
+      points.push(cur); count++;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (x > 0 && mask[cur - 1] && !seen[cur - 1]) { seen[cur - 1] = 1; stack.push(cur - 1); }
+      if (x < w - 1 && mask[cur + 1] && !seen[cur + 1]) { seen[cur + 1] = 1; stack.push(cur + 1); }
+      if (y > 0 && mask[cur - w] && !seen[cur - w]) { seen[cur - w] = 1; stack.push(cur - w); }
+      if (y < h - 1 && mask[cur + w] && !seen[cur + w]) { seen[cur + w] = 1; stack.push(cur + w); }
+    }
+    if (!best || count > best.count) best = { count, minX, minY, maxX, maxY, points };
+  }
+  if (!best || best.count < Math.max(70, w * h * 0.006)) return { found: false, confidence: 0 };
+  const bw = best.maxX - best.minX + 1, bh = best.maxY - best.minY + 1;
+  if (bw < w * 0.12 || bh < h * 0.16 || bw > w * 0.9 || bh > h * 0.95) return { found: false, confidence: 0 };
+
+  const top = new Int16Array(bw); top.fill(best.maxY + 1);
+  for (const cur of best.points) {
+    const x = (cur % w) - best.minX, y = (cur / w) | 0;
+    if (y < top[x]) top[x] = y + best.minY;
+  }
+  const smooth = new Float32Array(bw);
+  for (let x = 0; x < bw; x++) {
+    let sum = 0, n = 0;
+    for (let k = Math.max(0, x - 2); k <= Math.min(bw - 1, x + 2); k++) {
+      if (top[k] <= best.maxY) { sum += top[k]; n++; }
+    }
+    smooth[x] = n ? sum / n : best.maxY + 1;
+  }
+  const candidates = [];
+  const topLimit = best.minY + bh * 0.42;
+  for (let x = Math.max(2, Math.floor(bw * 0.12)); x < Math.min(bw - 2, Math.ceil(bw * 0.88)); x++) {
+    if (smooth[x] > topLimit || smooth[x] > smooth[x - 1] || smooth[x] > smooth[x + 1]) continue;
+    candidates.push({ x, y: smooth[x] });
+  }
+  if (candidates.length < 2) return { found: false, confidence: 0 };
+  candidates.sort((a, b) => a.y - b.y);
+  let pair = null;
+  for (let i = 0; i < candidates.length && !pair; i++) for (let j = i + 1; j < candidates.length; j++) {
+    const a = candidates[i], b = candidates[j];
+    const gap = Math.abs(a.x - b.x);
+    if (gap < bw * 0.14 || gap > bw * 0.78) continue;
+    const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
+    let valley = 0;
+    for (let x = lo; x <= hi; x++) valley = Math.max(valley, smooth[x]);
+    const depth = valley - Math.max(a.y, b.y);
+    if (depth < bh * 0.055) continue;
+    pair = { a, b, gap, depth };
+    break;
+  }
+  if (!pair) return { found: false, confidence: 0 };
+  const confidence = Math.min(1, 0.45 + pair.depth / Math.max(1, bh) + pair.gap / Math.max(1, bw) * 0.35);
+  return {
+    found: confidence >= 0.55,
+    confidence,
+    peaks: [
+      { u: (best.minX + pair.a.x) / w, v: pair.a.y / h },
+      { u: (best.minX + pair.b.x) / w, v: pair.b.y / h },
+    ],
+  };
+}
+
 // Две независимые цветовые метки. Пока размеры кадра малы, повторный
 // проход дешевле и надёжнее сложной общей маски: каждая коробка получает
 // собственное крупнейшее связное пятно, а Worker всё равно забирает кадр
@@ -124,6 +215,12 @@ export class CamTracker {
     this.lastLostMarker = null;
     this.lostMarkers = [];
     this.dualCalibration = null; // raw yaw/pitch for each box at «прямо»
+    this.gestureEnabled = false;
+    this.gestureV = false;
+    this.gestureConfidence = 0;
+    this.gestureLastAt = 0;
+    this.gestureOnFrames = 0;
+    this.gestureOffFrames = 0;
 
     this.c0n = null; // нормализованный центр калибровки
     this.lastFoundAt = 0;
@@ -156,7 +253,13 @@ export class CamTracker {
     // декодируется; для метки 640x480@24 за глаза.
     const want = { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } };
     try { stream = await navigator.mediaDevices.getUserMedia({ video: want, audio: false }); }
-    catch { stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
+    catch {
+      // Do not silently fall back to the selfie camera: the gesture is an
+      // environment-camera feature. A reduced rear-camera request is honest.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: 'environment' } }, audio: false,
+      });
+    }
     this.stream = stream;
     this.video = video || null;
     if (this.video) {
@@ -172,6 +275,11 @@ export class CamTracker {
     this.stream = null;
     this.running = false;
     this.found = false;
+    this.gestureV = false;
+    this.gestureConfidence = 0;
+    this.gestureLastAt = 0;
+    this.gestureOnFrames = 0;
+    this.gestureOffFrames = 0;
     this._workerMode = false;
     this._workerBusy = false;
   }
@@ -186,6 +294,35 @@ export class CamTracker {
     else return;
     this.procW = TIER_W[this.tier];
     this.intervalMs = TIER_MS[this.tier];
+  }
+
+  setGestureEnabled(enabled) {
+    this.gestureEnabled = !!enabled;
+    if (!this.gestureEnabled) {
+      this.gestureV = false;
+      this.gestureConfidence = 0;
+      this.gestureOnFrames = 0;
+      this.gestureOffFrames = 0;
+    }
+  }
+
+  _applyGesture(result) {
+    if (!this.gestureEnabled) return;
+    this.gestureLastAt = performance.now();
+    this.gestureConfidence = result && Number.isFinite(result.confidence) ? result.confidence : 0;
+    if (result && result.found) {
+      this.gestureOnFrames++;
+      this.gestureOffFrames = 0;
+      if (this.gestureOnFrames >= 2) this.gestureV = true;
+    } else {
+      this.gestureOffFrames++;
+      this.gestureOnFrames = 0;
+      if (this.gestureOffFrames >= 2) this.gestureV = false;
+    }
+  }
+
+  gestureFresh(maxMs = 700) {
+    return this.gestureEnabled && this.gestureLastAt > 0 && (performance.now() - this.gestureLastAt) <= maxMs;
   }
 
   _applyDualResult(res, w, h) {
@@ -242,6 +379,7 @@ export class CamTracker {
   }
 
   _applyResult(res, w, h) {
+    this._applyGesture(res && res.gesture);
     if (this.dual && res && res.markers) return this._applyDualResult(res, w, h);
     const wasFound = this.found;
     this.frameW = w; this.frameH = h;
@@ -271,9 +409,10 @@ export class CamTracker {
 
   processImageData(data, w, h) {
     this.lastFrame = { data, w, h };
+    const gesture = this.gestureEnabled ? analyzeVGesture(data, w, h) : null;
     const res = this.dual
-      ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin) }
-      : analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin);
+      ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin), gesture }
+      : { ...analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin), gesture };
     return this._applyResult(res, w, h);
   }
 
@@ -337,7 +476,7 @@ export class CamTracker {
       try {
         wk.postMessage({
           bitmap: bmp, hue: this.hue, hues: this.dual ? [this.hueA, this.hueB] : null,
-          dual: this.dual, tol: this.tol, satMin: this.satMin,
+          dual: this.dual, gesture: this.gestureEnabled, tol: this.tol, satMin: this.satMin,
           c0n: this.c0n, fovDeg: this.fovDeg,
         }, [bmp]);
       } catch { this._workerBusy = false; this._noteWorkerFail(); }
@@ -438,6 +577,45 @@ export class CamTracker {
     return this.processImageData(data, w, h);
   }
 
+  injectGestureV(on = true) {
+    this.synthetic = true;
+    this.gestureEnabled = true;
+    this.gestureLastAt = performance.now();
+    this.gestureConfidence = on ? 1 : 0;
+    this.gestureV = !!on;
+    this.gestureOnFrames = on ? 2 : 0;
+    this.gestureOffFrames = on ? 0 : 2;
+    return this.gestureV;
+  }
+
+  // QA: минимальный skin-colored силуэт проходит тот же анализатор, что и
+  // ImageBitmap из Worker. Это не используется игрой — только synthetic QA.
+  injectGestureFrame(on = true, w = 160, h = 120) {
+    this.synthetic = true;
+    const data = new Uint8ClampedArray(w * h * 4);
+    if (!on) return this.processImageData(data, w, h);
+    const put = (x, y) => {
+      if (x < 0 || x >= w || y < 0 || y >= h) return;
+      const i = (y * w + x) * 4;
+      data[i] = 200; data[i + 1] = 140; data[i + 2] = 110; data[i + 3] = 255;
+    };
+    const disc = (cx, cy, r) => {
+      for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++)
+        if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) put(x, y);
+    };
+    const stroke = (x0, y0, x1, y1, r) => {
+      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+      for (let i = 0; i <= n; i++) {
+        const k = n ? i / n : 0;
+        disc(Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r);
+      }
+    };
+    disc(80, 82, 25);
+    stroke(70, 75, 57, 20, 7);
+    stroke(90, 75, 104, 20, 7);
+    return this.processImageData(data, w, h);
+  }
+
   injectEmpty(w = 320, h = 240) {
     this.synthetic = true;
     return this.processImageData(new Uint8ClampedArray(w * h * 4), w, h);
@@ -460,6 +638,8 @@ export class CamTracker {
       fresh: this.fresh(), yaw: +this.yaw.toFixed(1), pitch: +this.pitch.toFixed(1),
       hue: Math.round(this.hue), hueA: Math.round(this.hueA), hueB: Math.round(this.hueB), count: this.count,
       dual: !!this.dual, dualCalibrated: !!this.dualCalibration,
+      gestureEnabled: !!this.gestureEnabled, gestureV: !!this.gestureV,
+      gestureFresh: this.gestureFresh(), gestureConfidence: +this.gestureConfidence.toFixed(2),
       dualVisible: [...this.dualVisible], lastLostMarker: this.lastLostMarker, lostMarkers: [...this.lostMarkers],
       markers: this.markers.map((m) => ({ id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null, count: m.count || 0 })),
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,

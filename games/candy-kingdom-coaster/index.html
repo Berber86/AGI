@@ -189,6 +189,10 @@
             <p id="vr-cam-dual-status" class="vr-note">Камера выключена. После калибровки пара задаёт ноль и помогает продолжать движение, даже когда одна коробка ушла за край.</p>
           </div>
         </div>
+        <div class="row vr-gesture-control">
+          <button type="button" id="vr-gesture-zoom" class="mid-btn" aria-pressed="false">✌️ Жест V — включить зум</button>
+        </div>
+        <p id="vr-gesture-status" class="vr-note" aria-live="polite">Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим.</p>
         <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
         <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">
         <p class="vr-note">Шире — объём сильнее, мир как миниатюра. Закружилась голова — снимите очки.</p>

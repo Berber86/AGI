@@ -1,5 +1,5 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v40';
+const CACHE = 'ckc-v41';
 const ASSETS = [
   './',
   './index.html',

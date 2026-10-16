@@ -1,6 +1,6 @@
 // vrqa.mjs — приёмка «VR-поездки» (контракт VR_BRAINSTORM.md).
 // Кнопка и экран подготовки, стереопара из двух квадратов с параллаксом,
-// два режима взгляда, авто-обзор без гироскопа, автопилот до финиша с
+// два режима взгляда, V-жестовый zoom до 6×, авто-обзор без гироскопа, автопилот до финиша с
 // запланированными развилками, выход в портрет, обычная игра не сломана.
 // Usage: node vrqa.mjs [baseUrl]  (запускать из /home/user/tools)
 import puppeteer from 'puppeteer-core';
@@ -126,7 +126,31 @@ const fwd = await page.evaluate(() => window.__TEST__.vrInfo());
 record('forward: голова игнорируется, взгляд по трассе',
   fwd.lookMode === 'forward' && Math.abs(fwd.yawDeg) < 1.5 && Math.abs(fwd.pitchDeg) < 1.5, fwd);
 
-// ---------- 4. автопилот: полный заезд до финиша без ввода ----------
+// ---------- 4. V-жест: задняя камера, debounce, FOV/shake, быстрый release ----------
+// camEnableSynthetic() prevents a real getUserMedia prompt in headless QA;
+// gestureFeed() still runs the same skin silhouette analyzer and debounce.
+await page.evaluate(() => {
+  window.__TEST__.camEnableSynthetic();
+  window.__TEST__.vrStart('look', 30, true);
+  window.__TEST__.gestureFeed(true);
+  window.__TEST__.gestureFeed(true);
+});
+await page.evaluate(() => window.__TEST__.step(1 / 60, 70, false));
+await page.evaluate(() => window.__TEST__.vrSetLook(30, 0));
+await page.evaluate(() => window.__TEST__.step(1 / 60, 45, false));
+const zoomHeld = await page.evaluate(() => window.__TEST__.vrInfo());
+record('gesture: V включает VR-only zoom, FOV приближается до ≤6×, shake ослаблен',
+  zoomHeld.gestureZoom && zoomHeld.zoomFactor > 5.5 && zoomHeld.zoomFactor <= 6
+    && zoomHeld.fov < 15 && zoomHeld.zoomShakeFactor < 0.5, zoomHeld);
+record('gesture: поворот головы остаётся мягким корректором',
+  zoomHeld.zoomLookGain > 0.5 && zoomHeld.zoomLookGain < 1 && Math.abs(zoomHeld.yawDeg) > 15, zoomHeld);
+await page.evaluate(() => { window.__TEST__.gestureFeed(false); window.__TEST__.gestureFeed(false); });
+await page.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
+const zoomReleased = await page.evaluate(() => window.__TEST__.vrInfo());
+record('gesture: потеря V возвращает масштаб заметно быстрее',
+  zoomReleased.zoomActive === false && zoomReleased.zoomFactor < 1.5 && zoomReleased.fov > 35, zoomReleased);
+
+// ---------- 5. автопилот: полный заезд до финиша без ввода ----------
 await page.evaluate(() => { window.__TEST__.vrStart('look', 25); });
 let fin = null;
 for (let i = 0; i < 70 && !fin; i++) {
@@ -145,7 +169,7 @@ record('autopilot: развилки пройдены по плану поезд�
   endInfo.forks.map((f) => `${f.id}:${f.selected}`));
 record('autopilot: сладости собирались без игрока', endInfo.info.collected > 15, endInfo.info);
 
-// ---------- 5. выход поворотом в портрет ----------
+// ---------- 6. выход поворотом в портрет ----------
 await page.evaluate(() => { window.__TEST__.vrStart('look', 30); window.__TEST__.step(1 / 60, 20, true); });
 await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
 await sleep(500);
@@ -154,7 +178,7 @@ record('exit: портрет завершает VR и возвращает в м
   port.active === false && port.state === 'menu', port);
 await page.setViewport({ width: 844, height: 390, isMobile: true, hasTouch: true });
 
-// ---------- 6. обычная игра не пострадала ----------
+// ---------- 7. обычная игра не пострадала ----------
 const normal = await page.evaluate(() => {
   const T = window.__TEST__;
   T.startRace(); T.fastForwardCountdown(); T.step(1 / 60, 90, false);
