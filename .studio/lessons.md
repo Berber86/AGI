@@ -51,3 +51,12 @@ The pose matrix then exposed a real off-axis perspective bug on watch/top in lan
 - **Fix:** Removed `addCourtyardWell` entirely at the author's direction; kept the unrelated iteration-12 work (puddles, portrait reframing, bin-anchored callout). The audit closure table now marks the finding as a false positive.
 - **Validation:** Fresh `audit-look` frames (search 412/1280) show the enclosed courtyard with no well; unit tests 20/20.
 - **Workflow change:** When an audit claims a "promised" element is missing, verify the term's meaning in the work's own context before modelling it. Idioms, titles and metaphors in a premise are not asset lists.
+
+## 2026-10-16 — VR-поездка: «тормозит» — это удвоение сцены плюс дубль теневого прохода
+
+- **Context:** Полевой отчёт по VR-режиму Candy Kingdom Coaster («всё работает, но очень тормозит») после добавления стереопары, камеры-метки и внешнего джойстика.
+- **Symptom:** В очках кадры 15–25 к/с и рывки в первые секунды заезда; обычная игра терпима.
+- **Root cause:** (1) стереопара рисует сцену целиком дважды без снижения геометрии (260–540 draw call'ов и 0.6–1.9 млн tri на вид) — контракт `auto_light` был реализован только как pixelRatio; (2) `renderer.render()` вызывается на каждый глаз, а `WebGLShadowMap` в three.js r166 при `autoUpdate=true` перерисовывает теневую карту при каждом вызове → карта 2048² и ~100 draw call'ов считаются дважды за кадр; (3) `QualityGovernor.apply()` перезаписывает VR-pixelRatio (1.5 → 2.0/1.4/1) и при переходе уровня уничтожает теневую карту и меняет варианты шейдерных программ — отсюда рывки; (4) `antialias: true` включает MSAA только на VR-пути (composer-таргеты без сэмплов).
+- **Fix:** не внесён — зафиксирован как аудит `VR_PERF_AUDIT.md` с ранжированными правками (F1–F6) и ожидаемым выигрышем.
+- **Validation:** детерминированные счётчики (draw calls, теневые проходы, треугольники, пиксели) через `tests/tools/vrperf.mjs` и `tests/tools/vrtri.mjs`; сырые числа в `.studio/evidence/reports/vr-perf-audit.json`. Время кадра в software-GL намеренно не использовано как доказательство.
+- **Workflow change:** для тяжёлых режимов (стерео, второй проход, камера) сначала считать draw calls/проходы, а не мс: счётчики переносятся на телефон, а мс SwiftShader — нет.
