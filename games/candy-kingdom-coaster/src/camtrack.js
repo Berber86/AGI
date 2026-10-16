@@ -260,8 +260,22 @@ export function anglesFromCentroid(u, v, w, h, c0n, fovDeg) {
   };
 }
 
+const THREE_CLAMP = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
 const TIER_W = [160, 128, 112];
 const TIER_MS = [100, 130, 170];
+
+// Пара меток: насколько согласованно должны поворачиваться обе коробки, чтобы
+// им можно было верить как паре; с какой скоростью (°/с) может честно ехать
+// взгляд (частота кадров зависит от tier, поэтому лимит по времени, а не «за
+// кадр»); ниже какого доверия к стороне метка считается потерянной; через
+// сколько мс без метки угол принимается заново, а не как подозрительный скачок.
+const DUAL_PAIR_GATE_DEG = 6;
+const DUAL_MAX_RATE_DPS = 260;
+const DUAL_MIN_STEP_DEG = 8;
+const DUAL_MAX_STEP_CAP_DEG = 30;
+const DUAL_TRUST_MIN = 0.25;
+const DUAL_REANCHOR_MS = 900;
 
 export class CamTracker {
   constructor() {
@@ -289,6 +303,11 @@ export class CamTracker {
     this.lastLostMarker = null;
     this.lostMarkers = [];
     this.dualCalibration = null; // raw yaw/pitch for each box at «прямо»
+    this.dualBaseCount = null;   // размер пятна на калибровке (отсев мусора)
+    this.dualTrust = { left: 1, right: 1 };
+    this.reanchorPending = null;
+    this.lastAcceptAt = 0;
+    this.pairState = 'idle';     // pair|single|conflict|tiny|same|lowtrust|step|lost
     this.gestureEnabled = false;
     this.gestureV = false;
     this.gestureConfidence = 0;
@@ -432,6 +451,30 @@ export class CamTracker {
     return this.gestureEnabled && this.thumbLastAt > 0 && (performance.now() - this.thumbLastAt) <= maxMs;
   }
 
+  // Сброс калибровки пары (смена режима, новая пипетка, «Калибровать: прямо»
+  // заново). Вместе с углами обнуляются база размера пятна и доверие к
+  // сторонам — иначе отсев мусора сравнивал бы пятна с прошлой калибровкой.
+  resetDualCalibration() {
+    this.dualCalibration = null;
+    this.dualBaseCount = null;
+    this.dualTrust = { left: 1, right: 1 };
+    this.reanchorPending = null;
+    this.pairState = 'idle';
+  }
+
+  // Переякорка после долгой потери принимается только по двум согласным
+  // кадрам: одиночное «пятно похожего цвета» не должно дёргать взгляд.
+  _confirmReanchor(candidate, now) {
+    const p = this.reanchorPending;
+    const same = p && p.id === candidate.id
+      && Math.abs(p.yaw - candidate.deltaYaw) < 3
+      && Math.abs(p.pitch - candidate.deltaPitch) < 3
+      && (now - p.at) <= 600;
+    if (same) { this.reanchorPending = null; return true; }
+    this.reanchorPending = { id: candidate.id, yaw: candidate.deltaYaw, pitch: candidate.deltaPitch, at: now };
+    return false;
+  }
+
   _applyDualResult(res, w, h) {
     const wasFound = this.found;
     const previous = this.markers || [];
@@ -452,20 +495,120 @@ export class CamTracker {
     this.markers = markers;
     this.dualVisible = visible.map((m) => m.id);
     this.frameW = w; this.frameH = h;
-    if (visible.length) {
-      const values = visible.map((m) => {
-        const base = this.dualCalibration && this.dualCalibration[m.id];
-        return base
-          ? { yaw: m.rawYaw - base.yaw, pitch: m.rawPitch - base.pitch }
-          : { yaw: m.rawYaw, pitch: m.rawPitch };
-      });
-      this.yaw = values.reduce((sum, v) => sum + v.yaw, 0) / values.length;
-      this.pitch = values.reduce((sum, v) => sum + v.pitch, 0) / values.length;
+    const now = performance.now();
+
+    // Дельта каждой метки — её собственный поворот головы относительно
+    // калибровки «прямо». Обе коробки поворачиваются вместе с головой, поэтому
+    // их дельты обязаны совпадать: это и есть проверка пары.
+    for (const m of markers) {
+      if (!m.found) { m.deltaYaw = null; m.deltaPitch = null; continue; }
+      const base = this.dualCalibration && this.dualCalibration[m.id];
+      m.deltaYaw = m.rawYaw - (base ? base.yaw : 0);
+      m.deltaPitch = m.rawPitch - (base ? base.pitch : 0);
+    }
+    const calibrated = !!this.dualCalibration;
+
+    // Пятно сильно меньше калиброванного — это не коробка (мусор/блик):
+    // у analyzeColorBlob есть абсолютный порог 40 px, но реальная метка
+    // на калибровке всегда крупнее, и такой «огрызок» нельзя пускать в среднее.
+    const tiny = (m) => {
+      const base = this.dualBaseCount && this.dualBaseCount[m.id];
+      if (!base) return false;
+      return (m.count || 0) < Math.max(40, base * 0.08);
+    };
+
+    let state = 'lost';
+    let chosen = null;
+    let yaw = null;
+    let pitch = null;
+    if (!visible.length) {
+      state = 'lost';
+    } else if (!calibrated) {
+      // До «Калибровать: прямо» судить о паре нечем — прежнее поведение:
+      // среднее по всем видимым меткам.
+      state = 'pair';
+      yaw = visible.reduce((sum, m) => sum + m.deltaYaw, 0) / visible.length;
+      pitch = visible.reduce((sum, m) => sum + m.deltaPitch, 0) / visible.length;
+    } else {
+      const usable = visible.filter((m) => !tiny(m));
+      if (!usable.length) {
+        state = 'tiny';
+      } else if (usable.length === 1) {
+        state = 'single';
+        chosen = usable[0];
+      } else {
+        const [a, b] = usable;
+        // Оба детектора зацепили ОДИН И ТОТ ЖЕ предмет (в реальном свете
+        // оттенки сближаются и коробка попадает в оба допуска) — это не пара.
+        const sameBlob = Math.abs(a.u - b.u) < w * 0.04 && Math.abs(a.v - b.v) < h * 0.04;
+        if (sameBlob) {
+          state = 'same';
+          chosen = Math.abs(a.deltaYaw - this.heldYaw) <= Math.abs(b.deltaYaw - this.heldYaw) ? a : b;
+        } else if (Math.abs(a.deltaYaw - b.deltaYaw) <= DUAL_PAIR_GATE_DEG) {
+          state = 'pair';
+          yaw = (a.deltaYaw + b.deltaYaw) / 2;
+          pitch = (a.deltaPitch + b.deltaPitch) / 2;
+        } else {
+          // Пара противоречит себе: одна из «меток» — чужой предмет.
+          // Верим стороне с большим доверием, при равенстве — той, что
+          // согласна с текущим взглядом. Среднее в этом случае как раз и
+          // утягивало взгляд к центру кадра.
+          state = 'conflict';
+          const ta = this.dualTrust[a.id];
+          const tb = this.dualTrust[b.id];
+          const da = Math.abs(a.deltaYaw - this.heldYaw);
+          const db = Math.abs(b.deltaYaw - this.heldYaw);
+          const aWins = ta > tb + 0.15 || (Math.abs(ta - tb) <= 0.15 && da <= db);
+          chosen = aWins ? a : b;
+          const loser = (aWins ? b : a).id;
+          this.dualTrust[loser] = Math.max(0, this.dualTrust[loser] - 0.45);
+        }
+      }
+    }
+
+    if (chosen) {
+      const t = this.dualTrust[chosen.id];
+      const stepD = Math.hypot(chosen.deltaYaw - this.heldYaw, chosen.deltaPitch - this.heldPitch);
+      // Лимит по СКОРОСТИ, но с потолком: частота кадров камеры зависит от
+      // яруса (90-170 мс), и без потолка «шаг за кадр» на низком FPS пропускал
+      // бы почти любой скачок от чужого пятна.
+      const dtS = Math.max(0.016, (now - (this.lastAcceptAt || now)) / 1000);
+      const allow = THREE_CLAMP(DUAL_MAX_RATE_DPS * dtS, DUAL_MIN_STEP_DEG, DUAL_MAX_STEP_CAP_DEG);
+      // Метки не было дольше DUAL_REANCHOR_MS: это уже честное возвращение,
+      // а не скачок, но и «залипнуть» нельзя — поэтому такой угол принимаем
+      // только когда его подтвердил второй кадр подряд.
+      const stale = (now - this.lastFoundAt) > DUAL_REANCHOR_MS;
+      const big = stepD > allow;
+      // Доверие нужно только там, где у метки ЕСТЬ конкурент (пара противоречит
+      // себе): одиночная видимая метка не должна оказаться «замороженной»
+      // навсегда из-за прошлого конфликта.
+      const contested = state === 'conflict' || state === 'same';
+      let ok = (!contested || t >= DUAL_TRUST_MIN) && (!big || (stale && this._confirmReanchor(chosen, now)));
+      if (ok) {
+        yaw = chosen.deltaYaw;
+        pitch = chosen.deltaPitch;
+        this.dualTrust[chosen.id] = Math.min(1, t + 0.1);
+        if (!big) this.reanchorPending = null; // обычное движение — ожидание сбрасываем
+      } else {
+        this.dualTrust[chosen.id] = Math.max(0, t - 0.2);
+        state = t < DUAL_TRUST_MIN ? 'lowtrust' : 'step';
+      }
+    } else if (state === 'pair') {
+      // Пара согласна (или калибровки ещё нет) — доверие к обеим сторонам растёт.
+      for (const m of visible) this.dualTrust[m.id] = Math.min(1, this.dualTrust[m.id] + 0.15);
+      if (yaw === null) state = 'tiny';
+    }
+    this.pairState = state;
+
+    if (yaw !== null) {
+      this.yaw = yaw;
+      this.pitch = pitch;
       this.u = visible.reduce((sum, m) => sum + m.u, 0) / visible.length;
       this.v = visible.reduce((sum, m) => sum + m.v, 0) / visible.length;
       this.count = visible.reduce((sum, m) => sum + (m.count || 0), 0);
       this.found = true;
-      this.lastFoundAt = performance.now();
+      this.lastFoundAt = now;
+      this.lastAcceptAt = now;
       this.heldYaw = this.yaw;
       this.heldPitch = this.pitch;
       this.exitSideX = null;
@@ -636,10 +779,14 @@ export class CamTracker {
       this.c0n = { x: (a.u + b.u) / (2 * this.frameW), y: (a.v + b.v) / (2 * this.frameH) };
       const aa = anglesFromCentroid(a.u, a.v, this.frameW, this.frameH, this.c0n, this.fovDeg);
       const bb = anglesFromCentroid(b.u, b.v, this.frameW, this.frameH, this.c0n, this.fovDeg);
+      this.dualBaseCount = { left: a.count || 0, right: b.count || 0 };
       this.dualCalibration = {
         left: { yaw: aa.yaw, pitch: aa.pitch },
         right: { yaw: bb.yaw, pitch: bb.pitch },
       };
+      this.dualTrust = { left: 1, right: 1 };
+      this.reanchorPending = null;
+      this.pairState = 'pair';
       this.yaw = 0; this.pitch = 0;
       return true;
     }
@@ -784,6 +931,9 @@ export class CamTracker {
       thumbUp: !!this.thumbUp, thumbFresh: this.thumbFresh(),
       thumbConfidence: +this.thumbConfidence.toFixed(2),
       dualVisible: [...this.dualVisible], lastLostMarker: this.lastLostMarker, lostMarkers: [...this.lostMarkers],
+      pairState: this.pairState,
+      dualTrust: { left: +this.dualTrust.left.toFixed(2), right: +this.dualTrust.right.toFixed(2) },
+      dualDeltas: this.markers.map((m) => ({ id: m.id, deltaYaw: m.deltaYaw === null || m.deltaYaw === undefined ? null : +m.deltaYaw.toFixed(1) })),
       markers: this.markers.map((m) => ({ id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null, count: m.count || 0 })),
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,
       tol: this.tol, satMin: this.satMin,

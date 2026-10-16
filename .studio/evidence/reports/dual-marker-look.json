@@ -1,0 +1,138 @@
+{
+  "kind": "dual-marker-look",
+  "date": "2026-10-17",
+  "report": "games/candy-kingdom-coaster/DUAL_MARKER_LOOK.md",
+  "tool": "games/candy-kingdom-coaster/tests/tools/dualtrace.mjs (trace), tests/tools/camqa.mjs (regression 34/34)",
+  "method": "synthetic 320x240 frames through the real pipeline (analyzeColorBlobs -> _applyDualResult -> updateCameraLook -> VRController); head turn modelled physically: both boxes shift together in small steps, the far box leaves the frame, a foreign blob of its hue appears near the frame centre",
+  "symptom_verbatim": "Сейчас если взгляд увести в сторону то он очень быстро возвращается куда то в центр и я не пойму почему.",
+  "hypotheses": {
+    "pseudo_markers": "CONFIRMED (mechanism differs from the guess): the detector does not lose the real marker, it ADDS a foreign blob of the same hue, and the pair angle was the mean of one honest and one alien delta — the mean always pulls toward the frame centre because each delta is measured from that marker's own calibrated spot",
+    "loss_counted_on_first_marker": "REFUTED: with one box visible found=true / fresh=true, hold and edge-turn keep working; the 4 s return-to-centre needs BOTH markers gone and is not the cause"
+  },
+  "before": {
+    "geometry": "left real marker + foreign blob in the right marker's hue mask; camera frames (px, 320 wide)",
+    "rows": [
+      {
+        "frame": "only left marker (head turned ~20 deg)",
+        "deltas_deg": [
+          19.5,
+          null
+        ],
+        "pair_yaw_deg": 19.5,
+        "player_sees": "ok"
+      },
+      {
+        "frame": "+ alien blob 20 px from centre",
+        "deltas_deg": [
+          19.5,
+          -10.4
+        ],
+        "pair_yaw_deg": 4.5,
+        "player_sees": "gaze collapses almost to centre in 2-3 camera frames"
+      },
+      {
+        "frame": "only left, alien blob at the very centre",
+        "deltas_deg": [
+          13.2,
+          -17.3
+        ],
+        "pair_yaw_deg": -3.4,
+        "player_sees": "gaze sweeps past the centre"
+      },
+      {
+        "frame": "alien blob nearer the real marker",
+        "deltas_deg": [
+          13.2,
+          -1.7
+        ],
+        "pair_yaw_deg": 5.7,
+        "player_sees": "gaze sticks half-way"
+      }
+    ],
+    "amplifier": "main.js: camWasLost && jump > 8 -> camSnapPending -> second frame -> hard re-anchor camSmooth.yaw = t.yaw (no smoothing) — a false blob could snap the aim instantly",
+    "formula": "yaw = mean(delta_left, delta_right) with each delta measured from that marker's own calibration"
+  },
+  "after": {
+    "rules": [
+      "both visible and deltas agree within 6 deg -> mean as before (pairState 'pair')",
+      "both visible but deltas disagree -> trust-based single side, NO mean (pairState 'conflict'), loser loses 0.45 trust/frame",
+      "both masks hit the same object (centres < 4% of the frame apart) -> one side (pairState 'same')",
+      "one visible -> it leads alone (pairState 'single'), unchanged",
+      "blob smaller than max(40 px, 8% of calibrated) -> not a marker at all (pairState 'tiny')",
+      "jump limiter: 260 deg/s, floor 8 deg, cap 30 deg per processed frame (processing interval is 90-170 ms by tier)",
+      "after >900 ms without a marker: honest re-entry is accepted without the speed limit, but only if the next frame agrees within 3 deg (two-frame confirmation)",
+      "trust is required only when a competitor exists, so a lone visible marker can never freeze permanently"
+    ],
+    "measured": [
+      {
+        "frame": "single left after a physical head turn",
+        "pair_yaw_deg": 19.5,
+        "state": "single"
+      },
+      {
+        "frame": "+ alien blob near centre (delta -10.4)",
+        "pair_yaw_deg": 17.0,
+        "state": "conflict",
+        "old_mean_would_be_deg": 4.5,
+        "trust_right": 0
+      },
+      {
+        "frame": "pair visible again",
+        "pair_yaw_deg": 13.3,
+        "state": "pair"
+      },
+      {
+        "frame": "both markers gone, aged loss <=4 s",
+        "aim_deg": "held (13.2)",
+        "state": "lost"
+      },
+      {
+        "frame": "both gone, loss 4.2-9 s",
+        "aim_deg": "12.5 -> 11.3 (slow 5%/frame decay to centre)",
+        "state": "lost"
+      }
+    ]
+  },
+  "unchanged_on_purpose": [
+    "hold on loss",
+    "edge over-turn (exitSideX/Y dokrutka)",
+    "slow recentre after 4 s with both markers gone",
+    "1:1 pair tracking when both agree"
+  ],
+  "regression_checks_camqa": {
+    "total": "34/34",
+    "dual": [
+      "symmetric pair calibrates straight (0 deg)",
+      "pair shift gives a new angle",
+      "losing right leaves left leading (lastLostMarker right)",
+      "losing both keeps the last angle",
+      "alien blob does not pull the gaze to the centre (state conflict, trust right -> 0)",
+      "when the pair agrees again the count is by two markers (state pair)",
+      "tiny blob is ignored, big blob leads",
+      "instant jump of a lone marker is not accepted (state step)",
+      "after a long loss the angle is accepted by the second frame"
+    ]
+  },
+  "acceptance_after_change": {
+    "camqa": "34/34",
+    "vrqa": "20/20",
+    "remotqa": "21/21",
+    "joystickqa": "7/7",
+    "uiqa": "24/24",
+    "python_unittest": "15/15"
+  },
+  "diagnostics_added": [
+    "camtrack.info().pairState",
+    "camtrack.info().dualTrust",
+    "camtrack.info().dualDeltas",
+    "__TEST__.camLook() (aim before vr.js damping)"
+  ],
+  "field_notes": [
+    "if conflicts appear with both markers clearly visible and stable, raise DUAL_PAIR_GATE_DEG (6 deg ~ 26 px at fx=251 px / 65 deg FOV)",
+    "trust is not persisted across rides: a fresh calibration resets it to 1.0"
+  ],
+  "remaining": [
+    "not verified on real footage, only synthetically (headless SwiftShader); the tuning values (6 deg / 260 dps / 900 ms) are geometric estimates and may need one field iteration",
+    "max reachable yaw in the synthetic path is about +-32 deg (frame width), real range depends on camera FOV and marker placement"
+  ]
+}

@@ -603,7 +603,7 @@ function ensureCamTracker() {
   if (camTracker.dual !== dual) {
     camTracker.dual = dual;
     camTracker.c0n = null;
-    camTracker.dualCalibration = null;
+    camTracker.resetDualCalibration();
     camTracker.markers = [
       { id: 'left', found: false, count: 0 },
       { id: 'right', found: false, count: 0 },
@@ -1890,6 +1890,18 @@ window.__TEST__ = {
     return { result, info: t.info(), vr: this.vrInfo(), throttle: gestureThrottle() };
   },
   camInfo() { return camTracker ? camTracker.info() : null; },
+  // QA: куда именно сейчас ЦЕЛИТСЯ взгляд (до демпфирования в vr.js) —
+  // этим числом проверяются «нет возврата в центр» и «нет скачка».
+  camLook() {
+    const t = camTracker;
+    return {
+      yaw: +camSmooth.yaw.toFixed(2), pitch: +camSmooth.pitch.toFixed(2),
+      snapPending: camSnapPending ? { yaw: +camSnapPending.yaw.toFixed(1), pitch: +camSnapPending.pitch.toFixed(1) } : null,
+      wasLost: camWasLost,
+      lastFoundAgoMs: t && t.lastFoundAt ? Math.round(performance.now() - t.lastFoundAt) : null,
+      lookMode: vrSettings.lookMode, camOn: !!game.camOn, vrRide: !!game.vrRide,
+    };
+  },
   camEnableSynthetic() {
     vrSettings.lookMode = 'camera';
     const t = ensureCamTracker();
@@ -1903,7 +1915,7 @@ window.__TEST__ = {
     const t = ensureCamTracker();
     t.synthetic = true; t.running = true;
     game.camOn = true;
-    t.dualCalibration = null;
+    t.resetDualCalibration();
     return t.info();
   },
   camFeedDual(ax, ay, bx, by, r = 26) {
