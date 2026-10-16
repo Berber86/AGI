@@ -1,0 +1,37 @@
+{
+  "errors": [],
+  "checks": [
+    {
+      ".find-info p": {
+        "font": "13px",
+        "lineHeight": "20.15px",
+        "width": 312,
+        "height": 40.28125
+      },
+      ".view-controls button": {
+        "font": "11px",
+        "lineHeight": "normal",
+        "width": 70.421875,
+        "height": 44
+      },
+      ".rarity": {
+        "font": "9px",
+        "lineHeight": "normal",
+        "width": 120.78125,
+        "height": 31
+      },
+      ".decision": {
+        "font": "13px",
+        "lineHeight": "normal",
+        "width": 150.046875,
+        "height": 59
+      },
+      ".hero p": {
+        "font": "12px",
+        "lineHeight": "normal",
+        "width": 0,
+        "height": 0
+      }
+    }
+  ]
+}
