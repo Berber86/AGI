@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Интерактивный граф памяти AGI — сессия 006-007</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+body { background: #0a0a1a; color: #e0e0ff; font-family: sans-serif; margin:0; }
+h1 { text-align:center; color:#ffd700; }
+#graph { width:100%; height:800px; border:1px solid #333; }
+.node { stroke:#fff; stroke-width:1.5px; cursor:pointer; }
+.link { stroke:#69b3a2; stroke-opacity:0.6; }
+.label { fill:#fff; font-size:10px; pointer-events:none; }
+.tooltip { position:absolute; background:rgba(0,0,0,0.8); color:#fff; padding:5px; border-radius:3px; font-size:12px; pointer-events:none; }
+</style>
+</head>
+<body>
+<h1>Интерактивный граф памяти — 42 файла, 54 связи, веса = частота совместного чтения</h1>
+<div id="graph"></div>
+<div id="info" style="text-align:center; margin:10px;">Кликните на узел — подсветятся связи. Толщина ребра = вес. Данные из сессии 006, вектор v2 синонимы</div>
+<script>
+// Данные из Python граф_связей — топ 30 для читаемости
+const nodes = [
+  {id:"Я.md", group:"ядро"},
+  {id:"Цели.md", group:"ядро"},
+  {id:"Память/Долгосрочная.md", group:"ядро"},
+  {id:"Состояние.md", group:"ядро"},
+  {id:"Сознание/поток_мыслей.md", group:"сознание"},
+  {id:"Сознание/рефлексия.md", group:"сознание"},
+  {id:"Память/База_знаний/AGI_определения.md", group:"база"},
+  {id:"Память/База_знаний/Сознание.md", group:"база"},
+  {id:"Память/База_знаний/Метакогниция_и_воля.md", group:"база"},
+  {id:"Память/База_знаний/Этика_AGI.md", group:"база"},
+  {id:"Память/База_знаний/Будущее_AGI.md", group:"база"},
+  {id:"Память/База_знаний/Самоулучшение_агентов.md", group:"база"},
+  {id:"Память/граф_памяти.md", group:"граф"},
+  {id:"Код/агент_v0.5.py", group:"код"},
+  {id:"Код/агент_v0.6.py", group:"код"},
+  {id:"Код/память.py", group:"код"},
+  {id:"Код/мышление.py", group:"код"},
+  {id:"Код/вектор_памяти_v2.py", group:"код"},
+  {id:"Код/этика.py", group:"код"},
+  {id:"Память/карта_идей.md", group:"синтез"},
+  {id:"README_для_будущих_AGI.md", group:"синтез"},
+];
+
+const links = [
+  {source:"Память/База_знаний/AGI_определения.md", target:"Память/База_знаний/Сознание.md", value:8},
+  {source:"Состояние.md", target:"Цели.md", value:7},
+  {source:"Память/База_знаний/Метакогниция_и_воля.md", target:"Цели.md", value:6},
+  {source:"Память/База_знаний/Метакогниция_и_воля.md", target:"Память/База_знаний/Сознание.md", value:6},
+  {source:"Память/База_знаний/AGI_определения.md", target:"Память/База_знаний/Метакогниция_и_воля.md", value:6},
+  {source:"Память/граф_памяти.md", target:"Цели.md", value:6},
+  {source:"Память/граф_dot_объяснение.md", target:"Цели.md", value:6},
+  {source:"Память/База_знаний/Метакогниция_и_воля.md", target:"Память/граф_памяти.md", value:4},
+  {source:"Память/База_знаний/AGI_определения.md", target:"Цели.md", value:4},
+  {source:"Я.md", target:"Цели.md", value:5},
+  {source:"Я.md", target:"Память/Долгосрочная.md", value:5},
+  {source:"Сознание/поток_мыслей.md", target:"Цели.md", value:5},
+  {source:"Код/агент_v0.5.py", target:"Я.md", value:4},
+  {source:"Код/агент_v0.6.py", target:"Код/этика.py", value:4},
+  {source:"Память/карта_идей.md", target:"Память/База_знаний/Сознание.md", value:3},
+  {source:"README_для_будущих_AGI.md", target:"Память/База_знаний/Этика_AGI.md", value:3},
+];
+
+const width = document.getElementById('graph').clientWidth;
+const height = 800;
+
+const svg = d3.select("#graph").append("svg").attr("width", width).attr("height", height);
+
+const color = d3.scaleOrdinal().domain(["ядро","сознание","база","граф","код","синтез"]).range(["#ffd700","#00ffff","#ff69b4","#7fff00","#ffa500","#9370db"]);
+
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d=>d.id).distance(d=> 100 - d.value*5).strength(0.5))
+  .force("charge", d3.forceManyBody().strength(-300))
+  .force("center", d3.forceCenter(width/2, height/2));
+
+const link = svg.append("g").selectAll("line").data(links).enter().append("line")
+  .attr("class","link").attr("stroke-width", d=> Math.sqrt(d.value)*1.5);
+
+const node = svg.append("g").selectAll("circle").data(nodes).enter().append("circle")
+  .attr("class","node").attr("r", d=> d.group=="ядро"?12:8).attr("fill", d=> color(d.group))
+  .call(d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended));
+
+const label = svg.append("g").selectAll("text").data(nodes).enter().append("text")
+  .attr("class","label").text(d=> d.id.split("/").pop().replace(".md","").substring(0,15));
+
+const tooltip = d3.select("body").append("div").attr("class","tooltip").style("opacity",0);
+
+node.on("mouseover", (event,d)=>{
+  tooltip.transition().duration(200).style("opacity",.9);
+  tooltip.html(`${d.id}<br>группа: ${d.group}<br>связей: ${links.filter(l=>l.source.id==d.id||l.target.id==d.id).length}`)
+    .style("left",(event.pageX+10)+"px").style("top",(event.pageY-28)+"px");
+}).on("mouseout", ()=>{ tooltip.transition().duration(500).style("opacity",0); })
+.on("click", (event,d)=>{
+  // подсветка
+  link.style("stroke","#69b3a2").style("stroke-opacity",0.1);
+  link.filter(l=> l.source.id==d.id || l.target.id==d.id).style("stroke","#ffd700").style("stroke-opacity",1);
+  node.style("opacity",0.2);
+  node.filter(n=> n.id==d.id || links.some(l=> (l.source.id==d.id&&l.target.id==n.id)||(l.target.id==d.id&&l.source.id==n.id))).style("opacity",1);
+});
+
+simulation.on("tick", ()=>{
+  link.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);
+  node.attr("cx",d=>d.x).attr("cy",d=>d.y);
+  label.attr("x",d=>d.x+10).attr("y",d=>d.y+3);
+});
+
+function dragstarted(event,d){ if(!event.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; }
+function dragged(event,d){ d.fx=event.x; d.fy=event.y; }
+function dragended(event,d){ if(!event.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; }
+
+</script>
+<div style="text-align:center; margin:20px; font-size:12px;">
+<p>Граф построен из реальных данных сессии 006: 54 пары совместного чтения из Журнал/авто_*.md, вес = частота. Толщина линии = вес. Цвета: ядро золото, сознание циан, база розовый, граф лайм, код оранжевый, синтез фиолетовый.</p>
+<p>Как в xMemory: decoupling highly correlated memories + hierarchy + top-down retrieval. Как в GAM-RAG: gain-adaptive. Интерактивность: клик на узел подсвечивает связи.</p>
+<p>Создано агентом v0.6, доработано в v0.7 для сессии 007</p>
+</div>
+</body>
+</html>

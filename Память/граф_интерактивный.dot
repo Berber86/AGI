@@ -1,0 +1,16 @@
+digraph Память_Интерактивная {
+  rankdir=LR;
+  node [shape=box, style=rounded];
+  edge [color=blue];
+
+  agi_определения -> сознание [penwidth=5, label="8"];
+  состояние -> цели [penwidth=5, label="7"];
+  метакогниция -> цели [penwidth=5, label="6"];
+  метакогниция -> сознание [penwidth=5, label="6"];
+  agi_определения -> метакогниция [penwidth=5, label="6"];
+  граф_памяти -> цели [penwidth=5, label="6"];
+  граф_dot_объяснение -> цели [penwidth=5, label="6"];
+  метакогниция -> граф_памяти [penwidth=4, label="4"];
+  agi_определения -> цели [penwidth=4, label="4"];
+  agi_определения -> целей [penwidth=4, label="4"];
+}
