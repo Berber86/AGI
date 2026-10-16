@@ -72,26 +72,27 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   return { found: true, count: best.count, u: best.sx / best.count, v: best.sy / best.count };
 }
 
-// Дешёвый экспериментальный детектор жеста V без тяжёлой hand-pose модели.
-// Он ищет крупнейший skin-like компонент и две высокие раздельные вершины
-// его силуэта. Это намеренно не «распознавание руки вообще»: жест включается
-// только по явному переключателю, сглаживается несколькими кадрами и имеет
-// безопасное состояние false при сомнительном силуэте.
-export function analyzeVGesture(data, w, h) {
+// Дешёвый экспериментальный анализ жестов без тяжёлой hand-pose модели.
+// Маска и silhouette-профиль намеренно консервативны: при плохом кадре
+// результат false, а не догадка. V и thumbs-up возвращаются одним Worker
+// результатом, чтобы не заводить второй camera/runtime pipeline.
+function skinMask(data, w, h) {
   const mask = new Uint8Array(w * h);
-  let skinCount = 0;
+  let count = 0;
   for (let i = 0, px = 0; px < w * h; px++, i += 4) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
     const y = 0.299 * r + 0.587 * g + 0.114 * b;
     const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
     const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-    // Broad skin range: phones expose differently across children/lighting.
-    // The silhouette/temporal checks below provide the important rejection.
+    // Broad enough for different phones/skin tones; geometry rejects clutter.
     if (y < 35 || cb < 68 || cb > 145 || cr < 118 || cr > 192) continue;
-    mask[px] = 1; skinCount++;
+    mask[px] = 1;
+    count++;
   }
-  if (skinCount < Math.max(70, w * h * 0.004) || skinCount > w * h * 0.75) return { found: false, confidence: 0 };
+  return { mask, count };
+}
 
+function largestSkinComponent(mask, w, h) {
   const seen = new Uint8Array(w * h);
   const stack = [];
   let best = null;
@@ -99,13 +100,18 @@ export function analyzeVGesture(data, w, h) {
     if (!mask[start] || seen[start]) continue;
     let count = 0, minX = w, minY = h, maxX = 0, maxY = 0;
     const points = [];
-    stack.length = 0; stack.push(start); seen[start] = 1;
+    stack.length = 0;
+    stack.push(start);
+    seen[start] = 1;
     while (stack.length) {
       const cur = stack.pop();
       const x = cur % w, y = (cur / w) | 0;
-      points.push(cur); count++;
-      if (x < minX) minX = x; if (x > maxX) maxX = x;
-      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      points.push(cur);
+      count++;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
       if (x > 0 && mask[cur - 1] && !seen[cur - 1]) { seen[cur - 1] = 1; stack.push(cur - 1); }
       if (x < w - 1 && mask[cur + 1] && !seen[cur + 1]) { seen[cur + 1] = 1; stack.push(cur + 1); }
       if (y > 0 && mask[cur - w] && !seen[cur - w]) { seen[cur - w] = 1; stack.push(cur - w); }
@@ -113,13 +119,23 @@ export function analyzeVGesture(data, w, h) {
     }
     if (!best || count > best.count) best = { count, minX, minY, maxX, maxY, points };
   }
-  if (!best || best.count < Math.max(70, w * h * 0.006)) return { found: false, confidence: 0 };
-  const bw = best.maxX - best.minX + 1, bh = best.maxY - best.minY + 1;
-  if (bw < w * 0.12 || bh < h * 0.16 || bw > w * 0.9 || bh > h * 0.95) return { found: false, confidence: 0 };
+  return best;
+}
 
-  const top = new Int16Array(bw); top.fill(best.maxY + 1);
+function skinSilhouette(data, w, h) {
+  const { mask, count } = skinMask(data, w, h);
+  if (count < Math.max(70, w * h * 0.004) || count > w * h * 0.75) return null;
+  const best = largestSkinComponent(mask, w, h);
+  if (!best || best.count < Math.max(70, w * h * 0.006)) return null;
+  const bw = best.maxX - best.minX + 1;
+  const bh = best.maxY - best.minY + 1;
+  if (bw < w * 0.12 || bh < h * 0.16 || bw > w * 0.9 || bh > h * 0.95) return null;
+
+  const top = new Int16Array(bw);
+  top.fill(best.maxY + 1);
   for (const cur of best.points) {
-    const x = (cur % w) - best.minX, y = (cur / w) | 0;
+    const x = (cur % w) - best.minX;
+    const y = (cur / w) | 0;
     if (y < top[x]) top[x] = y + best.minY;
   }
   const smooth = new Float32Array(bw);
@@ -130,8 +146,16 @@ export function analyzeVGesture(data, w, h) {
     }
     smooth[x] = n ? sum / n : best.maxY + 1;
   }
+  return { ...best, bw, bh, smooth };
+}
+
+// Жест V: две высокие раздельные вершины силуэта.
+export function analyzeVGesture(data, w, h) {
+  const best = skinSilhouette(data, w, h);
+  if (!best) return { found: false, confidence: 0 };
+  const { minX, minY, maxY, bw, bh, smooth } = best;
   const candidates = [];
-  const topLimit = best.minY + bh * 0.42;
+  const topLimit = minY + bh * 0.42;
   for (let x = Math.max(2, Math.floor(bw * 0.12)); x < Math.min(bw - 2, Math.ceil(bw * 0.88)); x++) {
     if (smooth[x] > topLimit || smooth[x] > smooth[x - 1] || smooth[x] > smooth[x + 1]) continue;
     candidates.push({ x, y: smooth[x] });
@@ -157,10 +181,60 @@ export function analyzeVGesture(data, w, h) {
     found: confidence >= 0.55,
     confidence,
     peaks: [
-      { u: (best.minX + pair.a.x) / w, v: pair.a.y / h },
-      { u: (best.minX + pair.b.x) / w, v: pair.b.y / h },
+      { u: (minX + pair.a.x) / w, v: pair.a.y / h },
+      { u: (minX + pair.b.x) / w, v: pair.b.y / h },
     ],
   };
+}
+
+// Thumbs-up: one short, broad high protrusion attached to a wide fist.
+// The single-peak and height checks deliberately reject a V and a long,
+// narrow index finger; it is still a heuristic, so temporal debounce remains.
+export function analyzeThumbGesture(data, w, h) {
+  const best = skinSilhouette(data, w, h);
+  if (!best) return { found: false, confidence: 0 };
+  const { minX, minY, maxY, bw, bh, smooth, points, count } = best;
+  const topLimit = minY + bh * 0.42;
+  const candidates = [];
+  for (let x = Math.max(2, Math.floor(bw * 0.1)); x < Math.min(bw - 2, Math.ceil(bw * 0.9)); x++) {
+    if (smooth[x] > topLimit || smooth[x] > smooth[x - 1] || smooth[x] > smooth[x + 1]) continue;
+    const previous = candidates[candidates.length - 1];
+    // A rounded thumb top can produce two adjacent local minima; merge that
+    // plateau, while the valley between V fingers remains a separate peak.
+    if (previous && x - previous.x < bw * 0.30) {
+      if (smooth[x] < previous.y) previous.x = x, previous.y = smooth[x];
+    } else candidates.push({ x, y: smooth[x] });
+  }
+  if (candidates.length !== 1) return { found: false, confidence: 0 };
+  const peak = candidates[0];
+  const ratio = peak.x / Math.max(1, bw - 1);
+  // A thumb is attached to a side of the fist, not centred like an index.
+  if (ratio > 0.43 && ratio < 0.57) return { found: false, confidence: 0 };
+  const sample = (ratioX) => smooth[Math.max(0, Math.min(bw - 1, Math.round(ratioX * (bw - 1))))];
+  const shoulderY = Math.max(sample(0.14), sample(0.86));
+  const rise = shoulderY - peak.y;
+  if (rise < bh * 0.16 || rise > bh * 0.62) return { found: false, confidence: 0 };
+  const peakBand = peak.y + bh * 0.16;
+  let peakWidth = 0;
+  for (const y of smooth) if (y <= peakBand) peakWidth++;
+  if (peakWidth < bw * 0.16 || peakWidth > bw * 0.55) return { found: false, confidence: 0 };
+  const bodyPixels = points.reduce((n, cur) => n + (((cur / w) | 0) >= minY + bh * 0.50 ? 1 : 0), 0);
+  if (bodyPixels < count * 0.22 || bw < w * 0.16) return { found: false, confidence: 0 };
+  const confidence = Math.min(1,
+    0.48 + rise / Math.max(1, bh) * 0.42 + Math.min(0.22, peakWidth / Math.max(1, bw) * 0.30)
+  );
+  return {
+    found: confidence >= 0.58,
+    confidence,
+    tip: { u: (minX + peak.x) / w, v: peak.y / h },
+    silhouette: { width: bw / w, height: bh / h },
+    top: maxY,
+  };
+}
+
+export function analyzeGestures(data, w, h) {
+  const v = analyzeVGesture(data, w, h);
+  return { ...v, v, thumb: analyzeThumbGesture(data, w, h) };
 }
 
 // Две независимые цветовые метки. Пока размеры кадра малы, повторный
@@ -221,6 +295,11 @@ export class CamTracker {
     this.gestureLastAt = 0;
     this.gestureOnFrames = 0;
     this.gestureOffFrames = 0;
+    this.thumbUp = false;
+    this.thumbConfidence = 0;
+    this.thumbLastAt = 0;
+    this.thumbOnFrames = 0;
+    this.thumbOffFrames = 0;
 
     this.c0n = null; // нормализованный центр калибровки
     this.lastFoundAt = 0;
@@ -280,6 +359,11 @@ export class CamTracker {
     this.gestureLastAt = 0;
     this.gestureOnFrames = 0;
     this.gestureOffFrames = 0;
+    this.thumbUp = false;
+    this.thumbConfidence = 0;
+    this.thumbLastAt = 0;
+    this.thumbOnFrames = 0;
+    this.thumbOffFrames = 0;
     this._workerMode = false;
     this._workerBusy = false;
   }
@@ -303,14 +387,23 @@ export class CamTracker {
       this.gestureConfidence = 0;
       this.gestureOnFrames = 0;
       this.gestureOffFrames = 0;
+      this.thumbUp = false;
+      this.thumbConfidence = 0;
+      this.thumbOnFrames = 0;
+      this.thumbOffFrames = 0;
     }
   }
 
   _applyGesture(result) {
     if (!this.gestureEnabled) return;
-    this.gestureLastAt = performance.now();
-    this.gestureConfidence = result && Number.isFinite(result.confidence) ? result.confidence : 0;
-    if (result && result.found) {
+    const v = result && result.v ? result.v : (result || { found: false, confidence: 0 });
+    const thumb = result && result.thumb ? result.thumb : { found: false, confidence: 0 };
+    const now = performance.now();
+    this.gestureLastAt = now;
+    this.thumbLastAt = now;
+    this.gestureConfidence = Number.isFinite(v.confidence) ? v.confidence : 0;
+    this.thumbConfidence = Number.isFinite(thumb.confidence) ? thumb.confidence : 0;
+    if (v.found) {
       this.gestureOnFrames++;
       this.gestureOffFrames = 0;
       if (this.gestureOnFrames >= 2) this.gestureV = true;
@@ -319,10 +412,24 @@ export class CamTracker {
       this.gestureOnFrames = 0;
       if (this.gestureOffFrames >= 2) this.gestureV = false;
     }
+    if (thumb.found) {
+      this.thumbOnFrames++;
+      this.thumbOffFrames = 0;
+      if (this.thumbOnFrames >= 2) this.thumbUp = true;
+    } else {
+      this.thumbOffFrames++;
+      this.thumbOnFrames = 0;
+      // Gas is safety critical: one confirmed non-thumb frame stops, while
+      // enabling still needs two frames to avoid an accidental acceleration.
+      if (this.thumbOffFrames >= 1) this.thumbUp = false;
+    }
   }
 
   gestureFresh(maxMs = 700) {
     return this.gestureEnabled && this.gestureLastAt > 0 && (performance.now() - this.gestureLastAt) <= maxMs;
+  }
+  thumbFresh(maxMs = 700) {
+    return this.gestureEnabled && this.thumbLastAt > 0 && (performance.now() - this.thumbLastAt) <= maxMs;
   }
 
   _applyDualResult(res, w, h) {
@@ -409,7 +516,7 @@ export class CamTracker {
 
   processImageData(data, w, h) {
     this.lastFrame = { data, w, h };
-    const gesture = this.gestureEnabled ? analyzeVGesture(data, w, h) : null;
+    const gesture = this.gestureEnabled ? analyzeGestures(data, w, h) : null;
     const res = this.dual
       ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin), gesture }
       : { ...analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin), gesture };
@@ -580,11 +687,17 @@ export class CamTracker {
   injectGestureV(on = true) {
     this.synthetic = true;
     this.gestureEnabled = true;
-    this.gestureLastAt = performance.now();
+    const now = performance.now();
+    this.gestureLastAt = now;
+    this.thumbLastAt = now;
     this.gestureConfidence = on ? 1 : 0;
     this.gestureV = !!on;
     this.gestureOnFrames = on ? 2 : 0;
     this.gestureOffFrames = on ? 0 : 2;
+    this.thumbConfidence = 0;
+    this.thumbUp = false;
+    this.thumbOnFrames = 0;
+    this.thumbOffFrames = 2;
     return this.gestureV;
   }
 
@@ -616,6 +729,34 @@ export class CamTracker {
     return this.processImageData(data, w, h);
   }
 
+  // QA: a broad fist with one short side protrusion (thumbs-up).
+  injectThumbFrame(on = true, w = 160, h = 120) {
+    this.synthetic = true;
+    const data = new Uint8ClampedArray(w * h * 4);
+    if (!on) return this.processImageData(data, w, h);
+    const put = (x, y) => {
+      if (x < 0 || x >= w || y < 0 || y >= h) return;
+      const i = (y * w + x) * 4;
+      data[i] = 200; data[i + 1] = 140; data[i + 2] = 110; data[i + 3] = 255;
+    };
+    for (let y = 62; y <= 105; y++) for (let x = 55; x <= 105; x++) put(x, y);
+    const stroke = (x0, y0, x1, y1, r) => {
+      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+      for (let i = 0; i <= n; i++) {
+        const k = n ? i / n : 0;
+        const cx = Math.round(x0 + (x1 - x0) * k);
+        const cy = Math.round(y0 + (y1 - y0) * k);
+        for (let yy = cy - r; yy <= cy + r; yy++) for (let xx = cx - r; xx <= cx + r; xx++)
+          if ((xx - cx) ** 2 + (yy - cy) ** 2 <= r * r) put(xx, yy);
+      }
+    };
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if ((x - 80) ** 2 + (y - 82) ** 2 <= 25 ** 2) put(x, y);
+    }
+    stroke(90, 65, 90, 28, 9);
+    return this.processImageData(data, w, h);
+  }
+
   injectEmpty(w = 320, h = 240) {
     this.synthetic = true;
     return this.processImageData(new Uint8ClampedArray(w * h * 4), w, h);
@@ -640,6 +781,8 @@ export class CamTracker {
       dual: !!this.dual, dualCalibrated: !!this.dualCalibration,
       gestureEnabled: !!this.gestureEnabled, gestureV: !!this.gestureV,
       gestureFresh: this.gestureFresh(), gestureConfidence: +this.gestureConfidence.toFixed(2),
+      thumbUp: !!this.thumbUp, thumbFresh: this.thumbFresh(),
+      thumbConfidence: +this.thumbConfidence.toFixed(2),
       dualVisible: [...this.dualVisible], lastLostMarker: this.lastLostMarker, lostMarkers: [...this.lostMarkers],
       markers: this.markers.map((m) => ({ id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null, count: m.count || 0 })),
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,

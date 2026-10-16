@@ -36,7 +36,7 @@ export const Storage = {
   },
   // VR-поездка: режим взгляда и расстояние между стереокамерами (см).
   getVrSettings() {
-    return read('vr', { lookMode: 'look', baselineCm: 10, gestureZoom: false });
+    return read('vr', { lookMode: 'look', baselineCm: 10, driverMode: 'auto', gestureZoom: false });
   },
   saveVrSettings(s) {
     const clean = {
@@ -49,8 +49,8 @@ export const Storage = {
       camRightHue: s && Number.isFinite(s.camRightHue) ? s.camRightHue : null,
       camTol: Math.min(45, Math.max(8, Math.round(+((s && s.camTol) || 26)) || 26)),
       camSat: Math.min(70, Math.max(20, Math.round(+((s && s.camSat) || 42)) || 42)),
-      driverMode: s && s.driverMode === 'remote' ? 'remote' : 'auto',
-      gestureZoom: !!(s && s.gestureZoom),
+      driverMode: s && (s.driverMode === 'remote' || s.driverMode === 'gesture') ? s.driverMode : 'auto',
+      gestureZoom: !!(s && (s.gestureZoom || s.driverMode === 'gesture')),
       baselineCm: Math.min(150, Math.max(10, Math.round(+((s && s.baselineCm) || 10)) || 10)),
     };
     write('vr', clean);

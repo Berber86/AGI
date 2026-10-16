@@ -302,6 +302,8 @@ body:not([data-screen='game']) #hud { visibility: hidden; pointer-events: none; 
 .vr-note { color: #a0839c; font-size: 13px; line-height: 1.45; margin: 8px 0; font-weight: 700; }
 .vr-modes { display: flex; gap: 8px; margin: 8px 0 2px; }
 .vr-mode { flex: 1; margin: 0; }
+#vr-driver-auto, #vr-driver-gesture, #vr-driver-remote { min-width: 0; padding-left: 6px; padding-right: 6px; font-size: 12px; }
+#vr-driver-gesture[aria-pressed='true'] { background: linear-gradient(#e4ffd9, #c9f4b9); border-color: #a8d99a; color: #47743c; box-shadow: 0 3px 0 #98c888; }
 .vr-mode[aria-pressed='true'] { background: linear-gradient(#ffd9e9, #ffc2da); border-color: #f0a8c6; color: #8c4a6d; box-shadow: 0 3px 0 #e39bbd; }
 #vr-gesture-zoom[aria-pressed='true'] { background: linear-gradient(#e4ffd9, #c9f4b9); border-color: #a8d99a; color: #47743c; box-shadow: 0 3px 0 #98c888; }
 .vr-slider-label { display: block; margin: 10px 0 2px; color: #906084; font-size: 14px; font-weight: 850; }

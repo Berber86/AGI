@@ -107,7 +107,9 @@ const vr = new VRController(renderer, scene, camera);
 let remoteCtrl = null; // телефон-джойстик (создаётся из экрана подготовки)
 let vrSettings = normalizeVrSettings(Storage.getVrSettings());
 const isCameraLookMode = (mode = vrSettings.lookMode) => mode === 'camera' || mode === 'camera-dual';
-const needsCameraInput = () => isCameraLookMode() || !!vrSettings.gestureZoom;
+const gestureDriverEnabled = () => vrSettings.driverMode === 'gesture';
+const gestureInputEnabled = () => !!vrSettings.gestureZoom || gestureDriverEnabled();
+const needsCameraInput = () => isCameraLookMode() || gestureInputEnabled();
 
 // ---------------------------------------------------------------- state
 const game = {
@@ -123,10 +125,10 @@ const game = {
   boostT: 0,
   zoneIndex: -1,
   vrRide: false, // VR-поездка: заезд ведёт автопилот, игрок только смотрит
-  driverMode: 'auto', // 'auto' | 'remote' (телефон-джойстик)
+  driverMode: 'auto', // 'auto' | 'gesture' | 'remote'
   autoAssist: false, // команда джойстика: автопилот поверх руля
   camOn: false, // режим взгляда «По метке»: камера ведёт взгляд
-  gestureOn: false, // жест V для плавного приближения в VR
+  gestureOn: false, // gesture camera analyzer: V zoom and/or thumbs-up throttle
   vrPlan: null,
   vrSteer: 0,
   countdownT: 0,
@@ -212,6 +214,7 @@ const el = {
   vrCount: document.getElementById('vr-count'),
   vrCountNum: document.getElementById('vr-count-num'),
   vrDriverAuto: document.getElementById('vr-driver-auto'),
+  vrDriverGesture: document.getElementById('vr-driver-gesture'),
   vrDriverRemote: document.getElementById('vr-driver-remote'),
   vrRemotePanel: document.getElementById('vr-remote-panel'),
   vrCfg: document.getElementById('vr-cfg'),
@@ -488,12 +491,21 @@ function remoteDriveActive() {
 }
 
 function vrEffectiveSteer() {
-  // Джойстик ведёт, только пока его аналоговый ввод свеж; обрыв связи — автопилот.
+  // Ни thumbs-up, ни V не рулят: пока жестовый режим не получил руление,
+  // сохраняем безопасный автопилот по трассе.
   if (remoteDriveActive()) return remoteCtrl.steer();
   return vrSteer();
 }
 
+function gestureThrottle() {
+  const t = camTracker;
+  // Жестовый режим — fail-stop: камера/рука устарели или большого пальца
+  // нет, возвращаем ровно 0, а не автопилотный throttle.
+  return t && t.thumbFresh(700) && t.thumbUp ? 1 : 0;
+}
+
 function vrEffectiveThrottle() {
+  if (game.driverMode === 'gesture') return gestureThrottle();
   // null означает «джойстик сейчас не управляет» — тогда сохраняется
   // прежний мягкий фолбэк на автопилот. Ноль — настоящий свежий отпуск газа:
   // машина должна стоять, а не ехать на крейсерской скорости.
@@ -507,7 +519,7 @@ function publishRemoteState() {
     auto: !!game.autoAssist, look: vrSettings.lookMode, cm: vrSettings.baselineCm,
     muted: SFX.isMuted(), driver: game.vrRide ? game.driverMode : vrSettings.driverMode,
     speedKmh: +((game.speed || 0) * 3.6).toFixed(1),
-    throttle: remoteCtrl ? +remoteCtrl.throttle().toFixed(2) : 0,
+    throttle: game.driverMode === 'gesture' ? gestureThrottle() : (remoteCtrl ? +remoteCtrl.throttle().toFixed(2) : 0),
     steer: remoteCtrl ? +remoteCtrl.steer().toFixed(2) : 0,
     cam: {
       on: isCameraLookMode() && !!game.camOn,
@@ -518,6 +530,8 @@ function publishRemoteState() {
       visible: camTracker && camTracker.dual ? camTracker.dualVisible.length : null,
       lost: camTracker && camTracker.dual ? camTracker.lastLostMarker : null,
       gesture: !!(game.gestureOn && camTracker && camTracker.gestureV),
+      thumb: !!(game.gestureOn && camTracker && camTracker.thumbUp),
+      gestureDrive: game.driverMode === 'gesture',
       zoom: vr.zoomFactor(),
     },
   };
@@ -551,7 +565,7 @@ function executeRemoteCommand(name) {
       if (isCameraLookMode() && game.vrRide) {
         game.camOn = !game.camOn;
         if (game.camOn) {
-          game.gestureOn = !!vrSettings.gestureZoom;
+          game.gestureOn = gestureInputEnabled();
           const t = ensureCamTracker();
           t.setGestureEnabled(game.gestureOn);
           t.useWorkerMode();
@@ -607,7 +621,7 @@ function ensureCamTracker() {
     : (CAM_COLORS[vrSettings.camRightColor] || CAM_COLORS.raspberry).hue;
   camTracker.tol = vrSettings.camTol || 26;
   camTracker.satMin = (vrSettings.camSat || 42) / 100;
-  camTracker.setGestureEnabled(!!vrSettings.gestureZoom);
+  camTracker.setGestureEnabled(gestureInputEnabled());
   return camTracker;
 }
 function syncCamColorUi() {
@@ -735,8 +749,9 @@ function requestFullscreenLandscape() {
 }
 
 function startVrRide() {
+  if (vrSettings.driverMode !== 'remote' && remoteCtrl) closeRemote();
   game.camOn = isCameraLookMode();
-  game.gestureOn = !!vrSettings.gestureZoom;
+  game.gestureOn = gestureInputEnabled();
   camSmooth.yaw = 0; camSmooth.pitch = 0;
   if (needsCameraInput()) {
     const t = ensureCamTracker();
@@ -746,7 +761,9 @@ function startVrRide() {
   }
   startRace(); // сбрасывает трассу/сладости; интро и 3-2-1 в очках не нужны
   game.vrRide = true;
-  game.driverMode = vrSettings.driverMode === 'remote' ? 'remote' : 'auto';
+  game.driverMode = vrSettings.driverMode === 'remote' || vrSettings.driverMode === 'gesture'
+    ? vrSettings.driverMode : 'auto';
+  if (game.driverMode === 'gesture') game.speed = 0; // no thumb means stopped from frame one
   game.autoAssist = false;
   game.vrPlan = planVrRide();
   game.state = 'racing';
@@ -826,16 +843,26 @@ function updateCamPrepUi() {
   if (!camTracker) {
     el.vrCamStatus.textContent = 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.';
     el.vrCamDualStatus.textContent = 'Камера выключена. Включите камеру и наведите её на две коробки.';
-    el.vrGestureStatus.textContent = 'Жест V включит камеру только после старта VR.';
+    el.vrGestureStatus.textContent = gestureDriverEnabled()
+      ? 'Жестовый ввод включит заднюю камеру только после старта VR: 👍 газ, ✌️ zoom.'
+      : 'Жест V включит камеру только после старта VR.';
     return;
   }
   const info = camTracker.info();
-  if (vrSettings.gestureZoom) {
-    el.vrGestureStatus.textContent = !info.gestureFresh
-      ? 'Жест V не виден — масштаб 1×. Нужны два уверенных кадра руки.'
+  if (gestureInputEnabled()) {
+    const vStatus = !info.gestureFresh
+      ? '✌️ V не виден — zoom 1×.'
       : info.gestureV
-        ? '✅ V распознан — приближение плавно растёт до 6×; отпускание возвращает обзор быстрее.'
-        : 'Камера готова: поднимите указательный и средний пальцы буквой V.';
+        ? '✌️ V распознан — zoom включён.'
+        : '✌️ поднимите указательный и средний пальцы.';
+    const thumbStatus = !info.thumbFresh
+      ? '👍 камера не видит руку — стоп.'
+      : info.thumbUp
+        ? '👍 большой палец виден — газ.'
+        : '👍 большой палец не поднят — стоп.';
+    el.vrGestureStatus.textContent = gestureDriverEnabled()
+      ? `${thumbStatus} ${vStatus} Руление — автопилот.`
+      : vStatus;
   }
   if (vrSettings.lookMode === 'camera-dual') {
     el.vrCamDualStatus.textContent = !info.running && !info.synthetic
@@ -877,9 +904,17 @@ function syncVrUi() {
   el.vrModeForward.setAttribute('aria-pressed', String(vrSettings.lookMode === 'forward'));
   el.vrIpd.value = String(vrSettings.baselineCm);
   el.vrIpdVal.textContent = `${vrSettings.baselineCm} см`;
-  el.vrDriverAuto.setAttribute('aria-pressed', String(vrSettings.driverMode !== 'remote'));
+  const gestureDriver = gestureDriverEnabled();
+  el.vrDriverAuto.setAttribute('aria-pressed', String(vrSettings.driverMode === 'auto'));
+  el.vrDriverGesture.setAttribute('aria-pressed', String(gestureDriver));
   el.vrDriverRemote.setAttribute('aria-pressed', String(vrSettings.driverMode === 'remote'));
   el.vrRemotePanel.classList.toggle('hidden', vrSettings.driverMode !== 'remote');
+  if (gestureDriver) {
+    vrSettings.gestureZoom = true;
+    el.vrGestureZoom.setAttribute('aria-pressed', 'true');
+    el.vrGestureZoom.textContent = '👍✌️ Жесты включены';
+    el.vrGestureStatus.textContent = 'Режим без джойстика: 👍 виден — газ, 👍 пропал — стоп; ✌️ — zoom. Руление остаётся автопилотом.';
+  }
   updateRemoteUi();
 }
 function saveVrUi() {
@@ -903,8 +938,16 @@ function stopVrCountdown() {
 el.btnVr.addEventListener('click', () => { SFX.unlock(); SFX.play('click'); openVrPrep(); });
 el.btnVrCancel.addEventListener('click', () => { SFX.play('click'); hideVrPrep(); });
 el.vrModeLook.addEventListener('click', () => { vrSettings.lookMode = 'look'; saveVrUi(); SFX.play('click'); });
-el.vrDriverAuto.addEventListener('click', () => { vrSettings.driverMode = 'auto'; saveVrUi(); SFX.play('click'); });
-el.vrDriverRemote.addEventListener('click', () => { vrSettings.driverMode = 'remote'; saveVrUi(); SFX.play('click'); });
+function selectDriverMode(mode) {
+  vrSettings.driverMode = mode === 'remote' || mode === 'gesture' ? mode : 'auto';
+  if (vrSettings.driverMode === 'gesture') vrSettings.gestureZoom = true;
+  if (vrSettings.driverMode !== 'remote' && remoteCtrl) closeRemote();
+  saveVrUi();
+  SFX.play('click');
+}
+el.vrDriverAuto.addEventListener('click', () => selectDriverMode('auto'));
+el.vrDriverGesture.addEventListener('click', () => selectDriverMode('gesture'));
+el.vrDriverRemote.addEventListener('click', () => selectDriverMode('remote'));
 el.vrCfgConnect.addEventListener('click', () => { SFX.play('click'); setupRemote('firebase'); });
 el.vrRoomDemo.addEventListener('click', () => { SFX.play('click'); setupRemote('demo'); });
 try {
@@ -917,6 +960,7 @@ el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forwar
 el.vrModeCamera.addEventListener('click', () => { vrSettings.lookMode = 'camera'; saveVrUi(); SFX.play('click'); });
 el.vrModeCameraDual.addEventListener('click', () => { vrSettings.lookMode = 'camera-dual'; saveVrUi(); SFX.play('click'); });
 el.vrGestureZoom.addEventListener('click', () => {
+  if (gestureDriverEnabled()) return; // combined mode deliberately keeps both gestures on
   vrSettings.gestureZoom = !vrSettings.gestureZoom;
   saveVrUi();
   SFX.play('click');
@@ -1781,8 +1825,8 @@ window.__TEST__ = {
     game.boostCharges = 0;
     return { boost: game.boostActive, t: game.boostT };
   },
-  vrStart(lookMode = 'look', baselineCm = 10, gestureZoom = false) {
-    vrSettings = normalizeVrSettings({ lookMode, baselineCm, gestureZoom, driverMode: vrSettings.driverMode });
+  vrStart(lookMode = 'look', baselineCm = 10, gestureZoom = false, driverMode = vrSettings.driverMode) {
+    vrSettings = normalizeVrSettings({ lookMode, baselineCm, gestureZoom, driverMode });
     Storage.saveVrSettings(vrSettings);
     startVrRide();
     return this.vrInfo();
@@ -1823,6 +1867,17 @@ window.__TEST__ = {
     const result = t.injectGestureFrame(on);
     updateGestureZoom();
     return { result, info: t.info(), vr: this.vrInfo() };
+  },
+  gestureThumbFeed(on = true) {
+    vrSettings.driverMode = 'gesture';
+    vrSettings.gestureZoom = true;
+    game.driverMode = 'gesture';
+    game.gestureOn = true;
+    const t = ensureCamTracker();
+    t.synthetic = true; t.running = true; t.setGestureEnabled(true);
+    const result = t.injectThumbFrame(on);
+    updateGestureZoom();
+    return { result, info: t.info(), vr: this.vrInfo(), throttle: gestureThrottle() };
   },
   camInfo() { return camTracker ? camTracker.info() : null; },
   camEnableSynthetic() {
@@ -1905,7 +1960,10 @@ window.__TEST__ = {
       lateral: +game.lateral.toFixed(2), collected: sweets.collected,
       boostActive: game.boostActive, boostCharges: game.boostCharges,
       zone: track.zoneAt(game.s / track.length).id,
-      vrActive: vr.active, vrRide: game.vrRide, driverMode: game.driverMode, remote: remoteCtrl ? remoteCtrl.info() : null,
+      vrActive: vr.active, vrRide: game.vrRide, driverMode: game.driverMode,
+      gestureV: !!(game.gestureOn && camTracker && camTracker.gestureV),
+      thumbUp: !!(game.gestureOn && camTracker && camTracker.thumbUp),
+      remote: remoteCtrl ? remoteCtrl.info() : null,
     };
   },
   camDebug() {

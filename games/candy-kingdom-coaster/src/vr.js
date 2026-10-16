@@ -15,10 +15,11 @@ const GYRO_FRESH_MS = 1500;
 
 export function normalizeVrSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
+  const driverMode = s.driverMode === 'remote' || s.driverMode === 'gesture' ? s.driverMode : 'auto';
   return {
     lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual' ? s.lookMode : 'look',
-    driverMode: s.driverMode === 'remote' ? 'remote' : 'auto',
-    gestureZoom: s.gestureZoom === true,
+    driverMode,
+    gestureZoom: s.gestureZoom === true || driverMode === 'gesture',
     camColor: typeof s.camColor === 'string' ? s.camColor : 'raspberry',
     camHue: Number.isFinite(s.camHue) ? s.camHue : null,
     camLeftColor: typeof s.camLeftColor === 'string' ? s.camLeftColor : 'orange',

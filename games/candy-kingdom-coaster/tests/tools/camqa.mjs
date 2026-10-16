@@ -72,6 +72,21 @@ const gestureUi = await page.evaluate(() => {
 record('жест V: отдельный opt-in переключатель сохраняется и выключается',
   gestureUi.before === 'false' && gestureUi.on.pressed === 'true' && gestureUi.on.saved.gestureZoom === true
     && gestureUi.after === 'false', gestureUi);
+const driverUi = await page.evaluate(() => {
+  const b = document.getElementById('vr-driver-gesture');
+  b.click();
+  const on = {
+    pressed: b.getAttribute('aria-pressed'),
+    saved: JSON.parse(localStorage.getItem('ckc_v1_vr') || 'null'),
+    status: document.getElementById('vr-gesture-status').textContent,
+  };
+  document.getElementById('vr-driver-auto').click();
+  return { on, after: b.getAttribute('aria-pressed') };
+});
+record('режим жестов вместо джойстика: 👍 газ + ✌️ zoom, Firebase не нужен',
+  driverUi.on.pressed === 'true' && driverUi.on.saved.driverMode === 'gesture'
+    && driverUi.on.saved.gestureZoom === true && /газ/.test(driverUi.on.status)
+    && driverUi.after === 'false', driverUi);
 
 // 1. синтетическая камера + старт поездки в режиме «По метке»
 const boot = await page.evaluate(() => {
@@ -231,6 +246,27 @@ record('жест V: VR-only zoom плавно доходит почти до 6×
 record('жест V: два плохих кадра отключают zoom, возврат быстрее набора',
   gesture.off1.result.gesture.found === false && gesture.off2.info.gestureV === false
     && gesture.released.zoomActive === false && gesture.released.zoomFactor < 1.5, gesture.released);
+
+// 11. thumbs-up gas: no steering, no remote input, fail-stop on missing thumb.
+const thumb = await page.evaluate(() => {
+  const on1 = window.__TEST__.gestureThumbFeed(true);
+  const on2 = window.__TEST__.gestureThumbFeed(true);
+  window.__TEST__.step(1 / 60, 45, false);
+  const driving = { vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo(), state: window.__TEST__.remoteState() };
+  const off1 = window.__TEST__.gestureThumbFeed(false);
+  const off2 = window.__TEST__.gestureThumbFeed(false);
+  window.__TEST__.step(1 / 60, 30, false);
+  const stopped = { vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo() };
+  return { on1, on2, driving, off1, off2, stopped };
+});
+record('thumbs-up: детектор и debounce включают газ, V остаётся отдельным',
+  thumb.on1.result.gesture.thumb.found && thumb.on2.info.thumbUp === true
+    && thumb.on2.info.gestureV === false && thumb.driving.game.driverMode === 'gesture'
+    && thumb.driving.state.cam.gestureDrive === true && thumb.driving.state.cam.gesture === false
+    && thumb.driving.game.remote === null, thumb.driving);
+record('thumbs-up: большой палец пропал — throttle 0 и машина останавливается',
+  thumb.off1.result.gesture.thumb.found === false && thumb.off2.info.thumbUp === false
+    && thumb.stopped.game.thumbUp === false && thumb.stopped.game.speedKmh < 10, thumb.stopped);
 
 record('ошибок на странице нет', errors.length === 0, errors);
 

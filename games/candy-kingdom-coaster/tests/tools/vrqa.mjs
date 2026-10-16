@@ -150,8 +150,25 @@ const zoomReleased = await page.evaluate(() => window.__TEST__.vrInfo());
 record('gesture: потеря V возвращает масштаб заметно быстрее',
   zoomReleased.zoomActive === false && zoomReleased.zoomFactor < 1.5 && zoomReleased.fov > 35, zoomReleased);
 
+await page.evaluate(() => {
+  window.__TEST__.vrStart('look', 30, true, 'gesture');
+  window.__TEST__.gestureThumbFeed(true);
+  window.__TEST__.gestureThumbFeed(true);
+});
+await page.evaluate(() => window.__TEST__.step(1 / 60, 45, false));
+const gasOn = await page.evaluate(() => ({ vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo(), remote: window.__TEST__.remoteState() }));
+record('gesture gas: thumbs-up включает throttle без Firebase и без руления',
+  gasOn.game.driverMode === 'gesture' && gasOn.game.thumbUp === true
+    && gasOn.remote.cam.gestureDrive === true && gasOn.game.remote === null
+    && gasOn.game.speedKmh > 30, gasOn);
+await page.evaluate(() => { window.__TEST__.gestureThumbFeed(false); window.__TEST__.gestureThumbFeed(false); });
+await page.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
+const gasOff = await page.evaluate(() => ({ vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo() }));
+record('gesture gas: без большого пальца throttle 0 и машина замедляется',
+  gasOff.game.thumbUp === false && gasOff.game.speedKmh < 10, gasOff);
+
 // ---------- 5. автопилот: полный заезд до финиша без ввода ----------
-await page.evaluate(() => { window.__TEST__.vrStart('look', 25); });
+await page.evaluate(() => { window.__TEST__.vrStart('look', 25, false, 'auto'); });
 let fin = null;
 for (let i = 0; i < 70 && !fin; i++) {
   const st = await page.evaluate(() => { window.__TEST__.step(1 / 30, 300, false); return window.__TEST__.vrInfo().state; });
@@ -170,7 +187,7 @@ record('autopilot: развилки пройдены по плану поезд�
 record('autopilot: сладости собирались без игрока', endInfo.info.collected > 15, endInfo.info);
 
 // ---------- 6. выход поворотом в портрет ----------
-await page.evaluate(() => { window.__TEST__.vrStart('look', 30); window.__TEST__.step(1 / 60, 20, true); });
+await page.evaluate(() => { window.__TEST__.vrStart('look', 30, false, 'auto'); window.__TEST__.step(1 / 60, 20, true); });
 await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
 await sleep(500);
 const port = await page.evaluate(() => window.__TEST__.vrInfo());

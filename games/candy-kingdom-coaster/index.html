@@ -192,12 +192,13 @@
         <div class="row vr-gesture-control">
           <button type="button" id="vr-gesture-zoom" class="mid-btn" aria-pressed="false">✌️ Жест V — включить зум</button>
         </div>
-        <p id="vr-gesture-status" class="vr-note" aria-live="polite">Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим.</p>
+        <p id="vr-gesture-status" class="vr-note" aria-live="polite">Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим. В режиме «Жесты» 👍 газует, ✌️ приближает.</p>
         <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
         <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">
         <p class="vr-note">Шире — объём сильнее, мир как миниатюра. Закружилась голова — снимите очки.</p>
         <div class="vr-modes" role="group" aria-label="Кто ведёт машинку">
           <button type="button" id="vr-driver-auto" class="mid-btn vr-mode" aria-pressed="true">🤖 Сама едет</button>
+          <button type="button" id="vr-driver-gesture" class="mid-btn vr-mode" aria-pressed="false">👍✌️ Жесты: газ + зум</button>
           <button type="button" id="vr-driver-remote" class="mid-btn vr-mode" aria-pressed="false">🕹 Джойстик</button>
         </div>
         <div id="vr-remote-panel" class="hidden">
