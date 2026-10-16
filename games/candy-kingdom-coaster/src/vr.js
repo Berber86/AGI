@@ -15,8 +15,10 @@ const GYRO_FRESH_MS = 1500;
 export function normalizeVrSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
   return {
-    lookMode: s.lookMode === 'forward' ? 'forward' : 'look',
+    lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' ? s.lookMode : 'look',
     driverMode: s.driverMode === 'remote' ? 'remote' : 'auto',
+    camColor: typeof s.camColor === 'string' ? s.camColor : 'raspberry',
+    camHue: Number.isFinite(s.camHue) ? s.camHue : null,
     baselineCm: Math.min(VR_BASELINE_MAX_CM, Math.max(VR_BASELINE_MIN_CM,
       Number.isFinite(+s.baselineCm) ? Math.round(+s.baselineCm) : VR_BASELINE_MIN_CM)),
   };
@@ -108,7 +110,7 @@ export class VRController {
   // Живые настройки из команд джойстика: взгляд перецентрируется, базис
   // применяется со следующего кадра (render читает settings каждый кадр).
   setLookMode(mode) {
-    this.settings.lookMode = mode === 'forward' ? 'forward' : 'look';
+    this.settings.lookMode = mode === 'forward' || mode === 'camera' ? mode : 'look';
     this._refQuat = null;
     this._yaw = 0; this._pitch = 0;
   }
@@ -130,7 +132,24 @@ export class VRController {
   // Текущая цель взгляда: режим «вперёд» — всегда 0; подмена для тестов;
   // гироскоп, пока события свежие; иначе — медленный авто-обзор красивых мест.
   lookTarget(now = performance.now()) {
-    if (this.settings.lookMode !== 'look') return { yaw: 0, pitch: 0, source: 'forward' };
+    if (this.settings.lookMode === 'forward') return { yaw: 0, pitch: 0, source: 'forward' };
+    if (this.settings.lookMode === 'camera') {
+      // Взгляд ведёт камера (main подаёт углы метки в setSimLook);
+      // гироскоп не участвует. Нет свежих углов — мягкий авто-обзор.
+      if (this._sim) {
+        return {
+          yaw: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.yaw), -MAX_YAW, MAX_YAW),
+          pitch: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.pitch), -MAX_PITCH, MAX_PITCH),
+          source: 'camera',
+        };
+      }
+      const t = now * 0.001;
+      return {
+        yaw: THREE.MathUtils.degToRad(20) * Math.sin(t * 0.35),
+        pitch: THREE.MathUtils.degToRad(6) * Math.sin(t * 0.23 + 1.3),
+        source: 'autopan',
+      };
+    }
     if (this._sim) {
       return {
         yaw: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.yaw), -MAX_YAW, MAX_YAW),

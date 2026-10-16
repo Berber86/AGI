@@ -101,6 +101,7 @@
         <button type="button" class="cmd-btn" id="cmd-cm-minus">↔ Камеры −10</button>
         <button type="button" class="cmd-btn" id="cmd-cm-plus">↔ Камеры +10</button>
         <button type="button" class="cmd-btn" id="cmd-mute">🔊 Звук: вкл</button>
+        <button type="button" class="cmd-btn" id="cmd-cam">📷 Камера: —</button>
         <button type="button" class="cmd-btn" id="cmd-finish">🏁 Финиш сейчас</button>
         <button type="button" class="cmd-btn danger" id="cmd-menu" style="grid-column: 1 / -1">🏠 В меню (выйти из VR)</button>
       </div>
@@ -121,7 +122,7 @@ const els = {
   cmd: {
     restart: $('cmd-restart'), pause: $('cmd-pause'), auto: $('cmd-auto'), look: $('cmd-look'),
     cmMinus: $('cmd-cm-minus'), cmPlus: $('cmd-cm-plus'), mute: $('cmd-mute'),
-    finish: $('cmd-finish'), menu: $('cmd-menu'),
+    finish: $('cmd-finish'), menu: $('cmd-menu'), cam: $('cmd-cam'),
   },
 };
 const qs = new URLSearchParams(location.search);
@@ -339,9 +340,14 @@ function renderCmdState(st) {
   els.cmd.auto.classList.toggle('on', !!st.auto);
   els.cmd.look.textContent = `👀 Взгляд: ${st.look === 'forward' ? 'вперёд' : 'осматриваться'}`;
   els.cmd.mute.textContent = st.muted ? '🔇 Звук: выкл' : '🔊 Звук: вкл';
+  els.cmd.cam.textContent = st.cam && st.cam.on
+    ? (st.cam.found ? '📷 Камера: метка видна' : '📷 Камера: метка потеряна')
+    : '📷 Камера: выкл';
+  els.cmd.cam.classList.toggle('on', !!(st.cam && st.cam.on && st.cam.found));
   els.cmdState.textContent =
     `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ↔ камеры ${st.cm} см · ` +
-    `взгляд ${st.look === 'forward' ? 'вперёд' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}`;
+    `взгляд ${st.look === 'forward' ? 'вперёд' : st.look === 'camera' ? 'по метке' : 'осматриваться'} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
+    (st.cam ? ` · 📷 ${st.cam.on ? (st.cam.found ? 'метка видна' : 'метка потеряна') : 'выкл'}` : '');
 }
 function setMode(cmd) {
   els.modeSteer.setAttribute('aria-pressed', String(!cmd));
@@ -358,6 +364,7 @@ els.cmd.look.addEventListener('click', () => sendCmd('lookToggle'));
 els.cmd.cmMinus.addEventListener('click', () => sendCmd('cmMinus'));
 els.cmd.cmPlus.addEventListener('click', () => sendCmd('cmPlus'));
 els.cmd.mute.addEventListener('click', () => sendCmd('muteToggle'));
+els.cmd.cam.addEventListener('click', () => sendCmd('camToggle'));
 els.cmd.finish.addEventListener('click', () => sendCmd('finish'));
 els.cmd.menu.addEventListener('click', () => {
   const b = els.cmd.menu;

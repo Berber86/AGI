@@ -25,6 +25,7 @@ import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { VRController, normalizeVrSettings } from './vr.js';
 import { RemoteControl, parseFirebaseConfig } from './remote.js';
+import { CamTracker, CAM_COLORS } from './camtrack.js';
 import { loadTextures, countLoaded } from './textures.js';
 import { setLoading, finishLoading, paintLoading } from './loading.js';
 
@@ -122,6 +123,7 @@ const game = {
   vrRide: false, // VR-поездка: заезд ведёт автопилот, игрок только смотрит
   driverMode: 'auto', // 'auto' | 'remote' (телефон-джойстик)
   autoAssist: false, // команда джойстика: автопилот поверх руля
+  camOn: false, // режим взгляда «По метке»: камера ведёт взгляд
   vrPlan: null,
   vrSteer: 0,
   countdownT: 0,
@@ -173,6 +175,13 @@ const el = {
   btnVr: document.getElementById('btn-vr'),
   vrScreen: document.getElementById('screen-vr'),
   vrModeLook: document.getElementById('vr-mode-look'),
+  vrModeCamera: document.getElementById('vr-mode-camera'),
+  vrCamPanel: document.getElementById('vr-cam-panel'),
+  vrCamVideo: document.getElementById('vr-cam-video'),
+  vrCamStart: document.getElementById('vr-cam-start'),
+  vrCamSample: document.getElementById('vr-cam-sample'),
+  vrCamCalib: document.getElementById('vr-cam-calib'),
+  vrCamStatus: document.getElementById('vr-cam-status'),
   vrModeForward: document.getElementById('vr-mode-forward'),
   vrIpd: document.getElementById('vr-ipd'),
   vrIpdVal: document.getElementById('vr-ipd-val'),
@@ -460,13 +469,17 @@ function vrEffectiveSteer() {
 
 let lastRemoteState = null;
 function publishRemoteState() {
-  if (!remoteCtrl) return;
   lastRemoteState = {
     paused: game.state === 'paused', racing: game.state === 'racing',
     auto: !!game.autoAssist, look: vrSettings.lookMode, cm: vrSettings.baselineCm,
     muted: SFX.isMuted(), driver: game.vrRide ? game.driverMode : vrSettings.driverMode,
+    cam: {
+      on: vrSettings.lookMode === 'camera' && !!game.camOn,
+      found: !!(camTracker && camTracker.fresh(1200)),
+      yaw: camTracker ? Math.round(camTracker.yaw) : 0,
+    },
   };
-  remoteCtrl.publishState(lastRemoteState);
+  if (remoteCtrl) remoteCtrl.publishState(lastRemoteState);
 }
 
 function executeRemoteCommand(name) {
@@ -479,7 +492,8 @@ function executeRemoteCommand(name) {
       break;
     case 'autoToggle': game.autoAssist = !game.autoAssist; break;
     case 'lookToggle':
-      vrSettings.lookMode = vrSettings.lookMode === 'look' ? 'forward' : 'look';
+      if (vrSettings.lookMode === 'camera') { stopCamTracker(); vrSettings.lookMode = 'look'; }
+      else vrSettings.lookMode = vrSettings.lookMode === 'look' ? 'forward' : 'look';
       vr.setLookMode(vrSettings.lookMode);
       vrSettings = Storage.saveVrSettings(vrSettings);
       break;
@@ -491,6 +505,13 @@ function executeRemoteCommand(name) {
       break;
     }
     case 'muteToggle': SFX.toggleMute(); setSoundIcons(); break;
+    case 'camToggle':
+      if (vrSettings.lookMode === 'camera' && game.vrRide) {
+        game.camOn = !game.camOn;
+        if (game.camOn) { const t = ensureCamTracker(); if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {}); }
+        else stopCamTracker(), game.camOn = false;
+      }
+      break;
     case 'finish': if (game.state === 'racing' || game.state === 'paused') finishRace(); break;
     case 'menu': exitVrToMenu(); break;
   }
@@ -505,7 +526,40 @@ function ensureRemote() {
   return remoteCtrl;
 }
 
+// ------------------------------------------------------------- камера-метка
+let camTracker = null;
+const camSmooth = { yaw: 0, pitch: 0 };
+let camLastProcess = 0;
+function ensureCamTracker() {
+  if (!camTracker) camTracker = new CamTracker();
+  camTracker.hue = vrSettings.camColor === 'custom' && Number.isFinite(vrSettings.camHue)
+    ? vrSettings.camHue
+    : (CAM_COLORS[vrSettings.camColor] || CAM_COLORS.raspberry).hue;
+  return camTracker;
+}
+function stopCamTracker() {
+  game.camOn = false;
+  if (camTracker) camTracker.stop();
+  vr.setSimLook(null);
+}
+// Взгляд по камере: свежие углы метки сглаживаются в VR; метка пропала
+// дольше 1,5 с — vr сам уходит в мягкий авто-обзор (setSimLook(null)).
+function updateCameraLook(now, force = false) {
+  if (!game.vrRide || vrSettings.lookMode !== 'camera' || !game.camOn || !camTracker) return;
+  if (!force && now - camLastProcess < 70) return;
+  camLastProcess = now;
+  camTracker.process();
+  if (camTracker.fresh(900)) {
+    camSmooth.yaw += (camTracker.yaw - camSmooth.yaw) * 0.45;
+    camSmooth.pitch += (camTracker.pitch - camSmooth.pitch) * 0.45;
+    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
+  } else if (!camTracker.found && performance.now() - camTracker.lastFoundAt > 1500) {
+    vr.setSimLook(null);
+  }
+}
+
 function closeRemote() {
+  stopCamTracker();
   if (remoteCtrl) { remoteCtrl.close(); remoteCtrl = null; }
 }
 
@@ -526,6 +580,12 @@ function requestFullscreenLandscape() {
 }
 
 function startVrRide() {
+  game.camOn = vrSettings.lookMode === 'camera';
+  camSmooth.yaw = 0; camSmooth.pitch = 0;
+  if (game.camOn) {
+    const t = ensureCamTracker();
+    if (!t.running && !t.synthetic) t.start(el.vrCamVideo).catch(() => {});
+  }
   startRace(); // сбрасывает трассу/сладости; интро и 3-2-1 в очках не нужны
   game.vrRide = true;
   game.driverMode = vrSettings.driverMode === 'remote' ? 'remote' : 'auto';
@@ -601,7 +661,20 @@ async function setupRemote(kind) {
   updateRemoteUi();
 }
 
+function updateCamPrepUi() {
+  if (!camTracker) { el.vrCamStatus.textContent = 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.'; return; }
+  const info = camTracker.info();
+  el.vrCamStatus.textContent = !info.running && !info.synthetic
+    ? 'Камера выключена. Включите камеру и наведите заднюю камеру на коробку.'
+    : info.found
+      ? `✅ Метка видна: yaw ${info.yaw}°, pitch ${info.pitch}°. Нажмите «Смотрю на метку», когда она прямо перед вами.`
+      : 'Метка не видна: проверьте цвет (или «Взять цвет коробки») и освещение.';
+}
 function syncVrUi() {
+  el.vrModeCamera.setAttribute('aria-pressed', String(vrSettings.lookMode === 'camera'));
+  el.vrCamPanel.classList.toggle('hidden', vrSettings.lookMode !== 'camera');
+  document.querySelectorAll('.vr-cam-color').forEach((b) =>
+    b.setAttribute('aria-pressed', String(vrSettings.camColor === b.dataset.color)));
   el.vrModeLook.setAttribute('aria-pressed', String(vrSettings.lookMode === 'look'));
   el.vrModeForward.setAttribute('aria-pressed', String(vrSettings.lookMode === 'forward'));
   el.vrIpd.value = String(vrSettings.baselineCm);
@@ -643,6 +716,46 @@ try {
 setInterval(updateRemoteUi, 700);
 setInterval(() => { if (remoteCtrl && remoteCtrl.room) publishRemoteState(); }, 5000);
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
+el.vrModeCamera.addEventListener('click', () => { vrSettings.lookMode = 'camera'; saveVrUi(); SFX.play('click'); });
+el.vrCamStart.addEventListener('click', async () => {
+  SFX.play('click');
+  try {
+    await ensureCamTracker().start(el.vrCamVideo);
+    el.vrCamStatus.textContent = 'Камера работает. Поднесите коробку в центр кадра и нажмите «Взять цвет коробки».';
+  } catch (e) {
+    el.vrCamStatus.textContent = 'Камера недоступна: ' + (e && e.message ? e.message : e) + ' (нужны HTTPS и разрешение).';
+  }
+  updateCamPrepUi();
+});
+el.vrCamSample.addEventListener('click', () => {
+  SFX.play('click');
+  const t = ensureCamTracker();
+  t.process();
+  const hue = t.sampleColor();
+  if (hue === null) { el.vrCamStatus.textContent = 'В центре кадра нет насыщенного цвета — поднесите коробку ближе.'; return; }
+  vrSettings.camColor = 'custom'; vrSettings.camHue = hue;
+  saveVrUi();
+  el.vrCamStatus.textContent = `Цвет коробки запомнен (оттенок ${hue}°). Теперь поставьте её перед собой и нажмите «Смотрю на метку».`;
+});
+el.vrCamCalib.addEventListener('click', () => {
+  SFX.play('click');
+  const t = ensureCamTracker();
+  t.process();
+  t.calibrate();
+  el.vrCamStatus.textContent = t.found ? 'Ноль выставлен: метка перед вами — это «вперёд». Можно надевать очки!' : 'Метка не видна — ноль выставлен по центру кадра. Лучше повторить, когда метка видна.';
+});
+document.querySelectorAll('.vr-cam-color').forEach((b) => b.addEventListener('click', () => {
+  vrSettings.camColor = b.dataset.color; vrSettings.camHue = null;
+  ensureCamTracker();
+  saveVrUi();
+  SFX.play('click');
+}));
+setInterval(() => {
+  if (!el.vrScreen.classList.contains('hidden') && camTracker && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
+    camTracker.process();
+    updateCamPrepUi();
+  }
+}, 150);
 el.vrIpd.addEventListener('input', () => {
   vrSettings.baselineCm = +el.vrIpd.value;
   el.vrIpdVal.textContent = `${vrSettings.baselineCm} см`;
@@ -1028,6 +1141,7 @@ function updateGameplay(dt) {
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
   camera.rotateZ(-((game.vrRide ? game.vrSteer : input.steer) || 0) * 0.02);
+  updateCameraLook(performance.now());
   vr.applyLook(camera, dt); // взгляд головой (или авто-обзор) поверх очковой камеры
   // FOV reads the actual speed, not just the boost button: the world opens up
   // as the car winds up, and boost adds its own extra kick on top.
@@ -1417,6 +1531,28 @@ window.__TEST__ = {
     return { code, info: rc.info() };
   },
   remoteState() { publishRemoteState(); return lastRemoteState; },
+  camInfo() { return camTracker ? camTracker.info() : null; },
+  camEnableSynthetic() {
+    const t = ensureCamTracker();
+    t.synthetic = true; t.running = true;
+    vrSettings.lookMode = 'camera';
+    game.camOn = true;
+    t.calibrate();
+    return t.info();
+  },
+  camFeed(cx, cy, r) {
+    const t = ensureCamTracker();
+    t.injectBlob(cx, cy, r);
+    updateCameraLook(performance.now(), true);
+    return { info: t.info(), vr: vr.info() };
+  },
+  camFeedEmpty() {
+    const t = ensureCamTracker();
+    t.injectEmpty();
+    t.lastFoundAt = 0;
+    updateCameraLook(performance.now(), true);
+    return { info: t.info(), vr: vr.info() };
+  },
   sendRemoteCommand(name) { executeRemoteCommand(name); return lastRemoteState; },
   remoteInfo() { return remoteCtrl ? remoteCtrl.info() : null; },
   state: () => game.state,

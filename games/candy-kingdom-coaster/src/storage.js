@@ -40,7 +40,9 @@ export const Storage = {
   },
   saveVrSettings(s) {
     const clean = {
-      lookMode: s && s.lookMode === 'forward' ? 'forward' : 'look',
+      lookMode: s && (s.lookMode === 'forward' || s.lookMode === 'camera') ? s.lookMode : 'look',
+      camColor: s && typeof s.camColor === 'string' ? s.camColor : 'raspberry',
+      camHue: s && Number.isFinite(s.camHue) ? s.camHue : null,
       driverMode: s && s.driverMode === 'remote' ? 'remote' : 'auto',
       baselineCm: Math.min(150, Math.max(10, Math.round(+((s && s.baselineCm) || 10)) || 10)),
     };

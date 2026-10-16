@@ -144,6 +144,23 @@
         <div class="vr-modes" role="group" aria-label="Режим взгляда">
           <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Осматриваться</button>
           <button type="button" id="vr-mode-forward" class="mid-btn vr-mode" aria-pressed="false">🚗 Смотреть вперёд</button>
+          <button type="button" id="vr-mode-camera" class="mid-btn vr-mode" aria-pressed="false">📷 По метке</button>
+        </div>
+        <div id="vr-cam-panel" class="hidden">
+          <video id="vr-cam-video" playsinline muted></video>
+          <div class="row">
+            <button type="button" id="vr-cam-start" class="mid-btn">📷 Включить камеру</button>
+            <button type="button" id="vr-cam-sample" class="mid-btn">🎨 Взять цвет коробки</button>
+            <button type="button" id="vr-cam-calib" class="mid-btn">🎯 Смотрю на метку</button>
+          </div>
+          <div class="vr-modes" role="group" aria-label="Цвет метки">
+            <button type="button" class="mid-btn vr-cam-color" data-color="raspberry" aria-pressed="true">Малиновый</button>
+            <button type="button" class="mid-btn vr-cam-color" data-color="magenta" aria-pressed="false">Маджента</button>
+            <button type="button" class="mid-btn vr-cam-color" data-color="lime" aria-pressed="false">Лайм</button>
+            <button type="button" class="mid-btn vr-cam-color" data-color="cyan" aria-pressed="false">Циан</button>
+          </div>
+          <p id="vr-cam-status" class="vr-note">Камера выключена. Метка — яркий предмет (например, малиновая коробка) перед вами, где будет «вперёд».</p>
+          <p class="vr-note">Как: включите камеру → поднесите коробку в центр кадра → «Взять цвет коробки» → поставьте её перед собой → «Смотрю на метку». В поездке взгляд ведёт камера через шторку очков; метка за краем кадра — взгляд мягко осматривается сам.</p>
         </div>
         <label class="vr-slider-label" for="vr-ipd">Расстояние между камерами: <b id="vr-ipd-val">10 см</b></label>
         <input id="vr-ipd" type="range" min="10" max="150" step="1" value="10" aria-describedby="vr-ipd-val">
