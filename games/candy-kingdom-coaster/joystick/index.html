@@ -157,7 +157,7 @@ const DEMO_CHANNEL = 'ckc-joystick-stand';
 // Firebase is a remote database, not a 60 Hz input bus. Keep the latest
 // analog value locally and send a small, coalesced packet at a sane rate.
 const DRIVE_SEND_MS = 160;
-const DRIVE_HEARTBEAT_MS = 2000;
+const DRIVE_HEARTBEAT_MS = 1500;
 const PING_INTERVAL_MS = 5000;
 const DRIVE_SESSION = (globalThis.crypto && globalThis.crypto.randomUUID)
   ? globalThis.crypto.randomUUID()
@@ -212,7 +212,7 @@ const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length 
 // set() создают очередь сетевых событий и могут отнимать кадры у игры на
 // слабом телефоне. Для спокойной экспериментальной игры отправляем
 // последний пакет не чаще 6,25 раз/с, а при неизменном управлении —
-// heartbeat только раз в 2 секунды.
+// heartbeat только раз в 1,5 секунды.
 let driveDirty = false;
 let driveForce = false;
 let driveTimer = null;
@@ -290,7 +290,7 @@ function startLoops() {
     else state.f.set(roomRef('/ping'), { id }).catch(() => {});
   }, PING_INTERVAL_MS);
 }
-function pushDriveKeepVisual() { // heartbeat: освежить состояние раз в 2 секунды
+function pushDriveKeepVisual() { // heartbeat: освежить состояние раз в 1,5 секунды
   driveDirty = true;
   driveForce = true;
   scheduleDriveSend();
