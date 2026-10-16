@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "phase": "implementation",
-  "activeRole": "builder",
-  "currentTask": "VISUAL-V7-23",
-  "lastAction": "Iteration 22: eight targeted finds and final perfume refinement verified",
+  "phase": "qa",
+  "activeRole": "mobile-qa",
+  "currentTask": "VISUAL-V7-24",
+  "lastAction": "Iteration 23: personal archive, recent item and scroll/focus regression passed",
   "nextAction": "19 courtyard; 20 inspection; 21 UI; 22 finds; 23 archive; 24 final review/export",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-15-visual-v5.md",

@@ -328,7 +328,7 @@
       "id": "VISUAL-V7-23",
       "title": "Personal archive and consistent feedback",
       "ownerRole": "builder",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "VISUAL-V7-22"
       ],
@@ -344,7 +344,7 @@
       "id": "VISUAL-V7-24",
       "title": "Visual verification, cover and static release",
       "ownerRole": "mobile-qa",
-      "status": "todo",
+      "status": "in_progress",
       "dependencies": [
         "VISUAL-V7-23"
       ],

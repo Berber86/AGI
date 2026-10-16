@@ -42,6 +42,7 @@
     <aside class="field-note search-only"><span class="note-number">01 — 18</span><p>У каждой вещи<br>есть продолжение.</p><div class="note-rule"></div><span>НАЙДИТЕ СВОЁ</span></aside>
     <div class="bin-tag search-only"><span class="target-dot"></span><span>БАК № 017<small>Нажмите, чтобы поискать</small></span></div>
     <section class="search-controls search-only" aria-label="Поиск находок">
+      <button id="open-recent" class="recent-find" hidden><img alt=""><span><small>ПОСЛЕДНЯЯ СОХРАНЁННАЯ</small><b></b></span><svg><use href="#i-arrow"/></svg></button>
       <div class="search-status"><span id="search-caption">Интересно, что там сегодня?</span><div class="tap-dots" aria-label="Нажатий: 0 из 3"><i></i><i></i><i></i></div></div>
       <button id="search-button" class="primary"><svg><use href="#i-hand"/></svg><span>Порыться в баке</span><svg class="arrow"><use href="#i-arrow"/></svg></button>
       <p class="control-hint">Три касания. Одна маленькая история.</p>
@@ -55,15 +56,16 @@
       <div class="decision-buttons"><button id="discard" class="decision discard"><svg><use href="#i-close"/></svg><span>Оставить</span></button><button id="keep" class="decision keep"><svg><use href="#i-check"/></svg><span>Забрать</span></button></div>
       <button id="close-review" class="primary" hidden><svg><use href="#i-arrow"/></svg> Вернуться в коллекцию</button>
     </section>
-    <footer class="bottom-meta search-only"><div class="place"><svg><use href="#i-pin"/></svg><div>Петроградская сторона<small>59°57′ N &nbsp; 30°18′ E</small></div></div><div class="session-stat"><span id="search-total">00</span><small>НАХОДОК ЗА ВСЁ ВРЕМЯ</small></div><span class="quiet-label">БЕЗ СПЕШКИ. БЕЗ ЗВУКА.</span></footer>
+    <footer class="bottom-meta search-only"><div class="place"><svg><use href="#i-pin"/></svg><div>Петроградская сторона<small>59°57′ N &nbsp; 30°18′ E</small></div></div><div class="session-stat"><span id="search-total">00</span><small>ВСЕГО НАЙДЕНО</small></div><span class="quiet-label">БЕЗ СПЕШКИ. БЕЗ ЗВУКА.</span></footer>
     <div id="toast" role="status" aria-live="polite"></div>
     <div id="loading"><svg><use href="#i-mark"/></svg><h2>Уже почти белая ночь.</h2><span>Открываем дверь во двор…</span><div class="loading-line"></div></div>
     <div id="webgl-error" hidden><h2>Двор пока не открылся</h2><p>Для игры нужен браузер с WebGL 2. Попробуйте включить аппаратное ускорение или открыть игру в свежей версии Chrome.</p><button onclick="location.reload()" class="primary">Попробовать снова</button></div>
   </main>
   <dialog id="collection-dialog" class="collection-dialog">
-    <div class="dialog-header"><div><span class="eyebrow">ВАШ ЛИЧНЫЙ АРХИВ</span><h2>Найдено и сохранено<span>.</span></h2></div><button class="icon-button" data-close="collection-dialog" aria-label="Закрыть коллекцию"><svg><use href="#i-close"/></svg></button></div>
-    <div class="collection-summary"><span><strong id="collection-count">0</strong> / 18 <small>вещей с продолжением</small></span><div class="progress-track"><div id="collection-progress"></div></div></div>
-    <div class="filter-tabs" role="group" aria-label="Фильтр коллекции"><button data-filter="all" class="active">Все находки <span>18</span></button><button data-filter="treasures">Вещи с историей <span>12</span></button><button data-filter="junk">Просто хлам <span>6</span></button></div>
+    <div class="dialog-header"><div><span class="eyebrow">ВАШ ЛИЧНЫЙ АРХИВ</span><h2>Ваши находки<span>.</span></h2></div><button class="icon-button" data-close="collection-dialog" aria-label="Закрыть коллекцию"><svg><use href="#i-close"/></svg></button></div>
+    <div class="collection-summary"><span><strong id="collection-count">0</strong> / 18 <small>сохранено уникальных</small></span><div class="progress-track"><div id="collection-progress"></div></div></div>
+    <div class="filter-tabs" role="group" aria-label="Фильтр коллекции"><button data-filter="all" class="active">Все <span>0/18</span></button><button data-filter="treasures">С историей <span>0/12</span></button><button data-filter="junk">Хлам <span>0/6</span></button></div>
+    <section id="archive-empty" class="archive-empty" hidden><p>История начинается с одной вещи.</p><span>Загляните в бак: там уже ждёт первая находка.</span><button id="find-first" class="primary">Найти первую вещь <svg><use href="#i-arrow"/></svg></button></section>
     <p class="catalog-hint">Сохранённую вещь можно открыть и рассмотреть ещё раз.</p><div id="collection-grid"></div>
     <div class="dialog-foot"><span>Забытые вещи. Новые истории.</span><span id="save-status">Прогресс сохраняется на этом устройстве</span></div>
   </dialog>
