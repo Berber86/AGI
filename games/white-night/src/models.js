@@ -426,6 +426,15 @@ export function createItem(id){
   const modeledParts=bake(group);
   const bounds=new THREE.Box3().setFromObject(group),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());
   group.children.forEach(c=>c.position.sub(center));group.scale.setScalar(2.1/Math.max(size.x,size.y,size.z));
-  const root=new THREE.Group();root.add(group);root.rotation.set(.08,-.2,0);root.userData={id,modeledParts,materialBatches:group.children.length,bounds:{min:size.clone().multiplyScalar(-1.05/Math.max(size.x,size.y,size.z)).toArray(),max:size.clone().multiplyScalar(1.05/Math.max(size.x,size.y,size.z)).toArray()}};return root;
+  // Cache a directional support hull once: a rotated AABB includes empty
+  // corners (especially below cups), leaving a visible gap above a ledge.
+  const directions=[];
+  for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++)if(x||y||z)directions.push(new THREE.Vector3(x,y,z).normalize());
+  const support=directions.map(()=>({dot:-Infinity,point:new THREE.Vector3()}));
+  group.updateMatrixWorld(true);
+  group.traverse(o=>{if(!o.isMesh)return;const pos=o.geometry.attributes.position,v=new THREE.Vector3();
+   for(let i=0;i<pos.count;i++){v.fromBufferAttribute(pos,i).applyMatrix4(o.matrixWorld);directions.forEach((d,j)=>{const dot=v.dot(d);if(dot>support[j].dot){support[j].dot=dot;support[j].point.copy(v);}});}
+  });
+  const root=new THREE.Group();root.add(group);root.rotation.set(.08,-.2,0);root.userData={supportPoints:support.map(s=>s.point.toArray()),id,modeledParts,materialBatches:group.children.length,bounds:{min:size.clone().multiplyScalar(-1.05/Math.max(size.x,size.y,size.z)).toArray(),max:size.clone().multiplyScalar(1.05/Math.max(size.x,size.y,size.z)).toArray()}};return root;
 }
 export function disposeItem(root){root.traverse(o=>{if(o.isMesh)o.geometry.dispose();});}

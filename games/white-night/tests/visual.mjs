@@ -28,7 +28,7 @@ try{
    return {infoBottom:info.bottom,buttonTop:buttons.top};
   });
   assert.ok(layout.infoBottom+8<=layout.buttonTop,`${id}: caption overlaps decision buttons`);
-  assert.ok(m.modelDetails.materialBatches<=20);models.push({id,bounds:b,...m.modelDetails});
+  assert.ok(m.modelDetails.materialBatches<=20);assert.equal(m.modelDetails.supportPoints.length,26);assert.ok(m.modelDetails.supportPoints.flat().every(Number.isFinite));models.push({id,bounds:b,...m.modelDetails});
   await shot(id);
   if(id==='book'){
    const {data,info}=await sharp(`${folder}/book.webp`).extract({left:Math.floor(b.left+(b.right-b.left)*.22),top:Math.floor(b.top+(b.bottom-b.top)*.19),width:Math.floor((b.right-b.left)*.55),height:Math.floor((b.bottom-b.top)*.27)}).raw().toBuffer({resolveWithObject:true});let ink=0;

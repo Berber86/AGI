@@ -11,7 +11,7 @@ export function revealFrame(progress, reduced = false) {
     scale: .94 + .06 * smooth(p),
     // The veil starts dense and deepens: the courtyard dims away instead of
     // flashing bright through a thin veil for the first fifth of a second.
-    veil: .82 + .14 * smooth(Math.min(1, p / .50)),
+    veil: .92 + .065 * smooth(Math.min(1, p / .50)),
     ready: p === 1,
   };
 }
