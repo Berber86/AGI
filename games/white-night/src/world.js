@@ -10,7 +10,25 @@ import { RenderPipeline } from './rendering.js';
 import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addBinDetails, LIT } from './scenery.js';
 import { box, cyl, ball, torus, mesh, createItem } from './models.js';
 const rand=seeded(137);
-function batch(group){group.updateMatrixWorld(true);const batches=new Map();group.traverse(o=>{if(!o.isMesh||Array.isArray(o.material))return;const key=o.material.uuid;let batch=batches.get(key);if(!batch){batch={material:o.material,geos:[]};batches.set(key,batch);}const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.deleteAttribute('uv1');batch.geos.push(g);o.geometry.dispose();});group.clear();for(const {material,geos} of batches.values()){const geo=mergeGeometries(geos,false);if(geo){const m=new THREE.Mesh(geo,material);m.receiveShadow=!material.transparent;m.castShadow=!material.transparent&&!material.transmission;group.add(m);}geos.forEach(g=>g.dispose());}}
+function batch(group){
+ group.updateMatrixWorld(true);const batches=new Map();
+ group.traverse(o=>{
+  if(!o.isMesh||Array.isArray(o.material))return;
+  const g=o.geometry.index?o.geometry.toNonIndexed():o.geometry.clone();g.applyMatrix4(o.matrixWorld);g.deleteAttribute('uv1');g.computeBoundingBox();
+  // Hide entire shared material batches containing low foreground during
+  // inspection. Do not split batches: search keeps its original draw-call cost.
+  const foreground=g.boundingBox.max.y<.18,key=o.material.uuid;
+  if(!batches.has(key))batches.set(key,{material:o.material,geos:[],foreground});
+  batches.get(key).foreground ||= foreground;
+  batches.get(key).geos.push(g);o.geometry.dispose();
+ });
+ group.clear();
+ for(const {material,geos,foreground} of batches.values()){
+  const geo=mergeGeometries(geos,false);
+  if(geo){const m=new THREE.Mesh(geo,material);m.receiveShadow=!material.transparent;m.castShadow=!material.transparent&&!material.transmission;m.userData.foreground=foreground;group.add(m);}
+  geos.forEach(g=>g.dispose());
+ }
+}
 export class World {
  constructor(canvas){
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
@@ -37,6 +55,7 @@ export class World {
   const fill=new THREE.DirectionalLight(0x51739c,.62);fill.position.set(5,5,-4);this.scene.add(fill);
   this.static=new THREE.Group();this.scene.add(this.static);this.buildCourtyard();batch(this.static);
   this.bin=new THREE.Group();this.scene.add(this.bin);this.buildBin();this.bin.rotation.y=-.18;
+  this.foreground=[...this.static.children,...this.bin.children].filter(m=>m.userData.foreground);
   // A depth-tested veil sits BEHIND the find, not over it like a CSS filter.
   // It uses no additional render target or blur pass, including in low quality.
   this.inspectionVeil=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x172b3c,transparent:true,opacity:.96,depthWrite:false,toneMapped:false,fog:false}));
@@ -48,9 +67,9 @@ export class World {
   // A shallow stone ledge gives the eye an actual lit top and front edge.
   // It lives in the same inspection space as the find; no reflection target.
   this.ledge=new THREE.Group();this.ledge.visible=false;this.itemAnchor.add(this.ledge);
-  const ledgeGrain=canvasTexture((c,n,r)=>{c.fillStyle='#79858a';c.fillRect(0,0,n,n);for(let i=0;i<1600;i++){c.fillStyle=i%3?'rgba(30,45,50,.06)':'rgba(240,235,220,.12)';c.fillRect(r()*n,r()*n,1+r()*4,1+r()*2);}},256);
-  const ledgeMat=new THREE.MeshStandardMaterial({map:ledgeGrain,color:0x899ba4,roughness:.88});
-  this.ledgeSlab=box(this.ledge,[1,.075,.55],[0,-.045,0],ledgeMat,.018);
+  // Reuse the uploaded fine grain, with a matte stone tint: no extra texture.
+  const ledgeMat=new THREE.MeshStandardMaterial({map:M.silver.map,color:0x46504a,roughness:.88});
+  this.ledgeSlab=box(this.ledge,[1,.075,.55],[0,-.045,0],ledgeMat,.018);this.ledgeSlab.castShadow=false;
   this.itemShadow.rotation.x=-Math.PI/2;this.itemShadow.position.set(0,.002,0);
   this.itemShadow.renderOrder=1;this.itemShadow.visible=false;this.ledge.add(this.itemShadow);
   this.inspectLamp=new THREE.PointLight(0xfff4e7,17,9,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
@@ -211,7 +230,7 @@ export class World {
   this.inspectLamp.intensity=PRESENTATION[id].lamp??17;this.itemRim.intensity=PRESENTATION[id].rim??18;
   this.updateItemLights();
   this.item.rotation.set(...PRESENTATION[id].rotation);this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
-  this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemShadow.visible=true;this.ledge.visible=true;
+  this.fitItem();this.foreground.forEach(m=>m.visible=false);this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemShadow.visible=true;this.ledge.visible=true;
   const meshes=[];this.item.traverse(o=>{if(o.isMesh){o.castShadow=false;o.renderOrder=3;meshes.push(o);}});
   if(!this.reduced&&!review){
     this.item.updateMatrixWorld(true);const inverseRoot=this.item.matrixWorld.clone().invert();
@@ -219,7 +238,7 @@ export class World {
   }
   this.reveal=this.reduced||review?1:0;this.applyReveal();
  }
- hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.ledge.visible=false;}
+ hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.foreground.forEach(m=>m.visible=true);this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.ledge.visible=false;}
  finishReveal(){this.testRevealHold=false;this.reveal=1;this.applyReveal();this.dirty=true;}
  applyReveal(){
   this.revealState=revealFrame(this.reveal,this.reduced);

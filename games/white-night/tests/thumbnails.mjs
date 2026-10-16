@@ -2,7 +2,7 @@ import {launch} from './browser.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const browser=await launch();const errors=[];let report={passed:false};
-const series=process.env.SERIES||'v4',iteration=process.env.ITERATION||'6';
+const series=process.env.SERIES||'v7',iteration=process.env.ITERATION||'24';
 const folder=`../../.studio/evidence/screenshots/visual-${series}-${iteration}`;
 try{
  const page=await browser.newPage();page.setDefaultTimeout(120000);page.setDefaultNavigationTimeout(120000);

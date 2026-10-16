@@ -344,7 +344,7 @@
       "id": "VISUAL-V7-24",
       "title": "Visual verification, cover and static release",
       "ownerRole": "mobile-qa",
-      "status": "in_progress",
+      "status": "done",
       "dependencies": [
         "VISUAL-V7-23"
       ],
@@ -353,9 +353,11 @@
         "Executable checks and reviewed production screenshots"
       ],
       "evidence": [
-        "games/white-night/VISUAL_V7.md"
+        "games/white-night/VISUAL_V7.md",
+        ".studio/evidence/reports/visual-v7-release.json",
+        ".studio/evidence/reports/perf-v7-after.json"
       ]
     }
   ],
-  "updatedAt": "2026-10-15"
+  "updatedAt": "2026-10-16"
 }

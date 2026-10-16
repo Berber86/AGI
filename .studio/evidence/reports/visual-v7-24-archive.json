@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "checks": [
+    "0/18 invites first search and returns to search button",
+    "Recent thumbnail opens read-only review; duplicate does not inflate counts",
+    "Filters show owned/total; archive restores scroll and focused card after review",
+    "Natural final three saves form the completion preview"
+  ],
+  "errors": []
+}

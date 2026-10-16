@@ -2,7 +2,7 @@ import {launch} from './browser.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-const folder='../../.studio/evidence/screenshots/visual-v4-6-reveal';fs.mkdirSync(folder,{recursive:true});
+const tag=process.env.TAG||'v7-24-reveal';const folder=`../../.studio/evidence/screenshots/visual-${tag}`;fs.mkdirSync(folder,{recursive:true});
 const browser=await launch();const errors=[],checks=[];let passed=false;const check=t=>{checks.push(t);console.log('PASS',t);};
 try{
  const page=await browser.newPage();page.setDefaultTimeout(120000);page.setDefaultNavigationTimeout(120000);
@@ -28,10 +28,10 @@ try{
  assert.ok(await sample('silhouette')<await sample('ready')*.65,'Silhouette must actually darken the lens pixels, not merely change UI text');check('Pixel sample verifies a dark silhouette over the real find');
  await page.evaluate(()=>window.__GAME_TEST__.settle());await page.tap('#keep');
  const feedback=await page.evaluate(()=>({tone:document.querySelector('#toast').dataset.tone,pulse:document.querySelector('#header-count').classList.contains('collected'),count:window.__GAME_TEST__.getState().collection.length}));
- assert.deepEqual(feedback,{tone:'kept',pulse:true,count:1});await shot('kept');check('Intermediate frames, disabled premature decisions and unique keep feedback');
+ assert.deepEqual(feedback,{tone:'kept',pulse:true,count:1});const placement=await page.evaluate(()=>({heroBottom:document.querySelector('.hero').getBoundingClientRect().bottom,toastTop:document.querySelector('#toast').getBoundingClientRect().top}));assert.ok(placement.heroBottom+8<=placement.toastTop,`Kept feedback overlaps portrait hero: ${JSON.stringify(placement)}`);await shot('kept');check('Intermediate frames, disabled premature decisions and unique keep feedback');
  await find('camera');await ready();await page.tap('#keep');assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getState().collection.length),1);assert.equal(await page.$eval('#toast',e=>e.dataset.tone),'duplicate');check('Duplicate feedback does not increment collection');
  await find('can');await ready();await page.tap('#discard');assert.equal(await page.$eval('#toast',e=>e.dataset.tone),'discarded');assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getState().collection.length),1);check('Discard feedback does not collect');
- await page.tap('#open-collection');await page.tap('[data-id="camera"]');assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getMetrics().reveal.ready),true);await page.tap('#close-review');await page.tap('[data-close="collection-dialog"]');check('Owned review skips reveal delay');
+ await page.tap('#open-collection');await page.tap('.item-card[data-id="camera"]');assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getState().reviewing),true);assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getMetrics().reveal.ready),true);await page.tap('#close-review');await page.tap('[data-close="collection-dialog"]');check('Owned review skips reveal delay');
  await find('box');await page.tap('#open-settings');const before=await page.evaluate(()=>window.__GAME_TEST__.getMetrics().reveal.progress);
  await page.evaluate(()=>new Promise(r=>setTimeout(r,400)));assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getMetrics().reveal.progress),before);
  await page.tap('[data-close="settings-dialog"]');await ready();await page.tap('#discard');check('Modal pauses the animation clock and resumes safely');
@@ -39,4 +39,4 @@ try{
  assert.equal(await page.evaluate(()=>window.__GAME_TEST__.getMetrics().reveal.ready),true);assert.equal(await page.$eval('#keep',e=>e.disabled),false);await shot('reduced-motion');await page.tap('#discard');check('Reduced motion shows final geometry and decisions immediately');
  await page.reload({waitUntil:'networkidle0'});await page.waitForFunction(()=>window.__READY__);assert.deepEqual(await page.evaluate(()=>window.__GAME_TEST__.getState().collection),['camera']);
  assert.equal(await page.evaluate(()=>document.querySelectorAll('audio,video').length),0);assert.deepEqual(errors,[]);check('Saved collection survives reload; no audio elements or runtime errors');passed=true;
-}finally{fs.writeFileSync('../../.studio/evidence/reports/visual-v4-6-reveal.json',JSON.stringify({passed,checks,errors,limitations:['SwiftShader timings are not hardware timings.','Intermediate frames use a frozen test clock; natural phase order is independently checked.']},null,2));await browser.close();}
+}finally{fs.writeFileSync(`../../.studio/evidence/reports/visual-${tag}.json`,JSON.stringify({passed,checks,errors,limitations:['SwiftShader timings are not hardware timings.','Intermediate frames use a frozen test clock; natural phase order is independently checked.']},null,2));await browser.close();}

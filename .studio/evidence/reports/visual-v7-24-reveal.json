@@ -1,0 +1,19 @@
+{
+  "passed": true,
+  "checks": [
+    "Natural touch-driven reveal visits all four beats in order",
+    "Pixel sample verifies a dark silhouette over the real find",
+    "Intermediate frames, disabled premature decisions and unique keep feedback",
+    "Duplicate feedback does not increment collection",
+    "Discard feedback does not collect",
+    "Owned review skips reveal delay",
+    "Modal pauses the animation clock and resumes safely",
+    "Reduced motion shows final geometry and decisions immediately",
+    "Saved collection survives reload; no audio elements or runtime errors"
+  ],
+  "errors": [],
+  "limitations": [
+    "SwiftShader timings are not hardware timings.",
+    "Intermediate frames use a frozen test clock; natural phase order is independently checked."
+  ]
+}

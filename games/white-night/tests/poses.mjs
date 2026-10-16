@@ -1,6 +1,6 @@
 import {inspectionRect,ZOOM} from '../src/presentation.js';
 import {launch} from './browser.mjs';import fs from 'node:fs';import assert from 'node:assert/strict';
-const tag=process.env.TAG||'v7-poses';const dir=`../../.studio/evidence/screenshots/visual-${tag}`;fs.mkdirSync(dir,{recursive:true});
+const tag=process.env.TAG||'v7-24-poses';const dir=`../../.studio/evidence/screenshots/visual-${tag}`;fs.mkdirSync(dir,{recursive:true});
 const browser=await launch(),errors=[],checks=[],frames=[];let passed=false;
 try{
  const p=await browser.newPage();p.setDefaultTimeout(120000);p.setDefaultNavigationTimeout(120000);

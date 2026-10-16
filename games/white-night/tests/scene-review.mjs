@@ -1,7 +1,7 @@
 import {launch} from './browser.mjs';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-const iteration=process.env.ITERATION||'4';const series=process.env.SERIES||'v4';
+const iteration=process.env.ITERATION||'24';const series=process.env.SERIES||'v7';
 const folder=`../../.studio/evidence/screenshots/visual-${series}-${iteration}`;fs.mkdirSync(folder,{recursive:true});
 const browser=await launch();const errors=[],checks=[],metrics=[];let report={passed:false};
 try{

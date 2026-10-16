@@ -75,7 +75,7 @@
     "deployment": "Static build, GitHub Pages compatible"
   },
   "approvedAt": "2026-10-14T17:29:22.525512+00:00",
-  "updatedAt": "2026-10-15",
+  "updatedAt": "2026-10-16",
   "initialRequestPath": ".studio/request.md",
   "visualRevision": {
     "requested": "Для начала неплохо, но надо сделать графику в пару раз лучше, а находки детальнее",
@@ -99,5 +99,16 @@
     "implemented": "7 twilight lighting; 8 coherent landscape panel; 9 accessible view presets, rotation/off-axis-safe fit, stage-relative lights and outward underside print. No changes to rules, IDs, saves or silence.",
     "journal": "games/white-night/VISUAL_ITERATIONS.md",
     "evidence": ".studio/evidence/reports/visual-v5-release.json"
+  },
+  "visualIterationsV7": {
+    "request": "Хорошо, сделай 6 итераций улучшения и запуш результат",
+    "scope": "Six bounded visual iterations 19–24 following 16 October audit; no gameplay/save-schema changes",
+    "implemented": "Portrait twilight and callout; stone inspection support/transparent compositing; readable contextual controls; eight priority finds; personal archive/recent/scroll; clean foreground/current cover",
+    "journal": "games/white-night/VISUAL_V7.md",
+    "evidence": ".studio/evidence/reports/visual-v7-release.json",
+    "remaining": "Physical Android and text-zoom/contrast certification; broader architecture/all-model art polish",
+    "status": "completed",
+    "staticEntry": "games/white-night/play/index.html",
+    "productionBytes": 6665373
   }
 }

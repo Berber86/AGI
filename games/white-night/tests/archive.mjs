@@ -1,7 +1,7 @@
 import {launch} from './browser.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const tag=process.env.TAG||'v7-23',folder=`../../.studio/evidence/screenshots/visual-${tag}`;fs.mkdirSync(folder,{recursive:true});
+const tag=process.env.TAG||'v7-24',folder=`../../.studio/evidence/screenshots/visual-${tag}`;fs.mkdirSync(folder,{recursive:true});
 const b=await launch(),p=await b.newPage(),checks=[],errors=[];let passed=false;
 p.setDefaultTimeout(180000);p.on('pageerror',e=>errors.push(e.message));p.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
 const shot=n=>p.screenshot({path:`${folder}/${n}.webp`,type:'webp',quality:87});

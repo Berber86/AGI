@@ -22,7 +22,7 @@ const shot = async (name, note) => {
   if (fs.existsSync(path) && process.env.RESUME) { console.log('SKIP', name); return; }
   await page.screenshot({path, type: 'webp', quality: 88});
   const stat = await sharp(path).stats();
-  shots.push({name, note, mean: +stat.channels.map(c => c.mean.toFixed(1)).join('/')});
+  shots.push({name, note, meanRGB: stat.channels.slice(0,3).map(c => +c.mean.toFixed(1))});
   console.log('SHOT', name, '-', note);
 };
 // A modal dialog makes the rest of the document inert and swallows synthetic clicks.

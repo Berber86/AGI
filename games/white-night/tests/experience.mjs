@@ -2,7 +2,7 @@
 import {launch} from './browser.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const tag=process.env.TAG||'v7-21';
+const tag=process.env.TAG||'v7-24';
 const folder=`../../.studio/evidence/screenshots/visual-${tag}`;fs.mkdirSync(folder,{recursive:true});
 const b=await launch(),p=await b.newPage(),errors=[],checks=[];let passed=false;
 p.setDefaultTimeout(180000);

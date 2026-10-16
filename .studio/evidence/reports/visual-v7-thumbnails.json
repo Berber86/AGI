@@ -1,0 +1,213 @@
+{
+  "passed": true,
+  "samples": [
+    {
+      "id": "camera",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 20.908799921308372,
+      "distinct": 120
+    },
+    {
+      "id": "teacup",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 52.317091519852944,
+      "distinct": 106
+    },
+    {
+      "id": "watch",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 47.5201943725852,
+      "distinct": 93
+    },
+    {
+      "id": "cassette",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 57.13371196447734,
+      "distinct": 72
+    },
+    {
+      "id": "duck",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 61.454604402510995,
+      "distinct": 54
+    },
+    {
+      "id": "book",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 10.095128860207959,
+      "distinct": 47
+    },
+    {
+      "id": "key",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 13.197161617526408,
+      "distinct": 96
+    },
+    {
+      "id": "badge",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 32.4256898536467,
+      "distinct": 99
+    },
+    {
+      "id": "record",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 25.30113086698445,
+      "distinct": 21
+    },
+    {
+      "id": "perfume",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 34.76833223553748,
+      "distinct": 118
+    },
+    {
+      "id": "horse",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 27.97718132445173,
+      "distinct": 179
+    },
+    {
+      "id": "compass",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 65.78588785518755,
+      "distinct": 102
+    },
+    {
+      "id": "bottle",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 31.977387841938373,
+      "distinct": 70
+    },
+    {
+      "id": "can",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 28.796169967020138,
+      "distinct": 72
+    },
+    {
+      "id": "cup",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 55.6985089795087,
+      "distinct": 108
+    },
+    {
+      "id": "box",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 42.60552576145903,
+      "distinct": 42
+    },
+    {
+      "id": "lid",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 21.522946383734933,
+      "distinct": 111
+    },
+    {
+      "id": "paper",
+      "corner": [
+        18,
+        39,
+        49,
+        255
+      ],
+      "sd": 80.06731644111952,
+      "distinct": 34
+    }
+  ],
+  "errors": [],
+  "checks": [
+    "All 18 thumbnails contain rendered finds (sd>=4, distinct>=12) and sRGB/ACES output",
+    "Cached re-opening does not grow GPU geometry or texture counts",
+    "Completion shows three recent finds",
+    "Final production build reloads with all 18 thumbnails offline"
+  ],
+  "limitations": [
+    "Color tests detect missing output transfer, not aesthetic accuracy on physical displays."
+  ]
+}

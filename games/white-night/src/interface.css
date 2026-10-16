@@ -87,3 +87,8 @@ dialog {background:var(--surface);border-color:var(--ui-border);border-radius:8p
 }
 @media(max-height:719px) and (max-width:650px) {.recent-find {display:none}}
 @media(max-height:520px) and (min-width:651px) {.recent-find {display:none}}
+
+/* Keep portrait feedback below the compact hero, not over its title. */
+@media (max-width:600px) and (min-height:541px) {
+ .has-progress #toast {top:calc(210px + env(safe-area-inset-top));}
+}
