@@ -610,6 +610,16 @@ function updateCameraLook(now, force = false) {
   if (lostFor < 4000) {
     camSmooth.yaw = t.heldYaw;
     camSmooth.pitch = t.heldPitch;
+    // Метка ушла именно ЗА КРАЙ кадра (а не закрыта в центре): голова,
+    // скорее всего, ещё доворачивается туда же. Камера в очках стоит
+    // сбоку, и полотно очков перекрывает метку раньше на одной из
+    // сторон — поэтому аккуратно докручиваем взгляд за удержанный угол
+    // (до игрового предела), пока метка не вернётся или не пройдёт 1,8 с.
+    if (lostFor > 150 && lostFor < 1800) {
+      const extra = Math.min(10, 12 * ((lostFor - 150) / 1000));
+      if (t.exitSideX) camSmooth.yaw = t.heldYaw + Math.sign(t.heldYaw || (t.exitSideX === 'right' ? 1 : -1)) * extra;
+      if (t.exitSideY) camSmooth.pitch = t.heldPitch + Math.sign(t.heldPitch || (t.exitSideY === 'top' ? -1 : 1)) * extra;
+    }
     vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
   } else {
     // долгое отсутствие: предсказуемый возврат взгляда в центр

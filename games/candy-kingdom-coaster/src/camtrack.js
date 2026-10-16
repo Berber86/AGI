@@ -79,7 +79,10 @@ export function anglesFromCentroid(u, v, w, h, c0n, fovDeg) {
   const cy = c0n ? c0n.y * h : h / 2;
   return {
     yaw: (Math.atan((u - cx) / fx) * 180) / Math.PI,
-    pitch: -(Math.atan((v - cy) / fx) * 180) / Math.PI,
+    // Знак pitch — как у yaw: измеряем поворот ГОЛОВЫ, а не положение
+    // метки. Голова вверх -> метка уходит ВНИЗ кадра (v растёт) -> pitch+.
+    // (Было наоборот: полевой отчёт «смотрю вверх — игра смотрит вниз».)
+    pitch: (Math.atan((v - cy) / fx) * 180) / Math.PI,
   };
 }
 

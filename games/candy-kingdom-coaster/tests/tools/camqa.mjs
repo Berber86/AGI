@@ -76,6 +76,21 @@ const right = await page.evaluate(() => {
 });
 record('метка справа: VR-взгляд ушёл вправо (>10°)', right.info.yaw > 12 && right.yaw > 10, right);
 
+// 3b. вертикаль: метка внизу кадра (голова поднята) — игра смотрит ВВЕРХ
+const up = await page.evaluate(() => {
+  let out;
+  for (let i = 0; i < 5; i++) out = window.__TEST__.camFeed(160, 190, 38);
+  window.__TEST__.step(1 / 60, 35, false);
+  return { pitch: window.__TEST__.vrInfo().pitchDeg, tp: out.info.pitch };
+});
+record('метка внизу кадра: pitch взгляда положительный (вверх)', up.tp > 12 && up.pitch > 9, up);
+const down = await page.evaluate(() => {
+  for (let i = 0; i < 5; i++) window.__TEST__.camFeed(160, 50, 38);
+  window.__TEST__.step(1 / 60, 35, false);
+  return { pitch: window.__TEST__.vrInfo().pitchDeg };
+});
+record('метка вверху кадра: pitch отрицательный (вниз)', down.pitch < -9, down);
+
 // 4. метка слева — взгляд влево
 const left = await page.evaluate(() => {
   let out;
@@ -95,6 +110,15 @@ const hold = await page.evaluate(() => {
 });
 record('метка ушла вправо: выход запомнен, взгляд удерживается (>20°)',
   hold.after.exitSideX === 'right' && hold.yaw > 20, hold);
+
+// 4e. метка за краем: взгляд докручивается за удержанный угол
+const creep = await page.evaluate(() => {
+  window.__TEST__.camAgeLoss(900);
+  window.__TEST__.camAgeLoss(900);
+  window.__TEST__.step(1 / 60, 30, false);
+  return { yaw: window.__TEST__.vrInfo().yawDeg };
+});
+record('потеря за краем 0,9 с: взгляд докручен дальше (>30°)', creep.yaw > 30, creep);
 
 // 4c. метка вернулась в другом месте — переякорка по второму кадру
 const snap = await page.evaluate(() => {
