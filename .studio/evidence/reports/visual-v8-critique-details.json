@@ -1,0 +1,1896 @@
+{
+  "passed": true,
+  "itemTone": [
+    {
+      "id": "camera",
+      "itemMean": 72.7,
+      "itemMedian": 56.92,
+      "backdropMean": 22,
+      "pixels": 62012,
+      "backdropPixels": 48201,
+      "coverage": 44.9,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "teacup",
+      "itemMean": 116.82,
+      "itemMedian": 99.96,
+      "backdropMean": 21.41,
+      "pixels": 61766,
+      "backdropPixels": 47123,
+      "coverage": 44.8,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "watch",
+      "itemMean": 97.16,
+      "itemMedian": 49.15,
+      "backdropMean": 22.66,
+      "pixels": 56265,
+      "backdropPixels": 51352,
+      "coverage": 40.8,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "cassette",
+      "itemMean": 89.98,
+      "itemMedian": 49.78,
+      "backdropMean": 21.67,
+      "pixels": 72714,
+      "backdropPixels": 39056,
+      "coverage": 52.7,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "duck",
+      "itemMean": 121.46,
+      "itemMedian": 64.01,
+      "backdropMean": 21.61,
+      "pixels": 60432,
+      "backdropPixels": 48203,
+      "coverage": 43.8,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "book",
+      "itemMean": 83.42,
+      "itemMedian": 85.07,
+      "backdropMean": 22.49,
+      "pixels": 68647,
+      "backdropPixels": 45111,
+      "coverage": 49.7,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "key",
+      "itemMean": 71.43,
+      "itemMedian": 46.47,
+      "backdropMean": 22.55,
+      "pixels": 44153,
+      "backdropPixels": 59757,
+      "coverage": 32,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "badge",
+      "itemMean": 95.42,
+      "itemMedian": 85.06,
+      "backdropMean": 22.5,
+      "pixels": 69049,
+      "backdropPixels": 44808,
+      "coverage": 50,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "record",
+      "itemMean": 86.65,
+      "itemMedian": 56.79,
+      "backdropMean": 22.17,
+      "pixels": 68208,
+      "backdropPixels": 44135,
+      "coverage": 49.4,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "perfume",
+      "itemMean": 86.04,
+      "itemMedian": 64.28,
+      "backdropMean": 22.72,
+      "pixels": 62071,
+      "backdropPixels": 47043,
+      "coverage": 45,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "horse",
+      "itemMean": 90.71,
+      "itemMedian": 65.01,
+      "backdropMean": 22.11,
+      "pixels": 65431,
+      "backdropPixels": 43075,
+      "coverage": 47.4,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "compass",
+      "itemMean": 129.13,
+      "itemMedian": 121.08,
+      "backdropMean": 22.1,
+      "pixels": 66852,
+      "backdropPixels": 43997,
+      "coverage": 48.4,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "bottle",
+      "itemMean": 82.8,
+      "itemMedian": 52.18,
+      "backdropMean": 22.82,
+      "pixels": 57236,
+      "backdropPixels": 51447,
+      "coverage": 41.5,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "can",
+      "itemMean": 87.16,
+      "itemMedian": 88.41,
+      "backdropMean": 22.56,
+      "pixels": 63551,
+      "backdropPixels": 46221,
+      "coverage": 46,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "cup",
+      "itemMean": 133.08,
+      "itemMedian": 126.84,
+      "backdropMean": 22.5,
+      "pixels": 63597,
+      "backdropPixels": 47489,
+      "coverage": 46.1,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "box",
+      "itemMean": 103.74,
+      "itemMedian": 51.07,
+      "backdropMean": 21.64,
+      "pixels": 58833,
+      "backdropPixels": 48836,
+      "coverage": 42.6,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "lid",
+      "itemMean": 92.56,
+      "itemMedian": 100.38,
+      "backdropMean": 22.29,
+      "pixels": 72021,
+      "backdropPixels": 41313,
+      "coverage": 52.2,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    },
+    {
+      "id": "paper",
+      "itemMean": 164,
+      "itemMedian": 209.64,
+      "backdropMean": 22.36,
+      "pixels": 73086,
+      "backdropPixels": 42019,
+      "coverage": 53,
+      "box": {
+        "x": 20,
+        "y": 244,
+        "w": 372,
+        "h": 371
+      },
+      "stageBox": {
+        "x": 20,
+        "y": 244,
+        "width": 372,
+        "height": 371
+      }
+    }
+  ],
+  "rotation": [
+    {
+      "id": "record",
+      "rows": [
+        {
+          "rotX": 0.14,
+          "area": 68642,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.342,
+          "area": 63283,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.543,
+          "area": 59258,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.745,
+          "area": 57039,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.946,
+          "area": 59661,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58757,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58508,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58482,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58796,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58469,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58472,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58796,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58453,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58485,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58825,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58442,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58343,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58825,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58454,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58485,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58801,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58423,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58430,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58565,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58391,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58467,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58749,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58419,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58550,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58758,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58418,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 58479,
+          "w": 372,
+          "h": 371
+        }
+      ]
+    },
+    {
+      "id": "paper",
+      "rows": [
+        {
+          "rotX": 0.06,
+          "area": 73165,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.262,
+          "area": 69040,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.463,
+          "area": 66300,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.665,
+          "area": 65381,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.866,
+          "area": 65355,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63193,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63225,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63086,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63247,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63237,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63095,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63256,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62997,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62948,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63296,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63031,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63007,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63281,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63049,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62931,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63241,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63018,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62996,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63264,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62932,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63137,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63257,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63030,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62987,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 63279,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62957,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 62984,
+          "w": 372,
+          "h": 371
+        }
+      ]
+    },
+    {
+      "id": "badge",
+      "rows": [
+        {
+          "rotX": 0.08,
+          "area": 69111,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.282,
+          "area": 64556,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.483,
+          "area": 63936,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.685,
+          "area": 63239,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 0.886,
+          "area": 63641,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64984,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65205,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64745,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65169,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65134,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64764,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65125,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65113,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64737,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65176,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65097,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64718,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65165,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65099,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64730,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65128,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65057,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64754,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65202,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65082,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64820,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65148,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65065,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64774,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65043,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 65017,
+          "w": 372,
+          "h": 371
+        },
+        {
+          "rotX": 1.05,
+          "area": 64788,
+          "w": 372,
+          "h": 371
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "contrastSearch": [
+    {
+      "name": "headline",
+      "color": "rgb(241, 240, 230)",
+      "font": "46px",
+      "weight": "400",
+      "text": "Белая ночь.",
+      "box": {
+        "x": 24,
+        "y": 106,
+        "width": 364,
+        "height": 46
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          37,
+          47,
+          50
+        ],
+        "backdropShare": 7.1,
+        "ratio": 11.98
+      }
+    },
+    {
+      "name": "tagline",
+      "color": "rgb(205, 214, 197)",
+      "font": "12px",
+      "weight": "400",
+      "text": "Ничего не бывает с",
+      "box": {
+        "x": 24,
+        "y": 160,
+        "width": 364,
+        "height": 17
+      },
+      "measured": {
+        "declared": [
+          205,
+          214,
+          197
+        ],
+        "backdrop": [
+          10,
+          22,
+          29
+        ],
+        "backdropShare": 8.3,
+        "ratio": 12.24
+      }
+    },
+    {
+      "name": "caption",
+      "color": "rgb(208, 216, 201)",
+      "font": "11px",
+      "weight": "400",
+      "text": "Интересно, что там",
+      "box": {
+        "x": 27,
+        "y": 727,
+        "width": 154,
+        "height": 15
+      },
+      "measured": {
+        "declared": [
+          208,
+          216,
+          201
+        ],
+        "backdrop": [
+          21,
+          38,
+          41
+        ],
+        "backdropShare": 28,
+        "ratio": 10.7
+      }
+    },
+    {
+      "name": "hint",
+      "color": "rgb(192, 205, 197)",
+      "font": "10px",
+      "weight": "400",
+      "text": "Три касания. Одна ",
+      "box": {
+        "x": 24,
+        "y": 823,
+        "width": 364,
+        "height": 14
+      },
+      "measured": {
+        "declared": [
+          192,
+          205,
+          197
+        ],
+        "backdrop": [
+          17,
+          37,
+          41
+        ],
+        "backdropShare": 60,
+        "ratio": 9.68
+      }
+    },
+    {
+      "name": "wordmark",
+      "color": "rgb(241, 240, 230)",
+      "font": "9px",
+      "weight": "750",
+      "text": "БЮРОНАХОДОК",
+      "box": {
+        "x": 57,
+        "y": 26,
+        "width": 52,
+        "height": 28
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          14,
+          29,
+          40
+        ],
+        "backdropShare": 6.9,
+        "ratio": 14.98
+      }
+    },
+    {
+      "name": "place",
+      "color": "rgb(241, 240, 230)",
+      "font": "10px",
+      "weight": "400",
+      "text": "Петроградская стор",
+      "box": {
+        "x": 44,
+        "y": 862,
+        "width": 115,
+        "height": 30
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          17,
+          37,
+          42
+        ],
+        "backdropShare": 51.2,
+        "ratio": 13.88
+      }
+    }
+  ],
+  "contrastInspect": [
+    {
+      "name": "rarity-chip",
+      "color": "rgb(184, 219, 238)",
+      "font": "9px",
+      "weight": "400",
+      "text": "Редкая находка",
+      "box": {
+        "x": 24,
+        "y": 96,
+        "width": 121,
+        "height": 31
+      },
+      "measured": {
+        "declared": [
+          184,
+          219,
+          238
+        ],
+        "backdrop": [
+          18,
+          38,
+          53
+        ],
+        "backdropShare": 17.3,
+        "ratio": 10.64
+      }
+    },
+    {
+      "name": "find-number",
+      "color": "rgb(196, 208, 215)",
+      "font": "8px",
+      "weight": "400",
+      "text": "НАХОДКА № 019",
+      "box": {
+        "x": 319,
+        "y": 106,
+        "width": 69,
+        "height": 11
+      },
+      "measured": {
+        "declared": [
+          196,
+          208,
+          215
+        ],
+        "backdrop": [
+          23,
+          33,
+          45
+        ],
+        "backdropShare": 7.4,
+        "ratio": 10.33
+      }
+    },
+    {
+      "name": "era",
+      "color": "rgb(185, 200, 209)",
+      "font": "9px",
+      "weight": "600",
+      "text": "ЛОМО · 1970-е",
+      "box": {
+        "x": 24,
+        "y": 639,
+        "width": 364,
+        "height": 13
+      },
+      "measured": {
+        "declared": [
+          185,
+          200,
+          209
+        ],
+        "backdrop": [
+          13,
+          29,
+          44
+        ],
+        "backdropShare": 29.5,
+        "ratio": 9.96
+      }
+    },
+    {
+      "name": "name",
+      "color": "rgb(241, 240, 230)",
+      "font": "32px",
+      "weight": "400",
+      "text": "Смена-8М",
+      "box": {
+        "x": 24,
+        "y": 664,
+        "width": 364,
+        "height": 34
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          17,
+          29,
+          41
+        ],
+        "backdropShare": 51.6,
+        "ratio": 14.9
+      }
+    },
+    {
+      "name": "description",
+      "color": "rgb(208, 216, 220)",
+      "font": "13px",
+      "weight": "400",
+      "text": "Кто-то снимал на н",
+      "box": {
+        "x": 36,
+        "y": 707,
+        "width": 340,
+        "height": 40
+      },
+      "measured": {
+        "declared": [
+          208,
+          216,
+          220
+        ],
+        "backdrop": [
+          14,
+          27,
+          38
+        ],
+        "backdropShare": 62.5,
+        "ratio": 12.08
+      }
+    },
+    {
+      "name": "rotate-hint",
+      "color": "rgb(210, 221, 198)",
+      "font": "11px",
+      "weight": "400",
+      "text": "Вращайте предмет",
+      "box": {
+        "x": 117,
+        "y": 150,
+        "width": 121,
+        "height": 15
+      },
+      "measured": {
+        "declared": [
+          210,
+          221,
+          198
+        ],
+        "backdrop": [
+          18,
+          38,
+          49
+        ],
+        "backdropShare": 13.3,
+        "ratio": 11.06
+      }
+    },
+    {
+      "name": "zoom-reset",
+      "color": "rgb(220, 233, 176)",
+      "font": "11px",
+      "weight": "400",
+      "text": "100%",
+      "box": {
+        "x": 243,
+        "y": 135,
+        "width": 52,
+        "height": 44
+      },
+      "measured": {
+        "declared": [
+          220,
+          233,
+          176
+        ],
+        "backdrop": [
+          19,
+          38,
+          50
+        ],
+        "backdropShare": 81.7,
+        "ratio": 12.08
+      }
+    },
+    {
+      "name": "pose-active",
+      "color": "rgb(220, 233, 176)",
+      "font": "11px",
+      "weight": "400",
+      "text": "Исходный",
+      "box": {
+        "x": 87,
+        "y": 187,
+        "width": 70,
+        "height": 44
+      },
+      "measured": {
+        "declared": [
+          220,
+          233,
+          176
+        ],
+        "backdrop": [
+          41,
+          57,
+          70
+        ],
+        "backdropShare": 23.1,
+        "ratio": 9.23
+      }
+    },
+    {
+      "name": "pose-idle",
+      "color": "rgb(200, 212, 217)",
+      "font": "11px",
+      "weight": "400",
+      "text": "Сзади",
+      "box": {
+        "x": 161,
+        "y": 187,
+        "width": 50,
+        "height": 44
+      },
+      "measured": {
+        "declared": [
+          200,
+          212,
+          217
+        ],
+        "backdrop": [
+          14,
+          34,
+          50
+        ],
+        "backdropShare": 68.9,
+        "ratio": 10.73
+      }
+    },
+    {
+      "name": "discard",
+      "color": "rgb(215, 223, 206)",
+      "font": "13px",
+      "weight": "600",
+      "text": "Выбросить",
+      "box": {
+        "x": 24,
+        "y": 806,
+        "width": 176,
+        "height": 59
+      },
+      "measured": {
+        "declared": [
+          215,
+          223,
+          206
+        ],
+        "backdrop": [
+          22,
+          41,
+          38
+        ],
+        "backdropShare": 79.9,
+        "ratio": 11.12
+      }
+    },
+    {
+      "name": "keep",
+      "color": "rgb(29, 44, 37)",
+      "font": "13px",
+      "weight": "600",
+      "text": "Забрать",
+      "box": {
+        "x": 212,
+        "y": 806,
+        "width": 176,
+        "height": 59
+      },
+      "measured": {
+        "declared": [
+          29,
+          44,
+          37
+        ],
+        "backdrop": [
+          219,
+          233,
+          176
+        ],
+        "backdropShare": 82.6,
+        "ratio": 11.32
+      }
+    }
+  ],
+  "contrastArchive": [
+    {
+      "name": "dialog-eyebrow",
+      "color": "rgb(179, 193, 167)",
+      "font": "8px",
+      "weight": "600",
+      "text": "ВАШ ЛИЧНЫЙ АРХИВ",
+      "box": {
+        "x": 38,
+        "y": 54,
+        "width": 230,
+        "height": 11
+      },
+      "measured": {
+        "declared": [
+          179,
+          193,
+          167
+        ],
+        "backdrop": [
+          25,
+          45,
+          52
+        ],
+        "backdropShare": 62.1,
+        "ratio": 7.57
+      }
+    },
+    {
+      "name": "dialog-title",
+      "color": "rgb(241, 240, 230)",
+      "font": "29px",
+      "weight": "400",
+      "text": "Найдено и сохранен",
+      "box": {
+        "x": 38,
+        "y": 75,
+        "width": 230,
+        "height": 64
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          25,
+          45,
+          52
+        ],
+        "backdropShare": 74.7,
+        "ratio": 12.51
+      }
+    },
+    {
+      "name": "summary",
+      "color": "rgb(170, 186, 158)",
+      "font": "13px",
+      "weight": "400",
+      "text": "18 / 18 вещей с пр",
+      "box": {
+        "x": 38,
+        "y": 186,
+        "width": 148,
+        "height": 18
+      },
+      "measured": {
+        "declared": [
+          170,
+          186,
+          158
+        ],
+        "backdrop": [
+          25,
+          45,
+          52
+        ],
+        "backdropShare": 45.1,
+        "ratio": 6.97
+      }
+    },
+    {
+      "name": "filter-active",
+      "color": "rgb(220, 233, 176)",
+      "font": "10px",
+      "weight": "400",
+      "text": "Все находки 18",
+      "box": {
+        "x": 38,
+        "y": 236,
+        "width": 75,
+        "height": 44
+      },
+      "measured": {
+        "declared": [
+          220,
+          233,
+          176
+        ],
+        "backdrop": [
+          24,
+          43,
+          51
+        ],
+        "backdropShare": 37.5,
+        "ratio": 11.4
+      }
+    },
+    {
+      "name": "filter-idle",
+      "color": "rgb(200, 211, 215)",
+      "font": "10px",
+      "weight": "400",
+      "text": "Вещи с историей 12",
+      "box": {
+        "x": 158,
+        "y": 236,
+        "width": 97,
+        "height": 44
+      },
+      "measured": {
+        "declared": [
+          200,
+          211,
+          215
+        ],
+        "backdrop": [
+          24,
+          43,
+          51
+        ],
+        "backdropShare": 55.5,
+        "ratio": 9.6
+      }
+    },
+    {
+      "name": "catalog-hint",
+      "color": "rgb(193, 205, 210)",
+      "font": "10px",
+      "weight": "400",
+      "text": "Сохранённую вещь м",
+      "box": {
+        "x": 38,
+        "y": 299,
+        "width": 336,
+        "height": 15
+      },
+      "measured": {
+        "declared": [
+          193,
+          205,
+          210
+        ],
+        "backdrop": [
+          25,
+          45,
+          52
+        ],
+        "backdropShare": 48.9,
+        "ratio": 8.82
+      }
+    },
+    {
+      "name": "item-title",
+      "color": "rgb(237, 240, 231)",
+      "font": "10px",
+      "weight": "500",
+      "text": "Смена-8М",
+      "box": {
+        "x": 51,
+        "y": 487,
+        "width": 137,
+        "height": 15
+      },
+      "measured": {
+        "declared": [
+          237,
+          240,
+          231
+        ],
+        "backdrop": [
+          33,
+          52,
+          62
+        ],
+        "backdropShare": 75.7,
+        "ratio": 11.21
+      }
+    },
+    {
+      "name": "item-type",
+      "color": "rgb(194, 206, 208)",
+      "font": "8px",
+      "weight": "400",
+      "text": "Редкая находка",
+      "box": {
+        "x": 51,
+        "y": 506,
+        "width": 137,
+        "height": 11
+      },
+      "measured": {
+        "declared": [
+          194,
+          206,
+          208
+        ],
+        "backdrop": [
+          33,
+          52,
+          62
+        ],
+        "backdropShare": 68.8,
+        "ratio": 8.02
+      }
+    },
+    {
+      "name": "item-index",
+      "color": "rgb(174, 193, 200)",
+      "font": "7px",
+      "weight": "400",
+      "text": "01",
+      "box": {
+        "x": 46,
+        "y": 340,
+        "width": 9,
+        "height": 9
+      },
+      "measured": {
+        "declared": [
+          174,
+          193,
+          200
+        ],
+        "backdrop": [
+          33,
+          53,
+          62
+        ],
+        "backdropShare": 38.3,
+        "ratio": 6.85
+      }
+    },
+    {
+      "name": "dialog-foot",
+      "color": "rgb(182, 197, 203)",
+      "font": "11px",
+      "weight": "400",
+      "text": "Забытые вещи. Новы",
+      "box": {
+        "x": 38,
+        "y": 2418,
+        "width": 336,
+        "height": 18
+      },
+      "measured": {
+        "declared": "rgb(182, 197, 203)",
+        "backdrop": null,
+        "backdropShare": 0,
+        "ratio": null,
+        "note": "no visible pixels in the frame"
+      }
+    }
+  ],
+  "contrastSettings": [
+    {
+      "name": "title",
+      "color": "rgb(241, 240, 230)",
+      "font": "29px",
+      "weight": "400",
+      "text": "Без спешки.",
+      "box": {
+        "x": 45,
+        "y": 226,
+        "width": 136,
+        "height": 32
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          35,
+          50,
+          42
+        ],
+        "backdropShare": 59.5,
+        "ratio": 11.75
+      }
+    },
+    {
+      "name": "step",
+      "color": "rgb(241, 240, 230)",
+      "font": "14px",
+      "weight": "400",
+      "text": "Нажмите на бак три",
+      "box": {
+        "x": 70,
+        "y": 281,
+        "width": 220,
+        "height": 45
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          35,
+          50,
+          42
+        ],
+        "backdropShare": 60.6,
+        "ratio": 11.75
+      }
+    },
+    {
+      "name": "step-note",
+      "color": "rgb(194, 206, 192)",
+      "font": "12px",
+      "weight": "400",
+      "text": "Или используйте кн",
+      "box": {
+        "x": 70,
+        "y": 307,
+        "width": 220,
+        "height": 19
+      },
+      "measured": {
+        "declared": [
+          194,
+          206,
+          192
+        ],
+        "backdrop": [
+          35,
+          50,
+          42
+        ],
+        "backdropShare": 50.1,
+        "ratio": 8.25
+      }
+    },
+    {
+      "name": "switch-label",
+      "color": "rgb(241, 240, 230)",
+      "font": "12px",
+      "weight": "400",
+      "text": "Облегчённая график",
+      "box": {
+        "x": 45,
+        "y": 504,
+        "width": 247,
+        "height": 60
+      },
+      "measured": {
+        "declared": [
+          241,
+          240,
+          230
+        ],
+        "backdrop": [
+          34,
+          50,
+          42
+        ],
+        "backdropShare": 73.7,
+        "ratio": 11.78
+      }
+    },
+    {
+      "name": "switch-note",
+      "color": "rgb(194, 206, 192)",
+      "font": "12px",
+      "weight": "400",
+      "text": "Меньше нагрузки: б",
+      "box": {
+        "x": 45,
+        "y": 526,
+        "width": 247,
+        "height": 38
+      },
+      "measured": {
+        "declared": [
+          194,
+          206,
+          192
+        ],
+        "backdrop": [
+          34,
+          50,
+          42
+        ],
+        "backdropShare": 72.4,
+        "ratio": 8.27
+      }
+    },
+    {
+      "name": "settings-note",
+      "color": "rgb(194, 206, 192)",
+      "font": "12px",
+      "weight": "400",
+      "text": "12 вещей с историе",
+      "box": {
+        "x": 45,
+        "y": 586,
+        "width": 322,
+        "height": 58
+      },
+      "measured": {
+        "declared": [
+          194,
+          206,
+          192
+        ],
+        "backdrop": [
+          34,
+          50,
+          42
+        ],
+        "backdropShare": 73.3,
+        "ratio": 8.27
+      }
+    },
+    {
+      "name": "reset",
+      "color": "rgb(191, 204, 168)",
+      "font": "10px",
+      "weight": "400",
+      "text": "Начать коллекцию з",
+      "box": {
+        "x": 45,
+        "y": 666,
+        "width": 124,
+        "height": 44
+      },
+      "measured": {
+        "declared": [
+          191,
+          204,
+          168
+        ],
+        "backdrop": [
+          35,
+          50,
+          42
+        ],
+        "backdropShare": 70.9,
+        "ratio": 7.95
+      }
+    }
+  ]
+}

@@ -265,7 +265,17 @@ function record(g){
   for(const side of [-1,1]){
     mesh(new THREE.CircleGeometry(.824,96),vinyl,g,[0,0,side*.013],[0,side===1?0:Math.PI,0]);
     const face=new THREE.Group();g.add(face);face.rotation.y=side===1?0:Math.PI;
-    circularFace(face,.281,.015,(c,s,r)=>{c.fillStyle=side===1?'#a09162':'#857c57';c.fillRect(0,0,s,s);c.fillStyle='#29362b';c.textAlign='center';c.font='bold 72px Georgia';c.fillText('МЕЛОДИЯ',s/2,255);c.font='33px Arial';c.fillText('ЛЕНИНГРАДСКИЙ ЗАВОД',s/2,330);c.fillText(side===1?'СТОРОНА 1':'СТОРОНА 2',s/2,712);c.font='26px Arial';c.fillText('33 об/мин • ГОСТ 5289–80',s/2,770);c.fillText('С60–18653',s/2,833);c.strokeStyle='#344a33';c.lineWidth=4;c.beginPath();c.arc(s/2,s/2,480,0,TAU);c.stroke();distress(c,s,s,r,1500);});
+    circularFace(face,.281,.015,(c,s,r)=>{
+      // The label is about 95 px across in the inspection frame, so a 26 px line on
+      // this 1024 canvas prints at 2.4 px - measured as dirt rather than as print.
+      // Only the two lines that survive at 30 px stay; the catalogue data that used
+      // to sit here already lives in the find description.
+      c.fillStyle=side===1?'#a09162':'#857c57';c.fillRect(0,0,s,s);c.fillStyle='#29362b';c.textAlign='center';
+      c.font='bold 84px Georgia';c.fillText('МЕЛОДИЯ',s/2,268);
+      c.font='46px Arial';c.fillText('ЛЕНИНГРАДСКИЙ ЗАВОД',s/2,352);
+      c.font='52px Arial';c.fillText(side===1?'СТОРОНА 1':'СТОРОНА 2',s/2,700);
+      c.strokeStyle='#344a33';c.lineWidth=4;c.beginPath();c.arc(s/2,s/2,480,0,TAU);c.stroke();
+      distress(c,s,s,r,1500);});
     cyl(face,.018,.018,.01,[0,0,.022],M.rubber);
   }
 }
@@ -383,11 +393,14 @@ function newspaper(g){
     distress(c,w,h,r,10000);c.fillStyle='rgba(92,69,29,.12)';c.fillRect(w*.43,0,7,h);
     c.fillStyle='rgba(99,68,36,.13)';c.beginPath();c.ellipse(w*.16,h*.90,w*.19,h*.09,.15,0,TAU);c.fill();
   },1024,1280);
-  const mat=new THREE.MeshStandardMaterial({map,roughness:1,side:THREE.DoubleSide,bumpMap:M.paper.bumpMap,bumpScale:.004});
-  for(let side=0;side<2;side++){
+  const mat=new THREE.MeshStandardMaterial({map,roughness:1,side:THREE.FrontSide,bumpMap:M.paper.bumpMap,bumpScale:.004});
+  // The sheet used to be two copies of the same page, so turning it over showed the
+  // print mirrored - a bug, not a physical phenomenon. The back is now a clean page.
+  const back=new THREE.MeshStandardMaterial({color:0xd3c8a6,roughness:1,side:THREE.FrontSide,bumpMap:M.paper.bumpMap,bumpScale:.004});
+  for(const side of [1,-1]){
     const geo=new THREE.PlaneGeometry(1.14,1.43,40,40),p=geo.attributes.position;
-    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i);p.setZ(i,side*.004);}
-    geo.computeVertexNormals();mesh(geo,mat,g);
+    for(let i=0;i<p.count;i++){p.setZ(i,side*.004);}
+    geo.computeVertexNormals();mesh(geo,side===1?mat:back,g,[0,0,0],side===1?[0,0,0]:[0,Math.PI,0]);
   }
 }
 

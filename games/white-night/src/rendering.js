@@ -29,8 +29,11 @@ export class RenderPipeline {
   }
   resize(w,h,dpr){
     this.composer.setPixelRatio(dpr);this.composer.setSize(w,h);
-    // Only normals and AO are lower resolution; the color image stays sharp.
-    this.ao.setSize(Math.round(w*dpr*.6),Math.round(h*dpr*.6));
+    // Only normals and AO are lower resolution; the color image stays sharp. High
+    // quality now spends the raised budget on a finer contact/AO buffer (0.85 instead
+    // of 0.6), which is what separates the find from the courtyard behind it.
+    const scale=this.low?.6:.85;
+    this.ao.setSize(Math.round(w*dpr*scale),Math.round(h*dpr*scale));
   }
   render(){
     this.renderer.info.reset();

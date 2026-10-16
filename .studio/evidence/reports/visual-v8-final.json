@@ -1,0 +1,5589 @@
+{
+  "passed": true,
+  "series": "v8",
+  "iteration": "final",
+  "shots": [
+    {
+      "name": "search-320x568",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-360x640",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-390x844",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-412x915",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-768x1024",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-1024x600",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-1280x900",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-1920x1080",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "search-844x390",
+      "note": "courtyard, search phase"
+    },
+    {
+      "name": "tap-1",
+      "note": "first tap, lid kick in motion"
+    },
+    {
+      "name": "tap-2",
+      "note": "second tap, lid kick in motion"
+    },
+    {
+      "name": "tap-2-settled",
+      "note": "second tap, after the kick decays"
+    },
+    {
+      "name": "before-keep",
+      "note": "inspection of the cassette before the decision"
+    },
+    {
+      "name": "toast-412-fading",
+      "note": "toast 0.12 s after the decision, still fading in"
+    },
+    {
+      "name": "toast-412",
+      "note": "toast 0.6 s after keeping a find"
+    },
+    {
+      "name": "toast-1280",
+      "note": "toast on the desktop layout"
+    },
+    {
+      "name": "toast-844x390",
+      "note": "toast on a landscape phone"
+    },
+    {
+      "name": "toast-844x390-gone",
+      "note": "landscape 3 s after the decision"
+    },
+    {
+      "name": "item-camera",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-teacup",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-watch",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-cassette",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-duck",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-book",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-key",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-badge",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-record",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-perfume",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-horse",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-compass",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-bottle",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-can",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-cup",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-box",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-lid",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "item-paper",
+      "note": "inspection, authored pose"
+    },
+    {
+      "name": "drag-paper-mid",
+      "note": "find turned by drag, mid gesture"
+    },
+    {
+      "name": "drag-paper-end",
+      "note": "find turned by drag until it left the authored pose"
+    },
+    {
+      "name": "drag-camera-mid",
+      "note": "find turned by drag, mid gesture"
+    },
+    {
+      "name": "drag-camera-end",
+      "note": "find turned by drag until it left the authored pose"
+    },
+    {
+      "name": "drag-duck-mid",
+      "note": "find turned by drag, mid gesture"
+    },
+    {
+      "name": "drag-duck-end",
+      "note": "find turned by drag until it left the authored pose"
+    },
+    {
+      "name": "drag-record-edge",
+      "note": "vinyl turned by drag to an edge-on view"
+    },
+    {
+      "name": "zoom-max-rotated",
+      "note": "maximum zoom on a turned find"
+    },
+    {
+      "name": "collection-empty",
+      "note": "archive, nothing found"
+    },
+    {
+      "name": "collection-partial",
+      "note": "archive, 4 of 18, mixed rarities"
+    },
+    {
+      "name": "collection-junk-only",
+      "note": "archive, junk filter with two finds"
+    },
+    {
+      "name": "collection-17",
+      "note": "archive, one find left"
+    },
+    {
+      "name": "complete",
+      "note": "completion screen with the last finds"
+    },
+    {
+      "name": "settings-412",
+      "note": "settings dialog"
+    },
+    {
+      "name": "settings-reset-confirm",
+      "note": "destructive reset confirmation"
+    },
+    {
+      "name": "search-412-low",
+      "note": "courtyard in the reduced-quality mode"
+    },
+    {
+      "name": "search-1280-low",
+      "note": "courtyard in reduced quality on desktop"
+    },
+    {
+      "name": "item-duck-low",
+      "note": "find in the reduced-quality mode"
+    },
+    {
+      "name": "reveal-0_05",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-0_2",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-0_25",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-0_4",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-0_55",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-0_7",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-0_85",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "reveal-1",
+      "note": "reveal timeline, real motion"
+    },
+    {
+      "name": "small-320x568-camera",
+      "note": "find on 320x568"
+    },
+    {
+      "name": "small-320x568-paper",
+      "note": "find on 320x568"
+    },
+    {
+      "name": "small-320x568-teacup",
+      "note": "find on 320x568"
+    },
+    {
+      "name": "small-360x640-camera",
+      "note": "find on 360x640"
+    },
+    {
+      "name": "small-360x640-paper",
+      "note": "find on 360x640"
+    },
+    {
+      "name": "small-360x640-teacup",
+      "note": "find on 360x640"
+    },
+    {
+      "name": "small-390x844-camera",
+      "note": "find on 390x844"
+    },
+    {
+      "name": "small-390x844-paper",
+      "note": "find on 390x844"
+    },
+    {
+      "name": "small-390x844-teacup",
+      "note": "find on 390x844"
+    },
+    {
+      "name": "small-844x390-camera",
+      "note": "find on 844x390"
+    },
+    {
+      "name": "small-844x390-paper",
+      "note": "find on 844x390"
+    },
+    {
+      "name": "small-844x390-teacup",
+      "note": "find on 844x390"
+    },
+    {
+      "name": "small-740x360-camera",
+      "note": "find on 740x360"
+    },
+    {
+      "name": "small-740x360-paper",
+      "note": "find on 740x360"
+    },
+    {
+      "name": "small-740x360-teacup",
+      "note": "find on 740x360"
+    },
+    {
+      "name": "contrast-inspect-base",
+      "note": "frame used for label-contrast measurement"
+    },
+    {
+      "name": "contrast-collection-base",
+      "note": "archive frame used for label-contrast measurement"
+    },
+    {
+      "name": "text-scale-130-search",
+      "note": "search screen with every size boosted 30%"
+    },
+    {
+      "name": "text-scale-130-inspect",
+      "note": "inspection with every size boosted 30%"
+    }
+  ],
+  "measures": {
+    "viewports": [
+      {
+        "w": 320,
+        "h": 568,
+        "hero": {
+          "x": 24,
+          "y": 100,
+          "w": 272,
+          "h": 105,
+          "bottom": 205
+        },
+        "fieldNote": null,
+        "search": {
+          "x": 24,
+          "y": 379,
+          "w": 272,
+          "h": 111,
+          "bottom": 490
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 79,
+          "bottom": 79
+        },
+        "footer": null,
+        "scrollW": 320,
+        "scrollH": 568,
+        "canvas": {
+          "w": 320,
+          "h": 568
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              15,
+              23,
+              25
+            ],
+            "light": [
+              85,
+              89,
+              86
+            ],
+            "ratio": 2.54
+          },
+          "tagline": {
+            "dark": [
+              16,
+              24,
+              25
+            ],
+            "light": [
+              87,
+              88,
+              81
+            ],
+            "ratio": 2.5
+          },
+          "eyebrow": {
+            "dark": [
+              15,
+              27,
+              32
+            ],
+            "light": [
+              73,
+              83,
+              85
+            ],
+            "ratio": 2.21
+          },
+          "caption": {
+            "dark": [
+              10,
+              19,
+              20
+            ],
+            "light": [
+              52,
+              64,
+              66
+            ],
+            "ratio": 1.75
+          },
+          "hint": {
+            "dark": [
+              18,
+              36,
+              38
+            ],
+            "light": [
+              43,
+              62,
+              64
+            ],
+            "ratio": 1.43
+          },
+          "wordmark": {
+            "dark": [
+              22,
+              34,
+              40
+            ],
+            "light": [
+              71,
+              84,
+              89
+            ],
+            "ratio": 2.06
+          }
+        }
+      },
+      {
+        "w": 360,
+        "h": 640,
+        "hero": {
+          "x": 24,
+          "y": 100,
+          "w": 312,
+          "h": 105,
+          "bottom": 205
+        },
+        "fieldNote": null,
+        "search": {
+          "x": 24,
+          "y": 451,
+          "w": 312,
+          "h": 111,
+          "bottom": 562
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 360,
+          "h": 79,
+          "bottom": 79
+        },
+        "footer": null,
+        "scrollW": 360,
+        "scrollH": 640,
+        "canvas": {
+          "w": 360,
+          "h": 640
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              8,
+              18,
+              24
+            ],
+            "light": [
+              75,
+              81,
+              81
+            ],
+            "ratio": 2.34
+          },
+          "tagline": {
+            "dark": [
+              40,
+              44,
+              42
+            ],
+            "light": [
+              92,
+              93,
+              89
+            ],
+            "ratio": 2.15
+          },
+          "eyebrow": {
+            "dark": [
+              11,
+              24,
+              31
+            ],
+            "light": [
+              66,
+              77,
+              79
+            ],
+            "ratio": 2.07
+          },
+          "caption": {
+            "dark": [
+              19,
+              33,
+              38
+            ],
+            "light": [
+              54,
+              69,
+              73
+            ],
+            "ratio": 1.65
+          },
+          "hint": {
+            "dark": [
+              18,
+              36,
+              39
+            ],
+            "light": [
+              44,
+              63,
+              65
+            ],
+            "ratio": 1.45
+          },
+          "wordmark": {
+            "dark": [
+              13,
+              27,
+              36
+            ],
+            "light": [
+              69,
+              82,
+              89
+            ],
+            "ratio": 2.17
+          }
+        }
+      },
+      {
+        "w": 390,
+        "h": 844,
+        "hero": {
+          "x": 24,
+          "y": 112,
+          "w": 342,
+          "h": 143,
+          "bottom": 255
+        },
+        "fieldNote": null,
+        "search": {
+          "x": 24,
+          "y": 655,
+          "w": 342,
+          "h": 111,
+          "bottom": 766
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 390,
+          "h": 79,
+          "bottom": 79
+        },
+        "footer": {
+          "x": 24,
+          "y": 791,
+          "w": 342,
+          "h": 30,
+          "bottom": 821
+        },
+        "scrollW": 390,
+        "scrollH": 844,
+        "canvas": {
+          "w": 390,
+          "h": 844
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              9,
+              20,
+              26
+            ],
+            "light": [
+              70,
+              79,
+              80
+            ],
+            "ratio": 2.2
+          },
+          "tagline": {
+            "dark": [
+              7,
+              15,
+              19
+            ],
+            "light": [
+              64,
+              71,
+              70
+            ],
+            "ratio": 2.03
+          },
+          "eyebrow": {
+            "dark": [
+              19,
+              32,
+              39
+            ],
+            "light": [
+              65,
+              77,
+              81
+            ],
+            "ratio": 1.89
+          },
+          "caption": {
+            "dark": [
+              19,
+              36,
+              38
+            ],
+            "light": [
+              54,
+              72,
+              73
+            ],
+            "ratio": 1.67
+          },
+          "hint": {
+            "dark": [
+              17,
+              36,
+              39
+            ],
+            "light": [
+              39,
+              59,
+              62
+            ],
+            "ratio": 1.36
+          },
+          "wordmark": {
+            "dark": [
+              14,
+              28,
+              37
+            ],
+            "light": [
+              68,
+              81,
+              88
+            ],
+            "ratio": 2.13
+          },
+          "place": {
+            "dark": [
+              17,
+              36,
+              40
+            ],
+            "light": [
+              42,
+              61,
+              64
+            ],
+            "ratio": 1.4
+          }
+        }
+      },
+      {
+        "w": 412,
+        "h": 915,
+        "hero": {
+          "x": 24,
+          "y": 112,
+          "w": 364,
+          "h": 143,
+          "bottom": 255
+        },
+        "fieldNote": null,
+        "search": {
+          "x": 24,
+          "y": 726,
+          "w": 364,
+          "h": 111,
+          "bottom": 837
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 412,
+          "h": 79,
+          "bottom": 79
+        },
+        "footer": {
+          "x": 24,
+          "y": 862,
+          "w": 364,
+          "h": 30,
+          "bottom": 892
+        },
+        "scrollW": 412,
+        "scrollH": 915,
+        "canvas": {
+          "w": 412,
+          "h": 915
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              10,
+              21,
+              28
+            ],
+            "light": [
+              65,
+              75,
+              77
+            ],
+            "ratio": 2.04
+          },
+          "tagline": {
+            "dark": [
+              8,
+              17,
+              22
+            ],
+            "light": [
+              62,
+              70,
+              70
+            ],
+            "ratio": 1.96
+          },
+          "eyebrow": {
+            "dark": [
+              31,
+              43,
+              47
+            ],
+            "light": [
+              65,
+              77,
+              82
+            ],
+            "ratio": 1.67
+          },
+          "caption": {
+            "dark": [
+              19,
+              37,
+              39
+            ],
+            "light": [
+              54,
+              72,
+              73
+            ],
+            "ratio": 1.66
+          },
+          "hint": {
+            "dark": [
+              17,
+              37,
+              39
+            ],
+            "light": [
+              39,
+              59,
+              62
+            ],
+            "ratio": 1.36
+          },
+          "wordmark": {
+            "dark": [
+              14,
+              28,
+              37
+            ],
+            "light": [
+              67,
+              81,
+              88
+            ],
+            "ratio": 2.12
+          },
+          "place": {
+            "dark": [
+              17,
+              36,
+              40
+            ],
+            "light": [
+              44,
+              63,
+              65
+            ],
+            "ratio": 1.45
+          }
+        }
+      },
+      {
+        "w": 768,
+        "h": 1024,
+        "hero": {
+          "x": 38,
+          "y": 195,
+          "w": 217,
+          "h": 243,
+          "bottom": 438
+        },
+        "fieldNote": {
+          "x": 552,
+          "y": 297,
+          "w": 185,
+          "h": 172,
+          "bottom": 468
+        },
+        "search": {
+          "x": 214,
+          "y": 828,
+          "w": 340,
+          "h": 118,
+          "bottom": 946
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 768,
+          "h": 96,
+          "bottom": 96
+        },
+        "footer": {
+          "x": 30,
+          "y": 956,
+          "w": 708,
+          "h": 33,
+          "bottom": 989
+        },
+        "scrollW": 768,
+        "scrollH": 1024,
+        "canvas": {
+          "w": 768,
+          "h": 1024
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              18,
+              26,
+              28
+            ],
+            "light": [
+              92,
+              94,
+              90
+            ],
+            "ratio": 2.69
+          },
+          "tagline": {
+            "dark": [
+              16,
+              24,
+              25
+            ],
+            "light": [
+              119,
+              117,
+              103
+            ],
+            "ratio": 3.89
+          },
+          "eyebrow": {
+            "dark": [
+              22,
+              34,
+              37
+            ],
+            "light": [
+              91,
+              101,
+              104
+            ],
+            "ratio": 2.73
+          },
+          "field-note": {
+            "dark": [
+              12,
+              20,
+              24
+            ],
+            "light": [
+              79,
+              84,
+              82
+            ],
+            "ratio": 2.41
+          },
+          "field-label": {
+            "dark": [
+              5,
+              10,
+              11
+            ],
+            "light": [
+              57,
+              63,
+              62
+            ],
+            "ratio": 1.86
+          },
+          "caption": {
+            "dark": [
+              18,
+              35,
+              37
+            ],
+            "light": [
+              53,
+              71,
+              72
+            ],
+            "ratio": 1.65
+          },
+          "hint": {
+            "dark": [
+              16,
+              36,
+              39
+            ],
+            "light": [
+              41,
+              61,
+              64
+            ],
+            "ratio": 1.4
+          },
+          "wordmark": {
+            "dark": [
+              24,
+              38,
+              45
+            ],
+            "light": [
+              72,
+              86,
+              92
+            ],
+            "ratio": 2.04
+          },
+          "place": {
+            "dark": [
+              17,
+              36,
+              39
+            ],
+            "light": [
+              40,
+              59,
+              62
+            ],
+            "ratio": 1.37
+          }
+        }
+      },
+      {
+        "w": 1024,
+        "h": 600,
+        "hero": {
+          "x": 51,
+          "y": 100,
+          "w": 217,
+          "h": 177,
+          "bottom": 277
+        },
+        "fieldNote": null,
+        "search": {
+          "x": 342,
+          "y": 404,
+          "w": 340,
+          "h": 118,
+          "bottom": 522
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1024,
+          "h": 96,
+          "bottom": 96
+        },
+        "footer": null,
+        "scrollW": 1024,
+        "scrollH": 600,
+        "canvas": {
+          "w": 1024,
+          "h": 600
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              20,
+              30,
+              34
+            ],
+            "light": [
+              75,
+              84,
+              84
+            ],
+            "ratio": 2.17
+          },
+          "tagline": {
+            "dark": [
+              13,
+              21,
+              22
+            ],
+            "light": [
+              97,
+              102,
+              96
+            ],
+            "ratio": 3.16
+          },
+          "eyebrow": {
+            "dark": [
+              24,
+              36,
+              40
+            ],
+            "light": [
+              104,
+              113,
+              111
+            ],
+            "ratio": 3.17
+          },
+          "caption": {
+            "dark": [
+              7,
+              17,
+              16
+            ],
+            "light": [
+              48,
+              58,
+              58
+            ],
+            "ratio": 1.64
+          },
+          "hint": {
+            "dark": [
+              16,
+              34,
+              36
+            ],
+            "light": [
+              38,
+              57,
+              59
+            ],
+            "ratio": 1.36
+          },
+          "wordmark": {
+            "dark": [
+              20,
+              34,
+              42
+            ],
+            "light": [
+              68,
+              81,
+              87
+            ],
+            "ratio": 1.97
+          }
+        }
+      },
+      {
+        "w": 1280,
+        "h": 900,
+        "hero": {
+          "x": 43,
+          "y": 141,
+          "w": 347,
+          "h": 347,
+          "bottom": 488
+        },
+        "fieldNote": {
+          "x": 997,
+          "y": 241,
+          "w": 243,
+          "h": 212,
+          "bottom": 453
+        },
+        "search": {
+          "x": 470,
+          "y": 704,
+          "w": 340,
+          "h": 118,
+          "bottom": 822
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1280,
+          "h": 108,
+          "bottom": 108
+        },
+        "footer": {
+          "x": 44,
+          "y": 827,
+          "w": 1192,
+          "h": 38,
+          "bottom": 865
+        },
+        "scrollW": 1280,
+        "scrollH": 900,
+        "canvas": {
+          "w": 1280,
+          "h": 900
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              13,
+              22,
+              27
+            ],
+            "light": [
+              66,
+              74,
+              75
+            ],
+            "ratio": 2.01
+          },
+          "tagline": {
+            "dark": [
+              9,
+              18,
+              21
+            ],
+            "light": [
+              87,
+              92,
+              86
+            ],
+            "ratio": 2.76
+          },
+          "eyebrow": {
+            "dark": [
+              16,
+              26,
+              31
+            ],
+            "light": [
+              84,
+              93,
+              93
+            ],
+            "ratio": 2.61
+          },
+          "field-note": {
+            "dark": [
+              16,
+              22,
+              24
+            ],
+            "light": [
+              73,
+              79,
+              78
+            ],
+            "ratio": 2.18
+          },
+          "field-label": {
+            "dark": [
+              30,
+              34,
+              31
+            ],
+            "light": [
+              60,
+              63,
+              59
+            ],
+            "ratio": 1.51
+          },
+          "location": {
+            "dark": [
+              19,
+              32,
+              39
+            ],
+            "light": [
+              66,
+              79,
+              84
+            ],
+            "ratio": 1.95
+          },
+          "caption": {
+            "dark": [
+              18,
+              36,
+              39
+            ],
+            "light": [
+              54,
+              72,
+              73
+            ],
+            "ratio": 1.68
+          },
+          "hint": {
+            "dark": [
+              17,
+              37,
+              41
+            ],
+            "light": [
+              43,
+              63,
+              66
+            ],
+            "ratio": 1.45
+          },
+          "wordmark": {
+            "dark": [
+              23,
+              37,
+              45
+            ],
+            "light": [
+              73,
+              86,
+              91
+            ],
+            "ratio": 2.07
+          },
+          "place": {
+            "dark": [
+              18,
+              37,
+              40
+            ],
+            "light": [
+              42,
+              61,
+              64
+            ],
+            "ratio": 1.4
+          }
+        }
+      },
+      {
+        "w": 1920,
+        "h": 1080,
+        "hero": {
+          "x": 158,
+          "y": 175,
+          "w": 347,
+          "h": 367,
+          "bottom": 542
+        },
+        "fieldNote": {
+          "x": 1509,
+          "y": 293,
+          "w": 243,
+          "h": 212,
+          "bottom": 505
+        },
+        "search": {
+          "x": 790,
+          "y": 867,
+          "w": 340,
+          "h": 118,
+          "bottom": 985
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1920,
+          "h": 108,
+          "bottom": 108
+        },
+        "footer": {
+          "x": 44,
+          "y": 1007,
+          "w": 1832,
+          "h": 38,
+          "bottom": 1045
+        },
+        "scrollW": 1920,
+        "scrollH": 1080,
+        "canvas": {
+          "w": 1920,
+          "h": 1080
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              14,
+              23,
+              28
+            ],
+            "light": [
+              62,
+              70,
+              72
+            ],
+            "ratio": 1.88
+          },
+          "tagline": {
+            "dark": [
+              6,
+              13,
+              17
+            ],
+            "light": [
+              49,
+              58,
+              60
+            ],
+            "ratio": 1.68
+          },
+          "eyebrow": {
+            "dark": [
+              19,
+              30,
+              35
+            ],
+            "light": [
+              94,
+              101,
+              99
+            ],
+            "ratio": 2.84
+          },
+          "field-note": {
+            "dark": [
+              27,
+              32,
+              32
+            ],
+            "light": [
+              68,
+              72,
+              70
+            ],
+            "ratio": 1.78
+          },
+          "field-label": {
+            "dark": [
+              7,
+              16,
+              19
+            ],
+            "light": [
+              62,
+              71,
+              70
+            ],
+            "ratio": 2
+          },
+          "location": {
+            "dark": [
+              12,
+              26,
+              33
+            ],
+            "light": [
+              66,
+              79,
+              85
+            ],
+            "ratio": 2.1
+          },
+          "caption": {
+            "dark": [
+              17,
+              35,
+              38
+            ],
+            "light": [
+              51,
+              70,
+              72
+            ],
+            "ratio": 1.63
+          },
+          "hint": {
+            "dark": [
+              17,
+              37,
+              40
+            ],
+            "light": [
+              42,
+              62,
+              64
+            ],
+            "ratio": 1.42
+          },
+          "wordmark": {
+            "dark": [
+              21,
+              36,
+              44
+            ],
+            "light": [
+              63,
+              78,
+              85
+            ],
+            "ratio": 1.84
+          },
+          "place": {
+            "dark": [
+              18,
+              37,
+              41
+            ],
+            "light": [
+              43,
+              63,
+              65
+            ],
+            "ratio": 1.42
+          }
+        }
+      },
+      {
+        "w": 844,
+        "h": 390,
+        "hero": {
+          "x": 28,
+          "y": 82,
+          "w": 88,
+          "h": 109,
+          "bottom": 191
+        },
+        "fieldNote": null,
+        "search": {
+          "x": 524,
+          "y": 284,
+          "w": 296,
+          "h": 86,
+          "bottom": 370
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 78,
+          "bottom": 78
+        },
+        "footer": null,
+        "scrollW": 844,
+        "scrollH": 390,
+        "canvas": {
+          "w": 844,
+          "h": 390
+        },
+        "overlaps": {
+          "heroVsTopbar": false,
+          "heroVsFooter": false,
+          "searchVsHero": false,
+          "searchVsFooter": false,
+          "fieldNoteVsTopbar": false
+        },
+        "overflowX": false,
+        "overflowY": false,
+        "textContrast": {
+          "headline": {
+            "dark": [
+              11,
+              18,
+              21
+            ],
+            "light": [
+              75,
+              85,
+              86
+            ],
+            "ratio": 2.44
+          },
+          "caption": {
+            "dark": [
+              20,
+              35,
+              38
+            ],
+            "light": [
+              56,
+              70,
+              72
+            ],
+            "ratio": 1.65
+          },
+          "wordmark": {
+            "dark": [
+              27,
+              40,
+              48
+            ],
+            "light": [
+              123,
+              129,
+              122
+            ],
+            "ratio": 3.76
+          }
+        },
+        "panel": {
+          "controls": {
+            "x": 524,
+            "y": 284,
+            "w": 296,
+            "h": 86,
+            "bottom": 370,
+            "right": 820
+          },
+          "status": {
+            "x": 527,
+            "y": 284,
+            "w": 290,
+            "h": 17,
+            "bottom": 301,
+            "right": 817
+          },
+          "button": {
+            "x": 524,
+            "y": 310,
+            "w": 296,
+            "h": 60,
+            "bottom": 370,
+            "right": 820
+          },
+          "hint": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0,
+            "bottom": 0,
+            "right": 0
+          },
+          "binTag": {
+            "x": 0,
+            "y": 0,
+            "w": 0,
+            "h": 0,
+            "bottom": 0,
+            "right": 0
+          },
+          "wordmark": {
+            "x": 25,
+            "y": 22,
+            "w": 109,
+            "h": 35,
+            "bottom": 57,
+            "right": 134
+          },
+          "nav": {
+            "x": 572,
+            "y": 15,
+            "w": 247,
+            "h": 48,
+            "bottom": 63,
+            "right": 819
+          }
+        },
+        "panelOffscreen": {
+          "controls": false,
+          "status": false,
+          "button": false,
+          "hint": false,
+          "binTag": false,
+          "wordmark": false,
+          "nav": false
+        }
+      }
+    ],
+    "tapProgress": {
+      "dots": [
+        "rgb(220, 233, 176)",
+        "rgb(220, 233, 176)",
+        "rgba(0, 0, 0, 0)"
+      ],
+      "label": "Нажатий: 2 из 3",
+      "caption": "Ещё одно касание — и узнаем."
+    },
+    "toast412": {
+      "visible": false,
+      "opacity": 0,
+      "tone": "kept",
+      "text": "Кассета «Белые ночи» — теперь в коллекции",
+      "rect": {
+        "x": 69,
+        "y": 655,
+        "w": 273,
+        "h": 40,
+        "bottom": 695,
+        "right": 343
+      },
+      "offscreen": false,
+      "overlapsHero": false,
+      "overlapsFieldNote": null,
+      "overlapsSearch": false
+    },
+    "toast1280": {
+      "visible": false,
+      "opacity": 0,
+      "tone": "kept",
+      "text": "Мятый стаканчик — теперь в коллекции",
+      "rect": {
+        "x": 496,
+        "y": 146,
+        "w": 288,
+        "h": 43,
+        "bottom": 189,
+        "right": 784
+      },
+      "offscreen": false,
+      "overlapsHero": false,
+      "overlapsFieldNote": null,
+      "overlapsSearch": false
+    },
+    "toast844": {
+      "visible": false,
+      "opacity": 0,
+      "tone": "kept",
+      "text": "Томик Блока — теперь в коллекции",
+      "rect": {
+        "x": 300,
+        "y": 146,
+        "w": 243,
+        "h": 41,
+        "bottom": 187,
+        "right": 544
+      },
+      "offscreen": false,
+      "overlapsHero": false,
+      "overlapsFieldNote": null,
+      "overlapsSearch": false
+    },
+    "poses": [
+      {
+        "id": "camera",
+        "front": {
+          "area": 62874,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 62774,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 65488,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 78426,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 45.6,
+        "topPct": 99.8,
+        "bottomPct": 104.2,
+        "backPct": 124.7
+      },
+      {
+        "id": "teacup",
+        "front": {
+          "area": 62492,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 83260,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 69873,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 69820,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 45.3,
+        "topPct": 133.2,
+        "bottomPct": 111.8,
+        "backPct": 111.7
+      },
+      {
+        "id": "watch",
+        "front": {
+          "area": 56577,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 61234,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 61576,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 63195,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 41,
+        "topPct": 108.2,
+        "bottomPct": 108.8,
+        "backPct": 111.7
+      },
+      {
+        "id": "cassette",
+        "front": {
+          "area": 73423,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 59914,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 63823,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 80679,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 53.2,
+        "topPct": 81.6,
+        "bottomPct": 86.9,
+        "backPct": 109.9
+      },
+      {
+        "id": "duck",
+        "front": {
+          "area": 60835,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 60227,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 62749,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 65720,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 44.1,
+        "topPct": 99,
+        "bottomPct": 103.1,
+        "backPct": 108
+      },
+      {
+        "id": "book",
+        "front": {
+          "area": 69062,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 64208,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 65446,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 74830,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 50,
+        "topPct": 93,
+        "bottomPct": 94.8,
+        "backPct": 108.4
+      },
+      {
+        "id": "key",
+        "front": {
+          "area": 45771,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 52160,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 48421,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 47217,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 33.2,
+        "topPct": 114,
+        "bottomPct": 105.8,
+        "backPct": 103.2
+      },
+      {
+        "id": "badge",
+        "front": {
+          "area": 69349,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 64809,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 63854,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 72917,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 50.2,
+        "topPct": 93.5,
+        "bottomPct": 92.1,
+        "backPct": 105.1
+      },
+      {
+        "id": "record",
+        "front": {
+          "area": 68446,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 58332,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 65580,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 90221,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 49.6,
+        "topPct": 85.2,
+        "bottomPct": 95.8,
+        "backPct": 131.8
+      },
+      {
+        "id": "perfume",
+        "front": {
+          "area": 62560,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 69233,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 85814,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 66635,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 45.3,
+        "topPct": 110.7,
+        "bottomPct": 137.2,
+        "backPct": 106.5
+      },
+      {
+        "id": "horse",
+        "front": {
+          "area": 66336,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 60984,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 77653,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 71077,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 48.1,
+        "topPct": 91.9,
+        "bottomPct": 117.1,
+        "backPct": 107.1
+      },
+      {
+        "id": "compass",
+        "front": {
+          "area": 67368,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 49349,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 56149,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 80010,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 48.8,
+        "topPct": 73.3,
+        "bottomPct": 83.3,
+        "backPct": 118.8
+      },
+      {
+        "id": "bottle",
+        "front": {
+          "area": 57955,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 69103,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 82184,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 61150,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 42,
+        "topPct": 119.2,
+        "bottomPct": 141.8,
+        "backPct": 105.5
+      },
+      {
+        "id": "can",
+        "front": {
+          "area": 63845,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 80508,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 89854,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 80092,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 46.3,
+        "topPct": 126.1,
+        "bottomPct": 140.7,
+        "backPct": 125.4
+      },
+      {
+        "id": "cup",
+        "front": {
+          "area": 64255,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 92683,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 67969,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 78325,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 46.6,
+        "topPct": 144.2,
+        "bottomPct": 105.8,
+        "backPct": 121.9
+      },
+      {
+        "id": "box",
+        "front": {
+          "area": 59750,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 85560,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 77781,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 63478,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 43.3,
+        "topPct": 143.2,
+        "bottomPct": 130.2,
+        "backPct": 106.2
+      },
+      {
+        "id": "lid",
+        "front": {
+          "area": 72449,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 58577,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 65838,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 81959,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 52.5,
+        "topPct": 80.9,
+        "bottomPct": 90.9,
+        "backPct": 113.1
+      },
+      {
+        "id": "paper",
+        "front": {
+          "area": 73776,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "top": {
+          "area": 64654,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "bottom": {
+          "area": 69170,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "back": {
+          "area": 79353,
+          "w": 372,
+          "h": 371,
+          "x": 20,
+          "y": 244
+        },
+        "stagePixels": 138012,
+        "frontPct": 53.5,
+        "topPct": 87.6,
+        "bottomPct": 93.8,
+        "backPct": 107.6
+      }
+    ],
+    "shadow": [
+      {
+        "id": "camera",
+        "below": 18.97,
+        "lower": 29.19,
+        "above": 11.01
+      },
+      {
+        "id": "teacup",
+        "below": 18.99,
+        "lower": 29.16,
+        "above": 11.01
+      },
+      {
+        "id": "watch",
+        "below": 18.94,
+        "lower": 29.18,
+        "above": 10.48
+      },
+      {
+        "id": "cassette",
+        "below": 19,
+        "lower": 29.18,
+        "above": 10.99
+      },
+      {
+        "id": "duck",
+        "below": 19.03,
+        "lower": 29.15,
+        "above": 10.91
+      },
+      {
+        "id": "book",
+        "below": 18.97,
+        "lower": 29.2,
+        "above": 11.06
+      },
+      {
+        "id": "key",
+        "below": 19.03,
+        "lower": 29.19,
+        "above": 9.74
+      },
+      {
+        "id": "badge",
+        "below": 19.05,
+        "lower": 29.19,
+        "above": 10.98
+      },
+      {
+        "id": "record",
+        "below": 19.01,
+        "lower": 29.18,
+        "above": 11.03
+      },
+      {
+        "id": "perfume",
+        "below": 19.05,
+        "lower": 29.16,
+        "above": 10.98
+      },
+      {
+        "id": "horse",
+        "below": 19.11,
+        "lower": 29.18,
+        "above": 10.45
+      },
+      {
+        "id": "compass",
+        "below": 19.01,
+        "lower": 29.17,
+        "above": 10.94
+      },
+      {
+        "id": "bottle",
+        "below": 19.17,
+        "lower": 29.19,
+        "above": 11.03
+      },
+      {
+        "id": "can",
+        "below": 19.03,
+        "lower": 29.18,
+        "above": 10.85
+      },
+      {
+        "id": "cup",
+        "below": 19.02,
+        "lower": 31.37,
+        "above": 11.06
+      },
+      {
+        "id": "box",
+        "below": 19.03,
+        "lower": 29.17,
+        "above": 10.96
+      },
+      {
+        "id": "lid",
+        "below": 19.05,
+        "lower": 29.18,
+        "above": 10.95
+      },
+      {
+        "id": "paper",
+        "below": 19,
+        "lower": 29.12,
+        "above": 11.04
+      }
+    ],
+    "seams": [
+      {
+        "id": "camera",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 274,
+            "share": 0.86
+          },
+          {
+            "y": 275,
+            "share": 0.92
+          },
+          {
+            "y": 279,
+            "share": 0.75
+          },
+          {
+            "y": 286,
+            "share": 0.74
+          },
+          {
+            "y": 287,
+            "share": 0.87
+          }
+        ]
+      },
+      {
+        "id": "teacup",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 274,
+            "share": 0.8
+          },
+          {
+            "y": 286,
+            "share": 0.76
+          },
+          {
+            "y": 287,
+            "share": 0.87
+          }
+        ]
+      },
+      {
+        "id": "watch",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.92
+          },
+          {
+            "y": 287,
+            "share": 0.8
+          }
+        ]
+      },
+      {
+        "id": "cassette",
+        "rows": [
+          {
+            "y": 263,
+            "share": 0.72
+          },
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 268,
+            "share": 0.7
+          },
+          {
+            "y": 274,
+            "share": 0.71
+          },
+          {
+            "y": 286,
+            "share": 0.81
+          },
+          {
+            "y": 287,
+            "share": 0.88
+          },
+          {
+            "y": 361,
+            "share": 0.71
+          },
+          {
+            "y": 363,
+            "share": 0.73
+          },
+          {
+            "y": 364,
+            "share": 0.79
+          },
+          {
+            "y": 365,
+            "share": 0.73
+          }
+        ]
+      },
+      {
+        "id": "duck",
+        "rows": [
+          {
+            "y": 258,
+            "share": 0.71
+          },
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 275,
+            "share": 0.87
+          },
+          {
+            "y": 279,
+            "share": 0.75
+          },
+          {
+            "y": 287,
+            "share": 0.88
+          }
+        ]
+      },
+      {
+        "id": "book",
+        "rows": [
+          {
+            "y": 265,
+            "share": 1
+          }
+        ]
+      },
+      {
+        "id": "key",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 279,
+            "share": 0.74
+          },
+          {
+            "y": 287,
+            "share": 0.87
+          }
+        ]
+      },
+      {
+        "id": "badge",
+        "rows": [
+          {
+            "y": 258,
+            "share": 0.7
+          },
+          {
+            "y": 265,
+            "share": 0.89
+          }
+        ]
+      },
+      {
+        "id": "record",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 274,
+            "share": 0.75
+          },
+          {
+            "y": 275,
+            "share": 0.71
+          },
+          {
+            "y": 276,
+            "share": 0.74
+          },
+          {
+            "y": 279,
+            "share": 0.72
+          },
+          {
+            "y": 286,
+            "share": 0.72
+          },
+          {
+            "y": 287,
+            "share": 0.79
+          }
+        ]
+      },
+      {
+        "id": "perfume",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.97
+          },
+          {
+            "y": 276,
+            "share": 0.72
+          },
+          {
+            "y": 286,
+            "share": 0.74
+          },
+          {
+            "y": 287,
+            "share": 0.84
+          }
+        ]
+      },
+      {
+        "id": "horse",
+        "rows": [
+          {
+            "y": 258,
+            "share": 0.72
+          },
+          {
+            "y": 259,
+            "share": 0.72
+          },
+          {
+            "y": 265,
+            "share": 0.98
+          },
+          {
+            "y": 286,
+            "share": 0.83
+          },
+          {
+            "y": 287,
+            "share": 0.85
+          },
+          {
+            "y": 540,
+            "share": 0.74
+          },
+          {
+            "y": 541,
+            "share": 0.76
+          },
+          {
+            "y": 542,
+            "share": 0.74
+          },
+          {
+            "y": 548,
+            "share": 0.71
+          },
+          {
+            "y": 549,
+            "share": 0.71
+          },
+          {
+            "y": 552,
+            "share": 0.71
+          }
+        ]
+      },
+      {
+        "id": "compass",
+        "rows": [
+          {
+            "y": 263,
+            "share": 0.71
+          },
+          {
+            "y": 265,
+            "share": 0.98
+          },
+          {
+            "y": 286,
+            "share": 0.73
+          },
+          {
+            "y": 287,
+            "share": 0.83
+          }
+        ]
+      },
+      {
+        "id": "bottle",
+        "rows": [
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 268,
+            "share": 0.78
+          },
+          {
+            "y": 287,
+            "share": 0.87
+          }
+        ]
+      },
+      {
+        "id": "can",
+        "rows": [
+          {
+            "y": 265,
+            "share": 1
+          },
+          {
+            "y": 274,
+            "share": 0.75
+          },
+          {
+            "y": 287,
+            "share": 0.87
+          }
+        ]
+      },
+      {
+        "id": "cup",
+        "rows": [
+          {
+            "y": 265,
+            "share": 1
+          },
+          {
+            "y": 275,
+            "share": 0.74
+          },
+          {
+            "y": 276,
+            "share": 0.74
+          },
+          {
+            "y": 279,
+            "share": 0.72
+          },
+          {
+            "y": 280,
+            "share": 0.8
+          }
+        ]
+      },
+      {
+        "id": "box",
+        "rows": [
+          {
+            "y": 258,
+            "share": 0.7
+          },
+          {
+            "y": 265,
+            "share": 1
+          },
+          {
+            "y": 275,
+            "share": 0.9
+          },
+          {
+            "y": 279,
+            "share": 0.78
+          },
+          {
+            "y": 286,
+            "share": 0.75
+          },
+          {
+            "y": 287,
+            "share": 0.87
+          }
+        ]
+      },
+      {
+        "id": "lid",
+        "rows": [
+          {
+            "y": 258,
+            "share": 0.7
+          },
+          {
+            "y": 265,
+            "share": 0.99
+          },
+          {
+            "y": 274,
+            "share": 0.78
+          },
+          {
+            "y": 279,
+            "share": 0.78
+          },
+          {
+            "y": 287,
+            "share": 0.86
+          }
+        ]
+      },
+      {
+        "id": "paper",
+        "rows": [
+          {
+            "y": 258,
+            "share": 0.7
+          },
+          {
+            "y": 265,
+            "share": 0.99
+          }
+        ]
+      }
+    ],
+    "tone": [
+      {
+        "id": "key",
+        "mean": 41.43
+      },
+      {
+        "id": "camera",
+        "mean": 50.12
+      },
+      {
+        "id": "bottle",
+        "mean": 53.01
+      },
+      {
+        "id": "perfume",
+        "mean": 57.37
+      },
+      {
+        "id": "book",
+        "mean": 57.89
+      },
+      {
+        "id": "can",
+        "mean": 58.55
+      },
+      {
+        "id": "watch",
+        "mean": 59.52
+      },
+      {
+        "id": "record",
+        "mean": 59.96
+      },
+      {
+        "id": "horse",
+        "mean": 61.8
+      },
+      {
+        "id": "box",
+        "mean": 63.77
+      },
+      {
+        "id": "cassette",
+        "mean": 64.98
+      },
+      {
+        "id": "badge",
+        "mean": 66.19
+      },
+      {
+        "id": "lid",
+        "mean": 66.81
+      },
+      {
+        "id": "teacup",
+        "mean": 72.35
+      },
+      {
+        "id": "duck",
+        "mean": 73.72
+      },
+      {
+        "id": "compass",
+        "mean": 84.04
+      },
+      {
+        "id": "cup",
+        "mean": 84.39
+      },
+      {
+        "id": "paper",
+        "mean": 111.48
+      }
+    ],
+    "drag-paper": {
+      "track": [
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 0.10599999999999998
+          },
+          "w": 228,
+          "h": 281,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 0.39199999999999996
+          },
+          "w": 220,
+          "h": 274,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 0.6779999999999999
+          },
+          "w": 201,
+          "h": 274,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 0.964
+          },
+          "w": 167,
+          "h": 273,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 1.25
+          },
+          "w": 121,
+          "h": 270,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 1.536
+          },
+          "w": 63,
+          "h": 270,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 1.822
+          },
+          "w": 85,
+          "h": 270,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 2.108
+          },
+          "w": 122,
+          "h": 271,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 2.394
+          },
+          "w": 164,
+          "h": 273,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 2.68
+          },
+          "w": 199,
+          "h": 274,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 2.966
+          },
+          "w": 220,
+          "h": 274,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 3.2520000000000002
+          },
+          "w": 228,
+          "h": 281,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 3.5380000000000003
+          },
+          "w": 215,
+          "h": 269,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.06,
+            "y": 3.8240000000000003
+          },
+          "w": 192,
+          "h": 260,
+          "stage": 372
+        }
+      ],
+      "end": {
+        "rot": {
+          "x": 0.06,
+          "y": 3.8240000000000003
+        },
+        "l": 112,
+        "r": 290,
+        "t": 294,
+        "bo": 552,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "w": 372,
+          "h": 371
+        }
+      }
+    },
+    "drag-camera": {
+      "track": [
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.00599999999999995
+          },
+          "w": 306,
+          "h": 250,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.2919999999999999
+          },
+          "w": 293,
+          "h": 239,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.5779999999999998
+          },
+          "w": 286,
+          "h": 224,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.8639999999999999
+          },
+          "w": 280,
+          "h": 228,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.15
+          },
+          "w": 275,
+          "h": 253,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.436
+          },
+          "w": 237,
+          "h": 269,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.722
+          },
+          "w": 213,
+          "h": 271,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.008
+          },
+          "w": 256,
+          "h": 268,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.294
+          },
+          "w": 276,
+          "h": 245,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.58
+          },
+          "w": 282,
+          "h": 226,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.866
+          },
+          "w": 288,
+          "h": 226,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 3.152
+          },
+          "w": 299,
+          "h": 246,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 3.438
+          },
+          "w": 293,
+          "h": 240,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 3.724
+          },
+          "w": 286,
+          "h": 224,
+          "stage": 372
+        }
+      ],
+      "end": {
+        "rot": {
+          "x": 0.1,
+          "y": 3.724
+        },
+        "l": 63,
+        "r": 347,
+        "t": 333,
+        "bo": 557,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "w": 372,
+          "h": 371
+        }
+      }
+    },
+    "drag-duck": {
+      "track": [
+        {
+          "rot": {
+            "x": 0.1,
+            "y": -0.05400000000000005
+          },
+          "w": 319,
+          "h": 230,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.23199999999999993
+          },
+          "w": 323,
+          "h": 231,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.5179999999999999
+          },
+          "w": 309,
+          "h": 220,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 0.8039999999999998
+          },
+          "w": 301,
+          "h": 227,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.0899999999999999
+          },
+          "w": 293,
+          "h": 255,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.376
+          },
+          "w": 256,
+          "h": 284,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.662
+          },
+          "w": 192,
+          "h": 286,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 1.948
+          },
+          "w": 249,
+          "h": 284,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.234
+          },
+          "w": 291,
+          "h": 263,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.52
+          },
+          "w": 299,
+          "h": 230,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 2.806
+          },
+          "w": 308,
+          "h": 220,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 3.092
+          },
+          "w": 317,
+          "h": 228,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 3.378
+          },
+          "w": 324,
+          "h": 232,
+          "stage": 372
+        },
+        {
+          "rot": {
+            "x": 0.1,
+            "y": 3.664
+          },
+          "w": 309,
+          "h": 220,
+          "stage": 372
+        }
+      ],
+      "end": {
+        "rot": {
+          "x": 0.1,
+          "y": 3.664
+        },
+        "l": 51,
+        "r": 357,
+        "t": 336,
+        "bo": 557,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "w": 372,
+          "h": 371
+        }
+      }
+    },
+    "drag-record-edge": {
+      "rot": {
+        "x": 1.05,
+        "y": -0.32
+      },
+      "area": {
+        "area": 58479,
+        "w": 372,
+        "h": 371,
+        "x": 20,
+        "y": 244
+      }
+    },
+    "lowQualityDuck": {
+      "area": 37765,
+      "w": 372,
+      "h": 371,
+      "x": 20,
+      "y": 244
+    },
+    "revealFrames": [
+      {
+        "p": 0.05,
+        "ui": {
+          "note": "Что-то осталось на дне…",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 639,
+            "bottom": 656
+          },
+          "info": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "anticipation"
+        }
+      },
+      {
+        "p": 0.2,
+        "ui": {
+          "note": "Знакомый силуэт…",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 639,
+            "bottom": 656
+          },
+          "info": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "silhouette"
+        }
+      },
+      {
+        "p": 0.25,
+        "ui": {
+          "note": "Знакомый силуэт…",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 639,
+            "bottom": 656
+          },
+          "info": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "silhouette"
+        }
+      },
+      {
+        "p": 0.4,
+        "ui": {
+          "note": "Знакомый силуэт…",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 639,
+            "bottom": 656
+          },
+          "info": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 0,
+            "visibility": "hidden",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "silhouette"
+        }
+      },
+      {
+        "p": 0.55,
+        "ui": {
+          "note": "",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 649,
+            "bottom": 649
+          },
+          "info": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "detail"
+        }
+      },
+      {
+        "p": 0.7,
+        "ui": {
+          "note": "",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 649,
+            "bottom": 649
+          },
+          "info": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "detail"
+        }
+      },
+      {
+        "p": 0.85,
+        "ui": {
+          "note": "",
+          "noteHidden": false,
+          "noteRect": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 649,
+            "bottom": 649
+          },
+          "info": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "detail"
+        }
+      },
+      {
+        "p": 1,
+        "ui": {
+          "note": "",
+          "noteHidden": true,
+          "noteRect": {
+            "opacity": 0,
+            "visibility": "visible",
+            "y": 0,
+            "bottom": 0
+          },
+          "info": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 637,
+            "bottom": 772
+          },
+          "header": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 96,
+            "bottom": 128
+          },
+          "controls": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 184,
+            "bottom": 234
+          },
+          "decisions": {
+            "opacity": 1,
+            "visibility": "visible",
+            "y": 806,
+            "bottom": 865
+          },
+          "phase": "ready"
+        }
+      }
+    ],
+    "smallScreens": [
+      {
+        "w": 320,
+        "h": 568,
+        "id": "camera",
+        "find": {
+          "area": 12172,
+          "w": 280,
+          "h": 101,
+          "x": 20,
+          "y": 220
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 107.85020126643438,
+          "y": 224.88672100849834,
+          "w": 102.25281446195912,
+          "h": 79.04833683683978,
+          "right": 210.1030157283935,
+          "bottom": 303.9350578453381
+        },
+        "stage": {
+          "x": 20,
+          "y": 220,
+          "width": 280,
+          "height": 101
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 272,
+            "h": 32,
+            "bottom": 120,
+            "right": 296,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 317,
+            "w": 272,
+            "h": 128,
+            "bottom": 445,
+            "right": 296,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 459,
+            "w": 272,
+            "h": 59,
+            "bottom": 518,
+            "right": 296,
+            "hidden": false
+          },
+          "hint": {
+            "x": 14,
+            "y": 126,
+            "w": 292,
+            "h": 46,
+            "bottom": 172,
+            "right": 306,
+            "hidden": false
+          },
+          "poses": {
+            "x": 38,
+            "y": 172,
+            "w": 245,
+            "h": 50,
+            "bottom": 222,
+            "right": 282,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 320,
+        "h": 568,
+        "id": "paper",
+        "find": {
+          "area": 11787,
+          "w": 280,
+          "h": 101,
+          "x": 20,
+          "y": 220
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 129.15040637812956,
+          "y": 226.69846636318258,
+          "w": 61.929493488103134,
+          "h": 76.13296349453694,
+          "right": 191.0798998662327,
+          "bottom": 302.8314298577195
+        },
+        "stage": {
+          "x": 20,
+          "y": 220,
+          "width": 280,
+          "height": 101
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 272,
+            "h": 32,
+            "bottom": 120,
+            "right": 296,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 317,
+            "w": 272,
+            "h": 128,
+            "bottom": 445,
+            "right": 296,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 459,
+            "w": 272,
+            "h": 59,
+            "bottom": 518,
+            "right": 296,
+            "hidden": false
+          },
+          "hint": {
+            "x": 14,
+            "y": 126,
+            "w": 292,
+            "h": 46,
+            "bottom": 172,
+            "right": 306,
+            "hidden": false
+          },
+          "poses": {
+            "x": 38,
+            "y": 172,
+            "w": 245,
+            "h": 50,
+            "bottom": 222,
+            "right": 282,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 320,
+        "h": 568,
+        "id": "teacup",
+        "find": {
+          "area": 11829,
+          "w": 280,
+          "h": 101,
+          "x": 20,
+          "y": 220
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 103.64662515732725,
+          "y": 225.47422804676307,
+          "w": 108.81719043294284,
+          "h": 82.72534735363729,
+          "right": 212.4638155902701,
+          "bottom": 308.19957540040036
+        },
+        "stage": {
+          "x": 20,
+          "y": 220,
+          "width": 280,
+          "height": 101
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 272,
+            "h": 32,
+            "bottom": 120,
+            "right": 296,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 317,
+            "w": 272,
+            "h": 128,
+            "bottom": 445,
+            "right": 296,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 459,
+            "w": 272,
+            "h": 59,
+            "bottom": 518,
+            "right": 296,
+            "hidden": false
+          },
+          "hint": {
+            "x": 14,
+            "y": 126,
+            "w": 292,
+            "h": 46,
+            "bottom": 172,
+            "right": 306,
+            "hidden": false
+          },
+          "poses": {
+            "x": 38,
+            "y": 172,
+            "w": 245,
+            "h": 50,
+            "bottom": 222,
+            "right": 282,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 360,
+        "h": 640,
+        "id": "camera",
+        "find": {
+          "area": 23877,
+          "w": 320,
+          "h": 161,
+          "x": 20,
+          "y": 220
+        },
+        "maskDegenerate": false,
+        "findBox": {
+          "x": 20,
+          "y": 220,
+          "w": 320,
+          "h": 161,
+          "right": 340,
+          "bottom": 381
+        },
+        "stage": {
+          "x": 20,
+          "y": 220,
+          "width": 320,
+          "height": 173
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 312,
+            "h": 32,
+            "bottom": 120,
+            "right": 336,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 389,
+            "w": 312,
+            "h": 128,
+            "bottom": 517,
+            "right": 336,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 531,
+            "w": 312,
+            "h": 59,
+            "bottom": 590,
+            "right": 336,
+            "hidden": false
+          },
+          "hint": {
+            "x": 34,
+            "y": 126,
+            "w": 292,
+            "h": 46,
+            "bottom": 172,
+            "right": 326,
+            "hidden": false
+          },
+          "poses": {
+            "x": 58,
+            "y": 172,
+            "w": 245,
+            "h": 50,
+            "bottom": 222,
+            "right": 302,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": true
+        }
+      },
+      {
+        "w": 360,
+        "h": 640,
+        "id": "paper",
+        "find": {
+          "area": 23908,
+          "w": 320,
+          "h": 161,
+          "x": 20,
+          "y": 220
+        },
+        "maskDegenerate": false,
+        "findBox": {
+          "x": 20,
+          "y": 220,
+          "w": 320,
+          "h": 161,
+          "right": 340,
+          "bottom": 381
+        },
+        "stage": {
+          "x": 20,
+          "y": 220,
+          "width": 320,
+          "height": 173
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 312,
+            "h": 32,
+            "bottom": 120,
+            "right": 336,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 389,
+            "w": 312,
+            "h": 128,
+            "bottom": 517,
+            "right": 336,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 531,
+            "w": 312,
+            "h": 59,
+            "bottom": 590,
+            "right": 336,
+            "hidden": false
+          },
+          "hint": {
+            "x": 34,
+            "y": 126,
+            "w": 292,
+            "h": 46,
+            "bottom": 172,
+            "right": 326,
+            "hidden": false
+          },
+          "poses": {
+            "x": 58,
+            "y": 172,
+            "w": 245,
+            "h": 50,
+            "bottom": 222,
+            "right": 302,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": true
+        }
+      },
+      {
+        "w": 360,
+        "h": 640,
+        "id": "teacup",
+        "find": {
+          "area": 23412,
+          "w": 320,
+          "h": 158,
+          "x": 20,
+          "y": 220
+        },
+        "maskDegenerate": false,
+        "findBox": {
+          "x": 20,
+          "y": 220,
+          "w": 320,
+          "h": 158,
+          "right": 340,
+          "bottom": 378
+        },
+        "stage": {
+          "x": 20,
+          "y": 220,
+          "width": 320,
+          "height": 173
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 312,
+            "h": 32,
+            "bottom": 120,
+            "right": 336,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 389,
+            "w": 312,
+            "h": 128,
+            "bottom": 517,
+            "right": 336,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 531,
+            "w": 312,
+            "h": 59,
+            "bottom": 590,
+            "right": 336,
+            "hidden": false
+          },
+          "hint": {
+            "x": 34,
+            "y": 126,
+            "w": 292,
+            "h": 46,
+            "bottom": 172,
+            "right": 326,
+            "hidden": false
+          },
+          "poses": {
+            "x": 58,
+            "y": 172,
+            "w": 245,
+            "h": 50,
+            "bottom": 222,
+            "right": 302,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": true
+        }
+      },
+      {
+        "w": 390,
+        "h": 844,
+        "id": "camera",
+        "find": {
+          "area": 48788,
+          "w": 350,
+          "h": 298,
+          "x": 20,
+          "y": 244
+        },
+        "maskDegenerate": false,
+        "findBox": {
+          "x": 20,
+          "y": 244,
+          "w": 350,
+          "h": 298,
+          "right": 370,
+          "bottom": 542
+        },
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 350,
+          "height": 300
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 96,
+            "w": 342,
+            "h": 32,
+            "bottom": 128,
+            "right": 366,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 566,
+            "w": 342,
+            "h": 135,
+            "bottom": 701,
+            "right": 366,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 735,
+            "w": 342,
+            "h": 59,
+            "bottom": 794,
+            "right": 366,
+            "hidden": false
+          },
+          "hint": {
+            "x": 49,
+            "y": 134,
+            "w": 292,
+            "h": 46,
+            "bottom": 180,
+            "right": 341,
+            "hidden": false
+          },
+          "poses": {
+            "x": 73,
+            "y": 184,
+            "w": 245,
+            "h": 50,
+            "bottom": 234,
+            "right": 317,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 390,
+        "h": 844,
+        "id": "paper",
+        "find": {
+          "area": 52187,
+          "w": 350,
+          "h": 298,
+          "x": 20,
+          "y": 244
+        },
+        "maskDegenerate": false,
+        "findBox": {
+          "x": 20,
+          "y": 244,
+          "w": 350,
+          "h": 298,
+          "right": 370,
+          "bottom": 542
+        },
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 350,
+          "height": 300
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 96,
+            "w": 342,
+            "h": 32,
+            "bottom": 128,
+            "right": 366,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 566,
+            "w": 342,
+            "h": 135,
+            "bottom": 701,
+            "right": 366,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 735,
+            "w": 342,
+            "h": 59,
+            "bottom": 794,
+            "right": 366,
+            "hidden": false
+          },
+          "hint": {
+            "x": 49,
+            "y": 134,
+            "w": 292,
+            "h": 46,
+            "bottom": 180,
+            "right": 341,
+            "hidden": false
+          },
+          "poses": {
+            "x": 73,
+            "y": 184,
+            "w": 245,
+            "h": 50,
+            "bottom": 234,
+            "right": 317,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 390,
+        "h": 844,
+        "id": "teacup",
+        "find": {
+          "area": 48850,
+          "w": 350,
+          "h": 298,
+          "x": 20,
+          "y": 244
+        },
+        "maskDegenerate": false,
+        "findBox": {
+          "x": 20,
+          "y": 244,
+          "w": 350,
+          "h": 298,
+          "right": 370,
+          "bottom": 542
+        },
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 350,
+          "height": 300
+        },
+        "ui": {
+          "header": {
+            "x": 24,
+            "y": 96,
+            "w": 342,
+            "h": 32,
+            "bottom": 128,
+            "right": 366,
+            "hidden": false
+          },
+          "info": {
+            "x": 24,
+            "y": 566,
+            "w": 342,
+            "h": 135,
+            "bottom": 701,
+            "right": 366,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 24,
+            "y": 735,
+            "w": 342,
+            "h": 59,
+            "bottom": 794,
+            "right": 366,
+            "hidden": false
+          },
+          "hint": {
+            "x": 49,
+            "y": 134,
+            "w": 292,
+            "h": 46,
+            "bottom": 180,
+            "right": 341,
+            "hidden": false
+          },
+          "poses": {
+            "x": 73,
+            "y": 184,
+            "w": 245,
+            "h": 50,
+            "bottom": 234,
+            "right": 317,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 844,
+        "h": 390,
+        "id": "camera",
+        "find": {
+          "area": 38101,
+          "w": 494,
+          "h": 218,
+          "x": 28,
+          "y": 80
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 160.0939565215781,
+          "y": 102.88231794156137,
+          "w": 214.95133642529214,
+          "h": 165.56847129643717,
+          "right": 375.04529294687023,
+          "bottom": 268.45078923799855
+        },
+        "stage": {
+          "x": 28,
+          "y": 80,
+          "width": 494,
+          "height": 218
+        },
+        "ui": {
+          "header": {
+            "x": 569,
+            "y": 92,
+            "w": 251,
+            "h": 27,
+            "bottom": 119,
+            "right": 820,
+            "hidden": false
+          },
+          "info": {
+            "x": 569,
+            "y": 164,
+            "w": 251,
+            "h": 118,
+            "bottom": 282,
+            "right": 820,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 569,
+            "y": 316,
+            "w": 251,
+            "h": 50,
+            "bottom": 366,
+            "right": 820,
+            "hidden": false
+          },
+          "hint": {
+            "x": 128,
+            "y": 328,
+            "w": 301,
+            "h": 46,
+            "bottom": 374,
+            "right": 429,
+            "hidden": false
+          },
+          "poses": {
+            "x": 148,
+            "y": 276,
+            "w": 261,
+            "h": 50,
+            "bottom": 326,
+            "right": 409,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 844,
+        "h": 390,
+        "id": "paper",
+        "find": {
+          "area": 39317,
+          "w": 494,
+          "h": 218,
+          "x": 28,
+          "y": 80
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 212.58783094866845,
+          "y": 100.91247745893921,
+          "w": 125.13454857229277,
+          "h": 159.70026846617637,
+          "right": 337.7223795209612,
+          "bottom": 260.6127459251156
+        },
+        "stage": {
+          "x": 28,
+          "y": 80,
+          "width": 494,
+          "height": 218
+        },
+        "ui": {
+          "header": {
+            "x": 569,
+            "y": 92,
+            "w": 251,
+            "h": 27,
+            "bottom": 119,
+            "right": 820,
+            "hidden": false
+          },
+          "info": {
+            "x": 569,
+            "y": 164,
+            "w": 251,
+            "h": 118,
+            "bottom": 282,
+            "right": 820,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 569,
+            "y": 316,
+            "w": 251,
+            "h": 50,
+            "bottom": 366,
+            "right": 820,
+            "hidden": false
+          },
+          "hint": {
+            "x": 128,
+            "y": 328,
+            "w": 301,
+            "h": 46,
+            "bottom": 374,
+            "right": 429,
+            "hidden": false
+          },
+          "poses": {
+            "x": 148,
+            "y": 276,
+            "w": 261,
+            "h": 50,
+            "bottom": 326,
+            "right": 409,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 844,
+        "h": 390,
+        "id": "teacup",
+        "find": {
+          "area": 37015,
+          "w": 494,
+          "h": 218,
+          "x": 28,
+          "y": 80
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 140.0471543754358,
+          "y": 111.48462447588467,
+          "w": 240.19645278692582,
+          "h": 157.61835789929768,
+          "right": 380.2436071623616,
+          "bottom": 269.10298237518236
+        },
+        "stage": {
+          "x": 28,
+          "y": 80,
+          "width": 494,
+          "height": 218
+        },
+        "ui": {
+          "header": {
+            "x": 569,
+            "y": 92,
+            "w": 251,
+            "h": 27,
+            "bottom": 119,
+            "right": 820,
+            "hidden": false
+          },
+          "info": {
+            "x": 569,
+            "y": 164,
+            "w": 251,
+            "h": 118,
+            "bottom": 282,
+            "right": 820,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 569,
+            "y": 316,
+            "w": 251,
+            "h": 50,
+            "bottom": 366,
+            "right": 820,
+            "hidden": false
+          },
+          "hint": {
+            "x": 128,
+            "y": 328,
+            "w": 301,
+            "h": 46,
+            "bottom": 374,
+            "right": 429,
+            "hidden": false
+          },
+          "poses": {
+            "x": 148,
+            "y": 276,
+            "w": 261,
+            "h": 50,
+            "bottom": 326,
+            "right": 409,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 740,
+        "h": 360,
+        "id": "camera",
+        "find": {
+          "area": 27399,
+          "w": 396,
+          "h": 188,
+          "x": 28,
+          "y": 80
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 126.07588169452175,
+          "y": 98.32649161022903,
+          "w": 188.34089348462663,
+          "h": 143.08255086591376,
+          "right": 314.4167751791484,
+          "bottom": 241.4090424761428
+        },
+        "stage": {
+          "x": 28,
+          "y": 80,
+          "width": 396,
+          "height": 188
+        },
+        "ui": {
+          "header": {
+            "x": 472,
+            "y": 92,
+            "w": 244,
+            "h": 27,
+            "bottom": 119,
+            "right": 716,
+            "hidden": false
+          },
+          "info": {
+            "x": 472,
+            "y": 149,
+            "w": 244,
+            "h": 111,
+            "bottom": 260,
+            "right": 716,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 472,
+            "y": 286,
+            "w": 244,
+            "h": 50,
+            "bottom": 336,
+            "right": 716,
+            "hidden": false
+          },
+          "hint": {
+            "x": 80,
+            "y": 298,
+            "w": 301,
+            "h": 46,
+            "bottom": 344,
+            "right": 380,
+            "hidden": false
+          },
+          "poses": {
+            "x": 100,
+            "y": 246,
+            "w": 261,
+            "h": 50,
+            "bottom": 296,
+            "right": 360,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 740,
+        "h": 360,
+        "id": "paper",
+        "find": {
+          "area": 28766,
+          "w": 396,
+          "h": 188,
+          "x": 28,
+          "y": 80
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 172.40809508058126,
+          "y": 98.4808013938026,
+          "w": 108.21433614318633,
+          "h": 138.12625915434694,
+          "right": 280.6224312237676,
+          "bottom": 236.60706054814952
+        },
+        "stage": {
+          "x": 28,
+          "y": 80,
+          "width": 396,
+          "height": 188
+        },
+        "ui": {
+          "header": {
+            "x": 472,
+            "y": 92,
+            "w": 244,
+            "h": 27,
+            "bottom": 119,
+            "right": 716,
+            "hidden": false
+          },
+          "info": {
+            "x": 472,
+            "y": 149,
+            "w": 244,
+            "h": 111,
+            "bottom": 260,
+            "right": 716,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 472,
+            "y": 286,
+            "w": 244,
+            "h": 50,
+            "bottom": 336,
+            "right": 716,
+            "hidden": false
+          },
+          "hint": {
+            "x": 80,
+            "y": 298,
+            "w": 301,
+            "h": 46,
+            "bottom": 344,
+            "right": 380,
+            "hidden": false
+          },
+          "poses": {
+            "x": 100,
+            "y": 246,
+            "w": 261,
+            "h": 50,
+            "bottom": 296,
+            "right": 360,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      },
+      {
+        "w": 740,
+        "h": 360,
+        "id": "teacup",
+        "find": {
+          "area": 26607,
+          "w": 396,
+          "h": 188,
+          "x": 28,
+          "y": 80
+        },
+        "maskDegenerate": true,
+        "findBox": {
+          "x": 108.34516702477836,
+          "y": 104.2709000753331,
+          "w": 211.36305089277502,
+          "h": 136.97765083728376,
+          "right": 319.7082179175534,
+          "bottom": 241.24855091261685
+        },
+        "stage": {
+          "x": 28,
+          "y": 80,
+          "width": 396,
+          "height": 188
+        },
+        "ui": {
+          "header": {
+            "x": 472,
+            "y": 92,
+            "w": 244,
+            "h": 27,
+            "bottom": 119,
+            "right": 716,
+            "hidden": false
+          },
+          "info": {
+            "x": 472,
+            "y": 149,
+            "w": 244,
+            "h": 111,
+            "bottom": 260,
+            "right": 716,
+            "hidden": false
+          },
+          "buttons": {
+            "x": 472,
+            "y": 286,
+            "w": 244,
+            "h": 50,
+            "bottom": 336,
+            "right": 716,
+            "hidden": false
+          },
+          "hint": {
+            "x": 80,
+            "y": 298,
+            "w": 301,
+            "h": 46,
+            "bottom": 344,
+            "right": 380,
+            "hidden": false
+          },
+          "poses": {
+            "x": 100,
+            "y": 246,
+            "w": 261,
+            "h": 50,
+            "bottom": 296,
+            "right": 360,
+            "hidden": false
+          },
+          "note": null
+        },
+        "overlaps": {
+          "header": false,
+          "info": false,
+          "buttons": false,
+          "hint": false,
+          "poses": false
+        }
+      }
+    ],
+    "hitTargetsSearch": [
+      {
+        "label": "Коллекция18 / 18",
+        "w": 79,
+        "h": 46
+      },
+      {
+        "label": "Настройки и помощь",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "label": "Порыться в баке",
+        "w": 364,
+        "h": 58
+      }
+    ],
+    "typeSizesSearch": {
+      "9px": 1,
+      "11px": 3,
+      "10px": 2,
+      "46px": 2,
+      "12px": 2,
+      "8px": 2
+    },
+    "hitTargetsInspect": [
+      {
+        "label": "Коллекция18 / 18",
+        "w": 79,
+        "h": 46
+      },
+      {
+        "label": "Настройки и помощь",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "label": "−",
+        "w": 44,
+        "h": 44
+      },
+      {
+        "label": "100%",
+        "w": 52,
+        "h": 44
+      },
+      {
+        "label": "+",
+        "w": 44,
+        "h": 44
+      },
+      {
+        "label": "Исходный",
+        "w": 70,
+        "h": 44
+      },
+      {
+        "label": "Сзади",
+        "w": 50,
+        "h": 44
+      },
+      {
+        "label": "Сверху",
+        "w": 56,
+        "h": 44
+      },
+      {
+        "label": "Снизу",
+        "w": 50,
+        "h": 44
+      },
+      {
+        "label": "Выбросить",
+        "w": 176,
+        "h": 59
+      },
+      {
+        "label": "Забрать",
+        "w": 176,
+        "h": 59
+      }
+    ],
+    "typeSizesInspect": {
+      "9px": 1,
+      "11px": 8,
+      "10px": 3,
+      "20px": 2,
+      "32px": 1,
+      "13px": 3,
+      "12px": 1
+    },
+    "inspectLabels": [
+      {
+        "name": "rarity-chip",
+        "box": {
+          "x": 24,
+          "y": 96,
+          "width": 129,
+          "height": 32
+        },
+        "color": "rgb(184, 219, 238)",
+        "font": "10px",
+        "contrast": {
+          "dark": [
+            17,
+            34,
+            49
+          ],
+          "light": [
+            39,
+            58,
+            71
+          ],
+          "ratio": 1.36
+        }
+      },
+      {
+        "name": "find-number",
+        "box": {
+          "x": 307,
+          "y": 105,
+          "width": 81,
+          "height": 14
+        },
+        "color": "rgb(196, 208, 215)",
+        "font": "10px",
+        "contrast": {
+          "dark": [
+            19,
+            32,
+            43
+          ],
+          "light": [
+            63,
+            76,
+            88
+          ],
+          "ratio": 1.89
+        }
+      },
+      {
+        "name": "era",
+        "box": {
+          "x": 24,
+          "y": 637,
+          "width": 364,
+          "height": 15
+        },
+        "color": "rgb(185, 200, 209)",
+        "font": "11px",
+        "contrast": {
+          "dark": [
+            12,
+            27,
+            40
+          ],
+          "light": [
+            27,
+            42,
+            55
+          ],
+          "ratio": 1.19
+        }
+      },
+      {
+        "name": "description",
+        "box": {
+          "x": 36,
+          "y": 707,
+          "width": 340,
+          "height": 40
+        },
+        "color": "rgb(208, 216, 220)",
+        "font": "13px",
+        "contrast": {
+          "dark": [
+            14,
+            26,
+            36
+          ],
+          "light": [
+            35,
+            47,
+            58
+          ],
+          "ratio": 1.3
+        }
+      },
+      {
+        "name": "rotate-hint",
+        "box": {
+          "x": 117,
+          "y": 150,
+          "width": 121,
+          "height": 15
+        },
+        "color": "rgb(210, 221, 198)",
+        "font": "11px",
+        "contrast": {
+          "dark": [
+            15,
+            34,
+            45
+          ],
+          "light": [
+            56,
+            75,
+            81
+          ],
+          "ratio": 1.77
+        }
+      },
+      {
+        "name": "zoom-reset",
+        "box": {
+          "x": 243,
+          "y": 135,
+          "width": 52,
+          "height": 44
+        },
+        "color": "rgb(220, 233, 176)",
+        "font": "11px",
+        "contrast": {
+          "dark": [
+            19,
+            38,
+            49
+          ],
+          "light": [
+            27,
+            46,
+            56
+          ],
+          "ratio": 1.12
+        }
+      },
+      {
+        "name": "pose-button",
+        "box": {
+          "x": 161,
+          "y": 187,
+          "width": 50,
+          "height": 44
+        },
+        "color": "rgb(200, 212, 217)",
+        "font": "11px",
+        "contrast": {
+          "dark": [
+            14,
+            34,
+            49
+          ],
+          "light": [
+            27,
+            47,
+            62
+          ],
+          "ratio": 1.19
+        }
+      }
+    ],
+    "archiveLabels": [
+      {
+        "name": "item-title",
+        "box": {
+          "x": 51,
+          "y": 487,
+          "width": 137,
+          "height": 15
+        },
+        "color": "rgb(237, 240, 231)",
+        "font": "10px",
+        "contrast": {
+          "dark": [
+            33,
+            52,
+            62
+          ],
+          "light": [
+            67,
+            84,
+            90
+          ],
+          "ratio": 1.63
+        }
+      },
+      {
+        "name": "item-type",
+        "box": {
+          "x": 51,
+          "y": 506,
+          "width": 137,
+          "height": 11
+        },
+        "color": "rgb(194, 206, 208)",
+        "font": "8px",
+        "contrast": {
+          "dark": [
+            33,
+            52,
+            62
+          ],
+          "light": [
+            65,
+            84,
+            92
+          ],
+          "ratio": 1.63
+        }
+      },
+      {
+        "name": "item-index",
+        "box": {
+          "x": 46,
+          "y": 340,
+          "width": 9,
+          "height": 9
+        },
+        "color": "rgb(174, 193, 200)",
+        "font": "7px",
+        "contrast": {
+          "dark": [
+            29,
+            48,
+            57
+          ],
+          "light": [
+            59,
+            78,
+            86
+          ],
+          "ratio": 1.57
+        }
+      },
+      {
+        "name": "catalog-hint",
+        "box": {
+          "x": 38,
+          "y": 299,
+          "width": 336,
+          "height": 15
+        },
+        "color": "rgb(193, 205, 210)",
+        "font": "10px",
+        "contrast": {
+          "dark": [
+            25,
+            44,
+            51
+          ],
+          "light": [
+            74,
+            93,
+            99
+          ],
+          "ratio": 2.09
+        }
+      },
+      {
+        "name": "dialog-foot",
+        "box": {
+          "x": 38,
+          "y": 2399,
+          "width": 336,
+          "height": 64
+        },
+        "color": "rgb(182, 197, 203)",
+        "font": "11px",
+        "contrast": null
+      },
+      {
+        "name": "filter-tab",
+        "box": {
+          "x": 158,
+          "y": 236,
+          "width": 97,
+          "height": 44
+        },
+        "color": "rgb(200, 211, 215)",
+        "font": "10px",
+        "contrast": {
+          "dark": [
+            24,
+            43,
+            51
+          ],
+          "light": [
+            37,
+            57,
+            64
+          ],
+          "ratio": 1.22
+        }
+      }
+    ],
+    "hitTargetsArchive": [
+      {
+        "label": "Коллекция18 / 18",
+        "w": 79,
+        "h": 46
+      },
+      {
+        "label": "Настройки и помощь",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "label": "Порыться в баке",
+        "w": 364,
+        "h": 58
+      },
+      {
+        "label": "Закрыть коллекцию",
+        "w": 48,
+        "h": 48
+      },
+      {
+        "label": "Все находки 18",
+        "w": 75,
+        "h": 44
+      },
+      {
+        "label": "Вещи с историей 12",
+        "w": 97,
+        "h": 44
+      },
+      {
+        "label": "Просто хлам 6",
+        "w": 74,
+        "h": 44
+      },
+      {
+        "label": "01Смена-8МРедкая находка",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "02Чашка с кобальтомРедкая нахо",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "03Часы «Ракета»Редкая находка",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "04Кассета «Белые ночи»Обычная ",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "05Фарфоровая уточкаОбычная нах",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "06Томик БлокаОбычная находка",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "07Ключ от параднойОбычная нахо",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "08Значок «Ленинград»Обычная на",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "09Пластинка «Мелодия»Редкая на",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "10Флакон духовРедкая находка",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "11Медный конёкОсобая находка",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "12Карманный компасОсобая наход",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "13Пустая бутылкаПросто хлам",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "14Консервная банкаПросто хлам",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "15Мятый стаканчикПросто хлам",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "16Картонная коробкаПросто хлам",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "17Ржавая крышкаПросто хлам",
+        "w": 163,
+        "h": 218
+      },
+      {
+        "label": "18Старая газетаПросто хлам",
+        "w": 163,
+        "h": 218
+      }
+    ],
+    "textScaleSearch": {
+      "hero": {
+        "x": 24,
+        "y": 94,
+        "w": 364,
+        "h": 120,
+        "bottom": 214
+      },
+      "search": {
+        "x": 24,
+        "y": 711,
+        "w": 364,
+        "h": 126,
+        "bottom": 837
+      },
+      "footer": {
+        "x": 24,
+        "y": 850,
+        "w": 364,
+        "h": 42,
+        "bottom": 892
+      },
+      "topbar": {
+        "x": 0,
+        "y": 0,
+        "w": 412,
+        "h": 79,
+        "bottom": 79
+      },
+      "scrollW": 412,
+      "innerW": 412,
+      "overlapSearchHero": false
+    },
+    "textScaleInspect": {
+      "info": {
+        "x": 24,
+        "y": 599,
+        "w": 364,
+        "h": 173,
+        "bottom": 772
+      },
+      "buttons": {
+        "x": 24,
+        "y": 806,
+        "w": 364,
+        "h": 59,
+        "bottom": 865
+      },
+      "zoom": {
+        "x": 26,
+        "y": 134,
+        "w": 361,
+        "h": 46,
+        "bottom": 180
+      },
+      "poses": {
+        "x": 60,
+        "y": 184,
+        "w": 291,
+        "h": 50,
+        "bottom": 234
+      },
+      "header": {
+        "x": 24,
+        "y": 96,
+        "w": 364,
+        "h": 36,
+        "bottom": 132
+      },
+      "infoOverlapsButtons": false
+    }
+  },
+  "errors": []
+}

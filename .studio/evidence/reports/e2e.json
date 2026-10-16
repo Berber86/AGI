@@ -25,9 +25,9 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 84,
+      "drawCalls": 85,
       "triangles": 169978,
-      "geometries": 170,
+      "geometries": 172,
       "textures": 83,
       "models": 18,
       "postprocessing": false,
@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 70.16666666666659,
+      "meanFrameMs": 28.246464646463963,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -43,16 +43,16 @@
         "visible": true,
         "silhouette": 0,
         "scale": 1,
-        "veil": 0.96,
+        "veil": 0.9,
         "ready": true
       },
       "quality": "low"
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 69,
+      "drawCalls": 70,
       "triangles": 127326,
-      "geometries": 78,
+      "geometries": 79,
       "textures": 37,
       "models": 1,
       "postprocessing": false,
@@ -60,7 +60,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 527.6666666666666,
+      "meanFrameMs": 460.9666666666658,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -68,7 +68,7 @@
         "visible": true,
         "silhouette": 0,
         "scale": 1,
-        "veil": 0.96,
+        "veil": 0.9,
         "ready": true
       },
       "quality": "low"
@@ -367,23 +367,23 @@
     {
       "id": "paper",
       "modeledParts": 2,
-      "materialBatches": 1,
+      "materialBatches": 2,
       "bounds": {
         "min": [
           -0.8370629572624678,
           -1.05,
-          -0.15360902802827245
+          -0.15067196586973308
         ],
         "max": [
           0.8370629572624678,
           1.05,
-          0.15360902802827245
+          0.15067196586973308
         ]
       }
     }
   ],
   "build": {
-    "totalBytes": 6651796,
+    "totalBytes": 6655362,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -406,12 +406,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-CHJu4-5O.js",
-        "bytes": 664896
+        "file": "assets/index-C5kRjGUc.js",
+        "bytes": 666856
       },
       {
-        "file": "assets/index-YGZEExfG.css",
-        "bytes": 29920
+        "file": "assets/index-vgZNkrSv.css",
+        "bytes": 31526
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",

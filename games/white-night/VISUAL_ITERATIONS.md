@@ -95,6 +95,6 @@
 
 ### Приёмка v5
 Последовательный финальный browser-прогон **exit 0**: poses (180, все IDs/5 направлений/2 размера, min-max zoom, keyboard/touch/drag), visual (18 high-quality baseline, title/zoom/360/844/1280), landscape (12 осмотров, 3 размера), thumbnails (18/cache/completion/offline), E2E (17 групп), normal-motion desktop и реальный каталог под /AGI/. Ошибок нет.
-20 unit, 15 root Python, validator/self-test/diff check; static `play/` совпадает с `dist/`: **6648425 байт**, ниже 8 MB. Сводка/SHA-256: `visual-v5-release.json`.
+20 unit, 15 root Python, validator/self-test/diff check; static `play/` совпадает с `dist/`: **6648425 байт**, ниже 8 MB (бюджет поднят до 15 МБ в проходе v7). Сводка/SHA-256: `visual-v5-release.json`.
 Первая матрица обнаружила гонку viewport в harness; следующая — реальную ошибку off-axis perspective fit у watch/top. Исправление учитывает дальний край области относительно центра viewport; восьмиугловой projected-corner unit и все 180 ракурсов затем прошли. Прерванные/падавшие прогоны — не релизное доказательство.
 Вручную просмотрены 7/desktop, 8/landscape-record, 9/cup-top/cup-bottom/can-top; клеймо чашки видно снизу. Не утверждается полный художественный обзор каждого угла/каждого устройства. Матрица low quality, high baseline отдельно. Dedicated reveal-suite в этом наборе не перезапускался; normal-motion desktop проверен.

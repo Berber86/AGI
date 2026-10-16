@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { revealFrame, REVEAL_SECONDS } from './reveal.js';
 import { RUBBISH, windowTreatment } from './environment.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { PRESENTATION, ZOOM, inspectionRect, fitScale, inspectionPose } from './presentation.js';
+import { PRESENTATION, ZOOM, FLAT_TILT, inspectionRect, fitScale, inspectionPose } from './presentation.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials as M, canvasTexture, textTexture, pbrMaps, seeded, distress } from './materials.js';
@@ -47,6 +47,10 @@ export class World {
   this.itemShadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,toneMapped:false}));
   this.itemShadow.renderOrder=-5;this.itemShadow.visible=false;this.itemAnchor.add(this.itemShadow);this.inspectLamp=new THREE.PointLight(0xfff4e7,17,9,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
   this.itemRim=new THREE.PointLight(0xc5e3ff,18,8,2);this.itemRim.position.set(1.6,.7,-3.8);this.camera.add(this.itemRim);this.itemRim.visible=false;
+  // Frontal fill between camera and find. Dark materials stay dark on purpose; this
+  // light only decides whether their surface reads at all: median tone of the find
+  // went from 27-34 to ~52 on the darkest entries, with the backdrop still at ~19.
+  this.itemFill=new THREE.PointLight(0xdfe9ff,6,6.5,2);this.itemFill.position.set(.35,.85,-2.7);this.camera.add(this.itemFill);this.itemFill.visible=false;
   this.pipeline=new RenderPipeline(this.renderer,this.scene,this.camera);this.thumbnailOutput=new OutputPass();
   this.modelCache=new Map();this.thumbCache=new Map();this.item=null;this.zoom=1;this.targetX=.08;this.targetY=-.2;this.inspect=false;this.time=0;this.kick=0;this.pointer=new THREE.Vector2();this.raycaster=new THREE.Raycaster();this.frames=[];this.low=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   this.motionQuery=matchMedia('(prefers-reduced-motion: reduce)');
@@ -159,10 +163,12 @@ export class World {
   this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
   this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
-  this.itemAnchor.position.set((this.stage.x+this.stage.width/2-w/2)*perPixel,(h/2-this.stage.y-this.stage.height/2)*perPixel,-4.2);
+  this.anchorX=(this.stage.x+this.stage.width/2-w/2)*perPixel;this.anchorY=(h/2-this.stage.y-this.stage.height/2)*perPixel;
+  this.itemAnchor.position.set(this.anchorX,this.anchorY,-4.2);
   this.inspectionVeil.scale.set(2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))*w/h,2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2)),1);
   document.querySelector('#app').style.setProperty('--stage-bottom',`${this.stage.y+this.stage.height}px`);
-  this.updateItemLights();if(this.item)this.fitItem();
+  if(this.item)this.fitItem();
+  this.updateItemLights();
   this.pipeline?.resize(w,h,this.renderer.getPixelRatio());
  }
  fitItem(){
@@ -170,11 +176,38 @@ export class World {
   const box=new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max));
   box.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(this.item.rotation));
   const size=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
-  this.baseScale=fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth);
-  this.item.scale.setScalar(this.baseScale*this.zoom);
+  // Target visual mass: the fit keeps a find inside the stage, `mass` pulls the bulky
+  // finds (a record, a stack of paper, a lid) back to a common weight. Measured
+  // silhouette share of the stage is reported by tests/quality-probe.mjs.
+  const mass=PRESENTATION[this.itemId]?.mass??1;
+  const pp=2*4.2*Math.tan(this.camera.fov*Math.PI/360)/innerHeight;
+  // A find that already fills the stage cannot also land on the common line: the shift
+  // would push its top out of the box (the watch in the "back" pose overshot the stage
+  // top by 1.2 px). The fitted height keeps a 4 % margin; zoom is free to exceed it.
+  let fit=fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth)*mass;
+  const fittedShare=2*size.y*fit/(pp*this.stage.height);
+  if(fittedShare>.96)fit*=.96/fittedShare;
+  this.baseScale=fit;
   const s=this.baseScale*this.zoom;
-  this.itemShadow.scale.set(Math.max(size.x*s*2.5,.3),Math.max(size.x*s*.85,.16),1);
-  this.itemShadow.position.set(0,-size.y*s-.05,-.3);
+  this.item.scale.setScalar(s);
+  // Tighter contact shadow: with every find landing on the same line, a shadow that
+  // hugs the base reads as a shelf while the old wide ellipse read as a floating prop.
+  this.itemShadow.scale.set(Math.max(size.x*s*2.1,.3),Math.max(size.x*s*.62,.14),1);
+  // Common landing line: the projected bottom of every find sits at the same share of
+  // the stage (measured before: 62 % for a small find, 97 % for a tall one), so the
+  // series stops jumping between a find floating high and one sitting low.
+  const halfH=size.y*s;
+  const heightShare=2*size.y*this.baseScale/(pp*this.stage.height);
+  const landing=Math.max(.82,heightShare+.02);
+  const shift=(innerHeight/2-(this.stage.y+this.stage.height*landing))*pp-this.anchorY+halfH;
+  this.fitShiftY=shift;this.itemAnchor.position.y=this.anchorY+shift;
+  // The shift is derived from the fitted box, but the real corners project a couple of
+  // pixels higher: the fit works at the anchor plane while the model has depth. Clamp
+  // against the projected bounds so a find never leaves the stage box (watch "back"
+  // overshot the top by 1.2 px).
+  const real=this.inspectionBounds(),overTop=this.stage.y+1-real.top;
+  if(overTop>0){this.itemAnchor.position.y-=(overTop+.5)*pp;this.fitShiftY=shift-(overTop+.5)*pp;}
+  this.itemShadow.position.set(0,-halfH-.05,-.3);
  }
  inspectionBounds(){
   if(!this.item)return null;
@@ -194,10 +227,11 @@ export class World {
  show(id,{review=false}={}){
   this.dirty=true;this.testRevealHold=false;this.zoom=1;if(this.item){this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();
   this.itemId=id;this.pose='front';this.item=this.getModel(id);this.itemAnchor.add(this.item);
-  this.inspectLamp.intensity=PRESENTATION[id].lamp??17;this.itemRim.intensity=PRESENTATION[id].rim??18;
-  this.updateItemLights();
+  this.lampBase=PRESENTATION[id].lamp??17;this.rimBase=PRESENTATION[id].rim??18;this.fillBase=PRESENTATION[id].fill??6;
+  this.inspectLamp.intensity=this.lampBase;this.itemRim.intensity=this.rimBase;this.itemFill.intensity=this.fillBase;
+  this.inspect=true;this.updateItemLights();this.applySceneLighting();
   this.item.rotation.set(...PRESENTATION[id].rotation);this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
-  this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemShadow.visible=true;
+  this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemFill.visible=true;this.itemShadow.visible=true;
   const meshes=[];this.item.traverse(o=>{if(o.isMesh){o.castShadow=false;meshes.push(o);}});
   if(!this.reduced&&!review){
     this.item.updateMatrixWorld(true);const inverseRoot=this.item.matrixWorld.clone().invert();
@@ -205,7 +239,7 @@ export class World {
   }
   this.reveal=this.reduced||review?1:0;this.applyReveal();
  }
- hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;}
+ hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemFill.visible=false;this.itemShadow.visible=false;this.applySceneLighting();}
  finishReveal(){this.testRevealHold=false;this.reveal=1;this.applyReveal();this.dirty=true;}
  applyReveal(){
   this.revealState=revealFrame(this.reveal,this.reduced);
@@ -213,17 +247,45 @@ export class World {
   this.item.visible=f.visible;this.silhouette.visible=!f.ready;this.silhouetteMat.opacity=f.silhouette;
   this.inspectionVeil.material.opacity=f.veil;
   this.item.scale.setScalar(this.baseScale*(this.zoom||1)*f.scale);
+  // The find must not appear out of a black frame: while the silhouette still covers
+  // it, the rim and the key light are already up, so the shape opens lit instead of
+  // switching on at the end of the animation.
+  if(this.lampBase!=null){
+   const lift=this.reduced?0:f.silhouette;
+   this.inspectLamp.intensity=this.lampBase*(1.35-.35*lift);
+   this.itemRim.intensity=this.rimBase*(1+.9*lift);
+   this.itemFill.intensity=this.fillBase*(1.2-.2*lift);
+  }
  }
  updateItemLights(){
   const p=PRESENTATION[this.itemId]?.lightPosition??[-1.5,2,-1.8];
   this.inspectLamp.position.set(this.itemAnchor.position.x+p[0],this.itemAnchor.position.y+p[1],p[2]);
   this.itemRim.position.set(this.itemAnchor.position.x+1.6,this.itemAnchor.position.y+.7,-3.8);
+  this.itemFill.position.set(this.itemAnchor.position.x+.35,this.itemAnchor.position.y+.85,-2.7);
  }
  setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.pose=pose;this.dirty=true;}
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
- rotate(dx,dy){this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
- setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
-  this.sun.intensity=low?2.05:1.62;this.hemi.intensity=low?.82:1.12;this.scene.environmentIntensity=low?.07:.15;this.resize();}
+ rotate(dx,dy){
+  this.pose='free';this.dirty=true;this.targetY+=dx*.011;
+  // A drag on a flat find (paper, lid, badge, record) used to reach the exact edge-on
+  // angle and collapse it to a line: the tilt now stays within the readable band.
+  const limit=PRESENTATION[this.itemId]?.flat?FLAT_TILT:Math.PI;
+  this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-limit,limit);
+ }
+ setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:2));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
+  // Low quality must be a cheaper night, not a different one: the sun and the
+  // hemispheric sky keep their values and the mode only gives up shadows and AO.
+  // Dropping shadows while raising the sun used to turn the courtyard bright
+  // (pixels under 26 luma: 69 % high against 12 % low on the same find).
+  this.applySceneLighting();this.resize();}
+ applySceneLighting(){
+  const low=this.low,inside=this.inspect;
+  this.sun.intensity=low?1.72:1.62;
+  this.hemi.intensity=low?1.02:1.12;
+  // The inspection veil (96 % opaque) sits behind the find, so the ambient boost
+  // reaches the find without repainting the courtyard behind it.
+  this.scene.environmentIntensity=inside?(low?.26:.42):(low?.11:.15);
+ }
  thumbnail(id){
   if(this.thumbCache.has(id))return this.thumbCache.get(id);
   const model=this.getModel(id),prev=model.parent,scale=model.scale.clone(),rot=model.rotation.clone(),pos=model.position.clone();

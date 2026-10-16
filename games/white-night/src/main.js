@@ -31,7 +31,9 @@ function syncReveal(){
  $('#app').dataset.revealPhase=phase;$('#app').classList.toggle('is-revealing',phase!=='ready');
  $('.inspection').setAttribute('aria-busy',String(phase!=='ready'));
  $('#keep').disabled=$('#discard').disabled=phase!=='ready';updateZoom();
- const notes={anticipation:'Что-то осталось на дне…',silhouette:'Знакомый силуэт…',detail:'У каждой вещи — своя история.'};
+ // Two notes, one per phase that has no caption: from `detail` on the find tells its own
+ // story, and the note would sit right on top of the title (fixed in the v7 pass).
+ const notes={anticipation:'Что-то осталось на дне…',silhouette:'Знакомый силуэт…'};
  $('#reveal-note').textContent=notes[phase]||'';$('#reveal-note').hidden=phase==='ready';
 }
 function collectionFeedback(){

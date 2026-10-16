@@ -1,4 +1,4 @@
-import {inspectionRect} from '../src/presentation.js';
+import {inspectionRect,ZOOM} from '../src/presentation.js';
 import {launch} from './browser.mjs';import fs from 'node:fs';import assert from 'node:assert/strict';
 const dir='../../.studio/evidence/screenshots/visual-v5-9-poses';fs.mkdirSync(dir,{recursive:true});
 const browser=await launch(),errors=[],checks=[],frames=[];let passed=false;
@@ -23,8 +23,10 @@ try{
     assert.equal(m.geometries,before.geometries);assert.equal(m.textures,before.textures);frames.push({id,pose,w,h});
     if(w===412&&['teacup','bottle','can','box','perfume'].includes(id)&&['top','bottom','back'].includes(pose))await p.screenshot({path:`${dir}/${id}-${pose}.webp`,type:'webp',quality:87});
    }
-   await p.evaluate(()=>{document.querySelector('#zoom-out').click();window.__GAME_TEST__.settle();});assert.equal(await p.evaluate(()=>window.__GAME_TEST__.getMetrics().zoom),.85);
-   await p.evaluate(()=>{for(let i=0;i<5;i++)document.querySelector('#zoom-in').click();window.__GAME_TEST__.settle();});assert.equal(await p.evaluate(()=>window.__GAME_TEST__.getMetrics().zoom),1.65);
+   await p.evaluate(()=>{document.querySelector('#zoom-out').click();window.__GAME_TEST__.settle();});assert.equal(await p.evaluate(()=>window.__GAME_TEST__.getMetrics().zoom),ZOOM.min);
+   await p.evaluate(()=>{for(let i=0;i<5;i++)document.querySelector('#zoom-in').click();window.__GAME_TEST__.settle();});// Read the declared range instead of a hard-coded number: the old 1.65 expectation had
+   // drifted away from ZOOM.max and failed on every run.
+   assert.equal(await p.evaluate(()=>window.__GAME_TEST__.getMetrics().zoom),ZOOM.max);
    await p.click('#zoom-reset');await p.click('#discard');
   }
  }

@@ -1,0 +1,426 @@
+{
+  "stage": {
+    "x": 20,
+    "y": 244,
+    "width": 372,
+    "height": 371
+  },
+  "a": "../../.studio/evidence/screenshots/visual-v7-critique",
+  "b": "../../.studio/evidence/screenshots/visual-v8-critique",
+  "rows": [
+    {
+      "id": "badge",
+      "a": {
+        "mean": 40.3,
+        "median": 27.1,
+        "p25": 22.4,
+        "p75": 38.6,
+        "crushed": 45.3,
+        "blown": 0.05,
+        "lit": 8.4,
+        "texture": 1.91
+      },
+      "b": {
+        "mean": 60,
+        "median": 38.3,
+        "p25": 23.1,
+        "p75": 85.4,
+        "crushed": 35.2,
+        "blown": 0.1,
+        "lit": 22.4,
+        "texture": 0.87
+      }
+    },
+    {
+      "id": "book",
+      "a": {
+        "mean": 32.6,
+        "median": 26.6,
+        "p25": 22.1,
+        "p75": 39.5,
+        "crushed": 48,
+        "blown": 0,
+        "lit": 2.3,
+        "texture": 2.6
+      },
+      "b": {
+        "mean": 53.2,
+        "median": 37,
+        "p25": 23.1,
+        "p75": 84.1,
+        "crushed": 35.9,
+        "blown": 0,
+        "lit": 20.5,
+        "texture": 1.14
+      }
+    },
+    {
+      "id": "bottle",
+      "a": {
+        "mean": 35.2,
+        "median": 23.4,
+        "p25": 21.1,
+        "p75": 27.1,
+        "crushed": 70,
+        "blown": 0.04,
+        "lit": 6.4,
+        "texture": 5.65
+      },
+      "b": {
+        "mean": 48.9,
+        "median": 29.8,
+        "p25": 23.1,
+        "p75": 47.7,
+        "crushed": 40.9,
+        "blown": 0.05,
+        "lit": 12,
+        "texture": 5.27
+      }
+    },
+    {
+      "id": "box",
+      "a": {
+        "mean": 43.6,
+        "median": 23.1,
+        "p25": 19.6,
+        "p75": 26.8,
+        "crushed": 71.9,
+        "blown": 0,
+        "lit": 17.3,
+        "texture": 5.32
+      },
+      "b": {
+        "mean": 57.8,
+        "median": 30.1,
+        "p25": 22.2,
+        "p75": 47.7,
+        "crushed": 40.2,
+        "blown": 0,
+        "lit": 18.2,
+        "texture": 4.1
+      }
+    },
+    {
+      "id": "camera",
+      "a": {
+        "mean": 31.1,
+        "median": 23.2,
+        "p25": 19.6,
+        "p75": 27.8,
+        "crushed": 70,
+        "blown": 0.06,
+        "lit": 4.1,
+        "texture": 20.9
+      },
+      "b": {
+        "mean": 46,
+        "median": 30.1,
+        "p25": 22.1,
+        "p75": 52.8,
+        "crushed": 39.9,
+        "blown": 0.08,
+        "lit": 10.8,
+        "texture": 4.9
+      }
+    },
+    {
+      "id": "can",
+      "a": {
+        "mean": 36.2,
+        "median": 24.5,
+        "p25": 21.1,
+        "p75": 37.1,
+        "crushed": 62,
+        "blown": 0.04,
+        "lit": 6.9,
+        "texture": 7.7
+      },
+      "b": {
+        "mean": 53.7,
+        "median": 31.6,
+        "p25": 23.1,
+        "p75": 85,
+        "crushed": 36.9,
+        "blown": 0.05,
+        "lit": 18.8,
+        "texture": 3.46
+      }
+    },
+    {
+      "id": "cassette",
+      "a": {
+        "mean": 46.2,
+        "median": 22.1,
+        "p25": 16.2,
+        "p75": 27.9,
+        "crushed": 70.6,
+        "blown": 0,
+        "lit": 15.3,
+        "texture": 7.47
+      },
+      "b": {
+        "mean": 59.1,
+        "median": 32.6,
+        "p25": 23.1,
+        "p75": 52.2,
+        "crushed": 34.4,
+        "blown": 0,
+        "lit": 14.9,
+        "texture": 5.48
+      }
+    },
+    {
+      "id": "compass",
+      "a": {
+        "mean": 70.5,
+        "median": 24.7,
+        "p25": 21.8,
+        "p75": 114.9,
+        "crushed": 56.9,
+        "blown": 0,
+        "lit": 25.9,
+        "texture": 2.94
+      },
+      "b": {
+        "mean": 75,
+        "median": 33.9,
+        "p25": 23.1,
+        "p75": 108.3,
+        "crushed": 35.3,
+        "blown": 0,
+        "lit": 26.9,
+        "texture": 3.02
+      }
+    },
+    {
+      "id": "cup",
+      "a": {
+        "mean": 59,
+        "median": 24.7,
+        "p25": 21.8,
+        "p75": 72.1,
+        "crushed": 58.8,
+        "blown": 0,
+        "lit": 23.3,
+        "texture": 6.38
+      },
+      "b": {
+        "mean": 74.3,
+        "median": 32.7,
+        "p25": 23.1,
+        "p75": 111.4,
+        "crushed": 37.5,
+        "blown": 0,
+        "lit": 27.9,
+        "texture": 3.86
+      }
+    },
+    {
+      "id": "duck",
+      "a": {
+        "mean": 51.4,
+        "median": 23.2,
+        "p25": 19.8,
+        "p75": 28.1,
+        "crushed": 69.5,
+        "blown": 0.02,
+        "lit": 19,
+        "texture": 4.35
+      },
+      "b": {
+        "mean": 66.5,
+        "median": 30.1,
+        "p25": 22.1,
+        "p75": 50.3,
+        "crushed": 39.2,
+        "blown": 0.03,
+        "lit": 20.8,
+        "texture": 2.91
+      }
+    },
+    {
+      "id": "horse",
+      "a": {
+        "mean": 39.4,
+        "median": 23.6,
+        "p25": 21.1,
+        "p75": 31.4,
+        "crushed": 65.2,
+        "blown": 0,
+        "lit": 11.5,
+        "texture": 15.84
+      },
+      "b": {
+        "mean": 55.9,
+        "median": 31.2,
+        "p25": 22.4,
+        "p75": 60.3,
+        "crushed": 38.1,
+        "blown": 0,
+        "lit": 19.1,
+        "texture": 10.2
+      }
+    },
+    {
+      "id": "key",
+      "a": {
+        "mean": 28.9,
+        "median": 23.3,
+        "p25": 20.9,
+        "p75": 25.5,
+        "crushed": 77.9,
+        "blown": 0.02,
+        "lit": 4.3,
+        "texture": 35.97
+      },
+      "b": {
+        "mean": 39.3,
+        "median": 26.8,
+        "p25": 22.1,
+        "p75": 40.6,
+        "crushed": 49,
+        "blown": 0.06,
+        "lit": 7.5,
+        "texture": 11.64
+      }
+    },
+    {
+      "id": "lid",
+      "a": {
+        "mean": 37.7,
+        "median": 34.9,
+        "p25": 22.2,
+        "p75": 46.4,
+        "crushed": 43,
+        "blown": 0.01,
+        "lit": 3.4,
+        "texture": 1.23
+      },
+      "b": {
+        "mean": 60.5,
+        "median": 39.3,
+        "p25": 23.1,
+        "p75": 103.4,
+        "crushed": 32.6,
+        "blown": 0.02,
+        "lit": 36,
+        "texture": 2.44
+      }
+    },
+    {
+      "id": "paper",
+      "a": {
+        "mean": 96.9,
+        "median": 137,
+        "p25": 23.1,
+        "p75": 166.2,
+        "crushed": 38.9,
+        "blown": 0,
+        "lit": 53.9,
+        "texture": 9.4
+      },
+      "b": {
+        "mean": 98.2,
+        "median": 39.9,
+        "p25": 23.1,
+        "p75": 210.9,
+        "crushed": 32.4,
+        "blown": 0,
+        "lit": 38,
+        "texture": 4.91
+      }
+    },
+    {
+      "id": "perfume",
+      "a": {
+        "mean": 37.1,
+        "median": 23.6,
+        "p25": 21.1,
+        "p75": 28.8,
+        "crushed": 65.7,
+        "blown": 0.01,
+        "lit": 7.1,
+        "texture": 5.11
+      },
+      "b": {
+        "mean": 52.3,
+        "median": 30.4,
+        "p25": 23.1,
+        "p75": 52.4,
+        "crushed": 37.5,
+        "blown": 0.01,
+        "lit": 14.9,
+        "texture": 5.31
+      }
+    },
+    {
+      "id": "record",
+      "a": {
+        "mean": 42.6,
+        "median": 23.6,
+        "p25": 20.8,
+        "p75": 32.9,
+        "crushed": 63.7,
+        "blown": 0,
+        "lit": 13,
+        "texture": 4.39
+      },
+      "b": {
+        "mean": 54.3,
+        "median": 39.3,
+        "p25": 23.1,
+        "p75": 56.8,
+        "crushed": 33.5,
+        "blown": 0.01,
+        "lit": 16.3,
+        "texture": 1.72
+      }
+    },
+    {
+      "id": "teacup",
+      "a": {
+        "mean": 47.3,
+        "median": 23.3,
+        "p25": 19.8,
+        "p75": 29.3,
+        "crushed": 68.4,
+        "blown": 0.01,
+        "lit": 19.8,
+        "texture": 20.69
+      },
+      "b": {
+        "mean": 65.1,
+        "median": 30.3,
+        "p25": 22.2,
+        "p75": 54.7,
+        "crushed": 38.1,
+        "blown": 0.01,
+        "lit": 22.7,
+        "texture": 7.84
+      }
+    },
+    {
+      "id": "watch",
+      "a": {
+        "mean": 43.8,
+        "median": 23.3,
+        "p25": 20.9,
+        "p75": 26.6,
+        "crushed": 73.4,
+        "blown": 0.28,
+        "lit": 11.7,
+        "texture": 15.47
+      },
+      "b": {
+        "mean": 54.4,
+        "median": 30.1,
+        "p25": 23.1,
+        "p75": 46.8,
+        "crushed": 41.3,
+        "blown": 0.38,
+        "lit": 13.9,
+        "texture": 4.09
+      }
+    }
+  ]
+}

@@ -456,16 +456,26 @@ try {
         const r = s => { const el = document.querySelector(s); if (!el || el.offsetParent === null) return null; const b = el.getBoundingClientRect(); return {x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height), bottom: Math.round(b.bottom), right: Math.round(b.right), hidden: getComputedStyle(el).visibility === 'hidden' || +getComputedStyle(el).opacity === 0}; };
         return {header: r('.find-header'), info: r('.find-info'), buttons: r('.decision-buttons'), hint: r('.rotation-hint'), poses: r('.view-controls'), note: r('#reveal-note')};
       });
+      // The pixel mask is measured against a veiled frame, so on small screens it can
+      // return the whole stage as its bounding box (masked noise). When that happens the
+      // mask says nothing about containment, and the item's projected box is the honest
+      // source: it is what the player actually sees move when the pose changes.
+      const degenerate = Boolean(area?.area) && area.w === box.width && area.h === box.height;
+      const geom = await page.evaluate(() => window.__GAME_TEST__.getMetrics().inspectionBounds);
+      const fb = degenerate && geom
+        ? {x: geom.left, y: geom.top, w: geom.right - geom.left, h: geom.bottom - geom.top, right: geom.right, bottom: geom.bottom}
+        : (area?.area ? {x: area.x, y: area.y, w: area.w, h: area.h, right: area.x + area.w, bottom: area.y + area.h} : null);
       const overlaps = {};
-      if (area?.area) {
-        const fb = {x: area.x, y: area.y, w: area.w, h: area.h, right: area.x + area.w, bottom: area.y + area.h};
+      if (fb) {
         for (const [name, v] of Object.entries(ui)) {
           if (!v || v.hidden) continue;
           overlaps[name] = fb.x < v.right && v.x < fb.right && fb.y < v.bottom && v.y < fb.bottom;
         }
       }
-      report.measures.smallScreens.push({w, h, id, find: area, stage: box, ui, overlaps});
-      console.log('SMALL', `${w}x${h}`.padEnd(9), id.padEnd(9), 'find', String(area?.area).padEnd(6), JSON.stringify(overlaps));
+      report.measures.smallScreens.push({w, h, id, find: area, maskDegenerate: degenerate, findBox: fb, stage: box, ui, overlaps});
+      console.log('SMALL', `${w}x${h}`.padEnd(9), id.padEnd(9), 'find', String(area?.area).padEnd(6),
+        'box', fb ? `${Math.round(fb.x)},${Math.round(fb.y)} ${Math.round(fb.w)}x${Math.round(fb.h)}` : '—',
+        degenerate ? '(mask degenerate → item bounds)' : '', JSON.stringify(overlaps));
       await leave('discard');
     }
   }

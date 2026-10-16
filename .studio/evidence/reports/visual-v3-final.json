@@ -1,0 +1,324 @@
+{
+  "passed": true,
+  "iteration": "final",
+  "models": [
+    {
+      "id": "camera",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.857455908699198,
+          -0.6175536527567518
+        ],
+        "max": [
+          1.05,
+          0.857455908699198,
+          0.6175536527567518
+        ]
+      },
+      "modeledParts": 145,
+      "materialBatches": 13
+    },
+    {
+      "id": "teacup",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.6965811869091828,
+          -0.8155835862136505
+        ],
+        "max": [
+          1.05,
+          0.6965811869091828,
+          0.8155835862136505
+        ]
+      },
+      "modeledParts": 7,
+      "materialBatches": 4
+    },
+    {
+      "id": "watch",
+      "bounds": {
+        "min": [
+          -0.5384037677206647,
+          -1.05,
+          -0.2662839529714117
+        ],
+        "max": [
+          0.5384037677206647,
+          1.05,
+          0.2662839529714117
+        ]
+      },
+      "modeledParts": 119,
+      "materialBatches": 10
+    },
+    {
+      "id": "cassette",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.6562499902211132,
+          -0.17259375004889446
+        ],
+        "max": [
+          1.05,
+          0.6562499902211132,
+          0.17259375004889446
+        ]
+      },
+      "modeledParts": 71,
+      "materialBatches": 8
+    },
+    {
+      "id": "duck",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.7433991782493105,
+          -0.4805817345256775
+        ],
+        "max": [
+          1.05,
+          0.7433991782493105,
+          0.4805817345256775
+        ]
+      },
+      "modeledParts": 19,
+      "materialBatches": 4
+    },
+    {
+      "id": "book",
+      "bounds": {
+        "min": [
+          -0.7229555358599555,
+          -1.05,
+          -0.21950121713791484
+        ],
+        "max": [
+          0.7229555358599555,
+          1.05,
+          0.21950121713791484
+        ]
+      },
+      "modeledParts": 68,
+      "materialBatches": 7
+    },
+    {
+      "id": "key",
+      "bounds": {
+        "min": [
+          -0.49497235482636126,
+          -1.05,
+          -0.10379968720931776
+        ],
+        "max": [
+          0.49497235482636126,
+          1.05,
+          0.10379968720931776
+        ]
+      },
+      "modeledParts": 12,
+      "materialBatches": 6
+    },
+    {
+      "id": "badge",
+      "bounds": {
+        "min": [
+          -0.7293531963644387,
+          -1.05,
+          -0.1265256588520747
+        ],
+        "max": [
+          0.7293531963644387,
+          1.05,
+          0.1265256588520747
+        ]
+      },
+      "modeledParts": 9,
+      "materialBatches": 5
+    },
+    {
+      "id": "record",
+      "bounds": {
+        "min": [
+          -1.05,
+          -1.05,
+          -0.03415662807882233
+        ],
+        "max": [
+          1.05,
+          1.05,
+          0.03415662807882233
+        ]
+      },
+      "modeledParts": 7,
+      "materialBatches": 5
+    },
+    {
+      "id": "perfume",
+      "bounds": {
+        "min": [
+          -0.47192768667932866,
+          -1.05,
+          -0.4942070780112025
+        ],
+        "max": [
+          0.47192768667932866,
+          1.05,
+          0.4942070780112025
+        ]
+      },
+      "modeledParts": 33,
+      "materialBatches": 4
+    },
+    {
+      "id": "horse",
+      "bounds": {
+        "min": [
+          -0.9744664000348988,
+          -1.05,
+          -0.4261537250454081
+        ],
+        "max": [
+          0.9744664000348988,
+          1.05,
+          0.4261537250454081
+        ]
+      },
+      "modeledParts": 41,
+      "materialBatches": 4
+    },
+    {
+      "id": "compass",
+      "bounds": {
+        "min": [
+          -0.856812909733191,
+          -1.05,
+          -0.2069284158177058
+        ],
+        "max": [
+          0.856812909733191,
+          1.05,
+          0.2069284158177058
+        ]
+      },
+      "modeledParts": 84,
+      "materialBatches": 7
+    },
+    {
+      "id": "bottle",
+      "bounds": {
+        "min": [
+          -0.3565116290916554,
+          -1.05,
+          -0.3583430190882839
+        ],
+        "max": [
+          0.3565116290916554,
+          1.05,
+          0.3583430190882839
+        ]
+      },
+      "modeledParts": 5,
+      "materialBatches": 3
+    },
+    {
+      "id": "can",
+      "bounds": {
+        "min": [
+          -0.7145319914877832,
+          -1.05,
+          -0.713198972005731
+        ],
+        "max": [
+          0.7145319914877832,
+          1.05,
+          0.713198972005731
+        ]
+      },
+      "modeledParts": 15,
+      "materialBatches": 4
+    },
+    {
+      "id": "cup",
+      "bounds": {
+        "min": [
+          -0.8761723631298971,
+          -1.05,
+          -0.8411525972897724
+        ],
+        "max": [
+          0.8761723631298971,
+          1.05,
+          0.8411525972897724
+        ]
+      },
+      "modeledParts": 5,
+      "materialBatches": 3
+    },
+    {
+      "id": "box",
+      "bounds": {
+        "min": [
+          -1.05,
+          -0.530304624390368,
+          -0.7892261633741444
+        ],
+        "max": [
+          1.05,
+          0.530304624390368,
+          0.7892261633741444
+        ]
+      },
+      "modeledParts": 49,
+      "materialBatches": 5
+    },
+    {
+      "id": "lid",
+      "bounds": {
+        "min": [
+          -1.05,
+          -1.05,
+          -0.0684121602233241
+        ],
+        "max": [
+          1.05,
+          1.05,
+          0.0684121602233241
+        ]
+      },
+      "modeledParts": 38,
+      "materialBatches": 3
+    },
+    {
+      "id": "paper",
+      "bounds": {
+        "min": [
+          -0.8370629572624678,
+          -1.05,
+          -0.15067196586973308
+        ],
+        "max": [
+          0.8370629572624678,
+          1.05,
+          0.15067196586973308
+        ]
+      },
+      "modeledParts": 2,
+      "materialBatches": 2
+    }
+  ],
+  "checks": [
+    "Book gold title remains visible after deformation",
+    "Zoom endpoints disable controls and reset restores baseline",
+    "360x800: safe framing, no horizontal overflow",
+    "844x390: safe framing, no horizontal overflow",
+    "1280x900: safe framing, no horizontal overflow"
+  ],
+  "errors": [],
+  "limitations": [
+    "SwiftShader, not Android hardware.",
+    "Reduced motion; screenshots do not certify animation quality."
+  ]
+}

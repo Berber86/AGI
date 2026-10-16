@@ -1,0 +1,1332 @@
+{
+  "passed": true,
+  "tone": [],
+  "parity": [],
+  "reveal": [],
+  "overlaps": [
+    {
+      "w": 320,
+      "h": 568,
+      "expectedStageHeight": 101,
+      "expectedStageY": 220,
+      "layoutSettled": true,
+      "noteGone": true,
+      "search": {
+        "hero": {
+          "x": 24,
+          "y": 100,
+          "w": 272,
+          "h": 105,
+          "bottom": 205,
+          "right": 296
+        },
+        "search": {
+          "x": 24,
+          "y": 379,
+          "w": 272,
+          "h": 111,
+          "bottom": 490,
+          "right": 296
+        },
+        "footer": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 79,
+          "bottom": 79,
+          "right": 320
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 101,
+          "y": 220
+        },
+        "item": {
+          "top": 224,
+          "bottom": 303,
+          "left": 108,
+          "right": 210
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 24,
+          "y": 342,
+          "w": 272,
+          "h": 103,
+          "bottom": 445,
+          "right": 296
+        },
+        "poses": {
+          "x": 38,
+          "y": 172,
+          "w": 245,
+          "h": 50,
+          "bottom": 222,
+          "right": 282
+        },
+        "zoom": {
+          "x": 14,
+          "y": 126,
+          "w": 292,
+          "h": 46,
+          "bottom": 172,
+          "right": 306
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "10px",
+            "w": 129,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "10px",
+            "w": 79,
+            "text": "НАХОДКА № 001"
+          },
+          "era": {
+            "font": "11px",
+            "w": 272,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "32px",
+            "w": 272,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "13px",
+            "w": 272,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "11px",
+            "w": 292,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 272,
+            "right": 296
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 32,
+          "y": 345,
+          "w": 256,
+          "h": 17,
+          "bottom": 362,
+          "right": 288
+        },
+        "infoOpacity": 0.946868,
+        "noteVsInfoRect": true,
+        "noteVsInfo": true,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": true
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 138,
+          "y": 386,
+          "w": 44,
+          "h": 26,
+          "bottom": 412,
+          "right": 182
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 138,
+          "y": 386,
+          "w": 44,
+          "h": 26,
+          "bottom": 412,
+          "right": 182
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    },
+    {
+      "w": 360,
+      "h": 640,
+      "expectedStageHeight": 173,
+      "expectedStageY": 220,
+      "layoutSettled": true,
+      "noteGone": true,
+      "search": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "search": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "footer": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 360,
+          "h": 79,
+          "bottom": 79,
+          "right": 360
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 173,
+          "y": 220
+        },
+        "item": {
+          "top": 231,
+          "bottom": 364,
+          "left": 93,
+          "right": 262
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 24,
+          "y": 414,
+          "w": 312,
+          "h": 103,
+          "bottom": 517,
+          "right": 336
+        },
+        "poses": {
+          "x": 58,
+          "y": 172,
+          "w": 245,
+          "h": 50,
+          "bottom": 222,
+          "right": 302
+        },
+        "zoom": {
+          "x": 34,
+          "y": 126,
+          "w": 292,
+          "h": 46,
+          "bottom": 172,
+          "right": 326
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "10px",
+            "w": 129,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "10px",
+            "w": 79,
+            "text": "НАХОДКА № 001"
+          },
+          "era": {
+            "font": "11px",
+            "w": 312,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "32px",
+            "w": 312,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "13px",
+            "w": 312,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "11px",
+            "w": 292,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 24,
+            "y": 88,
+            "w": 312,
+            "right": 336
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 36,
+          "y": 417,
+          "w": 288,
+          "h": 17,
+          "bottom": 434,
+          "right": 324
+        },
+        "infoOpacity": 1,
+        "noteVsInfoRect": true,
+        "noteVsInfo": true,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": true
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 158,
+          "y": 458,
+          "w": 44,
+          "h": 26,
+          "bottom": 484,
+          "right": 202
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 158,
+          "y": 458,
+          "w": 44,
+          "h": 26,
+          "bottom": 484,
+          "right": 202
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    },
+    {
+      "w": 412,
+      "h": 915,
+      "expectedStageHeight": 371,
+      "expectedStageY": 244,
+      "layoutSettled": true,
+      "noteGone": true,
+      "search": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "search": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "footer": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 412,
+          "h": 79,
+          "bottom": 79,
+          "right": 412
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 371,
+          "y": 244
+        },
+        "item": {
+          "top": 324,
+          "bottom": 555,
+          "left": 56,
+          "right": 346
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 24,
+          "y": 662,
+          "w": 364,
+          "h": 110,
+          "bottom": 772,
+          "right": 388
+        },
+        "poses": {
+          "x": 84,
+          "y": 184,
+          "w": 245,
+          "h": 50,
+          "bottom": 234,
+          "right": 328
+        },
+        "zoom": {
+          "x": 60,
+          "y": 134,
+          "w": 292,
+          "h": 46,
+          "bottom": 180,
+          "right": 352
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "10px",
+            "w": 129,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "10px",
+            "w": 79,
+            "text": "НАХОДКА № 001"
+          },
+          "era": {
+            "font": "11px",
+            "w": 364,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "32px",
+            "w": 364,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "13px",
+            "w": 340,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "11px",
+            "w": 292,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 24,
+            "y": 96,
+            "w": 364,
+            "right": 388
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 41,
+          "y": 639,
+          "w": 330,
+          "h": 17,
+          "bottom": 656,
+          "right": 371
+        },
+        "infoOpacity": 1,
+        "noteVsInfoRect": false,
+        "noteVsInfo": false,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": true
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 184,
+          "y": 669,
+          "w": 44,
+          "h": 26,
+          "bottom": 695,
+          "right": 228
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 184,
+          "y": 669,
+          "w": 44,
+          "h": 26,
+          "bottom": 695,
+          "right": 228
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    },
+    {
+      "w": 740,
+      "h": 360,
+      "expectedStageHeight": 188,
+      "expectedStageY": 80,
+      "layoutSettled": true,
+      "noteGone": true,
+      "search": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "search": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "footer": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 740,
+          "h": 78,
+          "bottom": 78,
+          "right": 740
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 188,
+          "y": 80
+        },
+        "item": {
+          "top": 98,
+          "bottom": 241,
+          "left": 126,
+          "right": 314
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 472,
+          "y": 174,
+          "w": 244,
+          "h": 86,
+          "bottom": 260,
+          "right": 716
+        },
+        "poses": {
+          "x": 100,
+          "y": 246,
+          "w": 261,
+          "h": 50,
+          "bottom": 296,
+          "right": 360
+        },
+        "zoom": {
+          "x": 80,
+          "y": 298,
+          "w": 301,
+          "h": 46,
+          "bottom": 344,
+          "right": 380
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "8px",
+            "w": 110,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "8px",
+            "w": 61,
+            "text": "НАХОДКА № 001"
+          },
+          "era": {
+            "font": "10px",
+            "w": 244,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "24px",
+            "w": 244,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "11px",
+            "w": 244,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "12px",
+            "w": 301,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 472,
+            "y": 92,
+            "w": 244,
+            "right": 716
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 28,
+          "y": 225,
+          "w": 404,
+          "h": 17,
+          "bottom": 242,
+          "right": 432
+        },
+        "infoOpacity": 1,
+        "noteVsInfoRect": false,
+        "noteVsInfo": false,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": false
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 348,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 392
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 348,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 392
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    },
+    {
+      "w": 844,
+      "h": 390,
+      "expectedStageHeight": 218,
+      "expectedStageY": 80,
+      "layoutSettled": true,
+      "noteGone": true,
+      "search": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "search": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "footer": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 844,
+          "h": 78,
+          "bottom": 78,
+          "right": 844
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 188,
+          "y": 80
+        },
+        "item": {
+          "top": 106,
+          "bottom": 261,
+          "left": 144,
+          "right": 359
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 569,
+          "y": 189,
+          "w": 251,
+          "h": 93,
+          "bottom": 282,
+          "right": 820
+        },
+        "poses": {
+          "x": 148,
+          "y": 276,
+          "w": 261,
+          "h": 50,
+          "bottom": 326,
+          "right": 409
+        },
+        "zoom": {
+          "x": 128,
+          "y": 328,
+          "w": 301,
+          "h": 46,
+          "bottom": 374,
+          "right": 429
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "8px",
+            "w": 110,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "8px",
+            "w": 61,
+            "text": "НАХОДКА № 001"
+          },
+          "era": {
+            "font": "10px",
+            "w": 251,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "28px",
+            "w": 251,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "12px",
+            "w": 251,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "12px",
+            "w": 301,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 569,
+            "y": 92,
+            "w": 251,
+            "right": 820
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 28,
+          "y": 255,
+          "w": 501,
+          "h": 17,
+          "bottom": 272,
+          "right": 529
+        },
+        "infoOpacity": 1,
+        "noteVsInfoRect": false,
+        "noteVsInfo": false,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": false
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 400,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 444
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 400,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 444
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    },
+    {
+      "w": 768,
+      "h": 1024,
+      "expectedStageHeight": 484,
+      "expectedStageY": 270,
+      "layoutSettled": true,
+      "noteGone": true,
+      "search": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "search": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "footer": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 768,
+          "h": 96,
+          "bottom": 96,
+          "right": 768
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 484,
+          "y": 270
+        },
+        "item": {
+          "top": 314,
+          "bottom": 687,
+          "left": 148,
+          "right": 598
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 164,
+          "y": 773,
+          "w": 440,
+          "h": 121,
+          "bottom": 894,
+          "right": 604
+        },
+        "poses": {
+          "x": 254,
+          "y": 204,
+          "w": 261,
+          "h": 50,
+          "bottom": 254,
+          "right": 514
+        },
+        "zoom": {
+          "x": 234,
+          "y": 150,
+          "w": 301,
+          "h": 46,
+          "bottom": 196,
+          "right": 534
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "10px",
+            "w": 135,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "10px",
+            "w": 83,
+            "text": "НАХОДКА № 001"
+          },
+          "era": {
+            "font": "10px",
+            "w": 440,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "43px",
+            "w": 440,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "13px",
+            "w": 350,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "12px",
+            "w": 301,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 74,
+            "y": 106,
+            "w": 620,
+            "right": 694
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 77,
+          "y": 778,
+          "w": 614,
+          "h": 17,
+          "bottom": 795,
+          "right": 691
+        },
+        "infoOpacity": 0.946439,
+        "noteVsInfoRect": true,
+        "noteVsInfo": true,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": true
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 362,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 406
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 362,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 406
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    },
+    {
+      "w": 1280,
+      "h": 900,
+      "expectedStageHeight": 360,
+      "expectedStageY": 270,
+      "layoutSettled": true,
+      "noteGone": false,
+      "search": {
+        "hero": {
+          "x": 43,
+          "y": 141,
+          "w": 347,
+          "h": 250,
+          "bottom": 391,
+          "right": 390
+        },
+        "search": {
+          "x": 470,
+          "y": 704,
+          "w": 340,
+          "h": 118,
+          "bottom": 822,
+          "right": 810
+        },
+        "footer": {
+          "x": 44,
+          "y": 827,
+          "w": 1192,
+          "h": 38,
+          "bottom": 865,
+          "right": 1236
+        },
+        "topbar": {
+          "x": 0,
+          "y": 0,
+          "w": 1280,
+          "h": 108,
+          "bottom": 108,
+          "right": 1280
+        },
+        "searchVsFooter": false,
+        "searchVsHero": false,
+        "heroVsTopbar": false,
+        "overflow": false
+      },
+      "inspect": {
+        "stage": {
+          "h": 360,
+          "y": 270
+        },
+        "item": {
+          "top": 297,
+          "bottom": 577,
+          "left": 459,
+          "right": 807
+        },
+        "note": {
+          "x": 0,
+          "y": 0,
+          "w": 0,
+          "h": 0,
+          "bottom": 0,
+          "right": 0
+        },
+        "info": {
+          "x": 420,
+          "y": 649,
+          "w": 440,
+          "h": 121,
+          "bottom": 770,
+          "right": 860
+        },
+        "poses": {
+          "x": 510,
+          "y": 204,
+          "w": 261,
+          "h": 50,
+          "bottom": 254,
+          "right": 770
+        },
+        "zoom": {
+          "x": 490,
+          "y": 150,
+          "w": 301,
+          "h": 46,
+          "bottom": 196,
+          "right": 790
+        },
+        "noteVsName": false,
+        "noteVsEra": false,
+        "infoVsButtons": false,
+        "posesOverFind": false,
+        "itemVsInfo": false,
+        "itemVsButtons": false,
+        "toastVsHero": false,
+        "toastVsTopbar": false,
+        "toastVsButtons": false,
+        "noteVsSearch": false,
+        "overflow": false,
+        "type": {
+          "rarity": {
+            "font": "10px",
+            "w": 135,
+            "text": "Редкая находка"
+          },
+          "findNumber": {
+            "font": "10px",
+            "w": 85,
+            "text": "НАХОДКА № 002"
+          },
+          "era": {
+            "font": "10px",
+            "w": 440,
+            "text": "ЛОМО · 1970-е"
+          },
+          "name": {
+            "font": "43px",
+            "w": 440,
+            "text": "Смена-8М"
+          },
+          "description": {
+            "font": "13px",
+            "w": 350,
+            "text": "Кто-то снимал на неё б"
+          },
+          "rotate": {
+            "font": "12px",
+            "w": 301,
+            "text": "− Вращайте предмет100%"
+          },
+          "overflowX": false,
+          "overflowY": false,
+          "header": {
+            "x": 330,
+            "y": 106,
+            "w": 620,
+            "right": 950
+          }
+        }
+      },
+      "early": {
+        "note": {
+          "x": 128,
+          "y": 654,
+          "w": 1024,
+          "h": 17,
+          "bottom": 671,
+          "right": 1152
+        },
+        "infoOpacity": 0.946522,
+        "noteVsInfoRect": true,
+        "noteVsInfo": true,
+        "noteVsPoses": false,
+        "noteInStage": true,
+        "noteAboveFindBottom": true
+      },
+      "latePhase": {
+        "phase": "detail",
+        "noteOpacity": 0,
+        "noteHidden": false
+      },
+      "toast": {
+        "rect": {
+          "x": 618,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 662
+        },
+        "visible": "0",
+        "vsHero": false
+      },
+      "liveToast": {
+        "rect": {
+          "x": 618,
+          "y": 146,
+          "w": 44,
+          "h": 26,
+          "bottom": 172,
+          "right": 662
+        },
+        "opacity": 0,
+        "vsHero": false,
+        "vsTopbar": false,
+        "vsSearch": false,
+        "onScreen": true
+      }
+    }
+  ],
+  "errors": []
+}
