@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { watchHands } from './details.js';
 import { agePoint } from './aging.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -91,7 +92,8 @@ function camera(g){
   // Visible iris blades behind the convex coated glass.
   for(let i=0;i<7;i++){const a=i*TAU/7;const shape=new THREE.Shape();shape.moveTo(.02,.035);shape.lineTo(.06,.17);shape.lineTo(-.075,.16);shape.lineTo(-.03,.06);shape.closePath();mesh(new THREE.ShapeGeometry(shape),M.rubber,lens,[0,0,.733],[0,0,a]);}
   cyl(lens,.082,.082,.006,[0,0,.740],M.black);
-  dome(lens,.196,.028,[0,0,.748],M.clear);
+  const optical=new THREE.MeshPhysicalMaterial({color:0x173a46,roughness:.10,metalness:.12,clearcoat:1,transparent:true,opacity:.30,depthWrite:false,envMapIntensity:.7});
+  dome(lens,.196,.028,[0,0,.748],optical);
   torus(lens,.204,.006,[0,0,.736],M.silver);
   // Readable exposure scale around the barrel.
   decal(g,.63,.055,[.12,-.351,.498],(c,w,h)=>{c.fillStyle='#252b26';c.fillRect(0,0,w,h);c.fillStyle='#d0c9ac';c.font=`${h*.64}px Arial`;c.fillText('4   5,6   8   11   16',15,h*.7);});
@@ -137,12 +139,12 @@ function watch(g){
   circularFace(g,.37,.159,(c,s,r)=>{
     c.fillStyle='#e8dfc8';c.fillRect(0,0,s,s);c.translate(s/2,s/2);
     for(let i=0;i<60;i++){c.save();c.rotate(i*TAU/60);c.fillStyle='#363f35';c.fillRect(-2,-465,4,i%5?20:42);c.restore();}
-    c.fillStyle='#394237';c.textAlign='center';c.textBaseline='middle';c.font='82px Georgia';
+    c.fillStyle='#25332e';c.textAlign='center';c.textBaseline='middle';c.font='82px Georgia';
     for(let i=1;i<=12;i++){const a=i*TAU/12;c.fillText(String(i),Math.sin(a)*365,-Math.cos(a)*365);}
     c.font='italic 66px Georgia';c.fillText('Ракета',0,-165);c.font='21px Arial';c.fillText('СДЕЛАНО В СССР',0,246);c.font='25px Arial';c.fillText('16 КАМНЕЙ',0,188);
     c.translate(-s/2,-s/2);distress(c,s,s,r,1700);
   });
-  box(g,[.019,.244,.009],[-.038,.102,.18],M.black,.003,[0,0,.36]);box(g,[.012,.31,.008],[.105,.067,.19],M.black,.002,[0,0,-1.0]);
+  for(const h of watchHands())box(g,[h.width,h.length,.009],[h.x,h.y,h.z],M.black,.002,[0,0,h.angle]);
   box(g,[.004,.45,.003],[-.09,-.012,.201],M.copper,.001,[0,0,1.71]);cyl(g,.018,.02,.015,[0,0,.205],M.gold);
   dome(g,.371,.018,[0,0,.211]);
   cyl(g,.056,.057,.1,[.468,0,.04],M.silver,[0,0,Math.PI/2],32);
@@ -224,10 +226,11 @@ function book(g){
 }
 
 function key(g){
-  torus(g,.28,.055,[0,.41,0],M.gold);torus(g,.219,.012,[0,.41,.034],M.copper);
-  cyl(g,.046,.048,.92,[0,-.29,0],M.gold,[0,0,0],32);
-  box(g,[.25,.09,.1],[.092,-.745,0],M.gold,.012);box(g,[.09,.1,.105],[.171,-.64,0],M.gold,.007);box(g,[.065,.17,.095],[.037,-.7,0],M.gold,.009);
-  torus(g,.34,.014,[0,.72,-.01],M.silver,[.23,0,.08]);torus(g,.331,.009,[0,.72,-.018],M.silver,[.23,0,.08]);
+  const brass=M.gold.clone();brass.roughness=.46;brass.color.set(0xa68a54);
+  torus(g,.235,.045,[0,.41,0],brass);torus(g,.183,.009,[0,.41,.034],M.copper);
+  cyl(g,.046,.048,.92,[0,-.29,0],brass,[0,0,0],32);
+  box(g,[.25,.09,.1],[.092,-.745,0],brass,.012);box(g,[.09,.1,.105],[.171,-.64,0],brass,.007);box(g,[.065,.17,.095],[.037,-.7,0],brass,.009);
+  torus(g,.26,.014,[0,.66,-.01],M.silver,[.23,0,.08]);torus(g,.251,.009,[0,.66,-.018],M.silver,[.23,0,.08]);
   box(g,[.24,.34,.037],[.37,.34,-.03],M.leather,.028,[0,0,-.22]);inscription(g,'17',.14,.15,[.37,.34,-.007],'#d2b988',[0,0,-.22]);
   torus(g,.055,.012,[.33,.535,-.02],M.silver);inscription(g,'Л 82',.075,.027,[0,-.25,.049],'#776445');
 }
@@ -252,16 +255,16 @@ function badge(g){
 function record(g){
   cyl(g,.83,.83,.022,[0,0,0],M.black,undefined,96);
   // Groove relief is a texture, not bright metal hoops.
-  const groove=canvasTexture((c,s)=>{c.fillStyle='#59616a';c.fillRect(0,0,s,s);for(let r=170;r<502;r+=2){c.strokeStyle=r%5?'#66707a':'#454e57';c.lineWidth=.5;c.beginPath();c.arc(s/2,s/2,r,0,TAU);c.stroke();}},1024);
+  const groove=canvasTexture((c,s)=>{c.fillStyle='#59616a';c.fillRect(0,0,s,s);for(let r=170;r<502;r+=2){c.strokeStyle=r%5?'#616973':'#515a63';c.lineWidth=.5;c.beginPath();c.arc(s/2,s/2,r,0,TAU);c.stroke();}},1024);
   const grooveNormal=canvasTexture((c,s)=>{
     const image=c.createImageData(s,s);
     for(let y=0;y<s;y++)for(let x=0;x<s;x++){
-      const dx=x-s/2,dy=s/2-y,r=Math.hypot(dx,dy)||1,v=Math.sin(r*2.2)*.22,i=(y*s+x)*4;
+      const dx=x-s/2,dy=s/2-y,r=Math.hypot(dx,dy)||1,v=Math.sin(r*2.2)*.08,i=(y*s+x)*4;
       image.data[i]=128+127*v*dx/r;image.data[i+1]=128+127*v*dy/r;image.data[i+2]=253;image.data[i+3]=255;
     }
     c.putImageData(image,0,0);
   },1024);grooveNormal.colorSpace=THREE.NoColorSpace;
-  const vinyl=new THREE.MeshStandardMaterial({color:0x505863,map:groove,roughness:.26,metalness:.08,normalMap:grooveNormal,normalScale:new THREE.Vector2(.65,.65),envMapIntensity:1.5});
+  const vinyl=new THREE.MeshStandardMaterial({color:0x505863,map:groove,roughness:.26,metalness:.08,normalMap:grooveNormal,normalScale:new THREE.Vector2(.35,.35),envMapIntensity:1.5});
   for(const side of [-1,1]){
     mesh(new THREE.CircleGeometry(.824,96),vinyl,g,[0,0,side*.013],[0,side===1?0:Math.PI,0]);
     const face=new THREE.Group();g.add(face);face.rotation.y=side===1?0:Math.PI;
@@ -271,9 +274,9 @@ function record(g){
 }
 
 function perfume(g){
-  const crystal=new THREE.MeshPhysicalMaterial({color:0xf7f4e9,transmission:.96,roughness:.045,ior:1.48,thickness:.08,attenuationColor:0xf2d7a4,attenuationDistance:3,clearcoat:.3,envMapIntensity:.65});
+  const crystal=new THREE.MeshPhysicalMaterial({color:0xf7f4e9,transmission:.98,roughness:.06,ior:1.48,thickness:.08,attenuationColor:0xf2d7a4,attenuationDistance:5,clearcoat:.3,envMapIntensity:.65});
   const bottle=lathe(g,[[0,-.55],[.3,-.55],[.36,-.47],[.36,.16],[.29,.31],[.095,.41],[.095,.54],[.067,.54],[.067,.39],[.26,.26],[.31,.12],[.31,-.45],[0,-.45]],crystal,[0,0,0],8);
-  const liquid=new THREE.MeshPhysicalMaterial({color:0xc07f26,roughness:.12,transmission:.55,thickness:.35,ior:1.36,transparent:true,opacity:.92});cyl(g,.294,.294,.19,[0,-.345,0],liquid,[0,0,0],8);
+  const liquid=new THREE.MeshStandardMaterial({color:0x754921,roughness:.22});cyl(g,.294,.294,.06,[0,-.42,0],liquid,[0,0,0],8);
   cyl(g,.11,.11,.16,[0,.49,0],M.gold,[0,0,0]);knurl(g,.112,.1,[0,.49,0],28,M.gold,'y');
   lathe(g,[[0,.55],[.10,.55],[.165,.63],[.125,.82],[.065,.93],[0,.93]],crystal,[0,0,0],8);
   decal(g,.38,.38,[0,-.085,.364],(c,w,h,r)=>{c.fillStyle='#e0c991';c.fillRect(0,0,w,h);c.strokeStyle='#84713f';c.lineWidth=8;c.strokeRect(16,16,w-32,h-32);c.fillStyle='#594b30';c.textAlign='center';c.font=`${w*.12}px Georgia`;c.fillText('ДУХИ',w/2,h*.28);c.font=`italic ${w*.16}px Georgia`;c.fillText('Белая ночь',w/2,h*.55);c.font=`${w*.06}px Georgia`;c.fillText('ЛЕНИНГРАД · 1965',w/2,h*.81);distress(c,w,h,r,1800);});
@@ -301,8 +304,8 @@ function compass(g){
   cyl(g,.51,.53,.145,[0,0,0],M.gold);torus(g,.503,.018,[0,0,.075],M.gold);knurl(g,.51,.072,[0,0,-.018],72,M.gold);
   circularFace(g,.466,.081,(c,s,r)=>{
     c.fillStyle='#daceaa';c.fillRect(0,0,s,s);c.translate(s/2,s/2);
-    for(let i=0;i<120;i++){c.save();c.rotate(i*TAU/120);c.strokeStyle='#435145';c.lineWidth=i%10?2:4;c.beginPath();c.moveTo(0,-470);c.lineTo(0,i%10?-452:-421);c.stroke();c.restore();}
-    c.textAlign='center';c.textBaseline='middle';c.font='bold 80px Georgia';c.fillStyle='#4b5647';for(const [t,x,y] of [['С',0,-330],['Ю',0,330],['В',330,0],['З',-330,0]])c.fillText(t,x,y);
+    for(let i=0;i<120;i++){c.save();c.rotate(i*TAU/120);c.strokeStyle='#2c3a32';c.lineWidth=i%10?3:6;c.beginPath();c.moveTo(0,-470);c.lineTo(0,i%10?-452:-421);c.stroke();c.restore();}
+    c.textAlign='center';c.textBaseline='middle';c.font='bold 88px Georgia';c.fillStyle='#2c3a32';for(const [t,x,y] of [['С',0,-330],['Ю',0,330],['В',330,0],['З',-330,0]])c.fillText(t,x,y);
     c.font='25px Arial';for(let i=0;i<12;i++){const a=i*TAU/12;c.fillText(String(i*30),Math.sin(a)*391,-Math.cos(a)*391);}
     c.strokeStyle='#93855d';c.lineWidth=1;for(let i=0;i<8;i++){c.save();c.rotate(i*Math.PI/4);c.beginPath();c.moveTo(0,-270);c.lineTo(-29,-62);c.lineTo(0,0);c.lineTo(29,-62);c.closePath();c.stroke();c.restore();}
     c.font='24px Georgia';c.fillText('ЛЕНИНГРАД',0,218);c.translate(-s/2,-s/2);distress(c,s,s,r,1800);
@@ -324,7 +327,7 @@ function bottle(g){
 }
 
 function can(g){
-  const tin=M.silver.clone();tin.roughness=.46;
+  const tin=M.silver.clone();tin.roughness=.62;
   lathe(g,[[.415,-.42],[.439,-.41],[.444,-.375],[.425,-.35],[.425,.32],[.444,.35],[.444,.388],[.418,.397],[.406,.378],[.406,-.36],[0,-.36]],tin);
   for(let i=0;i<7;i++)torus(g,.428,.006,[0,-.28+i*.089,0],tin,[Math.PI/2,0,0]);
   cyl(g,.404,.404,.015,[0,-.347,0],M.rust,[0,0,0]);
