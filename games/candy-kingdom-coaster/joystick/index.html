@@ -156,8 +156,9 @@ const qs = new URLSearchParams(location.search);
 const DEMO_CHANNEL = 'ckc-joystick-stand';
 // Firebase is a remote database, not a 60 Hz input bus. Keep the latest
 // analog value locally and send a small, coalesced packet at a sane rate.
-const DRIVE_SEND_MS = 80;
-const DRIVE_HEARTBEAT_MS = 1000;
+const DRIVE_SEND_MS = 160;
+const DRIVE_HEARTBEAT_MS = 2000;
+const PING_INTERVAL_MS = 5000;
 const DRIVE_SESSION = (globalThis.crypto && globalThis.crypto.randomUUID)
   ? globalThis.crypto.randomUUID()
   : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -209,8 +210,9 @@ const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length 
 // Поэтому обработчик только меняет визуал, а отправка уезжает в отдельный
 // тик после отрисовки. Firebase не является 60 Hz транспортом: более частые
 // set() создают очередь сетевых событий и могут отнимать кадры у игры на
-// слабом телефоне. Отправляем последний пакет не чаще 12,5 раз/с, а при
-// неизменном управлении — только редкий heartbeat.
+// слабом телефоне. Для спокойной экспериментальной игры отправляем
+// последний пакет не чаще 6,25 раз/с, а при неизменном управлении —
+// heartbeat только раз в 2 секунды.
 let driveDirty = false;
 let driveForce = false;
 let driveTimer = null;
@@ -286,9 +288,9 @@ function startLoops() {
     state.pending = { id, t0: performance.now() };
     if (state.kind === 'demo') state.ch.postMessage({ kind: 'ping', room: state.room, id });
     else state.f.set(roomRef('/ping'), { id }).catch(() => {});
-  }, 2000);
+  }, PING_INTERVAL_MS);
 }
-function pushDriveKeepVisual() { // heartbeat: освежить состояние раз в секунду
+function pushDriveKeepVisual() { // heartbeat: освежить состояние раз в 2 секунды
   driveDirty = true;
   driveForce = true;
   scheduleDriveSend();
