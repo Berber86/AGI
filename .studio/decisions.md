@@ -27,3 +27,6 @@ User: «Хорошо. Сделай ещё 3 итерации и тоже зап�
 
 ## 2026-10-15 — Third set of visual passes
 User: «Хорошо, делай ещё 3 итерации». Continue approved visual scope: 7 twilight lighting, 8 landscape composition, 9 controlled multi-angle inspection/cavity review. Preserve saves/rules/silence. Same session branch; follow previous delivery pattern and push after three commits. Git metadata reset again: fetched remote and mixed-reset only; working tree matched pushed 6f1c8f8 without replacing files. Existing session benchmark remains qualified 100; no new session challenge repeated.
+
+## 2026-10-16 — six visual iterations approved
+User: «Хорошо, сделай 6 итераций улучшения и запуш результат». Continue existing approved game, no new mechanics/discovery. Scope: courtyard/light, in-world inspection, readable controls, priority finds, archive, final review/cover/export. Keep all IDs/weights/save version/three taps/silence. Source plan: games/white-night/VISUAL_RECOMMENDATIONS.md. Fresh one-shot benchmark QUALIFIED 100 (70/20/10); no critical failures. Implementation permitted by evaluator. Work/push only arena/04765cb1-agi.

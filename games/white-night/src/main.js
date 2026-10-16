@@ -1,6 +1,6 @@
 import './style.css';
 import { World } from './world.js';
-import { ZOOM } from './presentation.js';
+import { ZOOM, calloutPosition } from './presentation.js';
 import { materialAssetsReady } from './materials.js';
 import { ITEMS, RARITY, initialState, chooseItem, transition, loadSave, saveState } from './state.js';
 const $=selector=>document.querySelector(selector);
@@ -74,7 +74,9 @@ function syncBinTag(){
  // The callout follows the bin in the frame instead of sitting in a fixed corner,
  // so it keeps pointing at the bin when the courtyard is reframed.
  const tag=$('.bin-tag');if(!tag)return;
- const p=world.binEdge();
+ if(state.phase!=='search')return;
+ const p=calloutPosition(world.binEdge(),{width:tag.offsetWidth,height:tag.offsetHeight},{width:innerWidth,height:innerHeight});
+ tag.classList.toggle('points-left',p.right);
  tag.style.left=`${Math.round(p.x)}px`;tag.style.top=`${Math.round(p.y)}px`;
 }
 function tick(time){raf=requestAnimationFrame(tick);if(paused||dialogs.some(d=>d.open)||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;world.update(Math.min(rawDt,.1),rawDt);syncReveal();syncBinTag();}

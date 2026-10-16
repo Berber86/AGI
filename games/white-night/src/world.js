@@ -28,12 +28,12 @@ export class World {
   skyGeo.setAttribute('color',new THREE.Float32BufferAttribute(skyColors,3));
   this.scene.add(new THREE.Mesh(skyGeo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,depthWrite:false,fog:false})));
   this.camera=new THREE.PerspectiveCamera(46,1,.1,70);this.scene.add(this.camera);
-  const pmrem=new THREE.PMREMGenerator(this.renderer);const room=new RoomEnvironment();this.envTarget=pmrem.fromScene(room,.03);this.scene.environment=this.envTarget.texture;this.scene.environmentIntensity=.15;room.dispose();pmrem.dispose();
+  const pmrem=new THREE.PMREMGenerator(this.renderer);const room=new RoomEnvironment();this.envTarget=pmrem.fromScene(room,.03);this.scene.environment=this.envTarget.texture;this.scene.environmentIntensity=.24;room.dispose();pmrem.dispose();
   // White night: a cold moon from high above, a weak cool bounce, and warm sodium
   // spill from the street. The light count is unchanged on purpose - a point light
   // costs every lit fragment, so warmth comes from emissive surfaces instead.
-  this.hemi=new THREE.HemisphereLight(0x8aabd6,0x141e27,1.12);this.scene.add(this.hemi);
-  const sun=new THREE.DirectionalLight(0xa9c8f0,1.62);sun.position.set(-6,11,2);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-6;sun.shadow.camera.right=6;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-6;sun.shadow.normalBias=.012;sun.shadow.bias=-.00025;sun.shadow.radius=3;this.scene.add(sun);this.sun=sun;
+  this.hemi=new THREE.HemisphereLight(0xa7bdd5,0x202a32,1.42);this.scene.add(this.hemi);
+  const sun=new THREE.DirectionalLight(0xb6cbe3,1.85);sun.position.set(-6,11,2);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-6;sun.shadow.camera.right=6;sun.shadow.camera.top=7;sun.shadow.camera.bottom=-6;sun.shadow.normalBias=.012;sun.shadow.bias=-.00025;sun.shadow.radius=3;this.scene.add(sun);this.sun=sun;
   const fill=new THREE.DirectionalLight(0x51739c,.62);fill.position.set(5,5,-4);this.scene.add(fill);
   this.static=new THREE.Group();this.scene.add(this.static);this.buildCourtyard();batch(this.static);
   this.bin=new THREE.Group();this.scene.add(this.bin);this.buildBin();this.bin.rotation.y=-.18;
@@ -129,8 +129,8 @@ export class World {
   const bottle=createItem('bottle');bottle.traverse(o=>{if(o.isMesh&&o.material.transmission){o.material=o.material.clone();o.material.transmission=0;o.material.transparent=true;o.material.opacity=.72;o.material.color.set(0x446e43);}});bottle.scale.setScalar(.32);bottle.rotation.set(0,0,Math.PI/2+.05);bottle.position.set(-1.9,.11,1.35);g.add(bottle);
  }
  buildBin(){
-  const g=this.bin;const steel=new THREE.MeshStandardMaterial({...pbrMaps('steel-paint'),normalScale:new THREE.Vector2(.65,.65),roughness:.83,metalness:.35,color:0xc2d0ba});this.binMaterial=steel;
-  const edge=steel.clone();edge.color.set(0x72856b);const lidmat=new THREE.MeshStandardMaterial({color:0x263c2d,roughness:.58,metalness:.06,bumpMap:M.leather.bumpMap,bumpScale:.007});
+  const g=this.bin;const steel=new THREE.MeshStandardMaterial({...pbrMaps('steel-paint'),normalScale:new THREE.Vector2(.65,.65),roughness:.83,metalness:.35,color:0xe0e2d2});this.binMaterial=steel;
+  const edge=steel.clone();edge.color.set(0x91a18b);const lidmat=new THREE.MeshStandardMaterial({color:0x435448,roughness:.68,metalness:.06,bumpMap:M.leather.bumpMap,bumpScale:.007});
   const bodyGeo=new THREE.BoxGeometry(2.55,1.6,1.7,20,12,12);const p=bodyGeo.attributes.position;for(let i=0;i<p.count;i++){let y=p.getY(i);const t=.9+(y+.8)*.0625;p.setX(i,p.getX(i)*t);p.setZ(i,p.getZ(i)*t);if(Math.abs(p.getZ(i))>.7)p.setZ(i,p.getZ(i)+-.026*Math.exp(-((p.getX(i)-.35)**2+(y-.1)**2)*9));}bodyGeo.computeVertexNormals();mesh(bodyGeo,steel,g,[0,1.22,0]);
   box(g,[2.68,.105,1.83],[0,2.02,0],edge,.035);box(g,[2.34,.075,1.55],[0,.4,0],edge,.02);
   for(const x of [-1.08,1.08]){box(g,[.055,1.51,.05],[x,1.2,.812],edge,.008);box(g,[.055,1.5,.05],[x,1.2,-.813],edge,.008);}
@@ -151,11 +151,11 @@ export class World {
   this.renderer.setSize(w,h);this.camera.aspect=w/h;
   const portrait=w/h<.8;this.camera.fov=portrait?47:43;
   // The portrait frame is narrow, so the search view steps back far enough to show
-  // the yard (well, lamps, arch) instead of a close-up of one bin. The inspection
+  // the yard (lamps and arch) instead of a clipped close-up. The inspection
   // item is anchored in camera space, so this only reframes the courtyard.
   const landscape=!portrait&&h<=520&&w>650,wide=!portrait&&!landscape&&w>1050;
-  this.camera.position.set(landscape?4.15:wide?4.35:portrait?3.35:4.6,landscape?2.65:wide?3.3:portrait?3.45:3.5,landscape?8.3:wide?8.7:portrait?10.3:9.8);
-  this.camera.lookAt(landscape?.25:wide?-1.15:portrait?.62:0,landscape?1.32:wide?1.75:portrait?1.52:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
+  this.camera.position.set(landscape?4.15:wide?4.35:portrait?3.0:4.6,landscape?2.65:wide?3.3:portrait?3.65:3.5,landscape?8.3:wide?8.7:portrait?11.8:9.8);
+  this.camera.lookAt(landscape?.25:wide?-1.15:portrait?-.15:0,landscape?1.32:wide?1.75:portrait?1.65:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
   this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
   this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
@@ -223,7 +223,7 @@ export class World {
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
  rotate(dx,dy){this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
  setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
-  this.sun.intensity=low?2.05:1.62;this.hemi.intensity=low?.82:1.12;this.scene.environmentIntensity=low?.07:.15;this.resize();}
+  this.sun.intensity=low?2.15:1.85;this.hemi.intensity=low?1.05:1.42;this.scene.environmentIntensity=low?.12:.24;this.resize();}
  thumbnail(id){
   if(this.thumbCache.has(id))return this.thumbCache.get(id);
   const model=this.getModel(id),prev=model.parent,scale=model.scale.clone(),rot=model.rotation.clone(),pos=model.position.clone();

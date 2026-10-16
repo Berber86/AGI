@@ -47,3 +47,12 @@ test('Off-axis fit contains all corners, including deep horizontal watch poses',
   }
  }
 });
+
+
+test('Callout mirrors and stays inside narrow and wide viewports',async()=>{
+ const {calloutPosition}=await import('../src/presentation.js');
+ for(const width of [360,412,1280])for(const x of [-80,40,width/2,width+90]){
+  const p=calloutPosition({x,y:500},{width:172,height:48},{width,height:800});
+  assert.ok(p.x>=20&&p.x+172<=width-20);assert.ok(Number.isFinite(p.y));
+ }
+});

@@ -68,3 +68,14 @@ export function inspectionPose(id, pose) {
   }
   return [...poses[pose]];
 }
+
+// Returns a top-left coordinate; does not rely on a CSS translate or on the
+// anchor being onscreen. Mirroring a callout is cheaper than moving the world.
+export function calloutPosition(anchor, size, viewport, inset = 20) {
+ const right = anchor.x < size.width + inset + 18;
+ return {
+  x: Math.max(inset, Math.min(viewport.width - size.width - inset, right ? anchor.x + 18 : anchor.x - size.width - 18)),
+  y: Math.max(100, Math.min(viewport.height - 200, anchor.y - size.height / 2)),
+  right,
+ };
+}

@@ -29,6 +29,9 @@ const read = async label => {
 };
 
 const open = async id => {
+  if (await page.evaluate(() => window.__GAME_TEST__.getState().phase === 'inspect')) {
+    await page.evaluate(() => document.querySelector('#discard').click());
+  }
   await page.evaluate(id => window.__GAME_TEST__.forceNext(id), id);
   for (let i = 0; i < 3; i++) await page.evaluate(() => document.querySelector('#search-button').click());
   await page.evaluate(() => window.__GAME_TEST__.settle());
