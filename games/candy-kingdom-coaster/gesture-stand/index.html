@@ -57,11 +57,13 @@
     <div class="controls">
       <button id="start">📷 Включить заднюю камеру</button>
       <button id="stop" class="secondary" disabled>Остановить</button>
-      <button id="calibrate" class="secondary" disabled>🎨 Подстроить цвет по ладони в центре</button>
+      <button id="calibrate" class="secondary" disabled>🎨 Сохранить выбранный цвет</button>
       <button id="reset-profile" class="secondary">Сбросить цвет</button>
       <button id="copy" class="secondary" disabled>Скопировать отчёт</button>
     </div>
-    <p class="small" style="margin-top:8px">Сначала помести открытую ладонь по центру видео, затем нажми «Подстроить цвет». Значения сохранятся на этом устройстве и будут использованы игрой при следующем запуске камеры.</p>
+    <p class="small" style="margin-top:8px">Нажми прямо на центр ладони в изображении камеры. Комната покажет выбранный цвет и возьмёт маленький участок вокруг точки — только после нажатия «Сохранить выбранный цвет» профиль будет применён. Образец не проходит предварительный фильтр кожи.</p>
+    <p id="sample-status" class="small" style="margin-top:8px">Образец не выбран. Наведи камеру на ладонь и нажми на неё в превью.</p>
+    <span id="sample-swatch" aria-hidden="true" style="display:inline-block;width:30px;height:22px;vertical-align:middle;border-radius:5px;border:1px solid #ffffff55;background:#111;margin-top:6px"></span>
     <div class="video"><video id="video" autoplay muted playsinline></video><canvas id="overlay"></canvas></div>
     <p id="status" role="status" aria-live="polite">Камера выключена. Нажми «Включить заднюю камеру» и разреши доступ.</p>
     <div class="metrics">
@@ -100,7 +102,7 @@
     vOn: 0, vOff: 0, thumbOn: 0, thumbOff: 0, vStable: false, thumbStable: false,
     raw: { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } },
     frames: 0, startedAt: 0, lastLine: '', skinDiag: null, lastFrame: null,
-    profile: readSkinProfile(),
+    profile: readSkinProfile(), pendingProfile: null, pendingDiag: null, samplePoint: null,
   };
   const maskCanvas = $('mask-preview'), maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
   const reasonText = {
@@ -131,7 +133,7 @@
       : 'Параметры камеры: —';
     if (state.skinDiag) $('diagnosis').textContent = reasonText[state.skinDiag.reason] || reasonText['shape-check'];
     $('stop').disabled = !state.running;
-    $('calibrate').disabled = !state.running || !state.lastFrame;
+    $('calibrate').disabled = !state.running || !state.pendingProfile;
     $('copy').disabled = !state.running && !state.frames;
   }
   function drawOverlay() {
@@ -142,9 +144,14 @@
       overlay.width = Math.round(w * dpr); overlay.height = Math.round(h * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-    // Dashed box is the exact ROI used by the one-tap palm color calibration.
-    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(w * .36, h * .34, w * .28, h * .32); ctx.setLineDash([]);
+    if (state.samplePoint) {
+      ctx.beginPath(); ctx.arc(state.samplePoint.u * w, state.samplePoint.v * h, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(state.samplePoint.u * w - 16, state.samplePoint.v * h);
+      ctx.lineTo(state.samplePoint.u * w + 16, state.samplePoint.v * h);
+      ctx.moveTo(state.samplePoint.u * w, state.samplePoint.v * h - 16);
+      ctx.lineTo(state.samplePoint.u * w, state.samplePoint.v * h + 16); ctx.stroke();
+    }
     const points = [...(state.raw.v.peaks || []), ...(state.raw.thumb.tip ? [state.raw.thumb.tip] : [])];
     for (const p of points) {
       const x = p.u * w, y = p.v * h;
@@ -244,30 +251,67 @@
     state.stream = null; video.srcObject = null;
     state.vStable = false; state.thumbStable = false; state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
     state.raw = { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } };
-    state.skinDiag = null;
+    state.skinDiag = null; state.pendingProfile = null; state.pendingDiag = null; state.samplePoint = null;
+    $('sample-swatch').style.background = '#111';
+    $('sample-status').textContent = 'Образец не выбран. Наведи камеру на ладонь и нажми на неё в превью.';
     $('status').textContent = 'Камера выключена.'; $('start').disabled = false; $('start').textContent = '📷 Включить заднюю камеру';
     ctx.clearRect(0, 0, overlay.width, overlay.height); maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height); updateUi();
     $('diagnosis').textContent = 'Диагностика маски появится после первого кадра.';
   }
-  $('stop').addEventListener('click', stopCamera);
-  $('calibrate').addEventListener('click', () => {
-    if (!state.lastFrame) return;
-    const p = calibrateSkinColor(state.lastFrame.data, state.lastFrame.w, state.lastFrame.h);
+  video.addEventListener('pointerdown', (event) => {
+    if (!state.running || !state.lastFrame || !video.videoWidth) return;
+    event.preventDefault();
+    const rect = video.getBoundingClientRect();
+    const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
+    const shownW = video.videoWidth * scale, shownH = video.videoHeight * scale;
+    const ox = (rect.width - shownW) / 2, oy = (rect.height - shownH) / 2;
+    const u = (event.clientX - rect.left - ox) / shownW;
+    const v = (event.clientY - rect.top - oy) / shownH;
+    if (u < 0 || u > 1 || v < 0 || v > 1) return;
+    const x = Math.max(0, Math.min(state.lastFrame.w - 1, Math.round(u * state.lastFrame.w)));
+    const y = Math.max(0, Math.min(state.lastFrame.h - 1, Math.round(v * state.lastFrame.h)));
+    const p = calibrateSkinColor(state.lastFrame.data, state.lastFrame.w, state.lastFrame.h, x, y);
+    state.samplePoint = { u, v };
+    drawOverlay();
     if (!p) {
-      $('status').textContent = 'Не удалось подобрать цвет: держи ладонь в центре и заполни ею примерно треть рамки.';
+      state.pendingProfile = null; $('calibrate').disabled = true;
+      $('sample-status').textContent = 'Образец неоднороден (нажал на край кисти или фон). Нажми ещё раз в середине ладони.';
+      $('sample-swatch').style.background = '#111';
       return;
     }
+    state.pendingDiag = analyzeSkinMaskDiagnostics(state.lastFrame.data, state.lastFrame.w, state.lastFrame.h, p);
+    const tapIdx = y * state.lastFrame.w + x;
+    const box = state.pendingDiag.bounds;
+    const nearlyFullFrame = state.pendingDiag.skinPixels > state.lastFrame.w * state.lastFrame.h * 0.65
+      || (box && (box.width > state.lastFrame.w * 0.9 || box.height > state.lastFrame.h * 0.95));
+    const plausibleHand = state.pendingDiag.mask[tapIdx]
+      && state.pendingDiag.largestPixels >= Math.max(70, state.lastFrame.w * state.lastFrame.h * 0.006)
+      && !nearlyFullFrame;
+    state.pendingProfile = plausibleHand ? p : null;
+    $('calibrate').disabled = !plausibleHand;
+    $('sample-swatch').style.background = `rgb(${p.sampleRgb.join(' ')})`;
+    const prediction = `${state.pendingDiag.skinPixels}/${state.lastFrame.w * state.lastFrame.h} зелёных пикселей`;
+    $('sample-status').textContent = plausibleHand
+      ? `Образец RGB ${p.sampleRgb.join(', ')} · Cb ${p.cb} · Cr ${p.cr} · маска кисти: ${prediction}. Если крестик точно на ладони — сохрани.`
+      : `Не применяю этот образец: он не выделяет компактную кисть (${prediction}). Вероятно, точка попала на фон или маска почти покрывает кадр. Нажми прямо в центре ладони.`;
+  });
+  $('stop').addEventListener('click', stopCamera);
+  $('calibrate').addEventListener('click', () => {
+    const p = state.pendingProfile;
+    if (!p) return;
     state.profile = p;
     let saved = true;
     try { localStorage.setItem('ckc_gesture_skin_profile', JSON.stringify(p)); }
     catch { saved = false; }
     state.vStable = state.thumbStable = false;
     state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
-    $('status').textContent = `Профиль подобран: Cb ${p.cb}±${p.tolCb}, Cr ${p.cr}±${p.tolCr} (${p.samples} пикселей образца). ${saved ? 'Сохранён локально; в комнате обновится немедленно, в игре — после перезапуска вкладки.' : 'Браузер не сохранил его для игры; профиль действует только в этой комнате.'}`;
+    $('status').textContent = `Профиль сохранён: Cb ${p.cb}±${p.tolCb}, Cr ${p.cr}±${p.tolCr} (${p.samples} образцов). ${saved ? 'Сохранён локально; применяется сразу в комнате и в игре после перезапуска вкладки.' : 'Браузер не сохранил его для игры; действует только в этой комнате.'}`;
     updateUi();
   });
   $('reset-profile').addEventListener('click', () => {
-    state.profile = null;
+    state.profile = null; state.pendingProfile = null; state.pendingDiag = null; state.samplePoint = null;
+    $('calibrate').disabled = true; $('sample-swatch').style.background = '#111';
+    $('sample-status').textContent = 'Калибровка сброшена. Нажми на центр ладони в превью, чтобы выбрать новый образец.';
     try { localStorage.removeItem('ckc_gesture_skin_profile'); } catch { /* storage optional */ }
     state.vStable = state.thumbStable = false;
     state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;

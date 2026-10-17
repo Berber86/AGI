@@ -8,7 +8,7 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v52'; // v52: tighter skin chroma, per-device palm calibration and diagnostics
+const CACHE = 'ckc-v53'; // v53: tap-sampled skin profile; calibration no longer seeds from filtered center ROI
 const MEDIA_CACHE = 'ckc-media-v1';
 const SHELL = [
   './',

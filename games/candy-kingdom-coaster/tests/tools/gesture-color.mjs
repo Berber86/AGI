@@ -1,6 +1,6 @@
 // Regression checks for the pixel-color gate and personal palm calibration.
 import assert from 'node:assert/strict';
-import { analyzeGestures, analyzeSkinMaskDiagnostics, calibrateSkinColor } from '../../src/camtrack.js';
+import { analyzeGestures, analyzeSkinMaskDiagnostics, calibrateSkinColor, readSkinProfile } from '../../src/camtrack.js';
 
 const W = 160, H = 120;
 const frame = new Uint8ClampedArray(W * H * 4);
@@ -10,22 +10,41 @@ const paint = (x0, y0, x1, y1, rgb) => {
     frame[i] = rgb[0]; frame[i + 1] = rgb[1]; frame[i + 2] = rgb[2]; frame[i + 3] = 255;
   }
 };
-// A warm, neutral room background falls in the former broad/default band.
+// A warm, neutral room background falls inside the default skin chroma band.
 paint(0, 0, W, H, [200, 175, 150]);
-// A medium tan palm with a distinct chroma fills the calibration ROI.
-paint(42, 30, 118, 90, [196, 139, 110]);
+// The hand is off-center and its camera white balance puts Cr outside the
+// universal band: exactly the reported black-hand/green-background failure.
+paint(20, 30, 70, 90, [220, 120, 100]);
 const broad = analyzeSkinMaskDiagnostics(frame, W, H);
 assert.equal(broad.reason, 'skin-mask-covers-background');
-assert(broad.skinPixels > 14_000, `expected broad background mask, got ${broad.skinPixels}`);
+assert(broad.skinPixels > 14_000, `expected background to dominate the mask, got ${broad.skinPixels}`);
+assert.equal(broad.mask[0], 1, 'warm background reproduces green mask');
+assert.equal(broad.mask[60 * W + 45], 0, 'out-of-band hand reproduces black mask');
 
-const profile = calibrateSkinColor(frame, W, H);
-assert(profile, 'center palm should produce a calibration profile');
+// A center-ROI sample would learn the empty background; direct tap on the
+// palm must learn its unfiltered chroma and reject the background instead.
+const wrongCenterProfile = calibrateSkinColor(frame, W, H);
+assert(wrongCenterProfile, 'background point is uniform but must not be silently accepted by the UI');
+const wrong = analyzeSkinMaskDiagnostics(frame, W, H, wrongCenterProfile);
+assert.equal(wrong.mask[0], 1, 'center background sample reproduces calibration failure');
+assert.equal(wrong.mask[60 * W + 45], 0, 'wrong profile still rejects the hand');
+
+const profile = calibrateSkinColor(frame, W, H, 45, 60);
+assert(profile, 'tap in the center of the palm should produce a calibration profile');
 const calibrated = analyzeSkinMaskDiagnostics(frame, W, H, profile);
 assert(calibrated.skinPixels > 1_000, `palm should remain visible, got ${calibrated.skinPixels}`);
 assert(calibrated.skinPixels < W * H * 0.75, `background should be rejected, got ${calibrated.skinPixels}`);
 assert.equal(calibrated.mask[0], 0, 'corner/background pixel must not be treated as skin');
-assert.equal(calibrated.mask[60 * W + 80], 1, 'central palm pixel must remain in the mask');
-assert.equal(calibrateSkinColor(new Uint8ClampedArray(W * H * 4), W, H), null, 'empty calibration must fail safely');
+assert.equal(calibrated.mask[60 * W + 45], 1, 'tapped palm pixel must remain in the mask');
+const priorStorage = globalThis.localStorage;
+const legacyProfile = { ...wrongCenterProfile }; delete legacyProfile.version;
+globalThis.localStorage = { getItem: () => JSON.stringify(legacyProfile) };
+assert.equal(readSkinProfile(), null, 'legacy center-sampled profile must be rejected');
+globalThis.localStorage = { getItem: () => JSON.stringify(profile) };
+assert.deepEqual(readSkinProfile(), profile, 'tap-calibrated profile must load');
+if (priorStorage === undefined) delete globalThis.localStorage;
+else globalThis.localStorage = priorStorage;
+assert.equal(calibrateSkinColor(new Uint8ClampedArray(W * H * 4), W, H), null, 'transparent calibration must fail safely');
 
 function makeGesture(kind) {
   const data = new Uint8ClampedArray(W * H * 4);

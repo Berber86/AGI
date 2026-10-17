@@ -81,8 +81,9 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   };
 }
 
-// Калибровка chroma по центру кадра (ладонь должна занимать его центр).
-// Тонкие цвета лучше подбираются индивидуально, чем универсальным «цветом кожи».
+// Robust palm-color calibration around a point the user taps directly on the
+// hand. Do not pre-filter with the old skin gate here: that was the circular
+// bug where a hand rejected by the default gate could never calibrate itself.
 const ycbcrOf = (r, g, b) => ({
   y: 0.299 * r + 0.587 * g + 0.114 * b,
   cb: 128 - 0.168736 * r - 0.331264 * g + 0.5 * b,
@@ -93,32 +94,42 @@ const median = (values) => {
   const mid = sorted.length >> 1;
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 };
-export function calibrateSkinColor(data, w, h) {
-  const cbs = [], crs = [];
-  const x0 = Math.floor(w * 0.36), x1 = Math.ceil(w * 0.64);
-  const y0 = Math.floor(h * 0.34), y1 = Math.ceil(h * 0.66);
-  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-    const i = (y * w + x) * 4;
-    const { y: lum, cb, cr } = ycbcrOf(data[i], data[i + 1], data[i + 2]);
-    // Wide plausibility gate is used only to seed calibration; final mask is narrow.
-    if (lum < 35 || cb < 68 || cb > 145 || cr < 118 || cr > 192) continue;
-    cbs.push(cb); crs.push(cr);
+export function calibrateSkinColor(data, w, h, centerX = Math.floor(w / 2), centerY = Math.floor(h / 2)) {
+  const cbs = [], crs = [], reds = [], greens = [], blues = [];
+  const radius = Math.max(2, Math.round(Math.min(w, h) * 0.025));
+  for (let y = Math.max(0, centerY - radius); y <= Math.min(h - 1, centerY + radius); y++) {
+    for (let x = Math.max(0, centerX - radius); x <= Math.min(w - 1, centerX + radius); x++) {
+      const i = (y * w + x) * 4;
+      if (data[i + 3] < 128) continue;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const { cb, cr } = ycbcrOf(r, g, b);
+      cbs.push(cb); crs.push(cr); reds.push(r); greens.push(g); blues.push(b);
+    }
   }
-  if (cbs.length < 24) return null;
+  if (cbs.length < 16) return null;
   const cb = median(cbs), cr = median(crs);
-  const cbMad = median(cbs.map((v) => Math.abs(v - cb)));
-  const crMad = median(crs.map((v) => Math.abs(v - cr)));
+  const cbDev = cbs.map((v) => Math.abs(v - cb));
+  const crDev = crs.map((v) => Math.abs(v - cr));
+  // If the tap straddles a hand/background edge, refuse it instead of
+  // learning the background and turning the whole room green.
+  const inliers = cbs.filter((v, i) => cbDev[i] <= 20 && crDev[i] <= 20).length;
+  if (inliers < cbs.length * 0.78) return null;
+  const cbMad = median(cbDev), crMad = median(crDev);
   return {
+    version: 2,
     cb: +cb.toFixed(1), cr: +cr.toFixed(1),
-    tolCb: +Math.max(12, Math.min(26, cbMad * 3.2 + 5)).toFixed(1),
-    tolCr: +Math.max(12, Math.min(30, crMad * 3.2 + 5)).toFixed(1),
-    samples: cbs.length,
+    tolCb: +Math.max(7, Math.min(20, cbMad * 3 + 4)).toFixed(1),
+    tolCr: +Math.max(7, Math.min(20, crMad * 3 + 4)).toFixed(1),
+    samples: cbs.length, inliers,
+    sampleRgb: [median(reds), median(greens), median(blues)].map((v) => Math.round(v)),
   };
 }
 export function readSkinProfile() {
   try {
     const p = JSON.parse(localStorage.getItem('ckc_gesture_skin_profile') || 'null');
-    if (p && [p.cb, p.cr, p.tolCb, p.tolCr].every(Number.isFinite)) return p;
+    // Reject v1 profiles made by the old center-ROI sampler: it could learn
+    // background color. A fresh direct-tap sample is required after this fix.
+    if (p && p.version === 2 && [p.cb, p.cr, p.tolCb, p.tolCr].every(Number.isFinite)) return p;
   } catch { /* storage is optional */ }
   return null;
 }
