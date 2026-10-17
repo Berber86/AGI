@@ -1,0 +1,105 @@
+{
+  "kind": "vr-perf-fix",
+  "date": "2026-10-17",
+  "report": "games/candy-kingdom-coaster/VR_PERF_AUDIT.md",
+  "based_on": ".studio/evidence/reports/vr-perf-audit.json",
+  "tool": "games/candy-kingdom-coaster/tests/tools/vrperf.mjs",
+  "method": "same frozen frame (u=0.42, look=forward, dpr 1) before/after the fixes; counters are deterministic (draw calls / render passes / triangles / pixels), frame times in software GL are explicitly not device evidence",
+  "changes": [
+    "F1 vr.js render(): shadowMap.autoUpdate=false + needsUpdate=true once per eye pair, autoUpdate restored after the pair",
+    "F2 quality.js setVr() + world.setQuality(tier, {vr}) : VR profile is 1024^2 PCF shadows, tier clamped to Medium on entry, no tier climb and no pixelRatio override during the ride, governor.hold(3) on entry; exit restores PCFSoft + 2048^2 + dpr pixel ratio",
+    "F3 main.js: renderer created with antialias:false (composer path had 0 samples anyway; the VR path was paying 4x samples on two viewports)",
+    "gyro removed: no deviceorientation listener, no requestPermission, no orientation quaternion; look comes from markers (setSimLook) or auto-pan, mode relabelled «Обзор сам»",
+    "sw.js cache bumped to ckc-v42"
+  ],
+  "before_after_u0_42_forward_dpr1": {
+    "render_calls": {
+      "before": 2,
+      "after": 2
+    },
+    "shadow_render_calls": {
+      "before": 2,
+      "after": 1
+    },
+    "shadow_draw_calls": {
+      "before": 194,
+      "after": 97
+    },
+    "visible_draw_calls": {
+      "before": 528,
+      "after": 522
+    },
+    "draw_calls_total": {
+      "before": 722,
+      "after": 619
+    },
+    "shadow_triangles": {
+      "before": 547274,
+      "after": 272125
+    },
+    "triangles_total": {
+      "before": 1608746,
+      "after": 1339065
+    },
+    "shadow_map_px_per_frame": {
+      "before": 8390666,
+      "after": 1048576
+    },
+    "msaa_samples_eyes_per_frame": {
+      "before": 1216800,
+      "after": 0,
+      "note": "multisampled coverage removed; 304200 plain pixel samples remain"
+    },
+    "shadow_map_size": {
+      "before": [
+        2048,
+        2048
+      ],
+      "after": [
+        1024,
+        1024
+      ]
+    },
+    "shadow_map_type": {
+      "before": "PCFSoftShadowMap(2)",
+      "after": "PCFShadowMap(1)"
+    },
+    "antialias_context_attribute": {
+      "before": true,
+      "after": false
+    }
+  },
+  "regression_checks_vrperf": {
+    "passed": 9,
+    "total": 9,
+    "runs": [
+      "node vrperf.mjs 0.42 3 camera",
+      "node vrperf.mjs 0.42 1 forward"
+    ],
+    "checks": [
+      "F1 shadow map updates once per frame in VR (render calls 2, shadow render calls 1)",
+      "F1 shadow draw calls not doubled vs normal play (96 vs 96)",
+      "F1 shadowMap.autoUpdate restored to true after the frame",
+      "F2 entering VR clamps High to Medium",
+      "F2 tier changes in VR do not touch the VR pixel ratio (1.25 stays 1.25 at dpr 3)",
+      "F2 VR shadow map <= 1024^2 and PCF type",
+      "F3 MSAA off and composer targets have 0 samples",
+      "leaving VR restores dpr pixel ratio, PCFSoft and 2048^2",
+      "natural VR round-trip: entering VR at High and leaving it restores the menu tier, pixel ratio and 2048^2 shadows (the ride must not leave normal play permanently downgraded)"
+    ]
+  },
+  "acceptance_after_fix": {
+    "vrqa": "20/20",
+    "camqa": "29/29",
+    "remotqa": "21/21 (one run 20/21: known timing flake of the demo-transport release assertion under sandbox load; re-runs 21/21)",
+    "joystickqa": "7/7",
+    "uiqa": "24/24",
+    "python_unittest": "15/15",
+    "acceptance_mjs": "9/14 - identical set of pre-existing geometry/physics failures on the untouched baseline commit e5b706a, no new failures"
+  },
+  "remaining": [
+    "F4 camera/gesture pipeline cost and the permanent worker fallback",
+    "F5 scene draw calls (static merge / material atlases) - the stereo pair still renders the whole scene twice at full geometry",
+    "F6 scratch objects in track.getPose() and the (now removed) gyro handler"
+  ]
+}

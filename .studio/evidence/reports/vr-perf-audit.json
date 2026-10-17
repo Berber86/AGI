@@ -1,0 +1,35 @@
+{
+  "kind": "vr-perf-audit",
+  "date": "2026-10-16",
+  "report": "games/candy-kingdom-coaster/VR_PERF_AUDIT.md",
+  "tools": ["games/candy-kingdom-coaster/tests/tools/vrperf.mjs", "games/candy-kingdom-coaster/tests/tools/vrtri.mjs"],
+  "method": "headless Chromium (SwiftShader), viewport 844x390 mobile/touch, static server :8899, frozen track frame via __TEST__.setProgress+snapCamera, deterministic frames via __TEST__.step(1/60,1,true), quality pinned with __TEST__.pinQuality(2); draw calls/triangles/render passes counted by patching renderer.renderBufferDirect and renderer.render",
+  "caveat": "draw calls / triangles / passes are deterministic; frame times in software GL are NOT device evidence (medians varied 7-240 ms on the same frame)",
+  "frame_counters_u0_42_dpr1": {
+    "normal_high": { "renderCalls": 15, "shadowRenderCalls": 1, "shadowDraws": 97, "visibleDraws": 307.4, "drawsTotal": 404.4, "msMedianSoftware": 22.2 },
+    "vr_high": { "renderCalls": 2, "shadowRenderCalls": 2, "shadowDraws": 194, "visibleDraws": 528, "drawsTotal": 722, "msMedianSoftware": 7.6 },
+    "vr_low_no_shadows": { "renderCalls": 2, "shadowRenderCalls": 0, "shadowDraws": 0, "visibleDraws": 526.2, "drawsTotal": 526.2, "msMedianSoftware": 11.2 },
+    "vr_high_shadow_once_per_frame": { "renderCalls": 2, "shadowRenderCalls": 1, "shadowDraws": 97, "visibleDraws": 521.6, "drawsTotal": 618.6 }
+  },
+  "triangles_by_pass_u0_42_dpr1": {
+    "normal_high": { "shadow": { "calls": 98, "tri": 273637 }, "visible": { "calls": 302, "tri": 597690 }, "shadowShare": 0.314 },
+    "vr_high": { "shadow": { "calls": 196, "tri": 547274 }, "visible": { "calls": 518, "tri": 1061472 }, "shadowShare": 0.34 }
+  },
+  "per_position_dpr1": {
+    "u0_12": { "normal": { "shadowCalls": 41, "visibleCalls": 580, "shadowTri": 88364, "visibleTri": 964898 }, "vr": { "shadowCalls": 82, "visibleCalls": 1082, "shadowTri": 176728, "visibleTri": 1912579 } },
+    "u0_42": { "normal": { "shadowCalls": 97, "visibleCalls": 307, "shadowTri": 270945, "visibleTri": 600634 }, "vr": { "shadowCalls": 192, "visibleCalls": 526.3, "shadowTri": 539930, "visibleTri": 1068103 } },
+    "u0_80": { "normal": { "shadowCalls": 51, "visibleCalls": 331, "shadowTri": 178029, "visibleTri": 570340 }, "vr": { "shadowCalls": 102, "visibleCalls": 624, "shadowTri": 356058, "visibleTri": 1139804 } }
+  },
+  "pixels_dpr1": { "eyesSideCss": 390, "pxPerEye": 152100, "pxBothEyes": 304200, "shadowMapPx": 4194304, "scenePxPerFrameNormal": 4523464, "scenePxPerFrameVr": 8692808 },
+  "pixels_dpr3_phone_like": { "normalPixelRatio": 2, "vrEntryPixelRatio": 1.5, "pxPerEyeAtGovernorTier2": 608400, "pxBothEyes": 1216800, "scenePxPerFrameVr": 9605408 },
+  "governor_vs_vr_pixel_ratio_dpr3": { "onVrEntry": 1.5, "afterTier2": 2, "afterTier1": 1.4, "afterTier0": 1, "shadowMapSizeAfterTierDrop": [1024, 1024] },
+  "renderer_facts": { "vendorThreeRevision": "166", "antialiasContextAttribute": true, "composerRenderTargetSamples": 0, "composerRenderTargetSize": [1688, 780], "shadowAutoUpdate": true, "shadowMapSizeHigh": [2048, 2048], "programs": 198, "geometries": 438, "textures": 87, "shadowType": "PCFSoftShadowMap" },
+  "root_causes": [
+    "stereo doubles the whole scene with no geometric simplification (pixelRatio only)",
+    "shadow map rasterized twice per frame in VR (three.js WebGLShadowMap.autoUpdate default)",
+    "quality governor overrides the VR pixel ratio and flips tiers mid-ride (shadow map dispose + shader program variants)",
+    "MSAA (antialias:true) only reaches the scene in the VR path (composer targets have 0 samples)",
+    "camera/gesture pipeline runs for the whole ride when only the V-zoom toggle is on; worker fallback is permanent (no re-arm) and its watchdog can misfire",
+    "per-frame allocations in track.getPose() and the gyro handler"
+  ]
+}

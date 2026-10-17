@@ -125,4 +125,4 @@ Do not mark work complete if the preview was not exercised or required evidence 
 - Sandbox resets and git recovery: `references/workspace-resets-and-recovery.md`
 - Headless browser setup (no GPU, no apt): `references/headless-browser-setup.md`
 - Field-tested lifehacks and pitfalls (UV traps, corridor sweep, perf, camera, test flakes): `references/lifehacks-and-pitfalls.md`
-- VR, camera markers, stereo comfort, external Firebase joystick, low-rate input, failure semantics, and field QA: `references/immersive-vr-remote-input.md`
+- VR, camera markers, stereo comfort, external Firebase joystick, low-rate input, failure semantics, and field QA: `references/immersive-vr-remote-input.md` (includes the gaze contract: marker entity ≥0.15 s, horizontal-rectangle shape, pair proves straight, lone marker steers its own way, coast-and-fade instead of timer return to centre, symmetric alien-side rejection, split code/media PWA caches and measured update cost)

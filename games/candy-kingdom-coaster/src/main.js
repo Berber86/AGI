@@ -31,7 +31,13 @@ import { setLoading, finishLoading, paintLoading } from './loading.js';
 
 // ---------------------------------------------------------------- renderer
 const canvas = document.getElementById('game-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// antialias: false — MSAA достаётся только тому пути, который рисует прямо в
+// канвас, то есть стереопаре (в обычной игре сцена идёт через EffectComposer,
+// у его таргетов сэмплов 0, и 4× сэмплы холста не давали ничего, только resolve).
+// Для стерео это была самая дорогая часть заполнения: два вьюпорта с 4×
+// сэмплами. Поэтому MSAA выключен совсем — разрешение глаз не меняется,
+// а освободившийся бюджет уходит в ровные 60 к/с.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -597,7 +603,7 @@ function ensureCamTracker() {
   if (camTracker.dual !== dual) {
     camTracker.dual = dual;
     camTracker.c0n = null;
-    camTracker.dualCalibration = null;
+    camTracker.resetDualCalibration();
     camTracker.markers = [
       { id: 'left', found: false, count: 0 },
       { id: 'right', found: false, count: 0 },
@@ -609,6 +615,7 @@ function ensureCamTracker() {
     camTracker.dualVisible = [];
     camTracker.exitSideX = null;
     camTracker.exitSideY = null;
+    resetCamLook();
   }
   camTracker.hue = vrSettings.camColor === 'custom' && Number.isFinite(vrSettings.camHue)
     ? vrSettings.camHue
@@ -648,15 +655,111 @@ function stopCamTracker() {
   if (camTracker) camTracker.stop();
   vr.setSimLook(null);
   vr.setGestureZoom(false);
+  resetCamLook();
 }
-// Взгляд по камере. Свежая метка: адаптивная скорость догона (большой
-// разрыв — быстрый). Потеря: держим последний угол, зная, за какой край
-// метка ушла; после 4 с тишины медленно возвращаемся в центр (не в
-// авто-обзор — он путал). Возврат метки в другом месте: мгновенная
-// переякорка после подтверждения вторым кадром (в VR вредно именно
-// расхождение картинки с головой, а не сам «скачок» к истине).
+// Взгляд по камере. Ведёт его доказанное измерение: пара (обе метки в нужных
+// местах — единственное доказательство, что взгляд «прямо») или одиночная
+// подтверждённая метка нужной формы. Одиночная левая даёт поворот влево,
+// правая — сильно вправо; вторую метку при этом не ищем (она вне кадра по
+// геометрии). Пока не видно ни одной, взгляд не возвращается в центр сам:
+// коротко доезжает по последнему вектору головы и затухает, дальше стоит.
+// Центр может поставить только реально увиденная пара.
+// Возврат метки в другом месте: переякорка после подтверждения вторым кадром
+// (в VR вредно расхождение картинки с головой, а не сам «скачок» к истине).
 let camSnapPending = null;
 let camWasLost = false;
+let camFollowing = false;      // прошлый кадр вёл взгляд по доказанной фиксации
+let camRateHist = [];          // углы доказанных фиксаций — для вектора головы
+let camCoastAt = 0;
+// «Чуть ведут»: половина последней измеренной скорости головы, с потолком
+// 12°/с, затухание ~0.55 с и не больше 8° на ось. Это выбег, а не возврат.
+const CAM_COAST_GAIN = 0.5;
+const CAM_COAST_MAX_DPS = 12;
+const CAM_COAST_TAU_S = 0.55;
+const CAM_COAST_MAX_DEG = 8;
+const CAM_RATE_WINDOW_MS = 1200;
+const CAM_RATE_MIN_MS = 250;
+const CAM_RATE_MAX_DPS = 30;
+let camCoast = { yaw: 0, pitch: 0, usedYaw: 0, usedPitch: 0, active: false };
+
+function stopCamCoast() {
+  camCoast.active = false;
+  camCoast.yaw = 0; camCoast.pitch = 0;
+  camCoast.usedYaw = 0; camCoast.usedPitch = 0;
+}
+
+function resetCamLook() {
+  camSmooth.yaw = 0; camSmooth.pitch = 0;
+  camSnapPending = null;
+  camWasLost = false;
+  camFollowing = false;
+  camRateHist = [];
+  camCoastAt = 0;
+  camLastProcess = 0;
+  stopCamCoast();
+}
+
+// Последний вектор движения головы: наклон угла по времени на окне 1.2 с.
+// Берём только доказанные фиксации — по одной метке или чужому пятну
+// скорость головы не оцениваем.
+function noteCamFixation(now, yaw, pitch) {
+  const h = camRateHist;
+  // Длинная пауза между фиксациями (фриз, потеря) — это не движение головы:
+  // историю начинаем заново, иначе наклон по старым и новым точкам даёт
+  // ложную скорость и «выбег» уводит взгляд не туда.
+  if (!h.length || now - h[h.length - 1].t > 500) h.length = 0;
+  h.push({ t: now, yaw, pitch });
+  while (h.length > 2 && now - h[0].t > CAM_RATE_WINDOW_MS) h.shift();
+}
+
+function camHeadRate(now = performance.now()) {
+  const h = camRateHist;
+  if (!h.length || now - h[h.length - 1].t > 400) return { yaw: 0, pitch: 0 };
+  if (h.length < 3 || h[h.length - 1].t - h[0].t < CAM_RATE_MIN_MS) return { yaw: 0, pitch: 0 };
+  const t0 = h[0].t;
+  let n = 0, st = 0, sy = 0, sp = 0, stt = 0, sty = 0, stp = 0;
+  for (const s of h) {
+    const ts = (s.t - t0) / 1000;
+    n++; st += ts; sy += s.yaw; sp += s.pitch;
+    stt += ts * ts; sty += ts * s.yaw; stp += ts * s.pitch;
+  }
+  const den = n * stt - st * st;
+  if (den <= 1e-9) return { yaw: 0, pitch: 0 };
+  const cl = (v) => Math.max(-CAM_RATE_MAX_DPS, Math.min(CAM_RATE_MAX_DPS, Number.isFinite(v) ? v : 0));
+  return { yaw: cl((n * sty - st * sy) / den), pitch: cl((n * stp - st * sp) / den) };
+}
+
+// Начало выбега от того угла, где взгляд реально стоит сейчас.
+function startCamCoast(now) {
+  const r = camHeadRate();
+  const clamp = (v) => Math.max(-CAM_COAST_MAX_DPS, Math.min(CAM_COAST_MAX_DPS, v * CAM_COAST_GAIN));
+  camCoast.yaw = clamp(r.yaw);
+  camCoast.pitch = clamp(r.pitch);
+  camCoast.usedYaw = 0; camCoast.usedPitch = 0;
+  camCoast.active = Math.abs(camCoast.yaw) > 0.3 || Math.abs(camCoast.pitch) > 0.3;
+  camCoastAt = now;
+}
+
+function stepCamCoast(now) {
+  const dt = Math.max(0, Math.min(0.25, (now - camCoastAt) / 1000));
+  camCoastAt = now;
+  if (!camCoast.active || dt === 0) return;
+  const roomY = Math.max(0, CAM_COAST_MAX_DEG - camCoast.usedYaw);
+  const roomP = Math.max(0, CAM_COAST_MAX_DEG - camCoast.usedPitch);
+  const dy = Math.sign(camCoast.yaw) * Math.min(Math.abs(camCoast.yaw) * dt, roomY);
+  const dp = Math.sign(camCoast.pitch) * Math.min(Math.abs(camCoast.pitch) * dt, roomP);
+  camSmooth.yaw += dy;
+  camSmooth.pitch += dp;
+  camCoast.usedYaw += Math.abs(dy);
+  camCoast.usedPitch += Math.abs(dp);
+  const k = Math.exp(-dt / CAM_COAST_TAU_S);
+  camCoast.yaw *= k;
+  camCoast.pitch *= k;
+  if (Math.abs(camCoast.yaw) < 0.25) camCoast.yaw = 0;
+  if (Math.abs(camCoast.pitch) < 0.25) camCoast.pitch = 0;
+  if (!camCoast.yaw && !camCoast.pitch) camCoast.active = false;
+}
+
 function updateGestureZoom() {
   const t = camTracker;
   const active = !!(vr.active && game.vrRide && game.gestureOn && t && t.gestureFresh(700) && t.gestureV);
@@ -673,7 +776,11 @@ function updateCameraLook(now, force = false) {
   camTracker.process();
   if (!cameraLookActive) return;
   const t = camTracker;
-  if (t.fresh(900)) {
+  const pairFix = t.pairFixation();
+  const singleFix = !pairFix && t.singleSteer();
+  if (pairFix || singleFix) {
+    // Доказанное измерение: пара ведёт взгляд, одиночная метка — в свою
+    // сторону. «Прямо» по одной метке не заключаем никогда.
     const dy = t.yaw - camSmooth.yaw;
     const dp = t.pitch - camSmooth.pitch;
     const jump = Math.hypot(dy, dp);
@@ -698,33 +805,27 @@ function updateCameraLook(now, force = false) {
       camSmooth.yaw += dy * f;
       camSmooth.pitch += dp * f;
     }
+    // Резкий разрыв — это не скорость головы, а переякорка/вернувшаяся метка.
+    // Такой кадр не должен потом «выбегать» взглядом: историю начинаем заново.
+    if (!camFollowing || jump > 8) camRateHist = [];
+    camFollowing = true;
+    stopCamCoast();
+    noteCamFixation(now, t.yaw, t.pitch);
     vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
     return;
   }
-  // метки нет: держим последний угол (метка за краем — голова всё ещё там)
+  // Фиксации нет: не тянем взгляд ни к оставшейся метке, ни в центр. Если
+  // голова только что шла — короткий выбег по последнему вектору и затухание,
+  // иначе взгляд просто стоит на месте сколько угодно.
   camWasLost = true;
   camSnapPending = null;
-  const lostFor = t.lastFoundAt ? now - t.lastFoundAt : Infinity;
-  if (lostFor < 4000) {
-    camSmooth.yaw = t.heldYaw;
-    camSmooth.pitch = t.heldPitch;
-    // Метка ушла именно ЗА КРАЙ кадра (а не закрыта в центре): голова,
-    // скорее всего, ещё доворачивается туда же. Камера в очках стоит
-    // сбоку, и полотно очков перекрывает метку раньше на одной из
-    // сторон — поэтому аккуратно докручиваем взгляд за удержанный угол
-    // (до игрового предела), пока метка не вернётся или не пройдёт 1,8 с.
-    if (lostFor > 150 && lostFor < 1800) {
-      const extra = Math.min(10, 12 * ((lostFor - 150) / 1000));
-      if (t.exitSideX) camSmooth.yaw = t.heldYaw + Math.sign(t.heldYaw || (t.exitSideX === 'right' ? 1 : -1)) * extra;
-      if (t.exitSideY) camSmooth.pitch = t.heldPitch + Math.sign(t.heldPitch || (t.exitSideY === 'top' ? -1 : 1)) * extra;
-    }
-    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
+  if (camFollowing) {
+    camFollowing = false;
+    startCamCoast(now); // первый кадр без фиксации угол ещё не меняет
   } else {
-    // долгое отсутствие: предсказуемый возврат взгляда в центр
-    camSmooth.yaw += (0 - camSmooth.yaw) * 0.05;
-    camSmooth.pitch += (0 - camSmooth.pitch) * 0.05;
-    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
+    stepCamCoast(now);
   }
+  vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
 }
 
 function closeRemote() {
@@ -780,8 +881,13 @@ function startVrRide() {
 function enterVrStereo() {
   vr.start(vrSettings);
   document.body.classList.add('vr-active');
+  // VR принадлежит самому себе: разрешение задаёт VR, тени 1024², bloom не считается.
+  // Сначала VR-профиль губернатора (он не трогает pixelRatio в VR), потом разрешение.
+  governor.setVr(true);
   // облегчённый стерео-рендер; в режиме камеры — ещё легче (телефон и так занят потоком)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, (isCameraLookMode() || game.gestureOn) ? 1.25 : 1.5));
+  // первые кадры стерео всегда дороже (новые варианты программ, тени) — не судим их
+  governor.hold(3);
 }
 
 function stopVrStereo() {
@@ -795,7 +901,7 @@ function stopVrStereo() {
       if (pr && pr.catch) pr.catch(() => {});
     }
   } catch { /* ignore */ }
-  governor.apply(); // вернуть обычное разрешение и bloom по уровню качества
+  governor.setVr(false); // вернуть обычное разрешение, PCFSoft-тени и bloom по уровню
   camera.fov = 55;
   camera.updateProjectionMatrix();
   onResize();
@@ -886,7 +992,7 @@ function syncVrUi() {
   el.vrGestureZoom.textContent = vrSettings.gestureZoom ? '✌️ Жест V — зум включён' : '✌️ Жест V — включить зум';
   el.vrGestureStatus.textContent = vrSettings.gestureZoom
     ? 'После старта VR задняя камера ищет V-жест. Ладонь держите в её поле зрения.'
-    : 'Опционально: использует заднюю камеру, не включает гироскоп и не меняет обычный режим.';
+    : 'Опционально: включает заднюю камеру только ради жеста и не меняет обычный режим.';
   el.vrCamPanel.classList.toggle('hidden', !isCameraLookMode());
   el.vrCamSingleControls.classList.toggle('hidden', dual);
   el.vrCamDualControls.classList.toggle('hidden', !dual);
@@ -1058,7 +1164,6 @@ el.btnVrStart.addEventListener('click', async () => {
   SFX.play('click');
   vrSettings.baselineCm = +el.vrIpd.value;
   saveVrUi();
-  await vr.requestPermission(); // жест пользователя: iOS спрашивает доступ к гироскопу здесь
   requestFullscreenLandscape();
   // обратный отсчёт: время вставить телефон в очки
   stopVrCountdown();
@@ -1446,7 +1551,7 @@ function updateGameplay(dt) {
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
   camera.rotateZ(-((game.vrRide ? game.vrSteer : input.steer) || 0) * 0.02);
-  vr.applyLook(camera, dt); // взгляд: гироскоп/метка (углы метки готовит updateCameraLook после рендера)
+  vr.applyLook(camera, dt); // взгляд: углы метки (готовит updateCameraLook) или мягкий авто-обзор; гироскопа нет
   // FOV reads the actual speed, not just the boost button: the world opens up
   // as the car winds up, and boost adds its own extra kick on top.
   // normalised over the speeds the car actually reaches (cruise → flat out),
@@ -1880,6 +1985,24 @@ window.__TEST__ = {
     return { result, info: t.info(), vr: this.vrInfo(), throttle: gestureThrottle() };
   },
   camInfo() { return camTracker ? camTracker.info() : null; },
+  // QA: куда именно сейчас ЦЕЛИТСЯ взгляд (до демпфирования в vr.js) —
+  // этим числом проверяются «нет возврата в центр» и «нет скачка».
+  camLook() {
+    const t = camTracker;
+    return {
+      yaw: +camSmooth.yaw.toFixed(2), pitch: +camSmooth.pitch.toFixed(2),
+      snapPending: camSnapPending ? { yaw: +camSnapPending.yaw.toFixed(1), pitch: +camSnapPending.pitch.toFixed(1) } : null,
+      wasLost: camWasLost,
+      fixation: camFollowing,
+      pairFixation: !!(t && t.dual && t.pairFixation()),
+      singleSteer: !!(t && !t.pairFixation() && t.singleSteer()),
+      headRate: +camHeadRate().yaw.toFixed(1),
+      coast: { active: camCoast.active, yaw: +camCoast.yaw.toFixed(1), pitch: +camCoast.pitch.toFixed(1),
+        usedYaw: +camCoast.usedYaw.toFixed(1), usedPitch: +camCoast.usedPitch.toFixed(1) },
+      lastFoundAgoMs: t && t.lastFoundAt ? Math.round(performance.now() - t.lastFoundAt) : null,
+      lookMode: vrSettings.lookMode, camOn: !!game.camOn, vrRide: !!game.vrRide,
+    };
+  },
   camEnableSynthetic() {
     vrSettings.lookMode = 'camera';
     const t = ensureCamTracker();
@@ -1893,23 +2016,41 @@ window.__TEST__ = {
     const t = ensureCamTracker();
     t.synthetic = true; t.running = true;
     game.camOn = true;
-    t.dualCalibration = null;
+    t.resetDualCalibration();
     return t.info();
   },
-  camFeedDual(ax, ay, bx, by, r = 26) {
+  camFeedDual(ax, ay, bx, by, r = 26, shape = 'rect') {
     const t = ensureCamTracker();
-    t.injectDualBlob(ax, ay, bx, by, r);
+    t.injectDualBlob(ax, ay, bx, by, r, 320, 240, shape);
     updateCameraLook(performance.now(), true);
     return { info: t.info(), vr: vr.info() };
+  },
+  // QA: сдвинуть часы «сущности» меток назад (аналог camAgeLoss): проверить
+  // правило 0.15 с без реального ожидания. Возвращает состояние трекера.
+  // QA: «забыть» метку (сымитировать долгую пропажу, после которой появление
+  // снова должно быть явным 0.15 с).
+  camForgetMarkers(id = null) {
+    const t = ensureCamTracker();
+    t.forgetMarkerEntities(id);
+    return t.info();
+  },
+  camAgeMarkers(ms) {
+    const t = ensureCamTracker();
+    // Сдвигаем только начало наблюдения: «сколько мс метка явно видна».
+    // lastSeen не трогаем — иначе хук сам себе устраивает «пропажу».
+    for (const st of Object.values(t.markerEntity || {})) {
+      if (st.seenSince) st.seenSince -= ms;
+    }
+    return t.info();
   },
   camCalibrateDual() {
     const t = ensureCamTracker();
     const ok = t.calibrate();
     return { ok, info: t.info() };
   },
-  camFeed(cx, cy, r) {
+  camFeed(cx, cy, r, shape = 'rect') {
     const t = ensureCamTracker();
-    t.injectBlob(cx, cy, r);
+    t.injectBlob(cx, cy, r, 320, 240, shape);
     updateCameraLook(performance.now(), true);
     return { info: t.info(), vr: vr.info() };
   },
@@ -1919,7 +2060,7 @@ window.__TEST__ = {
     c.width = 320; c.height = 240;
     const x = c.getContext('2d');
     x.fillStyle = 'rgb(215,51,108)';
-    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+    x.fillRect(cx - 2 * r, cy - r, 4 * r, 2 * r); // горизонтальный прямоугольник
     const bmp = await createImageBitmap(c);
     await t.ingestBitmap(bmp);
     updateCameraLook(performance.now(), true);

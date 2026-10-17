@@ -2206,13 +2206,21 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       }
       return knocked;
     },
-    setQuality(tier) {
+    // opts.vr — профиль стерео-поездки: карта теней максимум 1024² (в стерео
+    // её проход выполняется дважды, а в линзах разница 1024/2048 почти не
+    // видна). Теневую карту пересоздаём ТОЛЬКО при смене размера или
+    // выключении теней: лишний dispose+alloc посреди заезда — это рывок.
+    setQuality(tier, opts = {}) {
       const shadows = tier > 0;
+      const size = !shadows ? 0 : opts.vr ? 1024 : (tier === 2 ? 2048 : 1024);
       sun.castShadow = shadows;
       confMat.opacity = tier === 2 ? 0.85 : tier === 1 ? 0.6 : 0.35;
-      if (tier === 2) sun.shadow.mapSize.set(2048, 2048);
-      else if (tier === 1) sun.shadow.mapSize.set(1024, 1024);
-      sun.shadow.map && (sun.shadow.map.dispose(), sun.shadow.map = null);
+      const prevSize = sun.shadow.mapSize.x;
+      if (shadows) sun.shadow.mapSize.set(size, size);
+      if (sun.shadow.map && (!shadows || prevSize !== size)) {
+        sun.shadow.map.dispose();
+        sun.shadow.map = null;
+      }
     },
   };
 }
