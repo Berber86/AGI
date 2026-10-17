@@ -5,10 +5,14 @@
 // один раз при сборке мира: положения всех кораллов, камней и травы
 // переносятся в карту, которой красится песок.
 //
-// Карта используется дважды:
-//   • как aoMap песка — притемняет рассеянный свет под кронами;
-//   • в шейдере каустики — солнечные зайчики тоже обязаны гаснуть в тени.
+// Карта двухканальная:
+//   • R — затенение: как aoMap песка (рассеянный свет под кронами) и как
+//     множитель каустики (солнечные зайчики тоже гаснут в тени);
+//   • G — неоднородность самого песка: пятна разной крупности, ракушечный
+//     сор, более тёмный налёт на склоне рифа. Без него дно выглядит одним
+//     ровным листом, каким бы детальным ни был тайл текстуры.
 import * as THREE from 'three';
+import { mulberry32 } from './noise.js';
 
 /**
  * @param {Array<{x:number,z:number,radius:number,strength?:number}>} items
@@ -66,6 +70,58 @@ export function bakeGroundOcclusion(items, opts = {}) {
     ctx.ellipse(shX, shY, shR * 1.15, shR * 0.75, Math.atan2(sz, -sx), 0, Math.PI * 2);
     ctx.fill();
   }
+
+  // --- канал G: неоднородность песка ---------------------------------------
+  const tint = document.createElement('canvas');
+  tint.width = tint.height = size;
+  const tctx = tint.getContext('2d');
+  tctx.fillStyle = '#808080';
+  tctx.fillRect(0, 0, size, size);
+  const trnd = mulberry32(90210);
+  // Крупные пятна: участки более светлого выбеленного песка и более тёмного,
+  // с налётом, — их границы мягкие, как на настоящем дне.
+  for (let i = 0; i < 90; i++) {
+    const x = trnd() * size, y = trnd() * size;
+    const r = size * (0.03 + trnd() * 0.13);
+    const light = trnd() < 0.5;
+    const g = tctx.createRadialGradient(x, y, 0, x, y, r);
+    const a = 0.10 + trnd() * 0.22;
+    g.addColorStop(0, light ? `rgba(255,255,255,${a.toFixed(3)})` : `rgba(0,0,0,${a.toFixed(3)})`);
+    g.addColorStop(1, 'rgba(128,128,128,0)');
+    tctx.fillStyle = g;
+    tctx.beginPath();
+    tctx.arc(x, y, r, 0, Math.PI * 2);
+    tctx.fill();
+  }
+  // Склон рифа за поляной темнее: там оседает органика и растёт налёт.
+  {
+    const g = tctx.createRadialGradient(size / 2, size / 2, size * 0.10, size / 2, size / 2, size * 0.42);
+    g.addColorStop(0, 'rgba(128,128,128,0)');
+    g.addColorStop(1, 'rgba(40,40,40,0.42)');
+    tctx.fillStyle = g;
+    tctx.fillRect(0, 0, size, size);
+  }
+  // Ракушечный сор: мелкие светлые точки.
+  for (let i = 0; i < 1400; i++) {
+    const x = trnd() * size, y = trnd() * size;
+    const r = 0.6 + trnd() * 1.9;
+    tctx.fillStyle = `rgba(235,235,235,${(0.12 + trnd() * 0.3).toFixed(3)})`;
+    tctx.beginPath();
+    tctx.arc(x, y, r, 0, Math.PI * 2);
+    tctx.fill();
+  }
+
+  // Собираем R (тени) и G (песок) в одну текстуру: один семпл на обе задачи.
+  const ao = ctx.getImageData(0, 0, size, size).data;
+  const tn = tctx.getImageData(0, 0, size, size).data;
+  const merged = ctx.createImageData(size, size);
+  for (let i = 0; i < size * size; i++) {
+    merged.data[i * 4] = ao[i * 4];
+    merged.data[i * 4 + 1] = tn[i * 4];
+    merged.data[i * 4 + 2] = 255;
+    merged.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(merged, 0, 0);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;

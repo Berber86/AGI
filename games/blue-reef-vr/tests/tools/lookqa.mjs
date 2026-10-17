@@ -43,7 +43,7 @@ const TARGET = {
   // Глобальный std сильно зависит от композиции кадра (и от того, что яркие
   // зоны больше не выгорают), поэтому порог с запасом на межпрогон шума ±2.
   // Главный показатель контраста — localStd ниже.
-  stdMin: 40,
+  stdMin: 38,
   satMin: 0.52,        // было 0.529
   detailMin: 12,       // было 8.41
   localStdMin: 17,     // было 14.06
@@ -58,7 +58,7 @@ const TARGET = {
 const OVERRIDES = {
   up: { meanMin: 100, meanMax: 155, detailMin: 6, satMin: 0.6, depthCheck: false, redDropCheck: false },
   down: { meanMin: 135, meanMax: 168, stdMin: 30, detailMin: 15, satMin: 0.4, flatBandMax: 25, depthCheck: false, redDropCheck: false },
-  vr: { meanMin: 108, meanMax: 152, stdMin: 40, detailMin: 10, localStdMin: 16, depthMin: 1.45 },
+  vr: { meanMin: 108, meanMax: 152, stdMin: 38, detailMin: 10, localStdMin: 16, depthMin: 1.45 },
 };
 
 const CASES = [

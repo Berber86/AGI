@@ -3,7 +3,7 @@
   "phase": "qa",
   "activeRole": "qa",
   "currentTask": null,
-  "lastAction": "Visual iteration 1: spectral absorption + in-scattering model, in-material colour grade, baked contact shadows, fixed (never-rendering) caustics, water-surface glitter. LOOKQA 7/7 beats the old render on every metric.",
+  "lastAction": "Visual iteration 2 (reef life): 2-3 shape variants per coral type, table coral, baked cavity AO in vertex colours, translucent backlight for soft growths, polyp normal map, sand ripples/shell grit/patches, debris at the diver's feet, near tier of corals and gorgonians at 3.5-9 m. 271k tris / 36 calls at balanced; VR frame detail +10-21%.",
   "nextAction": "Device test on a phone in glasses: camera calibration, real yaw range, FPS per preset; then optional enhancements from backlog",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-10-17-blue-reef-vr.md",
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/runs/20261017T135457Z-bb9c52/result.json"
   },
   "createdAt": "2026-10-17T13:54:51Z",
-  "updatedAt": "2026-10-17T17:34:11Z"
+  "updatedAt": "2026-10-17T18:37:52Z"
 }

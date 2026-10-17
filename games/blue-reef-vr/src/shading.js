@@ -168,11 +168,14 @@ export function patchUnderwater(material, opts = {}) {
     causticScale = 0.16,
     pattern = null,   // { id, color, color2, scale }
     occlusion = null, // { map, size } — запечённые контактные тени на дне
+    translucency = 0, // просвет: мягкие кораллы, веера и трава светятся насквозь
+    transColor = 0xffd9a8,
   } = opts;
 
   material.defines = { ...(material.defines || {}) };
   if (wave === 'body') material.defines.RB_WAVE_BODY = '';
   if (wave === 'sway') material.defines.RB_WAVE_SWAY = '';
+  if (translucency > 0) material.defines.RB_TRANS = '';
   material.defines.CAUSTIC_OCTAVES = String(3);
 
   material.onBeforeCompile = (shader) => {
@@ -194,6 +197,10 @@ export function patchUnderwater(material, opts = {}) {
     shader.uniforms.uPatternColor = { value: pattern ? new THREE.Color(pattern.color) : new THREE.Color(0xffffff) };
     shader.uniforms.uPatternColor2 = { value: pattern ? new THREE.Color(pattern.color2) : new THREE.Color(0x000000) };
     shader.uniforms.uPatternScale = { value: pattern ? pattern.scale : 1 };
+    if (translucency > 0) {
+      shader.uniforms.uTranslucency = { value: translucency };
+      shader.uniforms.uTransColor = { value: new THREE.Color(transColor) };
+    }
     if (occ) {
       shader.uniforms.uOccl = { value: occ.map };
       shader.uniforms.uOcclSize = { value: occ.size };
@@ -209,6 +216,7 @@ export function patchUnderwater(material, opts = {}) {
     if (needsWorld) head.push('varying vec3 vRbWorld;', 'varying float vRbUp;');
     if (hasPattern) head.push('varying vec3 vRbLocal;');
     if (isWave || needsWorld) head.push('uniform float uTime;');
+    if (translucency > 0) head.push('varying vec3 vRbNrm;');
     if (isWave) head.push(WAVE_DECL);
     shader.vertexShader = head.join('\n') + '\n' + shader.vertexShader;
 
@@ -227,7 +235,11 @@ export function patchUnderwater(material, opts = {}) {
           #endif
           vec4 rbWorld = rbModel * vec4(transformed, 1.0);
           vRbWorld = rbWorld.xyz;
-          vRbUp = normalize(rbNormalMat * objectNormal).y;
+          vec3 rbN = normalize(rbNormalMat * objectNormal);
+          vRbUp = rbN.y;
+          #ifdef RB_TRANS
+            vRbNrm = rbN;
+          #endif
         }
       `;
     }
@@ -250,11 +262,25 @@ export function patchUnderwater(material, opts = {}) {
       );
     }
 
+    if (occ) {
+      // Карта дна читается один раз на фрагмент: и пятна песка в альбедо,
+      // и затенение для каустики ниже.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        rbGround = texture2D(uOccl, vec2(0.5 + vRbWorld.x / uOcclSize, 0.5 - vRbWorld.z / uOcclSize)).rg;
+        diffuseColor.rgb *= mix(0.80, 1.22, rbGround.y);`,
+      );
+    }
+
     if (needsWorld) {
       shader.fragmentShader = CAUSTIC_GLSL + WATER_DECL + GRADE_DECL +
-        (occ ? 'uniform sampler2D uOccl;\nuniform float uOcclSize;\n' : '') + /* glsl */`
+        (occ ? 'uniform sampler2D uOccl;\nuniform float uOcclSize;\n' : '') +
+        (translucency > 0 ? 'uniform float uTranslucency;\nuniform vec3 uTransColor;\nvarying vec3 vRbNrm;\n' : '') + /* glsl */`
 float rbCstValue = 0.0;
 float rbCstAmount = 0.0;
+// x — затенение (1 = открытое солнцу), y — неоднородность песка (0.5 = норма)
+vec2 rbGround = vec2(1.0, 0.5);
 uniform float uTime;
 uniform float uCaustic;
 uniform float uCausticScale;
@@ -264,9 +290,7 @@ uniform float uCausticLocal;
 varying float vRbUp;
 ` + shader.fragmentShader;
 
-      const occlTerm = occ
-        ? 'float occl = texture2D(uOccl, vec2(0.5 + vRbWorld.x / uOcclSize, 0.5 - vRbWorld.z / uOcclSize)).r;'
-        : 'float occl = 1.0;';
+      const occlTerm = 'float occl = rbGround.x;';
 
       // Считаем узор и его силу до сборки итогового цвета...
       const inject = /* glsl */`
@@ -293,6 +317,16 @@ varying float vRbUp;
         // outgoingLight, — то есть каустика не рисовалась вовсе. Проверено
         // замером: выключение каустики не меняло кадр вообще.
         `gl_FragColor.rgb += uCausticColor * rbCstValue * rbCstAmount;\n` +
+        (translucency > 0
+          ? `{
+               vec3 V = normalize(uCamPos - vRbWorld);
+               vec3 N = normalize(vRbNrm);
+               // Солнце за тканью: мягкие кораллы, веера и трава пропускают свет.
+               float back = max(0.0, dot(-N, uSunDir));
+               float rim = pow(1.0 - abs(dot(N, V)), 2.0);
+               gl_FragColor.rgb += uTransColor * uTranslucency * back * (0.35 + 0.65 * rim);
+             }\n`
+          : '') +
         // Зайчик прошёл через толщу воды до глаза — ею он и гасится.
         `gl_FragColor.rgb = rbWater(gl_FragColor.rgb);`,
       );
@@ -307,7 +341,7 @@ varying float vRbUp;
   // получается молочной. Свою дымку материал считает сам.
   material.fog = false;
 
-  material.customProgramCacheKey = () => `rb|${wave || '-'}|${caustics > 0 ? 1 : 0}|${causticScale}|${pattern ? pattern.id : 0}|${(occlusion || (material.userData && material.userData.occlusion)) ? 1 : 0}`;
+  material.customProgramCacheKey = () => `rb|${wave || '-'}|${caustics > 0 ? 1 : 0}|${causticScale}|${pattern ? pattern.id : 0}|${(occlusion || (material.userData && material.userData.occlusion)) ? 1 : 0}|${translucency > 0 ? 1 : 0}`;
   return material;
 }
 

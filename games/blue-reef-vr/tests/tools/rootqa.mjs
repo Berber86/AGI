@@ -34,6 +34,11 @@ page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text().s
 page.on('requestfailed', (r) => pageErrors.push('REQFAIL ' + r.url().slice(-60)));
 
 await page.goto(ROOT_URL, { waitUntil: 'load', timeout: 120000 });
+// Обложка — файл в сотню килобайт: ждать надо именно её загрузки, а не
+// события load документа, иначе проверка ловит гонку на слабом канале.
+await page.evaluate(() => Promise.all([...document.images].map((img) => img.complete
+  ? true
+  : new Promise((res) => { img.onload = () => res(true); img.onerror = () => res(true); }))));
 
 // Карточка есть и ведёт в игру
 {

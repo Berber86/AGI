@@ -1,6 +1,6 @@
 {
   "suite": "sceneqa",
-  "generatedAt": "2026-10-17T17:26:10.467Z",
+  "generatedAt": "2026-10-17T18:28:24.864Z",
   "total": 15,
   "passed": 15,
   "failed": 0,
@@ -39,7 +39,7 @@
     {
       "name": "presets: кораллов меньше на «Плавно»",
       "ok": true,
-      "detail": "319 → 143"
+      "detail": "514 → 232"
     },
     {
       "name": "presets: разрешение меняется",
@@ -69,12 +69,12 @@
     {
       "name": "рендер: менее 40 draw call-ов",
       "ok": true,
-      "detail": "calls=25"
+      "detail": "calls=35"
     },
     {
       "name": "рендер: менее 200 тыс. треугольников на глаз",
       "ok": true,
-      "detail": "tris=104634"
+      "detail": "tris=161380"
     },
     {
       "name": "нет ошибок страницы",

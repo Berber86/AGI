@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-17T17:42:57.339Z",
+  "generatedAt": "2026-10-17T18:32:26.805Z",
   "viewport": {
     "width": 900,
     "height": 420
@@ -10,122 +10,122 @@
   "cases": [
     {
       "id": "flat-center",
-      "mean": 113.1,
-      "std": 48.3,
+      "mean": 115.8,
+      "std": 48.8,
       "rgb": [
-        72,
-        132,
-        124
+        73,
+        135,
+        128
       ],
-      "leftMean": 111,
-      "rightMean": 115.1,
+      "leftMean": 113.8,
+      "rightMean": 117.8,
       "symmetry": 0.968,
-      "triangles": 104773.66666666667,
-      "calls": 26,
+      "triangles": 161519.6666666667,
+      "calls": 36,
       "lookSource": "off",
       "whale": 62
     },
     {
       "id": "flat-up",
-      "mean": 110.6,
-      "std": 67,
+      "mean": 112,
+      "std": 66.2,
       "rgb": [
         58,
-        128,
-        159
+        130,
+        161
       ],
-      "leftMean": 110.2,
-      "rightMean": 110.3,
-      "symmetry": 0.999,
-      "triangles": 104633.66666666667,
-      "calls": 25,
+      "leftMean": 112,
+      "rightMean": 111.3,
+      "symmetry": 0.994,
+      "triangles": 161379.6666666667,
+      "calls": 35,
       "lookSource": "off",
       "whale": 62
     },
     {
       "id": "flat-down",
-      "mean": 167.1,
-      "std": 33.6,
+      "mean": 168.4,
+      "std": 34.9,
       "rgb": [
-        164,
-        177,
-        122
+        163,
+        179,
+        125
       ],
-      "leftMean": 163.4,
-      "rightMean": 170.4,
-      "symmetry": 0.945,
-      "triangles": 104633.66666666667,
-      "calls": 25,
+      "leftMean": 166.4,
+      "rightMean": 170.1,
+      "symmetry": 0.972,
+      "triangles": 161379.6666666667,
+      "calls": 35,
       "lookSource": "off",
-      "whale": 61.7
+      "whale": 61.6
     },
     {
       "id": "flat-side",
-      "mean": 121,
-      "std": 50.5,
+      "mean": 126.3,
+      "std": 48.1,
       "rgb": [
-        82,
-        140,
-        127
+        84,
+        146,
+        134
       ],
-      "leftMean": 121.4,
-      "rightMean": 120.3,
-      "symmetry": 0.991,
-      "triangles": 104773.66666666667,
-      "calls": 26,
+      "leftMean": 126.3,
+      "rightMean": 126.1,
+      "symmetry": 0.998,
+      "triangles": 161519.6666666667,
+      "calls": 36,
       "lookSource": "off",
-      "whale": 57.1
+      "whale": 56.4
     },
     {
       "id": "vr-center",
-      "mean": 109.8,
-      "std": 57.9,
+      "mean": 111.8,
+      "std": 59.1,
       "rgb": [
-        75,
-        127,
-        114
+        76,
+        129,
+        118
       ],
-      "leftMean": 109.9,
-      "rightMean": 110.2,
+      "leftMean": 111.8,
+      "rightMean": 112.2,
       "symmetry": 0.997,
-      "triangles": 104633.66666666667,
-      "calls": 25,
+      "triangles": 161379.6666666667,
+      "calls": 35,
       "lookSource": "camera",
-      "whale": 53.6
+      "whale": 52.5
     },
     {
       "id": "vr-turn",
-      "mean": 127.5,
-      "std": 60.4,
+      "mean": 130.9,
+      "std": 61.6,
       "rgb": [
-        105,
-        142,
-        111
+        106,
+        146,
+        117
       ],
-      "leftMean": 127.9,
-      "rightMean": 127.6,
-      "symmetry": 0.998,
-      "triangles": 104633.66666666667,
-      "calls": 25,
+      "leftMean": 131.3,
+      "rightMean": 131.2,
+      "symmetry": 0.999,
+      "triangles": 161379.6666666667,
+      "calls": 35,
       "lookSource": "camera",
-      "whale": 26.5
+      "whale": 27.6
     },
     {
       "id": "vr-whale",
-      "mean": 108.4,
-      "std": 51.8,
+      "mean": 111.2,
+      "std": 53,
       "rgb": [
-        62,
-        129,
-        126
+        64,
+        132,
+        129
       ],
-      "leftMean": 108.5,
-      "rightMean": 108.7,
-      "symmetry": 0.999,
-      "triangles": 104633.66666666667,
-      "calls": 25,
+      "leftMean": 111.4,
+      "rightMean": 111.4,
+      "symmetry": 1,
+      "triangles": 161379.6666666667,
+      "calls": 35,
       "lookSource": "camera",
-      "whale": 60.2
+      "whale": 60.6
     }
   ],
   "errors": []

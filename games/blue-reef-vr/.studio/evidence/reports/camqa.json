@@ -1,6 +1,6 @@
 {
   "suite": "camqa",
-  "generatedAt": "2026-10-17T17:25:40.172Z",
+  "generatedAt": "2026-10-17T18:27:52.178Z",
   "total": 24,
   "passed": 24,
   "failed": 0,
@@ -14,7 +14,7 @@
     {
       "name": "single: метка жива после 0.15 с наблюдения",
       "ok": true,
-      "detail": "{\"confirmed\":true,\"ms\":2468}"
+      "detail": "{\"confirmed\":true,\"ms\":327}"
     },
     {
       "name": "single: форма — горизонтальный прямоугольник",

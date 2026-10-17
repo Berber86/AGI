@@ -26,7 +26,7 @@ export function createRenderer(canvas) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   // Экспозиция подобрана по замеру кадра: старые 1.02 давали «молоко» —
   // 70 % пикселей попадали в один узкий интервал яркости.
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.22;
   renderer.shadowMap.enabled = false; // под водой тени мягкие: их заменяет рассеянный свет
   return renderer;
 }
