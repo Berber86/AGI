@@ -8,7 +8,7 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v49'; // v46: код и медиа раздельно; v47: взгляд без таймера; v48: одиночная метка; v49: сущность 0.15 с
+const CACHE = 'ckc-v50'; // v50: жестовый стенд, rear-camera exact и запрос разрешения до VR countdown
 const MEDIA_CACHE = 'ckc-media-v1';
 const SHELL = [
   './',
@@ -44,6 +44,7 @@ const SHELL = [
   './src/camtrack-worker.js',
   './joystick/index.html',
   './tracking-stand/index.html',
+  './gesture-stand/index.html',
   './src/textures.js',
   './src/ramps.js',
   './src/music.js',

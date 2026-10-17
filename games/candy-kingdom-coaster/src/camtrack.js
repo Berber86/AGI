@@ -401,11 +401,13 @@ export class CamTracker {
     let stream;
     // Поток маленький и небыстрый: полный сенсор греет SoC и дорого
     // декодируется; для метки 640x480@24 за глаза.
-    const want = { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } };
+    // `ideal` facingMode can silently select the selfie camera when a browser
+    // cannot satisfy the preference. Gestures are defined against the outward
+    // camera, so require environment explicitly; only resolution/FPS may relax.
+    const want = { facingMode: { exact: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } };
     try { stream = await navigator.mediaDevices.getUserMedia({ video: want, audio: false }); }
     catch {
-      // Do not silently fall back to the selfie camera: the gesture is an
-      // environment-camera feature. A reduced rear-camera request is honest.
+      // Older devices may reject the size/FPS constraints, but never switch to selfie.
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { exact: 'environment' } }, audio: false,
       });

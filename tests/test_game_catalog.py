@@ -54,6 +54,21 @@ class GameCatalogTests(unittest.TestCase):
             self.assertTrue((base / icon['src']).is_file())
         self.assertTrue((base / 'sw.js').is_file())
 
+    def test_gesture_diagnostic_room_is_linked_and_uses_local_analyzer(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a.get('href') for t, a in tags if t == 'a']
+        stand = './games/candy-kingdom-coaster/gesture-stand/index.html'
+        self.assertEqual(links.count(stand), 2)
+        self.assertTrue((ROOT / stand).is_file())
+        html = (ROOT / stand).read_text()
+        self.assertIn("from '../src/camtrack.js'", html)
+        self.assertIn('facingMode: { exact: \'environment\' }', html)
+        self.assertIn('stable-v', html)
+        self.assertIn('stable-thumb', html)
+        sw = (ROOT / 'games/candy-kingdom-coaster/sw.js').read_text()
+        self.assertIn("'./gesture-stand/index.html'", sw)
+        self.assertIn("ckc-v50", sw)
+
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
         links = [a.get('href') for t, a in tags if t == 'a']
