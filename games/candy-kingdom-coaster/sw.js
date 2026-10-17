@@ -8,8 +8,9 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v54'; // v54: field-based V/👍 thresholds and 2-of-3 gesture debounce
+const CACHE = 'ckc-v55'; // v55: replace pixel heuristics with on-device MediaPipe Gesture Recognizer
 const MEDIA_CACHE = 'ckc-media-v1';
+const ML_CACHE = 'ckc-ml-mediapipe-1.1.1'; // lazy, persistent cache for WASM + 8.4 MB gesture model
 const SHELL = [
   './',
   './index.html',
@@ -42,6 +43,7 @@ const SHELL = [
   './src/remote.js',
   './src/camtrack.js',
   './src/camtrack-worker.js',
+  './vendor/mediapipe/vision_bundle.mjs',
   './joystick/index.html',
   './tracking-stand/index.html',
   './gesture-stand/index.html',
@@ -137,7 +139,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== MEDIA_CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== MEDIA_CACHE && k !== ML_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -153,6 +155,18 @@ const store = (cacheName, req, res) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
+  // ML assets are intentionally lazy-loaded: downloading ~8.4 MB model and
+  // the selected WASM binary is deferred until gesture input is requested.
+  // Once fetched, they survive app-code updates and work offline.
+  if (url.pathname.includes('/vendor/mediapipe/wasm/')
+      || url.pathname.includes('/assets/models/gesture_recognizer.task')) {
+    e.respondWith(
+      caches.open(ML_CACHE).then((c) => c.match(e.request, { ignoreSearch: true }))
+        .then((hit) => hit || fetch(e.request).then((res) => store(ML_CACHE, e.request, res)))
+        .catch(() => new Response('MediaPipe model/runtime is not cached and network is unavailable', { status: 503 }))
+    );
+    return;
+  }
   // custom soundtrack (assets/music/): network first so a new/replaced mp3 is
   // picked up, cached copy for offline play; no index.html fallback for audio
   if (url.pathname.includes('/assets/music/')) {

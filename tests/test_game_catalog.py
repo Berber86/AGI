@@ -54,7 +54,7 @@ class GameCatalogTests(unittest.TestCase):
             self.assertTrue((base / icon['src']).is_file())
         self.assertTrue((base / 'sw.js').is_file())
 
-    def test_gesture_diagnostic_room_is_linked_and_uses_local_analyzer(self):
+    def test_gesture_diagnostic_room_uses_production_mediapipe_detector(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
         links = [a.get('href') for t, a in tags if t == 'a']
         stand = './games/candy-kingdom-coaster/gesture-stand/index.html'
@@ -62,17 +62,19 @@ class GameCatalogTests(unittest.TestCase):
         self.assertTrue((ROOT / stand).is_file())
         html = (ROOT / stand).read_text()
         self.assertIn("from '../src/camtrack.js'", html)
-        self.assertIn('analyzeSkinMaskDiagnostics', html)
-        self.assertIn('mask-preview', html)
-        self.assertIn('Сохранить выбранный цвет', html)
-        self.assertIn("video.addEventListener('pointerdown'", html)
-        self.assertIn("ckc_gesture_skin_profile", html)
-        self.assertIn('facingMode: { exact: \'environment\' }', html)
+        self.assertIn('new CamTracker()', html)
+        self.assertIn('useWorkerMode()', html)
+        self.assertIn('landmarks', html)
+        self.assertIn('categories', html)
+        tracker = (ROOT / 'games/candy-kingdom-coaster/src/camtrack.js').read_text()
+        self.assertIn("facingMode: { exact: 'environment' }", tracker)
         self.assertIn('stable-v', html)
         self.assertIn('stable-thumb', html)
         sw = (ROOT / 'games/candy-kingdom-coaster/sw.js').read_text()
         self.assertIn("'./gesture-stand/index.html'", sw)
-        self.assertIn("ckc-v54", sw)
+        self.assertIn("ckc-v55", sw)
+        self.assertIn("ckc-ml-mediapipe-1.1.1", sw)
+        self.assertIn("./vendor/mediapipe/vision_bundle.mjs", sw)
 
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags

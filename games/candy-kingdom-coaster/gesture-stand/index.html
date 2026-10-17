@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#17112d">
-  <title>Проверка жестов — Candy Kingdom Coaster</title>
+  <title>MediaPipe: проверка жестов — Candy Kingdom Coaster</title>
   <style>
     :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; background: #100d1c; color: #f7f2ff; }
     * { box-sizing: border-box; }
@@ -18,338 +18,189 @@
     .card { padding: 15px; border: 1px solid #ffffff20; border-radius: 18px; background: #ffffff0c; box-shadow: 0 14px 40px #0002; }
     .notice { border-left: 4px solid #f4b942; background: #f4b94212; padding: 11px 13px; border-radius: 8px 12px 12px 8px; }
     .notice b { color: #ffe09a; }
-    .controls { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
     button { min-height: 46px; border: 0; border-radius: 12px; padding: 11px 16px; background: linear-gradient(180deg, #ff72ab, #d83483); color: white; font: inherit; font-weight: 800; cursor: pointer; }
     button.secondary { background: #ffffff15; border: 1px solid #ffffff2b; }
     button:disabled { opacity: .55; cursor: wait; }
     .video { position: relative; background: #05050a; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; max-height: min(58vh, 520px); margin-top: 12px; }
-    video, canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    canvas { pointer-events: none; }
+    video, canvas.overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    canvas.overlay { pointer-events: none; }
     .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
-    .metric { background: #0807107a; border: 1px solid #ffffff14; border-radius: 13px; padding: 12px; min-height: 85px; }
+    .metric { background: #0807107a; border: 1px solid #ffffff14; border-radius: 13px; padding: 12px; min-height: 83px; }
     .metric .label { color: #b8afca; font-size: 12px; }
-    .metric .value { margin-top: 5px; font-size: clamp(17px, 4vw, 22px); font-weight: 850; }
-    .value.yes { color: #92f3b3; } .value.no { color: #ffb4c6; }
+    .metric .value { margin-top: 5px; font-size: clamp(17px, 4vw, 22px); font-weight: 850; overflow-wrap: anywhere; }
+    .value.yes { color: #92f3b3; } .value.no { color: #ffb4c6; } .value.wait { color: #ffe09a; }
     .small { font-size: 12px; color: #aaa2bb; }
     #status { min-height: 20px; margin-top: 10px; color: #ffe09a; }
-    #details { margin-top: 8px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c2bad2; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #details, #raw { margin-top: 8px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c2bad2; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #raw { max-height: 260px; overflow: auto; }
     ol { margin: 9px 0 0; padding-left: 22px; color: #d9d1e6; line-height: 1.55; font-size: 14px; }
     .privacy { color: #a9a1b8; font-size: 12px; }
-    .mask-preview { width: min(100%, 320px); display: block; aspect-ratio: 4 / 3; margin-top: 8px; border-radius: 10px; image-rendering: pixelated; background: #05050a; }
-    #diagnosis { margin-top: 8px; color: #ffe09a; font-size: 13px; line-height: 1.5; }
     @media (min-width: 600px) { .metrics { grid-template-columns: repeat(4, minmax(0,1fr)); } .metric { min-height: 96px; } }
   </style>
 </head>
 <body>
 <main>
   <header>
-    <div><h1>🖐 Проверка жестового ввода</h1><p>Candy Kingdom Coaster · отдельный тест камеры и распознавания</p></div>
+    <div><h1>🖐 MediaPipe: проверка жестов</h1><p>Candy Kingdom Coaster · production detector + raw diagnostics</p></div>
     <a class="back" href="../index.html">← В игру</a>
   </header>
 
   <section class="card notice">
-    <p><b>Важно:</b> сейчас игра распознаёт руку эвристикой по изображению с задней камеры телефона. Это не WebXR hand tracking и не датчик рук шлема. Камера должна видеть руку перед объективом; фронтальная камера намеренно не подменяет заднюю.</p>
+    <p><b>Это уже не цветовой фильтр и не наш классификатор формы.</b> Игра использует готовый MediaPipe Gesture Recognizer на устройстве. Отдельный .task-файл и WASM runtime загружаются локально; первый запуск скачает и сохранит их для offline-повторного использования. Видео не отправляется в сеть. Здесь используется тот же <code>CamTracker</code>, Worker и score gate, что и в игре.</p>
   </section>
 
   <section class="card">
-    <h2>1. Запусти камеру и покажи позу</h2>
-    <p>Для начала держи руку целиком в кадре примерно в 30–60 см: кисть должна занимать около трети кадра, не упираться в края. Ладонь к объективу, ровный контрастный фон и хороший свет. Проверь сначала ✌️, затем 👍. Не надевай телефон в VR-очки, пока проверяешь, видит ли камера руку.</p>
+    <h2>1. Проверка задней камеры</h2>
+    <p>Нажми запуск, разреши заднюю камеру и дождись статуса «Модель готова». Покажи ✌️, затем 👍; держи всю кисть в кадре, хорошо освещённой. Сначала проверь распознавание без VR-очков.</p>
     <div class="controls">
-      <button id="start">📷 Включить заднюю камеру</button>
+      <button id="start">📷 Включить камеру и модель</button>
       <button id="stop" class="secondary" disabled>Остановить</button>
-      <button id="calibrate" class="secondary" disabled>🎨 Сохранить выбранный цвет</button>
-      <button id="reset-profile" class="secondary">Сбросить цвет</button>
       <button id="copy" class="secondary" disabled>Скопировать отчёт</button>
     </div>
-    <p class="small" style="margin-top:8px">Нажми прямо на центр ладони в изображении камеры. Комната покажет выбранный цвет и возьмёт маленький участок вокруг точки — только после нажатия «Сохранить выбранный цвет» профиль будет применён. Образец не проходит предварительный фильтр кожи.</p>
-    <p id="sample-status" class="small" style="margin-top:8px">Образец не выбран. Наведи камеру на ладонь и нажми на неё в превью.</p>
-    <span id="sample-swatch" aria-hidden="true" style="display:inline-block;width:30px;height:22px;vertical-align:middle;border-radius:5px;border:1px solid #ffffff55;background:#111;margin-top:6px"></span>
-    <div class="video"><video id="video" autoplay muted playsinline></video><canvas id="overlay"></canvas></div>
-    <p id="status" role="status" aria-live="polite">Камера выключена. Нажми «Включить заднюю камеру» и разреши доступ.</p>
+    <div class="video"><video id="video" autoplay muted playsinline></video><canvas id="overlay" class="overlay"></canvas></div>
+    <p id="status" role="status" aria-live="polite">Камера выключена. Запусти проверку.</p>
     <div class="metrics">
-      <div class="metric"><div class="label">✌️ Сырой сигнал V</div><div id="raw-v" class="value no">нет · 0%</div></div>
-      <div class="metric"><div class="label">✌️ Ввод после debounce</div><div id="stable-v" class="value no">выключен</div></div>
-      <div class="metric"><div class="label">👍 Сырой сигнал</div><div id="raw-thumb" class="value no">нет · 0%</div></div>
-      <div class="metric"><div class="label">👍 Ввод после debounce</div><div id="stable-thumb" class="value no">газ выключен</div></div>
+      <div class="metric"><div class="label">✌️ Victory · raw</div><div id="raw-v" class="value no">нет · 0%</div></div>
+      <div class="metric"><div class="label">✌️ управление после debounce</div><div id="stable-v" class="value no">выключено</div></div>
+      <div class="metric"><div class="label">👍 Thumb_Up · raw</div><div id="raw-thumb" class="value no">нет · 0%</div></div>
+      <div class="metric"><div class="label">👍 gas после fail-stop gate</div><div id="stable-thumb" class="value no">газ выключен</div></div>
     </div>
-    <div id="details">Параметры камеры: —</div>
-    <div id="diagnosis" role="status" aria-live="polite">Диагностика маски появится после первого кадра.</div>
-    <h2 style="margin-top:14px">Что именно видит цветовой фильтр</h2>
-    <p class="small">Зелёное — пиксели, которые production-алгоритм считает кожей. Если рука видна в основном окне, а здесь почти нет зелёного, жестовый классификатор ещё не получил силуэт для проверки формы.</p>
-    <canvas id="mask-preview" class="mask-preview" width="160" height="120" aria-label="Маска пикселей кожи"></canvas>
+    <div id="details">Параметры: —</div>
+    <h2 style="margin-top:14px">Сырые результаты по руке</h2>
+    <div id="raw">После старта появятся MediaPipe labels, scores, handedness и landmarks.</div>
   </section>
 
   <section class="card">
-    <h2>2. Как читать результат</h2>
+    <h2>2. Как читать</h2>
     <ol>
-      <li><b>Сырой сигнал</b> — распозналась ли целая поза. Текущий распознаватель выдаёт 0% при отказе на любом этапе, поэтому сам процент не показывает, увидел ли он руку; для этого смотри зелёную маску и строку причины ниже.</li>
-      <li><b>Ввод после debounce</b> — реальный стабильный флаг игры. Включение — 2 срабатывания из последних 3 кадров (терпит один шумный кадр). V выключается после двух пропусков; 👍 включает газ по тому же правилу, но любой уверенный кадр без 👍 сразу отпускает газ.</li>
-      <li>Если изображение руки видно, но сигнал всё время «нет», это ограничение текущего распознавателя/освещения/ракурса, а не отсутствие разрешения камеры.</li>
+      <li><b>Raw</b> показывает именно top category MediaPipe и его score. Классы управления принимаются только при score ≥ 70%; остальные labels остаются в диагностике.</li>
+      <li>V активируется по штатному 2-of-3 debounce. Газ включается так же, но любой кадр без подтверждённого Thumb_Up немедленно отпускает его; если модель/Worker/кадр устарели, газ выключен.</li>
+      <li>Зелёные точки и линии — landmarks из того же production-результата. «Рука не найдена» и «рука есть, но класс другой» различаются по raw-данным.</li>
     </ol>
   </section>
-  <p class="privacy">Видео обрабатывается только в этой вкладке на устройстве. Ничего не записывается и не отправляется. Разрешение камеры требуется по HTTPS или на localhost.</p>
+  <p class="privacy">MediaPipe inference выполняется локально в Web Worker. Диагностический отчёт содержит метаданные и координаты landmarks, не изображение камеры. Разрешение камеры требуется по HTTPS.</p>
 </main>
 <script type="module">
-  import { analyzeGestures, analyzeSkinMaskDiagnostics, calibrateSkinColor, readSkinProfile } from '../src/camtrack.js';
+  import { CamTracker } from '../src/camtrack.js';
 
   const $ = (id) => document.getElementById(id);
-  const video = $('video'), overlay = $('overlay');
-  const ctx = overlay.getContext('2d');
-  const work = document.createElement('canvas');
-  const workCtx = work.getContext('2d', { willReadFrequently: true });
-  const state = {
-    stream: null, running: false, lastAt: 0, procMs: 0, fps: 0,
-    vOn: 0, vOff: 0, thumbOn: 0, thumbOff: 0, vHits: [], thumbHits: [], vStable: false, thumbStable: false,
-    raw: { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } },
-    frames: 0, startedAt: 0, lastLine: '', skinDiag: null, lastFrame: null,
-    profile: readSkinProfile(), pendingProfile: null, pendingDiag: null, samplePoint: null,
+  const video = $('video'), canvas = $('overlay'), ctx = canvas.getContext('2d');
+  const state = { tracker: null, running: false, raf: 0, frames: 0, fps: 0, lastAt: 0, lastSignalAt: 0, startedAt: 0, inferenceMs: 0 };
+  const connections = [
+    [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+    [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17],
+  ];
+  const setSignal = (id, text, on, loading = false) => {
+    const el = $(id); el.textContent = text; el.className = `value ${loading ? 'wait' : on ? 'yes' : 'no'}`;
   };
-  const maskCanvas = $('mask-preview'), maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-  const reasonText = {
-    'too-few-skin-pixels': 'Фильтр почти не видит пиксели кожи. Проверь калибровку и зелёную маску.',
-    'skin-mask-covers-background': 'Маска покрывает почти весь кадр. Текущий профиль снова захватил фон; не запускай с ним игру.',
-    'no-connected-hand-region': 'Цветовые пиксели не собрались в связную кисть. Убери фоновые пятна и держи кисть целиком.',
-    'hand-region-too-small': 'Силуэт слишком мал. Поднеси кисть ближе.',
-    'hand-region-too-small-in-frame': 'Силуэт узкий или короткий. Разверни ладонь к объективу и покажи пальцы полностью.',
-    'hand-region-cropped-or-too-large': 'Кисть обрезана краем кадра или слишком близко. Отодвинь руку.',
-    'shape-check': 'Кисть сегментирована; ниже показано, на каком геометрическом тесте отклонён жест.',
-  };
-  const gestureReasonText = {
-    'silhouette-rejected': 'кисть не проходит размер/связность маски',
-    'fewer-than-two-fingertips': 'не вижу две отдельные вершины пальцев; расправь V и раздвинь пальцы',
-    'no-separated-finger-pair': 'две вершины не образуют достаточно глубокую V-впадину',
-    'v-pose-confidence-too-low': 'V найдена, но score ниже порога',
-    'v-pose': 'V найдена',
-    'thumb-peak-count': 'ожидаю один выступ большого пальца; расправь большой палец, остальные пальцы собери в кулак',
-    'thumb-peak-centered': 'выступ большого пальца оказался по центру силуэта; поверни кулак немного боком',
-    'thumb-extension-height': 'большой палец слишком низко/высоко относительно кулака',
-    'thumb-peak-width': 'вершина большого пальца не отделилась по ширине',
-    'thumb-palm-area': 'площадь кулака слишком мала или обрезана',
-    'thumb-confidence-too-low': 'форма 👍 найдена, но score ниже порога',
-    'thumbs-up': '👍 найден',
-  };
-
-  const format = (r) => `${r.found ? 'ДА' : 'нет'} · ${Math.round((r.confidence || 0) * 100)}%`;
-  function setSignal(id, text, yes) {
-    const node = $(id); node.textContent = text; node.classList.toggle('yes', !!yes); node.classList.toggle('no', !yes);
-  }
-  function updateUi() {
-    setSignal('raw-v', format(state.raw.v), state.raw.v.found);
-    setSignal('raw-thumb', format(state.raw.thumb), state.raw.thumb.found);
-    setSignal('stable-v', state.vStable ? 'ВКЛ · zoom' : 'выключен', state.vStable);
-    setSignal('stable-thumb', state.thumbStable ? 'ВКЛ · газ' : 'газ выключен', state.thumbStable);
-    const track = state.stream?.getVideoTracks?.()[0];
-    const settings = track?.getSettings?.() || {};
-    const facing = settings.facingMode || 'браузер не сообщил';
-    const ageMs = state.lastAt ? Math.round(performance.now() - state.lastAt) : null;
-    $('details').textContent = state.running
-      ? `Камера: ${track?.label || 'название скрыто'}\nЗапрошена: задняя environment · Получена: ${facing}\nСенсор: ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · анализ: ${Math.round(state.fps)} кадр/с · ${state.procMs.toFixed(1)} мс/кадр\nСвежесть анализа: ${ageMs} мс · V пики: ${state.raw.v.peaks ? state.raw.v.peaks.map(p => `${p.u.toFixed(2)},${p.v.toFixed(2)}`).join(' / ') : '—'} · 👍 кончик: ${state.raw.thumb.tip ? `${state.raw.thumb.tip.u.toFixed(2)},${state.raw.thumb.tip.v.toFixed(2)}` : '—'}\nМаска: ${state.skinDiag ? `${state.skinDiag.skinPixels} skin px · крупнейшая связная область ${state.skinDiag.largestPixels} px · ${state.skinDiag.bounds ? `${state.skinDiag.bounds.width}×${state.skinDiag.bounds.height}` : 'нет bbox'} · ${state.skinDiag.reason}` : 'считается'}\nЦветовой профиль: ${state.profile ? `калиброван Cb ${state.profile.cb}±${state.profile.tolCb}, Cr ${state.profile.cr}±${state.profile.tolCr}` : 'узкий универсальный диапазон'}`
-      : 'Параметры камеры: —';
-    if (state.skinDiag) {
-      const skinText = reasonText[state.skinDiag.reason] || state.skinDiag.reason;
-      const vText = gestureReasonText[state.raw.v.reason] || state.raw.v.reason || 'нет сигнала';
-      const thumbText = gestureReasonText[state.raw.thumb.reason] || state.raw.thumb.reason || 'нет сигнала';
-      $('diagnosis').textContent = `${skinText} ✌️ V: ${vText} (${state.raw.v.peaksFound ?? '—'} пиков). 👍: ${thumbText} (${state.raw.thumb.peaksFound ?? '—'} пиков).`;
+  function drawHands(hands) {
+    if (!video.videoWidth || !video.videoHeight) return;
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     }
-    $('stop').disabled = !state.running;
-    $('calibrate').disabled = !state.running || !state.pendingProfile;
-    $('copy').disabled = !state.running && !state.frames;
-  }
-  function drawOverlay() {
-    const w = overlay.clientWidth, h = overlay.clientHeight;
-    if (!w || !h) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    if (overlay.width !== Math.round(w * dpr) || overlay.height !== Math.round(h * dpr)) {
-      overlay.width = Math.round(w * dpr); overlay.height = Math.round(h * dpr);
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-    if (state.samplePoint) {
-      ctx.beginPath(); ctx.arc(state.samplePoint.u * w, state.samplePoint.v * h, 12, 0, Math.PI * 2);
-      ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(state.samplePoint.u * w - 16, state.samplePoint.v * h);
-      ctx.lineTo(state.samplePoint.u * w + 16, state.samplePoint.v * h);
-      ctx.moveTo(state.samplePoint.u * w, state.samplePoint.v * h - 16);
-      ctx.lineTo(state.samplePoint.u * w, state.samplePoint.v * h + 16); ctx.stroke();
-    }
-    const points = [...(state.raw.v.peaks || []), ...(state.raw.thumb.tip ? [state.raw.thumb.tip] : [])];
-    for (const p of points) {
-      const x = p.u * w, y = p.v * h;
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2);
-      ctx.fillStyle = '#58f19a'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#10121b'; ctx.stroke();
-    }
-    if (state.raw.v.peaks?.length === 2) {
-      ctx.beginPath(); ctx.moveTo(state.raw.v.peaks[0].u * w, state.raw.v.peaks[0].v * h);
-      ctx.lineTo(state.raw.v.peaks[1].u * w, state.raw.v.peaks[1].v * h);
-      ctx.lineWidth = 3; ctx.strokeStyle = '#ffd166'; ctx.stroke();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const hand of hands || []) {
+      const points = hand.landmarks || [];
+      ctx.lineWidth = Math.max(2, canvas.width / 300); ctx.strokeStyle = '#53ff9c'; ctx.fillStyle = '#ffe36e';
+      for (const [a, b] of connections) {
+        if (!points[a] || !points[b]) continue;
+        ctx.beginPath(); ctx.moveTo(points[a].x * canvas.width, points[a].y * canvas.height);
+        ctx.lineTo(points[b].x * canvas.width, points[b].y * canvas.height); ctx.stroke();
+      }
+      for (const point of points) {
+        ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, Math.max(2, canvas.width / 180), 0, Math.PI * 2); ctx.fill();
+      }
+      const wrist = points[0];
+      if (wrist) {
+        ctx.font = `bold ${Math.max(14, canvas.width / 30)}px system-ui`;
+        ctx.fillStyle = '#fff'; ctx.fillText(`${hand.handedness}: ${hand.label} ${Math.round(hand.confidence * 100)}%`, wrist.x * canvas.width + 8, wrist.y * canvas.height - 10);
+      }
     }
   }
-  function drawSkinMask(diag, w, h) {
-    if (!diag?.mask) return;
-    maskCanvas.width = w; maskCanvas.height = h;
-    const image = maskCtx.createImageData(w, h);
-    for (let i = 0; i < diag.mask.length; i++) {
-      const j = i * 4, on = diag.mask[i] !== 0;
-      image.data[j] = on ? 45 : 5;
-      image.data[j + 1] = on ? 238 : 5;
-      image.data[j + 2] = on ? 133 : 12;
-      image.data[j + 3] = 255;
-    }
-    maskCtx.putImageData(image, 0, 0);
-  }
-  function reportText() {
-    const track = state.stream?.getVideoTracks?.()[0], settings = track?.getSettings?.() || {};
+  function reportText(info) {
+    const track = state.tracker?.stream?.getVideoTracks?.()[0], settings = track?.getSettings?.() || {};
     return [
-      'Candy Kingdom Coaster — диагностика жестового ввода',
-      `Продолжительность: ${Math.round((performance.now() - state.startedAt) / 1000)} с; обработано кадров: ${state.frames}`,
-      `Камера: ${track?.label || 'неизвестно'}; facingMode: ${settings.facingMode || 'неизвестно'}; размер: ${settings.width || '?'}×${settings.height || '?'}`,
-      `Последний raw V: ${format(state.raw.v)}; этап отказа: ${state.raw.v.reason || '—'}; детали: ${JSON.stringify({ peaks: state.raw.v.peaksFound, gap: state.raw.v.peakGap, valley: state.raw.v.valleyDepth, silhouette: state.raw.v.silhouette })}; стабильный V: ${state.vStable}`,
-      `Последний raw thumbs-up: ${format(state.raw.thumb)}; этап отказа: ${state.raw.thumb.reason || '—'}; детали: ${JSON.stringify({ peaks: state.raw.thumb.peaksFound, peakPosition: state.raw.thumb.peakPosition, extension: state.raw.thumb.extension, width: state.raw.thumb.peakWidth, silhouette: state.raw.thumb.silhouette })}; стабильный gas: ${state.thumbStable}`,
-      `Маска: ${state.skinDiag ? `${state.skinDiag.skinPixels} пикселей кожи, связная область ${state.skinDiag.largestPixels}, причина: ${state.skinDiag.reason}` : 'нет данных'}`,
-      `Цветовой профиль: ${state.profile ? JSON.stringify(state.profile) : 'стандартный узкий YCbCr'}`,
-      `Средняя частота анализа сейчас: ${Math.round(state.fps)} кадр/с; стоимость кадра: ${state.procMs.toFixed(1)} мс`,
-      'Примечание: heuristics по rear camera image; не WebXR hand tracking.',
+      'Candy Kingdom Coaster — MediaPipe gesture diagnostic',
+      `Runtime: @mediapipe/tasks-vision 1.1.1; model: official Gesture Recognizer float16`,
+      `Duration: ${Math.round((performance.now() - state.startedAt) / 1000)} s; result frames: ${state.frames}; average FPS: ${state.fps.toFixed(1)}`,
+      `Camera: ${track?.label || 'unknown'}; facingMode: ${settings.facingMode || 'unknown'}; size: ${settings.width || '?'}x${settings.height || '?'}`,
+      `Model/worker status: ${info.gestureStatus}; error: ${info.gestureError || 'none'}; inference: ${info.gestureInferenceMs} ms; threshold: ${info.gestureThreshold}`,
+      `Victory: ${info.gestureConfidence}; active=${info.gestureV}; fresh=${info.gestureFresh}; Thumb_Up: ${info.thumbConfidence}; active=${info.thumbUp}; fresh=${info.thumbFresh}`,
+      `Raw hands: ${JSON.stringify(info.gestureRaw || [])}`,
+      'Safety: throttle is 0 unless fresh, confirmed Thumb_Up is present; any miss releases throttle immediately.',
     ].join('\n');
   }
-  function analyzeFrame(now) {
-    if (!state.running || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) return;
-    const t0 = performance.now();
-    const w = 160, h = Math.max(2, Math.round(w * video.videoHeight / video.videoWidth));
-    work.width = w; work.height = h;
-    workCtx.drawImage(video, 0, 0, w, h);
-    const image = workCtx.getImageData(0, 0, w, h);
-    state.lastFrame = { data: image.data, w, h };
-    const result = analyzeGestures(image.data, w, h, state.profile);
-    state.raw = result;
-    if (state.frames % 3 === 0) {
-      state.skinDiag = analyzeSkinMaskDiagnostics(image.data, w, h, state.profile);
-      drawSkinMask(state.skinDiag, w, h);
+  function update() {
+    if (!state.running || !state.tracker) return;
+    state.tracker.process();
+    const info = state.tracker.info();
+    const now = performance.now();
+    if (info.gestureLastAt && info.gestureLastAt !== state.lastSignalAt) {
+      if (state.lastAt) {
+        const delta = info.gestureLastAt - state.lastAt;
+        if (delta > 0) state.fps = state.fps ? state.fps * .8 + (1000 / delta) * .2 : 1000 / delta;
+      }
+      state.lastSignalAt = state.lastAt = info.gestureLastAt;
+      state.frames++;
     }
-    state.vHits.push(!!result.v.found); if (state.vHits.length > 3) state.vHits.shift();
-    state.vOn = state.vHits.filter(Boolean).length;
-    if (result.v.found) state.vOff = 0; else state.vOff++;
-    if (state.vOn >= 2) state.vStable = true;
-    else if (state.vOff >= 2) state.vStable = false;
-    state.thumbHits.push(!!result.thumb.found); if (state.thumbHits.length > 3) state.thumbHits.shift();
-    state.thumbOn = state.thumbHits.filter(Boolean).length;
-    if (result.thumb.found) state.thumbOff = 0; else state.thumbOff++;
-    if (state.thumbOn >= 2) state.thumbStable = true;
-    if (!result.thumb.found && state.thumbOff >= 1) state.thumbStable = false;
-    const dt = now - state.lastAt;
-    if (dt > 0) state.fps = state.fps ? state.fps * .8 + (1000 / dt) * .2 : 1000 / dt;
-    state.lastAt = now; state.frames++;
-    state.procMs = state.procMs ? state.procMs * .8 + (performance.now() - t0) * .2 : performance.now() - t0;
-    updateUi(); drawOverlay();
+    state.inferenceMs = info.gestureInferenceMs;
+    const modelReady = info.gestureStatus === 'ready';
+    const loading = info.gestureStatus === 'loading' || info.gestureStatus === 'idle';
+    const hand = info.gestureRaw?.[0];
+    const vLabel = hand?.label === 'Victory' ? `Victory · ${Math.round(hand.confidence * 100)}%` : `${hand?.label || 'нет руки'} · ${Math.round(info.gestureConfidence * 100)}%`;
+    const tLabel = hand?.label === 'Thumb_Up' ? `Thumb_Up · ${Math.round(hand.confidence * 100)}%` : `${hand?.label || 'нет руки'} · ${Math.round(info.thumbConfidence * 100)}%`;
+    setSignal('raw-v', vLabel, !!info.gestureRaw?.some((h) => h.label === 'Victory' && h.confidence >= info.gestureThreshold), loading && !modelReady);
+    setSignal('stable-v', info.gestureV ? 'ВКЛ · zoom' : 'выключено', info.gestureV);
+    setSignal('raw-thumb', tLabel, !!info.gestureRaw?.some((h) => h.label === 'Thumb_Up' && h.confidence >= info.gestureThreshold), loading && !modelReady);
+    setSignal('stable-thumb', info.thumbUp ? 'ВКЛ · газ' : 'газ выключен', info.thumbUp);
+    if (info.gestureStatus === 'ready') $('status').textContent = 'Модель готова. Данные и inference локальные; покажи ✌️ или 👍.';
+    else if (info.gestureStatus === 'loading') $('status').textContent = 'Загрузка MediaPipe WASM и модели (модель 8.4 MB; первый раз нужен интернет). Управление пока выключено.';
+    else if (info.gestureStatus === 'error') $('status').textContent = `Ошибка MediaPipe: ${info.gestureError || 'неизвестная ошибка'}. Газ fail-stop: выключен.`;
+    else $('status').textContent = 'Ожидаем инициализацию MediaPipe…';
+    $('details').textContent = `камера ${settings.facingMode || 'rear'} · ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · модель ${info.gestureStatus} · inference ${info.gestureInferenceMs} ms · результат ${info.gestureAgeMs === null ? 'ещё не получен' : `${info.gestureAgeMs} ms назад`} · кадры ${state.frames} · ≈${state.fps.toFixed(1)} Hz`;
+    $('raw').textContent = info.gestureRaw?.length
+      ? info.gestureRaw.map((h, index) => `Hand ${index + 1} · ${h.handedness} (${Math.round(h.handednessScore * 100)}%)\nTop: ${h.label} (${(h.confidence * 100).toFixed(1)}%)\nCategories: ${h.categories.map((c) => `${c.label}=${(c.score * 100).toFixed(1)}%`).join(' · ')}\nLandmarks: ${h.landmarks.length}/21`).join('\n\n')
+      : 'Рука пока не найдена (пустой список landmarks). Покажи ладонь ближе и добавь света.';
+    drawHands(info.gestureRaw);
+    $('copy').disabled = false;
+    state.raf = requestAnimationFrame(update);
   }
-  function loop(now) {
-    if (!state.running) return;
-    if (now - state.lastAt >= 120) analyzeFrame(now);
-    requestAnimationFrame(loop);
-  }
-  function explainError(error) {
-    const name = error?.name || 'Error';
-    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Доступ запрещён. Разреши камеру для сайта в настройках браузера и попробуй снова.';
-    if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'Задняя камера не найдена или не поддерживает запрос. Фронтальная намеренно не используется.';
-    if (!navigator.mediaDevices?.getUserMedia) return 'Браузер не дал API камеры. Открой страницу по HTTPS (или localhost) в актуальном браузере.';
-    return `${name}: ${error?.message || 'камера недоступна'}`;
+  function stop() {
+    state.running = false; cancelAnimationFrame(state.raf);
+    if (state.tracker) state.tracker.stop();
+    state.tracker = null; video.srcObject = null;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    $('start').disabled = false; $('start').textContent = '📷 Включить камеру и модель'; $('stop').disabled = true;
+    $('status').textContent = 'Камера выключена. Газ выключен.'; $('details').textContent = 'Параметры: —';
+    $('raw').textContent = 'После старта появятся MediaPipe labels, scores, handedness и landmarks.';
+    setSignal('raw-v', 'нет · 0%', false); setSignal('stable-v', 'выключено', false);
+    setSignal('raw-thumb', 'нет · 0%', false); setSignal('stable-thumb', 'газ выключен', false);
   }
   $('start').addEventListener('click', async () => {
-    $('start').disabled = true; $('status').textContent = 'Запрашиваем разрешение задней камеры…';
+    $('start').disabled = true; $('status').textContent = 'Запрашиваем заднюю камеру…';
     try {
-      if (!navigator.mediaDevices?.getUserMedia) throw new Error('getUserMedia unavailable');
-      state.stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: { facingMode: { exact: 'environment' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } },
-      }).catch(() => navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: 'environment' } } }));
-      video.srcObject = state.stream; await video.play();
-      state.running = true; state.startedAt = performance.now(); state.lastAt = 0; state.frames = 0;
-      $('status').textContent = 'Камера активна. Покажи жест, следя за четырьмя индикаторами.';
-      $('start').textContent = '📷 Камера включена'; requestAnimationFrame(loop); updateUi();
+      state.tracker = new CamTracker();
+      state.tracker.setGestureEnabled(true);
+      await state.tracker.start(video);
+      if (!state.tracker.useWorkerMode()) throw new Error('Web Worker is unavailable; gesture input remains disabled.');
+      state.running = true; state.frames = 0; state.fps = 0; state.lastAt = 0; state.lastSignalAt = 0; state.startedAt = performance.now();
+      $('stop').disabled = false; $('start').textContent = '📷 Камера и модель работают';
+      state.raf = requestAnimationFrame(update);
     } catch (error) {
-      if (state.stream) state.stream.getTracks().forEach(t => t.stop()); state.stream = null;
-      $('status').textContent = `Не удалось включить камеру. ${explainError(error)}`;
+      state.tracker?.stop(); state.tracker = null;
+      $('status').textContent = `Не удалось запустить: ${error?.name || 'Error'}: ${error?.message || error}`;
       $('start').disabled = false;
     }
   });
-  function stopCamera() {
-    state.running = false;
-    if (state.stream) state.stream.getTracks().forEach(t => t.stop());
-    state.stream = null; video.srcObject = null;
-    state.vStable = false; state.thumbStable = false; state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0; state.vHits = []; state.thumbHits = [];
-    state.raw = { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } };
-    state.skinDiag = null; state.pendingProfile = null; state.pendingDiag = null; state.samplePoint = null;
-    $('sample-swatch').style.background = '#111';
-    $('sample-status').textContent = 'Образец не выбран. Наведи камеру на ладонь и нажми на неё в превью.';
-    $('status').textContent = 'Камера выключена.'; $('start').disabled = false; $('start').textContent = '📷 Включить заднюю камеру';
-    ctx.clearRect(0, 0, overlay.width, overlay.height); maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height); updateUi();
-    $('diagnosis').textContent = 'Диагностика маски появится после первого кадра.';
-  }
-  video.addEventListener('pointerdown', (event) => {
-    if (!state.running || !state.lastFrame || !video.videoWidth) return;
-    event.preventDefault();
-    const rect = video.getBoundingClientRect();
-    const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
-    const shownW = video.videoWidth * scale, shownH = video.videoHeight * scale;
-    const ox = (rect.width - shownW) / 2, oy = (rect.height - shownH) / 2;
-    const u = (event.clientX - rect.left - ox) / shownW;
-    const v = (event.clientY - rect.top - oy) / shownH;
-    if (u < 0 || u > 1 || v < 0 || v > 1) return;
-    const x = Math.max(0, Math.min(state.lastFrame.w - 1, Math.round(u * state.lastFrame.w)));
-    const y = Math.max(0, Math.min(state.lastFrame.h - 1, Math.round(v * state.lastFrame.h)));
-    const p = calibrateSkinColor(state.lastFrame.data, state.lastFrame.w, state.lastFrame.h, x, y);
-    state.samplePoint = { u, v };
-    drawOverlay();
-    if (!p) {
-      state.pendingProfile = null; $('calibrate').disabled = true;
-      $('sample-status').textContent = 'Образец неоднороден (нажал на край кисти или фон). Нажми ещё раз в середине ладони.';
-      $('sample-swatch').style.background = '#111';
-      return;
-    }
-    state.pendingDiag = analyzeSkinMaskDiagnostics(state.lastFrame.data, state.lastFrame.w, state.lastFrame.h, p);
-    const tapIdx = y * state.lastFrame.w + x;
-    const box = state.pendingDiag.bounds;
-    const nearlyFullFrame = state.pendingDiag.skinPixels > state.lastFrame.w * state.lastFrame.h * 0.65
-      || (box && (box.width > state.lastFrame.w * 0.9 || box.height > state.lastFrame.h * 0.95));
-    const plausibleHand = state.pendingDiag.mask[tapIdx]
-      && state.pendingDiag.largestPixels >= Math.max(70, state.lastFrame.w * state.lastFrame.h * 0.006)
-      && !nearlyFullFrame;
-    state.pendingProfile = plausibleHand ? p : null;
-    $('calibrate').disabled = !plausibleHand;
-    $('sample-swatch').style.background = `rgb(${p.sampleRgb.join(' ')})`;
-    const prediction = `${state.pendingDiag.skinPixels}/${state.lastFrame.w * state.lastFrame.h} зелёных пикселей`;
-    $('sample-status').textContent = plausibleHand
-      ? `Образец RGB ${p.sampleRgb.join(', ')} · Cb ${p.cb} · Cr ${p.cr} · маска кисти: ${prediction}. Если крестик точно на ладони — сохрани.`
-      : `Не применяю этот образец: он не выделяет компактную кисть (${prediction}). Вероятно, точка попала на фон или маска почти покрывает кадр. Нажми прямо в центре ладони.`;
-  });
-  $('stop').addEventListener('click', stopCamera);
-  $('calibrate').addEventListener('click', () => {
-    const p = state.pendingProfile;
-    if (!p) return;
-    state.profile = p;
-    let saved = true;
-    try { localStorage.setItem('ckc_gesture_skin_profile', JSON.stringify(p)); }
-    catch { saved = false; }
-    state.vStable = state.thumbStable = false;
-    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0; state.vHits = []; state.thumbHits = [];
-    $('status').textContent = `Профиль сохранён: Cb ${p.cb}±${p.tolCb}, Cr ${p.cr}±${p.tolCr} (${p.samples} образцов). ${saved ? 'Сохранён локально; применяется сразу в комнате и в игре после перезапуска вкладки.' : 'Браузер не сохранил его для игры; действует только в этой комнате.'}`;
-    updateUi();
-  });
-  $('reset-profile').addEventListener('click', () => {
-    state.profile = null; state.pendingProfile = null; state.pendingDiag = null; state.samplePoint = null;
-    $('calibrate').disabled = true; $('sample-swatch').style.background = '#111';
-    $('sample-status').textContent = 'Калибровка сброшена. Нажми на центр ладони в превью, чтобы выбрать новый образец.';
-    try { localStorage.removeItem('ckc_gesture_skin_profile'); } catch { /* storage optional */ }
-    state.vStable = state.thumbStable = false;
-    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0; state.vHits = []; state.thumbHits = [];
-    $('status').textContent = 'Калибровка сброшена. Будет использоваться узкий универсальный YCbCr диапазон; перезапусти игровую вкладку.';
-    updateUi();
-  });
+  $('stop').addEventListener('click', stop);
   $('copy').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(reportText()); $('status').textContent = 'Отчёт скопирован. Можно отправить его вместе с описанием позы и освещения.'; }
-    catch { $('status').textContent = reportText(); }
+    try { await navigator.clipboard.writeText(reportText(state.tracker?.info() || {})); $('status').textContent = 'Диагностический отчёт скопирован (без видео).'; }
+    catch { $('status').textContent = reportText(state.tracker?.info() || {}); }
   });
-  window.addEventListener('pagehide', stopCamera);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) stopCamera(); });
-  window.addEventListener('resize', drawOverlay);
+  window.addEventListener('pagehide', stop);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+  window.addEventListener('resize', () => drawHands(state.tracker?.info()?.gestureRaw));
 </script>
 </body>
 </html>

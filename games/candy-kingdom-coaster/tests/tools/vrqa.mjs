@@ -128,7 +128,7 @@ record('forward: голова игнорируется, взгляд по тра
 
 // ---------- 4. V-жест: задняя камера, debounce, FOV/shake, быстрый release ----------
 // camEnableSynthetic() prevents a real getUserMedia prompt in headless QA;
-// gestureFeed() still runs the same skin silhouette analyzer and debounce.
+// gestureFeed() injects synthetic categories into the production debounce; this is not camera/classifier proof.
 await page.evaluate(() => {
   window.__TEST__.camEnableSynthetic();
   window.__TEST__.vrStart('look', 30, true);
@@ -139,15 +139,15 @@ await page.evaluate(() => window.__TEST__.step(1 / 60, 70, false));
 await page.evaluate(() => window.__TEST__.vrSetLook(30, 0));
 await page.evaluate(() => window.__TEST__.step(1 / 60, 45, false));
 const zoomHeld = await page.evaluate(() => window.__TEST__.vrInfo());
-record('gesture: V включает VR-only zoom, FOV приближается до ≤6×, shake ослаблен',
+record('synthetic V state: VR-only zoom/FOV/shake gate (не тест MediaPipe)',
   zoomHeld.gestureZoom && zoomHeld.zoomFactor > 5.5 && zoomHeld.zoomFactor <= 6
     && zoomHeld.fov < 15 && zoomHeld.zoomShakeFactor < 0.5, zoomHeld);
-record('gesture: поворот головы остаётся мягким корректором',
+record('synthetic zoom state: soft head correction (не тест MediaPipe)',
   zoomHeld.zoomLookGain > 0.5 && zoomHeld.zoomLookGain < 1 && Math.abs(zoomHeld.yawDeg) > 15, zoomHeld);
 await page.evaluate(() => { window.__TEST__.gestureFeed(false); window.__TEST__.gestureFeed(false); });
 await page.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
 const zoomReleased = await page.evaluate(() => window.__TEST__.vrInfo());
-record('gesture: потеря V возвращает масштаб заметно быстрее',
+record('synthetic V state: loss releases zoom (не тест MediaPipe)',
   zoomReleased.zoomActive === false && zoomReleased.zoomFactor < 1.5 && zoomReleased.fov > 35, zoomReleased);
 
 await page.evaluate(() => {
@@ -157,14 +157,14 @@ await page.evaluate(() => {
 });
 await page.evaluate(() => window.__TEST__.step(1 / 60, 45, false));
 const gasOn = await page.evaluate(() => ({ vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo(), remote: window.__TEST__.remoteState() }));
-record('gesture gas: thumbs-up включает throttle без Firebase и без руления',
+record('synthetic gas state: thumbs-up gate без Firebase/steering (не тест MediaPipe)',
   gasOn.game.driverMode === 'gesture' && gasOn.game.thumbUp === true
     && gasOn.remote.cam.gestureDrive === true && gasOn.game.remote === null
     && gasOn.game.speedKmh > 30, gasOn);
 await page.evaluate(() => { window.__TEST__.gestureThumbFeed(false); window.__TEST__.gestureThumbFeed(false); });
 await page.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
 const gasOff = await page.evaluate(() => ({ vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo() }));
-record('gesture gas: без большого пальца throttle 0 и машина замедляется',
+record('synthetic gas state: miss = throttle 0 (не тест MediaPipe)',
   gasOff.game.thumbUp === false && gasOff.game.speedKmh < 10, gasOff);
 
 // ---------- 5. автопилот: полный заезд до финиша без ввода ----------

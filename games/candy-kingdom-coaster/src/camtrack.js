@@ -1,15 +1,8 @@
-// camtrack.js — камера как «компас взгляда»: яркая метка (печатная или
-// реальный предмет вроде малиновой коробки) через заднюю камеру телефона.
-// Конвейер из стенда трекинга: кадр -> маска по оттенку (HSV) ->
-// КРУПНЕЙШЕЕ связное пятно -> центроид -> yaw/pitch по геометрии камеры.
-//
-// ПРОИЗВОДИТЕЛЬНОСТЬ (полевой урок 1–3 FPS): снятие кадра с видео и
-// анализ НЕЛЬЗЯ делать на главном потоке рядом с WebGL — getImageData
-// синхронно сбрасывает GPU-конвейер. Поэтому в поездке конвейер живёт
-// в Web Worker (camtrack-worker.js): главный поток раз в ~100 мс
-// отдаёт снимок кадра (createImageBitmap) и получает готовые углы.
-// На главном потоке анализ остался только для подготовки (превью,
-// «Взять цвет») и как фолбэк, если Worker недоступен.
+// camtrack.js — rear-camera marker tracking + on-device gesture state.
+// Marker/color analysis may use the main-thread fallback, but gestures are
+// classified only by Google's MediaPipe Gesture Recognizer in camtrack-worker.js.
+// If the ML Worker is unavailable/stale/error, the game receives no gesture:
+// V/zoom releases and the throttle remains fail-stop (zero).
 
 export const CAM_COLORS = {
   raspberry: { label: 'Малиновый', hue: 338, css: '#d6336c' },
@@ -81,288 +74,53 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   };
 }
 
-// Robust palm-color calibration around a point the user taps directly on the
-// hand. Do not pre-filter with the old skin gate here: that was the circular
-// bug where a hand rejected by the default gate could never calibrate itself.
-const ycbcrOf = (r, g, b) => ({
-  y: 0.299 * r + 0.587 * g + 0.114 * b,
-  cb: 128 - 0.168736 * r - 0.331264 * g + 0.5 * b,
-  cr: 128 + 0.5 * r - 0.418688 * g - 0.081312 * b,
-});
-const median = (values) => {
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-};
-export function calibrateSkinColor(data, w, h, centerX = Math.floor(w / 2), centerY = Math.floor(h / 2)) {
-  const cbs = [], crs = [], reds = [], greens = [], blues = [];
-  const radius = Math.max(2, Math.round(Math.min(w, h) * 0.025));
-  for (let y = Math.max(0, centerY - radius); y <= Math.min(h - 1, centerY + radius); y++) {
-    for (let x = Math.max(0, centerX - radius); x <= Math.min(w - 1, centerX + radius); x++) {
-      const i = (y * w + x) * 4;
-      if (data[i + 3] < 128) continue;
-      const r = data[i], g = data[i + 1], b = data[i + 2];
-      const { cb, cr } = ycbcrOf(r, g, b);
-      cbs.push(cb); crs.push(cr); reds.push(r); greens.push(g); blues.push(b);
-    }
-  }
-  if (cbs.length < 16) return null;
-  const cb = median(cbs), cr = median(crs);
-  const cbDev = cbs.map((v) => Math.abs(v - cb));
-  const crDev = crs.map((v) => Math.abs(v - cr));
-  // If the tap straddles a hand/background edge, refuse it instead of
-  // learning the background and turning the whole room green.
-  const inliers = cbs.filter((v, i) => cbDev[i] <= 20 && crDev[i] <= 20).length;
-  if (inliers < cbs.length * 0.78) return null;
-  const cbMad = median(cbDev), crMad = median(crDev);
-  return {
-    version: 2,
-    cb: +cb.toFixed(1), cr: +cr.toFixed(1),
-    tolCb: +Math.max(7, Math.min(20, cbMad * 3 + 4)).toFixed(1),
-    tolCr: +Math.max(7, Math.min(20, crMad * 3 + 4)).toFixed(1),
-    samples: cbs.length, inliers,
-    sampleRgb: [median(reds), median(greens), median(blues)].map((v) => Math.round(v)),
-  };
-}
-export function readSkinProfile() {
-  try {
-    const p = JSON.parse(localStorage.getItem('ckc_gesture_skin_profile') || 'null');
-    // Reject v1 profiles made by the old center-ROI sampler: it could learn
-    // background color. A fresh direct-tap sample is required after this fix.
-    if (p && p.version === 2 && [p.cb, p.cr, p.tolCb, p.tolCr].every(Number.isFinite)) return p;
-  } catch { /* storage is optional */ }
-  return null;
-}
-
-// Дешёвый экспериментальный анализ жестов без тяжёлой hand-pose модели.
-// Маска и silhouette-профиль намеренно консервативны: при плохом кадре
-// результат false, а не догадка. V и thumbs-up возвращаются одним Worker
-// результатом, чтобы не заводить второй camera/runtime pipeline.
-function skinMask(data, w, h, profile = null) {
-  const mask = new Uint8Array(w * h);
-  let count = 0;
-  const cbMin = profile ? profile.cb - profile.tolCb : 77;
-  const cbMax = profile ? profile.cb + profile.tolCb : 127;
-  const crMin = profile ? profile.cr - profile.tolCr : 133;
-  const crMax = profile ? profile.cr + profile.tolCr : 173;
-  for (let i = 0, px = 0; px < w * h; px++, i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2];
-    const { y, cb, cr } = ycbcrOf(r, g, b);
-    // Default bounds follow a conservative YCbCr skin chroma band instead of
-    // the old very broad range, which could mark most of a frame as skin.
-    // A palm calibration replaces these universal bounds with a narrow local
-    // chroma window so camera white balance / tan skin don't need exposure hacks.
-    if (y < 35 || cb < cbMin || cb > cbMax || cr < crMin || cr > crMax) continue;
-    mask[px] = 1;
-    count++;
-  }
-  return { mask, count };
-}
-
-function largestSkinComponent(mask, w, h) {
-  const seen = new Uint8Array(w * h);
-  const stack = [];
-  let best = null;
-  for (let start = 0; start < w * h; start++) {
-    if (!mask[start] || seen[start]) continue;
-    let count = 0, minX = w, minY = h, maxX = 0, maxY = 0;
-    const points = [];
-    stack.length = 0;
-    stack.push(start);
-    seen[start] = 1;
-    while (stack.length) {
-      const cur = stack.pop();
-      const x = cur % w, y = (cur / w) | 0;
-      points.push(cur);
-      count++;
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-      if (x > 0 && mask[cur - 1] && !seen[cur - 1]) { seen[cur - 1] = 1; stack.push(cur - 1); }
-      if (x < w - 1 && mask[cur + 1] && !seen[cur + 1]) { seen[cur + 1] = 1; stack.push(cur + 1); }
-      if (y > 0 && mask[cur - w] && !seen[cur - w]) { seen[cur - w] = 1; stack.push(cur - w); }
-      if (y < h - 1 && mask[cur + w] && !seen[cur + w]) { seen[cur + w] = 1; stack.push(cur + w); }
-    }
-    if (!best || count > best.count) best = { count, minX, minY, maxX, maxY, points };
-  }
-  return best;
-}
-
-// Diagnostics for the standalone gesture room. Returns the same production
-// skin mask plus a concise reason when the silhouette gate rejects the frame.
-export function analyzeSkinMaskDiagnostics(data, w, h, profile = null) {
-  const { mask, count } = skinMask(data, w, h, profile);
-  const minMask = Math.max(70, w * h * 0.004);
-  const minComponent = Math.max(70, w * h * 0.006);
-  let best = null;
-  let reason = 'shape-check';
-  if (count >= minMask && count <= w * h * 0.75) best = largestSkinComponent(mask, w, h);
-  if (count < minMask) reason = 'too-few-skin-pixels';
-  else if (count > w * h * 0.75) reason = 'skin-mask-covers-background';
-  else if (!best) reason = 'no-connected-hand-region';
-  else if (best.count < minComponent) reason = 'hand-region-too-small';
-  else {
-    const bw = best.maxX - best.minX + 1;
-    const bh = best.maxY - best.minY + 1;
-    if (bw < w * 0.12 || bh < h * 0.16) reason = 'hand-region-too-small-in-frame';
-    else if (bw > w * 0.9 || bh > h * 0.95) reason = 'hand-region-cropped-or-too-large';
-  }
-  return {
-    mask, skinPixels: count, largestPixels: best ? best.count : 0,
-    bounds: best ? { x: best.minX, y: best.minY, width: best.maxX - best.minX + 1, height: best.maxY - best.minY + 1 } : null,
-    reason,
-  };
-}
-
-function skinSilhouette(data, w, h, profile = null) {
-  const { mask, count } = skinMask(data, w, h, profile);
-  if (count < Math.max(70, w * h * 0.004) || count > w * h * 0.75) return null;
-  const best = largestSkinComponent(mask, w, h);
-  if (!best || best.count < Math.max(70, w * h * 0.006)) return null;
-  const bw = best.maxX - best.minX + 1;
-  const bh = best.maxY - best.minY + 1;
-  if (bw < w * 0.12 || bh < h * 0.16 || bw > w * 0.9 || bh > h * 0.95) return null;
-
-  const top = new Int16Array(bw);
-  top.fill(best.maxY + 1);
-  for (const cur of best.points) {
-    const x = (cur % w) - best.minX;
-    const y = (cur / w) | 0;
-    if (y < top[x]) top[x] = y + best.minY;
-  }
-  const smooth = new Float32Array(bw);
-  for (let x = 0; x < bw; x++) {
-    let sum = 0, n = 0;
-    for (let k = Math.max(0, x - 2); k <= Math.min(bw - 1, x + 2); k++) {
-      if (top[k] <= best.maxY) { sum += top[k]; n++; }
-    }
-    smooth[x] = n ? sum / n : best.maxY + 1;
-  }
-  return { ...best, bw, bh, smooth };
-}
-
-// Жест V: две высокие раздельные вершины силуэта.
-export function analyzeVGesture(data, w, h, profile = null) {
-  const best = skinSilhouette(data, w, h, profile);
-  if (!best) return { found: false, confidence: 0, reason: 'silhouette-rejected' };
-  const { minX, minY, maxY, bw, bh, smooth } = best;
-  const silhouette = { width: +(bw / w).toFixed(2), height: +(bh / h).toFixed(2) };
-  const candidates = [];
-  const topLimit = minY + bh * 0.42;
-  for (let x = Math.max(2, Math.floor(bw * 0.12)); x < Math.min(bw - 2, Math.ceil(bw * 0.88)); x++) {
-    if (smooth[x] > topLimit || smooth[x] > smooth[x - 1] || smooth[x] > smooth[x + 1]) continue;
-    candidates.push({ x, y: smooth[x] });
-  }
-  if (candidates.length < 2) return { found: false, confidence: 0, reason: 'fewer-than-two-fingertips', peaksFound: candidates.length, silhouette };
-  candidates.sort((a, b) => a.y - b.y);
-  let pair = null;
-  for (let i = 0; i < candidates.length && !pair; i++) for (let j = i + 1; j < candidates.length; j++) {
-    const a = candidates[i], b = candidates[j];
-    const gap = Math.abs(a.x - b.x);
-    // At 160 px, a one-pixel skin-mask jitter changes this ratio noticeably.
-    // A 0.10 minimum still requires distinct finger peaks but avoids rejecting
-    // real, slightly narrow V gestures at ordinary camera distances.
-    if (gap < bw * 0.10 || gap > bw * 0.78) continue;
-    const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
-    let valley = 0;
-    for (let x = lo; x <= hi; x++) valley = Math.max(valley, smooth[x]);
-    const depth = valley - Math.max(a.y, b.y);
-    if (depth < bh * 0.055) continue;
-    pair = { a, b, gap, depth };
-    break;
-  }
-  if (!pair) return {
-    found: false, confidence: 0, reason: 'no-separated-finger-pair',
-    peaksFound: candidates.length, silhouette,
-  };
-  const confidence = Math.min(1, 0.45 + pair.depth / Math.max(1, bh) + pair.gap / Math.max(1, bw) * 0.35);
-  const peaks = [
-    { u: (minX + pair.a.x) / w, v: pair.a.y / h },
-    { u: (minX + pair.b.x) / w, v: pair.b.y / h },
-  ];
-  return {
-    found: confidence >= 0.55,
-    confidence,
-    reason: confidence >= 0.55 ? 'v-pose' : 'v-pose-confidence-too-low',
-    peaks, silhouette, peakGap: +(pair.gap / bw).toFixed(2), valleyDepth: +(pair.depth / bh).toFixed(2),
-  };
-}
-
-// Thumbs-up: one short, broad high protrusion attached to a wide fist.
-// The single-peak and height checks deliberately reject a V and a long,
-// narrow index finger; it is still a heuristic, so temporal debounce remains.
-export function analyzeThumbGesture(data, w, h, profile = null) {
-  const best = skinSilhouette(data, w, h, profile);
-  if (!best) return { found: false, confidence: 0, reason: 'silhouette-rejected' };
-  const { minX, minY, maxY, bw, bh, smooth, points, count } = best;
-  const silhouette = { width: +(bw / w).toFixed(2), height: +(bh / h).toFixed(2) };
-  const topLimit = minY + bh * 0.42;
-  const candidates = [];
-  for (let x = Math.max(2, Math.floor(bw * 0.1)); x < Math.min(bw - 2, Math.ceil(bw * 0.9)); x++) {
-    if (smooth[x] > topLimit || smooth[x] > smooth[x - 1] || smooth[x] > smooth[x + 1]) continue;
-    const previous = candidates[candidates.length - 1];
-    // A rounded thumb top can produce two adjacent local minima; merge that
-    // plateau, while the valley between V fingers remains a separate peak.
-    if (previous && x - previous.x < bw * 0.30) {
-      if (smooth[x] < previous.y) previous.x = x, previous.y = smooth[x];
-    } else candidates.push({ x, y: smooth[x] });
-  }
-  if (candidates.length !== 1) return {
-    found: false, confidence: 0, reason: 'thumb-peak-count', peaksFound: candidates.length, silhouette,
-  };
-  const peak = candidates[0];
-  const ratio = peak.x / Math.max(1, bw - 1);
-  // A thumb is attached to a side of the fist, not centred like an index.
-  if (ratio > 0.43 && ratio < 0.57) return { found: false, confidence: 0, reason: 'thumb-peak-centered', peakPosition: +ratio.toFixed(2), silhouette };
-  const sample = (ratioX) => smooth[Math.max(0, Math.min(bw - 1, Math.round(ratioX * (bw - 1))))];
-  const shoulderY = Math.max(sample(0.14), sample(0.86));
-  const rise = shoulderY - peak.y;
-  // Real thumbs can extend beyond 62% of the hand bbox (observed live: 69%).
-  // The wide-tip and broad-palm checks below still distinguish a thumb from an index.
-  if (rise < bh * 0.16 || rise > bh * 0.82) return {
-    found: false, confidence: 0, reason: 'thumb-extension-height',
-    extension: +(rise / bh).toFixed(2), silhouette,
-  };
-  const peakBand = peak.y + bh * 0.16;
-  let peakWidth = 0;
-  for (const y of smooth) if (y <= peakBand) peakWidth++;
-  if (peakWidth < bw * 0.16 || peakWidth > bw * 0.55) return {
-    found: false, confidence: 0, reason: 'thumb-peak-width',
-    peakWidth: +(peakWidth / bw).toFixed(2), silhouette,
-  };
-  const bodyPixels = points.reduce((n, cur) => n + (((cur / w) | 0) >= minY + bh * 0.50 ? 1 : 0), 0);
-  if (bodyPixels < count * 0.22 || bw < w * 0.16) return {
-    found: false, confidence: 0, reason: 'thumb-palm-area',
-    lowerPalmRatio: +(bodyPixels / count).toFixed(2), silhouette,
-  };
-  const confidence = Math.min(1,
-    0.48 + rise / Math.max(1, bh) * 0.42 + Math.min(0.22, peakWidth / Math.max(1, bw) * 0.30)
-  );
-  return {
-    found: confidence >= 0.58,
-    confidence,
-    reason: confidence >= 0.58 ? 'thumbs-up' : 'thumb-confidence-too-low',
-    tip: { u: (minX + peak.x) / w, v: peak.y / h },
-    silhouette, top: maxY,
-  };
-}
-
-export function analyzeGestures(data, w, h, profile = null) {
-  const v = analyzeVGesture(data, w, h, profile);
-  return { ...v, v, thumb: analyzeThumbGesture(data, w, h, profile) };
-}
-
-// Две независимые цветовые метки. Пока размеры кадра малы, повторный
-// проход дешевле и надёжнее сложной общей маски: каждая коробка получает
-// собственное крупнейшее связное пятно, а Worker всё равно забирает кадр
-// с главного потока один раз.
 export function analyzeColorBlobs(data, w, h, specHues, tol = 26, satMin = 0.42) {
   return specHues.map((hue) => analyzeColorBlob(data, w, h, hue, tol, satMin));
 }
 
-// Углы из центроида; центр калибровки — НОРМАЛИЗОВАННЫЙ (0..1), чтобы
-// ярусы разрешения не ломали ноль.
+// Convert MediaPipe Gesture Recognizer output into the stable, explicit
+// contract consumed by the game. Raw category scores and landmarks are retained
+// for the diagnostic room; game input only accepts the top category at a
+// conservative confidence floor. No pixel-shape fallback is used.
+export const GESTURE_MIN_SCORE = 0.70;
+
+export function mapMediaPipeGestures(result, minScore = GESTURE_MIN_SCORE) {
+  const hands = (result?.landmarks || []).map((landmarks, index) => {
+    const categories = (result?.gestures?.[index] || []).map((item) => ({
+      label: String(item.categoryName || item.displayName || 'Unknown'),
+      score: Number.isFinite(item.score) ? item.score : 0,
+      displayName: item.displayName || item.categoryName || 'Unknown',
+      index: Number.isInteger(item.index) ? item.index : null,
+    }));
+    const top = categories[0] || { label: 'None', score: 0, displayName: 'None', index: null };
+    const handedness = result?.handedness?.[index]?.[0] || {};
+    return {
+      handedness: handedness.displayName || handedness.categoryName || 'Unknown',
+      handednessScore: Number.isFinite(handedness.score) ? handedness.score : 0,
+      label: top.label,
+      confidence: top.score,
+      categories,
+      landmarks: (landmarks || []).map(({ x, y, z }) => ({
+        x: Number.isFinite(x) ? x : 0,
+        y: Number.isFinite(y) ? y : 0,
+        z: Number.isFinite(z) ? z : 0,
+      })),
+    };
+  });
+  const signal = (label) => {
+    const hand = hands.find((item) => item.label === label);
+    const confidence = hand?.confidence || 0;
+    return {
+      found: !!hand && confidence >= minScore,
+      confidence,
+      label: hand?.label || (hands[0]?.label || 'None'),
+      reason: !hands.length ? 'no-hand' : !hand ? `other:${hands[0].label}`
+        : confidence < minScore ? 'low-confidence' : 'recognized',
+    };
+  };
+  return { v: signal('Victory'), thumb: signal('Thumb_Up'), hands };
+}
+
 export function anglesFromCentroid(u, v, w, h, c0n, fovDeg) {
   const fx = (w / 2) / Math.tan(((fovDeg * Math.PI) / 180) / 2);
   const cx = c0n ? c0n.x * w : w / 2;
@@ -467,7 +225,6 @@ export class CamTracker {
     this.dualMissing = { left: 0, right: 0 }; // кадров, где метка обязана быть, а её нет
     this.markerEntity = { left: { seenSince: 0, lastSeen: 0, confirmed: false }, right: { seenSince: 0, lastSeen: 0, confirmed: false }, single: { seenSince: 0, lastSeen: 0, confirmed: false } };
     this.markerShape = null;      // последняя измеренная форма пятна     // pair|single|conflict|tiny|same|lowtrust|step|lost
-    this.skinProfile = null;
     this.gestureEnabled = false;
     this.gestureV = false;
     this.gestureConfidence = 0;
@@ -503,12 +260,16 @@ export class CamTracker {
     this._workerBusy = false;
     this._workerFails = 0;
     this._workerMode = false;
+    this.gestureStatus = 'idle';
+    this.gestureError = '';
+    this.gestureRaw = null;
+    this.gestureInferenceMs = 0;
+    this.gestureThreshold = GESTURE_MIN_SCORE;
   }
 
   async start(video) {
     if (this.running && this.video === video) return;
     this.stop();
-    this.skinProfile = readSkinProfile();
     let stream;
     // Поток маленький и небыстрый: полный сенсор греет SoC и дорого
     // декодируется; для метки 640x480@24 за глаза.
@@ -552,6 +313,12 @@ export class CamTracker {
     this.thumbHits = [];
     this._workerMode = false;
     this._workerBusy = false;
+    if (this._worker && typeof this._worker.terminate === 'function') this._worker.terminate();
+    this._worker = undefined;
+    this.gestureStatus = 'idle';
+    this.gestureError = '';
+    this.gestureRaw = null;
+    this.gestureInferenceMs = 0;
   }
 
   _fx(w) { return (w / 2) / Math.tan(((this.fovDeg * Math.PI) / 180) / 2); }
@@ -964,7 +731,9 @@ export class CamTracker {
   }
 
   _applyResult(res, w, h) {
-    this._applyGesture(res && res.gesture);
+    if (this.gestureEnabled && res && Object.prototype.hasOwnProperty.call(res, 'gesture')) {
+      this._applyGesture(res.gesture);
+    }
     if (this.dual && res && res.markers) return this._applyDualResult(res, w, h);
     const wasFound = this.found;
     const now = performance.now();
@@ -1003,10 +772,11 @@ export class CamTracker {
 
   processImageData(data, w, h) {
     this.lastFrame = { data, w, h };
-    const gesture = this.gestureEnabled ? analyzeGestures(data, w, h, this.skinProfile) : null;
+    // Pixel-only gesture fallback was removed. These main-thread frames are
+    // for marker/look tracking only; do not overwrite the async ML result.
     const res = this.dual
-      ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin), gesture }
-      : { ...analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin), gesture };
+      ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin) }
+      : analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin);
     return this._applyResult(res, w, h);
   }
 
@@ -1030,21 +800,52 @@ export class CamTracker {
   ensureWorker() {
     if (this._worker !== undefined) return this._worker;
     try {
-      const wk = new Worker(new URL('./camtrack-worker.js', import.meta.url), { type: 'module' });
+      const wk = new Worker(new URL('./camtrack-worker.js', import.meta.url));
       wk.onmessage = (e) => {
         const m = e.data || {};
-        this._workerBusy = false;
-        this._workerFails = 0;
-        if (typeof m.procMs === 'number') this._adapt(m.procMs, performance.now());
-        if (m.w && m.h) this._applyResult(m, m.w, m.h);
+        if (m.gestureStatus === 'error') {
+          this.gestureStatus = 'error';
+          this.gestureError = m.gestureError || 'MediaPipe failed';
+          this._applyGesture(null);
+        } else if (m.gestureStatus && this.gestureStatus !== 'error') {
+          // Worker faults remain latched until stop()/a new ride resets it.
+          // A late 'ready' must not hide an already-failed or timed-out Worker.
+          if (!(m.gestureStatus === 'ready' && this.gestureEnabled && !this._workerMode)) {
+            this.gestureStatus = m.gestureStatus;
+            this.gestureError = m.gestureError || '';
+          }
+        }
+        if (m.gestureRaw && this.gestureStatus !== 'error') this.gestureRaw = m.gestureRaw;
+        if (Number.isFinite(m.gestureInferenceMs)) this.gestureInferenceMs = m.gestureInferenceMs;
+        if (m.w && m.h) {
+          this._workerBusy = false;
+          this._workerFails = 0;
+          if (typeof m.procMs === 'number') this._adapt(m.procMs, performance.now());
+          // Preserve marker tracking from a late result, but never allow it to
+          // reactivate a control after the model/Worker has failed.
+          this._applyResult(this.gestureEnabled && (this.gestureStatus === 'error' || !this._workerMode)
+            ? { ...m, gesture: null, gestureRaw: [] } : m, m.w, m.h);
+        }
       };
-      wk.onerror = () => { this._worker = null; this._workerBusy = false; };
+      wk.onerror = (event) => {
+        this._worker = null; this._workerBusy = false;
+        this.gestureStatus = 'error'; this.gestureError = event?.message || 'MediaPipe worker failed';
+        this._applyGesture(null);
+      };
       this._worker = wk;
     } catch { this._worker = null; }
     return this._worker;
   }
   useWorkerMode() {
-    this._workerMode = !!this.ensureWorker();
+    const wk = this.ensureWorker();
+    this._workerMode = !!wk;
+    if (wk && this.gestureEnabled && this.gestureStatus === 'idle') {
+      this.gestureStatus = 'loading';
+      wk.postMessage({ type: 'initGesture' });
+    }
+    if (!wk && this.gestureEnabled) {
+      this.gestureStatus = 'error'; this.gestureError = 'Web Worker is unavailable';
+    }
     return this._workerMode;
   }
   workerActive() { return !!(this._workerMode && this._worker); }
@@ -1054,36 +855,47 @@ export class CamTracker {
     const vid = this.video;
     if (!wk || this._workerBusy || !vid || !vid.videoWidth) return;
     this._workerBusy = true;
-    const targetW = this.procW;
+    const targetW = Math.max(this.procW, this.gestureEnabled ? 320 : this.procW);
     const targetH = Math.max(2, Math.round((targetW * vid.videoHeight) / vid.videoWidth));
     let bmpPromise;
     try { bmpPromise = createImageBitmap(vid, { resizeWidth: targetW, resizeHeight: targetH }); }
     catch { bmpPromise = null; }
     if (!bmpPromise || typeof bmpPromise.then !== 'function') {
-      // createImageBitmap с ресайзом недоступен — тихий фолбэк на главный поток
+      // Color tracking may fall back to the main thread, but gesture input may
+      // not: no MediaPipe result means release throttle and report unavailable.
       this._workerBusy = false;
       this._workerMode = false;
+      if (this.gestureEnabled) {
+        this.gestureStatus = 'error'; this.gestureError = 'createImageBitmap is unavailable';
+      }
       this.processMain();
       return;
     }
     bmpPromise.then((bmp) => {
       try {
         wk.postMessage({
-          bitmap: bmp, hue: this.hue, hues: this.dual ? [this.hueA, this.hueB] : null,
-          dual: this.dual, gesture: this.gestureEnabled, skinProfile: this.skinProfile, tol: this.tol, satMin: this.satMin,
+          bitmap: bmp, timestampMs: performance.now(), hue: this.hue, hues: this.dual ? [this.hueA, this.hueB] : null,
+          dual: this.dual, gesture: this.gestureEnabled, tol: this.tol, satMin: this.satMin,
           c0n: this.c0n, fovDeg: this.fovDeg,
         }, [bmp]);
       } catch { this._workerBusy = false; this._noteWorkerFail(); }
     }).catch(() => { this._workerBusy = false; this._noteWorkerFail(); });
-    // Страховка: воркер молчит дольше 900 мс — кадр потерян, считаем отказ.
-    // Два отказа подряд — воркер отключается, дальше дешёвый главный поток.
+    // Long initialization/inference gets a generous guard; repeated hangs fail closed.
+    // Gestures never fall back to main-thread image heuristics.
     setTimeout(() => {
       if (this._workerBusy) { this._workerBusy = false; this._noteWorkerFail(); }
-    }, 900);
+    }, 8000);
   }
   _noteWorkerFail() {
     this._workerFails++;
-    if (this._workerFails >= 2) this._workerMode = false; // дальше — главный поток
+    if (this._workerFails >= 2) {
+      this._workerMode = false; // no gesture fallback; preserve fail-stop
+      if (this.gestureEnabled) {
+        this.gestureStatus = 'error';
+        this.gestureError = 'MediaPipe worker timed out';
+        this._applyGesture(null);
+      }
+    }
   }
 
   // Точка входа из игрового цикла: в поездке — воркер, иначе главный поток.
@@ -1091,6 +903,14 @@ export class CamTracker {
     if (this.synthetic) return this.found;
     if (this._workerMode && this.running && this.video) {
       this._kickWorker();
+      return this.found;
+    }
+    if (this.gestureEnabled) {
+      if (this.running && this.video) this.processMain(); // color/look fallback only
+      this._applyGesture(null); // missing Worker/result must always release controls
+      // No worker means the gesture has no raw result; never fall back to the
+      // retired skin/silhouette classifier.
+      if (!this.workerActive() && this.gestureStatus !== 'error') this.gestureStatus = 'unavailable';
       return this.found;
     }
     return this.processMain();
@@ -1248,60 +1068,19 @@ export class CamTracker {
     return this.gestureV;
   }
 
-  // QA: минимальный skin-colored силуэт проходит тот же анализатор, что и
-  // ImageBitmap из Worker. Это не используется игрой — только synthetic QA.
-  injectGestureFrame(on = true, w = 160, h = 120) {
+  // QA-only injection exercises the same state/safety gate without camera pixels.
+  injectGestureFrame(on = true) {
     this.synthetic = true;
-    const data = new Uint8ClampedArray(w * h * 4);
-    if (!on) return this.processImageData(data, w, h);
-    const put = (x, y) => {
-      if (x < 0 || x >= w || y < 0 || y >= h) return;
-      const i = (y * w + x) * 4;
-      data[i] = 200; data[i + 1] = 140; data[i + 2] = 110; data[i + 3] = 255;
-    };
-    const disc = (cx, cy, r) => {
-      for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++)
-        if ((x - cx) ** 2 + (y - cy) ** 2 <= r * r) put(x, y);
-    };
-    const stroke = (x0, y0, x1, y1, r) => {
-      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-      for (let i = 0; i <= n; i++) {
-        const k = n ? i / n : 0;
-        disc(Math.round(x0 + (x1 - x0) * k), Math.round(y0 + (y1 - y0) * k), r);
-      }
-    };
-    disc(80, 82, 25);
-    stroke(70, 75, 57, 20, 7);
-    stroke(90, 75, 104, 20, 7);
-    return this.processImageData(data, w, h);
+    const gesture = { v: { found: !!on, confidence: on ? 1 : 0 }, thumb: { found: false, confidence: 0 } };
+    this._applyGesture(gesture);
+    return { gesture: { found: !!on, ...gesture } };
   }
 
-  // QA: a broad fist with one short side protrusion (thumbs-up).
-  injectThumbFrame(on = true, w = 160, h = 120) {
+  injectThumbFrame(on = true) {
     this.synthetic = true;
-    const data = new Uint8ClampedArray(w * h * 4);
-    if (!on) return this.processImageData(data, w, h);
-    const put = (x, y) => {
-      if (x < 0 || x >= w || y < 0 || y >= h) return;
-      const i = (y * w + x) * 4;
-      data[i] = 200; data[i + 1] = 140; data[i + 2] = 110; data[i + 3] = 255;
-    };
-    for (let y = 62; y <= 105; y++) for (let x = 55; x <= 105; x++) put(x, y);
-    const stroke = (x0, y0, x1, y1, r) => {
-      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
-      for (let i = 0; i <= n; i++) {
-        const k = n ? i / n : 0;
-        const cx = Math.round(x0 + (x1 - x0) * k);
-        const cy = Math.round(y0 + (y1 - y0) * k);
-        for (let yy = cy - r; yy <= cy + r; yy++) for (let xx = cx - r; xx <= cx + r; xx++)
-          if ((xx - cx) ** 2 + (yy - cy) ** 2 <= r * r) put(xx, yy);
-      }
-    };
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      if ((x - 80) ** 2 + (y - 82) ** 2 <= 25 ** 2) put(x, y);
-    }
-    stroke(90, 65, 90, 28, 9);
-    return this.processImageData(data, w, h);
+    const gesture = { v: { found: false, confidence: 0 }, thumb: { found: !!on, confidence: on ? 1 : 0 } };
+    this._applyGesture(gesture);
+    return { gesture: { found: false, ...gesture } };
   }
 
   injectEmpty(w = 320, h = 240) {
@@ -1330,6 +1109,11 @@ export class CamTracker {
       gestureFresh: this.gestureFresh(), gestureConfidence: +this.gestureConfidence.toFixed(2),
       thumbUp: !!this.thumbUp, thumbFresh: this.thumbFresh(),
       thumbConfidence: +this.thumbConfidence.toFixed(2),
+      gestureStatus: this.gestureStatus || 'idle', gestureError: this.gestureError || '',
+      gestureRaw: this.gestureRaw || null, gestureInferenceMs: +((this.gestureInferenceMs || 0).toFixed(1)),
+      gestureLastAt: this.gestureLastAt || 0,
+      gestureAgeMs: this.gestureLastAt ? Math.max(0, Math.round(performance.now() - this.gestureLastAt)) : null,
+      gestureThreshold: this.gestureThreshold ?? GESTURE_MIN_SCORE,
       dualVisible: [...this.dualVisible], lastLostMarker: this.lastLostMarker, lostMarkers: [...this.lostMarkers],
       pairState: this.pairState,
       dualTrust: { left: +this.dualTrust.left.toFixed(2), right: +this.dualTrust.right.toFixed(2) },

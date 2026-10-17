@@ -956,19 +956,24 @@ function updateCamPrepUi() {
   }
   const info = camTracker.info();
   if (gestureInputEnabled()) {
+    const modelStatus = info.gestureStatus === 'loading'
+      ? 'Модель MediaPipe загружается — жесты пока выключены. '
+      : info.gestureStatus === 'error' || info.gestureStatus === 'unavailable'
+        ? `Распознаватель недоступен${info.gestureError ? ` (${info.gestureError})` : ''} — управление остановлено. `
+        : info.gestureStatus !== 'ready' ? 'MediaPipe ещё не готов — управление остановлено. ' : '';
     const vStatus = !info.gestureFresh
-      ? '✌️ V не виден — zoom 1×.'
+      ? '✌️ V не подтверждён — zoom 1×.'
       : info.gestureV
-        ? '✌️ V распознан — zoom включён.'
-        : '✌️ поднимите указательный и средний пальцы.';
+        ? `✌️ V ${Math.round(info.gestureConfidence * 100)}% — zoom включён.`
+        : '✌️ V не распознан — zoom 1×.';
     const thumbStatus = !info.thumbFresh
-      ? '👍 камера не видит руку — стоп.'
+      ? '👍 сигнал устарел — стоп.'
       : info.thumbUp
-        ? '👍 большой палец виден — газ.'
-        : '👍 большой палец не поднят — стоп.';
-    el.vrGestureStatus.textContent = gestureDriverEnabled()
+        ? `👍 Thumb_Up ${Math.round(info.thumbConfidence * 100)}% — газ.`
+        : `👍 Thumb_Up ${Math.round(info.thumbConfidence * 100)}% — стоп.`;
+    el.vrGestureStatus.textContent = `${modelStatus}${gestureDriverEnabled()
       ? `${thumbStatus} ${vStatus} Руление — автопилот.`
-      : vStatus;
+      : vStatus}`;
   }
   if (vrSettings.lookMode === 'camera-dual') {
     el.vrCamDualStatus.textContent = !info.running && !info.synthetic
@@ -1150,9 +1155,12 @@ document.querySelectorAll('.vr-cam-color').forEach((b) => b.addEventListener('cl
   SFX.play('click');
 }));
 setInterval(() => {
-  if (!el.vrScreen.classList.contains('hidden') && camTracker && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
+  if (!camTracker) return;
+  if (!el.vrScreen.classList.contains('hidden') && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
     camTracker.processMain();
     updateCamPrepUi();
+  } else if (game.vrRide && game.gestureOn) {
+    updateCamPrepUi(); // surface model load/failure state while driving too
   }
 }, 150);
 el.vrIpd.addEventListener('input', () => {
@@ -1179,9 +1187,6 @@ el.btnVrStart.addEventListener('click', async () => {
       await tracker.start(el.vrCamVideo);
       tracker.useWorkerMode();
       updateCamPrepUi();
-      if (gestureInputEnabled()) {
-        el.vrGestureStatus.textContent = '✅ Задняя камера разрешена и включена. Жесты обрабатываются локально; проверь распознавание в комнате «Проверка жестов».';
-      }
     } catch (e) {
       const message = e && e.message ? e.message : String(e);
       const status = `Камера не запустилась: ${message}. Нужны HTTPS, разрешение и задняя камера.`;
