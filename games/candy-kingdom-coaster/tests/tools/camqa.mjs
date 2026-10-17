@@ -585,7 +585,79 @@ record('две метки — доказательство «прямо с лё�
   { взгляд: +sides.straight.look.yaw.toFixed(1), пара: sides.straight.look.pairFixation,
     состояние: sides.straight.info.pairState });
 
-// 9f. время явного наблюдения: 0.1 с — ещё не метка, 0.3 с — уже сущность.
+// 9e3. симметрия: правее правой левую тоже не ищем. Когда видна только
+// правая метка, оранжевое пятно справа от неё — чужое: оно не ведёт взгляд
+// и не продлевает жизнь сущности левой метки.
+const rightAlien = await page.evaluate(async (PACE_MS) => {
+  const pace = (ms = PACE_MS) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  const at = (deg) => Math.round(160 + 251.1 * Math.tan((deg * Math.PI) / 180));
+  const pair = (th) => T.camFeedDual(at(th - 17.3), 120, at(th + 17.3), 120, 26);
+  const rightOnly = (th) => T.camFeedDual(null, null, at(th + 17.3), 120, 26);
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  for (const th of [-2, -4, -6, -8]) { pair(th); await pace(); }
+  for (const th of [-12, -18, -24, -28, -28]) { rightOnly(th); await pace(); }
+  const clean = { look: T.camLook(), info: T.camInfo() };
+  // оранжевое пятно СПРАВА от правой метки (u=150 при правой на 113)
+  const frames = [];
+  for (let i = 0; i < 4; i++) { frames.push(T.camFeedDual(150, 120, at(-28 + 17.3), 120, 26).info); await pace(); }
+  const alien = { look: T.camLook(), info: frames[frames.length - 1] };
+  // и через 0.6 с пятно всё ещё не сделало левую «сущностью»
+  for (let i = 0; i < 6; i++) { T.camFeedDual(150, 120, at(-28 + 17.3), 120, 26); await pace(); }
+  const later = T.camInfo();
+  return { clean, alien, later };
+}, PACE_MS);
+record('правее правой: оранжевое пятно не ведёт взгляд и не становится левой меткой',
+  rightAlien.alien.info.dualUsed.join('+') === 'right'
+    && rightAlien.alien.info.dualDeltas[0].expected === false
+    // пятно не тянет взгляд в СВОЮ сторону: угол только доезжает за правой
+    && rightAlien.alien.look.yaw <= rightAlien.clean.look.yaw + 0.5,
+  { в_счёт: rightAlien.alien.info.dualUsed,
+    ожидалась_левая: rightAlien.alien.info.dualDeltas[0].expected,
+    дельта_чужого: rightAlien.alien.info.dualDeltas[0].deltaYaw,
+    residual: rightAlien.alien.info.dualDeltas[0].residual,
+    взгляд: +rightAlien.alien.look.yaw.toFixed(1), было: +rightAlien.clean.look.yaw.toFixed(1),
+    состояние: rightAlien.alien.info.pairState });
+record('правее правой: чужое пятно не продлевает жизнь сущности левой метки',
+  rightAlien.later.markerEntity.left.ms === 0
+    && rightAlien.later.markers[0].entity === false,
+  { сущность_левой: rightAlien.later.markerEntity.left,
+    entity: rightAlien.later.markers[0].entity,
+    found: rightAlien.later.markers[0].found });
+
+// 9e4. порог сущности 0.15 с: 0.08 с ещё нет, 0.18 с — уже да.
+// (Раньше было 0.3 с; владелец попросил вдвое быстрее.)
+const fastEntity = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  await sleep(80);
+  const young = T.camFeedDual(82, 120, 238, 120, 26).info;
+  await sleep(110);
+  const grown = T.camFeedDual(82, 120, 238, 120, 26).info;
+  await sleep(60);
+  const older = T.camFeedDual(82, 120, 238, 120, 26).info;
+  return { young, grown, older };
+});
+record('сущность появляется за 0.15 с: 0.08 с — ещё нет, 0.18 с — уже да',
+  fastEntity.young.markerEntity.left.confirmed === false
+    && fastEntity.young.found === false
+    && fastEntity.grown.markerEntity.left.confirmed === true
+    && fastEntity.grown.found === true
+    && fastEntity.grown.markers[0].entityMs >= 150,
+  { через_0_08_с: { confirmed: fastEntity.young.markerEntity.left.confirmed, found: fastEntity.young.found },
+    через_0_18_с: { confirmed: fastEntity.grown.markerEntity.left.confirmed, found: fastEntity.grown.found,
+      entityMs: fastEntity.grown.markers[0].entityMs },
+    через_0_24_с: fastEntity.older.markers[0].entityMs });
+
+// 9f. время явного наблюдения: 0.1 с — ещё не метка, 0.36 с — уже сущность.
 const entity = await page.evaluate(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const T = window.__TEST__;
@@ -601,7 +673,7 @@ const entity = await page.evaluate(async () => {
   const ok = okFeed.info;                       // ~0.36 с наблюдения
   return { first, short, ok };
 });
-record('сущность: 0.1 с наблюдения — ещё не метка, 0.3+ с — уже метка',
+record('сущность: 0.1 с наблюдения — ещё не метка, 0.15+ с — уже метка',
   entity.first.markerEntity.left.confirmed === false && entity.first.markerEntity.right.confirmed === false
     && entity.first.found === false && entity.short.markerEntity.left.confirmed === false
     && entity.ok.markerEntity.left.confirmed === true && entity.ok.markerEntity.right.confirmed === true

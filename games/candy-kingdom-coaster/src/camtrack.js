@@ -301,11 +301,11 @@ const DUAL_EDGE_SLACK_DEG = 8;     // запас у края: за ним мет
 const DUAL_PREDICT_S = 0.35;       // дальше этого срока не экстраполируем
 
 // Метка становится «сущностью» только после явного наблюдения: одиночный
-// кадр на 0.1 с — ещё не метка, нужно не меньше 0.3 с. Однажды подтверждённая
+// кадр на 0.1 с — ещё не метка, нужно не меньше 0.15 с. Однажды подтверждённая
 // метка остаётся сущностью, пока не пропадёт надолго (4 с — столько же живёт
 // удержание взгляда): вернувшаяся знакомая коробка не ждёт подтверждения
-// заново, а вот всё, что появилось «из небытия», обязано прожить 0.3 с.
-const MARKER_CONFIRM_MS = 300;
+// заново, а вот всё, что появилось «из небытия», обязано прожить 0.15 с.
+const MARKER_CONFIRM_MS = 150;  // сущность: 0.15 с явного наблюдения
 const MARKER_IDENTITY_MS = 4000;
 // Метка — горизонтальный прямоугольник: длинная сторона в горизонтальной
 // плоскости. Заполненность отсекает блики/контуры, пропорции — круги и
@@ -523,7 +523,7 @@ export class CamTracker {
   }
 
   // Забыть метку совсем (QA: проверить, что новое появление снова требует
-  // 0.3 с). Без аргумента — все метки.
+  // 0.15 с). Без аргумента — все метки.
   forgetMarkerEntities(id = null) {
     for (const key of Object.keys(this.markerEntity || {})) {
       if (id && key !== id) continue;
@@ -694,17 +694,24 @@ export class CamTracker {
     const impossible = visible.filter((m) => !m.expected);
     for (const m of impossible) this.dualTrust[m.id] = Math.max(0, this.dualTrust[m.id] - 0.5);
 
-    // Сущность и форма каждой видимой метки. Сущность — не меньше 0.3 с
+    // Сущность и форма каждой видимой метки. Сущность — не меньше 0.15 с
     // явного непрерывного наблюдения (или недавняя проверенная идентичность).
     // Форма — горизонтальный прямоугольник, а не «абы что».
     for (const m of visible) {
+      m.shape = this._markerShapeOf(m, w, h, this.dualBaseShape && this.dualBaseShape[m.id]);
+      m.shapeOk = m.shape.ok;
+      // Сущность засчитывает только метка, которая ПО ГЕОМЕТРИИ может быть в
+      // кадре. Пятно чужого оттенка не на своём месте (оранжевое правее
+      // правой метки, когда левая давно за краем) не должно продлевать жизнь
+      // чужой сущности и не должно «доказывать» её возвращение.
+      if (!m.expected) { m.entity = false; m.entityMs = 0; continue; }
       const st = this._markerEntityState(m.id, true, now);
       m.entity = !!st.confirmed;
       m.entityMs = m.entity ? Math.round(now - st.seenSince) : 0;
-      m.shape = this._markerShapeOf(m, w, h, this.dualBaseShape && this.dualBaseShape[m.id]);
-      m.shapeOk = m.shape.ok;
     }
-    for (const id of ['left', 'right']) if (!visible.some((m) => m.id === id)) this._markerEntityState(id, false, now);
+    for (const id of ['left', 'right']) {
+      if (!visible.some((m) => m.id === id && m.expected)) this._markerEntityState(id, false, now);
+    }
     this.markerShape = visible.length ? visible[visible.length - 1].shape : null;
 
     const usable = visible.filter((m) => m.expected && !tiny(m) && m.entity && m.shapeOk);
@@ -720,7 +727,7 @@ export class CamTracker {
     if (!visible.length) {
       state = 'lost';
     } else if (!usable.length) {
-      // Ничего, что можно пустить в счёт: либо метка ещё не прожила 0.3 с,
+      // Ничего, что можно пустить в счёт: либо метка ещё не прожила 0.15 с,
       // либо это не прямоугольник. Взгляд не двигаем — держим прежний угол.
       if (visible.some((m) => !m.entity)) state = 'acquiring';
       else if (visible.some((m) => !m.shapeOk)) state = 'shape';
@@ -845,7 +852,7 @@ export class CamTracker {
     const wasFound = this.found;
     const now = performance.now();
     this.frameW = w; this.frameH = h;
-    // Одна метка — та же дисциплина: сущность после 0.3 с наблюдения и форма
+    // Одна метка — та же дисциплина: сущность после 0.15 с наблюдения и форма
     // горизонтального прямоугольника. Пока метка не сущность, взгляд держим.
     const shape = this._markerShapeOf(res, w, h);
     this.markerShape = shape;
