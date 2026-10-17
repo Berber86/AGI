@@ -81,20 +81,67 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   };
 }
 
+// Калибровка chroma по центру кадра (ладонь должна занимать его центр).
+// Тонкие цвета лучше подбираются индивидуально, чем универсальным «цветом кожи».
+const ycbcrOf = (r, g, b) => ({
+  y: 0.299 * r + 0.587 * g + 0.114 * b,
+  cb: 128 - 0.168736 * r - 0.331264 * g + 0.5 * b,
+  cr: 128 + 0.5 * r - 0.418688 * g - 0.081312 * b,
+});
+const median = (values) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+};
+export function calibrateSkinColor(data, w, h) {
+  const cbs = [], crs = [];
+  const x0 = Math.floor(w * 0.36), x1 = Math.ceil(w * 0.64);
+  const y0 = Math.floor(h * 0.34), y1 = Math.ceil(h * 0.66);
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const i = (y * w + x) * 4;
+    const { y: lum, cb, cr } = ycbcrOf(data[i], data[i + 1], data[i + 2]);
+    // Wide plausibility gate is used only to seed calibration; final mask is narrow.
+    if (lum < 35 || cb < 68 || cb > 145 || cr < 118 || cr > 192) continue;
+    cbs.push(cb); crs.push(cr);
+  }
+  if (cbs.length < 24) return null;
+  const cb = median(cbs), cr = median(crs);
+  const cbMad = median(cbs.map((v) => Math.abs(v - cb)));
+  const crMad = median(crs.map((v) => Math.abs(v - cr)));
+  return {
+    cb: +cb.toFixed(1), cr: +cr.toFixed(1),
+    tolCb: +Math.max(12, Math.min(26, cbMad * 3.2 + 5)).toFixed(1),
+    tolCr: +Math.max(12, Math.min(30, crMad * 3.2 + 5)).toFixed(1),
+    samples: cbs.length,
+  };
+}
+export function readSkinProfile() {
+  try {
+    const p = JSON.parse(localStorage.getItem('ckc_gesture_skin_profile') || 'null');
+    if (p && [p.cb, p.cr, p.tolCb, p.tolCr].every(Number.isFinite)) return p;
+  } catch { /* storage is optional */ }
+  return null;
+}
+
 // Дешёвый экспериментальный анализ жестов без тяжёлой hand-pose модели.
 // Маска и silhouette-профиль намеренно консервативны: при плохом кадре
 // результат false, а не догадка. V и thumbs-up возвращаются одним Worker
 // результатом, чтобы не заводить второй camera/runtime pipeline.
-function skinMask(data, w, h) {
+function skinMask(data, w, h, profile = null) {
   const mask = new Uint8Array(w * h);
   let count = 0;
+  const cbMin = profile ? profile.cb - profile.tolCb : 77;
+  const cbMax = profile ? profile.cb + profile.tolCb : 127;
+  const crMin = profile ? profile.cr - profile.tolCr : 133;
+  const crMax = profile ? profile.cr + profile.tolCr : 173;
   for (let i = 0, px = 0; px < w * h; px++, i += 4) {
     const r = data[i], g = data[i + 1], b = data[i + 2];
-    const y = 0.299 * r + 0.587 * g + 0.114 * b;
-    const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-    const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-    // Broad enough for different phones/skin tones; geometry rejects clutter.
-    if (y < 35 || cb < 68 || cb > 145 || cr < 118 || cr > 192) continue;
+    const { y, cb, cr } = ycbcrOf(r, g, b);
+    // Default bounds follow a conservative YCbCr skin chroma band instead of
+    // the old very broad range, which could mark most of a frame as skin.
+    // A palm calibration replaces these universal bounds with a narrow local
+    // chroma window so camera white balance / tan skin don't need exposure hacks.
+    if (y < 35 || cb < cbMin || cb > cbMax || cr < crMin || cr > crMax) continue;
     mask[px] = 1;
     count++;
   }
@@ -133,8 +180,8 @@ function largestSkinComponent(mask, w, h) {
 
 // Diagnostics for the standalone gesture room. Returns the same production
 // skin mask plus a concise reason when the silhouette gate rejects the frame.
-export function analyzeSkinMaskDiagnostics(data, w, h) {
-  const { mask, count } = skinMask(data, w, h);
+export function analyzeSkinMaskDiagnostics(data, w, h, profile = null) {
+  const { mask, count } = skinMask(data, w, h, profile);
   const minMask = Math.max(70, w * h * 0.004);
   const minComponent = Math.max(70, w * h * 0.006);
   let best = null;
@@ -157,8 +204,8 @@ export function analyzeSkinMaskDiagnostics(data, w, h) {
   };
 }
 
-function skinSilhouette(data, w, h) {
-  const { mask, count } = skinMask(data, w, h);
+function skinSilhouette(data, w, h, profile = null) {
+  const { mask, count } = skinMask(data, w, h, profile);
   if (count < Math.max(70, w * h * 0.004) || count > w * h * 0.75) return null;
   const best = largestSkinComponent(mask, w, h);
   if (!best || best.count < Math.max(70, w * h * 0.006)) return null;
@@ -185,8 +232,8 @@ function skinSilhouette(data, w, h) {
 }
 
 // Жест V: две высокие раздельные вершины силуэта.
-export function analyzeVGesture(data, w, h) {
-  const best = skinSilhouette(data, w, h);
+export function analyzeVGesture(data, w, h, profile = null) {
+  const best = skinSilhouette(data, w, h, profile);
   if (!best) return { found: false, confidence: 0 };
   const { minX, minY, maxY, bw, bh, smooth } = best;
   const candidates = [];
@@ -225,8 +272,8 @@ export function analyzeVGesture(data, w, h) {
 // Thumbs-up: one short, broad high protrusion attached to a wide fist.
 // The single-peak and height checks deliberately reject a V and a long,
 // narrow index finger; it is still a heuristic, so temporal debounce remains.
-export function analyzeThumbGesture(data, w, h) {
-  const best = skinSilhouette(data, w, h);
+export function analyzeThumbGesture(data, w, h, profile = null) {
+  const best = skinSilhouette(data, w, h, profile);
   if (!best) return { found: false, confidence: 0 };
   const { minX, minY, maxY, bw, bh, smooth, points, count } = best;
   const topLimit = minY + bh * 0.42;
@@ -267,9 +314,9 @@ export function analyzeThumbGesture(data, w, h) {
   };
 }
 
-export function analyzeGestures(data, w, h) {
-  const v = analyzeVGesture(data, w, h);
-  return { ...v, v, thumb: analyzeThumbGesture(data, w, h) };
+export function analyzeGestures(data, w, h, profile = null) {
+  const v = analyzeVGesture(data, w, h, profile);
+  return { ...v, v, thumb: analyzeThumbGesture(data, w, h, profile) };
 }
 
 // Две независимые цветовые метки. Пока размеры кадра малы, повторный
@@ -386,6 +433,7 @@ export class CamTracker {
     this.dualMissing = { left: 0, right: 0 }; // кадров, где метка обязана быть, а её нет
     this.markerEntity = { left: { seenSince: 0, lastSeen: 0, confirmed: false }, right: { seenSince: 0, lastSeen: 0, confirmed: false }, single: { seenSince: 0, lastSeen: 0, confirmed: false } };
     this.markerShape = null;      // последняя измеренная форма пятна     // pair|single|conflict|tiny|same|lowtrust|step|lost
+    this.skinProfile = null;
     this.gestureEnabled = false;
     this.gestureV = false;
     this.gestureConfidence = 0;
@@ -424,6 +472,7 @@ export class CamTracker {
   async start(video) {
     if (this.running && this.video === video) return;
     this.stop();
+    this.skinProfile = readSkinProfile();
     let stream;
     // Поток маленький и небыстрый: полный сенсор греет SoC и дорого
     // декодируется; для метки 640x480@24 за глаза.
@@ -914,7 +963,7 @@ export class CamTracker {
 
   processImageData(data, w, h) {
     this.lastFrame = { data, w, h };
-    const gesture = this.gestureEnabled ? analyzeGestures(data, w, h) : null;
+    const gesture = this.gestureEnabled ? analyzeGestures(data, w, h, this.skinProfile) : null;
     const res = this.dual
       ? { dual: true, markers: analyzeColorBlobs(data, w, h, [this.hueA, this.hueB], this.tol, this.satMin), gesture }
       : { ...analyzeColorBlob(data, w, h, this.hue, this.tol, this.satMin), gesture };
@@ -981,7 +1030,7 @@ export class CamTracker {
       try {
         wk.postMessage({
           bitmap: bmp, hue: this.hue, hues: this.dual ? [this.hueA, this.hueB] : null,
-          dual: this.dual, gesture: this.gestureEnabled, tol: this.tol, satMin: this.satMin,
+          dual: this.dual, gesture: this.gestureEnabled, skinProfile: this.skinProfile, tol: this.tol, satMin: this.satMin,
           c0n: this.c0n, fovDeg: this.fovDeg,
         }, [bmp]);
       } catch { this._workerBusy = false; this._noteWorkerFail(); }

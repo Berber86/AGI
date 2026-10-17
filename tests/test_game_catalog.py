@@ -64,12 +64,14 @@ class GameCatalogTests(unittest.TestCase):
         self.assertIn("from '../src/camtrack.js'", html)
         self.assertIn('analyzeSkinMaskDiagnostics', html)
         self.assertIn('mask-preview', html)
+        self.assertIn('Подстроить цвет по ладони', html)
+        self.assertIn("ckc_gesture_skin_profile", html)
         self.assertIn('facingMode: { exact: \'environment\' }', html)
         self.assertIn('stable-v', html)
         self.assertIn('stable-thumb', html)
         sw = (ROOT / 'games/candy-kingdom-coaster/sw.js').read_text()
         self.assertIn("'./gesture-stand/index.html'", sw)
-        self.assertIn("ckc-v51", sw)
+        self.assertIn("ckc-v52", sw)
 
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags

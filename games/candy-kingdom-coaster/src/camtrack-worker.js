@@ -20,7 +20,7 @@ self.onmessage = (e) => {
     ctx.drawImage(m.bitmap, 0, 0);
     if (m.bitmap.close) m.bitmap.close();
     const img = ctx.getImageData(0, 0, cnv.width, cnv.height);
-    const gesture = m.gesture ? analyzeGestures(img.data, cnv.width, cnv.height) : null;
+    const gesture = m.gesture ? analyzeGestures(img.data, cnv.width, cnv.height, m.skinProfile || null) : null;
     if (m.dual && Array.isArray(m.hues)) {
       const markers = analyzeColorBlobs(img.data, cnv.width, cnv.height, m.hues, m.tol, m.satMin);
       self.postMessage({ dual: true, markers, gesture, w: cnv.width, h: cnv.height, procMs: performance.now() - t0 });

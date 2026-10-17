@@ -57,8 +57,11 @@
     <div class="controls">
       <button id="start">📷 Включить заднюю камеру</button>
       <button id="stop" class="secondary" disabled>Остановить</button>
+      <button id="calibrate" class="secondary" disabled>🎨 Подстроить цвет по ладони в центре</button>
+      <button id="reset-profile" class="secondary">Сбросить цвет</button>
       <button id="copy" class="secondary" disabled>Скопировать отчёт</button>
     </div>
+    <p class="small" style="margin-top:8px">Сначала помести открытую ладонь по центру видео, затем нажми «Подстроить цвет». Значения сохранятся на этом устройстве и будут использованы игрой при следующем запуске камеры.</p>
     <div class="video"><video id="video" autoplay muted playsinline></video><canvas id="overlay"></canvas></div>
     <p id="status" role="status" aria-live="polite">Камера выключена. Нажми «Включить заднюю камеру» и разреши доступ.</p>
     <div class="metrics">
@@ -85,7 +88,7 @@
   <p class="privacy">Видео обрабатывается только в этой вкладке на устройстве. Ничего не записывается и не отправляется. Разрешение камеры требуется по HTTPS или на localhost.</p>
 </main>
 <script type="module">
-  import { analyzeGestures, analyzeSkinMaskDiagnostics } from '../src/camtrack.js';
+  import { analyzeGestures, analyzeSkinMaskDiagnostics, calibrateSkinColor, readSkinProfile } from '../src/camtrack.js';
 
   const $ = (id) => document.getElementById(id);
   const video = $('video'), overlay = $('overlay');
@@ -96,7 +99,8 @@
     stream: null, running: false, lastAt: 0, procMs: 0, fps: 0,
     vOn: 0, vOff: 0, thumbOn: 0, thumbOff: 0, vStable: false, thumbStable: false,
     raw: { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } },
-    frames: 0, startedAt: 0, lastLine: '', skinDiag: null,
+    frames: 0, startedAt: 0, lastLine: '', skinDiag: null, lastFrame: null,
+    profile: readSkinProfile(),
   };
   const maskCanvas = $('mask-preview'), maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
   const reasonText = {
@@ -123,10 +127,11 @@
     const facing = settings.facingMode || 'браузер не сообщил';
     const ageMs = state.lastAt ? Math.round(performance.now() - state.lastAt) : null;
     $('details').textContent = state.running
-      ? `Камера: ${track?.label || 'название скрыто'}\nЗапрошена: задняя environment · Получена: ${facing}\nСенсор: ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · анализ: ${Math.round(state.fps)} кадр/с · ${state.procMs.toFixed(1)} мс/кадр\nСвежесть анализа: ${ageMs} мс · V пики: ${state.raw.v.peaks ? state.raw.v.peaks.map(p => `${p.u.toFixed(2)},${p.v.toFixed(2)}`).join(' / ') : '—'} · 👍 кончик: ${state.raw.thumb.tip ? `${state.raw.thumb.tip.u.toFixed(2)},${state.raw.thumb.tip.v.toFixed(2)}` : '—'}\nМаска: ${state.skinDiag ? `${state.skinDiag.skinPixels} skin px · крупнейшая связная область ${state.skinDiag.largestPixels} px · ${state.skinDiag.bounds ? `${state.skinDiag.bounds.width}×${state.skinDiag.bounds.height}` : 'нет bbox'} · ${state.skinDiag.reason}` : 'считается'}`
+      ? `Камера: ${track?.label || 'название скрыто'}\nЗапрошена: задняя environment · Получена: ${facing}\nСенсор: ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · анализ: ${Math.round(state.fps)} кадр/с · ${state.procMs.toFixed(1)} мс/кадр\nСвежесть анализа: ${ageMs} мс · V пики: ${state.raw.v.peaks ? state.raw.v.peaks.map(p => `${p.u.toFixed(2)},${p.v.toFixed(2)}`).join(' / ') : '—'} · 👍 кончик: ${state.raw.thumb.tip ? `${state.raw.thumb.tip.u.toFixed(2)},${state.raw.thumb.tip.v.toFixed(2)}` : '—'}\nМаска: ${state.skinDiag ? `${state.skinDiag.skinPixels} skin px · крупнейшая связная область ${state.skinDiag.largestPixels} px · ${state.skinDiag.bounds ? `${state.skinDiag.bounds.width}×${state.skinDiag.bounds.height}` : 'нет bbox'} · ${state.skinDiag.reason}` : 'считается'}\nЦветовой профиль: ${state.profile ? `калиброван Cb ${state.profile.cb}±${state.profile.tolCb}, Cr ${state.profile.cr}±${state.profile.tolCr}` : 'узкий универсальный диапазон'}`
       : 'Параметры камеры: —';
     if (state.skinDiag) $('diagnosis').textContent = reasonText[state.skinDiag.reason] || reasonText['shape-check'];
     $('stop').disabled = !state.running;
+    $('calibrate').disabled = !state.running || !state.lastFrame;
     $('copy').disabled = !state.running && !state.frames;
   }
   function drawOverlay() {
@@ -137,6 +142,9 @@
       overlay.width = Math.round(w * dpr); overlay.height = Math.round(h * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+    // Dashed box is the exact ROI used by the one-tap palm color calibration.
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(w * .36, h * .34, w * .28, h * .32); ctx.setLineDash([]);
     const points = [...(state.raw.v.peaks || []), ...(state.raw.thumb.tip ? [state.raw.thumb.tip] : [])];
     for (const p of points) {
       const x = p.u * w, y = p.v * h;
@@ -171,6 +179,7 @@
       `Последний raw V: ${format(state.raw.v)}; стабильный V: ${state.vStable}`,
       `Последний raw thumbs-up: ${format(state.raw.thumb)}; стабильный gas: ${state.thumbStable}`,
       `Маска: ${state.skinDiag ? `${state.skinDiag.skinPixels} пикселей кожи, связная область ${state.skinDiag.largestPixels}, причина: ${state.skinDiag.reason}` : 'нет данных'}`,
+      `Цветовой профиль: ${state.profile ? JSON.stringify(state.profile) : 'стандартный узкий YCbCr'}`,
       `Средняя частота анализа сейчас: ${Math.round(state.fps)} кадр/с; стоимость кадра: ${state.procMs.toFixed(1)} мс`,
       'Примечание: heuristics по rear camera image; не WebXR hand tracking.',
     ].join('\n');
@@ -182,10 +191,11 @@
     work.width = w; work.height = h;
     workCtx.drawImage(video, 0, 0, w, h);
     const image = workCtx.getImageData(0, 0, w, h);
-    const result = analyzeGestures(image.data, w, h);
+    state.lastFrame = { data: image.data, w, h };
+    const result = analyzeGestures(image.data, w, h, state.profile);
     state.raw = result;
     if (state.frames % 3 === 0) {
-      state.skinDiag = analyzeSkinMaskDiagnostics(image.data, w, h);
+      state.skinDiag = analyzeSkinMaskDiagnostics(image.data, w, h, state.profile);
       drawSkinMask(state.skinDiag, w, h);
     }
     if (result.v.found) { state.vOn++; state.vOff = 0; if (state.vOn >= 2) state.vStable = true; }
@@ -240,6 +250,30 @@
     $('diagnosis').textContent = 'Диагностика маски появится после первого кадра.';
   }
   $('stop').addEventListener('click', stopCamera);
+  $('calibrate').addEventListener('click', () => {
+    if (!state.lastFrame) return;
+    const p = calibrateSkinColor(state.lastFrame.data, state.lastFrame.w, state.lastFrame.h);
+    if (!p) {
+      $('status').textContent = 'Не удалось подобрать цвет: держи ладонь в центре и заполни ею примерно треть рамки.';
+      return;
+    }
+    state.profile = p;
+    let saved = true;
+    try { localStorage.setItem('ckc_gesture_skin_profile', JSON.stringify(p)); }
+    catch { saved = false; }
+    state.vStable = state.thumbStable = false;
+    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
+    $('status').textContent = `Профиль подобран: Cb ${p.cb}±${p.tolCb}, Cr ${p.cr}±${p.tolCr} (${p.samples} пикселей образца). ${saved ? 'Сохранён локально; в комнате обновится немедленно, в игре — после перезапуска вкладки.' : 'Браузер не сохранил его для игры; профиль действует только в этой комнате.'}`;
+    updateUi();
+  });
+  $('reset-profile').addEventListener('click', () => {
+    state.profile = null;
+    try { localStorage.removeItem('ckc_gesture_skin_profile'); } catch { /* storage optional */ }
+    state.vStable = state.thumbStable = false;
+    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
+    $('status').textContent = 'Калибровка сброшена. Будет использоваться узкий универсальный YCbCr диапазон; перезапусти игровую вкладку.';
+    updateUi();
+  });
   $('copy').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(reportText()); $('status').textContent = 'Отчёт скопирован. Можно отправить его вместе с описанием позы и освещения.'; }
     catch { $('status').textContent = reportText(); }
