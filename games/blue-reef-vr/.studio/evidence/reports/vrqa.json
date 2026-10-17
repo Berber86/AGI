@@ -1,0 +1,144 @@
+{
+  "suite": "vrqa",
+  "generatedAt": "2026-10-17T15:10:38.285Z",
+  "total": 26,
+  "passed": 26,
+  "failed": 0,
+  "viewport": {
+    "width": 900,
+    "height": 420
+  },
+  "note": "Синтетический прогон в headless Chromium: проверяет код, состояния и математику, но не заменяет живые очки и камеру.",
+  "results": [
+    {
+      "name": "limits: yaw ±70, pitch ±45",
+      "ok": true,
+      "detail": "{\"yawDeg\":70,\"pitchDeg\":45,\"baseline\":[10,150]}"
+    },
+    {
+      "name": "limits: baseline 10–150 cm",
+      "ok": true,
+      "detail": "[10,150]"
+    },
+    {
+      "name": "vr: не активен до явного старта",
+      "ok": true,
+      "detail": "\"off\""
+    },
+    {
+      "name": "vr: гироскоп не используется никогда",
+      "ok": true,
+      "detail": "gyro=false"
+    },
+    {
+      "name": "vr: стартует по команде",
+      "ok": true,
+      "detail": "{\"mode\":\"camera-dual\"}"
+    },
+    {
+      "name": "stereo: два квадрата по центру",
+      "ok": true,
+      "detail": "{\"side\":420,\"x0\":30,\"y0\":0,\"eyes\":[30,450]}"
+    },
+    {
+      "name": "vr: кадры считаются",
+      "ok": true,
+      "detail": "frames=11"
+    },
+    {
+      "name": "baseline: зажимается в 10…150 см",
+      "ok": true,
+      "detail": "[10,150,10,64]"
+    },
+    {
+      "name": "baseline: 64 см = 0.64 м в мировых единицах",
+      "ok": true,
+      "detail": "0.64 м"
+    },
+    {
+      "name": "look: рыскание не больше +70°",
+      "ok": true,
+      "detail": "70°"
+    },
+    {
+      "name": "look: наклон не больше +45°",
+      "ok": true,
+      "detail": "45°"
+    },
+    {
+      "name": "look: симметрично влево и вниз",
+      "ok": true,
+      "detail": "-70° / -45°"
+    },
+    {
+      "name": "hold: при потере метки взгляд удерживается",
+      "ok": true,
+      "detail": "дрейф 0.00°, source=held"
+    },
+    {
+      "name": "hold: взгляд не возвращается к центру",
+      "ok": true,
+      "detail": "35°"
+    },
+    {
+      "name": "forward: метка не двигает взгляд",
+      "ok": true,
+      "detail": "0° / 0°"
+    },
+    {
+      "name": "forward: источник — forward",
+      "ok": true,
+      "detail": "forward"
+    },
+    {
+      "name": "режим camera: гироскоп отключён",
+      "ok": true,
+      "detail": "{\"mode\":\"camera\",\"gyro\":false}"
+    },
+    {
+      "name": "режим camera-dual: гироскоп отключён",
+      "ok": true,
+      "detail": "{\"mode\":\"camera-dual\",\"gyro\":false}"
+    },
+    {
+      "name": "lookModes: ровно три режима без гироскопа",
+      "ok": true,
+      "detail": "forward,camera,camera-dual"
+    },
+    {
+      "name": "pause: время стоит на паузе",
+      "ok": true,
+      "detail": "Δ=0.000s"
+    },
+    {
+      "name": "resume: время снова идёт",
+      "ok": true,
+      "detail": "Δ=0.353s"
+    },
+    {
+      "name": "stop: VR выключается",
+      "ok": true,
+      "detail": "{\"active\":false,\"mode\":\"vr\"}"
+    },
+    {
+      "name": "stereo: кадр не чёрный",
+      "ok": true,
+      "detail": "яркость 144.7 / 144.6"
+    },
+    {
+      "name": "stereo: глаза видят мир со сдвигом (параллакс)",
+      "ok": true,
+      "detail": "разница половин 24.01"
+    },
+    {
+      "name": "baseline: смена 10→150 см меняет кадр",
+      "ok": true,
+      "detail": "35.5 % пикселей левого глаза"
+    },
+    {
+      "name": "нет ошибок страницы",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "generatedAt": "2026-10-17T14:54:09.936Z",
+  "viewport": {
+    "width": 900,
+    "height": 420
+  },
+  "preset": "smooth",
+  "renderer": "headless chromium + SwiftShader (software GL)",
+  "note": "Кадры сняты без GPU: числа доказывают, что сцена рисуется и меняется, но не доказывают FPS на телефоне.",
+  "cases": [
+    {
+      "id": "flat-center",
+      "mean": 137.7,
+      "std": 50.2,
+      "rgb": [
+        98,
+        155,
+        150
+      ],
+      "leftMean": 135.7,
+      "rightMean": 139.9,
+      "symmetry": 0.968,
+      "triangles": 94033.66666666666,
+      "calls": 24,
+      "lookSource": "off",
+      "whale": 62
+    },
+    {
+      "id": "flat-up",
+      "mean": 126.8,
+      "std": 59.7,
+      "rgb": [
+        69,
+        149,
+        167
+      ],
+      "leftMean": 126.1,
+      "rightMean": 127.2,
+      "symmetry": 0.991,
+      "triangles": 93893.66666666666,
+      "calls": 23,
+      "lookSource": "off",
+      "whale": 62
+    },
+    {
+      "id": "flat-down",
+      "mean": 190.7,
+      "std": 20.5,
+      "rgb": [
+        195,
+        195,
+        159
+      ],
+      "leftMean": 188.3,
+      "rightMean": 193,
+      "symmetry": 0.963,
+      "triangles": 93893.66666666666,
+      "calls": 23,
+      "lookSource": "off",
+      "whale": 61.7
+    },
+    {
+      "id": "flat-side",
+      "mean": 147.7,
+      "std": 49.8,
+      "rgb": [
+        110,
+        165,
+        157
+      ],
+      "leftMean": 148.8,
+      "rightMean": 146.7,
+      "symmetry": 0.983,
+      "triangles": 94033.66666666666,
+      "calls": 24,
+      "lookSource": "off",
+      "whale": 56.6
+    },
+    {
+      "id": "vr-center",
+      "mean": 134.7,
+      "std": 60.2,
+      "rgb": [
+        99,
+        151,
+        144
+      ],
+      "leftMean": 134.8,
+      "rightMean": 134.9,
+      "symmetry": 0.999,
+      "triangles": 93893.66666666666,
+      "calls": 23,
+      "lookSource": "camera",
+      "whale": 52.6
+    },
+    {
+      "id": "vr-turn",
+      "mean": 152.7,
+      "std": 58,
+      "rgb": [
+        133,
+        164,
+        145
+      ],
+      "leftMean": 153.2,
+      "rightMean": 152.7,
+      "symmetry": 0.996,
+      "triangles": 93893.66666666666,
+      "calls": 23,
+      "lookSource": "camera",
+      "whale": 27.7
+    },
+    {
+      "id": "vr-whale",
+      "mean": 126,
+      "std": 59.6,
+      "rgb": [
+        85,
+        144,
+        142
+      ],
+      "leftMean": 126.2,
+      "rightMean": 126,
+      "symmetry": 0.998,
+      "triangles": 93893.66666666666,
+      "calls": 23,
+      "lookSource": "camera",
+      "whale": 60.6
+    }
+  ],
+  "errors": []
+}

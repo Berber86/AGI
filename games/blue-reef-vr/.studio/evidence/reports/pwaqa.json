@@ -1,0 +1,51 @@
+{
+  "suite": "pwaqa",
+  "generatedAt": "2026-10-17T15:04:52.454Z",
+  "origin": "http://127.0.0.1:8899",
+  "total": 8,
+  "passed": 8,
+  "failed": 0,
+  "note": "Проверяет установку и офлайн-запуск в headless Chromium (127.0.0.1 считается безопасным контекстом).",
+  "results": [
+    {
+      "name": "manifest: отдаётся и заполнен",
+      "ok": true,
+      "detail": "Голубой риф, иконок 3"
+    },
+    {
+      "name": "manifest: есть маскируемая иконка",
+      "ok": true,
+      "detail": "any|any|maskable"
+    },
+    {
+      "name": "sw: регистрируется и активируется",
+      "ok": true,
+      "detail": "{\"scope\":\"http://127.0.0.1:8899/games/blue-reef-vr/\",\"active\":true,\"state\":\"activating\"}"
+    },
+    {
+      "name": "sw: два раздельных кэша — код и медиа",
+      "ok": true,
+      "detail": "brvr-v1, brvr-media-v1"
+    },
+    {
+      "name": "sw: кэш кода заполнен не меньше чем на 90 %",
+      "ok": true,
+      "detail": "[\"brvr-v1\",19]"
+    },
+    {
+      "name": "sw: медиа-кэш заполнен",
+      "ok": true,
+      "detail": "[\"brvr-media-v1\",16]"
+    },
+    {
+      "name": "offline: игра запускается без сети",
+      "ok": true,
+      "detail": "{\"mode\":\"menu\",\"preset\":\"balanced\"}"
+    },
+    {
+      "name": "нет ошибок страницы",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

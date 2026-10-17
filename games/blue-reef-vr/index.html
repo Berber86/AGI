@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0d3b4f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Голубой риф VR — подводная прогулка</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/jsm/"
+    }
+  }
+  </script>
+</head>
+<body data-mode="menu">
+  <canvas id="game-canvas"></canvas>
+  <div id="vr-divider" aria-hidden="true" class="hidden"></div>
+
+  <button type="button" id="btn-exit-flat" class="ghost-btn hidden">В меню</button>
+  <div id="flat-hint" class="hidden">Тяните пальцем или мышью — так можно осмотреться</div>
+  <div id="portrait-hint" class="hidden">Поверните телефон горизонтально: в очках нужны два квадрата рядом</div>
+
+  <!-- Загрузка -->
+  <section id="screen-loading" class="screen">
+    <div class="card">
+      <h1>Голубой риф</h1>
+      <p id="loading-text">Готовим воду…</p>
+    </div>
+  </section>
+
+  <!-- Главный экран -->
+  <section id="screen-home" class="screen hidden">
+    <div class="card">
+      <h1>Голубой риф VR</h1>
+      <p class="lead">Спокойная подводная прогулка для линзовых VR-очков. Ребёнок парит над песчаной
+        поляной и просто осматривается: мимо проплывают рыбы, колышутся кораллы, а вдали плывёт кит.
+        Управления нет — только голова.</p>
+      <div class="btn-row">
+        <button type="button" id="btn-flat" class="big-btn secondary">Смотреть на экране</button>
+        <button type="button" id="btn-vr" class="big-btn">Надеть VR-очки</button>
+      </div>
+      <button type="button" id="btn-help" class="link-btn">Как это устроено и куда ставить метки</button>
+      <div id="help-panel" class="help hidden">
+        <h2>Как это работает</h2>
+        <p>Телефон вставляется в картонные очки, экран делится на два квадрата — по одному на глаз.
+          Задняя камера смотрит на цветные коробки-метки в комнате: когда ребёнок поворачивает голову,
+          коробки смещаются в кадре, и игра поворачивает взгляд следом. Гироскоп не используется.</p>
+        <h2>Куда поставить метки</h2>
+        <p>Две коробки: одна спереди-слева, другая спереди-справа, примерно 60–80° друг от друга, на
+          уровне груди сидящего ребёнка, на расстоянии 1–2 метра. Коробки должны быть однотонными и
+          яркими (малиновая и оранжевая — удачный выбор), без бликов и без соседних предметов того же
+          цвета. Свет в комнате ровный, без лампы прямо в кадре.</p>
+        <h2>Порядок настройки</h2>
+        <ol>
+          <li>Выберите «По двум меткам» (или «По метке», если коробка одна).</li>
+          <li>Включите камеру, поднесите коробку в центр кадра, нажмите «Взять цвет».</li>
+          <li>Поставьте коробки на место, посмотрите прямо и нажмите «Смотрю прямо».</li>
+          <li>Нажмите «Надеть очки», вставьте телефон за 5 секунд.</li>
+        </ol>
+        <p class="muted">Сеанс бесконечный: выход — снять очки или закрыть страницу. Звука в игре нет.</p>
+        <button type="button" id="btn-help-close" class="link-btn">Свернуть подсказку</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Подготовка VR -->
+  <section id="screen-vr" class="screen hidden">
+    <div class="card wide">
+      <div class="card-head">
+        <h1>Настройка очков</h1>
+        <button type="button" id="btn-back-home" class="link-btn">Назад</button>
+      </div>
+
+      <h2>Как смотрим</h2>
+      <div id="look-modes" class="chip-row">
+        <button type="button" class="chip" data-look-mode="camera-dual" aria-pressed="false">По двум меткам</button>
+        <button type="button" class="chip" data-look-mode="camera" aria-pressed="false">По одной метке</button>
+        <button type="button" class="chip" data-look-mode="forward" aria-pressed="false">Просто смотреть прямо</button>
+      </div>
+
+      <div id="cam-dual-panel" class="panel">
+        <h2>Две метки</h2>
+        <div class="cam-row">
+          <div class="cam-video-slot" id="cam-slot-dual"><video id="cam-video" playsinline muted autoplay></video></div>
+          <div class="cam-side">
+            <button type="button" id="btn-cam-start" class="small-btn">Включить камеру</button>
+            <div class="chip-row tight">
+              <span class="chip-label">Левая:</span>
+              <span id="cam-colors-left" class="chip-row tight inline">
+                <button type="button" class="chip swatch" data-color="orange" style="--sw:#f15a24">Оранжевая</button>
+                <button type="button" class="chip swatch" data-color="lime" style="--sw:#22ff66">Лайм</button>
+                <button type="button" class="chip swatch" data-color="cyan" style="--sw:#00e5ff">Циан</button>
+              </span>
+            </div>
+            <button type="button" id="btn-cam-sample-left" class="small-btn">Взять цвет левой</button>
+            <div class="chip-row tight">
+              <span class="chip-label">Правая:</span>
+              <span id="cam-colors-right" class="chip-row tight inline">
+                <button type="button" class="chip swatch" data-color="raspberry" style="--sw:#d6336c">Малиновая</button>
+                <button type="button" class="chip swatch" data-color="magenta" style="--sw:#ff00ff">Маджента</button>
+              </span>
+            </div>
+            <button type="button" id="btn-cam-sample-right" class="small-btn">Взять цвет правой</button>
+            <button type="button" id="btn-cam-dual-calib" class="small-btn primary">Калибровать: смотрю прямо</button>
+            <p id="cam-dual-status" class="status">Поставьте коробки спереди-слева и спереди-справа, обе должны попадать в кадр.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="cam-panel" class="panel">
+        <h2>Одна метка</h2>
+        <div class="cam-row">
+          <div class="cam-video-slot" id="cam-slot-single"></div>
+          <div class="cam-side">
+            <button type="button" id="btn-cam-start-single" class="small-btn">Включить камеру</button>
+            <div id="cam-colors" class="chip-row tight">
+              <button type="button" class="chip swatch" data-color="raspberry" style="--sw:#d6336c">Малиновая</button>
+              <button type="button" class="chip swatch" data-color="orange" style="--sw:#f15a24">Оранжевая</button>
+              <button type="button" class="chip swatch" data-color="lime" style="--sw:#22ff66">Лайм</button>
+              <button type="button" class="chip swatch" data-color="cyan" style="--sw:#00e5ff">Циан</button>
+            </div>
+            <button type="button" id="btn-cam-sample" class="small-btn">Взять цвет коробки</button>
+            <button type="button" id="btn-cam-calib" class="small-btn primary">Смотрю прямо</button>
+            <p id="cam-status" class="status">Включите камеру, поднесите коробку в центр кадра и возьмите её цвет.</p>
+          </div>
+        </div>
+      </div>
+
+      <h2>Очки</h2>
+      <div class="panel">
+        <label class="slider-row" for="baseline">
+          <span>Расстояние между глазами</span>
+          <input id="baseline" type="range" min="10" max="150" step="1" value="64">
+          <b id="baseline-val">64 см</b>
+        </label>
+        <p class="muted">64 см — как у человека: мир выглядит натурально. Меньше — риф кажется миниатюрой,
+          больше — вы словно великан.</p>
+        <div class="chip-row" id="presets">
+          <button type="button" class="chip" data-preset="beautiful" aria-pressed="false">Красиво</button>
+          <button type="button" class="chip" data-preset="balanced" aria-pressed="false">Сбалансированно</button>
+          <button type="button" class="chip" data-preset="smooth" aria-pressed="false">Плавно</button>
+        </div>
+        <p class="muted">В очках сцена рисуется дважды. Если кадр не успевает — выберите «Плавно».</p>
+      </div>
+
+      <button type="button" id="btn-vr-start" class="big-btn">Надеть очки</button>
+      <div id="vr-count" class="count hidden">Вставьте телефон в очки: <span id="vr-count-num">5</span></div>
+    </div>
+  </section>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

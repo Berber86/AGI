@@ -1,0 +1,130 @@
+{
+  "suite": "camqa",
+  "generatedAt": "2026-10-17T15:01:22.288Z",
+  "total": 24,
+  "passed": 24,
+  "failed": 0,
+  "note": "Синтетические кадры: проверяют математику, состояния и дисциплину пары. Реальная коробка, освещение и оправа очков живым тестом не проверялись.",
+  "results": [
+    {
+      "name": "single: одиночный кадр метку не подтверждает",
+      "ok": true,
+      "detail": "found=true fresh=false"
+    },
+    {
+      "name": "single: метка жива после 0.15 с наблюдения",
+      "ok": true,
+      "detail": "{\"confirmed\":true,\"ms\":1800}"
+    },
+    {
+      "name": "single: форма — горизонтальный прямоугольник",
+      "ok": true,
+      "detail": "{\"ok\":true,\"judged\":true,\"aspect\":2,\"fill\":1,\"clipped\":false}"
+    },
+    {
+      "name": "shape: круг отсекается",
+      "ok": true,
+      "detail": "{\"found\":false,\"shape\":{\"ok\":false,\"judged\":true,\"aspect\":1.01,\"fill\":0.78,\"clipped\":false}}"
+    },
+    {
+      "name": "single: калибровка по видимой метке",
+      "ok": true,
+      "detail": "{\"ok\":true}"
+    },
+    {
+      "name": "single: метка ушла вправо → взгляд влево (yaw > 0)",
+      "ok": true,
+      "detail": "yaw=19.7"
+    },
+    {
+      "name": "single: метка ушла влево → взгляд вправо (yaw < 0)",
+      "ok": true,
+      "detail": "yaw=-19.7"
+    },
+    {
+      "name": "single: метка ушла вниз кадра → смотрим вверх (pitch > 0)",
+      "ok": true,
+      "detail": "pitch=17.7"
+    },
+    {
+      "name": "single: метка ушла вверх кадра → смотрим вниз (pitch < 0)",
+      "ok": true,
+      "detail": "pitch=-17.7"
+    },
+    {
+      "name": "loss: пустой кадр → метки нет",
+      "ok": true,
+      "detail": "found=false"
+    },
+    {
+      "name": "loss: последний угол удержан",
+      "ok": true,
+      "detail": "held=19.7 было 19.7"
+    },
+    {
+      "name": "loss: зафиксирован край ухода",
+      "ok": true,
+      "detail": "side=null"
+    },
+    {
+      "name": "dual: одна метка — это не пара",
+      "ok": true,
+      "detail": "[\"left\"]"
+    },
+    {
+      "name": "dual: калибровка по одной метке отвергнута",
+      "ok": true,
+      "detail": "{\"ok\":false}"
+    },
+    {
+      "name": "dual: обе метки видны",
+      "ok": true,
+      "detail": "[\"left\",\"right\"]"
+    },
+    {
+      "name": "dual: калибровка по паре принята",
+      "ok": true,
+      "detail": "{\"pairs\":\"pair\"}"
+    },
+    {
+      "name": "dual: ноль по паре → углы около нуля",
+      "ok": true,
+      "detail": "yaw=0 pitch=0"
+    },
+    {
+      "name": "dual: поворот влево даёт yaw > 0",
+      "ok": true,
+      "detail": "yaw=11.9"
+    },
+    {
+      "name": "dual: пара согласована (state=pair или single)",
+      "ok": true,
+      "detail": "pair"
+    },
+    {
+      "name": "distance: «метки» слишком близко — парой не признаны",
+      "ok": true,
+      "detail": "{\"state\":\"conflict\",\"visible\":[\"left\",\"right\"]}"
+    },
+    {
+      "name": "order: переставленные метки парой не признаны",
+      "ok": true,
+      "detail": "{\"used\":[\"left\"]}"
+    },
+    {
+      "name": "dual: пустой кадр обе метки теряет",
+      "ok": true,
+      "detail": "{\"found\":false}"
+    },
+    {
+      "name": "диагностика: поля трекера на месте",
+      "ok": true,
+      "detail": "info()"
+    },
+    {
+      "name": "нет ошибок страницы",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

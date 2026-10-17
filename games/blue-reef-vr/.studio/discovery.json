@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 3,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "optionsUsed": true,
+      "askedAt": "2026-10-17T13:59:10Z",
+      "answers": {
+        "movement": "static_clearing",
+        "session": "endless",
+        "whale": "distant_then_near",
+        "mood": "sunny_shallow"
+      }
+    },
+    {
+      "stage": 2,
+      "name": "play-experience",
+      "optionsUsed": true,
+      "askedAt": "2026-10-17T14:03:36Z",
+      "answers": {
+        "look_source": "markers_only",
+        "look_limits": "middle",
+        "loss_behavior": "hold_only",
+        "marker_setup": "two_boxes_wide"
+      }
+    },
+    {
+      "stage": 3,
+      "name": "contract-lock",
+      "optionsUsed": true,
+      "askedAt": "2026-10-17T14:07:35Z",
+      "answers": {
+        "perf": "manual_presets",
+        "aaa_priority": "life",
+        "audio": "silent",
+        "approval": "approve"
+      }
+    }
+  ],
+  "answers": {
+    "movement": "static_clearing",
+    "session": "endless",
+    "whale": "distant_then_near",
+    "mood": "sunny_shallow",
+    "look_source": "markers_only",
+    "look_limits": "middle",
+    "loss_behavior": "hold_only",
+    "marker_setup": "two_boxes_wide",
+    "perf": "manual_presets",
+    "aaa_priority": "life",
+    "audio": "silent",
+    "approval": "approve"
+  },
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-17T13:54:51Z",
+  "updatedAt": "2026-10-17T14:07:35Z"
+}

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "title": "Голубой риф VR",
+  "elevatorPitch": "Ребёнок в линзовых VR-очках парит над солнечным коралловым рифом и просто осматривается: мимо проплывают рыбы, колышутся кораллы, а вдали плывёт кит.",
+  "playerFantasy": "Спокойно попасть под воду и разглядывать живой риф, крутя головой",
+  "genre": "3D underwater VR diorama / passive experience",
+  "audience": "children 4-8 and their parents; mobile browser in lens VR glasses",
+  "coreLoop": [
+    "надеть очки и нажать старт",
+    "осмотреться: рыбы, кораллы, водоросли, столбы света",
+    "дождаться кита, который подплывает ближе",
+    "снять очки, чтобы выйти"
+  ],
+  "perspective": "first person, static diver position in a reef clearing, free head look",
+  "orientation": "landscape (stereo pair of squares)",
+  "sessionLength": "endless loop; exit by removing the glasses or leaving the page",
+  "controls": [
+    "no in-game controls",
+    "head look via camera colour markers (single / dual)",
+    "flat preview: pointer drag look and 'look straight' reset"
+  ],
+  "progression": "none: no score, no timer, no loss",
+  "difficulty": "none",
+  "visualDirection": "sunny shallow reef: bright turquoise water, god rays, caustics on sand and fish, dense coral gardens, volumetric depth fog, soft bloom outside VR; three.js procedural geometry; 'AAA' as an art-direction target, not a certified production claim",
+  "audioDirection": "Silent (no audio at all)",
+  "winCondition": "none (endless calm viewing)",
+  "loseCondition": "none",
+  "mustHave": [
+    "Stereo pair rendering for lens glasses without WebXR, adjustable baseline 10-150 cm",
+    "Head look from camera colour markers only: modes 'marker', 'dual marker', 'forward'",
+    "Look limits +/-70 deg yaw, +/-45 deg pitch; hold last look when the marker is lost",
+    "Prep screen: camera preview, colour picker per box, 'looking straight' calibration, quality preset",
+    "Sunny shallow reef: sand seabed with caustics, coral gardens, kelp, god rays, marine snow",
+    "Six-plus fish species including dense schools, plus distant whale that approaches periodically",
+    "PWA with offline cache; manual quality presets; test bridge for automated QA"
+  ],
+  "outOfScope": [
+    "Gyroscope / deviceorientation input",
+    "Joystick, gestures, tapping, or any gameplay control",
+    "Audio of any kind",
+    "WebXR / lens distortion correction",
+    "Multiplayer, backend, accounts, monetisation",
+    "Scoring, levels, timers, fail states",
+    "Motion of the diver through the world (static clearing by contract)",
+    "Physical device certification"
+  ],
+  "acceptanceCriteria": [
+    "Stereo pair starts only after an explicit user action and renders two square viewports",
+    "Baseline slider 10-150 cm changes eye separation and persists",
+    "Look modes are separate: camera marker mode never uses the gyroscope",
+    "Yaw clamped to +/-70 deg and pitch to +/-45 deg in every look mode",
+    "Lost marker holds the last look and does not drift to centre",
+    "Dual-marker calibration requires both boxes and stores per-marker reference angles",
+    "Fish, corals, kelp and the whale are present and animate over time",
+    "Whale periodically approaches closer and retreats",
+    "Quality presets change resolution, fish counts, particles and effects measurably",
+    "Pause on visibility change; no unhandled errors; PWA installs and reloads offline",
+    "Automated QA suites pass and results are stored in .studio/evidence/"
+  ],
+  "platform": {
+    "primary": "mobile-browser",
+    "device": "Android",
+    "installablePwa": true,
+    "offline": "After first successful load"
+  },
+  "technical": {
+    "profile": "threejs-vanilla-esm",
+    "rendererDprByPreset": {
+      "beautiful": 1.75,
+      "balanced": 1.25,
+      "smooth": 1.0
+    },
+    "targetFps": 60,
+    "fallbackFps": 30,
+    "maxInitialAssetMb": 8,
+    "deployment": "Static build, GitHub Pages compatible, no bundler"
+  },
+  "approvedAt": "2026-10-17T14:07:35Z",
+  "updatedAt": "2026-10-17T14:07:35Z"
+}
