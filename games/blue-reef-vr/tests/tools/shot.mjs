@@ -27,7 +27,12 @@ const browser = await puppeteer.launch({
     '--disable-gpu-sandbox', '--hide-scrollbars', '--mute-audio',
     '--single-process', '--no-zygote', '--in-process-gpu', '--headless',
   ],
-  defaultViewport: { width: 960, height: 440, deviceScaleFactor: Number(process.env.DPR || 1), isMobile: true, hasTouch: true },
+  defaultViewport: {
+    width: Number(process.env.WIDTH || 960),
+    height: Number(process.env.HEIGHT || 440),
+    deviceScaleFactor: Number(process.env.DPR || 1),
+    isMobile: true, hasTouch: true,
+  },
 });
 
 const page = await browser.newPage();

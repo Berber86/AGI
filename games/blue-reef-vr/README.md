@@ -37,8 +37,14 @@
 ```bash
 # из корня репозитория
 python3 -m http.server 8899
-# открыть http://127.0.0.1:8899/games/blue-reef-vr/index.html
+# витрина всех игр:  http://127.0.0.1:8899/index.html  → карточка «Голубой риф VR» → «Играть»
+# напрямую:          http://127.0.0.1:8899/games/blue-reef-vr/index.html
 ```
+
+Игра подключена карточкой в корневой `index.html` репозитория (витрина
+GitHub Pages): обложка `cover.webp` (1280×720) и относительная ссылка на
+`./games/blue-reef-vr/index.html`. Переход из витрины проверяется набором
+`rootqa` — клик по кнопке «Играть» реально поднимает игру.
 
 Камера (а значит и метки) требует **HTTPS** или `localhost`: на телефоне нужен
 туннель/HTTPS-домен, иначе браузер не даст `getUserMedia`. Без камеры игра
@@ -97,6 +103,7 @@ node vrqa.mjs      # контракт VR и обзора головой
 node camqa.mjs     # математика и состояния метки
 node sceneqa.mjs   # состав мира и пресеты
 node pwaqa.mjs     # установка и офлайн-запуск
+node rootqa.mjs    # запуск игры из корневого index.html (витрина)
 node audit.mjs     # численный аудит кадров + снимки
 node shot.mjs /tmp/shots hero:flat:0:0:5   # отдельные снимки
 ```
@@ -109,12 +116,13 @@ node shot.mjs /tmp/shots hero:flat:0:0:5   # отдельные снимки
 | CAMQA | 24/24 | `.studio/evidence/reports/camqa.json` |
 | SCENEQA | 15/15 | `.studio/evidence/reports/sceneqa.json` |
 | PWAQA | 8/8 | `.studio/evidence/reports/pwaqa.json` |
+| ROOTQA | 8/8 | `.studio/evidence/reports/rootqa.json` |
 | Аудит картинки | 7 кадров, без ошибок | `.studio/evidence/reports/visual-audit.json` |
 
 ## Честный статус
 
 - **Implemented** — код, контент и тесты существуют.
-- **Automated** — 73 синтетические проверки (VR, метки, мир, PWA) проходят.
+- **Automated** — 81 синтетическая проверка (VR, метки, мир, PWA, витрина) проходит.
 - **Visual** — снимки сняты и разобраны численно (яркость, контраст, симметрия
   стереопары, параллакс); глазами их оценивал только человек.
 - **Not device-tested** — живой телефон, настоящие очки, оправа, освещение

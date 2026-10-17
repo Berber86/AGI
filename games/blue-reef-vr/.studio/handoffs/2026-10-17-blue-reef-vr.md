@@ -19,12 +19,16 @@
   пузырьки.
 - PWA: манифест, иконки, service worker с раздельными кэшами кода и медиа.
 - QA-наборы и численный аудит кадров.
+- Карточка игры в корневом `index.html` витрины + обложка `cover.webp`;
+  переход из витрины проверен набором `rootqa`.
 
 ## Changed files
 
 - `games/blue-reef-vr/**` — новая игра (index.html, styles.css, src/*, sw.js,
   manifest.webmanifest, assets/*, vendor/three, tests/tools/*, tools/*).
 - `games/blue-reef-vr/.studio/**` — контракт, отчёты, снимки.
+- `index.html` (корень репозитория) — карточка игры в витрине.
+- `games/blue-reef-vr/cover.webp` — обложка 1280×720 для витрины.
 
 ## Verification
 
@@ -35,6 +39,7 @@
 | `node sceneqa.mjs` | 15/15 | `.studio/evidence/reports/sceneqa.json` |
 | `node pwaqa.mjs` | 8/8 | `.studio/evidence/reports/pwaqa.json` |
 | `node audit.mjs` | 7 кадров, 0 ошибок консоли | `.studio/evidence/reports/visual-audit.json`, `screenshots/audit/*` |
+| `node rootqa.mjs` | 8/8 | `.studio/evidence/reports/rootqa.json` |
 | Статика | без сборки, относительные пути | ручная проверка под путем `/games/blue-reef-vr/` |
 
 ## Decisions
