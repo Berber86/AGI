@@ -237,14 +237,19 @@ const hold = await page.evaluate(async () => {
 record('метка ушла вправо: выход запомнен, взгляд удерживается (>20°)',
   hold.after.exitSideX === 'right' && hold.yaw > 20, hold);
 
-// 4e. метка за краем: взгляд докручивается за удержанный угол
-const creep = await page.evaluate(() => {
-  window.__TEST__.camAgeLoss(900);
-  window.__TEST__.camAgeLoss(900);
-  window.__TEST__.step(1 / 60, 30, false);
-  return { yaw: window.__TEST__.vrInfo().yawDeg };
+// 4e. голова остановилась, метка за краем: взгляд держится, а не докручивается
+// сам (раньше здесь был принудительный выбег 12°/с независимо от головы).
+const creep = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  const before = T.camLook();
+  for (let i = 0; i < 18; i++) { T.camFeedEmpty(); await sleep(100); }
+  T.step(1 / 60, 10, false);
+  return { before, after: T.camLook() };
 });
-record('потеря за краем 0,9 с: взгляд докручен дальше (>30°)', creep.yaw > 30, creep);
+record('потеря за краем без движения головы: взгляд стоит, а не докручивается',
+  Math.abs(creep.after.yaw - creep.before.yaw) < 0.8 && creep.after.coast.active === false,
+  { было: +creep.before.yaw.toFixed(1), стало: +creep.after.yaw.toFixed(1), выбег: creep.after.coast });
 
 // 4c. метка вернулась в другом месте — переякорка по второму кадру
 const snap = await page.evaluate(() => {
@@ -255,13 +260,20 @@ const snap = await page.evaluate(() => {
 });
 record('возврат метки слева-сверху: взгляд переякорен (<-12°)', snap.info.yaw < -18 && snap.yaw < -12, snap);
 
-// 4d. долгая потеря — взгляд предсказуемо возвращается к центру
-const home = await page.evaluate(() => {
-  for (let i = 0; i < 30; i++) window.__TEST__.camAgeLoss(6000);
-  window.__TEST__.step(1 / 60, 30, false);
-  return { yaw: window.__TEST__.vrInfo().yawDeg };
+// 4d. долгая потеря: взгляд НЕ возвращается в центр сам. Вернуть его туда
+// может только реально увиденная фиксация, а не таймер.
+const home = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  const before = T.camLook();
+  for (let i = 0; i < 46; i++) { T.camFeedEmpty(); await sleep(100); } // 4.6 с
+  T.step(1 / 60, 10, false);
+  return { before, after: T.camLook(), vr: T.vrInfo() };
 });
-record('6 с без метки: взгляд едет к центру', Math.abs(home.yaw) < 8, home);
+record('4.6 с без метки: взгляд стоит на месте, а не едет в центр',
+  Math.abs(home.after.yaw - home.before.yaw) < 1 && Math.abs(home.after.yaw) > 8,
+  { был: +home.before.yaw.toFixed(1), стал: +home.after.yaw.toFixed(1),
+    vr_yaw: +home.vr.yawDeg.toFixed(1), выбег: home.after.coast });
 
 // 5. метка пропала — поездка жива, взгляд не падает
 const lost = await page.evaluate(() => {
@@ -446,34 +458,68 @@ record('пространство: скачок принимается, когд�
     второй_кадр: { found: jump.first.found, yaw: jump.first.yaw, state: jump.first.pairState },
     третий_кадр: { found: jump.second.found, yaw: jump.second.yaw } });
 
-// 9e. взгляд не встаёт колом: пока метки нет, он продолжает движение со
-// скоростью, с которой голова ехала последние секунды (а не 12°/с из контракта).
+// 9e. потеря пары: взгляд чуть доезжает по последнему вектору движения головы
+// (половина скорости, потолок 12°/с) и затухает. В центр сам не возвращается;
+// одна вернувшаяся метка его не двигает — только настоящая фиксация пары.
 const coast = await page.evaluate(async (PACE_MS) => {
-  const pace = () => new Promise((r) => setTimeout(r, PACE_MS));
+  const pace = (ms = PACE_MS) => new Promise((r) => setTimeout(r, ms));
   const T = window.__TEST__;
   const at = (deg) => Math.round(160 + 251.1 * Math.tan((deg * Math.PI) / 180));
+  const pair = (th) => T.camFeedDual(at(th - 17.3), 120, at(th + 17.3), 120, 26);
   T.camEnableDualSynthetic();
   T.vrStart('camera-dual', 30, true);
   T.camFeedDual(82, 120, 238, 120, 26);
   T.camAgeMarkers(400);
   T.camFeedDual(82, 120, 238, 120, 26);
   T.camCalibrateDual();
-  for (let th = 4; th <= 44; th += 4) { T.camFeedDual(at(th - 17.3), 120, null, null, 26); await pace(); }
-  const before = { info: T.camInfo(), look: T.camLook(), rate: T.camInfo().yawRate };
-  T.camFeedDual(null, null, null, null, 26);   // обе метки пропали
-  const gone = T.camInfo();                    // кадр потери: какой край запомнили
-  await pace(); await pace(); await pace(); await pace(); await pace();
-  await new Promise((r) => setTimeout(r, 450));
-  T.step(1 / 60, 4, false);                    // дать игровому кадру обработать потерю
-  const after = { info: T.camInfo(), look: T.camLook() };
-  return { before, gone, after };
+  for (const th of [2, 4, 6, 8, 10, 12]) { pair(th); await pace(); }
+  const before = { info: T.camInfo(), look: T.camLook() };
+  // правая метка ушла за край: настоящей фиксации больше нет
+  T.camFeedDual(at(14 - 17.3), 120, null, null, 26);
+  const lost = T.camInfo();
+  for (let i = 0; i < 8; i++) { T.camFeedEmpty(); await pace(80); }   // ~0.65 с
+  const coasted = T.camLook();
+  for (let i = 0; i < 40; i++) { T.camFeedEmpty(); await pace(100); }  // ещё 4 с
+  T.step(1 / 60, 10, false);
+  const longLost = T.camLook();
+  // одна метка вернулась далеко в стороне — вести взгляд не должна
+  for (let i = 0; i < 8; i++) { T.camFeedDual(at(30 - 17.3), 120, null, null, 26); await pace(90); }
+  const single = T.camLook();
+  // а настоящая фиксация пары возвращает управление
+  for (let i = 0; i < 8; i++) { pair(12); await pace(); }
+  const back = T.camLook();
+  // и только она же может поставить взгляд в центр
+  for (let i = 0; i < 6; i++) { pair(0); await pace(); }
+  const centre = T.camLook();
+  // голова стоит: выбега быть не должно
+  for (let i = 0; i < 10; i++) { pair(0); await pace(); }
+  const steady = T.camLook();
+  for (let i = 0; i < 12; i++) { T.camFeedEmpty(); await pace(100); }
+  const steadyLost = T.camLook();
+  return { before, lost, coasted, longLost, single, back, centre, steady, steadyLost };
 }, PACE_MS);
-record('скорость: при потере меток взгляд продолжает движение со скоростью поворота',
-  coast.gone.exitSideX === 'right' && coast.before.rate > 10
-    && coast.after.look.yaw > coast.before.info.heldYaw + 2 && coast.after.look.wasLost === true,
-  { скорость_перед_потерей: coast.before.rate, держал: +coast.before.info.heldYaw.toFixed(1),
-    за_краем: coast.gone.exitSideX, цель_через_полсекунды: +coast.after.look.yaw.toFixed(1),
-    потерян_мс: coast.after.look.lastFoundAgoMs });
+record('потеря пары: взгляд чуть доезжает по последнему вектору головы и затухает',
+  coast.before.look.fixation === true && coast.before.info.yawRate > 10
+    && coast.coasted.yaw > coast.before.look.yaw + 1
+    && coast.coasted.yaw < coast.before.look.yaw + 8.5
+    && coast.longLost.yaw > coast.coasted.yaw
+    && coast.longLost.yaw < coast.before.look.yaw + 8.5
+    && coast.longLost.coast.active === false,
+  { фиксация_до: coast.before.look.fixation, скорость: coast.before.info.yawRate,
+    взгляд_до: +coast.before.look.yaw.toFixed(1),
+    через_0_65_с: +coast.coasted.yaw.toFixed(1), выбег: coast.coasted.coast,
+    через_4_6_с: +coast.longLost.yaw.toFixed(1) });
+record('потеря пары: одна вернувшаяся метка взгляд не двигает, фиксация пары — двигает',
+  Math.abs(coast.single.yaw - coast.longLost.yaw) < 0.6 && coast.single.fixation === false
+    && coast.back.fixation === true && Math.abs(coast.back.yaw - 12) < 1.5,
+  { одна_метка: +coast.single.yaw.toFixed(1), фиксация_одной: coast.single.fixation,
+    пара_12: +coast.back.yaw.toFixed(1), фиксация_пары: coast.back.fixation });
+record('центр ставит только реально увиденная фиксация пары, стоящая голова не даёт выбега',
+  Math.abs(coast.centre.yaw) < 1.5 && Math.abs(coast.steadyLost.yaw - coast.steady.yaw) < 0.5
+    && coast.steadyLost.coast.active === false,
+  { после_фиксации_0: +coast.centre.yaw.toFixed(1),
+    стоял: +coast.steady.yaw.toFixed(1), потом_без_меток: +coast.steadyLost.yaw.toFixed(1),
+    выбег: coast.steadyLost.coast });
 
 // 9f. время явного наблюдения: 0.1 с — ещё не метка, 0.3 с — уже сущность.
 const entity = await page.evaluate(async () => {

@@ -615,6 +615,7 @@ function ensureCamTracker() {
     camTracker.dualVisible = [];
     camTracker.exitSideX = null;
     camTracker.exitSideY = null;
+    resetCamLook();
   }
   camTracker.hue = vrSettings.camColor === 'custom' && Number.isFinite(vrSettings.camHue)
     ? vrSettings.camHue
@@ -654,15 +655,107 @@ function stopCamTracker() {
   if (camTracker) camTracker.stop();
   vr.setSimLook(null);
   vr.setGestureZoom(false);
+  resetCamLook();
 }
-// Взгляд по камере. Свежая метка: адаптивная скорость догона (большой
-// разрыв — быстрый). Потеря: держим последний угол, зная, за какой край
-// метка ушла; после 4 с тишины медленно возвращаемся в центр (не в
-// авто-обзор — он путал). Возврат метки в другом месте: мгновенная
-// переякорка после подтверждения вторым кадром (в VR вредно именно
-// расхождение картинки с головой, а не сам «скачок» к истине).
+// Взгляд по камере. Ведёт его только доказанная фиксация: в режиме пары —
+// ОБЕ метки в нужных местах (порядок и расстояние сошлись), в одиночном —
+// подтверждённая метка нужной формы. Пока фиксации нет, взгляд не тянется ни
+// к одной метке и никогда сам не возвращается в центр: он коротко доезжает по
+// последнему вектору движения головы и затухает, дальше держится неподвижно.
+// Центр может поставить только реально увиденная фиксация пары.
+// Возврат метки в другом месте: переякорка после подтверждения вторым кадром
+// (в VR вредно расхождение картинки с головой, а не сам «скачок» к истине).
 let camSnapPending = null;
 let camWasLost = false;
+let camFollowing = false;      // прошлый кадр вёл взгляд по доказанной фиксации
+let camFixLostAt = 0;          // когда фиксация пропала (для коротких миганий)
+let camRateHist = [];          // углы доказанных фиксаций — для вектора головы
+let camCoastAt = 0;
+// «Чуть ведут»: половина последней измеренной скорости головы, с потолком
+// 12°/с, затухание ~0.55 с и не больше 8° на ось. Это выбег, а не возврат.
+const CAM_COAST_GAIN = 0.5;
+const CAM_COAST_MAX_DPS = 12;
+const CAM_COAST_TAU_S = 0.55;
+const CAM_COAST_MAX_DEG = 8;
+const CAM_RATE_WINDOW_MS = 1200;
+const CAM_RATE_MIN_MS = 250;
+const CAM_RATE_MAX_DPS = 30;
+let camCoast = { yaw: 0, pitch: 0, usedYaw: 0, usedPitch: 0, active: false };
+
+function stopCamCoast() {
+  camCoast.active = false;
+  camCoast.yaw = 0; camCoast.pitch = 0;
+  camCoast.usedYaw = 0; camCoast.usedPitch = 0;
+}
+
+function resetCamLook() {
+  camSmooth.yaw = 0; camSmooth.pitch = 0;
+  camSnapPending = null;
+  camWasLost = false;
+  camFollowing = false;
+  camFixLostAt = 0;
+  camRateHist = [];
+  camCoastAt = 0;
+  camLastProcess = 0;
+  stopCamCoast();
+}
+
+// Последний вектор движения головы: наклон угла по времени на окне 1.2 с.
+// Берём только доказанные фиксации — по одной метке или чужому пятну
+// скорость головы не оцениваем.
+function noteCamFixation(now, yaw, pitch) {
+  const h = camRateHist;
+  h.push({ t: now, yaw, pitch });
+  while (h.length > 2 && now - h[0].t > CAM_RATE_WINDOW_MS) h.shift();
+}
+
+function camHeadRate() {
+  const h = camRateHist;
+  if (h.length < 3 || h[h.length - 1].t - h[0].t < CAM_RATE_MIN_MS) return { yaw: 0, pitch: 0 };
+  const t0 = h[0].t;
+  let n = 0, st = 0, sy = 0, sp = 0, stt = 0, sty = 0, stp = 0;
+  for (const s of h) {
+    const ts = (s.t - t0) / 1000;
+    n++; st += ts; sy += s.yaw; sp += s.pitch;
+    stt += ts * ts; sty += ts * s.yaw; stp += ts * s.pitch;
+  }
+  const den = n * stt - st * st;
+  if (den <= 1e-9) return { yaw: 0, pitch: 0 };
+  const cl = (v) => Math.max(-CAM_RATE_MAX_DPS, Math.min(CAM_RATE_MAX_DPS, Number.isFinite(v) ? v : 0));
+  return { yaw: cl((n * sty - st * sy) / den), pitch: cl((n * stp - st * sp) / den) };
+}
+
+// Начало выбега от того угла, где взгляд реально стоит сейчас.
+function startCamCoast(now) {
+  const r = camHeadRate();
+  const clamp = (v) => Math.max(-CAM_COAST_MAX_DPS, Math.min(CAM_COAST_MAX_DPS, v * CAM_COAST_GAIN));
+  camCoast.yaw = clamp(r.yaw);
+  camCoast.pitch = clamp(r.pitch);
+  camCoast.usedYaw = 0; camCoast.usedPitch = 0;
+  camCoast.active = Math.abs(camCoast.yaw) > 0.3 || Math.abs(camCoast.pitch) > 0.3;
+  camCoastAt = now;
+}
+
+function stepCamCoast(now) {
+  const dt = Math.max(0, Math.min(0.25, (now - camCoastAt) / 1000));
+  camCoastAt = now;
+  if (!camCoast.active || dt === 0) return;
+  const roomY = Math.max(0, CAM_COAST_MAX_DEG - camCoast.usedYaw);
+  const roomP = Math.max(0, CAM_COAST_MAX_DEG - camCoast.usedPitch);
+  const dy = Math.sign(camCoast.yaw) * Math.min(Math.abs(camCoast.yaw) * dt, roomY);
+  const dp = Math.sign(camCoast.pitch) * Math.min(Math.abs(camCoast.pitch) * dt, roomP);
+  camSmooth.yaw += dy;
+  camSmooth.pitch += dp;
+  camCoast.usedYaw += Math.abs(dy);
+  camCoast.usedPitch += Math.abs(dp);
+  const k = Math.exp(-dt / CAM_COAST_TAU_S);
+  camCoast.yaw *= k;
+  camCoast.pitch *= k;
+  if (Math.abs(camCoast.yaw) < 0.25) camCoast.yaw = 0;
+  if (Math.abs(camCoast.pitch) < 0.25) camCoast.pitch = 0;
+  if (!camCoast.yaw && !camCoast.pitch) camCoast.active = false;
+}
+
 function updateGestureZoom() {
   const t = camTracker;
   const active = !!(vr.active && game.vrRide && game.gestureOn && t && t.gestureFresh(700) && t.gestureV);
@@ -679,7 +772,12 @@ function updateCameraLook(now, force = false) {
   camTracker.process();
   if (!cameraLookActive) return;
   const t = camTracker;
-  if (t.fresh(900)) {
+  if (t.fresh(900) && t.pairFixation()) {
+    // Доказанная фиксация: можно вести взгляд по измерению.
+    // После ДОЛГОЙ пропажи история скорости начинается заново: вектор головы
+    // до потери к новому положению отношения не имеет. Короткое мигание
+    // (пара кадров) историю не рвёт, иначе перед потерей не будет скорости.
+    if (!camFollowing && camFixLostAt && now - camFixLostAt > 400) camRateHist = [];
     const dy = t.yaw - camSmooth.yaw;
     const dp = t.pitch - camSmooth.pitch;
     const jump = Math.hypot(dy, dp);
@@ -704,42 +802,28 @@ function updateCameraLook(now, force = false) {
       camSmooth.yaw += dy * f;
       camSmooth.pitch += dp * f;
     }
+    camFollowing = true;
+    stopCamCoast();
+    // Резкий разрыв — это не скорость головы, а переякорка/вернувшаяся метка.
+    // Такой кадр не должен потом «выбегать» взглядом: историю начинаем заново.
+    if (jump > 8) camRateHist = [];
+    noteCamFixation(now, t.yaw, t.pitch);
     vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
     return;
   }
-  // метки нет: держим последний угол (метка за краем — голова всё ещё там)
+  // Фиксации нет: не тянем взгляд ни к оставшейся метке, ни в центр. Если
+  // голова только что шла — короткий выбег по последнему вектору и затухание,
+  // иначе взгляд просто стоит на месте сколько угодно.
   camWasLost = true;
   camSnapPending = null;
-  const lostFor = t.lastFoundAt ? now - t.lastFoundAt : Infinity;
-  if (lostFor < 4000) {
-    camSmooth.yaw = t.heldYaw;
-    camSmooth.pitch = t.heldPitch;
-    // Метка ушла именно ЗА КРАЙ кадра (а не закрыта в центре): голова,
-    // скорее всего, ещё доворачивается туда же. Камера в очках стоит
-    // сбоку, и полотно очков перекрывает метку раньше на одной из
-    // сторон — поэтому аккуратно докручиваем взгляд за удержанный угол
-    // (до игрового предела), пока метка не вернётся или не пройдёт 1,8 с.
-    if (lostFor > 150 && lostFor < 1800) {
-      // Сколько докрутить: раньше это были фиксированные 12°/с, теперь — та
-      // скорость, с которой голова ехала последние секунды (трекер отдаёт её в
-      // yawRate). Затухание ~0.6 с: голова может остановиться, и взгляд не
-      // должен улетать дальше, чем успела уехать сама метка.
-      const rate = t.yawRate || 0;
-      const dir = Math.sign(rate);
-      const sameWay = dir !== 0 && (t.heldYaw === 0 || Math.sign(t.heldYaw) === dir);
-      const ramp = 1 - Math.exp(-Math.max(0, lostFor - 150) / 600);
-      const rateExtra = sameWay ? Math.min(15, Math.abs(rate) * 0.6 * ramp) : 0;
-      const extra = Math.max(rateExtra, Math.min(10, 12 * ((lostFor - 150) / 1000)));
-      if (t.exitSideX) camSmooth.yaw = t.heldYaw + Math.sign(t.heldYaw || (t.exitSideX === 'right' ? 1 : -1)) * extra;
-      if (t.exitSideY) camSmooth.pitch = t.heldPitch + Math.sign(t.heldPitch || (t.exitSideY === 'top' ? -1 : 1)) * extra;
-    }
-    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
+  if (camFollowing) {
+    camFollowing = false;
+    camFixLostAt = now;
+    startCamCoast(now); // первый кадр без фиксации угол ещё не меняет
   } else {
-    // долгое отсутствие: предсказуемый возврат взгляда в центр
-    camSmooth.yaw += (0 - camSmooth.yaw) * 0.05;
-    camSmooth.pitch += (0 - camSmooth.pitch) * 0.05;
-    vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
+    stepCamCoast(now);
   }
+  vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
 }
 
 function closeRemote() {
@@ -1907,6 +1991,9 @@ window.__TEST__ = {
       yaw: +camSmooth.yaw.toFixed(2), pitch: +camSmooth.pitch.toFixed(2),
       snapPending: camSnapPending ? { yaw: +camSnapPending.yaw.toFixed(1), pitch: +camSnapPending.pitch.toFixed(1) } : null,
       wasLost: camWasLost,
+      fixation: camFollowing,
+      coast: { active: camCoast.active, yaw: +camCoast.yaw.toFixed(1), pitch: +camCoast.pitch.toFixed(1),
+        usedYaw: +camCoast.usedYaw.toFixed(1), usedPitch: +camCoast.usedPitch.toFixed(1) },
       lastFoundAgoMs: t && t.lastFoundAt ? Math.round(performance.now() - t.lastFoundAt) : null,
       lookMode: vrSettings.lookMode, camOn: !!game.camOn, vrRide: !!game.vrRide,
     };

@@ -28,7 +28,7 @@
     "fragility": "cache.addAll атомарен: один 404 ломает офлайн-кэш"
   },
   "pwa_after": {
-    "shell_cache": "ckc-v46",
+    "shell_cache": "ckc-v47 (номер растёт каждый релиз)",
     "shell_entries": 53,
     "shell_bytes": 1470000,
     "media_cache": "ckc-media-v1",
@@ -36,7 +36,7 @@
     "media_bytes": 5820000,
     "precache": "по файлам, уже лежащее не перекачивается, <90% кода валит install",
     "routing": "/assets/ cache-first в MEDIA_CACHE; /assets/music/ network-first; остальное — SHELL",
-    "measured_update": { "media_requests": 0, "media_bytes": 0, "code_requests": 52, "code_bytes": 1470000, "total_bytes": 1470000 }
+    "measured_update": { "media_requests": 0, "media_bytes": 0, "code_requests": 52, "code_bytes": 1470000, "total_bytes": 1470000, "from_version": "ckc-v47", "to_version": "ckc-v48" }
   },
   "validation": {
     "pwaqa": "4/4 (раздельные кэши, медиа вне кэша кода, офлайн-перезапуск ready)",

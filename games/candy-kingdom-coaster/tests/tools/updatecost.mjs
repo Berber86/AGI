@@ -1,6 +1,7 @@
 // updatecost.mjs — сколько трафика стоит обновление версии PWA.
 // Сервер раздаёт игру из репозитория, но /sw.js может подменить версию кэша
-// (?phase=v47). Считаем байты/запросы по /assets/ и по коду в каждой фазе.
+// «следующую» версию кэша (номер берётся из sw.js). Считаем байты/запросы
+// по /assets/ и по коду в каждой фазе.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,15 +12,21 @@ process.env.HOME = '/tmp';
 // корень репозитория: tests/tools -> игра -> games -> корень
 const ROOT = process.env.AGI_ROOT || path.resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
 const GAME = '/games/candy-kingdom-coaster';
-let phase = 'v46';
-const stats = { v46: { assets: 0, assetsBytes: 0, code: 0, codeBytes: 0 }, v47: { assets: 0, assetsBytes: 0, code: 0, codeBytes: 0 } };
+// Текущая версия берётся из sw.js, «следующая» — та же с +1: тест не
+// зависит от номера релиза.
+const SW_SRC = fs.readFileSync(path.join(ROOT, GAME, 'sw.js'), 'utf8');
+const curVer = SW_SRC.match(/const CACHE = '(ckc-v(\d+))'/);
+if (!curVer) throw new Error('CACHE not found in sw.js');
+const NEXT_VER = curVer[1].replace(/\d+$/, String(Number(curVer[2]) + 1));
+let phase = 'current';
+const stats = { current: { assets: 0, assetsBytes: 0, code: 0, codeBytes: 0 }, next: { assets: 0, assetsBytes: 0, code: 0, codeBytes: 0 } };
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.glb': 'model/gltf-binary' };
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   let file = decodeURIComponent(url.pathname);
   if (file.endsWith('/sw.js')) {
     let body = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    if (phase === 'v47') body = body.replace("ckc-v46", "ckc-v47").replace("ckc-media-v1", "ckc-media-v1");
+    if (phase === 'next') body = body.replace(curVer[1], NEXT_VER);
     res.writeHead(200, { 'content-type': 'text/javascript', 'cache-control': 'no-cache' });
     res.end(body);
     return;
@@ -53,24 +60,22 @@ const c0 = await page.evaluate(async () => {
   return out;
 });
 // Обновление: та же страница, новая версия SW.
-phase = 'v47';
-const before = JSON.parse(JSON.stringify(stats.v47));
+phase = 'next';
+const before = JSON.parse(JSON.stringify(stats.next));
 await page.goto(BASE, { waitUntil: 'load', timeout: 180000 });
 await page.evaluate(async () => {
   const reg = await navigator.serviceWorker.getRegistration();
   if (reg) await reg.update();
 });
-await page.waitForFunction(async () => {
-  const reg = await navigator.serviceWorker.getRegistration();
-  return (await caches.keys()).includes('ckc-v47');
-}, { timeout: 120000 }).catch((e) => console.log('wait v47:', String(e).slice(0, 100)));
+await page.waitForFunction(async (ver) => (await caches.keys()).includes(ver), { timeout: 120000 }, NEXT_VER)
+  .catch((e) => console.log('wait next version:', String(e).slice(0, 100)));
 await new Promise((r) => setTimeout(r, 3000));
 const c1 = await page.evaluate(async () => {
   const out = {};
   for (const k of await caches.keys()) out[k] = (await (await caches.open(k)).keys()).length;
   return out;
 });
-const d = stats.v47;
+const d = stats.next;
 const upd = { assets: d.assets - before.assets, assetsBytes: d.assetsBytes - before.assetsBytes, code: d.code - before.code, codeBytes: d.codeBytes - before.codeBytes };
 const mb = (b) => (b / 1048576).toFixed(2) + ' МБ';
 console.log('первая установка:', JSON.stringify(c0));
