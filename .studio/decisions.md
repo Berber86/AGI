@@ -159,3 +159,11 @@ User: «Хорошо, делай ещё 3 итерации». Continue approved 
 - **Affected artifacts:** `src/camtrack.js` (модель `dualModel`, история `dualHistory`/`yawRate`, `_confirmReanchor`, `info()`), `src/main.js` (докрутка по `yawRate`), `tests/tools/camqa.mjs` (+8 проверок, 37/37), `tests/tools/dualtrace.mjs`, `DUAL_MARKER_LOOK.md` §7, правка контракта в `VR_BRAINSTORM.md`, `sw.js` → `ckc-v44`.
 - **Evidence or user answer:** «при взгляде ±5 градусов должны быть видны обе метки… левее левой не может быть никаких малиновых… система должна понимать скорости»; измерения — `dualtrace.mjs` и `.studio/evidence/reports/dual-marker-look.json`.
 
+## 2026-10-17 — Две метки: сущность за 0.3 с и горизонтальный прямоугольник
+
+- **Decision:** метка участвует в ведении взгляда только после 300 мс непрерывного наблюдения; подтверждённая метка сохраняет идентичность до 4 с пропажи. Форма метки проверяется как горизонтальный прямоугольник (bbox + заполненность, пропорции — относительно калиброванной формы, у края кадра — без проверки пропорций).
+- **Alternatives:** требовать 0.3 с после любого мигания — отвергнуто: метка, моргнувшая на кадр у края, замораживала бы взгляд; отвергнуть по абсолютному порогу 2:1 — отвергнуто: перспектива на повороте сжимает ширину.
+- **Reason:** «если метка появилась на 0,1 с из небытия — это ещё не точно что метка»; «метка — горизонтальный прямоугольник, а не абы что».
+- **Affected artifacts:** `src/camtrack.js` (bbox/fill в анализаторе, `_markerEntityState`, `_markerShapeOf`, `dualBaseShape`, `forgetMarkerEntities`), `src/camtrack-worker.js` (bw/bh/fill), `src/main.js` (`camAgeMarkers`, `camForgetMarkers`, синтетические прямоугольники), `tests/tools/camqa.mjs` (+5 проверок), `tests/tools/dualtrace.mjs`, `DUAL_MARKER_LOOK.md` §8, `sw.js` → `ckc-v45`.
+- **Evidence or user answer:** «время её явного наблюдения, чтобы стать сущностью, должно быть не менее 0,3 с»; «горизонтальный прямоугольник с длинной стороной в горизонтальной плоскости»; измерения — `camqa` 42/42, `.studio/evidence/reports/dual-marker-look.json`.
+

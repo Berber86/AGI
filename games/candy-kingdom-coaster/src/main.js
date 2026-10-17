@@ -1927,20 +1927,38 @@ window.__TEST__ = {
     t.resetDualCalibration();
     return t.info();
   },
-  camFeedDual(ax, ay, bx, by, r = 26) {
+  camFeedDual(ax, ay, bx, by, r = 26, shape = 'rect') {
     const t = ensureCamTracker();
-    t.injectDualBlob(ax, ay, bx, by, r);
+    t.injectDualBlob(ax, ay, bx, by, r, 320, 240, shape);
     updateCameraLook(performance.now(), true);
     return { info: t.info(), vr: vr.info() };
+  },
+  // QA: сдвинуть часы «сущности» меток назад (аналог camAgeLoss): проверить
+  // правило 0.3 с без реального ожидания. Возвращает состояние трекера.
+  // QA: «забыть» метку (сымитировать долгую пропажу, после которой появление
+  // снова должно быть явным 0.3 с).
+  camForgetMarkers(id = null) {
+    const t = ensureCamTracker();
+    t.forgetMarkerEntities(id);
+    return t.info();
+  },
+  camAgeMarkers(ms) {
+    const t = ensureCamTracker();
+    // Сдвигаем только начало наблюдения: «сколько мс метка явно видна».
+    // lastSeen не трогаем — иначе хук сам себе устраивает «пропажу».
+    for (const st of Object.values(t.markerEntity || {})) {
+      if (st.seenSince) st.seenSince -= ms;
+    }
+    return t.info();
   },
   camCalibrateDual() {
     const t = ensureCamTracker();
     const ok = t.calibrate();
     return { ok, info: t.info() };
   },
-  camFeed(cx, cy, r) {
+  camFeed(cx, cy, r, shape = 'rect') {
     const t = ensureCamTracker();
-    t.injectBlob(cx, cy, r);
+    t.injectBlob(cx, cy, r, 320, 240, shape);
     updateCameraLook(performance.now(), true);
     return { info: t.info(), vr: vr.info() };
   },
@@ -1950,7 +1968,7 @@ window.__TEST__ = {
     c.width = 320; c.height = 240;
     const x = c.getContext('2d');
     x.fillStyle = 'rgb(215,51,108)';
-    x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill();
+    x.fillRect(cx - 2 * r, cy - r, 4 * r, 2 * r); // горизонтальный прямоугольник
     const bmp = await createImageBitmap(c);
     await t.ingestBitmap(bmp);
     updateCameraLook(performance.now(), true);

@@ -34,11 +34,12 @@ self.onmessage = (e) => {
     }
     self.postMessage({
       found: res.found, count: res.count, u: res.u || 0, v: res.v || 0,
+      bw: res.bw || 0, bh: res.bh || 0, fill: res.fill || 0, // форма метки (прямоугольник)
       yaw, pitch, w: cnv.width, h: cnv.height,
       gesture,
       procMs: performance.now() - t0,
     });
   } catch (err) {
-    self.postMessage({ found: false, count: 0, u: 0, v: 0, yaw: 0, pitch: 0, w: 0, h: 0, procMs: performance.now() - t0, error: String(err) });
+    self.postMessage({ found: false, count: 0, u: 0, v: 0, bw: 0, bh: 0, fill: 0, yaw: 0, pitch: 0, w: 0, h: 0, procMs: performance.now() - t0, error: String(err) });
   }
 };

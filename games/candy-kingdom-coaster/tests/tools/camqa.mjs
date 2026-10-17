@@ -98,9 +98,24 @@ const boot = await page.evaluate(() => {
 record('поездка в режиме «По метке» стартовала', boot.vr.active && boot.vr.lookMode === 'camera' && boot.g.state === 'racing', boot.vr);
 
 // 2. метка по центру — взгляд вперёд
-const center = await page.evaluate(() => {
+const center = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let out;
-  for (let i = 0; i < 6; i++) out = window.__TEST__.camFeed(160, 120, 40);
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  out = await feedFor(160, 120, 40);   // 0.3 с явного наблюдения -> сущность
   window.__TEST__.step(1 / 60, 30, false);
   return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
 });
@@ -108,42 +123,113 @@ record('метка по центру: взгляд ≈ 0°', center.info.found &
 record('диагностика цены обработки доступна (procMs/procW/ярус)', typeof center.info.procMs === 'number' && [160, 192, 256].includes(center.info.procW), center.info);
 
 // 3. метка справа — взгляд поворачивается вправо за меткой
-const right = await page.evaluate(() => {
-  let out;
-  for (let i = 0; i < 8; i++) out = window.__TEST__.camFeed(227, 120, 40);
+const right = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  const out = await feedFor(227, 120, 40);
   window.__TEST__.step(1 / 60, 40, false);
   return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
 });
 record('метка справа: VR-взгляд ушёл вправо (>10°)', right.info.yaw > 12 && right.yaw > 10, right);
 
 // 3b. вертикаль: метка внизу кадра (голова поднята) — игра смотрит ВВЕРХ
-const up = await page.evaluate(() => {
-  let out;
-  for (let i = 0; i < 5; i++) out = window.__TEST__.camFeed(160, 190, 38);
-  window.__TEST__.step(1 / 60, 35, false);
+const up = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  const out = await feedFor(160, 190, 38);
+  window.__TEST__.step(1 / 60, 55, false);
   return { pitch: window.__TEST__.vrInfo().pitchDeg, tp: out.info.pitch };
 });
 record('метка внизу кадра: pitch взгляда положительный (вверх)', up.tp > 12 && up.pitch > 9, up);
-const down = await page.evaluate(() => {
-  for (let i = 0; i < 5; i++) window.__TEST__.camFeed(160, 50, 38);
-  window.__TEST__.step(1 / 60, 35, false);
+const down = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  await feedFor(160, 50, 38);
+  window.__TEST__.step(1 / 60, 55, false);
   return { pitch: window.__TEST__.vrInfo().pitchDeg };
 });
 record('метка вверху кадра: pitch отрицательный (вниз)', down.pitch < -9, down);
 
 // 4. метка слева — взгляд влево
-const left = await page.evaluate(() => {
-  let out;
-  for (let i = 0; i < 8; i++) out = window.__TEST__.camFeed(93, 120, 40);
+const left = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  const out = await feedFor(93, 120, 40);
   window.__TEST__.step(1 / 60, 40, false);
   return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
 });
 record('метка слева: VR-взгляд ушёл влево (<-10°)', left.info.yaw < -12 && left.yaw < -10, left);
 
 // 4b. метка ушла за правый край — взгляд удерживается повёрнутым
-const hold = await page.evaluate(() => {
-  let out;
-  for (let i = 0; i < 6; i++) out = window.__TEST__.camFeed(300, 120, 38);
+const hold = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  const out = await feedFor(300, 120, 38);
   window.__TEST__.camFeedEmpty();
   window.__TEST__.step(1 / 60, 25, false);
   return { info: out.info, after: window.__TEST__.camInfo(), yaw: window.__TEST__.vrInfo().yawDeg };
@@ -199,8 +285,9 @@ record('remoteState содержит cam {on, found, yaw}', !!st.cam && st.cam.o
 
 // 8. воркер-конвейер доступен; настоящий ImageBitmap ведёт взгляд
 const bmp = await page.evaluate(async () => {
-  let out;
-  for (let i = 0; i < 6; i++) out = await window.__TEST__.camFeedBitmap(227, 120, 40);
+  let out = await window.__TEST__.camFeedBitmap(227, 120, 40);
+  window.__TEST__.camAgeMarkers(400);            // 0.3 с явного наблюдения
+  for (let i = 0; i < 4; i++) out = await window.__TEST__.camFeedBitmap(227, 120, 40);
   window.__TEST__.step(1 / 60, 40, false);
   return { info: out.info, yaw: window.__TEST__.vrInfo().yawDeg };
 });
@@ -211,6 +298,8 @@ record('ImageBitmap с меткой: взгляд вправо, воркер д�
 const dual = await page.evaluate(() => {
   window.__TEST__.camEnableDualSynthetic();
   window.__TEST__.vrStart('camera-dual', 30, true);
+  window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
+  window.__TEST__.camAgeMarkers(400);
   const straight = window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
   const calibrated = window.__TEST__.camCalibrateDual();
   const shifted = window.__TEST__.camFeedDual(112, 120, 268, 120, 26);
@@ -238,6 +327,8 @@ const spatial = await page.evaluate(async (PACE_MS) => {
   T.camEnableDualSynthetic();
   T.vrStart('camera-dual', 30, true);
   T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
   const cal = T.camCalibrateDual().ok;
   const out = {};
   // ±5°: обе метки обязаны быть в кадре, ни одна не «уходит»
@@ -250,17 +341,17 @@ const spatial = await page.evaluate(async (PACE_MS) => {
   // ЛЕВЕЕ оранжевой метки — порядок нарушен, это чужой предмет
   for (const th of [6, 7, 8, 8]) { pair(th); await pace(); }
   out.mild = T.camInfo();
-  const alienNear = T.camFeedDual(119, 120, 100, 120, 26);
+  const alienNear = T.camFeedDual(119, 120, 30, 120, { left: 26, right: 10 });
   out.alienNear = alienNear.info;
   out.alienNearOld = ((alienNear.info.dualDeltas[0].deltaYaw + alienNear.info.dualDeltas[1].deltaYaw) / 2);
   // дальний поворот ~35°: правая метка физически за краем кадра,
   // у правого края уже левая — всё «малиновое» тут невозможно
   for (let th = 12; th <= 35; th += 3) { T.camFeedDual(Math.round(at(th - 17.3)), 120, null, null, 26); await pace(); }
   out.far = T.camInfo();
-  const alienFar = T.camFeedDual(Math.round(at(35 - 17.3)), 120, 200, 120, 26);
+  const alienFar = T.camFeedDual(Math.round(at(35 - 17.3)), 120, 100, 120, { left: 26, right: 10 });
   out.alienFar = alienFar.info;
   out.alienFarOld = ((alienFar.info.dualDeltas[0].deltaYaw + alienFar.info.dualDeltas[1].deltaYaw) / 2);
-  out.alienFar2 = T.camFeedDual(Math.round(at(35 - 17.3)), 120, 200, 120, 26).info;
+  out.alienFar2 = T.camFeedDual(Math.round(at(35 - 17.3)), 120, 100, 120, { left: 26, right: 10 }).info;
   // скорость головы: ровный поворот 2° за кадр ≈ 22 °/с
   const t0 = Date.now();
   const y0 = T.camInfo().yaw;
@@ -307,6 +398,8 @@ const tinyBlob = await page.evaluate((PACE_MS) => {
   T.camEnableDualSynthetic();
   T.vrStart('camera-dual', 30, true);
   T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
   T.camCalibrateDual();
   const before = T.camInfo();
   // малиновая «метка» на своём законном месте, но пятно в 20 раз меньше
@@ -330,6 +423,8 @@ const jump = await page.evaluate(async (PACE_MS) => {
   const at = (deg) => Math.round(160 + 251.1 * Math.tan((deg * Math.PI) / 180));
   T.camEnableDualSynthetic();
   T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
   T.camFeedDual(82, 120, 238, 120, 26);
   T.camCalibrateDual();
   // немного поездить ровно, чтобы история скорости набралась
@@ -360,6 +455,8 @@ const coast = await page.evaluate(async (PACE_MS) => {
   T.camEnableDualSynthetic();
   T.vrStart('camera-dual', 30, true);
   T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
   T.camCalibrateDual();
   for (let th = 4; th <= 44; th += 4) { T.camFeedDual(at(th - 17.3), 120, null, null, 26); await pace(); }
   const before = { info: T.camInfo(), look: T.camLook(), rate: T.camInfo().yawRate };
@@ -377,6 +474,138 @@ record('скорость: при потере меток взгляд продо
   { скорость_перед_потерей: coast.before.rate, держал: +coast.before.info.heldYaw.toFixed(1),
     за_краем: coast.gone.exitSideX, цель_через_полсекунды: +coast.after.look.yaw.toFixed(1),
     потерян_мс: coast.after.look.lastFoundAgoMs });
+
+// 9f. время явного наблюдения: 0.1 с — ещё не метка, 0.3 с — уже сущность.
+const entity = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  const first = T.camInfo();                    // только что появились
+  await sleep(100);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  const short = T.camInfo();                    // ~0.1 с наблюдения
+  await sleep(260);
+  const okFeed = T.camFeedDual(82, 120, 238, 120, 26);
+  const ok = okFeed.info;                       // ~0.36 с наблюдения
+  return { first, short, ok };
+});
+record('сущность: 0.1 с наблюдения — ещё не метка, 0.3+ с — уже метка',
+  entity.first.markerEntity.left.confirmed === false && entity.first.markerEntity.right.confirmed === false
+    && entity.first.found === false && entity.short.markerEntity.left.confirmed === false
+    && entity.ok.markerEntity.left.confirmed === true && entity.ok.markerEntity.right.confirmed === true
+    && entity.ok.found === true && entity.ok.markers[0].entityMs >= 300,
+  { сразу: { confirmed: entity.first.markerEntity, found: entity.first.found, state: entity.first.pairState },
+    через_0_1_с: { confirmed: entity.short.markerEntity, found: entity.short.found },
+    через_0_36_с: { confirmed: entity.ok.markerEntity, found: entity.ok.found, entityMs: entity.ok.markers[0].entityMs } });
+
+// 9g. «морок» на 0.1 с из небытия: метку забыли (долгая пропажа) — короткое
+// появление не делает её сущностью и не ведёт взгляд; выдержанная 0.3 с — ведёт.
+const flash = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  T.camCalibrateDual();                          // обе метки — сущности
+  T.camForgetMarkers('right');                   // правая «пропала надолго»
+  T.camFeedDual(82, 120, 238, 120, 26);          // «морок» на месте правой
+  await sleep(50);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  await sleep(50);
+  const blink = T.camInfo();                     // ~0.1 с — ещё не сущность
+  T.camFeedDual(82, 120, null, null, 26);        // морок пропал
+  const gone = T.camInfo();
+  // а теперь метка держится явно: через 0.3 с становится сущностью
+  for (let i = 0; i < 7; i++) {
+    T.camFeedDual(82, 120, 238, 120, 26);
+    await sleep(55);
+  }
+  const confirmed = T.camFeedDual(82, 120, 238, 120, 26).info;
+  return { blink, gone, confirmed };
+});
+record('сущность: метка, мелькнувшая на 0.1 с, не ведёт взгляд',
+  flash.blink.markerEntity.right.confirmed === false
+    && flash.blink.markers[1].entity === false
+    && flash.blink.dualUsed.join('+') === 'left'
+    && flash.gone.markers[1].entity === false,
+  { морок_0_1_с: { entity: flash.blink.markers[1].entity, used: flash.blink.dualUsed, yaw: flash.blink.yaw,
+    state: flash.blink.pairState, ms: flash.blink.markers[1].entityMs },
+    пропал: { entity: flash.gone.markers[1].entity },
+    продержали_0_4_с: { entity: flash.confirmed.markers[1].entity, used: flash.confirmed.dualUsed,
+      state: flash.confirmed.pairState, entityMs: flash.confirmed.markers[1].entityMs } });
+record('сущность: выдержанная 0.3+ с метка снова ведёт пару',
+  flash.confirmed.markerEntity.right.confirmed === true
+    && flash.confirmed.dualUsed.join('+') === 'left+right'
+    && flash.confirmed.pairState === 'pair',
+  { used: flash.confirmed.dualUsed, state: flash.confirmed.pairState, entityMs: flash.confirmed.markers[1].entityMs });
+
+// 9h. форма: метка — горизонтальный прямоугольник, а не «абы что».
+const shapes = await page.evaluate(async () => {
+  const T = window.__TEST__;
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  const upright = T.camFeedDual(82, 120, 238, 120, 26).info;
+  // правая сторона: круг и вертикальный прямоугольник на законном месте
+  const circle = T.camFeedDual(82, 120, 238, 120, 26, { left: 'rect', right: 'circle' }).info;
+  const circle2 = T.camFeedDual(82, 120, 238, 120, 26, { left: 'rect', right: 'circle' }).info;
+  const vertical = T.camFeedDual(82, 120, 238, 120, 26, { left: 'rect', right: 'vertical' }).info;
+  const back = T.camFeedDual(82, 120, 238, 120, 26).info;
+  return { upright, circle, circle2, vertical, back };
+});
+record('форма: круг и вертикальный прямоугольник не метка, горизонтальный — метка',
+  shapes.upright.markers[1].shapeOk === true && shapes.upright.markers[1].aspect > 1.3
+    && shapes.circle.markers[1].shapeOk === false && shapes.circle.markers[1].aspect < 1.15
+    && shapes.circle.dualUsed.join('+') === 'left' && shapes.circle2.markers[1].shapeOk === false
+    && shapes.vertical.markers[1].shapeOk === false && shapes.vertical.markers[1].aspect < 1
+    && shapes.back.markers[1].shapeOk === true && shapes.back.dualUsed.join('+') === 'left+right',
+  { горизонтальный: { ok: shapes.upright.markers[1].shapeOk, aspect: shapes.upright.markers[1].aspect, fill: shapes.upright.markers[1].fill },
+    круг: { ok: shapes.circle.markers[1].shapeOk, aspect: shapes.circle.markers[1].aspect, fill: shapes.circle.markers[1].fill,
+      used: shapes.circle.dualUsed, state: shapes.circle.pairState },
+    вертикальный: { ok: shapes.vertical.markers[1].shapeOk, aspect: shapes.vertical.markers[1].aspect, used: shapes.vertical.dualUsed },
+    снова_прямоугольник: { ok: shapes.back.markers[1].shapeOk, used: shapes.back.dualUsed, state: shapes.back.pairState } });
+
+// 9i. та же дисциплина у одиночной метки.
+const singleShape = await page.evaluate(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  T.camEnableSynthetic();
+  T.vrStart('camera', 30, false);
+  // подача кадров «как камера»: непрерывно, с перезапуском окна после
+  // длинного фриза headless (>1 с), чтобы 0.3 с наблюдения были честными
+  const feedFor = async (x, y, r, shape, ms = 500, wantFound = true) => {
+    let out, deadline = 0, prev = 0;
+    for (let i = 0; i < 80; i++) {
+      const t = performance.now();
+      if (!deadline || t - prev > 1000) deadline = t + ms;
+      out = window.__TEST__.camFeed(x, y, r, shape);
+      prev = performance.now();
+      if (prev >= deadline && (!wantFound || out.info.found)) return out;
+      await sleep(60);
+    }
+    return out;
+  };
+  T.camFeedEmpty();
+  await feedFor(160, 120, 40, 'circle', 500, false);
+  const circle = T.camInfo();
+  await feedFor(160, 120, 40, 'rect');
+  const rect = T.camInfo();
+  // возвращаем режим пары, на котором живут проверки жестов ниже
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  return { circle, rect };
+});
+record('форма: одиночная метка тоже требует прямоугольник',
+  singleShape.circle.found === false && singleShape.circle.markerShape && singleShape.circle.markerShape.ok === false
+    && singleShape.rect.found === true && singleShape.rect.markerShape.ok === true,
+  { круг: { found: singleShape.circle.found, shape: singleShape.circle.markerShape },
+    прямоугольник: { found: singleShape.rect.found, shape: singleShape.rect.markerShape } });
 
 // 10. V-жест: тот же analyzer, temporal debounce, 6× ceiling, fast release.
 const gesture = await page.evaluate(() => {

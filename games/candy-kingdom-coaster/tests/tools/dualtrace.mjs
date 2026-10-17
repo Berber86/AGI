@@ -32,13 +32,15 @@ const setup = await page.evaluate(() => {
   window.__TEST__.camEnableDualSynthetic();
   window.__TEST__.vrStart('camera-dual', 30, true);
   window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
+  window.__TEST__.camAgeMarkers(400);            // метка = сущность после 0.3 с
+  window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
   const cal = window.__TEST__.camCalibrateDual();
   return { cal: cal.ok, info: cal.info };
 });
 console.log('setup:', JSON.stringify({ calibrated: setup.cal, halfSepDeg: setup.info.markers.map((m) => m.found) }));
 
-const feed = (ax, ay, bx, by, frames = 12) => page.evaluate((ax, ay, bx, by, frames) => {
-  const r = window.__TEST__.camFeedDual(ax, ay, bx, by, 26);
+const feed = (ax, ay, bx, by, frames = 12, rad = 26) => page.evaluate((ax, ay, bx, by, frames, rad) => {
+  const r = window.__TEST__.camFeedDual(ax, ay, bx, by, rad);
   window.__TEST__.step(1 / 60, frames, false); // дать сглаживанию догнать (0.14 с)
   const v = window.__TEST__.vrInfo();
   const c = window.__TEST__.camInfo();
@@ -47,12 +49,14 @@ const feed = (ax, ay, bx, by, frames = 12) => page.evaluate((ax, ay, bx, by, fra
     trackerYaw: c.yaw, heldYaw: c.heldYaw, found: c.found, fresh: c.fresh,
     visible: c.dualVisible.join('+') || '—', lost: c.lastLostMarker,
     vrYaw: v.yawDeg, source: v.lookSource, aim: L.yaw, state: c.pairState,
+    shape: c.markers.map((m) => (m.shapeOk === null ? '—' : m.shapeOk ? 'прямоуг' : 'не та форма')).join('/'),
+    entity: c.markers.map((m) => (m.found ? (m.entity ? `сущность ${m.entityMs}мс` : `наблюдаю ${m.entityMs}мс`) : '—')).join('/'),
     deltas: c.dualDeltas.map((d) => d.deltaYaw).join('/'), trust: c.dualTrust,
     used: c.dualUsed.join('+') || '—', rate: c.yawRate,
     expect: c.dualDeltas.map((d) => (d.expected ? 'в кадре' : 'за краем')).join('/'),
     missing: `${c.dualMissing.left}/${c.dualMissing.right}`,
   };
-}, ax, ay, bx, by, frames);
+}, ax, ay, bx, by, frames, rad);
 
 console.log('\n=== 1. поворот головы: обе метки сдвигаются вместе ===');
 for (const deg of [0, 5, 10, 15]) {
@@ -82,7 +86,7 @@ console.log('\n=== 3. чужое пятно того же оттенка, ког
   for (const d of [22, 44, 66]) await feed(82 + d, 120, 238 + d, 120);
   await feed(170, 120, 326, 120);                  // ~20°: правая вот-вот уйдёт за край
   const alone = await feed(170, 120, null, null);  // правая метка ушла из кадра
-  const pseudo = await feed(170, 120, 190, 120);   // вместо неё чужой блик у центра кадра
+  const pseudo = await feed(170, 120, 30, 120, 12, { left: 26, right: 10 }); // чужой блик у левого края
   const dL = +alone.deltas.split('/')[0];
   const dR = +pseudo.deltas.split('/')[1];
   const wouldBeMean = (dL + dR) / 2;
@@ -90,8 +94,8 @@ console.log('\n=== 3. чужое пятно того же оттенка, ког
   console.log(`  + чужое пятно:       трекер ${pseudo.trackerYaw.toFixed(1)}° цель ${pseudo.aim.toFixed(1)}° дельты ${pseudo.deltas} (${pseudo.state})`);
   console.log(`  ожидание модели:     ${pseudo.expect} · в счёт пошло: ${pseudo.used} · чужих кадров: ${pseudo.missing}`);
   console.log(`  СТАРОЕ поведение дало бы среднее дельт = ${wouldBeMean.toFixed(1)}°  ← взгляд «съезжал» с ${dL.toFixed(1)}° к центру`);
-  const r1 = await feed(170, 120, 190, 120);
-  const r2 = await feed(170, 120, 190, 120);
+  const r1 = await feed(170, 120, 30, 120, 12, { left: 26, right: 10 });
+  const r2 = await feed(170, 120, 30, 120, 12, { left: 26, right: 10 });
   console.log(`  удержание после: ${r1.trackerYaw.toFixed(1)}° / ${r2.trackerYaw.toFixed(1)}° (кадр за кадром), доверие ${JSON.stringify(r2.trust)}`);
   console.log(`  в счёт пошло: ${r2.used} · скорость головы ${r2.rate}°/с · ожидание ${r2.expect}`);
   const b = await feed(148, 120, 304, 120);
@@ -107,9 +111,9 @@ console.log('\n=== 3-бис. совпадающие оттенки: один п�
 console.log('\n=== 3b. псевдопятно ПОСЛЕ калибровки, реальная метка ведёт далеко в сторону ===');
 {
   const hold = await feed(142, 120, null, null, 6);
-  const now = await feed(142, 120, 160, 120, 6);
-  const now2 = await feed(142, 120, 160, 120, 6);
-  const now3 = await feed(142, 120, 160, 120, 6);
+  const now = await feed(142, 120, 40, 120, 6, { left: 26, right: 10 });
+  const now2 = await feed(142, 120, 40, 120, 6, { left: 26, right: 10 });
+  const now3 = await feed(142, 120, 40, 120, 6, { left: 26, right: 10 });
   console.log(`  удержание:      трекер ${hold.trackerYaw.toFixed(1)}° цель ${hold.aim.toFixed(1)}° (${hold.state})`);
   console.log(`  + псевдо центр: трекер ${now.trackerYaw.toFixed(1)}° цель ${now.aim.toFixed(1)}° дельты ${now.deltas} (${now.state}) доверие ${JSON.stringify(now.trust)}`);
   console.log(`  через 6 кадров: трекер ${now2.trackerYaw.toFixed(1)}° цель ${now2.aim.toFixed(1)}°  ещё 6: трекер ${now3.trackerYaw.toFixed(1)}° цель ${now3.aim.toFixed(1)}°`);

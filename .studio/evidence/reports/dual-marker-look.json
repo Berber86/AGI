@@ -125,15 +125,22 @@
       "tiny blob ignored, normal blob leads",
       "an instant 33 deg jump is rejected; accepted on the second agreeing frame",
       "while markers are lost the gaze keeps turning at the recent head speed"
+    ],
+    "entity_and_shape": [
+      "0.1 s of observation is not a marker, 0.3+ s is",
+      "a marker that blinked for 0.1 s does not drive the gaze",
+      "a marker held for 0.3+ s leads the pair again",
+      "a circle and a vertical rectangle are not markers, a horizontal rectangle is",
+      "single-marker mode also requires a horizontal rectangle"
     ]
   },
   "acceptance_after_change": {
-    "camqa": "37/37",
+    "camqa": "42/42",
     "vrqa": "20/20",
-    "remotqa": "21/21 (one 20/21 run was the known timing flake under load; re-run 21/21)",
     "joystickqa": "7/7",
     "uiqa": "24/24",
-    "python_unittest": "15/15"
+    "python_unittest": "15/15",
+    "remotqa": "21/21 on quiet host; 19-21/21 on a loaded host, baseline e474c8c also 20/21 under the same load (known timing flake)"
   },
   "diagnostics_added": [
     "camtrack.info().pairState",
@@ -149,7 +156,7 @@
     "not verified on real footage, only synthetically (headless SwiftShader); the tuning values (6 deg / 260 dps / 900 ms) are geometric estimates and may need one field iteration",
     "max reachable yaw in the synthetic path is about +-32 deg (frame width), real range depends on camera FOV and marker placement"
   ],
-  "report_status": "two rounds: (1) pair no longer averages conflicting deltas, (2) spatial + velocity model of the pair (2026-10-17)",
+  "report_status": "three rounds: (1) no averaging of conflicting deltas, (2) spatial + velocity model, (3) marker entity time (0.3 s) and shape (horizontal rectangle) — 2026-10-17",
   "spatial_velocity_model": {
     "why": "markers are fixed in the world: their order, separation and calibrated spots never change, and the head angle has a measurable speed over the last seconds — so most 'unexpected' detections can be rejected by physics instead of by trust heuristics",
     "state_kept": {
@@ -243,6 +250,79 @@
       "yawRate",
       "dualDeltas[].residual",
       "dualDeltas[].expected"
+    ]
+  },
+  "marker_entity_and_shape": {
+    "entity": {
+      "confirm_ms": 300,
+      "identity_ms": 4000,
+      "rules": [
+        "a marker participates in the gaze only after 300 ms of continuous observation",
+        "a confirmed marker keeps identity for up to 4 s of absence; anything appearing later must earn 0.3 s again",
+        "calibration requires both markers to be entities",
+        "single-marker mode follows the same rule"
+      ]
+    },
+    "shape": {
+      "analyzer": "analyzeColorBlob now returns bw, bh, fill of the largest connected component; the worker forwards them for single mode",
+      "rules": [
+        "fill >= 0.5",
+        "aspect within [max(1.12, base*0.62), base*1.6] where base is the same marker's calibrated aspect (perspective foreshortening)",
+        "clipped by the frame edge -> aspect not judged, only fill",
+        "blobs smaller than 10x8 px -> shape not judged (size gate handles them)"
+      ]
+    },
+    "measured": {
+      "after_100ms": {
+        "confirmed": false,
+        "found": false
+      },
+      "after_360ms": {
+        "confirmed": true,
+        "found": true,
+        "entity_ms": 366
+      },
+      "flash_100ms_after_forget": {
+        "entity": false,
+        "used": [
+          "left"
+        ],
+        "gaze_moved": false
+      },
+      "held_400ms": {
+        "entity": true,
+        "used": [
+          "left",
+          "right"
+        ],
+        "state": "pair"
+      },
+      "circle": {
+        "aspect": 1.02,
+        "shapeOk": false,
+        "state": "single"
+      },
+      "vertical": {
+        "aspect": 0.5,
+        "shapeOk": false
+      },
+      "horizontal": {
+        "aspect": 2.0,
+        "fill": 1.0,
+        "shapeOk": true,
+        "state": "pair"
+      },
+      "single_marker_circle": {
+        "found": false,
+        "markerShape": {
+          "ok": false
+        }
+      }
+    },
+    "diagnostics": [
+      "markerEntity {confirmed, ms}",
+      "markers[].entity/entityMs/shapeOk/aspect/fill/clipped",
+      "pairState acquiring/shape"
     ]
   }
 }

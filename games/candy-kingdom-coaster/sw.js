@@ -1,5 +1,5 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v44'; // v44: две метки — инвариант порядка/расстояния, прогноз места и скорости головы
+const CACHE = 'ckc-v45'; // v45: две метки — сущность за 0.3 с и проверка формы (горизонтальный прямоугольник)
 const ASSETS = [
   './',
   './index.html',

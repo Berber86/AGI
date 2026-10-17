@@ -55,21 +55,30 @@ export function analyzeColorBlob(data, w, h, specHue, tol = 26, satMin = 0.42) {
   let best = null;
   for (let start = 0; start < w * h; start++) {
     if (!mask[start] || seen[start]) continue;
-    let count = 0, sx = 0, sy = 0;
+    let count = 0, sx = 0, sy = 0, minX = w, maxX = -1, minY = h, maxY = -1;
     stack.length = 0; stack.push(start); seen[start] = 1;
     while (stack.length) {
       const cur = stack.pop();
       const x = cur % w, y = (cur / w) | 0;
       count++; sx += x; sy += y;
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
       if (x > 0 && mask[cur - 1] && !seen[cur - 1]) { seen[cur - 1] = 1; stack.push(cur - 1); }
       if (x < w - 1 && mask[cur + 1] && !seen[cur + 1]) { seen[cur + 1] = 1; stack.push(cur + 1); }
       if (y > 0 && mask[cur - w] && !seen[cur - w]) { seen[cur - w] = 1; stack.push(cur - w); }
       if (y < h - 1 && mask[cur + w] && !seen[cur + w]) { seen[cur + w] = 1; stack.push(cur + w); }
     }
-    if (!best || count > best.count) best = { count, sx, sy };
+    if (!best || count > best.count) best = { count, sx, sy, minX, maxX, minY, maxY };
   }
-  if (!best || best.count < 40 || best.count > w * h * 0.7) return { found: false, count: best ? best.count : 0 };
-  return { found: true, count: best.count, u: best.sx / best.count, v: best.sy / best.count };
+  if (!best || best.count < 40 || best.count > w * h * 0.7) return { found: false, count: best ? best.count : 0, bw: 0, bh: 0, fill: 0 };
+  // bbox и заполненность — бесплатная проверка формы: настоящая метка это
+  // горизонтальный прямоугольник, а не «абы что» (блик, кабель, круг).
+  const bw = best.maxX - best.minX + 1;
+  const bh = best.maxY - best.minY + 1;
+  return {
+    found: true, count: best.count, u: best.sx / best.count, v: best.sy / best.count,
+    bw, bh, fill: +(best.count / (bw * bh)).toFixed(3),
+  };
 }
 
 // Дешёвый экспериментальный анализ жестов без тяжёлой hand-pose модели.
@@ -286,10 +295,31 @@ const DUAL_HISTORY_MS = 2500;      // сколько секунд истории
 const DUAL_HISTORY_MAX = 60;       // и сколько кадров максимум
 const DUAL_RATE_READY_MS = 150;    // раньше этого о скорости судить нечем
 const DUAL_RATE_LIMIT_DPS = 400;   // физиологичный предел скорости головы
-const DUAL_RESIDUAL_DEG = 5;       // базовый допуск «метка там, где её ждут»
-const DUAL_RESIDUAL_MAX_DEG = 25;
-const DUAL_EDGE_SLACK_DEG = 4;     // запас у края кадра при предсказании
+const DUAL_RESIDUAL_DEG = 7;       // базовый допуск «метка там, где её ждут»
+const DUAL_RESIDUAL_MAX_DEG = 30;
+const DUAL_EDGE_SLACK_DEG = 8;     // запас у края: за ним метка уже «вне кадра»
 const DUAL_PREDICT_S = 0.35;       // дальше этого срока не экстраполируем
+
+// Метка становится «сущностью» только после явного наблюдения: одиночный
+// кадр на 0.1 с — ещё не метка, нужно не меньше 0.3 с. Однажды подтверждённая
+// метка остаётся сущностью, пока не пропадёт надолго (4 с — столько же живёт
+// удержание взгляда): вернувшаяся знакомая коробка не ждёт подтверждения
+// заново, а вот всё, что появилось «из небытия», обязано прожить 0.3 с.
+const MARKER_CONFIRM_MS = 300;
+const MARKER_IDENTITY_MS = 4000;
+// Метка — горизонтальный прямоугольник: длинная сторона в горизонтальной
+// плоскости. Заполненность отсекает блики/контуры, пропорции — круги и
+// вертикальные предметы; у края кадра bbox обрезан, там судим только по
+// заполненности (виден кусок прямоугольника — это нормально).
+// Пропорции сравниваются с КАЛИБРОВАННЫМИ: при повороте головы перспектива
+// сжимает ширину (cos угла), и абсолютный порог отвергал бы честную метку.
+const MARKER_ASPECT_MIN = 1.12;
+const MARKER_ASPECT_MAX = 5.5;
+const MARKER_FILL_MIN = 0.5;
+const MARKER_ASPECT_BASE_LO = 0.62; // перспектива: ширина сжимается как cos угла
+const MARKER_ASPECT_BASE_HI = 1.6;
+const MARKER_SHAPE_MIN_W = 10;     // меньше — форма не различима, не судим
+const MARKER_SHAPE_MIN_H = 8;
 
 export class CamTracker {
   constructor() {
@@ -318,6 +348,7 @@ export class CamTracker {
     this.lostMarkers = [];
     this.dualCalibration = null; // raw yaw/pitch for each box at «прямо»
     this.dualBaseCount = null;   // размер пятна на калибровке (отсев мусора)
+    this.dualBaseShape = null;   // пропорции/заполненность каждой метки на калибровке
     this.dualTrust = { left: 1, right: 1 };
     this.reanchorPending = null;
     this.lastAcceptAt = 0;
@@ -326,7 +357,9 @@ export class CamTracker {
     this.dualHistory = [];       // история углов поворота головы за секунды
     this.yawRate = 0;            // °/с: оценка скорости по этой истории
     this.dualUsed = [];          // чьи метки реально пошли в счёт
-    this.dualMissing = { left: 0, right: 0 }; // кадров, где метка обязана быть, а её нет     // pair|single|conflict|tiny|same|lowtrust|step|lost
+    this.dualMissing = { left: 0, right: 0 }; // кадров, где метка обязана быть, а её нет
+    this.markerEntity = { left: { seenSince: 0, lastSeen: 0, confirmed: false }, right: { seenSince: 0, lastSeen: 0, confirmed: false }, single: { seenSince: 0, lastSeen: 0, confirmed: false } };
+    this.markerShape = null;      // последняя измеренная форма пятна     // pair|single|conflict|tiny|same|lowtrust|step|lost
     this.gestureEnabled = false;
     this.gestureV = false;
     this.gestureConfidence = 0;
@@ -476,6 +509,7 @@ export class CamTracker {
   resetDualCalibration() {
     this.dualCalibration = null;
     this.dualBaseCount = null;
+    this.dualBaseShape = null;
     this.dualModel = null;
     this.dualTrust = { left: 1, right: 1 };
     this.reanchorPending = null;
@@ -483,7 +517,57 @@ export class CamTracker {
     this.yawRate = 0;
     this.dualUsed = [];
     this.dualMissing = { left: 0, right: 0 };
+    this.markerEntity = { left: { seenSince: 0, lastSeen: 0, confirmed: false }, right: { seenSince: 0, lastSeen: 0, confirmed: false }, single: { seenSince: 0, lastSeen: 0, confirmed: false } };
+    this.markerShape = null;
     this.pairState = 'idle';
+  }
+
+  // Забыть метку совсем (QA: проверить, что новое появление снова требует
+  // 0.3 с). Без аргумента — все метки.
+  forgetMarkerEntities(id = null) {
+    for (const key of Object.keys(this.markerEntity || {})) {
+      if (id && key !== id) continue;
+      this.markerEntity[key] = { seenSince: 0, lastSeen: 0, confirmed: false };
+    }
+  }
+
+  // Сущность метки: сколько времени она явно видна НЕПРЕРЫВНО и была ли она
+  // подтверждена раньше. 0.1-секундный «морок» сущностью не становится.
+  _markerEntityState(id, visible, now) {
+    const map = this.markerEntity || (this.markerEntity = {});
+    const st = map[id] || (map[id] = { seenSince: 0, lastSeen: 0, confirmed: false });
+    if (visible) {
+      if (st.confirmed) {
+        if (st.lastSeen && now - st.lastSeen > MARKER_IDENTITY_MS) { st.confirmed = false; st.seenSince = now; }
+      } else {
+        if (!st.seenSince || (st.lastSeen && now - st.lastSeen > MARKER_IDENTITY_MS)) st.seenSince = now;
+        if (now - st.seenSince >= MARKER_CONFIRM_MS) st.confirmed = true;
+      }
+      st.lastSeen = now;
+    } else {
+      st.seenSince = 0;
+      if (st.confirmed && st.lastSeen && now - st.lastSeen > MARKER_IDENTITY_MS) st.confirmed = false;
+    }
+    return st;
+  }
+
+  // Форма метки: горизонтальный прямоугольник. Возвращает {ok, aspect, fill,
+  // clipped, judged}; у края кадра пропорции не судим (bbox обрезан).
+  // base — форма этой же метки на калибровке «прямо» (если известна).
+  _markerShapeOf(res, w, h, base = null) {
+    if (!res || !res.found || !res.bw || !res.bh) return { ok: true, aspect: null, fill: null, clipped: false, judged: false };
+    const clipped = (res.u - res.bw / 2) <= 1 || (res.u + res.bw / 2) >= w - 1
+      || (res.v - res.bh / 2) <= 1 || (res.v + res.bh / 2) >= h - 1;
+    const fill = res.fill === undefined ? res.count / (res.bw * res.bh) : res.fill;
+    const aspect = res.bw / res.bh;
+    const bigEnough = res.bw >= MARKER_SHAPE_MIN_W && res.bh >= MARKER_SHAPE_MIN_H;
+    const fillMin = base ? Math.max(0.45, (base.fill || 1) * 0.6) : MARKER_FILL_MIN;
+    if (!bigEnough) return { ok: fill >= fillMin, aspect, fill, clipped, judged: false };
+    if (fill < fillMin) return { ok: false, aspect, fill, clipped, judged: true };
+    const lo = base && base.aspect ? Math.max(MARKER_ASPECT_MIN, base.aspect * MARKER_ASPECT_BASE_LO) : MARKER_ASPECT_MIN;
+    const hi = base && base.aspect ? base.aspect * MARKER_ASPECT_BASE_HI : MARKER_ASPECT_MAX;
+    if (!clipped && (aspect < lo || aspect > hi)) return { ok: false, aspect, fill, clipped, judged: true };
+    return { ok: true, aspect, fill, clipped, judged: true };
   }
 
   // История поворота головы. Копим углы принятых кадров: по ним считается
@@ -574,14 +658,14 @@ export class CamTracker {
     // вообще попасть в кадр. «Бесовщина» отсекается именно здесь.
     const dtSince = Math.max(0.001, (now - (this.lastAcceptAt || now)) / 1000);
     const rate = this.yawRate || 0;
-    const thetaPred = calibrated ? this.heldYaw + rate * Math.min(dtSince, DUAL_PREDICT_S) : 0;
+    const thetaPred = calibrated ? this.heldYaw + rate * Math.min(dtSince, 0.2) : 0;
     // Край кадра в углах — это половина поля зрения (центр калибровки у пары
     // стоит в середине кадра). Запас ниже нужен на ошибку прогноза, иначе
     // модель объявляла бы «за краем» метку, стоящую ровно на границе.
     const halfFov = this.fovDeg / 2;
     // запас у края: чем быстрее поворот, тем шире окно «может быть видно»
     const edgeSlack = DUAL_EDGE_SLACK_DEG + Math.abs(rate) * Math.min(dtSince, DUAL_PREDICT_S) * 0.8;
-    const tolResidual = THREE_CLAMP(DUAL_RESIDUAL_DEG + Math.abs(rate) * dtSince * 0.6,
+    const tolResidual = THREE_CLAMP(DUAL_RESIDUAL_DEG + Math.abs(rate) * Math.min(dtSince, 0.2) * 0.8,
       DUAL_RESIDUAL_DEG, DUAL_RESIDUAL_MAX_DEG);
     const expectRawOf = (id) => (calibrated ? M.baseRaw[id] + thetaPred : null);
     const expectedRaw = { left: expectRawOf('left'), right: expectRawOf('right') };
@@ -609,7 +693,21 @@ export class CamTracker {
     // чужой предмет. Это и есть правило «всё малиновое там игнорируем».
     const impossible = visible.filter((m) => !m.expected);
     for (const m of impossible) this.dualTrust[m.id] = Math.max(0, this.dualTrust[m.id] - 0.5);
-    const usable = visible.filter((m) => m.expected && !tiny(m));
+
+    // Сущность и форма каждой видимой метки. Сущность — не меньше 0.3 с
+    // явного непрерывного наблюдения (или недавняя проверенная идентичность).
+    // Форма — горизонтальный прямоугольник, а не «абы что».
+    for (const m of visible) {
+      const st = this._markerEntityState(m.id, true, now);
+      m.entity = !!st.confirmed;
+      m.entityMs = m.entity ? Math.round(now - st.seenSince) : 0;
+      m.shape = this._markerShapeOf(m, w, h, this.dualBaseShape && this.dualBaseShape[m.id]);
+      m.shapeOk = m.shape.ok;
+    }
+    for (const id of ['left', 'right']) if (!visible.some((m) => m.id === id)) this._markerEntityState(id, false, now);
+    this.markerShape = visible.length ? visible[visible.length - 1].shape : null;
+
+    const usable = visible.filter((m) => m.expected && !tiny(m) && m.entity && m.shapeOk);
 
     // Кто ближе к предсказанному месту — того и слушаем; доверие лишь
     // разрешает ничьи (у пришельца оно быстро падает).
@@ -621,14 +719,18 @@ export class CamTracker {
     let pitch = null;
     if (!visible.length) {
       state = 'lost';
-    } else if (!calibrated) {
-      // До «Калибровать: прямо» судить о паре нечем — прежнее поведение:
-      // среднее по всем видимым меткам.
-      state = 'pair';
-      yaw = visible.reduce((sum, m) => sum + m.deltaYaw, 0) / visible.length;
-      pitch = visible.reduce((sum, m) => sum + m.deltaPitch, 0) / visible.length;
     } else if (!usable.length) {
-      state = impossible.length ? 'impossible' : 'tiny';
+      // Ничего, что можно пустить в счёт: либо метка ещё не прожила 0.3 с,
+      // либо это не прямоугольник. Взгляд не двигаем — держим прежний угол.
+      if (visible.some((m) => !m.entity)) state = 'acquiring';
+      else if (visible.some((m) => !m.shapeOk)) state = 'shape';
+      else if (!calibrated) state = 'pair';
+      else state = impossible.length ? 'impossible' : 'tiny';
+    } else if (!calibrated) {
+      // До «Калибровать: прямо» судить о паре нечем — среднее по сущностям.
+      state = 'pair';
+      yaw = usable.reduce((sum, m) => sum + m.deltaYaw, 0) / usable.length;
+      pitch = usable.reduce((sum, m) => sum + m.deltaPitch, 0) / usable.length;
     } else if (usable.length === 1) {
       state = 'single';
       chosen = usable[0];
@@ -737,13 +839,21 @@ export class CamTracker {
     this._applyGesture(res && res.gesture);
     if (this.dual && res && res.markers) return this._applyDualResult(res, w, h);
     const wasFound = this.found;
+    const now = performance.now();
     this.frameW = w; this.frameH = h;
-    if (res.found) {
+    // Одна метка — та же дисциплина: сущность после 0.3 с наблюдения и форма
+    // горизонтального прямоугольника. Пока метка не сущность, взгляд держим.
+    const shape = this._markerShapeOf(res, w, h);
+    this.markerShape = shape;
+    const entity = this._markerEntityState('single', !!res.found, now);
+    const ok = res.found && entity.confirmed && shape.ok;
+    if (ok) {
       const a = anglesFromCentroid(res.u, res.v, w, h, this.c0n, this.fovDeg);
       this.yaw = a.yaw; this.pitch = a.pitch;
       this.u = res.u; this.v = res.v; this.count = res.count;
       this.found = true;
-      this.lastFoundAt = performance.now();
+      this.entityMs = entity.seenSince ? Math.round(now - entity.seenSince) : 0;
+      this.lastFoundAt = now;
       this.heldYaw = this.yaw;
       this.heldPitch = this.pitch;
       this.exitSideX = null;
@@ -757,7 +867,8 @@ export class CamTracker {
         this.exitSideY = ny < 0.22 ? 'top' : ny > 0.78 ? 'bottom' : null;
       }
       this.found = false;
-      this.count = res.count || 0;
+      this.count = res.found ? 0 : (res.count || 0);
+      this.entityMs = 0;
     }
     return res;
   }
@@ -880,11 +991,17 @@ export class CamTracker {
   calibrate() {
     if (this.dual) {
       const a = this.markers[0], b = this.markers[1];
-      if (!a || !b || !a.found || !b.found) return false;
+      // Калибровать можно только по подтверждённым сущностям: 0.1-секундный
+      // «морок» не должен становиться точкой отсчёта «прямо».
+      if (!a || !b || !a.found || !b.found || !a.entity || !b.entity) return false;
       this.c0n = { x: (a.u + b.u) / (2 * this.frameW), y: (a.v + b.v) / (2 * this.frameH) };
       const aa = anglesFromCentroid(a.u, a.v, this.frameW, this.frameH, this.c0n, this.fovDeg);
       const bb = anglesFromCentroid(b.u, b.v, this.frameW, this.frameH, this.c0n, this.fovDeg);
       this.dualBaseCount = { left: a.count || 0, right: b.count || 0 };
+      this.dualBaseShape = {
+        left: { aspect: a.bw && a.bh ? a.bw / a.bh : 0, fill: a.fill || 1 },
+        right: { aspect: b.bw && b.bh ? b.bw / b.bh : 0, fill: b.fill || 1 },
+      };
       this.dualCalibration = {
         left: { yaw: aa.yaw, pitch: aa.pitch },
         right: { yaw: bb.yaw, pitch: bb.pitch },
@@ -915,34 +1032,41 @@ export class CamTracker {
   fresh(maxMs = 700) { return this.found && (performance.now() - this.lastFoundAt) <= maxMs; }
 
   // QA: синтетическая метка без настоящей камеры.
-  injectBlob(cx, cy, r, w = 320, h = 240) {
+  // QA-кадры повторяют физику метки: горизонтальный прямоугольник с длинной
+  // стороной в горизонтальной плоскости (shape='rect', r — половина высоты,
+  // ширина 4r). 'circle' и 'vertical' — для проверок, что «абы что» отсекается.
+  static _paintMarker(data, w, h, cx, cy, r, rgb, shape = 'rect') {
+    const hw = shape === 'vertical' ? r : r * 2;
+    const hh = shape === 'vertical' ? r * 2 : r;
+    for (let y = Math.max(0, Math.floor(cy - hh)); y < Math.min(h, Math.ceil(cy + hh)); y++) {
+      for (let x = Math.max(0, Math.floor(cx - hw)); x < Math.min(w, Math.ceil(cx + hw)); x++) {
+        if (shape === 'circle') {
+          const dx = x - cx, dy = y - cy;
+          if (dx * dx + dy * dy > r * r) continue;
+        }
+        const i = (y * w + x) * 4;
+        data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; data[i + 3] = 255;
+      }
+    }
+  }
+
+  injectBlob(cx, cy, r, w = 320, h = 240, shape = 'rect') {
     this.synthetic = true;
     const data = new Uint8ClampedArray(w * h * 4);
     // малиновый ~ оттенок 339°
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const dx = x - cx, dy = y - cy;
-      if (dx * dx + dy * dy <= r * r) {
-        const i = (y * w + x) * 4;
-        data[i] = 215; data[i + 1] = 51; data[i + 2] = 108; data[i + 3] = 255;
-      }
-    }
+    CamTracker._paintMarker(data, w, h, cx, cy, r, [215, 51, 108], shape);
     return this.processImageData(data, w, h);
   }
-  injectDualBlob(ax, ay, bx, by, r = 26, w = 320, h = 240) {
+  injectDualBlob(ax, ay, bx, by, r = 26, w = 320, h = 240, shape = 'rect') {
     this.synthetic = true;
     const data = new Uint8ClampedArray(w * h * 4);
+    const shapeOf = (side) => (typeof shape === 'string' ? shape : (shape && shape[side]) || 'rect');
+    const rOf = (side) => (typeof r === 'number' ? r : (r && r[side]) || 26);
     const blobs = [
-      { x: ax, y: ay, rgb: [241, 90, 36] }, // orange
-      { x: bx, y: by, rgb: [215, 51, 108] }, // raspberry
+      { x: ax, y: ay, r: rOf('left'), rgb: [241, 90, 36], shape: shapeOf('left') }, // orange
+      { x: bx, y: by, r: rOf('right'), rgb: [215, 51, 108], shape: shapeOf('right') }, // raspberry
     ].filter((blob) => Number.isFinite(blob.x) && Number.isFinite(blob.y));
-    for (const blob of blobs) for (let y = Math.max(0, blob.y - r); y < Math.min(h, blob.y + r); y++) {
-      for (let x = Math.max(0, blob.x - r); x < Math.min(w, blob.x + r); x++) {
-        const dx = x - blob.x, dy = y - blob.y;
-        if (dx * dx + dy * dy > r * r) continue;
-        const i = (y * w + x) * 4;
-        data[i] = blob.rgb[0]; data[i + 1] = blob.rgb[1]; data[i + 2] = blob.rgb[2]; data[i + 3] = 255;
-      }
-    }
+    for (const blob of blobs) CamTracker._paintMarker(data, w, h, blob.x, blob.y, blob.r, blob.rgb, blob.shape);
     return this.processImageData(data, w, h);
   }
 
@@ -1057,7 +1181,24 @@ export class CamTracker {
       dualUsed: [...(this.dualUsed || [])],
       dualMissing: { ...this.dualMissing },
       yawRate: Math.round(this.yawRate || 0),
-      markers: this.markers.map((m) => ({ id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null, count: m.count || 0 })),
+      markerEntity: Object.fromEntries(Object.entries(this.markerEntity || {}).map(([id, st]) => [id, {
+        confirmed: !!st.confirmed,
+        ms: st.confirmed && st.seenSince ? Math.round(performance.now() - st.seenSince) : 0,
+      }])),
+      markerShape: this.markerShape ? {
+        ok: !!this.markerShape.ok, judged: !!this.markerShape.judged,
+        aspect: this.markerShape.aspect === null ? null : +this.markerShape.aspect.toFixed(2),
+        fill: this.markerShape.fill === null ? null : +this.markerShape.fill.toFixed(2),
+        clipped: !!this.markerShape.clipped,
+      } : null,
+      markers: this.markers.map((m) => ({
+        id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null,
+        count: m.count || 0, entity: !!m.entity, entityMs: m.entityMs || 0,
+        shapeOk: m.found ? m.shapeOk !== false : null,
+        aspect: m.shape && m.shape.aspect !== null ? +m.shape.aspect.toFixed(2) : null,
+        fill: m.shape && m.shape.fill !== null ? +m.shape.fill.toFixed(2) : null,
+        clipped: m.shape ? !!m.shape.clipped : null,
+      })),
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,
       tol: this.tol, satMin: this.satMin,
       heldYaw: +this.heldYaw.toFixed(1), heldPitch: +this.heldPitch.toFixed(1),
