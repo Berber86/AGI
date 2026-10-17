@@ -131,6 +131,32 @@ function largestSkinComponent(mask, w, h) {
   return best;
 }
 
+// Diagnostics for the standalone gesture room. Returns the same production
+// skin mask plus a concise reason when the silhouette gate rejects the frame.
+export function analyzeSkinMaskDiagnostics(data, w, h) {
+  const { mask, count } = skinMask(data, w, h);
+  const minMask = Math.max(70, w * h * 0.004);
+  const minComponent = Math.max(70, w * h * 0.006);
+  let best = null;
+  let reason = 'shape-check';
+  if (count >= minMask && count <= w * h * 0.75) best = largestSkinComponent(mask, w, h);
+  if (count < minMask) reason = 'too-few-skin-pixels';
+  else if (count > w * h * 0.75) reason = 'skin-mask-covers-background';
+  else if (!best) reason = 'no-connected-hand-region';
+  else if (best.count < minComponent) reason = 'hand-region-too-small';
+  else {
+    const bw = best.maxX - best.minX + 1;
+    const bh = best.maxY - best.minY + 1;
+    if (bw < w * 0.12 || bh < h * 0.16) reason = 'hand-region-too-small-in-frame';
+    else if (bw > w * 0.9 || bh > h * 0.95) reason = 'hand-region-cropped-or-too-large';
+  }
+  return {
+    mask, skinPixels: count, largestPixels: best ? best.count : 0,
+    bounds: best ? { x: best.minX, y: best.minY, width: best.maxX - best.minX + 1, height: best.maxY - best.minY + 1 } : null,
+    reason,
+  };
+}
+
 function skinSilhouette(data, w, h) {
   const { mask, count } = skinMask(data, w, h);
   if (count < Math.max(70, w * h * 0.004) || count > w * h * 0.75) return null;

@@ -35,6 +35,8 @@
     #details { margin-top: 8px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c2bad2; white-space: pre-wrap; overflow-wrap: anywhere; }
     ol { margin: 9px 0 0; padding-left: 22px; color: #d9d1e6; line-height: 1.55; font-size: 14px; }
     .privacy { color: #a9a1b8; font-size: 12px; }
+    .mask-preview { width: min(100%, 320px); display: block; aspect-ratio: 4 / 3; margin-top: 8px; border-radius: 10px; image-rendering: pixelated; background: #05050a; }
+    #diagnosis { margin-top: 8px; color: #ffe09a; font-size: 13px; line-height: 1.5; }
     @media (min-width: 600px) { .metrics { grid-template-columns: repeat(4, minmax(0,1fr)); } .metric { min-height: 96px; } }
   </style>
 </head>
@@ -66,12 +68,16 @@
       <div class="metric"><div class="label">👍 Ввод после debounce</div><div id="stable-thumb" class="value no">газ выключен</div></div>
     </div>
     <div id="details">Параметры камеры: —</div>
+    <div id="diagnosis" role="status" aria-live="polite">Диагностика маски появится после первого кадра.</div>
+    <h2 style="margin-top:14px">Что именно видит цветовой фильтр</h2>
+    <p class="small">Зелёное — пиксели, которые production-алгоритм считает кожей. Если рука видна в основном окне, а здесь почти нет зелёного, жестовый классификатор ещё не получил силуэт для проверки формы.</p>
+    <canvas id="mask-preview" class="mask-preview" width="160" height="120" aria-label="Маска пикселей кожи"></canvas>
   </section>
 
   <section class="card">
     <h2>2. Как читать результат</h2>
     <ol>
-      <li><b>Сырой сигнал</b> — распозналась ли поза в текущем кадре и уверенность алгоритма.</li>
+      <li><b>Сырой сигнал</b> — распозналась ли целая поза. Текущий распознаватель выдаёт 0% при отказе на любом этапе, поэтому сам процент не показывает, увидел ли он руку; для этого смотри зелёную маску и строку причины ниже.</li>
       <li><b>Ввод после debounce</b> — реальный стабильный флаг, который потребляет игра. Включение требует двух последовательных кадров. Для 👍 один кадр без распознавания уже выключает газ.</li>
       <li>Если изображение руки видно, но сигнал всё время «нет», это ограничение текущего распознавателя/освещения/ракурса, а не отсутствие разрешения камеры.</li>
     </ol>
@@ -79,7 +85,7 @@
   <p class="privacy">Видео обрабатывается только в этой вкладке на устройстве. Ничего не записывается и не отправляется. Разрешение камеры требуется по HTTPS или на localhost.</p>
 </main>
 <script type="module">
-  import { analyzeGestures } from '../src/camtrack.js';
+  import { analyzeGestures, analyzeSkinMaskDiagnostics } from '../src/camtrack.js';
 
   const $ = (id) => document.getElementById(id);
   const video = $('video'), overlay = $('overlay');
@@ -90,7 +96,17 @@
     stream: null, running: false, lastAt: 0, procMs: 0, fps: 0,
     vOn: 0, vOff: 0, thumbOn: 0, thumbOff: 0, vStable: false, thumbStable: false,
     raw: { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } },
-    frames: 0, startedAt: 0, lastLine: '',
+    frames: 0, startedAt: 0, lastLine: '', skinDiag: null,
+  };
+  const maskCanvas = $('mask-preview'), maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
+  const reasonText = {
+    'too-few-skin-pixels': 'Фильтр почти не видит пиксели кожи. Попробуй яркий ровный свет, убери цветной свет/пересвет и проверь зелёную маску.',
+    'skin-mask-covers-background': 'Кожей помечена большая часть кадра — в маску попал фон или слишком много руки/лица. Отодвинь камеру и оставь в кадре только кисть.',
+    'no-connected-hand-region': 'Цветовые пиксели есть, но не собрались в связную кисть. Убери фоновые пятна и держи кисть целиком.',
+    'hand-region-too-small': 'Силуэт руки слишком мал. Поднеси кисть ближе, чтобы она занимала заметную часть кадра.',
+    'hand-region-too-small-in-frame': 'Силуэт узкий или короткий. Разверни ладонь к объективу и покажи пальцы полностью.',
+    'hand-region-cropped-or-too-large': 'Кисть обрезана краем кадра или слишком близко. Отодвинь руку и помести её целиком в кадр.',
+    'shape-check': 'Пиксели кожи и силуэт найдены; форма не совпала с V или 👍. Держи жест неподвижно, ладонью к камере, пальцы раздвинуты.',
   };
 
   const format = (r) => `${r.found ? 'ДА' : 'нет'} · ${Math.round((r.confidence || 0) * 100)}%`;
@@ -107,8 +123,9 @@
     const facing = settings.facingMode || 'браузер не сообщил';
     const ageMs = state.lastAt ? Math.round(performance.now() - state.lastAt) : null;
     $('details').textContent = state.running
-      ? `Камера: ${track?.label || 'название скрыто'}\nЗапрошена: задняя environment · Получена: ${facing}\nСенсор: ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · анализ: ${Math.round(state.fps)} кадр/с · ${state.procMs.toFixed(1)} мс/кадр\nСвежесть анализа: ${ageMs} мс · V пики: ${state.raw.v.peaks ? state.raw.v.peaks.map(p => `${p.u.toFixed(2)},${p.v.toFixed(2)}`).join(' / ') : '—'} · 👍 кончик: ${state.raw.thumb.tip ? `${state.raw.thumb.tip.u.toFixed(2)},${state.raw.thumb.tip.v.toFixed(2)}` : '—'}`
+      ? `Камера: ${track?.label || 'название скрыто'}\nЗапрошена: задняя environment · Получена: ${facing}\nСенсор: ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · анализ: ${Math.round(state.fps)} кадр/с · ${state.procMs.toFixed(1)} мс/кадр\nСвежесть анализа: ${ageMs} мс · V пики: ${state.raw.v.peaks ? state.raw.v.peaks.map(p => `${p.u.toFixed(2)},${p.v.toFixed(2)}`).join(' / ') : '—'} · 👍 кончик: ${state.raw.thumb.tip ? `${state.raw.thumb.tip.u.toFixed(2)},${state.raw.thumb.tip.v.toFixed(2)}` : '—'}\nМаска: ${state.skinDiag ? `${state.skinDiag.skinPixels} skin px · крупнейшая связная область ${state.skinDiag.largestPixels} px · ${state.skinDiag.bounds ? `${state.skinDiag.bounds.width}×${state.skinDiag.bounds.height}` : 'нет bbox'} · ${state.skinDiag.reason}` : 'считается'}`
       : 'Параметры камеры: —';
+    if (state.skinDiag) $('diagnosis').textContent = reasonText[state.skinDiag.reason] || reasonText['shape-check'];
     $('stop').disabled = !state.running;
     $('copy').disabled = !state.running && !state.frames;
   }
@@ -132,6 +149,19 @@
       ctx.lineWidth = 3; ctx.strokeStyle = '#ffd166'; ctx.stroke();
     }
   }
+  function drawSkinMask(diag, w, h) {
+    if (!diag?.mask) return;
+    maskCanvas.width = w; maskCanvas.height = h;
+    const image = maskCtx.createImageData(w, h);
+    for (let i = 0; i < diag.mask.length; i++) {
+      const j = i * 4, on = diag.mask[i] !== 0;
+      image.data[j] = on ? 45 : 5;
+      image.data[j + 1] = on ? 238 : 5;
+      image.data[j + 2] = on ? 133 : 12;
+      image.data[j + 3] = 255;
+    }
+    maskCtx.putImageData(image, 0, 0);
+  }
   function reportText() {
     const track = state.stream?.getVideoTracks?.()[0], settings = track?.getSettings?.() || {};
     return [
@@ -140,6 +170,7 @@
       `Камера: ${track?.label || 'неизвестно'}; facingMode: ${settings.facingMode || 'неизвестно'}; размер: ${settings.width || '?'}×${settings.height || '?'}`,
       `Последний raw V: ${format(state.raw.v)}; стабильный V: ${state.vStable}`,
       `Последний raw thumbs-up: ${format(state.raw.thumb)}; стабильный gas: ${state.thumbStable}`,
+      `Маска: ${state.skinDiag ? `${state.skinDiag.skinPixels} пикселей кожи, связная область ${state.skinDiag.largestPixels}, причина: ${state.skinDiag.reason}` : 'нет данных'}`,
       `Средняя частота анализа сейчас: ${Math.round(state.fps)} кадр/с; стоимость кадра: ${state.procMs.toFixed(1)} мс`,
       'Примечание: heuristics по rear camera image; не WebXR hand tracking.',
     ].join('\n');
@@ -153,6 +184,10 @@
     const image = workCtx.getImageData(0, 0, w, h);
     const result = analyzeGestures(image.data, w, h);
     state.raw = result;
+    if (state.frames % 3 === 0) {
+      state.skinDiag = analyzeSkinMaskDiagnostics(image.data, w, h);
+      drawSkinMask(state.skinDiag, w, h);
+    }
     if (result.v.found) { state.vOn++; state.vOff = 0; if (state.vOn >= 2) state.vStable = true; }
     else { state.vOff++; state.vOn = 0; if (state.vOff >= 2) state.vStable = false; }
     if (result.thumb.found) { state.thumbOn++; state.thumbOff = 0; if (state.thumbOn >= 2) state.thumbStable = true; }
@@ -199,8 +234,10 @@
     state.stream = null; video.srcObject = null;
     state.vStable = false; state.thumbStable = false; state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
     state.raw = { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } };
+    state.skinDiag = null;
     $('status').textContent = 'Камера выключена.'; $('start').disabled = false; $('start').textContent = '📷 Включить заднюю камеру';
-    ctx.clearRect(0, 0, overlay.width, overlay.height); updateUi();
+    ctx.clearRect(0, 0, overlay.width, overlay.height); maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height); updateUi();
+    $('diagnosis').textContent = 'Диагностика маски появится после первого кадра.';
   }
   $('stop').addEventListener('click', stopCamera);
   $('copy').addEventListener('click', async () => {

@@ -8,7 +8,7 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v50'; // v50: жестовый стенд, rear-camera exact и запрос разрешения до VR countdown
+const CACHE = 'ckc-v51'; // v51: диагностика skin-mask для нулевой confidence в gesture stand
 const MEDIA_CACHE = 'ckc-media-v1';
 const SHELL = [
   './',
