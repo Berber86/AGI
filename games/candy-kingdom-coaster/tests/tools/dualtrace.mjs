@@ -48,6 +48,9 @@ const feed = (ax, ay, bx, by, frames = 12) => page.evaluate((ax, ay, bx, by, fra
     visible: c.dualVisible.join('+') || '—', lost: c.lastLostMarker,
     vrYaw: v.yawDeg, source: v.lookSource, aim: L.yaw, state: c.pairState,
     deltas: c.dualDeltas.map((d) => d.deltaYaw).join('/'), trust: c.dualTrust,
+    used: c.dualUsed.join('+') || '—', rate: c.yawRate,
+    expect: c.dualDeltas.map((d) => (d.expected ? 'в кадре' : 'за краем')).join('/'),
+    missing: `${c.dualMissing.left}/${c.dualMissing.right}`,
   };
 }, ax, ay, bx, by, frames);
 
@@ -56,6 +59,13 @@ for (const deg of [0, 5, 10, 15]) {
   const d = Math.round(px(deg));
   const r = await feed(82 + d, 120, 238 + d, 120);
   console.log(`  сдвиг ${String(deg).padStart(2)}° (${String(d).padStart(3)} px): трекер ${r.trackerYaw.toFixed(1)}° цель ${r.aim.toFixed(1)}° vr ${r.vrYaw.toFixed(1)}° ${r.visible} (${r.state})`);
+}
+
+console.log('\n=== 1b. ±5°: пространство знает, что обе метки обязаны быть в кадре ===');
+for (const deg of [-5, -2, 0, 3, 5]) {
+  const d = Math.round(160 + Math.tan((deg * Math.PI) / 180) * 160 / Math.tan((32.5 * Math.PI) / 180) - 160);
+  const r = await feed(82 + d, 120, 238 + d, 120, 8);
+  console.log(`  ${String(deg).padStart(3)}°: трекер ${r.trackerYaw.toFixed(1)}° видно ${r.visible} · в счёт ${r.used} · ожидание модели ${r.expect} · не хватает: ${r.missing}`);
 }
 
 console.log('\n=== 2. осталась одна метка (левая), ждём кадр за кадром ===');
@@ -78,10 +88,12 @@ console.log('\n=== 3. чужое пятно того же оттенка, ког
   const wouldBeMean = (dL + dR) / 2;
   console.log(`  одна реальная метка: трекер ${alone.trackerYaw.toFixed(1)}° цель ${alone.aim.toFixed(1)}° (${alone.state})`);
   console.log(`  + чужое пятно:       трекер ${pseudo.trackerYaw.toFixed(1)}° цель ${pseudo.aim.toFixed(1)}° дельты ${pseudo.deltas} (${pseudo.state})`);
+  console.log(`  ожидание модели:     ${pseudo.expect} · в счёт пошло: ${pseudo.used} · чужих кадров: ${pseudo.missing}`);
   console.log(`  СТАРОЕ поведение дало бы среднее дельт = ${wouldBeMean.toFixed(1)}°  ← взгляд «съезжал» с ${dL.toFixed(1)}° к центру`);
   const r1 = await feed(170, 120, 190, 120);
   const r2 = await feed(170, 120, 190, 120);
   console.log(`  удержание после: ${r1.trackerYaw.toFixed(1)}° / ${r2.trackerYaw.toFixed(1)}° (кадр за кадром), доверие ${JSON.stringify(r2.trust)}`);
+  console.log(`  в счёт пошло: ${r2.used} · скорость головы ${r2.rate}°/с · ожидание ${r2.expect}`);
   const b = await feed(148, 120, 304, 120);
   console.log(`  пара снова целиком: трекер ${b.trackerYaw.toFixed(1)}° цель ${b.aim.toFixed(1)}° дельты ${b.deltas} (${b.state})`);
 }

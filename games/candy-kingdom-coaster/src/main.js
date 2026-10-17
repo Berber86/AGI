@@ -720,7 +720,16 @@ function updateCameraLook(now, force = false) {
     // сторон — поэтому аккуратно докручиваем взгляд за удержанный угол
     // (до игрового предела), пока метка не вернётся или не пройдёт 1,8 с.
     if (lostFor > 150 && lostFor < 1800) {
-      const extra = Math.min(10, 12 * ((lostFor - 150) / 1000));
+      // Сколько докрутить: раньше это были фиксированные 12°/с, теперь — та
+      // скорость, с которой голова ехала последние секунды (трекер отдаёт её в
+      // yawRate). Затухание ~0.6 с: голова может остановиться, и взгляд не
+      // должен улетать дальше, чем успела уехать сама метка.
+      const rate = t.yawRate || 0;
+      const dir = Math.sign(rate);
+      const sameWay = dir !== 0 && (t.heldYaw === 0 || Math.sign(t.heldYaw) === dir);
+      const ramp = 1 - Math.exp(-Math.max(0, lostFor - 150) / 600);
+      const rateExtra = sameWay ? Math.min(15, Math.abs(rate) * 0.6 * ramp) : 0;
+      const extra = Math.max(rateExtra, Math.min(10, 12 * ((lostFor - 150) / 1000)));
       if (t.exitSideX) camSmooth.yaw = t.heldYaw + Math.sign(t.heldYaw || (t.exitSideX === 'right' ? 1 : -1)) * extra;
       if (t.exitSideY) camSmooth.pitch = t.heldPitch + Math.sign(t.heldPitch || (t.exitSideY === 'top' ? -1 : 1)) * extra;
     }

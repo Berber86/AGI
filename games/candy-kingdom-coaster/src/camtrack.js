@@ -277,6 +277,20 @@ const DUAL_MAX_STEP_CAP_DEG = 30;
 const DUAL_TRUST_MIN = 0.25;
 const DUAL_REANCHOR_MS = 900;
 
+// Пространственная модель пары. Метки закреплены в мире, поэтому их порядок,
+// расстояние и место на калибровке не меняются — по этим инвариантам чужое
+// пятно отличается от метки. Скорость головы копится в истории за последние
+// секунды: по ней предсказывается, где метка обязана быть в следующем кадре и
+// может ли она вообще попасть в кадр.
+const DUAL_HISTORY_MS = 2500;      // сколько секунд истории поворотов помним
+const DUAL_HISTORY_MAX = 60;       // и сколько кадров максимум
+const DUAL_RATE_READY_MS = 150;    // раньше этого о скорости судить нечем
+const DUAL_RATE_LIMIT_DPS = 400;   // физиологичный предел скорости головы
+const DUAL_RESIDUAL_DEG = 5;       // базовый допуск «метка там, где её ждут»
+const DUAL_RESIDUAL_MAX_DEG = 25;
+const DUAL_EDGE_SLACK_DEG = 4;     // запас у края кадра при предсказании
+const DUAL_PREDICT_S = 0.35;       // дальше этого срока не экстраполируем
+
 export class CamTracker {
   constructor() {
     this.hue = CAM_COLORS.raspberry.hue;
@@ -307,7 +321,12 @@ export class CamTracker {
     this.dualTrust = { left: 1, right: 1 };
     this.reanchorPending = null;
     this.lastAcceptAt = 0;
-    this.pairState = 'idle';     // pair|single|conflict|tiny|same|lowtrust|step|lost
+    this.pairState = 'idle';
+    this.dualModel = null;       // порядок/расстояние/места меток на калибровке
+    this.dualHistory = [];       // история углов поворота головы за секунды
+    this.yawRate = 0;            // °/с: оценка скорости по этой истории
+    this.dualUsed = [];          // чьи метки реально пошли в счёт
+    this.dualMissing = { left: 0, right: 0 }; // кадров, где метка обязана быть, а её нет     // pair|single|conflict|tiny|same|lowtrust|step|lost
     this.gestureEnabled = false;
     this.gestureV = false;
     this.gestureConfidence = 0;
@@ -457,9 +476,48 @@ export class CamTracker {
   resetDualCalibration() {
     this.dualCalibration = null;
     this.dualBaseCount = null;
+    this.dualModel = null;
     this.dualTrust = { left: 1, right: 1 };
     this.reanchorPending = null;
+    this.dualHistory = [];
+    this.yawRate = 0;
+    this.dualUsed = [];
+    this.dualMissing = { left: 0, right: 0 };
     this.pairState = 'idle';
+  }
+
+  // История поворота головы. Копим углы принятых кадров: по ним считается
+  // скорость, которой предсказывается положение меток в следующем кадре.
+  _pushYawSample(t, yaw) {
+    const h = this.dualHistory || (this.dualHistory = []);
+    h.push({ t, yaw });
+    while (h.length > 1 && (t - h[0].t > DUAL_HISTORY_MS || h.length > DUAL_HISTORY_MAX)) h.shift();
+    this.yawRate = this._estimateRate();
+    return this.yawRate;
+  }
+
+  // МНК-наклон «угол/время», °/с. Без достаточной истории скорость «неизвестна»
+  // (0): тогда модель молчит, а не выдумывает движение.
+  _estimateRate() {
+    const h = this.dualHistory || [];
+    if (h.length < 3) return 0;
+    const t0 = h[0].t;
+    if ((h[h.length - 1].t - t0) < DUAL_RATE_READY_MS) return 0;
+    let n = 0, st = 0, sy = 0, stt = 0, sty = 0;
+    for (const s of h) {
+      const ts = (s.t - t0) / 1000;
+      n++; st += ts; sy += s.yaw; stt += ts * ts; sty += ts * s.yaw;
+    }
+    const den = n * stt - st * st;
+    if (den <= 1e-9) return 0;
+    const rate = (n * sty - st * sy) / den;
+    if (!Number.isFinite(rate)) return 0;
+    return THREE_CLAMP(rate, -DUAL_RATE_LIMIT_DPS, DUAL_RATE_LIMIT_DPS);
+  }
+
+  rateReady() {
+    const h = this.dualHistory || [];
+    return h.length >= 3 && (h[h.length - 1].t - h[0].t) >= DUAL_RATE_READY_MS;
   }
 
   // Переякорка после долгой потери принимается только по двум согласным
@@ -506,7 +564,36 @@ export class CamTracker {
       m.deltaYaw = m.rawYaw - (base ? base.yaw : 0);
       m.deltaPitch = m.rawPitch - (base ? base.pitch : 0);
     }
-    const calibrated = !!this.dualCalibration;
+    const M = this.dualModel;
+    const calibrated = !!(M && this.dualCalibration);
+
+    // --- пространственная модель кадра ------------------------------------
+    // Метки стоят в мире: их порядок, расстояние и калиброванное место не
+    // меняются. Значит для каждого кадра можно предсказать, ГДЕ каждая метка
+    // обязана быть (по скорости головы за последние секунды) и МОЖЕТ ли она
+    // вообще попасть в кадр. «Бесовщина» отсекается именно здесь.
+    const dtSince = Math.max(0.001, (now - (this.lastAcceptAt || now)) / 1000);
+    const rate = this.yawRate || 0;
+    const thetaPred = calibrated ? this.heldYaw + rate * Math.min(dtSince, DUAL_PREDICT_S) : 0;
+    // Край кадра в углах — это половина поля зрения (центр калибровки у пары
+    // стоит в середине кадра). Запас ниже нужен на ошибку прогноза, иначе
+    // модель объявляла бы «за краем» метку, стоящую ровно на границе.
+    const halfFov = this.fovDeg / 2;
+    // запас у края: чем быстрее поворот, тем шире окно «может быть видно»
+    const edgeSlack = DUAL_EDGE_SLACK_DEG + Math.abs(rate) * Math.min(dtSince, DUAL_PREDICT_S) * 0.8;
+    const tolResidual = THREE_CLAMP(DUAL_RESIDUAL_DEG + Math.abs(rate) * dtSince * 0.6,
+      DUAL_RESIDUAL_DEG, DUAL_RESIDUAL_MAX_DEG);
+    const expectRawOf = (id) => (calibrated ? M.baseRaw[id] + thetaPred : null);
+    const expectedRaw = { left: expectRawOf('left'), right: expectRawOf('right') };
+    const expectedInside = (id) => {
+      const raw = expectedRaw[id];
+      return raw === null || Math.abs(raw) <= halfFov + edgeSlack;
+    };
+    for (const m of markers) {
+      const eRaw = expectedRaw[m.id];
+      m.expected = expectedInside(m.id);                       // может ли вообще быть видна
+      m.residual = !m.found || eRaw === null ? null : m.rawYaw - eRaw; // насколько не там, где ждут
+    }
 
     // Пятно сильно меньше калиброванного — это не коробка (мусор/блик):
     // у analyzeColorBlob есть абсолютный порог 40 px, но реальная метка
@@ -516,6 +603,17 @@ export class CamTracker {
       if (!base) return false;
       return (m.count || 0) < Math.max(40, base * 0.08);
     };
+
+    // Оттенок, которого в кадре быть не может, не заслуживает доверия вообще:
+    // если по предсказанию метка снаружи кадра, то любое её «пятно» внутри —
+    // чужой предмет. Это и есть правило «всё малиновое там игнорируем».
+    const impossible = visible.filter((m) => !m.expected);
+    for (const m of impossible) this.dualTrust[m.id] = Math.max(0, this.dualTrust[m.id] - 0.5);
+    const usable = visible.filter((m) => m.expected && !tiny(m));
+
+    // Кто ближе к предсказанному месту — того и слушаем; доверие лишь
+    // разрешает ничьи (у пришельца оно быстро падает).
+    const scoreOf = (m) => (m.residual === null ? 0 : Math.abs(m.residual)) - 2 * (this.dualTrust[m.id] || 0);
 
     let state = 'lost';
     let chosen = null;
@@ -529,40 +627,36 @@ export class CamTracker {
       state = 'pair';
       yaw = visible.reduce((sum, m) => sum + m.deltaYaw, 0) / visible.length;
       pitch = visible.reduce((sum, m) => sum + m.deltaPitch, 0) / visible.length;
+    } else if (!usable.length) {
+      state = impossible.length ? 'impossible' : 'tiny';
+    } else if (usable.length === 1) {
+      state = 'single';
+      chosen = usable[0];
     } else {
-      const usable = visible.filter((m) => !tiny(m));
-      if (!usable.length) {
-        state = 'tiny';
-      } else if (usable.length === 1) {
-        state = 'single';
-        chosen = usable[0];
+      const [a, b] = usable;
+      // Оба детектора зацепили ОДИН И ТОТ ЖЕ предмет (в реальном свете
+      // оттенки сближаются и коробка попадает в оба допуска) — это не пара.
+      const sameBlob = Math.abs(a.u - b.u) < w * 0.04 && Math.abs(a.v - b.v) < h * 0.04;
+      const l = usable.find((m) => m.id === 'left');
+      const r = usable.find((m) => m.id === 'right');
+      // Главный инвариант пары: расстояние и порядок. Левая метка всегда левее
+      // правой — «малиновое левее оранжевой» невозможно.
+      const sepObs = l && r ? r.rawYaw - l.rawYaw : null;
+      const sepOk = sepObs !== null && Math.abs(sepObs - M.sep) <= DUAL_PAIR_GATE_DEG;
+      if (sameBlob) {
+        state = 'same';
+        chosen = scoreOf(a) <= scoreOf(b) ? a : b;
+      } else if (sepOk) {
+        state = 'pair';
+        yaw = (a.deltaYaw + b.deltaYaw) / 2;
+        pitch = (a.deltaPitch + b.deltaPitch) / 2;
       } else {
-        const [a, b] = usable;
-        // Оба детектора зацепили ОДИН И ТОТ ЖЕ предмет (в реальном свете
-        // оттенки сближаются и коробка попадает в оба допуска) — это не пара.
-        const sameBlob = Math.abs(a.u - b.u) < w * 0.04 && Math.abs(a.v - b.v) < h * 0.04;
-        if (sameBlob) {
-          state = 'same';
-          chosen = Math.abs(a.deltaYaw - this.heldYaw) <= Math.abs(b.deltaYaw - this.heldYaw) ? a : b;
-        } else if (Math.abs(a.deltaYaw - b.deltaYaw) <= DUAL_PAIR_GATE_DEG) {
-          state = 'pair';
-          yaw = (a.deltaYaw + b.deltaYaw) / 2;
-          pitch = (a.deltaPitch + b.deltaPitch) / 2;
-        } else {
-          // Пара противоречит себе: одна из «меток» — чужой предмет.
-          // Верим стороне с большим доверием, при равенстве — той, что
-          // согласна с текущим взглядом. Среднее в этом случае как раз и
-          // утягивало взгляд к центру кадра.
-          state = 'conflict';
-          const ta = this.dualTrust[a.id];
-          const tb = this.dualTrust[b.id];
-          const da = Math.abs(a.deltaYaw - this.heldYaw);
-          const db = Math.abs(b.deltaYaw - this.heldYaw);
-          const aWins = ta > tb + 0.15 || (Math.abs(ta - tb) <= 0.15 && da <= db);
-          chosen = aWins ? a : b;
-          const loser = (aWins ? b : a).id;
-          this.dualTrust[loser] = Math.max(0, this.dualTrust[loser] - 0.45);
-        }
+        // Расстояние между «метками» не то, что на калибровке: одна сторона
+        // чужая. Среднее здесь как раз и утягивало взгляд к центру кадра.
+        state = 'conflict';
+        chosen = scoreOf(a) <= scoreOf(b) ? a : b;
+        const loser = (chosen === a ? b : a).id;
+        this.dualTrust[loser] = Math.max(0, this.dualTrust[loser] - 0.45);
       }
     }
 
@@ -572,34 +666,44 @@ export class CamTracker {
       // Лимит по СКОРОСТИ, но с потолком: частота кадров камеры зависит от
       // яруса (90-170 мс), и без потолка «шаг за кадр» на низком FPS пропускал
       // бы почти любой скачок от чужого пятна.
-      const dtS = Math.max(0.016, (now - (this.lastAcceptAt || now)) / 1000);
-      const allow = THREE_CLAMP(DUAL_MAX_RATE_DPS * dtS, DUAL_MIN_STEP_DEG, DUAL_MAX_STEP_CAP_DEG);
-      // Метки не было дольше DUAL_REANCHOR_MS: это уже честное возвращение,
-      // а не скачок, но и «залипнуть» нельзя — поэтому такой угол принимаем
-      // только когда его подтвердил второй кадр подряд.
-      const stale = (now - this.lastFoundAt) > DUAL_REANCHOR_MS;
+      const allow = THREE_CLAMP(DUAL_MAX_RATE_DPS * dtSince, DUAL_MIN_STEP_DEG, DUAL_MAX_STEP_CAP_DEG);
       const big = stepD > allow;
-      // Доверие нужно только там, где у метки ЕСТЬ конкурент (пара противоречит
-      // себе): одиночная видимая метка не должна оказаться «замороженной»
-      // навсегда из-за прошлого конфликта.
+      // Метка должна быть ТАМ, где её ждут: иначе это чужое пятно. Пока
+      // скорости ещё нет (история короткая), модель молчит и судим по лимиту.
+      const spatialOk = !this.rateReady() || chosen.residual === null || Math.abs(chosen.residual) <= tolResidual;
+      const stale = (now - this.lastFoundAt) > DUAL_REANCHOR_MS;
       const contested = state === 'conflict' || state === 'same';
-      let ok = (!contested || t >= DUAL_TRUST_MIN) && (!big || (stale && this._confirmReanchor(chosen, now)));
+      const inModel = !big && spatialOk;
+      // Неожиданное, но подтверждённое вторым кадром — принимаем (это честное
+      // возвращение метки или резкое движение); одиночный «морок» — нет.
+      let ok = (!contested || t >= DUAL_TRUST_MIN) && (inModel || this._confirmReanchor(chosen, now));
       if (ok) {
         yaw = chosen.deltaYaw;
         pitch = chosen.deltaPitch;
         this.dualTrust[chosen.id] = Math.min(1, t + 0.1);
-        if (!big) this.reanchorPending = null; // обычное движение — ожидание сбрасываем
+        if (inModel) this.reanchorPending = null; // обычное движение — ожидание сбрасываем
       } else {
         this.dualTrust[chosen.id] = Math.max(0, t - 0.2);
-        state = t < DUAL_TRUST_MIN ? 'lowtrust' : 'step';
+        state = !spatialOk && !stale ? 'spatial' : (t < DUAL_TRUST_MIN ? 'lowtrust' : 'step');
       }
     } else if (state === 'pair') {
       // Пара согласна (или калибровки ещё нет) — доверие к обеим сторонам растёт.
-      for (const m of visible) this.dualTrust[m.id] = Math.min(1, this.dualTrust[m.id] + 0.15);
-      if (yaw === null) state = 'tiny';
+      for (const m of usable) this.dualTrust[m.id] = Math.min(1, this.dualTrust[m.id] + 0.15);
     }
-    this.pairState = state;
 
+    // Кто реально пошёл в счёт и кого не хватает там, где он обязан быть
+    // (например, при взгляде ±5° обе метки должны быть видны, ни одна не «уходит»).
+    this.dualUsed = yaw === null ? [] : (chosen ? [chosen.id] : usable.map((m) => m.id));
+    for (const id of ['left', 'right']) {
+      const seen = markers.some((m) => m.id === id && m.found);
+      if (calibrated && expectedInside(id) && !seen) this.dualMissing[id] = (this.dualMissing[id] || 0) + 1;
+      else if (seen) this.dualMissing[id] = 0;
+    }
+    // Оттенок, которого тут быть не может, но который «нашёлся», — это чужая
+    // бесовщина; называем кадр честно, даже если ведёт вторая метка.
+    if (impossible.length && yaw !== null) state = 'impossible';
+    if (calibrated && yaw !== null && (this.dualMissing.left > 2 || this.dualMissing.right > 2)) state = 'occluded';
+    this.pairState = state;
     if (yaw !== null) {
       this.yaw = yaw;
       this.pitch = pitch;
@@ -609,6 +713,7 @@ export class CamTracker {
       this.found = true;
       this.lastFoundAt = now;
       this.lastAcceptAt = now;
+      this._pushYawSample(now, this.yaw);
       this.heldYaw = this.yaw;
       this.heldPitch = this.pitch;
       this.exitSideX = null;
@@ -784,6 +889,16 @@ export class CamTracker {
         left: { yaw: aa.yaw, pitch: aa.pitch },
         right: { yaw: bb.yaw, pitch: bb.pitch },
       };
+      // Модель пространства: где каждая метка стоит «прямо» и на каком углу
+      // друг от друга (порядок и расстояние — инвариант кадра).
+      this.dualModel = {
+        baseRaw: { left: aa.yaw, right: bb.yaw },
+        sep: bb.yaw - aa.yaw,   // знак и величина — инвариант порядка и расстояния
+      };
+      this.dualHistory = [{ t: performance.now(), yaw: 0 }];
+      this.yawRate = 0;
+      this.dualUsed = [];
+      this.dualMissing = { left: 0, right: 0 };
       this.dualTrust = { left: 1, right: 1 };
       this.reanchorPending = null;
       this.pairState = 'pair';
@@ -933,7 +1048,15 @@ export class CamTracker {
       dualVisible: [...this.dualVisible], lastLostMarker: this.lastLostMarker, lostMarkers: [...this.lostMarkers],
       pairState: this.pairState,
       dualTrust: { left: +this.dualTrust.left.toFixed(2), right: +this.dualTrust.right.toFixed(2) },
-      dualDeltas: this.markers.map((m) => ({ id: m.id, deltaYaw: m.deltaYaw === null || m.deltaYaw === undefined ? null : +m.deltaYaw.toFixed(1) })),
+      dualDeltas: this.markers.map((m) => ({
+        id: m.id,
+        deltaYaw: m.deltaYaw === null || m.deltaYaw === undefined ? null : +m.deltaYaw.toFixed(1),
+        residual: m.residual === null || m.residual === undefined ? null : +m.residual.toFixed(1),
+        expected: m.expected !== false,
+      })),
+      dualUsed: [...(this.dualUsed || [])],
+      dualMissing: { ...this.dualMissing },
+      yawRate: Math.round(this.yawRate || 0),
       markers: this.markers.map((m) => ({ id: m.id, found: !!m.found, u: m.found ? +m.u.toFixed(3) : null, v: m.found ? +m.v.toFixed(3) : null, count: m.count || 0 })),
       procMs: +this.procMs.toFixed(1), procW: this.procW, tier: this.tier, intervalMs: this.intervalMs,
       tol: this.tol, satMin: this.satMin,

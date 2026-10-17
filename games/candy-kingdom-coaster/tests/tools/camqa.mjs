@@ -226,66 +226,157 @@ record('две метки: при потере правой левая прод�
 record('две метки: при потере обеих сохраняется последний угол',
   !dual.none.found && dual.none.heldYaw === dual.one.yaw, dual.none);
 
-// 9b. умная пара: чужое пятно того же оттенка не тянет взгляд к центру.
-// Сценарий пользователя: голова повёрнута вбок, дальняя метка ушла за край
-// кадра, а детектор зацепил «похожий» предмет ближе к центру. Раньше такой
-// кадр попадал в СРЕДНЕЕ дельт (одна честная + одна чужая) — взгляд съезжал к
-// центру за пару кадров. Поворот головы моделируем честно: обе коробки едут
-// ВМЕСТЕ мелкими шагами (десятки пикселей за кадр), как в реальном кадре.
-const smart = await page.evaluate(() => {
-  window.__TEST__.camEnableDualSynthetic();
-  window.__TEST__.vrStart('camera-dual', 30, true);
-  window.__TEST__.camFeedDual(82, 120, 238, 120, 26);
-  const cal = window.__TEST__.camCalibrateDual();
-  for (const d of [22, 44, 66]) window.__TEST__.camFeedDual(82 + d, 120, 238 + d, 120, 26);
-  const turned = window.__TEST__.camInfo();          // пара повёрнута вправо ~13°
-  window.__TEST__.camFeedDual(170, 120, null, null, 26);      // правая метка ушла за край
-  const alone = window.__TEST__.camInfo();
-  const alien = window.__TEST__.camFeedDual(170, 120, 190, 120, 26); // блик того же оттенка у центра
-  const alien2 = window.__TEST__.camFeedDual(170, 120, 190, 120, 26);
-  const back = window.__TEST__.camFeedDual(148, 120, 304, 120, 26);  // пара снова видна целиком
-  return { cal: cal.ok, turned, alone, alien: alien.info, alien2: alien2.info, back: back.info };
-});
-const realD = smart.alien.dualDeltas[0].deltaYaw;
-const fakeD = smart.alien.dualDeltas[1].deltaYaw;
-const oldMean = (realD + fakeD) / 2;
-record('умная пара: чужое пятно не тянет взгляд к центру',
-  smart.turned.pairState === 'pair' && Math.abs(smart.alien.yaw - realD) < 3
-    && Math.abs(smart.alien.yaw - oldMean) > 8 && smart.alien.pairState === 'conflict'
-    && smart.alien2.yaw === smart.alien.yaw,
-  { честная_метка: realD, чужое_пятно: fakeD, старое_среднее: +oldMean.toFixed(1),
-    стало: smart.alien.yaw, состояние: smart.alien.pairState, доверие: smart.alien.dualTrust,
-    кадр_спустя: smart.alien2.yaw });
-record('умная пара: когда пара снова согласна, счёт идёт по двум меткам',
-  smart.back.dualVisible.length === 2 && smart.back.pairState === 'pair' && smart.back.yaw > 10 && smart.back.yaw < 18,
-  { yaw: smart.back.yaw, deltas: smart.back.dualDeltas, state: smart.back.pairState });
+// 9b. пространственная модель пары. Геометрия кадра: 320×240, FOV 65°,
+// калибровка даёт левой -17.3° и правой +17.3° (расстояние 34.6° — инвариант).
+// Все повороты подаются с реальным темпом кадров (~90 мс), иначе оценка
+// скорости головы в трекере превращается в мусор.
+const PACE_MS = 90;
+const spatial = await page.evaluate(async (PACE_MS) => {
+  const pace = () => new Promise((r) => setTimeout(r, PACE_MS));
+  const T = window.__TEST__;
+  const at = (deg) => 160 + 251.1 * Math.tan((deg * Math.PI) / 180); // u для «сырого» угла метки
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  const cal = T.camCalibrateDual().ok;
+  const out = {};
+  // ±5°: обе метки обязаны быть в кадре, ни одна не «уходит»
+  const pair = (theta) => T.camFeedDual(Math.round(at(theta - 17.3)), 120, Math.round(at(theta + 17.3)), 120, 26).info;
+  for (const th of [2, 4, 5, 5]) { pair(th); await pace(); }
+  out.plus5 = T.camInfo();
+  for (const th of [0, -3, -5, -5]) { pair(th); await pace(); }
+  out.minus5 = T.camInfo();
+  // мягкий поворот ~8°: обе метки ещё ожидаются в кадре, но «правая» находится
+  // ЛЕВЕЕ оранжевой метки — порядок нарушен, это чужой предмет
+  for (const th of [6, 7, 8, 8]) { pair(th); await pace(); }
+  out.mild = T.camInfo();
+  const alienNear = T.camFeedDual(119, 120, 100, 120, 26);
+  out.alienNear = alienNear.info;
+  out.alienNearOld = ((alienNear.info.dualDeltas[0].deltaYaw + alienNear.info.dualDeltas[1].deltaYaw) / 2);
+  // дальний поворот ~35°: правая метка физически за краем кадра,
+  // у правого края уже левая — всё «малиновое» тут невозможно
+  for (let th = 12; th <= 35; th += 3) { T.camFeedDual(Math.round(at(th - 17.3)), 120, null, null, 26); await pace(); }
+  out.far = T.camInfo();
+  const alienFar = T.camFeedDual(Math.round(at(35 - 17.3)), 120, 200, 120, 26);
+  out.alienFar = alienFar.info;
+  out.alienFarOld = ((alienFar.info.dualDeltas[0].deltaYaw + alienFar.info.dualDeltas[1].deltaYaw) / 2);
+  out.alienFar2 = T.camFeedDual(Math.round(at(35 - 17.3)), 120, 200, 120, 26).info;
+  // скорость головы: ровный поворот 2° за кадр ≈ 22 °/с
+  const t0 = Date.now();
+  const y0 = T.camInfo().yaw;
+  for (let k = 1; k <= 6; k++) { T.camFeedDual(Math.round(at(35 + 2 * k - 17.3)), 120, null, null, 26); await pace(); }
+  out.rate = T.camInfo();
+  out.rateExpected = (out.rate.yaw - y0) / ((Date.now() - t0) / 1000);
+  return { cal, ...out };
+}, PACE_MS);
+
+record('пространство: при взгляде ±5° обе метки в кадре, ни одна не теряется',
+  spatial.plus5.dualVisible.length === 2 && spatial.minus5.dualVisible.length === 2
+    && spatial.plus5.dualUsed.length === 2
+    && spatial.plus5.dualDeltas.every((d) => d.expected)
+    && spatial.plus5.dualMissing.left === 0 && spatial.plus5.dualMissing.right === 0
+    && Math.abs(spatial.plus5.yaw - 5) < 2 && Math.abs(spatial.minus5.yaw + 5) < 2,
+  { plus5: { yaw: spatial.plus5.yaw, visible: spatial.plus5.dualVisible, used: spatial.plus5.dualUsed,
+    missing: spatial.plus5.dualMissing, expected: spatial.plus5.dualDeltas.map((d) => d.expected) },
+    minus5: { yaw: spatial.minus5.yaw, visible: spatial.minus5.dualVisible, missing: spatial.minus5.dualMissing } });
+
+record('пространство: малиновое левее оранжевой метки — чужой предмет (порядок и расстояние)',
+  spatial.alienNear.dualUsed.length === 1 && spatial.alienNear.dualUsed[0] === 'left'
+    && Math.abs(spatial.alienNear.yaw - spatial.mild.yaw) < 3
+    && Math.abs(spatial.alienNear.yaw - spatial.alienNearOld) > 8,
+  { честный_угол: spatial.mild.yaw, стало: spatial.alienNear.yaw, старое_среднее: +spatial.alienNearOld.toFixed(1),
+    состояние: spatial.alienNear.pairState, в_счёт: spatial.alienNear.dualUsed, доверие: spatial.alienNear.dualTrust });
+
+record('пространство: оттенок, которого нет в кадре, игнорируется целиком',
+  spatial.alienFar.dualDeltas[1].expected === false
+    && spatial.alienFar.dualUsed.join('+') === 'left'
+    && Math.abs(spatial.alienFar.yaw - spatial.alienFar.dualDeltas[0].deltaYaw) < 1.5
+    && Math.abs(spatial.alienFar.yaw - spatial.alienFarOld) > 8
+    && spatial.alienFar2.yaw === spatial.alienFar.yaw,
+  { поворот_без_правой: spatial.far.yaw, дельты_чёжого_кадра: spatial.alienFar.dualDeltas,
+    в_счёт: spatial.alienFar.dualUsed, стало: spatial.alienFar.yaw, старое_среднее: +spatial.alienFarOld.toFixed(1),
+    состояние: spatial.alienFar.pairState, кадр_спустя: spatial.alienFar2.yaw });
+
+record('скорость: голова едет ровно ~22°/с — трекер оценивает её по последним секундам',
+  Math.abs(spatial.rateExpected - 22) < 18 && spatial.rate.yawRate > 8 && spatial.rate.yawRate < 90,
+  { ожидалось: +spatial.rateExpected.toFixed(0), оценка: spatial.rate.yawRate, история: '2.5 с' });
 
 // 9c. мусорное пятно (блик/огрызок) не считается меткой вовсе.
-const tinyBlob = await page.evaluate(() => {
-  const small = window.__TEST__.camFeedDual(null, null, 304, 120, 6);   // ~113 px вместо ~2100
-  const big = window.__TEST__.camFeedDual(null, null, 304, 120, 26);
-  return { small: small.info, big: big.info };
-});
-record('умная пара: мелкое пятно игнорируется, крупное ведёт',
-  tinyBlob.small.pairState === 'tiny' && !tinyBlob.small.found && tinyBlob.big.found,
-  { мелкое: { state: tinyBlob.small.pairState, found: tinyBlob.small.found, yaw: tinyBlob.small.yaw },
-    крупное: { state: tinyBlob.big.pairState, found: tinyBlob.big.found, yaw: tinyBlob.big.yaw } });
+const tinyBlob = await page.evaluate((PACE_MS) => {
+  const T = window.__TEST__;
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  const before = T.camInfo();
+  // малиновая «метка» на своём законном месте, но пятно в 20 раз меньше
+  const small = T.camFeedDual(null, null, 247, 120, 6);
+  const small2 = T.camFeedDual(null, null, 247, 120, 6);
+  const big = T.camFeedDual(null, null, 247, 120, 26);
+  return { before, small: small.info, small2: small2.info, big: big.info };
+}, PACE_MS);
+record('пространство: мелкое пятно игнорируется, крупное ведёт',
+  !tinyBlob.small.found && tinyBlob.small.pairState === 'tiny' && tinyBlob.small.yaw === tinyBlob.before.yaw
+    && tinyBlob.small2.pairState === 'tiny'
+    && tinyBlob.big.found && tinyBlob.big.dualUsed.join('+') === 'right',
+  { было: tinyBlob.before.yaw, мелкое: { state: tinyBlob.small.pairState, found: tinyBlob.small.found, yaw: tinyBlob.small.yaw, count: tinyBlob.small.markers[1].count },
+    крупное: { state: tinyBlob.big.pairState, found: tinyBlob.big.found, yaw: tinyBlob.big.yaw, used: tinyBlob.big.dualUsed } });
 
 // 9d. одиночная метка не прыгает мгновенно; после долгой потери угол
 // принимается только вторым согласным кадром.
-const jump = await page.evaluate(() => {
-  const instant = window.__TEST__.camFeedDual(300, 120, null, null, 26).info; // скачок в один кадр
-  window.__TEST__.camAgeLoss(1500);                                           // метки не было 1,5 с
-  const first = window.__TEST__.camFeedDual(300, 120, null, null, 26).info;   // первый кадр возврата
-  const second = window.__TEST__.camFeedDual(300, 120, null, null, 26).info;  // подтверждающий кадр
-  return { instant, first, second };
-});
-record('умная пара: мгновенный скачок одиночной метки не принимается',
-  !jump.instant.found && jump.instant.pairState === 'step', { yaw: jump.instant.yaw, state: jump.instant.pairState });
-record('умная пара: после долгой потери угол принимается вторым кадром',
-  !jump.first.found && jump.second.found && jump.second.yaw > 35,
-  { первый_кадр: { found: jump.first.found, state: jump.first.pairState },
-    второй_кадр: { found: jump.second.found, yaw: jump.second.yaw } });
+const jump = await page.evaluate(async (PACE_MS) => {
+  const pace = () => new Promise((r) => setTimeout(r, PACE_MS));
+  const T = window.__TEST__;
+  const at = (deg) => Math.round(160 + 251.1 * Math.tan((deg * Math.PI) / 180));
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  // немного поездить ровно, чтобы история скорости набралась
+  for (let th = 3; th <= 12; th += 3) { T.camFeedDual(at(th - 17.3), 120, null, null, 26); await pace(); }
+  const steady = T.camInfo();
+  const instant = T.camFeedDual(at(45 - 17.3), 120, null, null, 26).info;  // скачок в один кадр
+  T.camAgeLoss(1500);                                                      // метки не было 1,5 с
+  const first = T.camFeedDual(at(45 - 17.3), 120, null, null, 26).info;     // первый кадр возврата
+  const second = T.camFeedDual(at(45 - 17.3), 120, null, null, 26).info;    // подтверждающий кадр
+  return { steady, instant, first, second };
+}, PACE_MS);
+record('пространство: мгновенный скачок одиночной метки не принимается',
+  jump.steady.found && !jump.instant.found && jump.instant.yaw === jump.steady.yaw,
+  { ровно: jump.steady.yaw, скачок: { yaw: jump.instant.yaw, state: jump.instant.pairState, found: jump.instant.found } });
+record('пространство: скачок принимается, когда его подтверждает второй кадр',
+  !jump.instant.found && jump.first.found && jump.second.found
+    && Math.abs(jump.first.yaw - jump.second.yaw) < 3 && jump.first.yaw > 35,
+  { первый_кадр: { found: jump.instant.found, state: jump.instant.pairState, yaw: jump.instant.yaw },
+    второй_кадр: { found: jump.first.found, yaw: jump.first.yaw, state: jump.first.pairState },
+    третий_кадр: { found: jump.second.found, yaw: jump.second.yaw } });
+
+// 9e. взгляд не встаёт колом: пока метки нет, он продолжает движение со
+// скоростью, с которой голова ехала последние секунды (а не 12°/с из контракта).
+const coast = await page.evaluate(async (PACE_MS) => {
+  const pace = () => new Promise((r) => setTimeout(r, PACE_MS));
+  const T = window.__TEST__;
+  const at = (deg) => Math.round(160 + 251.1 * Math.tan((deg * Math.PI) / 180));
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  for (let th = 4; th <= 44; th += 4) { T.camFeedDual(at(th - 17.3), 120, null, null, 26); await pace(); }
+  const before = { info: T.camInfo(), look: T.camLook(), rate: T.camInfo().yawRate };
+  T.camFeedDual(null, null, null, null, 26);   // обе метки пропали
+  const gone = T.camInfo();                    // кадр потери: какой край запомнили
+  await pace(); await pace(); await pace(); await pace(); await pace();
+  await new Promise((r) => setTimeout(r, 450));
+  T.step(1 / 60, 4, false);                    // дать игровому кадру обработать потерю
+  const after = { info: T.camInfo(), look: T.camLook() };
+  return { before, gone, after };
+}, PACE_MS);
+record('скорость: при потере меток взгляд продолжает движение со скоростью поворота',
+  coast.gone.exitSideX === 'right' && coast.before.rate > 10
+    && coast.after.look.yaw > coast.before.info.heldYaw + 2 && coast.after.look.wasLost === true,
+  { скорость_перед_потерей: coast.before.rate, держал: +coast.before.info.heldYaw.toFixed(1),
+    за_краем: coast.gone.exitSideX, цель_через_полсекунды: +coast.after.look.yaw.toFixed(1),
+    потерян_мс: coast.after.look.lastFoundAgoMs });
 
 // 10. V-жест: тот же analyzer, temporal debounce, 6× ceiling, fast release.
 const gesture = await page.evaluate(() => {

@@ -151,3 +151,11 @@ User: «Хорошо, делай ещё 3 итерации». Continue approved 
 - **Affected artifacts:** `games/candy-kingdom-coaster/src/camtrack.js` (`_applyDualResult`, `_confirmReanchor`, `info()`), `src/main.js` (QA-хук `camLook`), `tests/tools/camqa.mjs` (+5 проверок), новый стенд `tests/tools/dualtrace.mjs`, `DUAL_MARKER_LOOK.md`, правка контракта в `VR_BRAINSTORM.md`, `.studio/evidence/reports/dual-marker-look.json`.
 - **Evidence or user answer:** «если взгляд увести в сторону то он очень быстро возвращается куда то в центр и я не пойму почему» + две его гипотезы; измерения — `dual-marker-look.json`, трасса `dualtrace.mjs`.
 
+## 2026-10-17 — Две метки: пространственная модель кадра и оценка скорости
+
+- **Decision:** пара получила модель пространства (инвариант порядка и расстояния, прогноз места каждой метки) и оценку скорости головы за последние 2.5 с. Оттенок, который по прогнозу не может быть в кадре, игнорируется целиком; принятие неожиданного требует второго согласного кадра; докрутка взгляда после потери метки идёт со скоростью поворота, а не фиксированные 12°/с.
+- **Alternatives:** оставить только доверие к сторонам (первый раунд правок) — отвергнуто: правило «малиновое левее оранжевой» и «оттенка нет в кадре» дают логику без вероятностей; поднимать пороги детектора (tol/sat) — отвергнуто, причина не в детекторе.
+- **Reason:** прямой запрос владельца: понимать пространство, скорости и базовую логику, «а не всякую бесовщину по первому мороку».
+- **Affected artifacts:** `src/camtrack.js` (модель `dualModel`, история `dualHistory`/`yawRate`, `_confirmReanchor`, `info()`), `src/main.js` (докрутка по `yawRate`), `tests/tools/camqa.mjs` (+8 проверок, 37/37), `tests/tools/dualtrace.mjs`, `DUAL_MARKER_LOOK.md` §7, правка контракта в `VR_BRAINSTORM.md`, `sw.js` → `ckc-v44`.
+- **Evidence or user answer:** «при взгляде ±5 градусов должны быть видны обе метки… левее левой не может быть никаких малиновых… система должна понимать скорости»; измерения — `dualtrace.mjs` и `.studio/evidence/reports/dual-marker-look.json`.
+

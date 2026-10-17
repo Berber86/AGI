@@ -111,12 +111,26 @@
       "tiny blob is ignored, big blob leads",
       "instant jump of a lone marker is not accepted (state step)",
       "after a long loss the angle is accepted by the second frame"
+    ],
+    "dual_and_space": [
+      "symmetric pair calibrates straight (0 deg)",
+      "pair shift gives a new angle",
+      "losing right leaves left leading",
+      "losing both keeps the last angle",
+      "at +-5 deg both markers are expected inside the frame, both used, neither missing",
+      "a raspberry blob left of the orange marker is a foreign object (order/separation invariant)",
+      "a hue that cannot be inside the frame is ignored entirely",
+      "the reflected blob does not pull the gaze to the centre",
+      "steadily turning 20 deg/s is measured as 21 deg/s",
+      "tiny blob ignored, normal blob leads",
+      "an instant 33 deg jump is rejected; accepted on the second agreeing frame",
+      "while markers are lost the gaze keeps turning at the recent head speed"
     ]
   },
   "acceptance_after_change": {
-    "camqa": "34/34",
+    "camqa": "37/37",
     "vrqa": "20/20",
-    "remotqa": "21/21",
+    "remotqa": "21/21 (one 20/21 run was the known timing flake under load; re-run 21/21)",
     "joystickqa": "7/7",
     "uiqa": "24/24",
     "python_unittest": "15/15"
@@ -134,5 +148,101 @@
   "remaining": [
     "not verified on real footage, only synthetically (headless SwiftShader); the tuning values (6 deg / 260 dps / 900 ms) are geometric estimates and may need one field iteration",
     "max reachable yaw in the synthetic path is about +-32 deg (frame width), real range depends on camera FOV and marker placement"
-  ]
+  ],
+  "report_status": "two rounds: (1) pair no longer averages conflicting deltas, (2) spatial + velocity model of the pair (2026-10-17)",
+  "spatial_velocity_model": {
+    "why": "markers are fixed in the world: their order, separation and calibrated spots never change, and the head angle has a measurable speed over the last seconds — so most 'unexpected' detections can be rejected by physics instead of by trust heuristics",
+    "state_kept": {
+      "history_ms": 2500,
+      "history_max_samples": 60,
+      "rate_ready_ms": 150,
+      "rate_limit_dps": 400,
+      "residual_base_deg": 5,
+      "residual_max_deg": 25,
+      "edge_slack_deg": 4,
+      "predict_s": 0.35,
+      "pair_gate_deg": 6,
+      "confirm_deg": 3,
+      "confirm_window_ms": 600,
+      "reanchor_ms": 900
+    },
+    "rules": [
+      "pair separation is an invariant: observed (right raw yaw - left raw yaw) must stay within 6 deg of the calibrated value, so 'raspberry left of orange' is impossible by construction",
+      "each marker's expected position = its calibrated raw yaw + predicted head angle (last accepted angle + yawRate * dt, dt capped at 0.35 s)",
+      "a detection whose expected position is outside the frame (>halfFOV + 4 deg + speed slack) is a foreign object: the hue is ignored entirely ('impossible')",
+      "an accepted angle must match the model (<= 5-25 deg residual and <= 260 deg/s step); anything else needs a second agreeing frame within 3 deg / 600 ms",
+      "when a marker that must be visible is missing while the other leads, the state is 'occluded' (substitutes cannot pass the separation invariant)",
+      "while markers are off-frame the gaze keeps moving at the recent head speed (decay ~0.6 s, cap +15 deg), in the same direction only"
+    ],
+    "measured": {
+      "pm5_deg": {
+        "visible": [
+          "left",
+          "right"
+        ],
+        "used": [
+          "left",
+          "right"
+        ],
+        "expected": [
+          true,
+          true
+        ],
+        "missing": {
+          "left": 0,
+          "right": 0
+        },
+        "yaw": [
+          5,
+          -5
+        ]
+      },
+      "raspberry_left_of_orange": {
+        "state": "conflict",
+        "used": [
+          "left"
+        ],
+        "yaw_deg": 10.5,
+        "old_mean_would_be_deg": -10.1
+      },
+      "raspberry_while_out_of_frame": {
+        "state": "impossible",
+        "used": [
+          "left"
+        ],
+        "expected_right": false,
+        "yaw_deg": 35.5,
+        "old_mean_would_be_deg": 13.7,
+        "residual_deg": 1.0
+      },
+      "rate_estimate": {
+        "actual_dps": 20,
+        "tracker_dps": 21
+      },
+      "coast_after_loss": {
+        "rate_dps": 45,
+        "held_deg": 43.9,
+        "aim_after_1s_deg": 58.9,
+        "exit": "right"
+      },
+      "single_frame_jump_deg": {
+        "rejected": 33,
+        "accepted_on_second_agreeing_frame": 45
+      },
+      "tiny_blob": {
+        "state": "tiny",
+        "found": false,
+        "count": 111,
+        "calibrated_count": 2119
+      }
+    },
+    "diagnostics_added": [
+      "pairState impossible/occluded/spatial",
+      "dualUsed",
+      "dualMissing",
+      "yawRate",
+      "dualDeltas[].residual",
+      "dualDeltas[].expected"
+    ]
+  }
 }
