@@ -809,6 +809,12 @@ record('жест V: VR-only zoom плавно доходит почти до 6×
 record('жест V: два плохих кадра отключают zoom, возврат быстрее набора',
   gesture.off1.result.gesture.found === false && gesture.off2.info.gestureV === false
     && gesture.released.zoomActive === false && gesture.released.zoomFactor < 1.5, gesture.released);
+const vJitter = await page.evaluate(() => {
+  window.__TEST__.gestureFeed(true);
+  window.__TEST__.gestureFeed(false);
+  return window.__TEST__.gestureFeed(true).info.gestureV;
+});
+record('жест V: два распознавания из трёх переживают один шумный кадр', vJitter === true, vJitter);
 
 // 11. thumbs-up gas: no steering, no remote input, fail-stop on missing thumb.
 const thumb = await page.evaluate(() => {
@@ -830,6 +836,12 @@ record('thumbs-up: детектор и debounce включают газ, V ос�
 record('thumbs-up: большой палец пропал — throttle 0 и машина останавливается',
   thumb.off1.result.gesture.thumb.found === false && thumb.off2.info.thumbUp === false
     && thumb.stopped.game.thumbUp === false && thumb.stopped.game.speedKmh < 10, thumb.stopped);
+const thumbJitter = await page.evaluate(() => {
+  window.__TEST__.gestureThumbFeed(true);
+  window.__TEST__.gestureThumbFeed(false);
+  return window.__TEST__.gestureThumbFeed(true).info.thumbUp;
+});
+record('thumbs-up: повторный raw-пик в окне 3 кадров включает ввод', thumbJitter === true, thumbJitter);
 
 record('ошибок на странице нет', errors.length === 0, errors);
 

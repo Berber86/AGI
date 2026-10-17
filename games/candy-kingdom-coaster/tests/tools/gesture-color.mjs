@@ -1,6 +1,6 @@
 // Regression checks for the pixel-color gate and personal palm calibration.
 import assert from 'node:assert/strict';
-import { analyzeGestures, analyzeSkinMaskDiagnostics, calibrateSkinColor, readSkinProfile } from '../../src/camtrack.js';
+import { CamTracker, analyzeGestures, analyzeSkinMaskDiagnostics, calibrateSkinColor, readSkinProfile } from '../../src/camtrack.js';
 
 const W = 160, H = 120;
 const frame = new Uint8ClampedArray(W * H * 4);
@@ -77,4 +77,24 @@ assert.equal(vResult.v.found, true, `V recognizer regressed: ${JSON.stringify(vR
 assert.equal(vResult.v.reason, 'v-pose');
 assert.equal(thumbResult.thumb.found, true, `thumb recognizer regressed: ${JSON.stringify(thumbResult.thumb)}`);
 assert.equal(thumbResult.thumb.reason, 'thumbs-up');
-console.log(`gesture color QA passed: ${broad.skinPixels} broad pixels -> ${calibrated.skinPixels} calibrated pixels; synthetic V/👍 pass; ${JSON.stringify(profile)}`);
+
+// A single contour miss between positives must not erase the gesture; gas still
+// releases immediately on a confirmed miss, while V gets two-miss hysteresis.
+const tracker = Object.create(CamTracker.prototype);
+Object.assign(tracker, {
+  gestureEnabled: true, gestureV: false, gestureConfidence: 0, gestureLastAt: 0,
+  gestureOnFrames: 0, gestureOffFrames: 0, gestureHits: [],
+  thumbUp: false, thumbConfidence: 0, thumbLastAt: 0,
+  thumbOnFrames: 0, thumbOffFrames: 0, thumbHits: [],
+});
+const feed = (found) => tracker._applyGesture({
+  v: { found, confidence: found ? .7 : 0 }, thumb: { found, confidence: found ? .7 : 0 },
+});
+feed(true); assert.equal(tracker.gestureV, false, 'one hit does not activate V');
+feed(false); assert.equal(tracker.gestureV, false);
+feed(true); assert.equal(tracker.gestureV, true, 'two hits in three activate V');
+assert.equal(tracker.thumbUp, true, 'two hits in three activate thumb gas');
+feed(false); assert.equal(tracker.gestureV, true, 'one miss does not drop V');
+assert.equal(tracker.thumbUp, false, 'gas remains fail-stop on a miss');
+feed(false); assert.equal(tracker.gestureV, false, 'two consecutive misses release V');
+console.log(`gesture color QA passed: ${broad.skinPixels} background pixels -> ${calibrated.skinPixels} palm pixels; synthetic V/👍 and 2-of-3 debounce pass; ${JSON.stringify(profile)}`);

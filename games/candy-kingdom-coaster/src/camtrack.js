@@ -260,7 +260,10 @@ export function analyzeVGesture(data, w, h, profile = null) {
   for (let i = 0; i < candidates.length && !pair; i++) for (let j = i + 1; j < candidates.length; j++) {
     const a = candidates[i], b = candidates[j];
     const gap = Math.abs(a.x - b.x);
-    if (gap < bw * 0.14 || gap > bw * 0.78) continue;
+    // At 160 px, a one-pixel skin-mask jitter changes this ratio noticeably.
+    // A 0.10 minimum still requires distinct finger peaks but avoids rejecting
+    // real, slightly narrow V gestures at ordinary camera distances.
+    if (gap < bw * 0.10 || gap > bw * 0.78) continue;
     const lo = Math.min(a.x, b.x), hi = Math.max(a.x, b.x);
     let valley = 0;
     for (let x = lo; x <= hi; x++) valley = Math.max(valley, smooth[x]);
@@ -315,7 +318,9 @@ export function analyzeThumbGesture(data, w, h, profile = null) {
   const sample = (ratioX) => smooth[Math.max(0, Math.min(bw - 1, Math.round(ratioX * (bw - 1))))];
   const shoulderY = Math.max(sample(0.14), sample(0.86));
   const rise = shoulderY - peak.y;
-  if (rise < bh * 0.16 || rise > bh * 0.62) return {
+  // Real thumbs can extend beyond 62% of the hand bbox (observed live: 69%).
+  // The wide-tip and broad-palm checks below still distinguish a thumb from an index.
+  if (rise < bh * 0.16 || rise > bh * 0.82) return {
     found: false, confidence: 0, reason: 'thumb-extension-height',
     extension: +(rise / bh).toFixed(2), silhouette,
   };
@@ -469,11 +474,13 @@ export class CamTracker {
     this.gestureLastAt = 0;
     this.gestureOnFrames = 0;
     this.gestureOffFrames = 0;
+    this.gestureHits = [];
     this.thumbUp = false;
     this.thumbConfidence = 0;
     this.thumbLastAt = 0;
     this.thumbOnFrames = 0;
     this.thumbOffFrames = 0;
+    this.thumbHits = [];
 
     this.c0n = null; // нормализованный центр калибровки
     this.lastFoundAt = 0;
@@ -541,6 +548,8 @@ export class CamTracker {
     this.thumbLastAt = 0;
     this.thumbOnFrames = 0;
     this.thumbOffFrames = 0;
+    this.gestureHits = [];
+    this.thumbHits = [];
     this._workerMode = false;
     this._workerBusy = false;
   }
@@ -564,10 +573,12 @@ export class CamTracker {
       this.gestureConfidence = 0;
       this.gestureOnFrames = 0;
       this.gestureOffFrames = 0;
+      this.gestureHits = [];
       this.thumbUp = false;
       this.thumbConfidence = 0;
       this.thumbOnFrames = 0;
       this.thumbOffFrames = 0;
+      this.thumbHits = [];
     }
   }
 
@@ -580,26 +591,26 @@ export class CamTracker {
     this.thumbLastAt = now;
     this.gestureConfidence = Number.isFinite(v.confidence) ? v.confidence : 0;
     this.thumbConfidence = Number.isFinite(thumb.confidence) ? thumb.confidence : 0;
-    if (v.found) {
-      this.gestureOnFrames++;
-      this.gestureOffFrames = 0;
-      if (this.gestureOnFrames >= 2) this.gestureV = true;
-    } else {
-      this.gestureOffFrames++;
-      this.gestureOnFrames = 0;
-      if (this.gestureOffFrames >= 2) this.gestureV = false;
-    }
-    if (thumb.found) {
-      this.thumbOnFrames++;
-      this.thumbOffFrames = 0;
-      if (this.thumbOnFrames >= 2) this.thumbUp = true;
-    } else {
-      this.thumbOffFrames++;
-      this.thumbOnFrames = 0;
-      // Gas is safety critical: one confirmed non-thumb frame stops, while
-      // enabling still needs two frames to avoid an accidental acceleration.
-      if (this.thumbOffFrames >= 1) this.thumbUp = false;
-    }
+    this.gestureHits.push(!!v.found);
+    if (this.gestureHits.length > 3) this.gestureHits.shift();
+    this.gestureOnFrames = this.gestureHits.filter(Boolean).length;
+    if (v.found) this.gestureOffFrames = 0;
+    else this.gestureOffFrames++;
+    // At the measured 8 Hz, two adjacent frames take ~250 ms and a single
+    // contour wobble reset the old consecutive-frame counter. Accept 2/3;
+    // release only after two misses so the readout does not flicker.
+    if (this.gestureOnFrames >= 2) this.gestureV = true;
+    else if (this.gestureOffFrames >= 2) this.gestureV = false;
+
+    this.thumbHits.push(!!thumb.found);
+    if (this.thumbHits.length > 3) this.thumbHits.shift();
+    this.thumbOnFrames = this.thumbHits.filter(Boolean).length;
+    if (thumb.found) this.thumbOffFrames = 0;
+    else this.thumbOffFrames++;
+    // Activation also tolerates one noisy miss, but gas remains fail-stop:
+    // any confirmed non-thumb frame releases it immediately.
+    if (this.thumbOnFrames >= 2) this.thumbUp = true;
+    if (!thumb.found && this.thumbOffFrames >= 1) this.thumbUp = false;
   }
 
   gestureFresh(maxMs = 700) {
@@ -1228,10 +1239,12 @@ export class CamTracker {
     this.gestureV = !!on;
     this.gestureOnFrames = on ? 2 : 0;
     this.gestureOffFrames = on ? 0 : 2;
+    this.gestureHits = on ? [true, true] : [false, false];
     this.thumbConfidence = 0;
     this.thumbUp = false;
     this.thumbOnFrames = 0;
     this.thumbOffFrames = 2;
+    this.thumbHits = [false, false];
     return this.gestureV;
   }
 

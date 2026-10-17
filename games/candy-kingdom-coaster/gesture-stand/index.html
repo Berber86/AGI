@@ -83,7 +83,7 @@
     <h2>2. Как читать результат</h2>
     <ol>
       <li><b>Сырой сигнал</b> — распозналась ли целая поза. Текущий распознаватель выдаёт 0% при отказе на любом этапе, поэтому сам процент не показывает, увидел ли он руку; для этого смотри зелёную маску и строку причины ниже.</li>
-      <li><b>Ввод после debounce</b> — реальный стабильный флаг, который потребляет игра. Включение требует двух последовательных кадров. Для 👍 один кадр без распознавания уже выключает газ.</li>
+      <li><b>Ввод после debounce</b> — реальный стабильный флаг игры. Включение — 2 срабатывания из последних 3 кадров (терпит один шумный кадр). V выключается после двух пропусков; 👍 включает газ по тому же правилу, но любой уверенный кадр без 👍 сразу отпускает газ.</li>
       <li>Если изображение руки видно, но сигнал всё время «нет», это ограничение текущего распознавателя/освещения/ракурса, а не отсутствие разрешения камеры.</li>
     </ol>
   </section>
@@ -99,7 +99,7 @@
   const workCtx = work.getContext('2d', { willReadFrequently: true });
   const state = {
     stream: null, running: false, lastAt: 0, procMs: 0, fps: 0,
-    vOn: 0, vOff: 0, thumbOn: 0, thumbOff: 0, vStable: false, thumbStable: false,
+    vOn: 0, vOff: 0, thumbOn: 0, thumbOff: 0, vHits: [], thumbHits: [], vStable: false, thumbStable: false,
     raw: { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } },
     frames: 0, startedAt: 0, lastLine: '', skinDiag: null, lastFrame: null,
     profile: readSkinProfile(), pendingProfile: null, pendingDiag: null, samplePoint: null,
@@ -224,10 +224,16 @@
       state.skinDiag = analyzeSkinMaskDiagnostics(image.data, w, h, state.profile);
       drawSkinMask(state.skinDiag, w, h);
     }
-    if (result.v.found) { state.vOn++; state.vOff = 0; if (state.vOn >= 2) state.vStable = true; }
-    else { state.vOff++; state.vOn = 0; if (state.vOff >= 2) state.vStable = false; }
-    if (result.thumb.found) { state.thumbOn++; state.thumbOff = 0; if (state.thumbOn >= 2) state.thumbStable = true; }
-    else { state.thumbOff++; state.thumbOn = 0; if (state.thumbOff >= 1) state.thumbStable = false; }
+    state.vHits.push(!!result.v.found); if (state.vHits.length > 3) state.vHits.shift();
+    state.vOn = state.vHits.filter(Boolean).length;
+    if (result.v.found) state.vOff = 0; else state.vOff++;
+    if (state.vOn >= 2) state.vStable = true;
+    else if (state.vOff >= 2) state.vStable = false;
+    state.thumbHits.push(!!result.thumb.found); if (state.thumbHits.length > 3) state.thumbHits.shift();
+    state.thumbOn = state.thumbHits.filter(Boolean).length;
+    if (result.thumb.found) state.thumbOff = 0; else state.thumbOff++;
+    if (state.thumbOn >= 2) state.thumbStable = true;
+    if (!result.thumb.found && state.thumbOff >= 1) state.thumbStable = false;
     const dt = now - state.lastAt;
     if (dt > 0) state.fps = state.fps ? state.fps * .8 + (1000 / dt) * .2 : 1000 / dt;
     state.lastAt = now; state.frames++;
@@ -268,7 +274,7 @@
     state.running = false;
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
     state.stream = null; video.srcObject = null;
-    state.vStable = false; state.thumbStable = false; state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
+    state.vStable = false; state.thumbStable = false; state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0; state.vHits = []; state.thumbHits = [];
     state.raw = { v: { found: false, confidence: 0 }, thumb: { found: false, confidence: 0 } };
     state.skinDiag = null; state.pendingProfile = null; state.pendingDiag = null; state.samplePoint = null;
     $('sample-swatch').style.background = '#111';
@@ -323,7 +329,7 @@
     try { localStorage.setItem('ckc_gesture_skin_profile', JSON.stringify(p)); }
     catch { saved = false; }
     state.vStable = state.thumbStable = false;
-    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
+    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0; state.vHits = []; state.thumbHits = [];
     $('status').textContent = `Профиль сохранён: Cb ${p.cb}±${p.tolCb}, Cr ${p.cr}±${p.tolCr} (${p.samples} образцов). ${saved ? 'Сохранён локально; применяется сразу в комнате и в игре после перезапуска вкладки.' : 'Браузер не сохранил его для игры; действует только в этой комнате.'}`;
     updateUi();
   });
@@ -333,7 +339,7 @@
     $('sample-status').textContent = 'Калибровка сброшена. Нажми на центр ладони в превью, чтобы выбрать новый образец.';
     try { localStorage.removeItem('ckc_gesture_skin_profile'); } catch { /* storage optional */ }
     state.vStable = state.thumbStable = false;
-    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0;
+    state.vOn = state.vOff = state.thumbOn = state.thumbOff = 0; state.vHits = []; state.thumbHits = [];
     $('status').textContent = 'Калибровка сброшена. Будет использоваться узкий универсальный YCbCr диапазон; перезапусти игровую вкладку.';
     updateUi();
   });

@@ -72,7 +72,7 @@ class GameCatalogTests(unittest.TestCase):
         self.assertIn('stable-thumb', html)
         sw = (ROOT / 'games/candy-kingdom-coaster/sw.js').read_text()
         self.assertIn("'./gesture-stand/index.html'", sw)
-        self.assertIn("ckc-v53", sw)
+        self.assertIn("ckc-v54", sw)
 
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
