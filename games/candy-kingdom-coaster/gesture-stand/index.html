@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#17112d">
+  <title>MediaPipe: проверка жестов — Candy Kingdom Coaster</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; background: #100d1c; color: #f7f2ff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; padding: max(16px, env(safe-area-inset-top)) 14px max(22px, env(safe-area-inset-bottom)); background: radial-gradient(900px 500px at 90% -10%, #482858 0, transparent 65%), linear-gradient(150deg, #151026, #101a2b 75%); }
+    main { width: min(100%, 760px); margin: 0 auto; display: grid; gap: 14px; }
+    header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    h1 { margin: 0 0 6px; font-size: clamp(24px, 5vw, 34px); line-height: 1.05; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    p { margin: 0; color: #c9c1db; line-height: 1.45; font-size: 14px; }
+    .back { color: #ffd166; text-decoration: none; font-weight: 750; white-space: nowrap; padding: 8px 0; }
+    .card { padding: 15px; border: 1px solid #ffffff20; border-radius: 18px; background: #ffffff0c; box-shadow: 0 14px 40px #0002; }
+    .notice { border-left: 4px solid #f4b942; background: #f4b94212; padding: 11px 13px; border-radius: 8px 12px 12px 8px; }
+    .notice b { color: #ffe09a; }
+    .controls { display: flex; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
+    button { min-height: 46px; border: 0; border-radius: 12px; padding: 11px 16px; background: linear-gradient(180deg, #ff72ab, #d83483); color: white; font: inherit; font-weight: 800; cursor: pointer; }
+    button.secondary { background: #ffffff15; border: 1px solid #ffffff2b; }
+    button:disabled { opacity: .55; cursor: wait; }
+    .video { position: relative; background: #05050a; border-radius: 14px; overflow: hidden; aspect-ratio: 4 / 3; max-height: min(58vh, 520px); margin-top: 12px; }
+    video, canvas.overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    canvas.overlay { pointer-events: none; }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
+    .metric { background: #0807107a; border: 1px solid #ffffff14; border-radius: 13px; padding: 12px; min-height: 83px; }
+    .metric .label { color: #b8afca; font-size: 12px; }
+    .metric .value { margin-top: 5px; font-size: clamp(17px, 4vw, 22px); font-weight: 850; overflow-wrap: anywhere; }
+    .value.yes { color: #92f3b3; } .value.no { color: #ffb4c6; } .value.wait { color: #ffe09a; }
+    .small { font-size: 12px; color: #aaa2bb; }
+    #status { min-height: 20px; margin-top: 10px; color: #ffe09a; }
+    #details, #raw { margin-top: 8px; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c2bad2; white-space: pre-wrap; overflow-wrap: anywhere; }
+    #raw { max-height: 260px; overflow: auto; }
+    ol { margin: 9px 0 0; padding-left: 22px; color: #d9d1e6; line-height: 1.55; font-size: 14px; }
+    .privacy { color: #a9a1b8; font-size: 12px; }
+    @media (min-width: 600px) { .metrics { grid-template-columns: repeat(4, minmax(0,1fr)); } .metric { min-height: 96px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>🖐 MediaPipe: проверка жестов</h1><p>Candy Kingdom Coaster · production detector + raw diagnostics</p></div>
+    <a class="back" href="../index.html">← В игру</a>
+  </header>
+
+  <section class="card notice">
+    <p><b>Это уже не цветовой фильтр и не наш классификатор формы.</b> Игра использует готовый MediaPipe Gesture Recognizer на устройстве. Отдельный .task-файл и WASM runtime загружаются локально; первый запуск скачает и сохранит их для offline-повторного использования. Видео не отправляется в сеть. Здесь используется тот же <code>CamTracker</code>, Worker и score gate, что и в игре.</p>
+  </section>
+
+  <section class="card">
+    <h2>1. Проверка задней камеры</h2>
+    <p>Нажми запуск, разреши заднюю камеру и дождись статуса «Модель готова». Покажи ✌️, затем 👍; держи всю кисть в кадре, хорошо освещённой. Сначала проверь распознавание без VR-очков.</p>
+    <div class="controls">
+      <button id="start">📷 Включить камеру и модель</button>
+      <button id="stop" class="secondary" disabled>Остановить</button>
+      <button id="copy" class="secondary" disabled>Скопировать отчёт</button>
+    </div>
+    <div class="video"><video id="video" autoplay muted playsinline></video><canvas id="overlay" class="overlay"></canvas></div>
+    <p id="status" role="status" aria-live="polite">Камера выключена. Запусти проверку.</p>
+    <div class="metrics">
+      <div class="metric"><div class="label">✌️ Victory · raw</div><div id="raw-v" class="value no">нет · 0%</div></div>
+      <div class="metric"><div class="label">✌️ управление после debounce</div><div id="stable-v" class="value no">выключено</div></div>
+      <div class="metric"><div class="label">👍 Thumb_Up · raw</div><div id="raw-thumb" class="value no">нет · 0%</div></div>
+      <div class="metric"><div class="label">👍 gas после fail-stop gate</div><div id="stable-thumb" class="value no">газ выключен</div></div>
+    </div>
+    <div id="details">Параметры: —</div>
+    <h2 style="margin-top:14px">Сырые результаты по руке</h2>
+    <div id="raw">После старта появятся MediaPipe labels, scores, handedness и landmarks.</div>
+  </section>
+
+  <section class="card">
+    <h2>2. Как читать</h2>
+    <ol>
+      <li><b>Raw</b> показывает именно top category MediaPipe и его score. Классы управления принимаются только при score ≥ 70%; остальные labels остаются в диагностике.</li>
+      <li>V активируется по штатному 2-of-3 debounce. Газ включается так же, но любой кадр без подтверждённого Thumb_Up немедленно отпускает его; если модель/Worker/кадр устарели, газ выключен.</li>
+      <li>Зелёные точки и линии — landmarks из того же production-результата. «Рука не найдена» и «рука есть, но класс другой» различаются по raw-данным.</li>
+    </ol>
+  </section>
+  <p class="privacy">MediaPipe inference выполняется локально в Web Worker. Диагностический отчёт содержит метаданные и координаты landmarks, не изображение камеры. Разрешение камеры требуется по HTTPS.</p>
+</main>
+<script type="module">
+  import { CamTracker } from '../src/camtrack.js';
+
+  const $ = (id) => document.getElementById(id);
+  const video = $('video'), canvas = $('overlay'), ctx = canvas.getContext('2d');
+  const state = { tracker: null, running: false, raf: 0, frames: 0, fps: 0, lastAt: 0, lastSignalAt: 0, startedAt: 0, inferenceMs: 0 };
+  const connections = [
+    [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+    [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17],
+  ];
+  const setSignal = (id, text, on, loading = false) => {
+    const el = $(id); el.textContent = text; el.className = `value ${loading ? 'wait' : on ? 'yes' : 'no'}`;
+  };
+  function drawHands(hands) {
+    if (!video.videoWidth || !video.videoHeight) return;
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const hand of hands || []) {
+      const points = hand.landmarks || [];
+      ctx.lineWidth = Math.max(2, canvas.width / 300); ctx.strokeStyle = '#53ff9c'; ctx.fillStyle = '#ffe36e';
+      for (const [a, b] of connections) {
+        if (!points[a] || !points[b]) continue;
+        ctx.beginPath(); ctx.moveTo(points[a].x * canvas.width, points[a].y * canvas.height);
+        ctx.lineTo(points[b].x * canvas.width, points[b].y * canvas.height); ctx.stroke();
+      }
+      for (const point of points) {
+        ctx.beginPath(); ctx.arc(point.x * canvas.width, point.y * canvas.height, Math.max(2, canvas.width / 180), 0, Math.PI * 2); ctx.fill();
+      }
+      const wrist = points[0];
+      if (wrist) {
+        ctx.font = `bold ${Math.max(14, canvas.width / 30)}px system-ui`;
+        ctx.fillStyle = '#fff'; ctx.fillText(`${hand.handedness}: ${hand.label} ${Math.round(hand.confidence * 100)}%`, wrist.x * canvas.width + 8, wrist.y * canvas.height - 10);
+      }
+    }
+  }
+  function reportText(info) {
+    const track = state.tracker?.stream?.getVideoTracks?.()[0], settings = track?.getSettings?.() || {};
+    return [
+      'Candy Kingdom Coaster — MediaPipe gesture diagnostic',
+      `Runtime: @mediapipe/tasks-vision 1.1.1; model: official Gesture Recognizer float16`,
+      `Duration: ${Math.round((performance.now() - state.startedAt) / 1000)} s; result frames: ${state.frames}; average FPS: ${state.fps.toFixed(1)}`,
+      `Camera: ${track?.label || 'unknown'}; facingMode: ${settings.facingMode || 'unknown'}; size: ${settings.width || '?'}x${settings.height || '?'}`,
+      `Model/worker status: ${info.gestureStatus}; error: ${info.gestureError || 'none'}; inference: ${info.gestureInferenceMs} ms; threshold: ${info.gestureThreshold}`,
+      `Victory: ${info.gestureConfidence}; active=${info.gestureV}; fresh=${info.gestureFresh}; Thumb_Up: ${info.thumbConfidence}; active=${info.thumbUp}; fresh=${info.thumbFresh}`,
+      `Raw hands: ${JSON.stringify(info.gestureRaw || [])}`,
+      'Safety: throttle is 0 unless fresh, confirmed Thumb_Up is present; any miss releases throttle immediately.',
+    ].join('\n');
+  }
+  function update() {
+    if (!state.running || !state.tracker) return;
+    state.tracker.process();
+    const info = state.tracker.info();
+    const now = performance.now();
+    if (info.gestureLastAt && info.gestureLastAt !== state.lastSignalAt) {
+      if (state.lastAt) {
+        const delta = info.gestureLastAt - state.lastAt;
+        if (delta > 0) state.fps = state.fps ? state.fps * .8 + (1000 / delta) * .2 : 1000 / delta;
+      }
+      state.lastSignalAt = state.lastAt = info.gestureLastAt;
+      state.frames++;
+    }
+    state.inferenceMs = info.gestureInferenceMs;
+    const modelReady = info.gestureStatus === 'ready';
+    const loading = info.gestureStatus === 'loading' || info.gestureStatus === 'idle';
+    const hand = info.gestureRaw?.[0];
+    const vLabel = hand?.label === 'Victory' ? `Victory · ${Math.round(hand.confidence * 100)}%` : `${hand?.label || 'нет руки'} · ${Math.round(info.gestureConfidence * 100)}%`;
+    const tLabel = hand?.label === 'Thumb_Up' ? `Thumb_Up · ${Math.round(hand.confidence * 100)}%` : `${hand?.label || 'нет руки'} · ${Math.round(info.thumbConfidence * 100)}%`;
+    setSignal('raw-v', vLabel, !!info.gestureRaw?.some((h) => h.label === 'Victory' && h.confidence >= info.gestureThreshold), loading && !modelReady);
+    setSignal('stable-v', info.gestureV ? 'ВКЛ · zoom' : 'выключено', info.gestureV);
+    setSignal('raw-thumb', tLabel, !!info.gestureRaw?.some((h) => h.label === 'Thumb_Up' && h.confidence >= info.gestureThreshold), loading && !modelReady);
+    setSignal('stable-thumb', info.thumbUp ? 'ВКЛ · газ' : 'газ выключен', info.thumbUp);
+    if (info.gestureStatus === 'ready') $('status').textContent = 'Модель готова. Данные и inference локальные; покажи ✌️ или 👍.';
+    else if (info.gestureStatus === 'loading') $('status').textContent = 'Загрузка MediaPipe WASM и модели (модель 8.4 MB; первый раз нужен интернет). Управление пока выключено.';
+    else if (info.gestureStatus === 'error') $('status').textContent = `Ошибка MediaPipe: ${info.gestureError || 'неизвестная ошибка'}. Газ fail-stop: выключен.`;
+    else $('status').textContent = 'Ожидаем инициализацию MediaPipe…';
+    $('details').textContent = `камера ${settings.facingMode || 'rear'} · ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · модель ${info.gestureStatus} · inference ${info.gestureInferenceMs} ms · результат ${info.gestureAgeMs === null ? 'ещё не получен' : `${info.gestureAgeMs} ms назад`} · кадры ${state.frames} · ≈${state.fps.toFixed(1)} Hz`;
+    $('raw').textContent = info.gestureRaw?.length
+      ? info.gestureRaw.map((h, index) => `Hand ${index + 1} · ${h.handedness} (${Math.round(h.handednessScore * 100)}%)\nTop: ${h.label} (${(h.confidence * 100).toFixed(1)}%)\nCategories: ${h.categories.map((c) => `${c.label}=${(c.score * 100).toFixed(1)}%`).join(' · ')}\nLandmarks: ${h.landmarks.length}/21`).join('\n\n')
+      : 'Рука пока не найдена (пустой список landmarks). Покажи ладонь ближе и добавь света.';
+    drawHands(info.gestureRaw);
+    $('copy').disabled = false;
+    state.raf = requestAnimationFrame(update);
+  }
+  function stop() {
+    state.running = false; cancelAnimationFrame(state.raf);
+    if (state.tracker) state.tracker.stop();
+    state.tracker = null; video.srcObject = null;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    $('start').disabled = false; $('start').textContent = '📷 Включить камеру и модель'; $('stop').disabled = true;
+    $('status').textContent = 'Камера выключена. Газ выключен.'; $('details').textContent = 'Параметры: —';
+    $('raw').textContent = 'После старта появятся MediaPipe labels, scores, handedness и landmarks.';
+    setSignal('raw-v', 'нет · 0%', false); setSignal('stable-v', 'выключено', false);
+    setSignal('raw-thumb', 'нет · 0%', false); setSignal('stable-thumb', 'газ выключен', false);
+  }
+  $('start').addEventListener('click', async () => {
+    $('start').disabled = true; $('status').textContent = 'Запрашиваем заднюю камеру…';
+    try {
+      state.tracker = new CamTracker();
+      state.tracker.setGestureEnabled(true);
+      await state.tracker.start(video);
+      if (!state.tracker.useWorkerMode()) throw new Error('Web Worker is unavailable; gesture input remains disabled.');
+      state.running = true; state.frames = 0; state.fps = 0; state.lastAt = 0; state.lastSignalAt = 0; state.startedAt = performance.now();
+      $('stop').disabled = false; $('start').textContent = '📷 Камера и модель работают';
+      state.raf = requestAnimationFrame(update);
+    } catch (error) {
+      state.tracker?.stop(); state.tracker = null;
+      $('status').textContent = `Не удалось запустить: ${error?.name || 'Error'}: ${error?.message || error}`;
+      $('start').disabled = false;
+    }
+  });
+  $('stop').addEventListener('click', stop);
+  $('copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(reportText(state.tracker?.info() || {})); $('status').textContent = 'Диагностический отчёт скопирован (без видео).'; }
+    catch { $('status').textContent = reportText(state.tracker?.info() || {}); }
+  });
+  window.addEventListener('pagehide', stop);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+  window.addEventListener('resize', () => drawHands(state.tracker?.info()?.gestureRaw));
+</script>
+</body>
+</html>

@@ -6,6 +6,11 @@
 > `tests/tools/vrperf.mjs` (он же регрессия F1–F3) и `tests/tools/vrtri.mjs`,
 > сырые числа — `.studio/evidence/reports/vr-perf-audit.json` (до правок) и
 > `.studio/evidence/reports/vr-perf-fix.json` (после).
+> Актуализация 2026-10-17: старый skin/silhouette gesture detector и его pixel-mask
+> allocation заменены официальным MediaPipe Gesture Recognizer в отдельном Worker.
+> Результаты ниже про старый detector — исторические; текущее field FPS/thermal поведение
+> MediaPipe не измерено на целевом телефоне. Gesture input не переключается на main-thread
+> heuristic при ошибке Worker: он fail-closed.
 
 ## 0. Короткий вывод
 
@@ -137,10 +142,10 @@ MSAA не платит почти ничего, VR платит полность
 - Сторожевой таймер в `_kickWorker()` (900 мс) проверяет один флаг
   `_workerBusy`: устаревший таймер может сбросить флаг уже **нового**
   кадра в полёте → лишние отправки и ложные «отказы воркера».
-- Анализ на кадр аллоцирует память: `analyzeColorBlob` создаёт две маски
-  `Uint8Array(w*h)` на вызов (в «двух метках» — четыре), силуэт жеста копит
-  индексы пикселей в JS-массив. В Worker это терпимо, на главном потоке —
-  мусор на GC каждые 100–170 мс.
+- Анализ цветовой метки аллоцирует две маски `Uint8Array(w*h)` на вызов (в
+  «двух метках» — четыре). Старый silhouette gesture classifier копил индексы
+  пикселей в JS-массив, но он удалён; MediaPipe inference и его аллокации
+  остаются в Worker, не на render thread.
 
 ### P6. Мелочи (складываются в «дёрганость»)
 - `track.getPose()` (`src/track.js:557-569`) возвращает новый объект с

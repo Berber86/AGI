@@ -607,3 +607,35 @@ uiqa 24/24, vrqa 15/15. В песочнице передача ImageBitmap в в
 Проверки: `camqa` **51/51**, `vrqa` 20/20, `joystickqa` 7/7, `uiqa` 25/25,
 `python unittest` 15/15.
 
+
+
+## Замена gesture detector на MediaPipe Gesture Recognizer (2026-10-17)
+
+Предыдущие абзацы про skin/silhouette detector описывают **историческую реализацию** и
+больше не соответствуют production-коду. После полевого сообщения владельца «не
+работает» собственный геометрический классификатор убран. Текущий detector — официальный
+MediaPipe Gesture Recognizer: готовая модель распознаёт canned categories `Victory` и
+`Thumb_Up`, возвращает score, handedness и 21 landmark.
+
+- `@mediapipe/tasks-vision` 1.1.1 / WASM работают локально внутри Web Worker; inference
+  вызывается на уменьшенном ImageBitmap, не блокируя рендер Three.js.
+- SDK runtime загружается из vendored Apache-2.0 package. Модель `.task` хранится как
+  локальный asset. Её байты взяты из двух публичных GitHub mirrors с совпадающим blob
+  hash; прямую сверку с Google Storage и отдельную лицензию модели в этой среде подтвердить
+  не удалось (подробности/SHA — `vendor/mediapipe/NOTICE.md`; Apache лицензия SDK не
+  автоматически распространяется на модель). Service Worker лениво кэширует WASM и модель
+  при первом gesture-use; после успешной первой загрузки повторный запуск возможен offline.
+- Диагностическая комната вызывает production `CamTracker` и показывает raw classes/scores,
+  landmarks, FPS/latency и статусы загрузки/ошибки; камера/изображение не отправляются.
+- Принимается только top category `Victory`/`Thumb_Up` со score ≥ 0.70. Активация — 2
+  из 3 результатов; V отпускается после двух пропусков, gas — немедленно на первом
+  результате без уверенного `Thumb_Up`. Нет silent fallback на старую геометрию.
+- Автоматические тесты здесь проверяют только адаптер результата и state/safety gate. Они
+  не подтверждают, что модель срабатывает на телефоне владельца; требуется field test в
+  отдельной комнате на целевой задней камере, затем проверка в VR-очках и при типичном свете.
+
+Источники и версии: официальный [Gesture Recognizer guide](https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer),
+[web guide](https://developers.google.com/edge/mediapipe/solutions/vision/gesture_recognizer/web_js),
+[official web sample](https://github.com/google-ai-edge/mediapipe-samples-web/tree/main/src/workers),
+`vendor/mediapipe/NOTICE.md`. Model/runtime load time, FPS, thermals and real-world recall remain
+unmeasured until user tests on the phone.

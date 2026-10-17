@@ -191,6 +191,14 @@ User: «Хорошо, делай ещё 3 итерации». Continue approved 
 - **Affected artifacts:** `src/camtrack.js` (`singleSteer()`, сброс `dualMissing` для метки вне кадра), `src/main.js` (гейт `pairFixation() || singleSteer()`, `camLook().pairFixation/singleSteer/headRate`, защита истории скорости от пауз >500 мс), `tests/tools/camqa.mjs` (48/48), `DUAL_MARKER_LOOK.md` §9.4–9.5, `VR_BRAINSTORM.md` (правка №5), `sw.js` → `ckc-v48`.
 - **Evidence or user answer:** измерения `camqa`: левая одна до +30° — взгляд 27.6°; правая одна до −28° — −25.7°; одиночная метка на месте калибровки — `spatial`, residual −34°, взгляд не двинулся; малиновая левее левой — в счёт только `left`, взгляд 29.6°; пара на +5° — 5.0°.
 
+## 2026-10-17 — Диагностическая комната жестов и исправление старта камеры
+
+- **Finding:** В VR gesture input запускал `getUserMedia()` только из `startVrRide()`, который вызывался таймером обратного отсчёта после нажатия пользователя; ошибка запуска камеры проглатывалась через `.catch(() => {})`. Поэтому отказ разрешения/ограничения браузера выглядел как «жесты не работают», а понятной диагностики не было. Запрос камеры использовал `facingMode: 'environment'` как предпочтение, а не строгое требование: браузер мог выбрать selfie-камеру. Сам распознаватель — экспериментальная эвристика силуэта кожи по кадру задней камеры, не WebXR hand tracking/отслеживание суставов; без живого устройства нельзя объявить точную причину полевого отказа.
+- **Decision:** Добавить отдельную страницу `games/candy-kingdom-coaster/gesture-stand/` и карточку каталога: камера, raw confidence V/👍, стабильный флаг после production-порогов debounce, сведения о фактическом facingMode и копируемый отчёт. Запрашивать камеру из пользовательского нажатия до обратного отсчёта, показывать ошибки вместо молчаливого фолбэка, а `facingMode: exact environment` не позволяет незаметно переключиться на фронтальную камеру. Стенд сообщает о локальной эвристике и не отправляет видео.
+- **Affected artifacts:** `gesture-stand/index.html`, root `index.html`, game `index.html`, `src/main.js`, `src/camtrack.js`, `sw.js` → `ckc-v50`, `tests/test_game_catalog.py`.
+- **Evidence:** Python suite 16/16; `node --check` для игрового JS и inline-скрипта стенда; HTTP smoke 200 для каталога, комнаты, анализатора и SW.
+- **Limitations:** камера, позы и распознавание в VR-очках пока не проверены на физическом телефоне; diagnostics room нужна для такого замера.
+
 ## 2026-10-17 — Сущность за 0.15 с; «вторую метку не ищем» симметрично
 
 - **Decision:** `MARKER_CONFIRM_MS` снижен 300 → 150 мс (0.1-секундный «морок» по-прежнему не сущность: 0.08 с не хватает, 0.18 с достаточно; идентичность после пропажи 4 с). Правило «метку, которой по геометрии кадра быть не может, не ищем» распространено на обе стороны и усилено: такое пятно не только не ведёт взгляд, но и **не продлевает жизнь чужой сущности** — сущность засчитывает только метка, которая может быть в кадре.
@@ -199,3 +207,49 @@ User: «Хорошо, делай ещё 3 итерации». Continue approved 
 - **Affected artifacts:** `src/camtrack.js` (`MARKER_CONFIRM_MS`, сущность только для `expected`-меток), `tests/tools/camqa.mjs` (+3 проверки: 0.15 с, симметрия справа, чужое пятно не продлевает сущность; 51/51), `DUAL_MARKER_LOOK.md` §8.1/§9.4–9.6, `VR_BRAINSTORM.md` (правка №6), `sw.js` → `ckc-v49`.
 - **Evidence or user answer:** `camqa`: 0.08 с — `confirmed: false`; 0.18 с — `confirmed: true`, `entityMs 194`; правая одна на −28°, оранжевое пятно правее (u=150) — в счёт только `right`, `expected: false`, residual +53°, взгляд −27.6° (не потянулся); сущность левой `ms: 0`, `entity: false`.
 
+
+## 2026-10-17 — Жесты показывали 0%: различить пустую маску и отказ формы
+
+- **Finding:** Значение confidence у V/👍 не непрерывный «уровень видимости руки»: эвристика возвращает `0` при любом отказе — от отсутствия skin-пикселей до неподходящей формы. Следовательно, нулевой процент сам по себе не локализует ошибку и не доказывает, что камера не получает кадры.
+- **Decision:** В отдельной gesture-комнате добавить визуализацию production skin-mask, число skin-пикселей и крупнейшей связной области, bbox и понятную причину отказа. Расчёт подробной маски ограничен каждым третьим кадром, чтобы уменьшить стоимость диагностики; сами raw-классификаторы остаются теми же production-функциями.
+- **Affected artifacts:** `src/camtrack.js` (`analyzeSkinMaskDiagnostics`), `gesture-stand/index.html`, `sw.js` → `ckc-v51`, `tests/test_game_catalog.py`.
+- **Evidence:** Синтаксис JS/inline-module и Python suite; проверка реальной кисти/камеры остаётся на устройстве пользователя.
+- **Next diagnostic:** Если в превью кисть есть, но зелёной маски почти нет — проблема на этапе цветовой сегментации/света; если маска зелёная и компактная, но позы не срабатывают — проблема в геометрических проверках силуэта. Для следующего шага нужен скопированный отчёт или скрин этой комнаты.
+
+## 2026-10-17 — Жестовая маска переполнялась фоновыми цветами; индивидуальная калибровка
+
+- **Evidence:** Пользователь сообщил: «Камера видит более 14 тысяч зелёных пикселей при взгляде на руку». Рабочее изображение жестового стенда — 160×120 = 19 200 пикселей; >14 000 означает, что прежние широкие YCbCr-границы помечали почти весь кадр как кожу. В production `skinSilhouette` отбрасывает кадр при маске >75% и при почти полноэкранном bbox — потому жесты не проходили в геометрический классификатор. Это конкретная причина нулевых результатов по его измерению, не проблема debounce.
+- **Decision:** Сузить универсальные chroma-пределы до Cb 77–127 / Cr 133–173 и добавить в gesture-комнату калибровку цвета по ладони в центральном ROI. Robust median/MAD профиль сохраняется локально в `localStorage` и подхватывается `CamTracker`/Worker игрой; убрать профиль можно кнопкой сброса. Экспозицию камеры не форсировать: browser camera controls не поддерживаются одинаково на телефонах, а сбой был в избыточно широкой цветовой маске.
+- **Affected artifacts:** `src/camtrack.js`, `src/camtrack-worker.js`, `gesture-stand/index.html`, `sw.js` → `ckc-v52`, `tests/tools/gesture-color.mjs`, `tests/test_game_catalog.py`.
+- **Evidence:** Новый цветовой regression QA на синтетическом кадре: тёплый фон 19 200 масочных пикселей без калибровки → 4 560 после профиля ладони, фон в углу исключён, ладонь сохранена. Нужен повторный полевой замер пользователя после перезапуска игры.
+
+## 2026-10-17 — Исправление калибровки: не брать образец из уже отфильтрованных цветов
+
+- **Finding / ошибка агента:** предыдущая калибровка образца шла по центральной области и предварительно принимала только пиксели старого широкого YCbCr-диапазона. Если реальный оттенок ладони оказывался за этими границами (как подтвердил пользователь: ладонь чёрная, фон зелёный), калибратор мог взять фон вместо руки и сохранить профиль, заливающий кадр. Это была логическая ошибка, а не настройка экспозиции.
+- **Decision:** убрать pre-filter и выбирать точку напрямую касанием центра ладони в live-видео; брать локальный патч 7×7, показывать образец RGB и отказывать при неоднородном патче (на краю кисти/фона). Сохранение профиля — отдельное подтверждение, а предсказанный маской результат должен выделять tapped point и компактную кисть, иначе сохранение запрещено. Ядро игры получает только подтверждённый Cb/Cr-профиль. Старые v1 center-sampled профили инвалидируются по версии, чтобы ошибочный цвет фона не пережил обновление. Кэш — `ckc-v53`.
+- **Affected artifacts:** `src/camtrack.js` (`calibrateSkinColor`), `gesture-stand/index.html` (tap sample + swatch/confirmation), `sw.js`, `tests/tools/gesture-color.mjs`, `tests/test_game_catalog.py`.
+- **Evidence:** Regression test проверяет отказ фонового цвета (19 200 px) и сохранение ладони после точечного профиля; synthetic V/👍 остаются распознаны. Нужен повторный тест пользователем на реальном устройстве.
+
+## 2026-10-17 — Разбор отказов жестовой формы после успешной маски
+
+- **Finding:** «ладонь зелёная» подтверждает цветовую сегментацию, но не прохождение геометрических фильтров. Раньше каждый их отказ возвращал одинаковые `0%`, поэтому не было видно, найдено ли две вершины V или почему отклонён 👍.
+- **Decision:** Не ослаблять без измерений все геометрические пороги и не включать ложноположительное управление. Возвращать в raw-диагностике причину отказа (силуэт, количество/разнос вершин, впадина V, позиция/высота/ширина большого пальца, размер ладони), размеры силуэта и промежуточные метрики; стенд показывает короткое объяснение и включает эти поля в копируемый отчёт. Подсказка по расстоянию: вся кисть примерно треть кадра, не обрезана.
+- **Affected artifacts:** `src/camtrack.js`, `gesture-stand/index.html`, `tests/tools/gesture-color.mjs`.
+- **Evidence:** Synthetic V/👍 дают успешные reason codes; полевой отчёт после этой диагностики нужен, чтобы выбрать точную правку реальной позы.
+
+## 2026-10-17 — Полевой отчёт жестов: V flicker и 👍 отклонён по порогу роста
+
+- **Evidence:** Пользовательский отчёт: маска 3 038 skin px / 2 936 largest component, `shape-check`; V иногда распознаётся (confidence 68%, gap 0.17, valley 0.17, bbox 0.51×0.77), но почти всегда пропадает; 👍 отклонён как `thumb-extension-height` при extension 0.69. Стандартный skin profile использовался и остаётся стабильным 8 fps.
+- **Decision:** По прямому числу из отчёта поднять допустимый рост выступа 👍 0.62 → 0.82: 0.69 был явно ложным отказом; минимальный разнос V-пиков 0.14 → 0.10 для устойчивости к пиксельному шуму на масштабе 160 px. Для jitter raw-классификатора активировать состояние на 2 попадания из 3: V удерживается через один пропуск и отпускается после двух; газ 👍 запускается по тому же окну, но fail-stop на первом уверенном кадре без 👍 сохраняется.
+- **Affected artifacts:** `src/camtrack.js`, `gesture-stand/index.html` (повторяет production debounce), `tests/tools/gesture-color.mjs` (+unit по non-consecutive 2/3), `tests/tools/camqa.mjs` (+live-engine regression), `sw.js` → `ckc-v54`.
+- **Limitations:** Порог V изменён с запасом, но нужен повторный реальный тест. Если shape detector всё ещё мигает, следующий отчёт даст его причины и метрики.
+
+
+## 2026-10-17 — Собственный pixel/geometry gesture detector заменён MediaPipe
+
+- **Finding:** Пользователь подтвердил, что после очередных полевых heuristic-поправок жесты всё ещё «не работают». Дальше подбирать chroma/силуэтные пороги нецелесообразно: они не давали стабильного raw result на реальном телефоне; synthetic V/👍 не подтверждают полевое распознавание.
+- **Decision:** Использовать официальный MediaPipe Gesture Recognizer, который поставляется с готовыми `Victory` (✌️) и `Thumb_Up` (👍) категориями, confidence scores и 21 hand landmark. Старые skin-mask, calibration и shape-classifier функции удалены. Production inference исполняется в `camtrack-worker.js`; сырой top-category принимается только при score ≥0.70. V включается по 2-of-3, но gas остаётся fail-stop: любой пропуск `Thumb_Up`, устаревший кадр или ошибка модели/Worker отпускает throttle. Fallback на старый алгоритм или на main thread для жестов запрещён.
+- **Architecture:** Vendored `@mediapipe/tasks-vision@1.1.1` (Apache-2.0) + pinned float16 Gesture Recognizer `.task` bytes sourced from two public mirrors whose Git blob hashes match; SHA-256, model URL/card, acquisition caveat and separate model-license uncertainty are recorded in `games/candy-kingdom-coaster/vendor/mediapipe/NOTICE.md`. First gesture use lazily fetches runtime WASM and model into persistent `ckc-ml-mediapipe-1.1.1`; install itself does not force-download the large ML binaries. A classic dedicated Worker is used because MediaPipe's WASM loader expects `importScripts` to publish `ModuleFactory`; a module Worker's dynamic-import fallback did not publish it. Runtime smoke test confirms cached offline reinitialization.
+- **Diagnostics:** `gesture-stand/` now uses production `CamTracker` + Worker and shows model/load errors, class labels, scores, handedness, landmarks, FPS and latency; no camera frames are transmitted. New `gesture-runtime.mjs` tests real WASM/model startup and offline cache on a blank frame, explicitly without claiming human-hand recognition.
+- **Evidence:** Official docs describe canned categories, landmarks and model card; Python suite 16/16; MediaPipe adapter/state test passed; `camqa` 53/53; `vrqa` 20/20; runtime/WASM/model + offline smoke 5/5. These automated checks prove wiring, mapping, safety gate, and offline loading only—not real-world recognition.
+- **Limitations / next step:** Model card cautions that conditions across real smartphone cameras were not all tested. No real rear-camera hands are available in this sandbox, so field reliability, lighting/pose robustness, FPS and thermals are not claimed. User must first test ✌️ and 👍 in the new diagnostic room on the target phone, then confirm controls with VR glasses; a copied report/screenshots will guide further work.

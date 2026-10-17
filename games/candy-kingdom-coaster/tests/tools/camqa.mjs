@@ -1,4 +1,4 @@
-// camqa.mjs — приёмка VR-режима взгляда «По метке» (камера вместо гироскопа).
+// camqa.mjs — synthetic QA: VR marker logic + injected gesture state gate; no live hands/camera or MediaPipe accuracy claim.
 // Настоящей камеры в песочнице нет: синтетические кадры CamTracker
 // (injectBlob) проходят весь путь метка -> углы -> VR-взгляд.
 // Usage: node camqa.mjs (из /home/user/tools)
@@ -774,7 +774,7 @@ const singleShape = await page.evaluate(async () => {
   const circle = T.camInfo();
   await feedFor(160, 120, 40, 'rect');
   const rect = T.camInfo();
-  // возвращаем режим пары, на котором живут проверки жестов ниже
+  // возвращаем режим пары перед synthetic state-gate QA ниже
   T.camEnableDualSynthetic();
   T.vrStart('camera-dual', 30, true);
   T.camFeedDual(82, 120, 238, 120, 26);
@@ -789,7 +789,7 @@ record('форма: одиночная метка тоже требует пря
   { круг: { found: singleShape.circle.found, shape: singleShape.circle.markerShape },
     прямоугольник: { found: singleShape.rect.found, shape: singleShape.rect.markerShape } });
 
-// 10. V-жест: тот же analyzer, temporal debounce, 6× ceiling, fast release.
+// 10. Synthetic V state injection: debounce, 6× ceiling, fast release (not a detector test).
 const gesture = await page.evaluate(() => {
   const on1 = window.__TEST__.gestureFeed(true);
   const on2 = window.__TEST__.gestureFeed(true);
@@ -801,14 +801,20 @@ const gesture = await page.evaluate(() => {
   const released = window.__TEST__.vrInfo();
   return { on1, on2, held, off1, off2, released };
 });
-record('жест V: silhouette найден, включение требует два кадра',
+record('synthetic V gate: включение требует два кадра (не тест MediaPipe)',
   gesture.on1.result.gesture.found && gesture.on2.info.gestureV === true && gesture.on2.info.gestureFresh === true, gesture.on2.info);
-record('жест V: VR-only zoom плавно доходит почти до 6× и гасит shake',
+record('synthetic V gate: VR-only zoom почти до 6× и shake (не тест распознавания)',
   gesture.held.gestureZoom && gesture.held.zoomFactor > 5.5 && gesture.held.zoomFactor <= 6
     && gesture.held.zoomShakeFactor < 0.5 && gesture.held.zoomLookGain < 1, gesture.held);
-record('жест V: два плохих кадра отключают zoom, возврат быстрее набора',
+record('synthetic V gate: плохие кадры отпускают zoom (не тест распознавания)',
   gesture.off1.result.gesture.found === false && gesture.off2.info.gestureV === false
     && gesture.released.zoomActive === false && gesture.released.zoomFactor < 1.5, gesture.released);
+const vJitter = await page.evaluate(() => {
+  window.__TEST__.gestureFeed(true);
+  window.__TEST__.gestureFeed(false);
+  return window.__TEST__.gestureFeed(true).info.gestureV;
+});
+record('synthetic V state: 2-of-3 debounce (не тест модели)', vJitter === true, vJitter);
 
 // 11. thumbs-up gas: no steering, no remote input, fail-stop on missing thumb.
 const thumb = await page.evaluate(() => {
@@ -822,14 +828,20 @@ const thumb = await page.evaluate(() => {
   const stopped = { vr: window.__TEST__.vrInfo(), game: window.__TEST__.gameInfo() };
   return { on1, on2, driving, off1, off2, stopped };
 });
-record('thumbs-up: детектор и debounce включают газ, V остаётся отдельным',
+record('synthetic Thumb_Up state: gate включает газ (не тест детектора)',
   thumb.on1.result.gesture.thumb.found && thumb.on2.info.thumbUp === true
     && thumb.on2.info.gestureV === false && thumb.driving.game.driverMode === 'gesture'
     && thumb.driving.state.cam.gestureDrive === true && thumb.driving.state.cam.gesture === false
     && thumb.driving.game.remote === null, thumb.driving);
-record('thumbs-up: большой палец пропал — throttle 0 и машина останавливается',
+record('synthetic gas gate: miss отпускает throttle (не тест модели)',
   thumb.off1.result.gesture.thumb.found === false && thumb.off2.info.thumbUp === false
     && thumb.stopped.game.thumbUp === false && thumb.stopped.game.speedKmh < 10, thumb.stopped);
+const thumbJitter = await page.evaluate(() => {
+  window.__TEST__.gestureThumbFeed(true);
+  window.__TEST__.gestureThumbFeed(false);
+  return window.__TEST__.gestureThumbFeed(true).info.thumbUp;
+});
+record('synthetic Thumb_Up state: повторный пик включает ввод (не тест модели)', thumbJitter === true, thumbJitter);
 
 record('ошибок на странице нет', errors.length === 0, errors);
 

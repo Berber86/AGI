@@ -956,19 +956,24 @@ function updateCamPrepUi() {
   }
   const info = camTracker.info();
   if (gestureInputEnabled()) {
+    const modelStatus = info.gestureStatus === 'loading'
+      ? 'Модель MediaPipe загружается — жесты пока выключены. '
+      : info.gestureStatus === 'error' || info.gestureStatus === 'unavailable'
+        ? `Распознаватель недоступен${info.gestureError ? ` (${info.gestureError})` : ''} — управление остановлено. `
+        : info.gestureStatus !== 'ready' ? 'MediaPipe ещё не готов — управление остановлено. ' : '';
     const vStatus = !info.gestureFresh
-      ? '✌️ V не виден — zoom 1×.'
+      ? '✌️ V не подтверждён — zoom 1×.'
       : info.gestureV
-        ? '✌️ V распознан — zoom включён.'
-        : '✌️ поднимите указательный и средний пальцы.';
+        ? `✌️ V ${Math.round(info.gestureConfidence * 100)}% — zoom включён.`
+        : '✌️ V не распознан — zoom 1×.';
     const thumbStatus = !info.thumbFresh
-      ? '👍 камера не видит руку — стоп.'
+      ? '👍 сигнал устарел — стоп.'
       : info.thumbUp
-        ? '👍 большой палец виден — газ.'
-        : '👍 большой палец не поднят — стоп.';
-    el.vrGestureStatus.textContent = gestureDriverEnabled()
+        ? `👍 Thumb_Up ${Math.round(info.thumbConfidence * 100)}% — газ.`
+        : `👍 Thumb_Up ${Math.round(info.thumbConfidence * 100)}% — стоп.`;
+    el.vrGestureStatus.textContent = `${modelStatus}${gestureDriverEnabled()
       ? `${thumbStatus} ${vStatus} Руление — автопилот.`
-      : vStatus;
+      : vStatus}`;
   }
   if (vrSettings.lookMode === 'camera-dual') {
     el.vrCamDualStatus.textContent = !info.running && !info.synthetic
@@ -993,7 +998,8 @@ function syncVrUi() {
   el.vrGestureStatus.textContent = vrSettings.gestureZoom
     ? 'После старта VR задняя камера ищет V-жест. Ладонь держите в её поле зрения.'
     : 'Опционально: включает заднюю камеру только ради жеста и не меняет обычный режим.';
-  el.vrCamPanel.classList.toggle('hidden', !isCameraLookMode());
+  // Gesture-only driving still needs the rear-camera controls/status visible.
+  el.vrCamPanel.classList.toggle('hidden', !(isCameraLookMode() || gestureInputEnabled()));
   el.vrCamSingleControls.classList.toggle('hidden', dual);
   el.vrCamDualControls.classList.toggle('hidden', !dual);
   if (isCameraLookMode() && camTracker) ensureCamTracker();
@@ -1149,9 +1155,12 @@ document.querySelectorAll('.vr-cam-color').forEach((b) => b.addEventListener('cl
   SFX.play('click');
 }));
 setInterval(() => {
-  if (!el.vrScreen.classList.contains('hidden') && camTracker && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
+  if (!camTracker) return;
+  if (!el.vrScreen.classList.contains('hidden') && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
     camTracker.processMain();
     updateCamPrepUi();
+  } else if (game.vrRide && game.gestureOn) {
+    updateCamPrepUi(); // surface model load/failure state while driving too
   }
 }, 150);
 el.vrIpd.addEventListener('input', () => {
@@ -1165,9 +1174,31 @@ el.btnVrStart.addEventListener('click', async () => {
   vrSettings.baselineCm = +el.vrIpd.value;
   saveVrUi();
   requestFullscreenLandscape();
-  // обратный отсчёт: время вставить телефон в очки
   stopVrCountdown();
   el.btnVrStart.disabled = true;
+
+  // Request camera permission synchronously from this user tap, before the
+  // delayed 5-second countdown. Browsers may reject getUserMedia when it is
+  // first called from the timer; that used to be swallowed in startVrRide().
+  if (needsCameraInput()) {
+    try {
+      const tracker = ensureCamTracker();
+      tracker.setGestureEnabled(gestureInputEnabled());
+      await tracker.start(el.vrCamVideo);
+      tracker.useWorkerMode();
+      updateCamPrepUi();
+    } catch (e) {
+      const message = e && e.message ? e.message : String(e);
+      const status = `Камера не запустилась: ${message}. Нужны HTTPS, разрешение и задняя камера.`;
+      el.vrCamStatus.textContent = status;
+      if (gestureInputEnabled()) el.vrGestureStatus.textContent = status;
+      el.btnVrStart.disabled = false;
+      return;
+    }
+  }
+
+  // Теперь permission уже получен в обработчике пользовательского нажатия;
+  // отсчёт нужен только чтобы успеть надеть очки.
   el.vrCount.classList.remove('hidden');
   let left = 5;
   el.vrCountNum.textContent = String(left);
