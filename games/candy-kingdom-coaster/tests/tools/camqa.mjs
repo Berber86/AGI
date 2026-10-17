@@ -459,8 +459,7 @@ record('пространство: скачок принимается, когд�
     третий_кадр: { found: jump.second.found, yaw: jump.second.yaw } });
 
 // 9e. потеря пары: взгляд чуть доезжает по последнему вектору движения головы
-// (половина скорости, потолок 12°/с) и затухает. В центр сам не возвращается;
-// одна вернувшаяся метка его не двигает — только настоящая фиксация пары.
+// (половина скорости, потолок 12°/с) и затухает. В центр сам не возвращается.
 const coast = await page.evaluate(async (PACE_MS) => {
   const pace = (ms = PACE_MS) => new Promise((r) => setTimeout(r, ms));
   const T = window.__TEST__;
@@ -474,18 +473,12 @@ const coast = await page.evaluate(async (PACE_MS) => {
   T.camCalibrateDual();
   for (const th of [2, 4, 6, 8, 10, 12]) { pair(th); await pace(); }
   const before = { info: T.camInfo(), look: T.camLook() };
-  // правая метка ушла за край: настоящей фиксации больше нет
-  T.camFeedDual(at(14 - 17.3), 120, null, null, 26);
-  const lost = T.camInfo();
   for (let i = 0; i < 8; i++) { T.camFeedEmpty(); await pace(80); }   // ~0.65 с
   const coasted = T.camLook();
   for (let i = 0; i < 40; i++) { T.camFeedEmpty(); await pace(100); }  // ещё 4 с
   T.step(1 / 60, 10, false);
   const longLost = T.camLook();
-  // одна метка вернулась далеко в стороне — вести взгляд не должна
-  for (let i = 0; i < 8; i++) { T.camFeedDual(at(30 - 17.3), 120, null, null, 26); await pace(90); }
-  const single = T.camLook();
-  // а настоящая фиксация пары возвращает управление
+  // настоящая фиксация пары возвращает управление
   for (let i = 0; i < 8; i++) { pair(12); await pace(); }
   const back = T.camLook();
   // и только она же может поставить взгляд в центр
@@ -496,30 +489,101 @@ const coast = await page.evaluate(async (PACE_MS) => {
   const steady = T.camLook();
   for (let i = 0; i < 12; i++) { T.camFeedEmpty(); await pace(100); }
   const steadyLost = T.camLook();
-  return { before, lost, coasted, longLost, single, back, centre, steady, steadyLost };
+  return { before, coasted, longLost, back, centre, steady, steadyLost };
 }, PACE_MS);
 record('потеря пары: взгляд чуть доезжает по последнему вектору головы и затухает',
   coast.before.look.fixation === true && coast.before.info.yawRate > 10
     && coast.coasted.yaw > coast.before.look.yaw + 1
     && coast.coasted.yaw < coast.before.look.yaw + 8.5
-    && coast.longLost.yaw > coast.coasted.yaw
+    && Math.abs(coast.longLost.yaw - coast.coasted.yaw) < 2.5
+    && coast.longLost.yaw > coast.before.look.yaw
     && coast.longLost.yaw < coast.before.look.yaw + 8.5
     && coast.longLost.coast.active === false,
   { фиксация_до: coast.before.look.fixation, скорость: coast.before.info.yawRate,
     взгляд_до: +coast.before.look.yaw.toFixed(1),
     через_0_65_с: +coast.coasted.yaw.toFixed(1), выбег: coast.coasted.coast,
     через_4_6_с: +coast.longLost.yaw.toFixed(1) });
-record('потеря пары: одна вернувшаяся метка взгляд не двигает, фиксация пары — двигает',
-  Math.abs(coast.single.yaw - coast.longLost.yaw) < 0.6 && coast.single.fixation === false
-    && coast.back.fixation === true && Math.abs(coast.back.yaw - 12) < 1.5,
-  { одна_метка: +coast.single.yaw.toFixed(1), фиксация_одной: coast.single.fixation,
-    пара_12: +coast.back.yaw.toFixed(1), фиксация_пары: coast.back.fixation });
 record('центр ставит только реально увиденная фиксация пары, стоящая голова не даёт выбега',
   Math.abs(coast.centre.yaw) < 1.5 && Math.abs(coast.steadyLost.yaw - coast.steady.yaw) < 0.5
     && coast.steadyLost.coast.active === false,
-  { после_фиксации_0: +coast.centre.yaw.toFixed(1),
+  { пара_12: +coast.back.yaw.toFixed(1), фиксация_пары: coast.back.fixation,
+    после_фиксации_0: +coast.centre.yaw.toFixed(1),
     стоял: +coast.steady.yaw.toFixed(1), потом_без_меток: +coast.steadyLost.yaw.toFixed(1),
     выбег: coast.steadyLost.coast });
+
+// 9e2. Одиночная метка ведёт взгляд в СВОЮ сторону: левая — влево, правая —
+// сильно вправо. Вторую при этом не ищем: «левее левой» никаких сущностей.
+// Пара — единственное доказательство «прямо с лёгким углом».
+const sides = await page.evaluate(async (PACE_MS) => {
+  const pace = (ms = PACE_MS) => new Promise((r) => setTimeout(r, ms));
+  const T = window.__TEST__;
+  const at = (deg) => Math.round(160 + 251.1 * Math.tan((deg * Math.PI) / 180));
+  const pair = (th) => T.camFeedDual(at(th - 17.3), 120, at(th + 17.3), 120, 26);
+  const leftOnly = (th) => T.camFeedDual(at(th - 17.3), 120, null, null, 26);
+  const rightOnly = (th) => T.camFeedDual(null, null, at(th + 17.3), 120, 26);
+  T.camEnableDualSynthetic();
+  T.vrStart('camera-dual', 30, true);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camAgeMarkers(400);
+  T.camFeedDual(82, 120, 238, 120, 26);
+  T.camCalibrateDual();
+  // ВЛЕВО: пара до +8, дальше видна только левая; +30 — правая честно вне кадра
+  for (const th of [2, 4, 6, 8]) { pair(th); await pace(); }
+  const beforeLeft = T.camLook();
+  for (const th of [12, 18, 24, 30, 30]) { leftOnly(th); await pace(); }
+  const left = { look: T.camLook(), info: T.camInfo() };
+  // метка, которая «говорит прямо», при текущем +30 должна быть отвергнута
+  // пространственной моделью — одиночная метка «прямо» не доказывает
+  const stale = T.camFeedDual(82, 120, null, null, 26);
+  const fakeStraight = { look: T.camLook(), info: stale.info };
+  // обратно к паре и вправо: пара до -8, дальше видна только правая
+  for (let i = 0; i < 10; i++) { pair(0); await pace(); }
+  for (const th of [-4, -8]) { pair(th); await pace(); }
+  for (const th of [-12, -18, -24, -28, -28]) { rightOnly(th); await pace(); }
+  const right = { look: T.camLook(), info: T.camInfo() };
+  // снова влево до +30 и чужое малиновое пятно ЛЕВЕЕ левой метки:
+  // вторую метку тут не ищем, взгляд ведёт только левая
+  for (let i = 0; i < 10; i++) { pair(0); await pace(); }
+  for (const th of [4, 8]) { pair(th); await pace(); }
+  for (const th of [12, 18, 24, 30]) { leftOnly(th); await pace(); }
+  const alienFrames = [];
+  for (let i = 0; i < 4; i++) { alienFrames.push(T.camFeedDual(at(30 - 17.3), 120, 100, 120, 26).info); await pace(); }
+  const alienView = { look: T.camLook(), info: alienFrames[alienFrames.length - 1] };
+  // пара на +5 — снова «прямо с лёгким углом», и только она это доказывает
+  for (let i = 0; i < 10; i++) { pair(5); await pace(); }
+  const straight = { look: T.camLook(), info: T.camInfo() };
+  return { beforeLeft, left, fakeStraight, right, alienView, alienFirst: alienFrames[0], straight };
+}, PACE_MS);
+record('одиночная левая метка ведёт взгляд влево (пара больше не нужна)',
+  sides.left.look.singleSteer === true && sides.left.look.pairFixation === false
+    && sides.left.info.pairState === 'single'
+    && sides.left.look.yaw > 24 && sides.left.look.yaw < 33,
+  { до: +sides.beforeLeft.yaw.toFixed(1), стало: +sides.left.look.yaw.toFixed(1),
+    состояние: sides.left.info.pairState, singleSteer: sides.left.look.singleSteer,
+    pairFixation: sides.left.look.pairFixation });
+record('одиночная метка не доказывает «прямо»: кадр с меткой на месте калибровки отвергнут',
+  Math.abs(sides.fakeStraight.look.yaw - sides.left.look.yaw) < 1.5
+    && sides.fakeStraight.info.pairState !== 'pair',
+  { было: +sides.left.look.yaw.toFixed(1), стало: +sides.fakeStraight.look.yaw.toFixed(1),
+    состояние: sides.fakeStraight.info.pairState,
+    дельта: sides.fakeStraight.info.dualDeltas && sides.fakeStraight.info.dualDeltas[0].deltaYaw,
+    residual: sides.fakeStraight.info.dualDeltas && sides.fakeStraight.info.dualDeltas[0].residual });
+record('одиночная правая метка ведёт взгляд сильно вправо',
+  sides.right.look.singleSteer === true && sides.right.look.yaw < -22
+    && sides.right.info.pairState === 'single',
+  { состояние: sides.right.info.pairState, взгляд: +sides.right.look.yaw.toFixed(1),
+    доверие: sides.right.info.dualTrust });
+record('малиновое левее левой: одиночную метку не ищем и взгляд не уводим',
+  sides.alienView.info.dualUsed.join('+') === 'left'
+    && sides.alienView.look.yaw > 26 && sides.alienView.look.yaw < 34
+    && sides.alienFirst.found === true,
+  { в_счёт: sides.alienView.info.dualUsed, состояние: sides.alienView.info.pairState,
+    взгляд: +sides.alienView.look.yaw.toFixed(1),
+    дельты: sides.alienView.info.dualDeltas });
+record('две метки — доказательство «прямо с лёгким углом»',
+  sides.straight.look.pairFixation === true && Math.abs(sides.straight.look.yaw - 5) < 1.5,
+  { взгляд: +sides.straight.look.yaw.toFixed(1), пара: sides.straight.look.pairFixation,
+    состояние: sides.straight.info.pairState });
 
 // 9f. время явного наблюдения: 0.1 с — ещё не метка, 0.3 с — уже сущность.
 const entity = await page.evaluate(async () => {

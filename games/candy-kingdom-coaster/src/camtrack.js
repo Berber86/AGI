@@ -798,8 +798,12 @@ export class CamTracker {
     this.dualUsed = yaw === null ? [] : (chosen ? [chosen.id] : usable.map((m) => m.id));
     for (const id of ['left', 'right']) {
       const seen = markers.some((m) => m.id === id && m.found);
+      // Метка, которая по геометрии кадра не может быть видна, не «пропала»:
+      // её не ищем и не считаем пропущенной. Иначе на большом повороте
+      // счётчик копился бы вечно и любой одиночный кадр назывался бы
+      // «occluded» вместо честного «single».
       if (calibrated && expectedInside(id) && !seen) this.dualMissing[id] = (this.dualMissing[id] || 0) + 1;
-      else if (seen) this.dualMissing[id] = 0;
+      else if (seen || (calibrated && !expectedInside(id))) this.dualMissing[id] = 0;
     }
     // Оттенок, которого тут быть не может, но который «нашёлся», — это чужая
     // бесовщина; называем кадр честно, даже если ведёт вторая метка.
@@ -1039,6 +1043,27 @@ export class CamTracker {
     if (!this.dual) return this.fresh(900);
     return !!this.found && this.pairState === 'pair'
       && this.dualVisible.length === 2 && this.dualUsed.length === 2;
+  }
+
+  // Одиночная метка ведёт взгляд в СВОЮ сторону. Условия жёсткие: кадр
+  // действительно вёл ровно один доверенный объект, он подтверждённая
+  // сущность нужной формы, а вторая метка либо вне кадра по геометрии
+  // (мы её не ищем — «левее левой» никаких сущностей), либо отброшена
+  // правилами пары как чужая. Одиночная метка никогда не доказывает
+  // «прямо»: центр задаёт только пара.
+  singleSteer() {
+    if (!this.dual) return this.fresh(900);
+    if (!this.found || !this.fresh(900)) return false;
+    if ((this.dualUsed || []).length !== 1) return false;
+    const id = this.dualUsed[0];
+    const m = (this.markers || []).find((x) => x.id === id);
+    if (!m || !m.found || !m.entity || !m.shapeOk) return false;
+    // Вторая метка в кадре не должна быть подтверждённой сущностью на своём
+    // месте: иначе пара была бы доказана (или честно конфликтует) — это не
+    // «одиночный» кадр.
+    const other = (this.markers || []).find((x) => x.id !== id);
+    if (other && other.found && other.entity && other.shapeOk && other.expected) return false;
+    return true;
   }
 
   // QA: синтетическая метка без настоящей камеры.

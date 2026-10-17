@@ -657,18 +657,18 @@ function stopCamTracker() {
   vr.setGestureZoom(false);
   resetCamLook();
 }
-// Взгляд по камере. Ведёт его только доказанная фиксация: в режиме пары —
-// ОБЕ метки в нужных местах (порядок и расстояние сошлись), в одиночном —
-// подтверждённая метка нужной формы. Пока фиксации нет, взгляд не тянется ни
-// к одной метке и никогда сам не возвращается в центр: он коротко доезжает по
-// последнему вектору движения головы и затухает, дальше держится неподвижно.
-// Центр может поставить только реально увиденная фиксация пары.
+// Взгляд по камере. Ведёт его доказанное измерение: пара (обе метки в нужных
+// местах — единственное доказательство, что взгляд «прямо») или одиночная
+// подтверждённая метка нужной формы. Одиночная левая даёт поворот влево,
+// правая — сильно вправо; вторую метку при этом не ищем (она вне кадра по
+// геометрии). Пока не видно ни одной, взгляд не возвращается в центр сам:
+// коротко доезжает по последнему вектору головы и затухает, дальше стоит.
+// Центр может поставить только реально увиденная пара.
 // Возврат метки в другом месте: переякорка после подтверждения вторым кадром
 // (в VR вредно расхождение картинки с головой, а не сам «скачок» к истине).
 let camSnapPending = null;
 let camWasLost = false;
 let camFollowing = false;      // прошлый кадр вёл взгляд по доказанной фиксации
-let camFixLostAt = 0;          // когда фиксация пропала (для коротких миганий)
 let camRateHist = [];          // углы доказанных фиксаций — для вектора головы
 let camCoastAt = 0;
 // «Чуть ведут»: половина последней измеренной скорости головы, с потолком
@@ -693,7 +693,6 @@ function resetCamLook() {
   camSnapPending = null;
   camWasLost = false;
   camFollowing = false;
-  camFixLostAt = 0;
   camRateHist = [];
   camCoastAt = 0;
   camLastProcess = 0;
@@ -705,12 +704,17 @@ function resetCamLook() {
 // скорость головы не оцениваем.
 function noteCamFixation(now, yaw, pitch) {
   const h = camRateHist;
+  // Длинная пауза между фиксациями (фриз, потеря) — это не движение головы:
+  // историю начинаем заново, иначе наклон по старым и новым точкам даёт
+  // ложную скорость и «выбег» уводит взгляд не туда.
+  if (!h.length || now - h[h.length - 1].t > 500) h.length = 0;
   h.push({ t: now, yaw, pitch });
   while (h.length > 2 && now - h[0].t > CAM_RATE_WINDOW_MS) h.shift();
 }
 
-function camHeadRate() {
+function camHeadRate(now = performance.now()) {
   const h = camRateHist;
+  if (!h.length || now - h[h.length - 1].t > 400) return { yaw: 0, pitch: 0 };
   if (h.length < 3 || h[h.length - 1].t - h[0].t < CAM_RATE_MIN_MS) return { yaw: 0, pitch: 0 };
   const t0 = h[0].t;
   let n = 0, st = 0, sy = 0, sp = 0, stt = 0, sty = 0, stp = 0;
@@ -772,12 +776,11 @@ function updateCameraLook(now, force = false) {
   camTracker.process();
   if (!cameraLookActive) return;
   const t = camTracker;
-  if (t.fresh(900) && t.pairFixation()) {
-    // Доказанная фиксация: можно вести взгляд по измерению.
-    // После ДОЛГОЙ пропажи история скорости начинается заново: вектор головы
-    // до потери к новому положению отношения не имеет. Короткое мигание
-    // (пара кадров) историю не рвёт, иначе перед потерей не будет скорости.
-    if (!camFollowing && camFixLostAt && now - camFixLostAt > 400) camRateHist = [];
+  const pairFix = t.pairFixation();
+  const singleFix = !pairFix && t.singleSteer();
+  if (pairFix || singleFix) {
+    // Доказанное измерение: пара ведёт взгляд, одиночная метка — в свою
+    // сторону. «Прямо» по одной метке не заключаем никогда.
     const dy = t.yaw - camSmooth.yaw;
     const dp = t.pitch - camSmooth.pitch;
     const jump = Math.hypot(dy, dp);
@@ -802,11 +805,11 @@ function updateCameraLook(now, force = false) {
       camSmooth.yaw += dy * f;
       camSmooth.pitch += dp * f;
     }
-    camFollowing = true;
-    stopCamCoast();
     // Резкий разрыв — это не скорость головы, а переякорка/вернувшаяся метка.
     // Такой кадр не должен потом «выбегать» взглядом: историю начинаем заново.
-    if (jump > 8) camRateHist = [];
+    if (!camFollowing || jump > 8) camRateHist = [];
+    camFollowing = true;
+    stopCamCoast();
     noteCamFixation(now, t.yaw, t.pitch);
     vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
     return;
@@ -818,7 +821,6 @@ function updateCameraLook(now, force = false) {
   camSnapPending = null;
   if (camFollowing) {
     camFollowing = false;
-    camFixLostAt = now;
     startCamCoast(now); // первый кадр без фиксации угол ещё не меняет
   } else {
     stepCamCoast(now);
@@ -1992,6 +1994,9 @@ window.__TEST__ = {
       snapPending: camSnapPending ? { yaw: +camSnapPending.yaw.toFixed(1), pitch: +camSnapPending.pitch.toFixed(1) } : null,
       wasLost: camWasLost,
       fixation: camFollowing,
+      pairFixation: !!(t && t.dual && t.pairFixation()),
+      singleSteer: !!(t && !t.pairFixation() && t.singleSteer()),
+      headRate: +camHeadRate().yaw.toFixed(1),
       coast: { active: camCoast.active, yaw: +camCoast.yaw.toFixed(1), pitch: +camCoast.pitch.toFixed(1),
         usedYaw: +camCoast.usedYaw.toFixed(1), usedPitch: +camCoast.usedPitch.toFixed(1) },
       lastFoundAgoMs: t && t.lastFoundAt ? Math.round(performance.now() - t.lastFoundAt) : null,
