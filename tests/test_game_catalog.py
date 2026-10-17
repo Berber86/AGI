@@ -76,6 +76,34 @@ class GameCatalogTests(unittest.TestCase):
         self.assertIn("ckc-ml-mediapipe-1.1.1", sw)
         self.assertIn("./vendor/mediapipe/vision_bundle.mjs", sw)
 
+    def test_pelagic_eye_card_links_to_published_game_and_cover(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a.get('href') for t, a in tags if t == 'a' and 'pelagic-eye' in a.get('href', '')]
+        self.assertEqual(links, ['./games/pelagic-eye/play/index.html'] * 2)
+        for link in links:
+            self.assertTrue((ROOT / link).is_file())
+        images = [a for t, a in tags if t == 'img' and 'pelagic-eye' in a.get('src', '')]
+        self.assertEqual(len(images), 1)
+        self.assertTrue((ROOT / images[0]['src']).is_file())
+        self.assertTrue(images[0].get('alt'))
+
+    def test_pelagic_eye_published_page_is_single_file(self):
+        base = ROOT / 'games/pelagic-eye/play'
+        tags = Tags((base / 'index.html').read_text()).tags
+        scripts = [a for t, a in tags if t == 'script']
+        self.assertEqual(len(scripts), 1)
+        self.assertEqual(scripts[0].get('type'), 'module')
+        self.assertFalse(scripts[0].get('src'))
+        self.assertEqual(sum(1 for t, _ in tags if t == 'style'), 1)
+        for tag, attrs in tags:
+            for attr in ('src', 'href'):
+                value = attrs.get(attr, '')
+                if not value or value.startswith('#'):
+                    continue
+                self.assertFalse(urlsplit(value).netloc, value)
+                self.assertFalse(value.startswith(('http:', 'https:')), value)
+        self.assertNotIn('src/main.tsx', (base / 'index.html').read_text())
+
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
         links = [a.get('href') for t, a in tags if t == 'a']

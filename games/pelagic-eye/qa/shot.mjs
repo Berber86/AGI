@@ -1,0 +1,26 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--autoplay-policy=no-user-gesture-required'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, screenshot: { timeout: 120000 } });
+page.setDefaultTimeout(120000);
+await page.addInitScript(() => {
+  localStorage.setItem('pelagic-eye.settings.v1', JSON.stringify({ ipd: 6.4, quality: 'balanced', reducedMotion: true, soundOn: false }));
+});
+const errors = [];
+page.on('console', msg => { if (msg.type()==='error') errors.push('CONSOLE '+msg.text()); });
+page.on('pageerror', err => errors.push('PAGEERROR '+err.message));
+await page.goto('http://localhost:4173', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(12000);
+console.log('screenshot lobby');
+await page.screenshot({ path: 'qa/lobby.png', timeout: 120000 });
+console.log('click start');
+const start = page.getByRole('button', { name: /Начать погружение|Продолжить погружение/ }).first();
+await start.click();
+await page.waitForTimeout(10000);
+await page.screenshot({ path: 'qa/dive.png', timeout: 120000 });
+console.log('click vr driver');
+await page.getByTitle('VR-драйвер и источник взгляда').click();
+await page.waitForTimeout(2500);
+await page.screenshot({ path: 'qa/driver.png', timeout: 120000 });
+console.log('ERRORS', errors.slice(0,20));
+console.log('title', await page.title());
+await browser.close();
