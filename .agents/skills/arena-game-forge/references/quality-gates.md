@@ -122,7 +122,15 @@ At minimum record:
 - initial asset weight;
 - entity/particle ceilings;
 - representative frame timing or FPS;
+- **update cost**: bytes a returning device downloads when the cache version
+  changes (code and media measured separately, in bytes and request count);
 - memory/listener growth observations for repeated restart cycles.
+
+If the game has VR, a camera tracker, or any continuous input, also record the
+per-frame input cost (`procMs`, analysis time) and the render counters
+(draw calls, render passes, shadow passes) rather than frame time alone. In a
+software-GL sandbox, frame time is a property of the sandbox; counters and
+microbenchmarks are the evidence.
 
 Do not claim low-end Android performance based only on a desktop preview. Label untested device claims explicitly.
 
@@ -134,8 +142,10 @@ Verify the production build from its deployed-style base path:
 - reload on a nested/subpath does not break assets;
 - manifest and icons resolve;
 - service worker does not cache development files;
-- offline behavior matches the contract;
-- version/update path is documented;
+- offline behavior matches the contract, verified by an actual offline reload;
+- code and immutable media live in separate caches, so a version bump does not
+  re-download the media;
+- version/update path is documented, including the first-migration caveat;
 - no secret or development-only endpoint is embedded;
 - known limitations are listed.
 
