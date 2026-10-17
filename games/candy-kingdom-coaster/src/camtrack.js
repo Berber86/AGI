@@ -245,15 +245,16 @@ function skinSilhouette(data, w, h, profile = null) {
 // Жест V: две высокие раздельные вершины силуэта.
 export function analyzeVGesture(data, w, h, profile = null) {
   const best = skinSilhouette(data, w, h, profile);
-  if (!best) return { found: false, confidence: 0 };
+  if (!best) return { found: false, confidence: 0, reason: 'silhouette-rejected' };
   const { minX, minY, maxY, bw, bh, smooth } = best;
+  const silhouette = { width: +(bw / w).toFixed(2), height: +(bh / h).toFixed(2) };
   const candidates = [];
   const topLimit = minY + bh * 0.42;
   for (let x = Math.max(2, Math.floor(bw * 0.12)); x < Math.min(bw - 2, Math.ceil(bw * 0.88)); x++) {
     if (smooth[x] > topLimit || smooth[x] > smooth[x - 1] || smooth[x] > smooth[x + 1]) continue;
     candidates.push({ x, y: smooth[x] });
   }
-  if (candidates.length < 2) return { found: false, confidence: 0 };
+  if (candidates.length < 2) return { found: false, confidence: 0, reason: 'fewer-than-two-fingertips', peaksFound: candidates.length, silhouette };
   candidates.sort((a, b) => a.y - b.y);
   let pair = null;
   for (let i = 0; i < candidates.length && !pair; i++) for (let j = i + 1; j < candidates.length; j++) {
@@ -268,15 +269,20 @@ export function analyzeVGesture(data, w, h, profile = null) {
     pair = { a, b, gap, depth };
     break;
   }
-  if (!pair) return { found: false, confidence: 0 };
+  if (!pair) return {
+    found: false, confidence: 0, reason: 'no-separated-finger-pair',
+    peaksFound: candidates.length, silhouette,
+  };
   const confidence = Math.min(1, 0.45 + pair.depth / Math.max(1, bh) + pair.gap / Math.max(1, bw) * 0.35);
+  const peaks = [
+    { u: (minX + pair.a.x) / w, v: pair.a.y / h },
+    { u: (minX + pair.b.x) / w, v: pair.b.y / h },
+  ];
   return {
     found: confidence >= 0.55,
     confidence,
-    peaks: [
-      { u: (minX + pair.a.x) / w, v: pair.a.y / h },
-      { u: (minX + pair.b.x) / w, v: pair.b.y / h },
-    ],
+    reason: confidence >= 0.55 ? 'v-pose' : 'v-pose-confidence-too-low',
+    peaks, silhouette, peakGap: +(pair.gap / bw).toFixed(2), valleyDepth: +(pair.depth / bh).toFixed(2),
   };
 }
 
@@ -285,8 +291,9 @@ export function analyzeVGesture(data, w, h, profile = null) {
 // narrow index finger; it is still a heuristic, so temporal debounce remains.
 export function analyzeThumbGesture(data, w, h, profile = null) {
   const best = skinSilhouette(data, w, h, profile);
-  if (!best) return { found: false, confidence: 0 };
+  if (!best) return { found: false, confidence: 0, reason: 'silhouette-rejected' };
   const { minX, minY, maxY, bw, bh, smooth, points, count } = best;
+  const silhouette = { width: +(bw / w).toFixed(2), height: +(bh / h).toFixed(2) };
   const topLimit = minY + bh * 0.42;
   const candidates = [];
   for (let x = Math.max(2, Math.floor(bw * 0.1)); x < Math.min(bw - 2, Math.ceil(bw * 0.9)); x++) {
@@ -298,30 +305,41 @@ export function analyzeThumbGesture(data, w, h, profile = null) {
       if (smooth[x] < previous.y) previous.x = x, previous.y = smooth[x];
     } else candidates.push({ x, y: smooth[x] });
   }
-  if (candidates.length !== 1) return { found: false, confidence: 0 };
+  if (candidates.length !== 1) return {
+    found: false, confidence: 0, reason: 'thumb-peak-count', peaksFound: candidates.length, silhouette,
+  };
   const peak = candidates[0];
   const ratio = peak.x / Math.max(1, bw - 1);
   // A thumb is attached to a side of the fist, not centred like an index.
-  if (ratio > 0.43 && ratio < 0.57) return { found: false, confidence: 0 };
+  if (ratio > 0.43 && ratio < 0.57) return { found: false, confidence: 0, reason: 'thumb-peak-centered', peakPosition: +ratio.toFixed(2), silhouette };
   const sample = (ratioX) => smooth[Math.max(0, Math.min(bw - 1, Math.round(ratioX * (bw - 1))))];
   const shoulderY = Math.max(sample(0.14), sample(0.86));
   const rise = shoulderY - peak.y;
-  if (rise < bh * 0.16 || rise > bh * 0.62) return { found: false, confidence: 0 };
+  if (rise < bh * 0.16 || rise > bh * 0.62) return {
+    found: false, confidence: 0, reason: 'thumb-extension-height',
+    extension: +(rise / bh).toFixed(2), silhouette,
+  };
   const peakBand = peak.y + bh * 0.16;
   let peakWidth = 0;
   for (const y of smooth) if (y <= peakBand) peakWidth++;
-  if (peakWidth < bw * 0.16 || peakWidth > bw * 0.55) return { found: false, confidence: 0 };
+  if (peakWidth < bw * 0.16 || peakWidth > bw * 0.55) return {
+    found: false, confidence: 0, reason: 'thumb-peak-width',
+    peakWidth: +(peakWidth / bw).toFixed(2), silhouette,
+  };
   const bodyPixels = points.reduce((n, cur) => n + (((cur / w) | 0) >= minY + bh * 0.50 ? 1 : 0), 0);
-  if (bodyPixels < count * 0.22 || bw < w * 0.16) return { found: false, confidence: 0 };
+  if (bodyPixels < count * 0.22 || bw < w * 0.16) return {
+    found: false, confidence: 0, reason: 'thumb-palm-area',
+    lowerPalmRatio: +(bodyPixels / count).toFixed(2), silhouette,
+  };
   const confidence = Math.min(1,
     0.48 + rise / Math.max(1, bh) * 0.42 + Math.min(0.22, peakWidth / Math.max(1, bw) * 0.30)
   );
   return {
     found: confidence >= 0.58,
     confidence,
+    reason: confidence >= 0.58 ? 'thumbs-up' : 'thumb-confidence-too-low',
     tip: { u: (minX + peak.x) / w, v: peak.y / h },
-    silhouette: { width: bw / w, height: bh / h },
-    top: maxY,
+    silhouette, top: maxY,
   };
 }
 

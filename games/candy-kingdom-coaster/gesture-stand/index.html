@@ -53,7 +53,7 @@
 
   <section class="card">
     <h2>1. Запусти камеру и покажи позу</h2>
-    <p>Для начала поднеси руку целиком на 30–60 см, ладонью к объективу, на ровном контрастном фоне и при хорошем свете. Проверь сначала ✌️, затем 👍. Не надевай телефон в VR-очки, пока проверяешь, видит ли камера руку.</p>
+    <p>Для начала держи руку целиком в кадре примерно в 30–60 см: кисть должна занимать около трети кадра, не упираться в края. Ладонь к объективу, ровный контрастный фон и хороший свет. Проверь сначала ✌️, затем 👍. Не надевай телефон в VR-очки, пока проверяешь, видит ли камера руку.</p>
     <div class="controls">
       <button id="start">📷 Включить заднюю камеру</button>
       <button id="stop" class="secondary" disabled>Остановить</button>
@@ -106,13 +106,27 @@
   };
   const maskCanvas = $('mask-preview'), maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
   const reasonText = {
-    'too-few-skin-pixels': 'Фильтр почти не видит пиксели кожи. Попробуй яркий ровный свет, убери цветной свет/пересвет и проверь зелёную маску.',
-    'skin-mask-covers-background': 'Кожей помечена большая часть кадра — в маску попал фон или слишком много руки/лица. Отодвинь камеру и оставь в кадре только кисть.',
-    'no-connected-hand-region': 'Цветовые пиксели есть, но не собрались в связную кисть. Убери фоновые пятна и держи кисть целиком.',
-    'hand-region-too-small': 'Силуэт руки слишком мал. Поднеси кисть ближе, чтобы она занимала заметную часть кадра.',
+    'too-few-skin-pixels': 'Фильтр почти не видит пиксели кожи. Проверь калибровку и зелёную маску.',
+    'skin-mask-covers-background': 'Маска покрывает почти весь кадр. Текущий профиль снова захватил фон; не запускай с ним игру.',
+    'no-connected-hand-region': 'Цветовые пиксели не собрались в связную кисть. Убери фоновые пятна и держи кисть целиком.',
+    'hand-region-too-small': 'Силуэт слишком мал. Поднеси кисть ближе.',
     'hand-region-too-small-in-frame': 'Силуэт узкий или короткий. Разверни ладонь к объективу и покажи пальцы полностью.',
-    'hand-region-cropped-or-too-large': 'Кисть обрезана краем кадра или слишком близко. Отодвинь руку и помести её целиком в кадр.',
-    'shape-check': 'Пиксели кожи и силуэт найдены; форма не совпала с V или 👍. Держи жест неподвижно, ладонью к камере, пальцы раздвинуты.',
+    'hand-region-cropped-or-too-large': 'Кисть обрезана краем кадра или слишком близко. Отодвинь руку.',
+    'shape-check': 'Кисть сегментирована; ниже показано, на каком геометрическом тесте отклонён жест.',
+  };
+  const gestureReasonText = {
+    'silhouette-rejected': 'кисть не проходит размер/связность маски',
+    'fewer-than-two-fingertips': 'не вижу две отдельные вершины пальцев; расправь V и раздвинь пальцы',
+    'no-separated-finger-pair': 'две вершины не образуют достаточно глубокую V-впадину',
+    'v-pose-confidence-too-low': 'V найдена, но score ниже порога',
+    'v-pose': 'V найдена',
+    'thumb-peak-count': 'ожидаю один выступ большого пальца; расправь большой палец, остальные пальцы собери в кулак',
+    'thumb-peak-centered': 'выступ большого пальца оказался по центру силуэта; поверни кулак немного боком',
+    'thumb-extension-height': 'большой палец слишком низко/высоко относительно кулака',
+    'thumb-peak-width': 'вершина большого пальца не отделилась по ширине',
+    'thumb-palm-area': 'площадь кулака слишком мала или обрезана',
+    'thumb-confidence-too-low': 'форма 👍 найдена, но score ниже порога',
+    'thumbs-up': '👍 найден',
   };
 
   const format = (r) => `${r.found ? 'ДА' : 'нет'} · ${Math.round((r.confidence || 0) * 100)}%`;
@@ -131,7 +145,12 @@
     $('details').textContent = state.running
       ? `Камера: ${track?.label || 'название скрыто'}\nЗапрошена: задняя environment · Получена: ${facing}\nСенсор: ${settings.width || video.videoWidth}×${settings.height || video.videoHeight} · анализ: ${Math.round(state.fps)} кадр/с · ${state.procMs.toFixed(1)} мс/кадр\nСвежесть анализа: ${ageMs} мс · V пики: ${state.raw.v.peaks ? state.raw.v.peaks.map(p => `${p.u.toFixed(2)},${p.v.toFixed(2)}`).join(' / ') : '—'} · 👍 кончик: ${state.raw.thumb.tip ? `${state.raw.thumb.tip.u.toFixed(2)},${state.raw.thumb.tip.v.toFixed(2)}` : '—'}\nМаска: ${state.skinDiag ? `${state.skinDiag.skinPixels} skin px · крупнейшая связная область ${state.skinDiag.largestPixels} px · ${state.skinDiag.bounds ? `${state.skinDiag.bounds.width}×${state.skinDiag.bounds.height}` : 'нет bbox'} · ${state.skinDiag.reason}` : 'считается'}\nЦветовой профиль: ${state.profile ? `калиброван Cb ${state.profile.cb}±${state.profile.tolCb}, Cr ${state.profile.cr}±${state.profile.tolCr}` : 'узкий универсальный диапазон'}`
       : 'Параметры камеры: —';
-    if (state.skinDiag) $('diagnosis').textContent = reasonText[state.skinDiag.reason] || reasonText['shape-check'];
+    if (state.skinDiag) {
+      const skinText = reasonText[state.skinDiag.reason] || state.skinDiag.reason;
+      const vText = gestureReasonText[state.raw.v.reason] || state.raw.v.reason || 'нет сигнала';
+      const thumbText = gestureReasonText[state.raw.thumb.reason] || state.raw.thumb.reason || 'нет сигнала';
+      $('diagnosis').textContent = `${skinText} ✌️ V: ${vText} (${state.raw.v.peaksFound ?? '—'} пиков). 👍: ${thumbText} (${state.raw.thumb.peaksFound ?? '—'} пиков).`;
+    }
     $('stop').disabled = !state.running;
     $('calibrate').disabled = !state.running || !state.pendingProfile;
     $('copy').disabled = !state.running && !state.frames;
@@ -183,8 +202,8 @@
       'Candy Kingdom Coaster — диагностика жестового ввода',
       `Продолжительность: ${Math.round((performance.now() - state.startedAt) / 1000)} с; обработано кадров: ${state.frames}`,
       `Камера: ${track?.label || 'неизвестно'}; facingMode: ${settings.facingMode || 'неизвестно'}; размер: ${settings.width || '?'}×${settings.height || '?'}`,
-      `Последний raw V: ${format(state.raw.v)}; стабильный V: ${state.vStable}`,
-      `Последний raw thumbs-up: ${format(state.raw.thumb)}; стабильный gas: ${state.thumbStable}`,
+      `Последний raw V: ${format(state.raw.v)}; этап отказа: ${state.raw.v.reason || '—'}; детали: ${JSON.stringify({ peaks: state.raw.v.peaksFound, gap: state.raw.v.peakGap, valley: state.raw.v.valleyDepth, silhouette: state.raw.v.silhouette })}; стабильный V: ${state.vStable}`,
+      `Последний raw thumbs-up: ${format(state.raw.thumb)}; этап отказа: ${state.raw.thumb.reason || '—'}; детали: ${JSON.stringify({ peaks: state.raw.thumb.peaksFound, peakPosition: state.raw.thumb.peakPosition, extension: state.raw.thumb.extension, width: state.raw.thumb.peakWidth, silhouette: state.raw.thumb.silhouette })}; стабильный gas: ${state.thumbStable}`,
       `Маска: ${state.skinDiag ? `${state.skinDiag.skinPixels} пикселей кожи, связная область ${state.skinDiag.largestPixels}, причина: ${state.skinDiag.reason}` : 'нет данных'}`,
       `Цветовой профиль: ${state.profile ? JSON.stringify(state.profile) : 'стандартный узкий YCbCr'}`,
       `Средняя частота анализа сейчас: ${Math.round(state.fps)} кадр/с; стоимость кадра: ${state.procMs.toFixed(1)} мс`,

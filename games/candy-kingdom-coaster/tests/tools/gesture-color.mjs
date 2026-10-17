@@ -74,5 +74,7 @@ function makeGesture(kind) {
 }
 const vResult = makeGesture('v'), thumbResult = makeGesture('thumb');
 assert.equal(vResult.v.found, true, `V recognizer regressed: ${JSON.stringify(vResult.v)}`);
+assert.equal(vResult.v.reason, 'v-pose');
 assert.equal(thumbResult.thumb.found, true, `thumb recognizer regressed: ${JSON.stringify(thumbResult.thumb)}`);
+assert.equal(thumbResult.thumb.reason, 'thumbs-up');
 console.log(`gesture color QA passed: ${broad.skinPixels} broad pixels -> ${calibrated.skinPixels} calibrated pixels; synthetic V/👍 pass; ${JSON.stringify(profile)}`);
