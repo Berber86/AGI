@@ -223,12 +223,19 @@ try {
   // An active registration can still be 'activating': wait until THIS page
   // is controlled before disabling the network, not just until caches exist.
   await page.waitForFunction('navigator.serviceWorker.controller?.state === "activated"', { timeout: 30000 });
+  // Код и медиа в разных кэшах: проверяем наличие по всем кэшам сразу,
+  // а в версионном кэше кода медиа быть не должно (иначе обновление тянет 7 МБ).
   const cached = await page.evaluate(async () => {
     const keys = await caches.keys(), key = keys.find((k) => /^ckc-v/.test(k));
-    const c = await caches.open(key), urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2', './src/routes.js', './src/forks.js'];
-    return await Promise.all(urls.map(async (url) => ({ url, cached: !!(await c.match(url)) })));
+    const shell = await caches.open(key);
+    const urls = ['./src/boot.js', './src/loading.js', './assets/ui/welcome.webp', './assets/ui/fonts/nunito-latin.woff2', './assets/ui/fonts/nunito-cyrillic.woff2', './assets/textures/fonts/Fredoka-Bold.woff2', './src/routes.js', './src/forks.js'];
+    const rows = await Promise.all(urls.map(async (url) => ({ url, cached: !!(await caches.match(url)) })));
+    const mediaInShell = rows.filter((r) => r.url.includes('/assets/') && r.cached);
+    const shellHasMedia = mediaInShell.length ? !!(await shell.match(mediaInShell[0].url)) : false;
+    return { rows, shellHasMedia };
   });
-  check('new UI, artwork, fonts and loader are cached', cached.every((r) => r.cached), cached);
+  check('new UI, artwork, fonts and loader are cached', cached.rows.every((r) => r.cached), cached.rows);
+  check('кэш кода не содержит медиа (обновление ~1.5 МБ)', !cached.shellHasMedia, { shellHasMedia: cached.shellHasMedia });
   if (process.argv.includes('--offline')) {
     await page.setBypassServiceWorker(false);
     await page.setOfflineMode(true); await page.reload({ waitUntil: 'networkidle0', timeout: 120000 });

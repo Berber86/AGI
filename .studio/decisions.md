@@ -167,3 +167,11 @@ User: «Хорошо, делай ещё 3 итерации». Continue approved 
 - **Affected artifacts:** `src/camtrack.js` (bbox/fill в анализаторе, `_markerEntityState`, `_markerShapeOf`, `dualBaseShape`, `forgetMarkerEntities`), `src/camtrack-worker.js` (bw/bh/fill), `src/main.js` (`camAgeMarkers`, `camForgetMarkers`, синтетические прямоугольники), `tests/tools/camqa.mjs` (+5 проверок), `tests/tools/dualtrace.mjs`, `DUAL_MARKER_LOOK.md` §8, `sw.js` → `ckc-v45`.
 - **Evidence or user answer:** «время её явного наблюдения, чтобы стать сущностью, должно быть не менее 0,3 с»; «горизонтальный прямоугольник с длинной стороной в горизонтальной плоскости»; измерения — `camqa` 42/42, `.studio/evidence/reports/dual-marker-look.json`.
 
+## 2026-10-17 — «Снова тормоза»: причина в стоимости обновления PWA, а не в рендере
+
+- **Decision:** PWA-кэш разделён на версионный кэш кода (`ckc-v46`, 53 записи / 1.47 МБ) и переживающий версии медиа-кэш (`ckc-media-v1`, 34 файла / 5.82 МБ). Precache — по файлам, уже лежащее не перекачивается; неполный набор кода (<90 %) валит install и оставляет прошлый рабочий кэш. `/assets/` отдаётся cache-first из медиа-кэша, музыка — network-first.
+- **Alternatives:** оставить один бакет и «прогревать» его в простое — отвергнуто: обновление всё равно тянет 7.3 МБ; кэшировать только по факту запроса без precache — отвергнуто: первый офлайн-запуск после установки был бы дырявым.
+- **Reason:** жалоба «снова возникли тормоза в игре. Почему?». A/B-замеры показали отсутствие стационарной регрессии (JS на кадр 0.59/0.84/1.01 мс против 0.67/0.75/1.18, анализ меток 0.28–0.30 против 0.29–0.31, draw calls 924 = 924, программы/геометрии/текстуры совпадают). Реальная стоимость — 87 файлов / 7.3 МБ на каждую смену версии; после правки обновление = 1.47 МБ кода и 0 запросов к медиа.
+- **Affected artifacts:** `games/candy-kingdom-coaster/sw.js` (`ckc-v46`), `tests/tools/pwaqa.mjs`, `tests/tools/updatecost.mjs`, `tests/tools/uiqa.mjs` (медиа ищется по всем кэшам), `tests/tools/perfcam.mjs`/`cprof.mjs`/`ftime.mjs`, `PWA_UPDATE_COST.md`, `.studio/evidence/reports/pwa-update-cost.json`.
+- **Evidence or user answer:** «Очень хорошо. Но у нас теперь снова возникли тормоза в игре. Почему?»; измерения — `pwaqa` 4/4, `updatecost` 1.47 МБ / 0 медиа, `uiqa --offline` 26/26.
+

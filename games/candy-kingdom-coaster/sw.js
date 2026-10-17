@@ -1,6 +1,16 @@
 // Candy Kingdom Coaster — offline cache (PWA). Relative paths: safe under any subpath.
-const CACHE = 'ckc-v45'; // v45: две метки — сущность за 0.3 с и проверка формы (горизонтальный прямоугольник)
-const ASSETS = [
+//
+// Два кэша, потому что обновления и медиа живут по-разному:
+//   CACHE       — код и оболочка (html, js, css, manifest). Меняется при каждом
+//                 обновлении игры, поэтому версия в имени и полная перезакачка
+//                 только этих 1.5 МБ.
+//   MEDIA_CACHE — картинки/текстуры/модели (5.8 МБ). Не меняются при обновлении
+//                 кода: качаются ОДИН раз (при первом обращении) и живут между
+//                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
+//                 на телефоне это давало рывки, если начать играть сразу.
+const CACHE = 'ckc-v46'; // v46: код в отдельном кэше от медиа
+const MEDIA_CACHE = 'ckc-media-v1';
+const SHELL = [
   './',
   './index.html',
   './styles.css',
@@ -53,7 +63,9 @@ const ASSETS = [
   './vendor/three/jsm/shaders/LuminosityHighPassShader.js',
   './vendor/three/jsm/shaders/OutputShader.js',
   './vendor/three/jsm/geometries/RoundedBoxGeometry.js',
-  './vendor/three/jsm/utils/BufferGeometryUtils.js',
+  './vendor/three/jsm/utils/BufferGeometryUtils.js'
+];
+const MEDIA = [
   './assets/icon-192.png',
   './assets/icon-512.png',
   './assets/icon-512-maskable.png',
@@ -90,13 +102,41 @@ const ASSETS = [
   './assets/textures/car-plush.webp'
 ];
 
+// Общая функция: кладём по одному, не роняя весь install из-за одного 404.
+// (cache.addAll атомарен: один отсутствующий файл — и офлайн-кэш не соберётся.)
+// Уже лежащее в кэше не перекачиваем: медиа-кэш при обновлении игры
+// остаётся нетронутым (0 запросов к /assets/), а недокачанные файлы
+// догружаются при следующей установке. Возвращает число файлов в кэше.
+const precache = async (cacheName, list) => {
+  const c = await caches.open(cacheName);
+  let stored = 0;
+  await Promise.all(list.map(async (url) => {
+    try {
+      if (await c.match(url)) { stored++; return; }
+      const res = await fetch(url, { cache: 'reload' });
+      if (res && res.ok) { await c.put(url, res); stored++; }
+    } catch { /* offline or 404: остальные файлы всё равно кэшируем */ }
+  }));
+  return stored;
+};
+
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil((async () => {
+    const shell = await precache(CACHE, SHELL);
+    // Медиа докачиваем только недостающее: при обновлении игры медиа-кэш уже
+    // собран и переживает смену версии, поэтому обновление стоит ~1.5 МБ, а не 7.3 МБ.
+    await precache(MEDIA_CACHE, MEDIA);
+    // Неполный precache (оборвалась сеть) не должен активироваться и стирать
+    // рабочий офлайн-кэш прошлой версии: install падает, старый SW остаётся.
+    if (shell < SHELL.length * 0.9) throw new Error(`precache incomplete: ${shell}/${SHELL.length}`);
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== MEDIA_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -104,7 +144,10 @@ self.addEventListener('activate', (e) => {
 // only complete, successful responses are cached — a 404 for a file that is
 // added later (e.g. the soundtrack) must not stick in the cache
 const cacheable = (res) => res && res.ok && res.status === 200 && res.type !== 'opaque';
-const store = (req, res) => { if (cacheable(res)) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {}); } return res; };
+const store = (cacheName, req, res) => {
+  if (cacheable(res)) { const copy = res.clone(); caches.open(cacheName).then((c) => c.put(req, copy)).catch(() => {}); }
+  return res;
+};
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
@@ -113,13 +156,24 @@ self.addEventListener('fetch', (e) => {
   // picked up, cached copy for offline play; no index.html fallback for audio
   if (url.pathname.includes('/assets/music/')) {
     e.respondWith(
-      fetch(e.request).then((res) => store(e.request, res))
+      fetch(e.request).then((res) => store(MEDIA_CACHE, e.request, res))
         .catch(() => caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || new Response('', { status: 404 })))
     );
     return;
   }
+  // медиа: cache-first в отдельном кэше, который переживает обновления кода
+  if (url.pathname.includes('/assets/')) {
+    e.respondWith(
+      caches.match(e.request, { ignoreSearch: true }).then((hit) => hit
+        || fetch(e.request).then((res) => store(MEDIA_CACHE, e.request, res))
+          .catch(() => new Response('', { status: 404 })))
+    );
+    return;
+  }
+  // код/оболочка: свой версионированный кэш
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).then((res) => store(e.request, res))
-      .catch(() => caches.match('./index.html')))
+    caches.match(e.request, { ignoreSearch: true }).then((hit) => hit
+      || fetch(e.request).then((res) => store(CACHE, e.request, res))
+        .catch(() => caches.match('./index.html')))
   );
 });

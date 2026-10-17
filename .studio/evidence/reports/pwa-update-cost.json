@@ -1,0 +1,49 @@
+{
+  "kind": "pwa-update-cost",
+  "date": "2026-10-17",
+  "report": "games/candy-kingdom-coaster/PWA_UPDATE_COST.md",
+  "tools": [
+    "games/candy-kingdom-coaster/tests/tools/perfcam.mjs",
+    "games/candy-kingdom-coaster/tests/tools/cprof.mjs",
+    "games/candy-kingdom-coaster/tests/tools/pwaqa.mjs",
+    "games/candy-kingdom-coaster/tests/tools/updatecost.mjs"
+  ],
+  "question": "почему после каждого обновления игра снова тормозит",
+  "verdict": "стационарной регрессии нет; рывки даёт загрузка PWA-кэша после смены версии",
+  "steady_state_current_vs_base_e474c8c": {
+    "js_ms_per_frame_normal_vr_vr_camera": { "current": [0.59, 0.84, 1.01], "base": [0.67, 0.75, 1.18] },
+    "marker_analysis_ms_dual_single": { "current": ["0.283-0.297", "0.135-0.147"], "base": ["0.288-0.308", "0.141-0.148"] },
+    "draw_calls_vr": { "current": 924, "base": 924 },
+    "triangles_vr": { "current": 1886852, "base": 1888000 },
+    "programs_geometries_textures": { "current": [199, 437, 87], "base": [199, 437, 87] },
+    "gaze_noisy_detector_52_frames": { "current": { "bigJumps": 6, "p95deg": 7.0 }, "base": { "bigJumps": 7, "p95deg": 8.2 } },
+    "cpu_profile_6s_ms": { "current": 7028, "base": 7787, "note": "~98% программный GL стенда; camtrack.js 6 мс" }
+  },
+  "pwa_before": {
+    "cache": "один бакет ckc-vNN",
+    "files": 87,
+    "bytes": 7300000,
+    "media_bytes": 5820000,
+    "update_cost": "все 87 файлов при каждой смене версии",
+    "fragility": "cache.addAll атомарен: один 404 ломает офлайн-кэш"
+  },
+  "pwa_after": {
+    "shell_cache": "ckc-v46",
+    "shell_entries": 53,
+    "shell_bytes": 1470000,
+    "media_cache": "ckc-media-v1",
+    "media_files": 34,
+    "media_bytes": 5820000,
+    "precache": "по файлам, уже лежащее не перекачивается, <90% кода валит install",
+    "routing": "/assets/ cache-first в MEDIA_CACHE; /assets/music/ network-first; остальное — SHELL",
+    "measured_update": { "media_requests": 0, "media_bytes": 0, "code_requests": 52, "code_bytes": 1470000, "total_bytes": 1470000 }
+  },
+  "validation": {
+    "pwaqa": "4/4 (раздельные кэши, медиа вне кэша кода, офлайн-перезапуск ready)",
+    "uiqa": "25/25, --offline 26/26",
+    "vrqa": "20/20",
+    "joystickqa": "7/7",
+    "camqa": "42/42",
+    "python": "15/15"
+  }
+}
