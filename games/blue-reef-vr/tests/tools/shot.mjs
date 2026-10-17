@@ -7,6 +7,7 @@
 //   vr:yaw:pitch:sec   — стереопара, поворот головы по метке
 import fs from 'fs';
 import puppeteer from 'puppeteer-core';
+import sharp from 'sharp';
 
 process.env.LD_LIBRARY_PATH = '/tmp/al2023/lib';
 process.env.HOME = '/tmp';
@@ -76,6 +77,9 @@ for (const spec of specs) {
   }
   await waitFrames(3);
   await page.screenshot({ path: `${OUT}/${name}.png` });
+  // Кадры идут в репозиторий, поэтому сразу в webp: PNG с каустикой весит >1 МБ.
+  await sharp(`${OUT}/${name}.png`).webp({ quality: 82 }).toFile(`${OUT}/${name}.webp`);
+  fs.unlinkSync(`${OUT}/${name}.png`);
   console.log('shot', name);
 }
 

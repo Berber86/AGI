@@ -3,13 +3,15 @@
 // сохранить PBR-освещение three.js и не городить отдельный ShaderMaterial.
 import * as THREE from 'three';
 import { WORLD } from './config.js';
+import { WATER_DECL, GRADE_DECL, waterUniforms } from './water.js';
 
 // Один объект uniform-ов на всю сцену: время и настройки воды меняются в одном
 // месте, а не рассылаются по сотне материалов.
 export const water = {
   uTime: { value: 0 },
-  uCaustic: { value: 1.0 },
-  uCausticScale: { value: 0.16 },
+  uCaustic: { value: 0.25 },
+  uCausticScale: { value: 6.5 },
+  uCausticSharp: { value: 1.0 },
   uCausticColor: { value: new THREE.Color(0xcdf3ff) },
 };
 
@@ -17,18 +19,27 @@ const CAUSTIC_GLSL = /* glsl */`
 #ifndef CAUSTIC_OCTAVES
 #define CAUSTIC_OCTAVES 3
 #endif
+// Солнечные зайчики: сумма сдвинутых синусов.
+//
+// Классическая формула из shadertoy (через 1/length(..., inten)) здесь не
+// годилась: её рисунок живёт только в узком диапазоне |p| ~ 200, а при
+// мировых координатах вырождается в ровную засветку. Замер это подтвердил:
+// выключение каустики меняло детальность кадра на 0.2 %, то есть узора не было
+// вообще — только постоянная добавка.
+//
+// Этот вариант устойчив при любых координатах: период задаётся масштабом p,
+// октавы добавляют более мелкую сетку.
 float rbCaustic(vec2 p, float t) {
-  vec2 i = p;
-  float c = 1.0;
-  const float inten = 0.0045;
-  for (int n = 0; n < CAUSTIC_OCTAVES; n++) {
-    float tt = t * (1.0 - (3.5 / float(n + 1)));
-    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
-    c += 1.0 / max(1e-4, length(vec2(p.x / (sin(i.x + tt) / inten), p.y / (cos(i.y + tt) / inten))));
+  float v = 0.0;
+  float amp = 1.0;
+  for (int i = 0; i < CAUSTIC_OCTAVES; i++) {
+    float fi = float(i);
+    vec2 q = p * (1.0 + fi * 0.85) + vec2(cos(t * (0.55 + fi * 0.23)), sin(t * (0.47 + fi * 0.19))) * 1.7;
+    float s = sin(q.x + sin(q.y * 0.9 + t * 0.65)) * sin(q.y + sin(q.x * 1.1 - t * 0.55));
+    v += pow(max(s, 0.0), 3.0) * amp;
+    amp *= 0.65;
   }
-  c /= float(CAUSTIC_OCTAVES);
-  c = 1.17 - pow(c, 1.4);
-  return clamp(pow(abs(c), 6.0), 0.0, 2.2);
+  return clamp(v * 2.6, 0.0, 3.0);
 }
 `;
 
@@ -156,6 +167,7 @@ export function patchUnderwater(material, opts = {}) {
     waveSpeed = 4,
     causticScale = 0.16,
     pattern = null,   // { id, color, color2, scale }
+    occlusion = null, // { map, size } — запечённые контактные тени на дне
   } = opts;
 
   material.defines = { ...(material.defines || {}) };
@@ -164,11 +176,16 @@ export function patchUnderwater(material, opts = {}) {
   material.defines.CAUSTIC_OCTAVES = String(3);
 
   material.onBeforeCompile = (shader) => {
+    // Карту теней подключают уже после patchUnderwater (когда известны посадки),
+    // поэтому читаем её и из опций, и из userData.
+    const occ = occlusion || (material.userData && material.userData.occlusion) || null;
     shader.uniforms.uTime = water.uTime;
     shader.uniforms.uCaustic = water.uCaustic;
     shader.uniforms.uCausticScale = water.uCausticScale;
+    shader.uniforms.uCausticSharp = water.uCausticSharp;
     shader.uniforms.uCausticColor = water.uCausticColor;
     shader.uniforms.uCausticLocal = { value: caustics };
+    Object.assign(shader.uniforms, waterUniforms());
     shader.uniforms.uWaveAmp = { value: waveAmp };
     shader.uniforms.uWaveFreq = { value: waveFreq };
     shader.uniforms.uWaveSpeed = { value: waveSpeed };
@@ -177,8 +194,13 @@ export function patchUnderwater(material, opts = {}) {
     shader.uniforms.uPatternColor = { value: pattern ? new THREE.Color(pattern.color) : new THREE.Color(0xffffff) };
     shader.uniforms.uPatternColor2 = { value: pattern ? new THREE.Color(pattern.color2) : new THREE.Color(0x000000) };
     shader.uniforms.uPatternScale = { value: pattern ? pattern.scale : 1 };
+    if (occ) {
+      shader.uniforms.uOccl = { value: occ.map };
+      shader.uniforms.uOcclSize = { value: occ.size };
+    }
 
-    const needsWorld = caustics > 0;
+    // Мировые координаты нужны всегда: по ним считается поглощение воды.
+    const needsWorld = true;
     const hasPattern = !!pattern;
     const isWave = wave === 'body' || wave === 'sway';
 
@@ -229,35 +251,63 @@ export function patchUnderwater(material, opts = {}) {
     }
 
     if (needsWorld) {
-      shader.fragmentShader = CAUSTIC_GLSL + /* glsl */`
+      shader.fragmentShader = CAUSTIC_GLSL + WATER_DECL + GRADE_DECL +
+        (occ ? 'uniform sampler2D uOccl;\nuniform float uOcclSize;\n' : '') + /* glsl */`
+float rbCstValue = 0.0;
+float rbCstAmount = 0.0;
 uniform float uTime;
 uniform float uCaustic;
 uniform float uCausticScale;
+uniform float uCausticSharp;
 uniform vec3 uCausticColor;
 uniform float uCausticLocal;
-varying vec3 vRbWorld;
 varying float vRbUp;
 ` + shader.fragmentShader;
 
+      const occlTerm = occ
+        ? 'float occl = texture2D(uOccl, vec2(0.5 + vRbWorld.x / uOcclSize, 0.5 - vRbWorld.z / uOcclSize)).r;'
+        : 'float occl = 1.0;';
+
+      // Считаем узор и его силу до сборки итогового цвета...
       const inject = /* glsl */`
       {
+        ${occlTerm}
         vec2 p = vRbWorld.xz * uCausticScale;
-        float cst = rbCaustic(p + vec2(uTime * 0.012, uTime * 0.007), uTime * 0.30);
+        rbCstValue = rbCaustic(p + vec2(uTime * 0.05, uTime * 0.03), uTime * 0.5);
         float up = clamp(vRbUp, 0.0, 1.0);
-        // Глубина гасит каустику: у дна свет мягче, чем у поверхности.
+        // depth — высота над дном: у песка она нулевая, и именно там зайчики
+        // видны лучше всего (солнце бьёт сверху, дно светлое).
         float depth = clamp((vRbWorld.y - ${WORLD.seabedY.toFixed(1)}) / ${(WORLD.surfaceY - WORLD.seabedY).toFixed(1)}, 0.0, 1.0);
-        float amount = uCaustic * uCausticLocal * (0.25 + 0.75 * up) * mix(0.45, 1.0, depth);
-        totalEmissiveRadiance += uCausticColor * cst * amount * 0.85;
+        // Вдали мелкий узор смягчается: иначе он рассыпается в муар.
+        float dist = length(vRbWorld - uCamPos);
+        float sharp = 1.0 - 0.7 * smoothstep(12.0, 40.0, dist);
+        rbCstAmount = uCaustic * uCausticLocal * (0.12 + 0.88 * up) * mix(1.15, 0.8, depth)
+                    * mix(0.15, 1.0, occl) * mix(0.25, 1.0, sharp) * uCausticSharp;
       }
       `;
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <opaque_fragment>',
-        `${inject}\n#include <opaque_fragment>`,
+        `${inject}\n#include <opaque_fragment>\n` +
+        // ...и добавляем его к готовому линейному цвету. Раньше прибавка шла в
+        // totalEmissiveRadiance уже ПОСЛЕ того, как three.js собрал из него
+        // outgoingLight, — то есть каустика не рисовалась вовсе. Проверено
+        // замером: выключение каустики не меняло кадр вообще.
+        `gl_FragColor.rgb += uCausticColor * rbCstValue * rbCstAmount;\n` +
+        // Зайчик прошёл через толщу воды до глаза — ею он и гасится.
+        `gl_FragColor.rgb = rbWater(gl_FragColor.rgb);`,
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <colorspace_fragment>',
+        `#include <colorspace_fragment>\ngl_FragColor.rgb = rbGrade(gl_FragColor.rgb);`,
       );
     }
   };
 
-  material.customProgramCacheKey = () => `rb|${wave || '-'}|${caustics > 0 ? 1 : 0}|${causticScale}|${pattern ? pattern.id : 0}`;
+  // Даль гасится spectral-поглощением, а не туманом three.js: иначе вода
+  // получается молочной. Свою дымку материал считает сам.
+  material.fog = false;
+
+  material.customProgramCacheKey = () => `rb|${wave || '-'}|${caustics > 0 ? 1 : 0}|${causticScale}|${pattern ? pattern.id : 0}|${(occlusion || (material.userData && material.userData.occlusion)) ? 1 : 0}`;
   return material;
 }
 

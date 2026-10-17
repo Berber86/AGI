@@ -164,6 +164,8 @@ export function buildReef(quality) {
   group.name = 'reef';
   const meshes = [];
   const materials = [];
+  // Положения всех посадок: по ним печётся карта контактных теней на песке.
+  const placements = [];
   const textures = [];
   const rnd = mulberry32(9182734);
   const rockTex = makeRockTextures(256, 2);
@@ -172,11 +174,19 @@ export function buildReef(quality) {
   const color = new THREE.Color();
 
   const place = (mesh, count, opts) => {
-    const { minR = WORLD.clearing * 0.85, maxR = WORLD.reefRadius, scale = [0.7, 1.4], sink = 0.15, tilt = 0.16 } = opts;
+    const { minR = WORLD.clearing * 0.85, maxR = WORLD.reefRadius, scale = [0.7, 1.4], sink = 0.15, tilt = 0.16,
+      // Сектор, который надо оставить пустым: так ближние кораллы не закрывают
+      // взгляд прямо вперёд (угол в радианах вокруг направления -Z).
+      keepClear = 0 } = opts;
     let placed = 0;
     let guard = 0;
     while (placed < count && guard++ < count * 40) {
       const a = rnd() * Math.PI * 2;
+      if (keepClear > 0) {
+        // Направление взгляда вперёд — это -Z, то есть угол -PI/2.
+        let d = Math.abs(((a + Math.PI / 2 + Math.PI) % (Math.PI * 2)) - Math.PI);
+        if (d < keepClear) continue;
+      }
       const r = minR + Math.pow(rnd(), 0.65) * (maxR - minR);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       const y = seabedHeight(x, z);
@@ -189,6 +199,7 @@ export function buildReef(quality) {
       TMP_M.compose(TMP_P, TMP_Q, TMP_S);
       mesh.setMatrixAt(placed, TMP_M);
       mesh.setColorAt(placed, color.setHSL(opts.hue + (rnd() - 0.5) * opts.hueSpread, opts.sat, opts.light + (rnd() - 0.5) * 0.12));
+      placements.push({ x, z, radius: s * 0.85, strength: opts.shadow ?? 0.5 });
       placed++;
     }
     mesh.count = placed;
@@ -281,7 +292,36 @@ export function buildReef(quality) {
     addPhase(mesh, count);
     place(mesh, count, {
       hue: 0.28, hueSpread: 0.08, sat: 0.45, light: 0.42, scale: [0.7, 1.8], sink: 0.02,
-      minR: WORLD.clearing * 0.7, maxR: WORLD.reefRadius * 0.9, tilt: 0.3,
+      minR: WORLD.clearing * 0.7, maxR: WORLD.reefRadius * 0.9, tilt: 0.3, shadow: 0.35,
+    });
+    materials.push(material);
+    group.add(mesh);
+  }
+
+  // 7. Ближний план: несколько крупных кораллов в 6…9 м от пловца.
+  //    Без них передний край кадра был пустым песком — не за что зацепиться
+  //    глазу, и стерео-параллакс не читается. Сектор прямо вперёд оставлен
+  //    свободным, чтобы взгляд по умолчанию не упирался в коралл.
+  {
+    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.68, metalness: 0, envMapIntensity: 0.4 });
+    patchUnderwater(material, { caustics: 1.05 });
+    const mesh = new THREE.InstancedMesh(branchCoral(313), material, 12);
+    mesh.frustumCulled = false;
+    place(mesh, 12, {
+      hue: 0.06, hueSpread: 0.12, sat: 0.6, light: 0.55, scale: [1.2, 2.1],
+      minR: 6.4, maxR: 9.0, sink: 0.2, tilt: 0.12, keepClear: 0.62, shadow: 0.75,
+    });
+    materials.push(material);
+    group.add(mesh);
+  }
+  {
+    const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.58, metalness: 0, envMapIntensity: 0.45 });
+    patchUnderwater(material, { caustics: 1.0 });
+    const mesh = new THREE.InstancedMesh(brainCoral(29), material, 9);
+    mesh.frustumCulled = false;
+    place(mesh, 9, {
+      hue: 0.1, hueSpread: 0.16, sat: 0.42, light: 0.5, scale: [1.1, 1.9],
+      minR: 6.8, maxR: 9.4, sink: 0.25, tilt: 0.14, keepClear: 0.62, shadow: 0.8,
     });
     materials.push(material);
     group.add(mesh);
@@ -291,7 +331,7 @@ export function buildReef(quality) {
   // поэтому смена качества не перестраивает геометрию и не даёт рывка.
   setReefQuality({ meshes }, quality);
 
-  return { group, meshes, materials, textures: textures.concat([rockTex.map, rockTex.normalMap]) };
+  return { group, meshes, materials, placements, textures: textures.concat([rockTex.map, rockTex.normalMap]) };
 }
 
 /** Плотность рифа меняется пресетами: инстансы не пересоздаются, только count. */

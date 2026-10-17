@@ -5,6 +5,9 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { water as waterEnv, setGradeViewport } from './water.js';
+// uniform-ы каустики живут в shading.js — QA-мост должен крутить и их.
+import { water as shadingWater } from './shading.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 import { WORLD, LOOK, LOOK_MODES, PRESETS, PRESET_ORDER, presetOf, VR_BASELINE_MIN_CM, VR_BASELINE_MAX_CM } from './config.js';
@@ -520,6 +523,7 @@ function frame(now) {
     applyPreviewLook(dt);
     world.camera.updateMatrixWorld();
     const preset = presetOf(game.preset);
+    setGradeViewport(0, 0, window.innerWidth, window.innerHeight, renderer.getPixelRatio());
     if (preset.bloom) {
       const comp = ensureComposer();
       bloomPass.enabled = true;
@@ -581,6 +585,29 @@ function exposeTestBridge() {
       return this.worldInfo();
     },
     worldInfo() { return worldInfo(world); },
+    // Только для QA: крутить параметры воды и коррекции на ходу, чтобы видеть
+    // вклад каждого эффекта в кадр (слепые правки «на глаз» здесь не годятся).
+    setWater(patch = {}) {
+      const out = {};
+      for (const [key, value] of Object.entries(patch)) {
+        const slot = waterEnv[key] || shadingWater[key];
+        if (!slot || !('value' in slot)) continue;
+        const v = slot.value;
+        if (typeof v === 'number') slot.value = value;
+        else if (Array.isArray(value) && v.fromArray) v.fromArray(value);
+        out[key] = Array.isArray(slot.value) || typeof slot.value === 'number'
+          ? slot.value : (slot.value.toArray ? slot.value.toArray().map((n) => +n.toFixed(4)) : String(slot.value));
+      }
+      return out;
+    },
+    getWater() {
+      const out = {};
+      for (const [key, slot] of Object.entries({ ...waterEnv, ...shadingWater })) {
+        const v = slot.value;
+        out[key] = typeof v === 'number' ? v : (v.toArray ? v.toArray().map((n) => +n.toFixed(4)) : String(v));
+      }
+      return out;
+    },
     /** Мировые координаты первой рыбы каждого вида: доказательство, что рыбы плывут. */
     fishProbe() {
       const m = new THREE.Matrix4();

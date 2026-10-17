@@ -4,6 +4,8 @@
 import * as THREE from 'three';
 import { WORLD, presetOf } from './config.js';
 import { water, makeWaterEnvironment, patchUnderwater, setCausticOctaves } from './shading.js';
+import { water as waterEnv, FAR_WATER } from './water.js';
+import { bakeGroundOcclusion } from './occlusion.js';
 import { buildSeabed, seabedHeight } from './seabed.js';
 import { buildReef, setReefQuality } from './corals.js';
 import { buildFish, setFishQuality, updateFish, fishCounts } from './fish.js';
@@ -22,28 +24,43 @@ export function createRenderer(canvas) {
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  // Экспозиция подобрана по замеру кадра: старые 1.02 давали «молоко» —
+  // 70 % пикселей попадали в один узкий интервал яркости.
+  renderer.toneMappingExposure = 1.15;
   renderer.shadowMap.enabled = false; // под водой тени мягкие: их заменяет рассеянный свет
   return renderer;
+}
+
+/** Подключает карту теней к песку: и к рассеянному свету, и к каустике. */
+function attachGroundOcclusion(material, map) {
+  material.aoMap = map;
+  material.aoMapIntensity = 1.0;
+  // Та же карта нужна шейдеру каустики: она уже вшита в материал, но uniform
+  // живёт в общем списке water-uniform-ов — обновляем его через onBeforeCompile.
+  material.userData.occlusion = { map, size: 420 };
+  material.needsUpdate = true;
 }
 
 export function createWorld(renderer, presetId) {
   const preset = presetOf(presetId);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(WORLD.fogColor);
-  scene.fog = new THREE.FogExp2(WORLD.fogColor, WORLD.fogDensity);
+  // Туман выключен: даль гасит spectral-поглощение внутри материалов
+  // (см. src/water.js). Здесь остаётся только цвет «бесконечности» — его видно
+  // лишь узкой полосой у горизонта.
+  scene.background = new THREE.Color(FAR_WATER);
+  scene.fog = null;
 
   const camera = new THREE.PerspectiveCamera(62, 1, 0.08, 700);
   camera.position.set(0, WORLD.eyeY, 0);
   camera.lookAt(0, WORLD.eyeY, -1);
 
   // Солнце сверху и рассеянный свет толщи воды.
-  const sun = new THREE.DirectionalLight(0xfff3dc, 2.3);
+  const sun = new THREE.DirectionalLight(0xffeccb, 3.2);
   sun.position.set(...WORLD.sunDir).multiplyScalar(60).add(new THREE.Vector3(0, WORLD.surfaceY, 0));
   scene.add(sun);
-  const sky = new THREE.HemisphereLight(0x9ff0ff, 0x14555e, 1.15);
+  const sky = new THREE.HemisphereLight(0x9ae9f8, 0x124a58, 0.62);
   scene.add(sky);
-  const fill = new THREE.DirectionalLight(0x6fd8e8, 0.35);
+  const fill = new THREE.DirectionalLight(0x5ec6dc, 0.3);
   fill.position.set(0.4, -0.6, -0.5).multiplyScalar(40);
   scene.add(fill);
 
@@ -61,6 +78,14 @@ export function createWorld(renderer, presetId) {
 
   const whale = buildWhale();
   scene.add(whale.group);
+
+  // Контактные тени: карта печётся по фактическим посадкам кораллов, камней и
+  // травы, один раз при старте. Дальше это обычная текстура — ноль стоимости в
+  // кадре, но предметы перестают «висеть» над песком.
+  const occlusionMap = bakeGroundOcclusion([...reef.placements, ...seabed.rockPlacements], {
+    size: 1024, world: 420, sunXZ: { x: WORLD.sunDir[0], z: WORLD.sunDir[2] },
+  });
+  attachGroundOcclusion(seabed.sandMaterial, occlusionMap);
 
   const ocean = buildOcean(preset);
   scene.add(ocean.group);
@@ -121,6 +146,10 @@ export function updateWorld(world, dt, elapsed) {
   const breath = Math.sin(elapsed * 0.55) * 0.055;
   const sway = Math.sin(elapsed * 0.31 + 1.2) * 0.035;
   world.camera.position.set(sway, WORLD.eyeY + breath, 0);
+  world.camera.updateMatrixWorld();
+  // Поглощение воды считается от глаз: в VR — от каждого глаза по очереди,
+  // поэтому позицию обновляем и в vr.js.
+  waterEnv.uCamPos.value.copy(world.camera.position);
 }
 
 export function worldInfo(world) {

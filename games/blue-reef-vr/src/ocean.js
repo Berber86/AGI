@@ -4,10 +4,12 @@
 import * as THREE from 'three';
 import { WORLD } from './config.js';
 import { mulberry32 } from './noise.js';
-import { water } from './shading.js';
+import { water as shadingTime } from './shading.js';
+import { WATER_DECL, WATER_DIST_DECL, GRADE_DECL, waterUniforms, FAR_WATER } from './water.js';
 import { makeDotSprite, makeBubbleSprite, makeRaySprite } from './textures.js';
 
 const SUN = new THREE.Vector3(...WORLD.sunDir).normalize();
+const uTime = shadingTime.uTime;   // shared-время сцены
 
 // --- поверхность воды, видимая снизу ---------------------------------------
 function buildSurface() {
@@ -18,17 +20,20 @@ function buildSurface() {
     transparent: true,
     depthWrite: false,
     uniforms: {
-      uTime: water.uTime,
+      uTime: uTime,
       uSun: { value: SUN },
       uSky: { value: new THREE.Color(0xd9fbff) },
-      uDeep: { value: new THREE.Color(0x0a3a4c) },
-      uFog: { value: new THREE.Color(WORLD.fogColor) },
+      uDeep: { value: new THREE.Color(0x175c72) },
+      uFog: { value: new THREE.Color(FAR_WATER) },
+      ...waterUniforms(),
     },
     vertexShader: /* glsl */`
       varying vec3 vWorld;
+      varying vec3 vRbWorld;
       void main() {
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vWorld = wp.xyz;
+        vRbWorld = wp.xyz;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }
     `,
@@ -39,6 +44,8 @@ function buildSurface() {
       uniform vec3 uDeep;
       uniform vec3 uFog;
       varying vec3 vWorld;
+      ${WATER_DECL}
+      ${GRADE_DECL}
 
       // Рябь: сумма синусов и их аналитические производные — нормаль считается
       // без текстур и без dFdx.
@@ -60,6 +67,19 @@ function buildSurface() {
         return h;
       }
 
+      // Блики: рябь на поверхности собирает солнце в яркие точки. Без них
+      // взгляд вверх упирается в ровную пластиковую плёнку.
+      float glitter(vec2 p, float t) {
+        float s = 0.0;
+        for (int i = 0; i < 3; i++) {
+          float fi = float(i);
+          vec2 g = p * (0.42 + fi * 0.33) + vec2(t * (0.22 + fi * 0.12), -t * (0.17 + fi * 0.09));
+          float v = sin(g.x) * sin(g.y * 1.13 + g.x * 0.7 + fi);
+          s += pow(max(v, 0.0), 14.0) * (1.0 - fi * 0.22);
+        }
+        return s;
+      }
+
       void main() {
         vec3 viewDir = normalize(vWorld - cameraPosition);
         vec2 grad;
@@ -73,22 +93,34 @@ function buildSurface() {
         float ripple = 0.55 + 0.45 * sin(h * 3.0 + uTime * 0.8);
 
         vec3 refracted = uSky * (0.75 + 0.35 * ripple);
+        // Мелкая рябь: добивает деталь там, где крупных волн уже не видно.
+        float fine = sin(vWorld.x * 5.3 + uTime * 1.7) * sin(vWorld.z * 4.7 - uTime * 1.4);
+        refracted *= 1.0 + 0.06 * fine;
+        // Внутри окна Снелла блики яркие, снаружи их видно слабее — гребни
+        // волн подсвечиваются и при полном внутреннем отражении.
+        refracted += vec3(1.0, 0.98, 0.92) * glitter(vWorld.xz, uTime) * mix(0.35, 1.6, window);
         // Солнце: яркое пятно в продолжении луча, плюс мягкое гало.
         vec3 sunFromBelow = normalize(-uSun);
         float sd = clamp(dot(-viewDir, sunFromBelow), 0.0, 1.0);
         float disc = pow(sd, 320.0) * 3.4 + pow(sd, 34.0) * 0.35;
         refracted += vec3(1.0, 0.97, 0.88) * disc;
 
-        vec3 mirrored = mix(uDeep, uFog, 0.35);
+        // Вне окна Снелла видно отражение глубины — но и оно не ровное: на
+        // границе читаются гребни волн, иначе взгляд вверх упирается в пластик.
+        float crest = 0.5 + 0.5 * sin(h * 2.7 + uTime * 0.9);
+        vec3 mirrored = mix(uDeep, uFog, 0.35) * (0.92 + 0.5 * crest);
+        mirrored += vec3(0.12, 0.19, 0.21) * pow(crest, 6.0) * 0.7;
         vec3 col = mix(mirrored, refracted, window);
         // Ближе к горизонту поверхность растворяется в толще воды.
         float horizonFade = smoothstep(0.02, 0.55, up);
         col = mix(uFog, col, horizonFade);
+        col = rbWater(col);
         gl_FragColor = vec4(col, 1.0);
         // Сырой ShaderMaterial не проходит эти стадии сам: без них вода и
         // частицы выходят почти чёрными (линейный цвет в sRGB-буфере).
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
+        gl_FragColor.rgb = rbGrade(gl_FragColor.rgb);
       }
     `,
   });
@@ -194,12 +226,13 @@ function buildSnow(max) {
     depthWrite: false,
     blending: THREE.NormalBlending,
     uniforms: {
-      uTime: water.uTime,
+      uTime: uTime,
       uMap: { value: makeDotSprite(64) },
-      uColor: { value: new THREE.Color(0xdff4ff) },
+      uColor: { value: new THREE.Color(0xcfe9f2) },
       uPixelRatio: { value: 1 },
       uHeight: { value: height },
       uBase: { value: WORLD.seabedY },
+      ...waterUniforms(),
     },
     vertexShader: /* glsl */`
       attribute float aSize;
@@ -209,6 +242,8 @@ function buildSnow(max) {
       uniform float uHeight;
       uniform float uBase;
       varying float vFade;
+      varying float vDist;
+      varying float vUp;
       void main() {
         vec3 p = position;
         // Частицы медленно оседают и заворачиваются по высоте.
@@ -218,22 +253,30 @@ function buildSnow(max) {
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
         gl_Position = projectionMatrix * mv;
         float dist = -mv.z;
-        gl_PointSize = aSize * uPixelRatio * (34.0 / max(1.0, dist));
+        gl_PointSize = aSize * uPixelRatio * (30.0 / max(1.0, dist));
         // Мелкие частицы у самого глаза не должны «забивать» кадр.
-        vFade = smoothstep(0.6, 3.0, dist) * (1.0 - smoothstep(24.0, 46.0, dist));
+        vFade = smoothstep(0.9, 4.0, dist) * (1.0 - smoothstep(22.0, 44.0, dist));
+        vDist = dist;
+        vUp = normalize((modelMatrix * vec4(p, 1.0)).xyz - cameraPosition).y;
       }
     `,
     fragmentShader: /* glsl */`
       uniform sampler2D uMap;
       uniform vec3 uColor;
       varying float vFade;
+      varying float vDist;
+      varying float vUp;
+      ${WATER_DIST_DECL}
+      ${GRADE_DECL}
       void main() {
         vec4 tex = texture2D(uMap, gl_PointCoord);
-        float a = tex.a * vFade * 0.5;
+        float a = tex.a * vFade * 0.36;
         if (a < 0.01) discard;
-        gl_FragColor = vec4(uColor, a);
+        vec3 c = rbWaterDist(uColor, vDist, vUp);
+        gl_FragColor = vec4(c, a);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
+        gl_FragColor.rgb = rbGrade(gl_FragColor.rgb);
       }
     `,
   });
@@ -271,11 +314,12 @@ function buildBubbles(max) {
     transparent: true,
     depthWrite: false,
     uniforms: {
-      uTime: water.uTime,
+      uTime: uTime,
       uMap: { value: makeBubbleSprite(64) },
       uPixelRatio: { value: 1 },
       uTop: { value: WORLD.surfaceY },
       uBase: { value: WORLD.seabedY },
+      ...waterUniforms(),
     },
     vertexShader: /* glsl */`
       attribute vec3 aData;
@@ -284,6 +328,8 @@ function buildBubbles(max) {
       uniform float uTop;
       uniform float uBase;
       varying float vFade;
+      varying float vDist;
+      varying float vUp;
       void main() {
         vec3 p = position;
         float speed = aData.x;
@@ -299,18 +345,25 @@ function buildBubbles(max) {
         float dist = -mv.z;
         gl_PointSize = radius * uPixelRatio * (46.0 / max(1.0, dist));
         vFade = smoothstep(0.4, 2.0, dist) * (1.0 - smoothstep(18.0, 40.0, dist));
+        vDist = dist;
+        vUp = normalize((modelMatrix * vec4(p, 1.0)).xyz - cameraPosition).y;
       }
     `,
     fragmentShader: /* glsl */`
       uniform sampler2D uMap;
       varying float vFade;
+      varying float vDist;
+      varying float vUp;
+      ${WATER_DIST_DECL}
+      ${GRADE_DECL}
       void main() {
         vec4 tex = texture2D(uMap, gl_PointCoord);
         float a = tex.a * vFade * 0.85;
         if (a < 0.01) discard;
-        gl_FragColor = vec4(tex.rgb, a);
+        gl_FragColor = vec4(rbWaterDist(tex.rgb, vDist, vUp), a);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
+        gl_FragColor.rgb = rbGrade(gl_FragColor.rgb);
       }
     `,
   });

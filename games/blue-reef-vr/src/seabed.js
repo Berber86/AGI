@@ -40,13 +40,15 @@ export function buildSeabed(segments, quality) {
   const rock = makeRockTextures(256, 4);
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0xf3e6c8,
+    // Мокрый песок на глубине: альбедо ~0.45, а не белый лист. Именно белый
+    // песок раньше выгорал и делал кадр плоским.
+    color: 0xcbb086,
     map: sand.map,
     normalMap: sand.normalMap,
-    normalScale: new THREE.Vector2(0.7, 0.7),
-    roughness: 0.94,
+    normalScale: new THREE.Vector2(1.5, 1.5),
+    roughness: 0.8,
     metalness: 0,
-    envMapIntensity: 0.25,
+    envMapIntensity: 0.5,
   });
   patchUnderwater(material, { caustics: 1.15 });
   const mesh = new THREE.Mesh(geo, material);
@@ -57,7 +59,11 @@ export function buildSeabed(segments, quality) {
   const rocks = buildRocks(rock, quality);
   group.add(rocks);
 
-  return { group, materials: [material], textures: [sand.map, sand.normalMap, rock.map, rock.normalMap], rocks };
+  return {
+    group, materials: [material], rocks, sandMaterial: material,
+    rockPlacements: rocks.placements || [],
+    textures: [sand.map, sand.normalMap, rock.map, rock.normalMap],
+  };
 }
 
 // Камни: обкатанные валуны плюс обломки коралла на песке. Инстансы — один
@@ -77,17 +83,18 @@ function buildRocks(tex, quality) {
   geo.computeVertexNormals();
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0x9aa39a,
+    color: 0x6e7770,
     map: tex.map,
     normalMap: tex.normalMap,
-    roughness: 0.92,
+    roughness: 0.88,
     metalness: 0,
-    envMapIntensity: 0.3,
+    envMapIntensity: 0.4,
   });
   patchUnderwater(material, { caustics: 0.9 });
 
   const mesh = new THREE.InstancedMesh(geo, material, total);
   mesh.name = 'rocks';
+  const placements = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const e = new THREE.Euler();
@@ -105,9 +112,11 @@ function buildRocks(tex, quality) {
     s.set(scale, scale * (0.6 + valueNoise(i, 4, 8) * 0.5), scale);
     m.compose(p, q, s);
     mesh.setMatrixAt(placed++, m);
+    placements.push({ x: p.x, z: p.z, radius: scale * 0.9, strength: 0.6 });
   }
   mesh.count = placed;
   mesh.instanceMatrix.needsUpdate = true;
   mesh.frustumCulled = false;
+  mesh.placements = placements;
   return mesh;
 }

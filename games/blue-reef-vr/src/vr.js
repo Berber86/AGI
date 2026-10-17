@@ -11,6 +11,7 @@
 // центру, ни куда-либо ещё: движение возвращается только с новыми данными.
 import * as THREE from 'three';
 import { LOOK, VR_BASELINE_MIN_CM, VR_BASELINE_MAX_CM } from './config.js';
+import { setGradeViewport, water as waterEnv } from './water.js';
 
 const MAX_YAW = THREE.MathUtils.degToRad(LOOK.maxYawDeg);
 const MAX_PITCH = THREE.MathUtils.degToRad(LOOK.maxPitchDeg);
@@ -137,6 +138,10 @@ export class VRController {
       renderer.setViewport(L.eyes[i], L.y0, L.side, L.side);
       renderer.setScissor(L.eyes[i], L.y0, L.side, L.side);
       renderer.setScissorTest(true);
+      // Вода и виньетка считаются от своего глаза: поглощение — от его позиции,
+      // виньетка — в границах его половины экрана.
+      waterEnv.uCamPos.value.copy(eye.position);
+      setGradeViewport(L.eyes[i], L.y0, L.side, L.side, renderer.getPixelRatio());
       renderer.render(this.scene, eye);
     }
     renderer.setScissorTest(false);

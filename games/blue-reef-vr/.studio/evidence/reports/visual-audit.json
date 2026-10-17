@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-17T14:54:09.936Z",
+  "generatedAt": "2026-10-17T17:42:57.339Z",
   "viewport": {
     "width": 900,
     "height": 420
@@ -10,122 +10,122 @@
   "cases": [
     {
       "id": "flat-center",
-      "mean": 137.7,
-      "std": 50.2,
+      "mean": 113.1,
+      "std": 48.3,
       "rgb": [
-        98,
-        155,
-        150
+        72,
+        132,
+        124
       ],
-      "leftMean": 135.7,
-      "rightMean": 139.9,
+      "leftMean": 111,
+      "rightMean": 115.1,
       "symmetry": 0.968,
-      "triangles": 94033.66666666666,
-      "calls": 24,
+      "triangles": 104773.66666666667,
+      "calls": 26,
       "lookSource": "off",
       "whale": 62
     },
     {
       "id": "flat-up",
-      "mean": 126.8,
-      "std": 59.7,
+      "mean": 110.6,
+      "std": 67,
       "rgb": [
-        69,
-        149,
-        167
+        58,
+        128,
+        159
       ],
-      "leftMean": 126.1,
-      "rightMean": 127.2,
-      "symmetry": 0.991,
-      "triangles": 93893.66666666666,
-      "calls": 23,
+      "leftMean": 110.2,
+      "rightMean": 110.3,
+      "symmetry": 0.999,
+      "triangles": 104633.66666666667,
+      "calls": 25,
       "lookSource": "off",
       "whale": 62
     },
     {
       "id": "flat-down",
-      "mean": 190.7,
-      "std": 20.5,
+      "mean": 167.1,
+      "std": 33.6,
       "rgb": [
-        195,
-        195,
-        159
+        164,
+        177,
+        122
       ],
-      "leftMean": 188.3,
-      "rightMean": 193,
-      "symmetry": 0.963,
-      "triangles": 93893.66666666666,
-      "calls": 23,
+      "leftMean": 163.4,
+      "rightMean": 170.4,
+      "symmetry": 0.945,
+      "triangles": 104633.66666666667,
+      "calls": 25,
       "lookSource": "off",
       "whale": 61.7
     },
     {
       "id": "flat-side",
-      "mean": 147.7,
-      "std": 49.8,
+      "mean": 121,
+      "std": 50.5,
       "rgb": [
-        110,
-        165,
-        157
+        82,
+        140,
+        127
       ],
-      "leftMean": 148.8,
-      "rightMean": 146.7,
-      "symmetry": 0.983,
-      "triangles": 94033.66666666666,
-      "calls": 24,
+      "leftMean": 121.4,
+      "rightMean": 120.3,
+      "symmetry": 0.991,
+      "triangles": 104773.66666666667,
+      "calls": 26,
       "lookSource": "off",
-      "whale": 56.6
+      "whale": 57.1
     },
     {
       "id": "vr-center",
-      "mean": 134.7,
-      "std": 60.2,
+      "mean": 109.8,
+      "std": 57.9,
       "rgb": [
-        99,
-        151,
-        144
+        75,
+        127,
+        114
       ],
-      "leftMean": 134.8,
-      "rightMean": 134.9,
-      "symmetry": 0.999,
-      "triangles": 93893.66666666666,
-      "calls": 23,
+      "leftMean": 109.9,
+      "rightMean": 110.2,
+      "symmetry": 0.997,
+      "triangles": 104633.66666666667,
+      "calls": 25,
       "lookSource": "camera",
-      "whale": 52.6
+      "whale": 53.6
     },
     {
       "id": "vr-turn",
-      "mean": 152.7,
-      "std": 58,
+      "mean": 127.5,
+      "std": 60.4,
       "rgb": [
-        133,
-        164,
-        145
+        105,
+        142,
+        111
       ],
-      "leftMean": 153.2,
-      "rightMean": 152.7,
-      "symmetry": 0.996,
-      "triangles": 93893.66666666666,
-      "calls": 23,
+      "leftMean": 127.9,
+      "rightMean": 127.6,
+      "symmetry": 0.998,
+      "triangles": 104633.66666666667,
+      "calls": 25,
       "lookSource": "camera",
-      "whale": 27.7
+      "whale": 26.5
     },
     {
       "id": "vr-whale",
-      "mean": 126,
-      "std": 59.6,
+      "mean": 108.4,
+      "std": 51.8,
       "rgb": [
-        85,
-        144,
-        142
+        62,
+        129,
+        126
       ],
-      "leftMean": 126.2,
-      "rightMean": 126,
-      "symmetry": 0.998,
-      "triangles": 93893.66666666666,
-      "calls": 23,
+      "leftMean": 108.5,
+      "rightMean": 108.7,
+      "symmetry": 0.999,
+      "triangles": 104633.66666666667,
+      "calls": 25,
       "lookSource": "camera",
-      "whale": 60.6
+      "whale": 60.2
     }
   ],
   "errors": []

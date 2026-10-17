@@ -103,8 +103,11 @@ for (const c of CASES) {
     window.__TEST__.step(t || 0);
   }, [c.mode, c.yaw, c.pitch, c.t]);
   await frames(c.mode === 'vr' ? 10 : 12);
-  const file = path.join(OUT, `${c.id}.png`);
-  await page.screenshot({ path: file });
+  const file = path.join(OUT, `${c.id}.webp`);
+  const tmp = path.join(OUT, `${c.id}.png`);
+  await page.screenshot({ path: tmp });
+  await sharp(tmp).webp({ quality: 80 }).toFile(file);
+  fs.unlinkSync(tmp);
   const st = await stats(file);
   const world = await page.evaluate(() => window.__TEST__.worldInfo());
   const vr = await page.evaluate(() => window.__TEST__.vrInfo());
