@@ -1,46 +1,61 @@
 {
-  "generatedAt": "2026-10-18T12:14:22.419Z",
+  "generatedAt": "2026-10-18T12:44:43.467Z",
   "uiReady": true,
   "reportFound": true,
   "summary": {
-    "frames": 9,
-    "spanMs": 8054,
-    "fps": 1.1,
-    "p50": 955.5,
-    "p90": 1596.6,
-    "p99": 1596.6,
-    "max": 1596.6,
+    "frames": 10,
+    "spanMs": 8418,
+    "fps": 1.2,
+    "p50": 867.7,
+    "p90": 2133.8,
+    "p99": 2133.8,
+    "max": 2133.8,
     "freezeMs": 150,
-    "freezes": 8,
-    "freezeTotalMs": 8055,
+    "freezes": 9,
+    "freezeTotalMs": 9093,
     "owners": [
       {
         "category": "outside",
         "name": "вне кадра (GC/браузер/композитор)",
-        "count": 8,
-        "freezeMs": 8055,
+        "count": 9,
+        "freezeMs": 9093,
         "sharePct": 100
       }
     ],
     "avg": {
       "gazeMs": 0.02,
       "worldMs": 0.2,
-      "partMs": 0.04,
-      "discMs": 0.03,
-      "uniMs": 0.02,
-      "actMs": 0.02,
-      "aniMs": 0.04,
-      "schMs": 0.11,
-      "renderMs": 2.09,
+      "partMs": 0.03,
+      "discMs": 0.05,
+      "uniMs": 0,
+      "actMs": 0.07,
+      "aniMs": 0.03,
+      "schMs": 0.09,
+      "renderMs": 2.62,
       "rEye0Ms": 0,
       "rEye1Ms": 0,
-      "rCompMs": 2,
-      "gpuMs": 0.02,
-      "outsideMs": 894.38
+      "rCompMs": 2.53,
+      "gpuMs": 0.03,
+      "outsideMs": 998.41
     },
     "longTasks": {
       "count": 0,
       "totalMs": 0
+    },
+    "gc": {
+      "count": 0,
+      "totalMs": 0,
+      "maxMs": 0,
+      "kinds": {}
+    },
+    "loaf": {
+      "count": 8,
+      "styleAvgMs": 0,
+      "paintAvgMs": 0,
+      "topScripts": [
+        "user-callback:index.html 17мс",
+        "user-callback:index.html 6мс"
+      ]
     },
     "gpu": {
       "avgMs": 0,
@@ -68,16 +83,28 @@
   "freezeCaught": true,
   "classified": true,
   "worstLabels": [
-    "#66 1597мс вне кадра: GC/браузер/композитор/React",
-    "#67 1576мс вне кадра: GC/браузер/композитор/React",
-    "#69 1297мс вне кадра: GC/браузер/композитор/React",
-    "#64 987мс вне кадра: GC/браузер/композитор/React",
-    "#65 956мс вне кадра: GC/браузер/композитор/React"
+    "#34 2134мс вне меток 2132мс (композитор/презентация/GC-в-простое)",
+    "#40 1538мс вне меток 1534мс (композитор/презентация/GC-в-простое)",
+    "#35 1172мс вне меток 1166мс (композитор/презентация/GC-в-простое)",
+    "#33 912мс вне меток 910мс (композитор/презентация/GC-в-простое)",
+    "#36 868мс вне меток 864мс (композитор/презентация/GC-в-простое)"
   ],
   "hasVerdictBlock": true,
   "hasDeviceBlock": true,
   "events": [
     "probe:start",
+    "stall",
+    "loaf",
+    "loaf",
+    "stall",
+    "loaf",
+    "stall",
+    "loaf",
+    "loaf",
+    "loaf",
+    "loaf",
+    "loaf",
+    "stall",
     "probe:stop"
   ],
   "errors": [],
@@ -89,6 +116,7 @@
     "classified": true,
     "schemaOk": true,
     "gpuLine": true,
+    "freezeShareOk": true,
     "hasVerdictBlock": true,
     "hasDeviceBlock": true,
     "noPageErrors": true

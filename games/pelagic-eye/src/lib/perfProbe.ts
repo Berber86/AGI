@@ -87,9 +87,13 @@ class PerfProbe {
   private events: ProbeEvent[] = [];
   private ring: ProbeEvent[] = [];
   private longTasks: { t: number; ms: number }[] = [];
+  private gcPauses: { t: number; ms: number; kind: string }[] = [];
+  private loafs: { t: number; ms: number; styleMs: number; paintMs: number; scripts: string[] }[] = [];
   meta: Record<string, unknown> = {};
   /** Последний готовый отчёт — переживает закрытие панели драйвера. */
   lastReport: { text: string; json: Record<string, unknown> } | null = null;
+  /** Замер заармлен и стартует при входе в VR (см. App). */
+  armedForVr = false;
   private observer: PerformanceObserver | null = null;
 
   constructor() {
@@ -114,6 +118,67 @@ class PerfProbe {
         detail: document.visibilityState,
       });
     });
+    window.addEventListener("fullscreenchange", () => {
+      this.pushEvent({
+        t: performance.now(),
+        frame: this.currentFrame,
+        kind: "fullscreen",
+        detail: document.fullscreenElement ? "on" : "off",
+      });
+    });
+    // GC-паузы с именем (Chrome): отличает сборку мусора от прочих «вне кадра».
+    try {
+      const gcObs = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const rec = {
+            t: entry.startTime,
+            ms: entry.duration,
+            kind: String((entry as unknown as { detail?: { kind?: string } }).detail?.kind ?? "gc"),
+          };
+          if (this.active) this.gcPauses.push(rec);
+          this.pushEvent({ t: rec.t, frame: this.currentFrame, kind: "gc", ms: rec.ms, detail: rec.kind });
+        }
+      });
+      gcObs.observe({ entryTypes: ["gc"] } as unknown as PerformanceObserverInit);
+    } catch {
+      /* нет gc-observer */
+    }
+    // Длинные кадры анимации (Chrome 123+): кто внутри — стили/раскладка/
+    // пейнт или конкретные скрипты. Это имена для «длинных JS-задач».
+    try {
+      const loafObs = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const e = entry as unknown as {
+            startTime: number;
+            duration: number;
+            styleAndLayoutDuration?: number;
+            paintDuration?: number;
+            scripts?: { sourceURL?: string; invokerType?: string; duration?: number }[];
+          };
+          const scripts = (e.scripts ?? [])
+            .slice(0, 3)
+            .map((s) => `${s.invokerType || "?"}:${(s.sourceURL || "?").split("/").pop() || "?"} ${Math.round(s.duration || 0)}мс`);
+          const rec = {
+            t: e.startTime,
+            ms: e.duration,
+            styleMs: e.styleAndLayoutDuration ?? 0,
+            paintMs: e.paintDuration ?? 0,
+            scripts,
+          };
+          if (this.active) this.loafs.push(rec);
+          this.pushEvent({
+            t: rec.t,
+            frame: this.currentFrame,
+            kind: "loaf",
+            ms: rec.ms,
+            detail: scripts[0] || `стили ${Math.round(rec.styleMs)}мс`,
+          });
+        }
+      });
+      loafObs.observe({ entryTypes: ["long-animation-frame"] } as unknown as PerformanceObserverInit);
+    } catch {
+      /* нет loaf-observer */
+    }
   }
 
   setMeta(meta: Record<string, unknown>) {
@@ -135,7 +200,10 @@ class PerfProbe {
     this.frames = [];
     this.events = [];
     this.longTasks = [];
+    this.gcPauses = [];
+    this.loafs = [];
     this.lastReport = null;
+    this.armedForVr = false;
     this.startedAt = performance.now();
     this.active = true;
     this.pushEvent({ t: this.startedAt, frame: this.currentFrame, kind: "probe:start", ms: durationMs });
@@ -152,6 +220,17 @@ class PerfProbe {
 
   submit(rec: FrameRecord) {
     if (!this.active) return;
+    // Первый кадр: его wallMs — разрыв с кадром ДО старта замера и может
+    // «утечь» в статистику (было: сумма фризов 194% времени). Прижимаем к
+    // границе замера; сырой разрыв фиксируем событием stall.
+    if (!this.frames.length && rec.wallMs > rec.t - this.startedAt + 100) {
+      const raw = rec.wallMs;
+      rec = { ...rec, wallMs: Math.max(0, rec.t - this.startedAt) };
+      this.pushEvent({ t: rec.t, frame: rec.frame, kind: "stall", ms: Math.round(raw), detail: "до старта замера" });
+    }
+    if (rec.wallMs > 1000) {
+      this.pushEvent({ t: rec.t, frame: rec.frame, kind: "stall", ms: Math.round(rec.wallMs), detail: `кадр #${rec.frame}` });
+    }
     this.frames.push(rec);
     if (rec.t - this.startedAt > this.durationMs) this.stopNow();
   }
@@ -165,43 +244,48 @@ class PerfProbe {
     return this.lastReport;
   }
 
-  /** Классификация одного фриза: что ест время кадра. */
+  /** Классификация одного фриза: что ест время кадра (по наибольшей доле). */
   private classify(f: FrameRecord, longMs: number): { category: FreezeCategory; label: string } {
     const updateMs = f.gazeMs + f.worldMs + f.partMs + f.discMs;
-    const parts: string[] = [];
-    let category: FreezeCategory = "outside";
-    // Приоритет: GPU-ожидание (gl.finish) — прямое доказательство fill-rate;
-    // затем длинные JS-задачи; затем CPU-метки; остальное — вне кадра.
-    if (f.gpuMs >= f.wallMs * 0.45) {
-      category = "gpu";
-      parts.push(`GPU-растеризация ${fmt(f.gpuMs, 0)}мс из ${fmt(f.wallMs, 0)}мс (fill-rate/шейдеры)`);
-    }
-    if (longMs >= 30) {
-      if (category === "outside") category = "longtask";
-      parts.push(`длинная JS-задача ${fmt(longMs, 0)}мс (GC/React/стили)`);
-    }
-    if (f.renderMs >= f.wallMs * 0.5) {
-      if (category === "outside") category = "render";
-      parts.push(`рендер/CPU-сабмит ${fmt(f.renderMs, 0)}мс`);
-    }
-    if (updateMs >= f.wallMs * 0.5) {
-      if (category === "outside") category = "cpu";
-      const sub: [string, number][] = [
-        ["рыбы-пути", f.actMs],
-        ["кит/черепаха/медузы", f.aniMs],
-        ["школы/инстансы", f.schMs],
-        ["частицы", f.partMs],
-        ["взгляд", f.gazeMs],
-      ];
-      sub.sort((a, b) => b[1] - a[1]);
-      parts.push(`CPU-сцена: ${sub[0][0]} ${fmt(sub[0][1], 0)}мс`);
-    }
-    if (f.camBusy && category === "outside") {
-      category = "camera";
-      parts.push("камера: захват/чтение кадра");
-    }
-    if (!parts.length) parts.push("вне кадра: GC/браузер/композитор/React");
-    return { category, label: parts.join(" + ") };
+    // Компоненты кадра; gpuMs входит в renderMs (gl.finish — часть render()).
+    const comps: { cat: FreezeCategory; ms: number; text: string }[] = [
+      {
+        cat: "gpu",
+        ms: f.gpuMs,
+        text: `GPU-растеризация ${fmt(f.gpuMs, 0)}мс (fill-rate/шейдеры)`,
+      },
+      {
+        cat: "longtask",
+        ms: longMs,
+        text: `длинные JS-задачи/стили ${fmt(longMs, 0)}мс (см. строки LoAF/GC ниже)`,
+      },
+      {
+        cat: "render",
+        ms: f.renderMs - f.gpuMs,
+        text: `рендер/CPU-сабмит драйверу ${fmt(f.renderMs, 0)}мс`,
+      },
+      {
+        cat: "cpu",
+        ms: updateMs,
+        text: `CPU-сцена ${fmt(updateMs, 0)}мс`,
+      },
+      {
+        cat: "outside",
+        ms: f.outsideMs,
+        text: `вне меток ${fmt(f.outsideMs, 0)}мс (композитор/презентация/GC-в-простое)`,
+      },
+    ];
+    const best = comps.reduce((a, b) => (b.ms > a.ms ? b : a));
+    const significant = comps.filter((c) => c.ms >= f.wallMs * 0.18 && c.ms > 20);
+    const category: FreezeCategory = best.ms >= f.wallMs * 0.3 ? best.cat : "outside";
+    const label = (significant.length
+      ? significant
+          .sort((a, b) => b.ms - a.ms)
+          .map((c) => c.text)
+          .join(" + ")
+      : "вне кадра: разрыв подачи кадров (браузер/смена ориентации/fullscreen/GC)") +
+      (f.camBusy ? " · камера в полёте" : "");
+    return { category, label };
   }
 
   report(): { text: string; json: Record<string, unknown> } {
@@ -348,6 +432,30 @@ class PerfProbe {
     lines.push(
       `Длинные JS-задачи: ${longGc} шт, суммарно ${fmt(longTotal, 0)}мс${longGc ? " (GC/React/стили/драйвер)" : ""}`
     );
+    const gcMax = this.gcPauses.length ? Math.max(...this.gcPauses.map((g) => g.ms)) : 0;
+    const gcKinds = new Map<string, number>();
+    for (const g of this.gcPauses) gcKinds.set(g.kind, (gcKinds.get(g.kind) || 0) + 1);
+    lines.push(
+      `GC-паузы: ${this.gcPauses.length} шт, суммарно ${fmt(this.gcPauses.reduce((a, g) => a + g.ms, 0), 0)}мс (макс ${fmt(gcMax, 0)}мс${this.gcPauses.length ? ", " + [...gcKinds.entries()].map(([k, n]) => `${k}×${n}`).join(", ") : ""})`
+    );
+    const loafStyleAvg = this.loafs.length
+      ? this.loafs.reduce((a, l) => a + l.styleMs, 0) / this.loafs.length
+      : 0;
+    const loafPaintAvg = this.loafs.length
+      ? this.loafs.reduce((a, l) => a + l.paintMs, 0) / this.loafs.length
+      : 0;
+    const scriptCounts = new Map<string, { n: number; ms: number }>();
+    for (const l of this.loafs) {
+      for (const s of l.scripts) {
+        const cur = scriptCounts.get(s) || { n: 0, ms: 0 };
+        cur.n += 1;
+        scriptCounts.set(s, cur);
+      }
+    }
+    const topScripts = [...scriptCounts.entries()].slice(0, 4).map(([s]) => s);
+    lines.push(
+      `LoAF (длинные кадры анимации): ${this.loafs.length} шт, стиль+раскладка ср. ${fmt(loafStyleAvg, 0)}мс, пейнт ср. ${fmt(loafPaintAvg, 0)}мс${topScripts.length ? `; топ: ${topScripts.join(" | ")}` : ""}`
+    );
     lines.push(
       `UI-цикл (панель драйвера, опрос/превью): ${uiPolls.length} шт, ср. ${fmt(uiPollAvg)}мс, макс ${fmt(uiPollMax)}мс`
     );
@@ -391,8 +499,8 @@ class PerfProbe {
         );
       }
     }
-    const noisy = new Set(["longtask", "ui:poll"]);
-    const evs = this.events.filter((e) => !noisy.has(e.kind)).slice(-12);
+    const noisy = new Set(["longtask", "ui:poll", "loaf"]);
+    const evs = this.events.filter((e) => !noisy.has(e.kind)).slice(-14);
     if (evs.length) {
       lines.push("");
       lines.push("События замера:");
@@ -417,6 +525,18 @@ class PerfProbe {
         owners,
         avg: Object.fromEntries(Object.entries(avg).map(([k, v]) => [k, +fmt(v, 2)])),
         longTasks: { count: longGc, totalMs: Math.round(longTotal) },
+        gc: {
+          count: this.gcPauses.length,
+          totalMs: Math.round(this.gcPauses.reduce((a, g) => a + g.ms, 0)),
+          maxMs: Math.round(gcMax),
+          kinds: Object.fromEntries(gcKinds),
+        },
+        loaf: {
+          count: this.loafs.length,
+          styleAvgMs: +fmt(loafStyleAvg, 0),
+          paintAvgMs: +fmt(loafPaintAvg, 0),
+          topScripts,
+        },
         gpu: { avgMs: +fmt(avg.gpuMs), maxMs: +fmt(gpuMax), bound: avg.gpuMs > p50 * 0.45 },
         uiPoll: { count: uiPolls.length, avgMs: +fmt(uiPollAvg), maxMs: +fmt(uiPollMax) },
         scene: { drawsAvg: +fmt(drawsAvg, 0), trisAvg: Math.round(trisAvg) },

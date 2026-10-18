@@ -99,12 +99,20 @@ export default function DriverWorkshop({
   const streamVersionRef = useRef(-1);
 
   // 15с-тест фризов: отчёт переживает закрытие панели (живёт в perfProbe).
+  // «Замер при входе в VR» заармливается в самом probe — панель при входе в
+  // VR закрывается, автостарт живёт в App.
   const [probe, setProbe] = useState<{
-    state: "idle" | "running" | "done";
+    state: "idle" | "running" | "done" | "armed";
     left: number;
     text: string | null;
   }>(() => ({
-    state: perfProbe.running ? "running" : perfProbe.lastReport ? "done" : "idle",
+    state: perfProbe.running
+      ? "running"
+      : perfProbe.armedForVr
+        ? "armed"
+        : perfProbe.lastReport
+          ? "done"
+          : "idle",
     left: 15,
     text: perfProbe.lastReport?.text ?? null,
   }));
@@ -896,12 +904,28 @@ export default function DriverWorkshop({
                   фриза и виновников по времени.
                 </p>
                 {probe.state === "idle" && (
-                  <button
-                    onClick={startProbe}
-                    className="mt-3 w-full rounded-full bg-cream px-3.5 py-2.5 text-[10px] font-semibold text-[#062326] transition hover:bg-white"
-                  >
-                    Начать замер 15с
-                  </button>
+                  <div className="mt-3 space-y-1.5">
+                    <button
+                      onClick={startProbe}
+                      className="w-full rounded-full bg-cream px-3.5 py-2.5 text-[10px] font-semibold text-[#062326] transition hover:bg-white"
+                    >
+                      Начать замер 15с
+                    </button>
+                    <button
+                      onClick={() => {
+                        perfProbe.armedForVr = true;
+                        setProbe({ state: "armed", left: 15, text: null });
+                      }}
+                      className="w-full rounded-full border border-gold/30 bg-gold/[0.08] px-3.5 py-2.5 text-[10px] font-semibold text-gold/90 transition hover:bg-gold/[0.15]"
+                    >
+                      Замер 15с при входе в VR
+                    </button>
+                  </div>
+                )}
+                {probe.state === "armed" && (
+                  <div className="mt-3 rounded-lg border border-gold/25 bg-gold/[0.07] px-3 py-2.5 text-[9px] leading-relaxed text-gold/90">
+                    Замер начнётся сам в момент входа в VR. Закройте панель и войдите в VR — не спешите.
+                  </div>
                 )}
                 {probe.state === "running" && (
                   <div className="mt-3 rounded-lg border border-gold/25 bg-gold/[0.07] px-3 py-2.5 text-[9px] leading-relaxed text-gold/90">

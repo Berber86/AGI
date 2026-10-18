@@ -6,6 +6,7 @@ import DriverWorkshop from "./components/DriverWorkshop";
 import Journal from "./components/Journal";
 import { CameraMarkerProvider } from "./lib/markerDriver";
 import { OceanAudio } from "./lib/oceanAudio";
+import { perfProbe } from "./lib/perfProbe";
 import { findSpecies, formatDiveTime, SPECIES, type SpeciesId } from "./lib/species";
 import type { GazeSource, GazeStatus, Quality, TargetUpdate, WorldEventType } from "./game/ReefWorld";
 import type { ReefWorld } from "./game/ReefWorld";
@@ -120,6 +121,14 @@ export default function App() {
   useEffect(() => {
     provider.setFrugal(frugalMarkers);
   }, [provider, frugalMarkers]);
+
+  // Замер фризов «при входе в VR»: панель драйвера к этому моменту закрыта,
+  // поэтому автостарт живёт здесь.
+  useEffect(() => {
+    if (vr && perfProbe.armedForVr && !perfProbe.running) {
+      perfProbe.start(15000);
+    }
+  }, [vr]);
 
   useEffect(() => {
     return () => {

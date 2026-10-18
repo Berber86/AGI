@@ -77,6 +77,9 @@ const assertions = {
   classified,
   schemaOk,
   gpuLine: (rep?.summary?.gpu?.avgMs ?? null) !== null,
+  // Артефакт «сумма фризов >100% времени» (утечка wallMs первого кадра из-за
+  // старта замера посреди разрыва) — прижат: сумма фризов ≤ 120% окна.
+  freezeShareOk: (rep?.summary?.freezeTotalMs ?? 0) <= (rep?.summary?.spanMs ?? 1) * 1.2,
   hasVerdictBlock: result.hasVerdictBlock === true,
   hasDeviceBlock: result.hasDeviceBlock === true,
   noPageErrors: errors.length === 0,

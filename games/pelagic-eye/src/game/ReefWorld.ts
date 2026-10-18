@@ -2463,6 +2463,7 @@ export class ReefWorld {
   setVr(vr: boolean) {
     const log = ((window as unknown as { __VR_LOG__?: string[] }).__VR_LOG__ ||= []);
     log.push(`setVr(${vr}) at ${Math.round(performance.now())}`);
+    perfProbe.event("vr", vr ? "on" : "off");
     this.settings.vr = vr;
     // Профиль фиксируется на входе в VR и не «щёлкает» на ходу. Камера в
     // стерео считается реже: 5–8 Гц достаточно для осмотра мира, а каждый
