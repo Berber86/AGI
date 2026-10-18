@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-10-18T09:10:47.913Z",
+  "harness": "headless chromium + swiftshader; worker и createImageBitmap тут дешевле реального GPU-readback на телефоне",
+  "arms": {
+    "normal": {
+      "label": "normal",
+      "frugalBoot": false,
+      "runs": [
+        {
+          "fpsMedian": 35,
+          "ticks": 5,
+          "ticksPerSec": 0.21,
+          "feedLive": 5,
+          "samples": 5
+        },
+        {
+          "fpsMedian": 35,
+          "ticks": 5,
+          "ticksPerSec": 0.29,
+          "feedLive": 5,
+          "samples": 5
+        }
+      ],
+      "fpsMedian": 35,
+      "ticksPerSecMean": 0.25,
+      "cameraProcMsMean": 2801.9,
+      "feedLiveRatio": 1,
+      "cameraIntervalMs": 100,
+      "cameraTier": 0,
+      "frugalFlag": false,
+      "feed": "synthetic",
+      "errors": []
+    },
+    "frugal": {
+      "label": "frugal",
+      "frugalBoot": true,
+      "runs": [
+        {
+          "fpsMedian": 36,
+          "ticks": 4,
+          "ticksPerSec": 0.19,
+          "feedLive": 6,
+          "samples": 6
+        },
+        {
+          "fpsMedian": 31,
+          "ticks": 5,
+          "ticksPerSec": 0.23,
+          "feedLive": 7,
+          "samples": 7
+        }
+      ],
+      "fpsMedian": 36,
+      "ticksPerSecMean": 0.21,
+      "cameraProcMsMean": 6742.4,
+      "feedLiveRatio": 1,
+      "cameraIntervalMs": 3000,
+      "cameraTier": 3,
+      "frugalFlag": true,
+      "feed": "synthetic",
+      "errors": []
+    }
+  },
+  "liveToggle": {
+    "clicked": true,
+    "afterOn": {
+      "intervalMs": 3000,
+      "frugal": true,
+      "tier": 3,
+      "fps": 0.2
+    },
+    "afterOnLate": {
+      "intervalMs": 3000,
+      "frugal": true,
+      "tier": 3,
+      "fps": 0.4
+    },
+    "afterOff": {
+      "intervalMs": 100,
+      "frugal": false,
+      "tier": 0,
+      "fps": 0
+    },
+    "intervalJumpOk": true,
+    "intervalRevertOk": true,
+    "hzDropOk": true
+  },
+  "errors": [],
+  "assertions": {
+    "bootNormalInterval": true,
+    "bootFrugalInterval": true,
+    "frugalMicroTier": true,
+    "intervalRatio": 30,
+    "intervalRatioOk": true,
+    "ticksCapped": true,
+    "pipelineLive": true,
+    "fpsNotWorse": true,
+    "fpsDelta": 1,
+    "noPageErrors": true,
+    "liveToggleOk": true
+  },
+  "hypothesis": {
+    "question": "Тормозит ли риф обращение к камере за метками?",
+    "cameraLoadDrop": "опрос 30× реже (100мс → 3000мс), анализ 64×48 вместо 160×120",
+    "ticks": "норм 0.25 тика/с → фригал 0.21 тика/с",
+    "fps": "normal 35 fps → frugal 36 fps (Δ 1)",
+    "procMs": "норм 2801.9мс → фригал 6742.4мс на кадр анализа (в headless это software-readback; на телефоне — GPU-readback)",
+    "verdict": "FPS в пределах шума headless-конвейера (тут воркер и так голодает); гипотезу проверять тумблером на телефоне в VR."
+  }
+}

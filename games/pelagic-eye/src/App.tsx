@@ -6,6 +6,7 @@ import DriverWorkshop from "./components/DriverWorkshop";
 import Journal from "./components/Journal";
 import { CameraMarkerProvider } from "./lib/markerDriver";
 import { OceanAudio } from "./lib/oceanAudio";
+import { perfProbe } from "./lib/perfProbe";
 import { findSpecies, formatDiveTime, SPECIES, type SpeciesId } from "./lib/species";
 import type { GazeSource, GazeStatus, Quality, TargetUpdate, WorldEventType } from "./game/ReefWorld";
 import type { ReefWorld } from "./game/ReefWorld";
@@ -22,6 +23,7 @@ interface SettingsRecord {
   quality: Quality;
   reducedMotion: boolean;
   soundOn: boolean;
+  frugalMarkers: boolean;
 }
 
 function loadDiscovered(): SpeciesId[] {
@@ -38,7 +40,7 @@ function loadDiscovered(): SpeciesId[] {
 }
 
 function loadSettings(): SettingsRecord {
-  const defaults: SettingsRecord = { ipd: 6.4, quality: "high", reducedMotion: false, soundOn: true };
+  const defaults: SettingsRecord = { ipd: 6.4, quality: "high", reducedMotion: false, soundOn: true, frugalMarkers: false };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaults;
@@ -48,6 +50,7 @@ function loadSettings(): SettingsRecord {
       quality: parsed.quality === "balanced" ? "balanced" : "high",
       reducedMotion: !!parsed.reducedMotion,
       soundOn: parsed.soundOn !== false,
+      frugalMarkers: !!parsed.frugalMarkers,
     };
   } catch {
     return defaults;
@@ -83,6 +86,7 @@ export default function App() {
   const [quality, setQuality] = useState<Quality>(initialSettings.quality);
   const [reducedMotion, setReducedMotion] = useState(initialSettings.reducedMotion);
   const [soundOn, setSoundOn] = useState(initialSettings.soundOn);
+  const [frugalMarkers, setFrugalMarkers] = useState(initialSettings.frugalMarkers);
   const [target, setTarget] = useState<TargetUpdate | null>(null);
   const [heading, setHeading] = useState(0);
   const [diveTime, setDiveTime] = useState(0);
@@ -111,8 +115,20 @@ export default function App() {
   }, [discovered]);
 
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ipd, quality, reducedMotion, soundOn }));
-  }, [ipd, quality, reducedMotion, soundOn]);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ipd, quality, reducedMotion, soundOn, frugalMarkers }));
+  }, [ipd, quality, reducedMotion, soundOn, frugalMarkers]);
+
+  useEffect(() => {
+    provider.setFrugal(frugalMarkers);
+  }, [provider, frugalMarkers]);
+
+  // Замер фризов «при входе в VR»: панель драйвера к этому моменту закрыта,
+  // поэтому автостарт живёт здесь.
+  useEffect(() => {
+    if (vr && perfProbe.armedForVr && !perfProbe.running) {
+      perfProbe.start(15000);
+    }
+  }, [vr]);
 
   useEffect(() => {
     return () => {
@@ -420,6 +436,8 @@ export default function App() {
           onQualityChange={setQuality}
           reducedMotion={reducedMotion}
           onReducedMotionChange={setReducedMotion}
+          frugalMarkers={frugalMarkers}
+          onFrugalMarkersChange={setFrugalMarkers}
           onRequestGyro={requestGyro}
           onCalibrateGyro={calibrateGyro}
           gazeStatus={gazeStatus}

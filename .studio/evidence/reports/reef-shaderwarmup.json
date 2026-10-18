@@ -1,0 +1,15 @@
+{
+  "url": "http://127.0.0.1:38829/play/?perf=1&cam=0&audio=0",
+  "keys": [],
+  "shader": {
+    "links": 132,
+    "linkMs": 0,
+    "compiles": 264,
+    "programs": 132,
+    "lookAround": 0,
+    "vrEnter": 0,
+    "vrSteady": 0
+  },
+  "note": "Регресс прогрева шейдеров. Контракт: вход в VR не линкует новых программ (≤2).",
+  "ts": 1792339158107
+}

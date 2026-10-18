@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CameraMarkerProvider, MarkerMode, TrackerInfo } from "../lib/markerDriver";
 import type { GazeSource, GazeStatus, Quality } from "../game/ReefWorld";
+import { perfProbe } from "../lib/perfProbe";
 import {
   ArrowRight,
   CameraIcon,
@@ -30,6 +31,8 @@ interface Props {
   onQualityChange: (quality: Quality) => void;
   reducedMotion: boolean;
   onReducedMotionChange: (value: boolean) => void;
+  frugalMarkers: boolean;
+  onFrugalMarkersChange: (value: boolean) => void;
   onRequestGyro: () => Promise<{ ok: boolean; message: string }>;
   onCalibrateGyro: () => void;
   gazeStatus: GazeStatus;
@@ -39,6 +42,23 @@ interface Props {
 }
 
 const initialInfo = (provider: CameraMarkerProvider): TrackerInfo => provider.getInfo();
+
+/** Живой A/B-тег «без стекла»: снимает backdrop-filter со всех оверлеев. */
+export function applyNoGlass(on: boolean) {
+  const id = "pe-noglass";
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
+  document.documentElement.removeAttribute("data-pe-noglass");
+  if (!on) return;
+  const tag = document.createElement("style");
+  tag.id = id;
+  tag.textContent =
+    "[data-pe-noglass] .glass,[data-pe-noglass] .plate,[data-pe-noglass] .menu-panel,[data-pe-noglass] .panel" +
+    "{background:rgba(8,9,18,.92)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}" +
+    "[data-pe-noglass] .title{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}";
+  document.head.appendChild(tag);
+  document.documentElement.setAttribute("data-pe-noglass", "");
+}
 
 const phaseCopy: Record<string, string> = {
   idle: "не запущено",
@@ -76,6 +96,8 @@ export default function DriverWorkshop({
   onQualityChange,
   reducedMotion,
   onReducedMotionChange,
+  frugalMarkers,
+  onFrugalMarkersChange,
   onRequestGyro,
   onCalibrateGyro,
   gazeStatus,
@@ -93,8 +115,92 @@ export default function DriverWorkshop({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamVersionRef = useRef(-1);
 
+  // 15с-тест фризов: отчёт переживает закрытие панели (живёт в perfProbe).
+  // «Замер при входе в VR» заармливается в самом probe — панель при входе в
+  // VR закрывается, автостарт живёт в App.
+  const [probe, setProbe] = useState<{
+    state: "idle" | "running" | "done" | "armed";
+    left: number;
+    text: string | null;
+  }>(() => ({
+    state: perfProbe.running
+      ? "running"
+      : perfProbe.armedForVr
+        ? "armed"
+        : perfProbe.lastReport
+          ? "done"
+          : "idle",
+    left: 15,
+    text: perfProbe.lastReport?.text ?? null,
+  }));
+
+  useEffect(() => {
+    if (probe.state !== "running") return;
+    const id = window.setInterval(() => {
+      if (!perfProbe.running) {
+        const report = perfProbe.lastReport;
+        if (report) setProbe({ state: "done", left: 0, text: report.text });
+        return;
+      }
+      // Страховка: если сцена не рендерится и авто-стоп не сработал.
+      if (perfProbe.elapsedMs > 20000) {
+        const done = perfProbe.stopNow();
+        if (done) setProbe({ state: "done", left: 0, text: done.text });
+        return;
+      }
+      setProbe((p) => ({ ...p, left: Math.max(0, Math.ceil((15000 - perfProbe.elapsedMs) / 1000)) }));
+    }, 250);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [probe.state]);
+
+  const startProbe = () => {
+    perfProbe.start(15000);
+    setProbe({ state: "running", left: 15, text: null });
+  };
+
+  // A/B «без стекла»: backdrop-filter-оверлеи (стекло HUD, панели, титул) —
+  // главный подозреваемый композиторной нагрузки Android/Chrome. Тег стилей
+  // живёт в <head> независимо от React — переживает закрытие панели.
+  const [glassOff, setGlassOff] = useState(() => perfProbe.glassOff);
+  const toggleGlass = (on: boolean) => {
+    applyNoGlass(on);
+    perfProbe.glassOff = on;
+    setGlassOff(on);
+  };
+
+  const copyProbe = async () => {
+    const text = probe.text || "";
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    ok("Отчёт скопирован. Пришлите его текстом — по нему видно виновника фризов.");
+  };
+
+  const downloadProbe = (kind: "txt" | "json") => {
+    const data =
+      kind === "txt"
+        ? probe.text || ""
+        : JSON.stringify(perfProbe.lastReport?.json ?? {}, null, 2);
+    const blob = new Blob([data], { type: kind === "txt" ? "text/plain;charset=utf-8" : "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pelagic-freeze-report.${kind}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   useEffect(() => {
     const tick = () => {
+      const t0 = performance.now();
       const next = provider.getInfo();
       setInfo(next);
       const video = videoRef.current;
@@ -105,6 +211,8 @@ export default function DriverWorkshop({
       }
       if (!provider.getStream()) streamVersionRef.current = -1;
       drawPreview(next);
+      // Метка для теста фризов: стоимость UI-цикла панели (опрос + превью).
+      perfProbe.event("ui:poll", undefined, performance.now() - t0);
     };
     tick();
     const id = window.setInterval(tick, 180);
@@ -450,7 +558,7 @@ export default function DriverWorkshop({
                   <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
                     <div className="flex items-center gap-2 font-mono text-[8px] text-cream/55">
                       <span className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5">hsv 338 / 16</span>
-                      <span className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5">160×120</span>
+                      <span className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5">{frugalMarkers ? "64×48 · ×30" : "160×120"}</span>
                       <span className="hidden rounded border border-white/10 bg-black/25 px-1.5 py-0.5 sm:inline">
                         {info.workerAvailable ? "worker" : "no worker"}
                       </span>
@@ -498,6 +606,21 @@ export default function DriverWorkshop({
                   )}
                 </div>
               </div>
+
+              <button
+                onClick={() => onFrugalMarkersChange(!frugalMarkers)}
+                className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 text-left transition hover:border-white/15"
+              >
+                <div>
+                  <div className="text-[10px] font-medium text-cream/80">Бюджетный опрос камеры ×30</div>
+                  <p className="mt-1 text-[8px] leading-relaxed text-fog/35">
+                    Раз в ~3 с и на 64×48 вместо ~10 Гц и 160×120. Трекинг от этого вянет — режим для проверки гипотезы «тормозит ли камера».
+                  </p>
+                </div>
+                <span className={`relative h-4 w-7 shrink-0 rounded-full transition ${frugalMarkers ? "bg-aqua/80" : "bg-white/15"}`}>
+                  <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-cream transition-all ${frugalMarkers ? "left-3.5" : "left-0.5"}`} />
+                </span>
+              </button>
 
               {message && (
                 <div className={`mt-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-[10px] leading-relaxed ${messageTone === "ok" ? "border-aqua/15 bg-aqua/[0.05] text-aqua/85" : "border-gold/20 bg-gold/[0.06] text-gold/90"}`}>
@@ -796,6 +919,99 @@ export default function DriverWorkshop({
                     <div className="tabular mt-1 font-mono text-[10px] text-cream/80">{value}</div>
                   </div>
                 ))}
+              </div>
+
+              <div className="rounded-xl border border-gold/20 bg-gold/[0.04] p-3.5">
+                <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-gold/85">
+                  <SparkIcon className="h-3.5 w-3.5" /> тест фризов · 15 секунд
+                </div>
+                <p className="mt-2 text-[8.5px] leading-[1.65] text-fog/50">
+                  Запустите замер и в это время смотрите сцену как обычно (лучше сразу в VR). Каждый кадр пишет
+                  разбивку: сцена, рендер по глазам, GC-паузы, тики камеры. Готовый отчёт называет причину каждого
+                  фриза и виновников по времени.
+                </p>
+                <label
+                  className={`mt-3 flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 transition ${
+                    glassOff ? "border-gold/45 bg-gold/[0.1]" : "border-white/[0.09] bg-white/[0.02]"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={glassOff}
+                    onChange={(e) => toggleGlass(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[#d4af6a]"
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[9px] font-semibold text-cream/85">Тест без стекла (A/B)</span>
+                    <span className="block text-[8px] leading-[1.55] text-fog/50">
+                      Временно убирает blur-подложки интерфейса — так видно, сколько фризов даёт композитор Android.
+                      Сделайте два замера (вкл/выкл) и сравните отчёты.
+                    </span>
+                  </span>
+                </label>
+                {probe.state === "idle" && (
+                  <div className="mt-3 space-y-1.5">
+                    <button
+                      onClick={startProbe}
+                      className="w-full rounded-full bg-cream px-3.5 py-2.5 text-[10px] font-semibold text-[#062326] transition hover:bg-white"
+                    >
+                      Начать замер 15с
+                    </button>
+                    <button
+                      onClick={() => {
+                        perfProbe.armedForVr = true;
+                        setProbe({ state: "armed", left: 15, text: null });
+                      }}
+                      className="w-full rounded-full border border-gold/30 bg-gold/[0.08] px-3.5 py-2.5 text-[10px] font-semibold text-gold/90 transition hover:bg-gold/[0.15]"
+                    >
+                      Замер 15с при входе в VR
+                    </button>
+                  </div>
+                )}
+                {probe.state === "armed" && (
+                  <div className="mt-3 rounded-lg border border-gold/25 bg-gold/[0.07] px-3 py-2.5 text-[9px] leading-relaxed text-gold/90">
+                    Замер начнётся сам в момент входа в VR. Закройте панель и войдите в VR — не спешите.
+                  </div>
+                )}
+                {probe.state === "running" && (
+                  <div className="mt-3 rounded-lg border border-gold/25 bg-gold/[0.07] px-3 py-2.5 text-[9px] leading-relaxed text-gold/90">
+                    Идёт запись… осталось {probe.left}с. Закройте панель и смотрите сцену (можно в VR) — фризы сами
+                    попадут в лог.
+                  </div>
+                )}
+                {probe.state === "done" && (
+                  <>
+                    <pre className="mt-3 max-h-[230px] overflow-auto whitespace-pre-wrap rounded-lg border border-white/[0.08] bg-black/30 p-2.5 font-mono text-[7.5px] leading-[1.55] text-cream/70">
+                      {probe.text}
+                    </pre>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <button
+                        onClick={copyProbe}
+                        className="rounded-full bg-cream px-3 py-2 text-[9px] font-semibold text-[#062326] transition hover:bg-white"
+                      >
+                        Скопировать отчёт
+                      </button>
+                      <button
+                        onClick={() => downloadProbe("txt")}
+                        className="rounded-full border border-white/12 px-3 py-2 text-[9px] font-medium text-cream/75 transition hover:border-aqua/25"
+                      >
+                        .txt
+                      </button>
+                      <button
+                        onClick={() => downloadProbe("json")}
+                        className="rounded-full border border-white/12 px-3 py-2 text-[9px] font-medium text-cream/75 transition hover:border-aqua/25"
+                      >
+                        .json
+                      </button>
+                      <button
+                        onClick={() => setProbe({ state: "idle", left: 15, text: null })}
+                        className="rounded-full border border-white/12 px-3 py-2 text-[9px] font-medium text-fog/60 transition hover:text-cream"
+                      >
+                        новый замер
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="rounded-xl border border-white/[0.07] p-3.5">

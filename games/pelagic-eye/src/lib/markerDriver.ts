@@ -12,6 +12,8 @@
  * она явно подписана и не выдаётся за живую камеру.
  */
 
+import { perfProbe } from "./perfProbe";
+
 export type MarkerMode = "single" | "dual";
 export type TrackerFeed = "live" | "synthetic";
 export type GazeStatus = "valid" | "single" | "held" | "lost" | "idle";
@@ -76,6 +78,7 @@ export interface TrackerInfo {
   queue: number;
   tier: number;
   intervalMs: number;
+  frugal: boolean;
 }
 
 interface Anchor {
@@ -94,11 +97,17 @@ interface Calibration {
 
 // Адаптивные ярусы анализа: метке не нужен полноразмерный кадр. Ширина
 // уменьшается, если Worker честно не успевает; частота анализа в VR отдельная.
+// Последний тир (64×48) — «микро» для бюджетного режима опроса камеры.
 const TIERS = [
   { w: 160, h: 120 },
   { w: 128, h: 96 },
   { w: 112, h: 84 },
+  { w: 64, h: 48 },
 ];
+// Бюджетный опрос камеры: ~30× реже обычного тика (3000мс против ~100мс).
+// Диагностический режим для проверки гипотезы «тормоза от камеры»: трекинг
+// от него вянет (опрос раз в ~3с) — это сознательная плата за замер.
+const FRUGAL_INTERVAL_MS = 3000;
 const FRAME_W = TIERS[0].w;
 const FRAME_H = TIERS[0].h;
 const MIN_ENTITY_MS = 150;
@@ -235,6 +244,9 @@ export class CameraMarkerProvider {
   private busyTimer = 0;
   private timer = 0;
   private processingInterval = 100;
+  // Бюджетный опрос: перекрывает processingInterval и поднимает его до
+  // FRUGAL_INTERVAL_MS (~30× реже), анализ всегда на микро-тире.
+  private frugal = false;
   private minTier = 0;
   private lastPumpAt = 0;
   private tier = 0;
@@ -309,8 +321,9 @@ export class CameraMarkerProvider {
       facingMode: this.facingMode,
       resolution: this.readResolution,
       queue: this.busy ? 1 : 0,
-      tier: this.tier,
-      intervalMs: this.processingInterval,
+      tier: this.effectiveTier(),
+      intervalMs: this.effectiveIntervalMs(),
+      frugal: this.frugal,
     };
   }
 
@@ -423,8 +436,11 @@ export class CameraMarkerProvider {
   }
 
   private fps(now: number) {
-    this.processedTimes = this.processedTimes.filter((t) => now - t < 1200);
-    return Math.round((this.processedTimes.length / 1.2) * 10) / 10;
+    // Окно счёта Гц должно вместить пару тиков даже при медленном Worker
+    // (headless) и при бюджетном режиме (тик раз в 3с).
+    const windowMs = Math.max(4000, this.effectiveIntervalMs() * 1.5 + 400);
+    this.processedTimes = this.processedTimes.filter((t) => now - t < windowMs);
+    return Math.round((this.processedTimes.length / (windowMs / 1000)) * 10) / 10;
   }
 
   setMarkerMode(mode: MarkerMode) {
@@ -453,6 +469,42 @@ export class CameraMarkerProvider {
   }
 
   /**
+   * Бюджетный режим опроса камеры (~30×): опрос раз в ~3с вместо ~10Гц и
+   * анализ на микро-тире 64×48. Это диагностический переключатель для
+   * проверки гипотезы «тормоза от камеры» — трекинг от него вянет, и это
+   * ожидаемо. Поведение по умолчанию не меняется.
+   */
+  setFrugal(on: boolean) {
+    if (this.frugal === on) return;
+    this.frugal = on;
+    // Живой стрим подстраиваем на лету (лучшее усилие): «сила» обращения к
+    // камере — это ещё и разрешение/fps самой камеры, не только анализ.
+    const track = this.stream?.getVideoTracks()[0];
+    if (track?.applyConstraints) {
+      track.applyConstraints(this.cameraConstraints()).catch(() => undefined);
+    }
+    if (on) this.procHistory = [];
+  }
+
+  /** Разрешение и fps камеры: в бюджете — 320×240@10, обычно — 960×720@24-30. */
+  private cameraConstraints(): MediaTrackConstraints {
+    return {
+      facingMode: { ideal: "environment" },
+      ...(this.frugal
+        ? { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 10, max: 15 } }
+        : { width: { ideal: 960 }, height: { ideal: 720 }, frameRate: { ideal: 24, max: 30 } }),
+    };
+  }
+
+  private effectiveIntervalMs() {
+    return this.frugal ? FRUGAL_INTERVAL_MS : this.processingInterval;
+  }
+
+  private effectiveTier() {
+    return this.frugal ? TIERS.length - 1 : this.tier;
+  }
+
+  /**
    * Главный контур: камеру считаем ПОСЛЕ рендера кадра, а не в произвольный
    * момент setInterval. createImageBitmap(video) — это GPU-чтение; если оно
    * попадает перед важным кадром стереопары, появляется ровно тот рывок,
@@ -462,7 +514,7 @@ export class CameraMarkerProvider {
     const now = performance.now();
     this.lastPumpAt = now;
     if (!this.running || this.busy || !this.worker) return;
-    if (now - this.lastProcessed < this.processingInterval) return;
+    if (now - this.lastProcessed < this.effectiveIntervalMs()) return;
     void this.tick();
   }
 
@@ -484,12 +536,7 @@ export class CameraMarkerProvider {
       this.stopTracks();
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 960 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 24, max: 30 },
-        },
+        video: this.cameraConstraints(),
       });
       this.stream = stream;
       this.streamVersion += 1;
@@ -647,9 +694,15 @@ export class CameraMarkerProvider {
   private async tick() {
     if (!this.running || this.busy || !this.worker) return;
     const now = performance.now();
-    if (now - this.lastProcessed < 78) return;
+    // Шаг анализа живёт здесь, а не только в pumpAfterRender: резервный таймер
+    // startLoop и QA-контур обязаны уважать тот же каденс (в бюджетном режиме —
+    // FRUGAL_INTERVAL_MS).
+    if (now - this.lastProcessed < this.effectiveIntervalMs()) return;
     this.busy = true;
-    const dims = TIERS[this.tier];
+    perfProbe.camBusy = true;
+    perfProbe.event("cam:tick");
+    const camT0 = performance.now();
+    const dims = TIERS[this.effectiveTier()];
     if (this.busyTimer) window.clearTimeout(this.busyTimer);
     this.busyTimer = window.setTimeout(() => {
       this.busy = false;
@@ -662,6 +715,7 @@ export class CameraMarkerProvider {
         }
         this.drawSynthetic(now);
         const bitmap = await createImageBitmap(this.syntheticCanvas);
+        perfProbe.event("cam:bitmap", "synthetic", performance.now() - camT0);
         this.lastProcessed = now;
         this.worker.postMessage({ type: "frame", bitmap, w: dims.w, h: dims.h, t: now }, [bitmap]);
         return;
@@ -681,10 +735,13 @@ export class CameraMarkerProvider {
       } catch {
         bitmap = await createImageBitmap(video);
       }
+      perfProbe.event("cam:bitmap", "video", performance.now() - camT0);
       this.lastProcessed = now;
       this.worker.postMessage({ type: "frame", bitmap, w: dims.w, h: dims.h, t: now }, [bitmap]);
     } catch (error) {
       this.busy = false;
+      perfProbe.camBusy = false;
+      perfProbe.event("cam:error", (error as Error)?.message || String(error));
       this.error = `Сбой захвата кадра: ${(error as Error)?.message || error}`;
       this.running = false;
     }
@@ -719,16 +776,20 @@ export class CameraMarkerProvider {
 
   private onWorkerMessage(msg: { type: string; message?: string } & Partial<FrameResult>) {
     this.busy = false;
+    perfProbe.camBusy = false;
     if (this.busyTimer) window.clearTimeout(this.busyTimer);
     if (msg.type === "error") {
       this.error = `Worker: ${msg.message || "ошибка анализа"}`;
+      perfProbe.event("cam:error", msg.message);
       return;
     }
     if (msg.type !== "result") return;
+    perfProbe.event("cam:result", undefined, msg.procMs);
     const now = performance.now();
     const wasSeen = this.visible;
     const wasLastSeen = this.lastSeen;
     this.processedTimes.push(now);
+    if (this.processedTimes.length > 120) this.processedTimes.shift();
     this.procHistory.push(msg.procMs ?? 0);
     if (this.procHistory.length > 14) this.procHistory.shift();
     if (this.procHistory.length === 14) {
