@@ -22,6 +22,7 @@ interface SettingsRecord {
   quality: Quality;
   reducedMotion: boolean;
   soundOn: boolean;
+  frugalMarkers: boolean;
 }
 
 function loadDiscovered(): SpeciesId[] {
@@ -38,7 +39,7 @@ function loadDiscovered(): SpeciesId[] {
 }
 
 function loadSettings(): SettingsRecord {
-  const defaults: SettingsRecord = { ipd: 6.4, quality: "high", reducedMotion: false, soundOn: true };
+  const defaults: SettingsRecord = { ipd: 6.4, quality: "high", reducedMotion: false, soundOn: true, frugalMarkers: false };
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return defaults;
@@ -48,6 +49,7 @@ function loadSettings(): SettingsRecord {
       quality: parsed.quality === "balanced" ? "balanced" : "high",
       reducedMotion: !!parsed.reducedMotion,
       soundOn: parsed.soundOn !== false,
+      frugalMarkers: !!parsed.frugalMarkers,
     };
   } catch {
     return defaults;
@@ -83,6 +85,7 @@ export default function App() {
   const [quality, setQuality] = useState<Quality>(initialSettings.quality);
   const [reducedMotion, setReducedMotion] = useState(initialSettings.reducedMotion);
   const [soundOn, setSoundOn] = useState(initialSettings.soundOn);
+  const [frugalMarkers, setFrugalMarkers] = useState(initialSettings.frugalMarkers);
   const [target, setTarget] = useState<TargetUpdate | null>(null);
   const [heading, setHeading] = useState(0);
   const [diveTime, setDiveTime] = useState(0);
@@ -111,8 +114,12 @@ export default function App() {
   }, [discovered]);
 
   useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ipd, quality, reducedMotion, soundOn }));
-  }, [ipd, quality, reducedMotion, soundOn]);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ipd, quality, reducedMotion, soundOn, frugalMarkers }));
+  }, [ipd, quality, reducedMotion, soundOn, frugalMarkers]);
+
+  useEffect(() => {
+    provider.setFrugal(frugalMarkers);
+  }, [provider, frugalMarkers]);
 
   useEffect(() => {
     return () => {
@@ -420,6 +427,8 @@ export default function App() {
           onQualityChange={setQuality}
           reducedMotion={reducedMotion}
           onReducedMotionChange={setReducedMotion}
+          frugalMarkers={frugalMarkers}
+          onFrugalMarkersChange={setFrugalMarkers}
           onRequestGyro={requestGyro}
           onCalibrateGyro={calibrateGyro}
           gazeStatus={gazeStatus}

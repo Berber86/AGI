@@ -30,6 +30,8 @@ interface Props {
   onQualityChange: (quality: Quality) => void;
   reducedMotion: boolean;
   onReducedMotionChange: (value: boolean) => void;
+  frugalMarkers: boolean;
+  onFrugalMarkersChange: (value: boolean) => void;
   onRequestGyro: () => Promise<{ ok: boolean; message: string }>;
   onCalibrateGyro: () => void;
   gazeStatus: GazeStatus;
@@ -76,6 +78,8 @@ export default function DriverWorkshop({
   onQualityChange,
   reducedMotion,
   onReducedMotionChange,
+  frugalMarkers,
+  onFrugalMarkersChange,
   onRequestGyro,
   onCalibrateGyro,
   gazeStatus,
@@ -450,7 +454,7 @@ export default function DriverWorkshop({
                   <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-2">
                     <div className="flex items-center gap-2 font-mono text-[8px] text-cream/55">
                       <span className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5">hsv 338 / 16</span>
-                      <span className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5">160×120</span>
+                      <span className="rounded border border-white/10 bg-black/25 px-1.5 py-0.5">{frugalMarkers ? "64×48 · ×30" : "160×120"}</span>
                       <span className="hidden rounded border border-white/10 bg-black/25 px-1.5 py-0.5 sm:inline">
                         {info.workerAvailable ? "worker" : "no worker"}
                       </span>
@@ -498,6 +502,21 @@ export default function DriverWorkshop({
                   )}
                 </div>
               </div>
+
+              <button
+                onClick={() => onFrugalMarkersChange(!frugalMarkers)}
+                className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.02] p-3 text-left transition hover:border-white/15"
+              >
+                <div>
+                  <div className="text-[10px] font-medium text-cream/80">Бюджетный опрос камеры ×30</div>
+                  <p className="mt-1 text-[8px] leading-relaxed text-fog/35">
+                    Раз в ~3 с и на 64×48 вместо ~10 Гц и 160×120. Трекинг от этого вянет — режим для проверки гипотезы «тормозит ли камера».
+                  </p>
+                </div>
+                <span className={`relative h-4 w-7 shrink-0 rounded-full transition ${frugalMarkers ? "bg-aqua/80" : "bg-white/15"}`}>
+                  <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-cream transition-all ${frugalMarkers ? "left-3.5" : "left-0.5"}`} />
+                </span>
+              </button>
 
               {message && (
                 <div className={`mt-2 flex items-start gap-2 rounded-lg border px-3 py-2 text-[10px] leading-relaxed ${messageTone === "ok" ? "border-aqua/15 bg-aqua/[0.05] text-aqua/85" : "border-gold/20 bg-gold/[0.06] text-gold/90"}`}>

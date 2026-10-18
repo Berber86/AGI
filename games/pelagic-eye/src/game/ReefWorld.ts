@@ -1989,6 +1989,7 @@ export class ReefWorld {
               queue: providerInfo.queue,
               procMs: providerInfo.frame?.procMs ?? 0,
               streamVersion: providerInfo.streamVersion,
+              frugal: providerInfo.frugal,
             }
           : null,
       };
