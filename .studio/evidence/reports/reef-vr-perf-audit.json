@@ -1,0 +1,57 @@
+{
+  "kind": "reef-vr-perf-audit",
+  "date": "2026-10-17",
+  "game": "games/pelagic-eye (Тишина рифа)",
+  "compared_to": "games/candy-kingdom-coaster (Candy Kingdom Coaster), .studio/evidence/reports/vr-perf-audit.json + vr-perf-fix.json",
+  "tools": ["games/pelagic-eye/qa/vrperf-reef.mjs (счётчики), адаптация games/candy-kingdom-coaster/tests/tools/vrperf.mjs"],
+  "method": "headless Chromium (SwiftShader), static build play/index.html, viewport 844x390 dpr3 (телефон) и 1100x700 dpr1; счётчики детерминированные (draw calls / треугольники / проходы / пиксели); время кадра в software-GL — НЕ доказательство для телефона",
+  "measured_vr_stereo_844x390_dpr3": {
+    "pixelRatio": 1.15,
+    "eyePx": "485x448 (217k), парой 435k",
+    "shadowMapPx": 1048576,
+    "shadowRenderCallsPerPair": 1,
+    "drawsPerPair": {
+      "opaque": 215,
+      "transparent": 300,
+      "points": 8,
+      "shadow": 73,
+      "total": 596
+    },
+    "triPerFrame": { "opaque": 263524, "transparent": 62568, "shadow": ~2850 },
+    "materialBindsPerPair": 218,
+    "programSwitchesPerPair": 259,
+    "uniqueMaterials": 165,
+    "uniqueGeometries": 264,
+    "sceneGraph": { "meshes": 382, "transparentMaterials": 174, "doubleSide": 126, "lights": 6, "programsInVr": 64, "shadowCastersInVr": 82 }
+  },
+  "invariants_checked": {
+    "shadow_once_per_pair": "OK (shadowRenderCalls=1, как F1 гонок)",
+    "antialias_context": "false (как F3 гонок)",
+    "vr_shadow_map": "1024x1024 (как F2 гонок)",
+    "shadow_type": "PCFShadowMap (three r186 удалил PCFSoftShadowMap — деградирует с предупреждением)",
+    "vr_pixel_ratio_clamp": "1.15 (жёстче, чем 1.5/1.25 в гонках)",
+    "bloom_in_vr": "off, composer не вызывается (как в гонках)",
+    "msaa_composer_target": "samples=4 HalfFloat (в гонках F3: 0 сэмплов)",
+    "governor_in_vr": "отсутствует; quality-тумблер в VR игнорируется (в гонках QualityGovernor: tier<=Medium на входе, падение в Low/тени-off при fps<44, честный кап 30)",
+    "gyro": "deviceorientation слушается (в гонках вырезан при F1–F3)",
+    "hud": "React-стейт (target/heading/fps/calls) из кадрового цикла (в гонках императивный hud.js)"
+  },
+  "ab_transparent_stack_software_gl": {
+    "baseline_ms": 404.3,
+    "without_transparent_and_points_ms": 401.5,
+    "note": "в SwiftShader разница ~1%: software rasterizer не показывает fill-rate/early-Z эффект полупрозрачного стека; на мобильном TBDR это риск, а не измеренный факт"
+  },
+  "racing_reference_after_fix_u0_42": {
+    "drawsTotal": 619,
+    "triTotal": 1339065,
+    "eyePxBoth": 1216800,
+    "shadowMapPx": 1048576,
+    "pixelRatioVr": 1.5
+  },
+  "conclusion": [
+    "по draw calls / треугольникам / пикселям риф ЛЕГЧЕ гонок (596 draws / 352k tri / 435k eye-px против 619 / 1.34M / 1.2M)",
+    "все главные VR-фиксы гонок (F1 тени один раз на пару, F3 без MSAA контекста, F2 VR-профиль без «щелчков») в рифе уже есть, пиксель даже сильнее сжат",
+    "расхождения: MSAA 4x висит на composer-таргете (против F3), губернатора качества нет вообще (в гонках умеет деградировать), полупрозрачный пирог 300 draws/пару превышает опаковые, 6 источников света + bump, 165 материалов без мерджа/инстансинга, React-HUD и гироскоп в кадровом цикле",
+    "общие незакрытые проблемы обоих: стерео рисует сцену дважды без упрощения геометрии (F5 гонок), createImageBitmap-чтение камеры (F4 гонок)"
+  ]
+}

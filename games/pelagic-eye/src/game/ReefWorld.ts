@@ -28,6 +28,12 @@ import {
   mulberry32,
 } from "./builders";
 import { animateManta, animateTurtle, animateWhale, buildJellyfish, buildManta, buildTurtle, buildWhale, type MantaRig, type TurtleRig, type WhaleRig } from "./creatures";
+import {
+  buildMergedGeometry,
+  decorateStaticMaterial,
+  staticSwayTime,
+  type StaticPart,
+} from "./mergeStatic";
 
 export type GazeSource = "pointer" | "gyro" | "camera";
 export type Quality = "high" | "balanced";
@@ -138,8 +144,27 @@ export class ReefWorld {
   private whaleVisible = false;
   private whaleNotified = false;
   private jellyfish: THREE.Group[] = [];
-  private currents: { obj: THREE.Object3D; axis: string; phase: number; amp: number }[] = [];
   private corals: THREE.Mesh[] = [];
+  // Статика склеивается в mergeStatics() (см. mergeStatic.ts): один draw call
+  // на класс вместо десятков мешей — стереопара больше не платит за каждый.
+  private staticBuckets = new Map<
+    string,
+    { mesh: THREE.Mesh; sway?: { phase: number; amp: number }; color?: THREE.Color; emissive?: THREE.Color }[]
+  >();
+  private staticSpecs: Record<
+    string,
+    { bakeColor: boolean; emissive: boolean; sway: boolean; cacheKey: string }
+  > = {};
+  private tipClouds: THREE.Points[] = [];
+  private causticFloor: THREE.Mesh | null = null;
+  private contactShadows: THREE.Mesh | null = null;
+  private starsMerged: THREE.Mesh | null = null;
+  // Мини-губернатор VR: 2 — полный профиль, 1 — без полупрозрачного стека,
+  // 0 — ещё и без теней. Вверх в VR не поднимается (как в гонках).
+  private vrGovTier: 0 | 1 | 2 = 2;
+  private vrGovHoldUntil = 0;
+  private vrGovWallAt = 0;
+  private vrGovWallFrame = 0;
   private schools: {
     mesh: THREE.InstancedMesh;
     center: THREE.Vector3;
@@ -348,6 +373,7 @@ export class ReefWorld {
     causticFloor.position.y = 0.035;
     causticFloor.renderOrder = 1;
     scene.add(causticFloor);
+    this.causticFloor = causticFloor;
 
     // Световые столбы.
     for (let i = 0; i < 7; i++) {
@@ -421,12 +447,116 @@ export class ReefWorld {
       rock.scale.y = h;
       rock.position.set(x, -1.5, z);
       scene.add(rock);
+      this.registerStatic("farRocks", rock, {});
     }
 
     this.scene.add(new THREE.AmbientLight(0x6aa7a5, 0.3));
+
+    // Склейка статики — последним шагом, когда все меши на своих местах.
+    this.mergeStatics();
   }
 
   private shaderShafts: { value: number }[] = [];
+
+  /** Регистрирует статичный меш для последующей склейки (mergeStatics). */
+  private registerStatic(
+    key: string,
+    mesh: THREE.Mesh,
+    spec: { bakeColor?: boolean; emissive?: boolean; sway?: boolean; cacheKey?: string },
+    extra?: { sway?: { phase: number; amp: number }; color?: THREE.Color; emissive?: THREE.Color }
+  ) {
+    if (!this.staticBuckets.has(key)) this.staticBuckets.set(key, []);
+    this.staticBuckets.get(key)!.push({
+      mesh,
+      sway: extra?.sway,
+      color: extra?.color,
+      emissive: extra?.emissive,
+    });
+    if (!this.staticSpecs[key]) {
+      this.staticSpecs[key] = {
+        bakeColor: !!spec.bakeColor,
+        emissive: !!spec.emissive,
+        sway: !!spec.sway,
+        cacheKey: spec.cacheKey ?? `pelagic-static-${key}`,
+      };
+    }
+  }
+
+  /**
+   * Склеивает зарегистрированную статику: цвет/emissive/качание запекаются в
+   * вершины, каждый класс становится одним мешем. Исходные меши удаляются,
+   * их геометрии и «лишние» материалы освобождаются (текстуры общие — живут).
+   */
+  private mergeStatics() {
+    this.scene.updateMatrixWorld(true);
+    const mergedCorals: THREE.Mesh[] = [];
+    const mergedGrass: THREE.Mesh[] = [];
+    this.staticBuckets.forEach((entries, key) => {
+      if (entries.length === 0) return;
+      const spec = this.staticSpecs[key];
+      const parts: StaticPart[] = entries.map(({ mesh, sway, color, emissive }) => {
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        return {
+          geometry: mesh.geometry,
+          matrix: mesh.matrixWorld,
+          color: spec.bakeColor ? (color ?? mat.color) : undefined,
+          emissive: spec.emissive ? (emissive ?? mat.emissive) : undefined,
+          sway: sway
+            ? { origin: mesh.getWorldPosition(new THREE.Vector3()), phase: sway.phase, amp: sway.amp }
+            : undefined,
+        };
+      });
+      const geometry = buildMergedGeometry(parts, { emissive: spec.emissive, sway: spec.sway });
+      const keep = entries[0].mesh;
+      const material = keep.material as THREE.MeshStandardMaterial;
+      if (spec.bakeColor) {
+        material.color.setRGB(1, 1, 1);
+        material.vertexColors = true;
+      }
+      if (spec.emissive) material.emissive.setRGB(0, 0, 0);
+      if (spec.emissive || spec.sway) {
+        decorateStaticMaterial(material, {
+          emissive: spec.emissive,
+          sway: spec.sway,
+          cacheKey: spec.cacheKey,
+        });
+      }
+      const merged = new THREE.Mesh(geometry, material);
+      merged.castShadow = keep.castShadow;
+      merged.receiveShadow = keep.receiveShadow;
+      merged.userData = { ...keep.userData };
+      entries.forEach(({ mesh }) => {
+        // removeFromParent, а не scene.remove: меши таблиц лежат внутри group.
+        mesh.removeFromParent();
+        if (mesh.material !== material) (mesh.material as THREE.Material).dispose();
+        mesh.geometry.dispose();
+      });
+      this.scene.add(merged);
+      if (key.startsWith("coral-")) mergedCorals.push(merged);
+      if (key === "grass") mergedGrass.push(merged);
+      if (key === "stars") this.starsMerged = merged;
+    });
+    if (mergedCorals.length) this.corals = mergedCorals;
+    if (mergedGrass.length) this.grassMeshes = mergedGrass;
+    // Облака кончиков актиний — тоже статика: 4 Points -> 1.
+    if (this.tipClouds.length) {
+      const parts: StaticPart[] = this.tipClouds.map((cloud) => ({
+        geometry: cloud.geometry,
+        matrix: cloud.matrixWorld,
+      }));
+      const geometry = buildMergedGeometry(parts);
+      const material = this.tipClouds[0].material as THREE.PointsMaterial;
+      const merged = new THREE.Points(geometry, material);
+      this.tipClouds.forEach((cloud) => {
+        cloud.removeFromParent();
+        if (cloud.material !== material) (cloud.material as THREE.Material).dispose();
+        cloud.geometry.dispose();
+      });
+      this.scene.add(merged);
+      this.tipClouds = [merged];
+    }
+    this.staticBuckets.clear();
+  }
 
   private buildRocks() {
     const rand = mulberry32(203);
@@ -453,22 +583,25 @@ export class ReefWorld {
       [10, -30, 3.8],
       [-22, 17, 3.5],
     ];
+    // Один материал на все камни: оттенок каждого запекается в вершины (mergeStatic).
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      map: this.sandMap,
+      bumpMap: this.coralBump,
+      bumpScale: 0.85,
+      roughness: 0.98,
+      metalness: 0.01,
+    });
     positions.forEach(([x, z, s], i) => {
-      const material = new THREE.MeshStandardMaterial({
-        color: palette[i % palette.length],
-        vertexColors: true,
-        map: this.sandMap,
-        bumpMap: this.coralBump,
-        bumpScale: 0.85,
-        roughness: 0.98,
-        metalness: 0.01,
-      });
+      const tint = new THREE.Color(palette[i % palette.length]);
       const rock = new THREE.Mesh(makeRockGeometry(300 + i * 7, s), material);
       rock.position.set(x, -0.15 + rand() * 0.2, z);
       rock.rotation.y = rand() * Math.PI * 2;
       rock.castShadow = true;
       rock.receiveShadow = true;
       this.scene.add(rock);
+      this.registerStatic("rocks", rock, { bakeColor: true }, { color: tint });
       if (i % 4 === 0) {
         const small = new THREE.Mesh(makeRockGeometry(517 + i, s * 0.4), material);
         small.position.set(x + 1.2 + rand(), -0.05, z + 0.8 + rand());
@@ -476,6 +609,7 @@ export class ReefWorld {
         small.castShadow = true;
         small.receiveShadow = true;
         this.scene.add(small);
+        this.registerStatic("rocks", small, { bakeColor: true }, { color: tint });
       }
     });
   }
@@ -544,7 +678,13 @@ export class ReefWorld {
     this.corals.push(mesh);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
-    this.currents.push({ obj: mesh, axis: "z", phase: seed * 0.7, amp: type === "fan" ? 0.035 : 0.012 });
+    // Качание течением запекается в вершины склеенного меша (mergeStatic).
+    this.registerStatic(
+      `coral-${type}${mesh.userData.bigCoral ? "-big" : ""}`,
+      mesh,
+      { bakeColor: true, emissive: true, sway: true, cacheKey: "pelagic-static-sway-emis" },
+      { sway: { phase: seed * 0.7, amp: type === "fan" ? 0.035 : 0.012 } }
+    );
     return mesh;
   }
 
@@ -563,6 +703,11 @@ export class ReefWorld {
     stalk.position.y = 0.55;
     stalk.castShadow = true;
     group.add(stalk);
+    this.registerStatic("tables", stalk, {
+      bakeColor: true,
+      emissive: true,
+      cacheKey: "pelagic-static-emis",
+    });
     for (let tier = 0; tier < 3; tier++) {
       const radius = (1.5 - tier * 0.34) * (0.85 + rand() * 0.25);
       const plate = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.82, 0.09 + rand() * 0.05, 26, 1), mat);
@@ -580,6 +725,11 @@ export class ReefWorld {
       plate.castShadow = true;
       plate.receiveShadow = true;
       group.add(plate);
+      this.registerStatic("tables", plate, {
+        bakeColor: true,
+        emissive: true,
+        cacheKey: "pelagic-static-emis",
+      });
     }
     group.scale.setScalar(scale);
     this.scene.add(group);
@@ -648,6 +798,7 @@ export class ReefWorld {
       anemone.scale.setScalar(1.15);
       anemone.castShadow = true;
       this.scene.add(anemone);
+      this.registerStatic("anemones", anemone, {});
       const tipGeo = new THREE.BufferGeometry();
       tipGeo.setAttribute("position", new THREE.BufferAttribute(tips, 3));
       const tipCloud = new THREE.Points(
@@ -665,6 +816,7 @@ export class ReefWorld {
       tipCloud.scale.setScalar(1.15);
       tipCloud.position.copy(anemone.position);
       this.scene.add(tipCloud);
+      this.tipClouds.push(tipCloud);
     });
 
     // Морские звёзды и мелкий бентос.
@@ -681,6 +833,7 @@ export class ReefWorld {
       star.scale.setScalar(0.5 + rand() * 0.7);
       star.castShadow = !this.settings.vr;
       this.scene.add(star);
+      this.registerStatic("stars", star, { bakeColor: true });
     }
   }
 
@@ -727,6 +880,7 @@ export class ReefWorld {
       mesh.scale.setScalar(patch.scale);
       mesh.castShadow = true;
       this.scene.add(mesh);
+      this.registerStatic("kelp", mesh, {});
     });
     // Невысокая трава, заполняющая «лужайки».
     const grassMat = material.clone();
@@ -743,6 +897,7 @@ export class ReefWorld {
       mesh.scale.setScalar(0.7 + rand() * 0.5);
       this.scene.add(mesh);
       this.grassMeshes.push(mesh);
+      this.registerStatic("grass", mesh, {});
     }
   }
 
@@ -1156,36 +1311,44 @@ export class ReefWorld {
       blending: THREE.NormalBlending,
       opacity: 0.85,
     });
-    const geometry = new THREE.PlaneGeometry(1, 1);
+    // Все декали — один склеенный меш (один transparent draw call вместо ~55).
+    const quad = new THREE.PlaneGeometry(1, 1);
+    const quads: StaticPart[] = [];
+    const dummy = new THREE.Object3D();
+    const addQuad = (x: number, y: number, z: number, size: number) => {
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(-Math.PI / 2, 0, 0);
+      dummy.scale.set(size, size, size);
+      dummy.updateMatrix();
+      quads.push({ geometry: quad, matrix: dummy.matrix.clone() });
+    };
     this.corals.forEach((coral) => {
       const size = (coral.userData.bigCoral ? 6.5 : 3.6) * 2;
-      const decal = new THREE.Mesh(geometry, material);
-      decal.rotation.x = -Math.PI / 2;
-      decal.position.set(coral.position.x + 0.35, 0.055, coral.position.z + 0.2);
-      decal.scale.set(size, size, size);
-      decal.renderOrder = 2;
-      this.scene.add(decal);
+      addQuad(coral.position.x + 0.35, 0.055, coral.position.z + 0.2, size);
     });
     // камни тоже «стоят» на дне
     this.scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       if (!object.userData.bigCoral && object.geometry.type === "SphereGeometry" && object.castShadow && object.position.y > -0.5 && object.position.y < 0.4) {
-        const decal = new THREE.Mesh(geometry, material);
-        decal.rotation.x = -Math.PI / 2;
         const s = 5 + object.scale.x * 2;
-        decal.position.set(object.position.x, 0.045, object.position.z);
-        decal.scale.set(s, s, s);
-        decal.renderOrder = 2;
-        this.scene.add(decal);
+        addQuad(object.position.x, 0.045, object.position.z, s);
       }
     });
+    const merged = new THREE.Mesh(buildMergedGeometry(quads), material);
+    merged.renderOrder = 2;
+    this.scene.add(merged);
+    this.contactShadows = merged;
+    quad.dispose();
   }
 
   private initComposer() {
     const size = new THREE.Vector2(this.container.clientWidth, this.container.clientHeight);
+    // samples: 0 — как в VR-аудите гонок (F3): 4x MSAA на HalfFloat-таргете
+    // стоил 4x fill rate и десятков мегабайт GPU-памяти, а стерео-путь и так
+    // рисует мимо composer'а. Сглаживание — только через разрешение.
     const target = new THREE.WebGLRenderTarget(size.x, size.y, {
       type: THREE.HalfFloatType,
-      samples: 4,
+      samples: 0,
       colorSpace: THREE.LinearSRGBColorSpace,
     });
     const composer = new EffectComposer(this.renderer, target);
@@ -1406,6 +1569,7 @@ export class ReefWorld {
         fps: this.lastFps,
         renderCalls: this.renderer.info.render.calls,
         shadowPassesPerPair: this.shadowPassesPerPair,
+        vrGovTier: this.vrGovTier,
         cameraProcMs: this.perfNotes.cameraProcMs,
         cameraQueue: this.perfNotes.cameraQueue,
         cameraTier: this.perfNotes.cameraTier,
@@ -1432,6 +1596,28 @@ export class ReefWorld {
     }
     const heading =
       ((THREE.MathUtils.radToDeg(this.yaw) % 360) + 360) % 360;
+    // Мини-губернатор VR судит по wall-time FPS: «игровое» время с капом dt
+    // на слабом телефоне врёт (кадр в 500 мс выглядит как 16 FPS). Каждые
+    // 2 секунды: если профиль не держится — срезаем полупрозрачный стек,
+    // затем тени. Вверх в VR не поднимаемся (как в гонках).
+    const wallNow = performance.now();
+    if (this.vrGovWallAt === 0) {
+      this.vrGovWallAt = wallNow;
+      this.vrGovWallFrame = this.frame;
+    }
+    if (wallNow - this.vrGovWallAt >= 2000) {
+      const wallFps = ((this.frame - this.vrGovWallFrame) * 1000) / (wallNow - this.vrGovWallAt);
+      this.vrGovWallAt = wallNow;
+      this.vrGovWallFrame = this.frame;
+      if (
+        this.settings.vr &&
+        wallNow >= this.vrGovHoldUntil &&
+        this.vrGovTier > 0 &&
+        wallFps < 42
+      ) {
+        this.setVrGovTier((this.vrGovTier - 1) as 0 | 1 | 2, `wallFps=${Math.round(wallFps)}`);
+      }
+    }
     // В HUD компас не нужен чаще, чем читается глазом. В VR — тем более:
     // лишние React-рендеры конкурируют со стерео-кадром.
     if (this.lifeTime - this.headingCallbackAt > (this.settings.vr ? 0.6 : 0.14)) {
@@ -1457,9 +1643,8 @@ export class ReefWorld {
       const shader = (material.userData as { shader?: { uniforms: Record<string, { value: number }> } }).shader;
       if (shader?.uniforms.uTime) shader.uniforms.uTime.value = t;
     });
-    this.currents.forEach((current) => {
-      current.obj.rotation.z = Math.sin(t * 0.36 + current.phase) * current.amp;
-    });
+    // Кораллы качаются в shader'е склеенной статики (mergeStatic).
+    staticSwayTime.value = t;
 
     this.fishActors.forEach((actor) => {
       if (this.settings.vr && !actor.group.visible) return;
@@ -1741,7 +1926,10 @@ export class ReefWorld {
     const dpr = Math.min(window.devicePixelRatio || 1, this.settings.vr ? 1.15 : base);
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(width, height, false);
-    if (this.composer) {
+    // В VR composer не используется — не трогаем его таргеты из кадрового
+    // цикла: пересоздание HalfFloat-буферов на каждом resize стоило рывков.
+    // На выходе из VR resize() вернёт таргеты к нужному размеру.
+    if (this.composer && !this.settings.vr) {
       this.composer.setPixelRatio(dpr);
       this.composer.setSize(width, height);
     }
@@ -1780,6 +1968,9 @@ export class ReefWorld {
     // Профиль фиксируется на входе в VR и не «щёлкает» на ходу. Камера в
     // стерео считается реже: 5–8 Гц достаточно для осмотра мира, а каждый
     // кадр createImageBitmap конкурирует с двумя проходами рендера.
+    this.vrGovTier = vr && this.settings.quality !== "high" ? 1 : 2;
+    // Пауза 4 секунды wall-time: первые кадры стерео всегда дорогие.
+    this.vrGovHoldUntil = performance.now() + 4000;
     this.provider?.setVrMode(vr);
     this.applyRenderProfile();
     this.resize();
@@ -1787,7 +1978,11 @@ export class ReefWorld {
 
   setQuality(quality: Quality) {
     this.settings.quality = quality;
-    // В VR качество зафиксировано, смена тумблера применится на выходе.
+    // Качество в VR теперь уважается: balanced сразу гасит полупрозрачный
+    // стек. Тумблер не поднимает уровень, срезанный губернатором.
+    if (this.settings.vr && quality !== "high" && this.vrGovTier > 1) {
+      this.setVrGovTier(1, "quality=balanced");
+    }
     this.applyRenderProfile();
     this.resize();
   }
@@ -1795,6 +1990,9 @@ export class ReefWorld {
   private applyRenderProfile() {
     const vr = this.settings.vr;
     const reduced = this.settings.reducedMotion;
+    // Мини-губернатор VR: tier<=1 гасит полупрозрачный стек, tier 0 — ещё и тени.
+    const lean = vr && this.vrGovTier <= 1;
+    const shadowsOff = vr && this.vrGovTier <= 0;
     if (this.keyLight) {
       const size = vr ? 1024 : 2048;
       if (this.keyLight.shadow.mapSize.x !== size) {
@@ -1802,19 +2000,23 @@ export class ReefWorld {
         this.keyLight.shadow.map?.dispose();
         (this.keyLight.shadow as unknown as { map: THREE.WebGLRenderTarget | null }).map = null;
       }
+      this.keyLight.castShadow = !shadowsOff;
     }
     // Меньше крупных аддитивных плоскостей и частиц — вдвое меньше fill rate.
     this.shafts.forEach((shaft, index) => {
-      shaft.visible = !vr || index % 2 === 0;
+      shaft.visible = !lean && (!vr || index % 2 === 0);
     });
     if (this.marineSnow) {
       const total = this.snowSpeeds?.length ?? 950;
-      this.marineSnow.geometry.setDrawRange(0, vr ? Math.floor(total * 0.5) : total);
+      this.marineSnow.geometry.setDrawRange(0, lean ? 0 : vr ? Math.floor(total * 0.5) : total);
     }
+    if (this.contactShadows) this.contactShadows.visible = !lean;
+    if (this.causticFloor) this.causticFloor.visible = !lean;
     this.grassMeshes.forEach((mesh) => {
       mesh.castShadow = !vr;
       mesh.receiveShadow = !vr;
     });
+    if (this.starsMerged) this.starsMerged.castShadow = !vr;
     // Мелкие кораллы в стерео не пишут shadow map: их вклад в тень почти
     // не читается, а каждый кастер — лишний проход по всей сцене.
     this.corals.forEach((mesh) => {
@@ -1832,6 +2034,22 @@ export class ReefWorld {
     } else if (this.bloomPass) {
       this.bloomPass.enabled = this.settings.quality === "high" && !reduced;
     }
+  }
+
+  private setVrGovTier(tier: 0 | 1 | 2, reason = "") {
+    if (this.vrGovTier === tier) return;
+    this.vrGovTier = tier;
+    const log = ((window as unknown as { __VR_LOG__?: string[] }).__VR_LOG__ ||= []);
+    log.push(`vrGov tier=${tier} ${reason} at ${Math.round(performance.now())}`);
+    this.applyRenderProfile();
+  }
+
+  /** QA-хук: принудительно переключить VR-губернатор (0..2). freeze — не
+   *  давать автосрезу трогать уровень во время проверок (по умолчанию да). */
+  debugSetVrGovTier(tier: number, freeze = true) {
+    if (freeze) this.vrGovHoldUntil = performance.now() + 600000;
+    else this.vrGovHoldUntil = performance.now() + 200;
+    this.setVrGovTier(THREE.MathUtils.clamp(Math.round(tier), 0, 2) as 0 | 1 | 2, freeze ? "debug" : "debug-unfreeze");
   }
 
   setReducedMotion(reduced: boolean) {

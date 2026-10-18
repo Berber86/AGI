@@ -1,0 +1,49 @@
+{
+  "kind": "reef-vr-perf-fix",
+  "date": "2026-10-18",
+  "game": "games/pelagic-eye (Тишина рифа)",
+  "based_on": ".studio/evidence/reports/reef-vr-perf-audit.json",
+  "tools": [
+    "games/pelagic-eye/qa/vrperf-reef.mjs (счётчики/инварианты)",
+    "games/pelagic-eye/qa/vr-gov-verify.mjs (губернатор + MSAA + восстановление)",
+    "games/pelagic-eye/qa/reefshots.mjs (скриншоты до/после)"
+  ],
+  "changes": [
+    "1) MSAA: composer-таргет samples 4 -> 0 (как F3 гонок); в VR composer-таргеты не пересоздаются из кадрового цикла (resize() пропускает composer при settings.vr)",
+    "2) Мини-губернатор VR (wall-fps, окно 2 с, hold 4 с): tier 2 -> 1 гасит полупрозрачный стек (контактные декали, каустика, столбы света, снег), 1 -> 0 дополнительно выключает тени (keyLight.castShadow=false); вверх в VR не поднимается; тумблер качества уважается: balanced = tier 1 на входе и срез посреди VR; выход из VR восстанавливает всё (декали/каустика/столбы/снег/тени 2048² PCFSoft)",
+    "3) Склейка статики (mergeStatic.ts): камни 25->1, кораллы 29->5 (big/small для VR-теней), столы 12->1, актинии 4->1 (+кончики 4 Points->1), звёзды 7->1, водоросли 6->1, трава 9->1, контактные декали ~55->1; цвет/emissive/качание течением запечены в вершины (color, aEmissive, aOrigin/aPhase/aAmp + shader) — внешний вид и анимация сохранены"
+  ],
+  "before_after_1100x700_dpr1_vr_pair": {
+    "draws_total_per_pair": { "before": 470, "after_tier2": 304, "after_tier0": 271 },
+    "draws_visible_per_pair": { "before": 397.4, "after_tier2": 282.6 },
+    "draws_shadow_per_pair": { "before": 73, "after_tier2": 21, "after_tier0": 0 },
+    "draws_transparent_per_pair": { "before": "~300 (844x390)", "after_tier2": 164.6 },
+    "normal_mode_draws_total": { "before": 464, "after": 295 },
+    "normal_mode_shadow_draws": { "before": 112, "after": 32 },
+    "scene_meshes": { "before": 382, "after": 241 },
+    "scene_geometries": { "before": 221, "after": 138 },
+    "scene_transparent_materials": { "before": 174, "after": 104 },
+    "scene_casters": { "before": 116, "after": 36 }
+  },
+  "invariants_verified": {
+    "shadow_once_per_pair": "OK (shadowRenderCalls=1 на tier 2)",
+    "composer_samples": "0 и в обычном режиме, и в VR; в VR таргеты не пересоздаются",
+    "antialias_context": false,
+    "vr_shadow_map": "1024², обычный режим 2048² PCFSoft",
+    "vr_pixel_ratio": 1.15,
+    "bloom_in_vr": "off",
+    "governor_natural": "в software-GL wallFps~1-2: автосрез 2->1->0 по логу __VR_LOG__ (vrGov tier=N wallFps=...)",
+    "governor_forced": "tier1: декали/каустика/столбы/снег выключены, тени включены; tier0: shadowRenderCalls=0",
+    "quality_toggle": "balanced: tier 1 при входе в VR и срез посреди VR (тени остаются)",
+    "exit_restores": "декали/каустика/7 столбов/снег 950/тени/2048² — всё на месте"
+  },
+  "visual_parity": {
+    "method": "скриншоты normal-left/normal-right/normal/vr до и после; шумовой потолок анимации той же сборки (2.5 c) — 27.9%/7.1% пикселей; до/после на той же позе — 28.6%/7.4%",
+    "conclusion": "расхождения не выходят за шум анимации (рыбы/снег/каустика/качание); классы объектов, цвета и свечение сохранены"
+  },
+  "caveats": [
+    "время кадра в SwiftShader — не доказательство для телефона; итоговый FPS/термалку мерить на живом устройстве",
+    "внутри склеенных бакетов нет покадрового frustum-culling (треугольники в стерео выросли 282k->454k на пару при том, что draw calls упали на 35%): для fill/CPU-bound мобильного GPU это выгодный обмен, но при жалобах на vertex-load можно делить бакеты по зонам",
+    "общая незакрытая F5-проблема (как в гонках): стереопара по-прежнему рисует анимированных обитателей дважды"
+  ]
+}
