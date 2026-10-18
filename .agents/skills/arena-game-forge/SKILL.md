@@ -85,7 +85,7 @@ Create the smallest playable vertical slice first. Do not produce a content-heav
 
 ## Quality gates
 
-Read `references/quality-gates.md` and `references/mobile-web.md` before claiming completion. If the contract includes VR/3D viewing, camera-based tracking, a second-device controller, Firebase/WebRTC, or another asynchronous input source, read `references/immersive-vr-remote-input.md` before technical planning and again before field QA.
+Read `references/quality-gates.md` and `references/mobile-web.md` before claiming completion. If the contract targets stable 30–60 FPS on phones or includes VR/stereo, also read `references/perf-freeze-triage.md` before field QA — mobile "unreal" freezes are usually shader-permutation storms, and `linkProgram` counters do not show their cost. If the contract includes VR/3D viewing, camera-based tracking, a second-device controller, Firebase/WebRTC, or another asynchronous input source, read `references/immersive-vr-remote-input.md` before technical planning and again before field QA.
 
 A release candidate must demonstrate:
 
@@ -125,4 +125,5 @@ Do not mark work complete if the preview was not exercised or required evidence 
 - Sandbox resets and git recovery: `references/workspace-resets-and-recovery.md`
 - Headless browser setup (no GPU, no apt): `references/headless-browser-setup.md`
 - Field-tested lifehacks and pitfalls (UV traps, corridor sweep, perf, camera, test flakes): `references/lifehacks-and-pitfalls.md`
+- Mobile 3D freeze triage, shader permutations, and warm-up (link vs first-draw compile, per-mesh masking, 15s frame probe): `references/perf-freeze-triage.md`
 - VR, camera markers, stereo comfort, external Firebase joystick, low-rate input, failure semantics, and field QA: `references/immersive-vr-remote-input.md` (includes the gaze contract: marker entity ≥0.15 s, horizontal-rectangle shape, pair proves straight, lone marker steers its own way, coast-and-fade instead of timer return to centre, symmetric alien-side rejection, split code/media PWA caches and measured update cost)
