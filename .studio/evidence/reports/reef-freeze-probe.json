@@ -1,42 +1,42 @@
 {
-  "generatedAt": "2026-10-18T14:02:12.082Z",
+  "generatedAt": "2026-10-18T16:00:32.385Z",
   "uiReady": true,
   "reportFound": true,
   "summary": {
-    "frames": 11,
-    "spanMs": 8036,
-    "fps": 1.4,
-    "p50": 785.8,
-    "p90": 1344.9,
-    "p99": 2284.6,
-    "max": 2284.6,
+    "frames": 6,
+    "spanMs": 8243,
+    "fps": 0.7,
+    "p50": 1306.4,
+    "p90": 2324,
+    "p99": 2324,
+    "max": 2324,
     "freezeMs": 150,
-    "freezes": 8,
-    "freezeTotalMs": 8004,
+    "freezes": 6,
+    "freezeTotalMs": 9366,
     "owners": [
       {
         "category": "outside",
         "name": "вне кадра (GC/браузер/композитор)",
-        "count": 8,
-        "freezeMs": 8004,
+        "count": 6,
+        "freezeMs": 9366,
         "sharePct": 100
       }
     ],
     "avg": {
-      "gazeMs": 0.01,
-      "worldMs": 0.16,
-      "partMs": 0.04,
-      "discMs": 0.03,
-      "uniMs": 0.01,
-      "actMs": 0.07,
-      "aniMs": 0.01,
-      "schMs": 0.07,
-      "renderMs": 1.83,
+      "gazeMs": 0.03,
+      "worldMs": 0.32,
+      "partMs": 0.03,
+      "discMs": 0.08,
+      "uniMs": 0,
+      "actMs": 0.08,
+      "aniMs": 0.07,
+      "schMs": 0.17,
+      "renderMs": 2.85,
       "rEye0Ms": 0,
       "rEye1Ms": 0,
-      "rCompMs": 1.75,
-      "gpuMs": 0.03,
-      "outsideMs": 729.56
+      "rCompMs": 2.7,
+      "gpuMs": 0.1,
+      "outsideMs": 1557.65
     },
     "longTasks": {
       "count": 0,
@@ -49,14 +49,16 @@
       "kinds": {}
     },
     "loaf": {
-      "count": 4,
+      "count": 5,
       "styleAvgMs": 0,
       "paintAvgMs": 0,
-      "topScripts": []
+      "topScripts": [
+        "user-callback:index.html ×2"
+      ]
     },
     "gpu": {
-      "avgMs": 0,
-      "maxMs": 0.1,
+      "avgMs": 0.1,
+      "maxMs": 0.5,
       "bound": false
     },
     "uiPoll": {
@@ -71,8 +73,8 @@
     "glass": "on",
     "shaders": {
       "links": 132,
-      "totalMs": 31,
-      "maxMs": 11,
+      "totalMs": 0,
+      "maxMs": 0,
       "duringCapture": 0,
       "programsStart": 132,
       "programsEnd": 132
@@ -89,11 +91,11 @@
   "freezeCaught": true,
   "classified": true,
   "worstLabels": [
-    "#69 2285мс вне меток 2282мс (композитор/презентация/GC-в-простое)",
-    "#71 1345мс вне меток 1343мс (композитор/презентация/GC-в-простое)",
-    "#67 1015мс вне меток 1013мс (композитор/презентация/GC-в-простое)",
-    "#66 905мс вне меток 903мс (композитор/презентация/GC-в-простое)",
-    "#65 799мс вне меток 796мс (композитор/презентация/GC-в-простое)"
+    "#45 2324мс вне меток 2320мс (композитор/презентация/GC-в-простое)",
+    "#47 2253мс вне меток 2249мс (композитор/презентация/GC-в-простое)",
+    "#44 1306мс вне меток 1304мс (композитор/презентация/GC-в-простое)",
+    "#43 1205мс вне меток 1202мс (композитор/презентация/GC-в-простое)",
+    "#46 1155мс вне меток 1152мс (композитор/презентация/GC-в-простое)"
   ],
   "hasVerdictBlock": true,
   "hasDeviceBlock": true,
@@ -101,9 +103,13 @@
     "probe:start",
     "stall",
     "loaf",
+    "stall",
     "loaf",
     "stall",
     "loaf",
+    "stall",
+    "loaf",
+    "stall",
     "loaf",
     "stall",
     "probe:stop"

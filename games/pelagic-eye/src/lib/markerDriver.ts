@@ -789,6 +789,7 @@ export class CameraMarkerProvider {
     const wasSeen = this.visible;
     const wasLastSeen = this.lastSeen;
     this.processedTimes.push(now);
+    if (this.processedTimes.length > 120) this.processedTimes.shift();
     this.procHistory.push(msg.procMs ?? 0);
     if (this.procHistory.length > 14) this.procHistory.shift();
     if (this.procHistory.length === 14) {

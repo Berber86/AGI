@@ -309,6 +309,34 @@ export class ReefWorld {
     perfProbe.event("warmup:start", `${queue.length} мешей`);
   }
 
+  /**
+   * Отрисовка сцены «в угол» 2×2 без autoClear: заставляет драйвер выполнить
+   * настоящую компиляцию программы (она отложенная — до первого draw), не
+   * портя готовый кадр. Маскирование видимости делает это дешёвым.
+   */
+  private drawFirstUse() {
+    const r = this.renderer;
+    const prevAutoClear = r.autoClear;
+    const prevShadowAuto = r.shadowMap.autoUpdate;
+    const prevScissorTest = r.getScissorTest();
+    const prevViewport = r.getViewport(new THREE.Vector4());
+    const prevScissor = r.getScissor(new THREE.Vector4());
+    r.autoClear = false;
+    r.shadowMap.autoUpdate = false;
+    r.setScissorTest(true);
+    r.setViewport(0, 0, 2, 2);
+    r.setScissor(0, 0, 2, 2);
+    try {
+      r.render(this.scene, this.camera);
+    } finally {
+      r.autoClear = prevAutoClear;
+      r.shadowMap.autoUpdate = prevShadowAuto;
+      r.setScissorTest(prevScissorTest);
+      r.setViewport(prevViewport);
+      r.setScissor(prevScissor);
+    }
+  }
+
   private warmupStep() {
     const queue = this.warmupQueue;
     if (!queue) return;
@@ -349,6 +377,18 @@ export class ReefWorld {
           this.keyLight.castShadow = false;
           this.renderer.setRenderTarget(null);
           this.renderer.compile(this.scene, this.camera);
+          this.keyLight.castShadow = true;
+        }
+        // «Первый кадр» для каждой программы: с KHR_parallel_shader_compile
+        // драйвер линкует мгновенно («линковок 136, суммарно 1мс» в отчётах),
+        // а настоящую компиляцию держит до первой отрисовки — и платит ею
+        // прямо в первом VR-кадре (отчёт №4: «рендер 36558мс» при GPU 0.5мс).
+        // Прогоняем меш реальной отрисовкой в угол канваса 2×2 (scissor, без
+        // autoClear) — компиляция прогорает в лобби, кадр не портится.
+        this.drawFirstUse();
+        if (this.keyLight) {
+          this.keyLight.castShadow = false;
+          this.drawFirstUse();
           this.keyLight.castShadow = true;
         }
         this.renderer.setRenderTarget(null);
