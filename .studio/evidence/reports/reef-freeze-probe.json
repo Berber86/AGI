@@ -1,42 +1,42 @@
 {
-  "generatedAt": "2026-10-18T12:44:43.467Z",
+  "generatedAt": "2026-10-18T14:02:12.082Z",
   "uiReady": true,
   "reportFound": true,
   "summary": {
-    "frames": 10,
-    "spanMs": 8418,
-    "fps": 1.2,
-    "p50": 867.7,
-    "p90": 2133.8,
-    "p99": 2133.8,
-    "max": 2133.8,
+    "frames": 11,
+    "spanMs": 8036,
+    "fps": 1.4,
+    "p50": 785.8,
+    "p90": 1344.9,
+    "p99": 2284.6,
+    "max": 2284.6,
     "freezeMs": 150,
-    "freezes": 9,
-    "freezeTotalMs": 9093,
+    "freezes": 8,
+    "freezeTotalMs": 8004,
     "owners": [
       {
         "category": "outside",
         "name": "вне кадра (GC/браузер/композитор)",
-        "count": 9,
-        "freezeMs": 9093,
+        "count": 8,
+        "freezeMs": 8004,
         "sharePct": 100
       }
     ],
     "avg": {
-      "gazeMs": 0.02,
-      "worldMs": 0.2,
-      "partMs": 0.03,
-      "discMs": 0.05,
-      "uniMs": 0,
+      "gazeMs": 0.01,
+      "worldMs": 0.16,
+      "partMs": 0.04,
+      "discMs": 0.03,
+      "uniMs": 0.01,
       "actMs": 0.07,
-      "aniMs": 0.03,
-      "schMs": 0.09,
-      "renderMs": 2.62,
+      "aniMs": 0.01,
+      "schMs": 0.07,
+      "renderMs": 1.83,
       "rEye0Ms": 0,
       "rEye1Ms": 0,
-      "rCompMs": 2.53,
+      "rCompMs": 1.75,
       "gpuMs": 0.03,
-      "outsideMs": 998.41
+      "outsideMs": 729.56
     },
     "longTasks": {
       "count": 0,
@@ -49,13 +49,10 @@
       "kinds": {}
     },
     "loaf": {
-      "count": 8,
+      "count": 4,
       "styleAvgMs": 0,
       "paintAvgMs": 0,
-      "topScripts": [
-        "user-callback:index.html 17мс",
-        "user-callback:index.html 6мс"
-      ]
+      "topScripts": []
     },
     "gpu": {
       "avgMs": 0,
@@ -71,6 +68,15 @@
       "drawsAvg": 98,
       "trisAvg": 396534
     },
+    "glass": "on",
+    "shaders": {
+      "links": 132,
+      "totalMs": 31,
+      "maxMs": 11,
+      "duringCapture": 0,
+      "programsStart": 132,
+      "programsEnd": 132
+    },
     "camera": {
       "ticks": 0,
       "procAvgMs": 0,
@@ -83,11 +89,11 @@
   "freezeCaught": true,
   "classified": true,
   "worstLabels": [
-    "#34 2134мс вне меток 2132мс (композитор/презентация/GC-в-простое)",
-    "#40 1538мс вне меток 1534мс (композитор/презентация/GC-в-простое)",
-    "#35 1172мс вне меток 1166мс (композитор/презентация/GC-в-простое)",
-    "#33 912мс вне меток 910мс (композитор/презентация/GC-в-простое)",
-    "#36 868мс вне меток 864мс (композитор/презентация/GC-в-простое)"
+    "#69 2285мс вне меток 2282мс (композитор/презентация/GC-в-простое)",
+    "#71 1345мс вне меток 1343мс (композитор/презентация/GC-в-простое)",
+    "#67 1015мс вне меток 1013мс (композитор/презентация/GC-в-простое)",
+    "#66 905мс вне меток 903мс (композитор/презентация/GC-в-простое)",
+    "#65 799мс вне меток 796мс (композитор/презентация/GC-в-простое)"
   ],
   "hasVerdictBlock": true,
   "hasDeviceBlock": true,
@@ -97,11 +103,6 @@
     "loaf",
     "loaf",
     "stall",
-    "loaf",
-    "stall",
-    "loaf",
-    "loaf",
-    "loaf",
     "loaf",
     "loaf",
     "stall",

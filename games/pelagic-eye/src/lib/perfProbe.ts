@@ -94,6 +94,8 @@ class PerfProbe {
   lastReport: { text: string; json: Record<string, unknown> } | null = null;
   /** Замер заармлен и стартует при входе в VR (см. App). */
   armedForVr = false;
+  /** A/B-режим «без стекла»: backdrop-filter-оверлеи отключены (см. DriverWorkshop). */
+  glassOff = false;
   private observer: PerformanceObserver | null = null;
 
   constructor() {
@@ -185,6 +187,43 @@ class PerfProbe {
     Object.assign(this.meta, meta);
   }
 
+  /**
+   * Слежение за компиляцией шейдеров: на Mali/ANGLE линковка ~0.5–1с на
+   * программу, шторм из 36 линковок = 30с фриза внутри renderer.render().
+   * Счётчики пишутся всегда (это дёшево), события — в лог замера.
+   */
+  watchGL(gl: WebGL2RenderingContext | WebGLRenderingContext) {
+    const stats = { links: 0, linkMs: 0, compiles: 0, compileMs: 0 };
+    this.shaderStats = stats;
+    try {
+      const proto = Object.getPrototypeOf(gl) as WebGL2RenderingContext;
+      const oLink = proto.linkProgram;
+      proto.linkProgram = function (this: WebGL2RenderingContext, p: WebGLProgram) {
+        const t = performance.now();
+        oLink.call(this, p);
+        const ms = performance.now() - t;
+        stats.links += 1;
+        stats.linkMs += ms;
+        if (ms > perfProbe.shaderLinkMax) perfProbe.shaderLinkMax = ms;
+        if (perfProbe.active) perfProbe.shaderLinksDuringCapture += 1;
+        perfProbe.event("shader:link", undefined, ms);
+      };
+      const oComp = proto.compileShader;
+      proto.compileShader = function (this: WebGL2RenderingContext, s: WebGLShader) {
+        const t = performance.now();
+        oComp.call(this, s);
+        stats.compiles += 1;
+        stats.compileMs += performance.now() - t;
+      };
+    } catch {
+      /* контекст не патчится — живём без слежения */
+    }
+  }
+
+  shaderStats = { links: 0, linkMs: 0, compiles: 0, compileMs: 0 };
+  shaderLinkMax = 0;
+  shaderLinksDuringCapture = 0;
+
   event(kind: string, detail?: string, ms?: number) {
     this.pushEvent({ t: performance.now(), frame: this.currentFrame, kind, detail, ms });
   }
@@ -204,6 +243,7 @@ class PerfProbe {
     this.loafs = [];
     this.lastReport = null;
     this.armedForVr = false;
+    this.shaderLinksDuringCapture = 0;
     this.startedAt = performance.now();
     this.active = true;
     this.pushEvent({ t: this.startedAt, frame: this.currentFrame, kind: "probe:start", ms: durationMs });
@@ -414,7 +454,7 @@ class PerfProbe {
       lines.push("Примечание: программный растеризатор — отрисовка GPU попадает во «вне кадра»; на реальном телефоне она уйдёт в рендер.");
     }
     lines.push(
-      `Режим: ${this.meta.vrMode || "?"}, quality=${this.meta.quality ?? "?"}, dpr=${this.meta.dpr ?? "?"}, экран ${this.meta.screen ?? "?"}`
+      `Режим: ${this.meta.vrMode || "?"}, quality=${this.meta.quality ?? "?"}, dpr=${this.meta.dpr ?? "?"}, экран ${this.meta.screen ?? "?"}, стекло ${this.glassOff ? "выкл (A/B)" : "вкл"}`
     );
     lines.push(
       `Кадры: ${frames.length} за ${fmt(spanMs / 1000, 1)}с (≈${fmt(fps, 1)} FPS), фреймворк-время: p50 ${fmt(p50)}мс · p90 ${fmt(p90)}мс · p99 ${fmt(p99)}мс · max ${fmt(maxW)}мс`
@@ -444,17 +484,29 @@ class PerfProbe {
     const loafPaintAvg = this.loafs.length
       ? this.loafs.reduce((a, l) => a + l.paintMs, 0) / this.loafs.length
       : 0;
-    const scriptCounts = new Map<string, { n: number; ms: number }>();
+    const scriptCounts = new Map<string, { n: number }>();
     for (const l of this.loafs) {
       for (const s of l.scripts) {
-        const cur = scriptCounts.get(s) || { n: 0, ms: 0 };
+        // Ключ без миллисекунд — иначе каждый «user-callback:index.html 123мс»
+        // становится отдельной строкой топа.
+        const key = s.replace(/\s+\d+мс$/, "");
+        const cur = scriptCounts.get(key) || { n: 0 };
         cur.n += 1;
-        scriptCounts.set(s, cur);
+        scriptCounts.set(key, cur);
       }
     }
-    const topScripts = [...scriptCounts.entries()].slice(0, 4).map(([s]) => s);
+    const topScripts = [...scriptCounts.entries()]
+      .sort((a, b) => b[1].n - a[1].n)
+      .slice(0, 4)
+      .map(([s, v]) => `${s} ×${v.n}`);
     lines.push(
       `LoAF (длинные кадры анимации): ${this.loafs.length} шт, стиль+раскладка ср. ${fmt(loafStyleAvg, 0)}мс, пейнт ср. ${fmt(loafPaintAvg, 0)}мс${topScripts.length ? `; топ: ${topScripts.join(" | ")}` : ""}`
+    );
+    const progVals = frames.map((f) => f.programs).filter((p) => p > 0);
+    const progStart = progVals.length ? progVals[0] : 0;
+    const progEnd = progVals.length ? progVals[progVals.length - 1] : 0;
+    lines.push(
+      `Шейдеры: линковок ${this.shaderStats.links}, суммарно ${fmt(this.shaderStats.linkMs, 0)}мс (макс ${fmt(this.shaderLinkMax, 0)}мс); программ в кэше: ${progStart} → ${progEnd}${this.shaderLinksDuringCapture ? `, из них во время замера: ${this.shaderLinksDuringCapture}` : ""}`
     );
     lines.push(
       `UI-цикл (панель драйвера, опрос/превью): ${uiPolls.length} шт, ср. ${fmt(uiPollAvg)}мс, макс ${fmt(uiPollMax)}мс`
@@ -540,6 +592,15 @@ class PerfProbe {
         gpu: { avgMs: +fmt(avg.gpuMs), maxMs: +fmt(gpuMax), bound: avg.gpuMs > p50 * 0.45 },
         uiPoll: { count: uiPolls.length, avgMs: +fmt(uiPollAvg), maxMs: +fmt(uiPollMax) },
         scene: { drawsAvg: +fmt(drawsAvg, 0), trisAvg: Math.round(trisAvg) },
+        glass: this.glassOff ? "off (A/B без стекла)" : "on",
+        shaders: {
+          links: this.shaderStats.links,
+          totalMs: Math.round(this.shaderStats.linkMs),
+          maxMs: Math.round(this.shaderLinkMax),
+          duringCapture: this.shaderLinksDuringCapture,
+          programsStart: progStart,
+          programsEnd: progEnd,
+        },
         camera: {
           ticks: camTicks,
           procAvgMs: +fmt(camProcAvg, 0),

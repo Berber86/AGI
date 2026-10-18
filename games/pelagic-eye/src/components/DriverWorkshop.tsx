@@ -43,6 +43,23 @@ interface Props {
 
 const initialInfo = (provider: CameraMarkerProvider): TrackerInfo => provider.getInfo();
 
+/** Живой A/B-тег «без стекла»: снимает backdrop-filter со всех оверлеев. */
+export function applyNoGlass(on: boolean) {
+  const id = "pe-noglass";
+  const existing = document.getElementById(id);
+  if (existing) existing.remove();
+  document.documentElement.removeAttribute("data-pe-noglass");
+  if (!on) return;
+  const tag = document.createElement("style");
+  tag.id = id;
+  tag.textContent =
+    "[data-pe-noglass] .glass,[data-pe-noglass] .plate,[data-pe-noglass] .menu-panel,[data-pe-noglass] .panel" +
+    "{background:rgba(8,9,18,.92)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}" +
+    "[data-pe-noglass] .title{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}";
+  document.head.appendChild(tag);
+  document.documentElement.setAttribute("data-pe-noglass", "");
+}
+
 const phaseCopy: Record<string, string> = {
   idle: "не запущено",
   starting: "запуск",
@@ -140,6 +157,16 @@ export default function DriverWorkshop({
   const startProbe = () => {
     perfProbe.start(15000);
     setProbe({ state: "running", left: 15, text: null });
+  };
+
+  // A/B «без стекла»: backdrop-filter-оверлеи (стекло HUD, панели, титул) —
+  // главный подозреваемый композиторной нагрузки Android/Chrome. Тег стилей
+  // живёт в <head> независимо от React — переживает закрытие панели.
+  const [glassOff, setGlassOff] = useState(() => perfProbe.glassOff);
+  const toggleGlass = (on: boolean) => {
+    applyNoGlass(on);
+    perfProbe.glassOff = on;
+    setGlassOff(on);
   };
 
   const copyProbe = async () => {
@@ -903,6 +930,25 @@ export default function DriverWorkshop({
                   разбивку: сцена, рендер по глазам, GC-паузы, тики камеры. Готовый отчёт называет причину каждого
                   фриза и виновников по времени.
                 </p>
+                <label
+                  className={`mt-3 flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 transition ${
+                    glassOff ? "border-gold/45 bg-gold/[0.1]" : "border-white/[0.09] bg-white/[0.02]"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={glassOff}
+                    onChange={(e) => toggleGlass(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-[#d4af6a]"
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[9px] font-semibold text-cream/85">Тест без стекла (A/B)</span>
+                    <span className="block text-[8px] leading-[1.55] text-fog/50">
+                      Временно убирает blur-подложки интерфейса — так видно, сколько фризов даёт композитор Android.
+                      Сделайте два замера (вкл/выкл) и сравните отчёты.
+                    </span>
+                  </span>
+                </label>
                 {probe.state === "idle" && (
                   <div className="mt-3 space-y-1.5">
                     <button

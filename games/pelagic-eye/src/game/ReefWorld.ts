@@ -210,6 +210,8 @@ export class ReefWorld {
   private probePrevT = 0;
   private probeRender = { eye0: 0, eye1: 0, comp: 0, gpuWait: 0 };
   private probeWorld = { uni: 0, act: 0, ani: 0, sch: 0 };
+  // Порционный прогрев шейдеров (см. startWarmup/warmupStep).
+  private warmupQueue: THREE.Object3D[] | null = null;
 
   constructor(
     container: HTMLElement,
@@ -267,6 +269,7 @@ export class ReefWorld {
     }
     this.renderer.domElement.addEventListener("webglcontextlost", () => perfProbe.event("webglcontextlost"));
     this.renderer.domElement.addEventListener("webglcontextrestored", () => perfProbe.event("webglcontextrestored"));
+    perfProbe.watchGL(this.renderer.getContext());
     (window as unknown as { __PROBE__?: unknown }).__PROBE__ = perfProbe;
 
     this.scene = new THREE.Scene();
@@ -280,8 +283,86 @@ export class ReefWorld {
     this.applyRenderProfile();
     this.attachEvents();
     this.resize();
+    this.startWarmup();
 
     this.raf = requestAnimationFrame(this.loop);
+  }
+
+  /**
+   * Прогрев шейдеров порциями. Материалы, отрисованные в канвас (VR-путь,
+   * глаза) и в HalfFloat-таргет composer'а — это РАЗНЫЕ программы (у них
+   * разные tonemapping/output-пермутации). На Mali/ANGLE линковка ~0.5–1с на
+   * программу: без прогрева вход в VR собирает шторм из 36 линковок прямо
+   * внутри первого стерео-кадра = 30с фриза. Прогреваем обе пермутации
+   * понемногу (~55мс за кадр), пока игрок ещё в лобби.
+   */
+  private startWarmup() {
+    // Очередь — по мешам, а не по группам: один шаг = одна линковка-две,
+    // и кадр не может «провалиться» на десятки секунд. Бюджет шага ниже
+    // отсекает второй меш, если первый уже стоил дорого.
+    const queue: THREE.Object3D[] = [];
+    this.scene.traverse((o) => {
+      const o2 = o as unknown as { isMesh?: boolean; isPoints?: boolean; isLine?: boolean; isSprite?: boolean };
+      if (o2.isMesh || o2.isPoints || o2.isLine || o2.isSprite) queue.push(o);
+    });
+    this.warmupQueue = queue;
+    perfProbe.event("warmup:start", `${queue.length} мешей`);
+  }
+
+  private warmupStep() {
+    const queue = this.warmupQueue;
+    if (!queue) return;
+    const deadline = performance.now() + 55;
+    const composerTarget = this.composer
+      ? (this.composer as unknown as { renderTarget1?: THREE.WebGLRenderTarget }).renderTarget1 ?? null
+      : null;
+    try {
+      while (queue.length && performance.now() < deadline) {
+        const obj = queue.pop();
+        if (!obj) break;
+        // compile() собирает состояние света от КОРНЯ: если корень — меш,
+        // numLights=0 и программа выходит «слепой» (VR-вход потом собирал
+        // шторм из 36 правильных вариантов). Поэтому компилируем ОТ СЦЕНЫ,
+        // а видимость маскируем: светильники и группы остаются видимыми,
+        // из мешей виден только текущий. Ночные/скрытые группы включаем.
+        const saved: Array<[THREE.Object3D, boolean]> = [];
+        this.scene.traverse((o) => {
+          const o2 = o as unknown as { isMesh?: boolean; isPoints?: boolean; isLine?: boolean; isSprite?: boolean };
+          const meshLike = !!(o2.isMesh || o2.isPoints || o2.isLine || o2.isSprite);
+          const want = meshLike ? o === obj : true;
+          if (o.visible !== want) {
+            saved.push([o, o.visible]);
+            o.visible = want;
+          }
+        });
+        this.renderer.setRenderTarget(null);
+        this.renderer.compile(this.scene, this.camera);
+        if (composerTarget) {
+          this.renderer.setRenderTarget(composerTarget);
+          this.renderer.compile(this.scene, this.camera);
+        }
+        // VR-губернатор на tier 0 гасит keyLight.castShadow — это меняет
+        // numShadows в ключе программы, и каждый материал требует ещё одного
+        // варианта. Греем и «без тени», иначе автосрез во время игры собирает
+        // шторм из ~30 линковок.
+        if (this.keyLight) {
+          this.keyLight.castShadow = false;
+          this.renderer.setRenderTarget(null);
+          this.renderer.compile(this.scene, this.camera);
+          this.keyLight.castShadow = true;
+        }
+        this.renderer.setRenderTarget(null);
+        for (const [o, vis] of saved) o.visible = vis;
+      }
+    } catch {
+      /* no-op */
+    }
+    if (!queue.length) {
+      this.warmupQueue = null;
+      perfProbe.event("warmup:done", `программ ${this.renderer.info.programs?.length ?? "?"}`);
+      // Хук QA (qa/shaderwarmup.mjs).
+      (window as unknown as { __PE_WARMUP_DONE__?: boolean }).__PE_WARMUP_DONE__ = true;
+    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -2026,6 +2107,8 @@ export class ReefWorld {
         camBusy: perfProbe.camBusy,
       });
     }
+    // Прогрев шейдеров — после рендера, чтобы не задерживать текущий кадр.
+    this.warmupStep();
     this.statsTimer += dt;
     if (this.statsTimer > (this.settings.vr ? 2 : 1)) {
       this.lastFps = Math.round(this.statsFrames / this.statsTimer);
