@@ -12,6 +12,8 @@
  * она явно подписана и не выдаётся за живую камеру.
  */
 
+import { perfProbe } from "./perfProbe";
+
 export type MarkerMode = "single" | "dual";
 export type TrackerFeed = "live" | "synthetic";
 export type GazeStatus = "valid" | "single" | "held" | "lost" | "idle";
@@ -697,6 +699,9 @@ export class CameraMarkerProvider {
     // FRUGAL_INTERVAL_MS).
     if (now - this.lastProcessed < this.effectiveIntervalMs()) return;
     this.busy = true;
+    perfProbe.camBusy = true;
+    perfProbe.event("cam:tick");
+    const camT0 = performance.now();
     const dims = TIERS[this.effectiveTier()];
     if (this.busyTimer) window.clearTimeout(this.busyTimer);
     this.busyTimer = window.setTimeout(() => {
@@ -710,6 +715,7 @@ export class CameraMarkerProvider {
         }
         this.drawSynthetic(now);
         const bitmap = await createImageBitmap(this.syntheticCanvas);
+        perfProbe.event("cam:bitmap", "synthetic", performance.now() - camT0);
         this.lastProcessed = now;
         this.worker.postMessage({ type: "frame", bitmap, w: dims.w, h: dims.h, t: now }, [bitmap]);
         return;
@@ -729,10 +735,13 @@ export class CameraMarkerProvider {
       } catch {
         bitmap = await createImageBitmap(video);
       }
+      perfProbe.event("cam:bitmap", "video", performance.now() - camT0);
       this.lastProcessed = now;
       this.worker.postMessage({ type: "frame", bitmap, w: dims.w, h: dims.h, t: now }, [bitmap]);
     } catch (error) {
       this.busy = false;
+      perfProbe.camBusy = false;
+      perfProbe.event("cam:error", (error as Error)?.message || String(error));
       this.error = `Сбой захвата кадра: ${(error as Error)?.message || error}`;
       this.running = false;
     }
@@ -767,12 +776,15 @@ export class CameraMarkerProvider {
 
   private onWorkerMessage(msg: { type: string; message?: string } & Partial<FrameResult>) {
     this.busy = false;
+    perfProbe.camBusy = false;
     if (this.busyTimer) window.clearTimeout(this.busyTimer);
     if (msg.type === "error") {
       this.error = `Worker: ${msg.message || "ошибка анализа"}`;
+      perfProbe.event("cam:error", msg.message);
       return;
     }
     if (msg.type !== "result") return;
+    perfProbe.event("cam:result", undefined, msg.procMs);
     const now = performance.now();
     const wasSeen = this.visible;
     const wasLastSeen = this.lastSeen;

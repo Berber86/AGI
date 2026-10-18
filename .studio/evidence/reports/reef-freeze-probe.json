@@ -1,0 +1,75 @@
+{
+  "generatedAt": "2026-10-18T11:35:06.580Z",
+  "uiReady": true,
+  "reportFound": true,
+  "summary": {
+    "frames": 11,
+    "spanMs": 9990,
+    "fps": 1.1,
+    "p50": 673.7,
+    "p90": 2383.9,
+    "p99": 2447.7,
+    "max": 2447.7,
+    "freezeMs": 150,
+    "freezes": 7,
+    "freezeTotalMs": 9940,
+    "owners": [
+      {
+        "name": "вне кадра",
+        "count": 7,
+        "freezeMs": 9940,
+        "sharePct": 100
+      }
+    ],
+    "avg": {
+      "gazeMs": 0,
+      "worldMs": 0.21,
+      "partMs": 0.08,
+      "discMs": 0.04,
+      "uniMs": 0,
+      "actMs": 0.07,
+      "aniMs": 0.05,
+      "schMs": 0.08,
+      "renderMs": 2.5,
+      "rEye0Ms": 0,
+      "rEye1Ms": 0,
+      "rCompMs": 2.45,
+      "outsideMs": 906.83
+    },
+    "longTasks": {
+      "count": 0,
+      "totalMs": 0
+    },
+    "camera": {
+      "ticks": 0,
+      "procAvgMs": 0,
+      "freezesWithCam": 0
+    }
+  },
+  "freezeCaught": true,
+  "classified": true,
+  "worstLabels": [
+    "#66 2448мс вне кадра: GC/браузер/композитор/React",
+    "#64 2384мс вне кадра: GC/браузер/композитор/React",
+    "#67 2181мс вне кадра: GC/браузер/композитор/React",
+    "#62 959мс вне кадра: GC/браузер/композитор/React",
+    "#65 953мс вне кадра: GC/браузер/композитор/React"
+  ],
+  "hasVerdictBlock": true,
+  "hasDeviceBlock": true,
+  "events": [
+    "probe:start",
+    "probe:stop"
+  ],
+  "errors": [],
+  "assertions": {
+    "uiReady": true,
+    "reportFound": true,
+    "framesCollected": true,
+    "freezeCaught": true,
+    "classified": true,
+    "hasVerdictBlock": true,
+    "hasDeviceBlock": true,
+    "noPageErrors": true
+  }
+}

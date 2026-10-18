@@ -5,6 +5,7 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { CameraMarkerProvider, GazeSample } from "../lib/markerDriver";
 import type { SpeciesId } from "../lib/species";
+import { perfProbe } from "../lib/perfProbe";
 import {
   makeCoralSkinTexture,
   buildFish,
@@ -205,6 +206,10 @@ export class ReefWorld {
   private lastFrameMs = 16.7;
   private shadowPassesPerPair = 1;
   private perfNotes = { renderMs: 0, cameraProcMs: 0, cameraQueue: 0, cameraTier: 0, stereo: false, dpr: 1 };
+  // Метки для 15с-теста фризов (perfProbe): пофреймовая разбивка кадра.
+  private probePrevT = 0;
+  private probeRender = { eye0: 0, eye1: 0, comp: 0 };
+  private probeWorld = { uni: 0, act: 0, ani: 0, sch: 0 };
 
   constructor(
     container: HTMLElement,
@@ -241,6 +246,28 @@ export class ReefWorld {
     this.renderer.domElement.style.touchAction = "none";
     this.renderer.domElement.setAttribute("aria-label", "Подводный риф: осмотритесь, перетаскивая сцену");
     container.appendChild(this.renderer.domElement);
+
+    // Мета для отчёта теста фризов: GPU/устройство — первое, что нужно
+    // при разборе «почему фризит». Плюс лог потери контекста WebGL.
+    try {
+      const gl = this.renderer.getContext();
+      const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+      perfProbe.setMeta({
+        ua: navigator.userAgent,
+        gpu: dbg ? String(gl.getParameter((dbg as { UNMASKED_RENDERER_WEBGL: number }).UNMASKED_RENDERER_WEBGL)) : "n/a",
+        dpr: window.devicePixelRatio,
+        screen: `${window.screen.width}×${window.screen.height}`,
+        cores: (navigator as { hardwareConcurrency?: number }).hardwareConcurrency ?? null,
+        memoryGB: (navigator as { deviceMemory?: number }).deviceMemory ?? null,
+        vrMode: settings.vr ? "VR-стерео" : "обычный",
+        quality: settings.quality,
+      });
+    } catch {
+      /* no-op */
+    }
+    this.renderer.domElement.addEventListener("webglcontextlost", () => perfProbe.event("webglcontextlost"));
+    this.renderer.domElement.addEventListener("webglcontextrestored", () => perfProbe.event("webglcontextrestored"));
+    (window as unknown as { __PROBE__?: unknown }).__PROBE__ = perfProbe;
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.FogExp2(0x0e5a6b, 0.024);
@@ -1945,15 +1972,59 @@ export class ReefWorld {
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
+    const probeNow = performance.now();
+    const wallMs = this.probePrevT ? probeNow - this.probePrevT : 0;
+    this.probePrevT = probeNow;
     const dt = Math.min(this.clock.getDelta(), 0.06);
     this.lifeTime += dt;
     this.frame++;
     this.statsFrames++;
+    perfProbe.currentFrame = this.frame;
+    const p0 = performance.now();
     this.updateGaze(dt);
+    const p1 = performance.now();
     this.updateWorld(dt);
+    const p2 = performance.now();
     if (!this.settings.vr || this.frame % 2 === 0) this.updateParticles(dt);
+    const p3 = performance.now();
     this.updateDiscovery(dt);
+    const p4 = performance.now();
     this.render(dt);
+    const p5 = performance.now();
+    if (perfProbe.active) {
+      // Важно: «вне кадра» — это GC, React, композитор браузера; именно тут
+      // живут фризы, которые не видно по счётчикам рендера.
+      perfProbe.meta.vrMode = this.settings.vr ? "VR-стерео" : "обычный";
+      perfProbe.meta.quality = this.settings.quality;
+      perfProbe.meta.dpr = this.renderer.getPixelRatio();
+      perfProbe.submit({
+        frame: this.frame,
+        t: probeNow,
+        wallMs,
+        dtMs: dt * 1000,
+        gazeMs: p1 - p0,
+        worldMs: p2 - p1,
+        partMs: p3 - p2,
+        discMs: p4 - p3,
+        uniMs: this.probeWorld.uni,
+        actMs: this.probeWorld.act,
+        aniMs: this.probeWorld.ani,
+        schMs: this.probeWorld.sch,
+        rEye0Ms: this.probeRender.eye0,
+        rEye1Ms: this.probeRender.eye1,
+        rCompMs: this.probeRender.comp,
+        renderMs: p5 - p4,
+        outsideMs: Math.max(0, wallMs - (p5 - p0)),
+        calls: this.renderer.info.render.calls,
+        triangles: this.renderer.info.render.triangles,
+        programs: this.renderer.info.programs?.length ?? 0,
+        heapMB: (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory
+          ? (performance as unknown as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize / 1048576
+          : null,
+        gov: this.vrGovTier,
+        camBusy: perfProbe.camBusy,
+      });
+    }
     this.statsTimer += dt;
     if (this.statsTimer > (this.settings.vr ? 2 : 1)) {
       this.lastFps = Math.round(this.statsFrames / this.statsTimer);
@@ -2032,6 +2103,7 @@ export class ReefWorld {
 
   private updateWorld(dt: number) {
     const t = this.lifeTime;
+    const wu0 = performance.now();
     // Свечение каустики бежит по дну.
     if (this.causticTexture) {
       this.causticTexture.offset.x = t * 0.012;
@@ -2045,6 +2117,7 @@ export class ReefWorld {
     });
     // Кораллы качаются в shader'е склеенной статики (mergeStatic).
     staticSwayTime.value = t;
+    const wu1 = performance.now();
 
     this.fishActors.forEach((actor) => {
       if (this.settings.vr && !actor.group.visible) return;
@@ -2068,6 +2141,7 @@ export class ReefWorld {
       // Угри покачиваются в shader'е (mergeEels); на группе — общий размах.
       this.eelAnchor.rotation.y = Math.sin(t * 0.18) * 0.08;
     }
+    const wu2 = performance.now();
 
     if (this.turtleRig && this.turtlePath) {
       this.turtleProgress = (this.turtleProgress + dt * 0.0095) % 1;
@@ -2133,6 +2207,7 @@ export class ReefWorld {
       if (bell) bell.scale.set(1 + Math.sin(t * 1.2 + phase) * 0.08, 0.62 + Math.sin(t * 1.2 + phase) * 0.06, 1);
     });
 
+    const wu3 = performance.now();
     // Школы, взвесь и instance-матрицы рыб живут и в VR, но с половинной
     // частотой обновления: это не видно на 5–8 Гц взгляда, зато экономит
     // JS-время пары кадров.
@@ -2140,6 +2215,11 @@ export class ReefWorld {
       this.updateSchools(t);
       this.updateFishInstances();
     }
+    const wu4 = performance.now();
+    this.probeWorld.uni = wu1 - wu0;
+    this.probeWorld.act = wu2 - wu1;
+    this.probeWorld.ani = wu3 - wu2;
+    this.probeWorld.sch = wu4 - wu3;
   }
 
   private updateSchools(t: number) {
@@ -2274,6 +2354,7 @@ export class ReefWorld {
       this.renderer.shadowMap.autoUpdate = false;
       this.renderer.shadowMap.needsUpdate = true;
       this.shadowPassesPerPair = 1;
+      this.probeRender.comp = 0;
       this.renderer.setScissorTest(true);
       const half = width / 2;
       this.camera.aspect = half / height;
@@ -2287,7 +2368,10 @@ export class ReefWorld {
         this.camera.updateMatrixWorld();
         this.renderer.setViewport(eye * half, 0, half, height);
         this.renderer.setScissor(eye * half, 0, half, height);
+        const eyeStart = performance.now();
         this.renderer.render(this.scene, this.camera);
+        if (eye === 0) this.probeRender.eye0 = performance.now() - eyeStart;
+        else this.probeRender.eye1 = performance.now() - eyeStart;
       }
       this.renderer.setScissorTest(false);
       this.renderer.setViewport(0, 0, width, height);
@@ -2297,11 +2381,18 @@ export class ReefWorld {
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.camera.position.copy(BASE_POSITION);
+      this.probeRender.eye0 = 0;
+      this.probeRender.eye1 = 0;
       if (this.composer && !this.settings.vr) {
         if (this.bloomPass) this.bloomPass.enabled = this.settings.quality === "high" && !this.settings.reducedMotion;
+        const compStart = performance.now();
         this.composer.render();
+        this.probeRender.comp = performance.now() - compStart;
       } else {
+        this.probeRender.comp = 0;
+        const eyeStart = performance.now();
         this.renderer.render(this.scene, this.camera);
+        this.probeRender.eye0 = performance.now() - eyeStart;
       }
     }
     this.camera.position.copy(BASE_POSITION);
@@ -2331,6 +2422,7 @@ export class ReefWorld {
     }
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    perfProbe.event("resize", `${width}×${height}@${dpr}`);
   }
 
   setInteractive(interactive: boolean) {
@@ -2374,6 +2466,7 @@ export class ReefWorld {
 
   setQuality(quality: Quality) {
     this.settings.quality = quality;
+    perfProbe.event("quality", quality);
     // Качество в VR теперь уважается: balanced сразу гасит полупрозрачный
     // стек. Тумблер не поднимает уровень, срезанный губернатором.
     if (this.settings.vr && quality !== "high" && this.vrGovTier > 1) {
@@ -2437,6 +2530,7 @@ export class ReefWorld {
     this.vrGovTier = tier;
     const log = ((window as unknown as { __VR_LOG__?: string[] }).__VR_LOG__ ||= []);
     log.push(`vrGov tier=${tier} ${reason} at ${Math.round(performance.now())}`);
+    perfProbe.event("gov", `tier=${tier} ${reason}`);
     this.applyRenderProfile();
   }
 
