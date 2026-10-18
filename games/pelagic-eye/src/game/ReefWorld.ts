@@ -30,8 +30,13 @@ import {
 import { animateManta, animateTurtle, animateWhale, buildJellyfish, buildManta, buildTurtle, buildWhale, type MantaRig, type TurtleRig, type WhaleRig } from "./creatures";
 import {
   buildMergedGeometry,
+  decorateActorMaterial,
+  decorateEelMaterial,
   decorateStaticMaterial,
+  mergeActorParts,
   staticSwayTime,
+  type ActorAnimSlot,
+  type ActorPartSpec,
   type StaticPart,
 } from "./mergeStatic";
 
@@ -454,6 +459,8 @@ export class ReefWorld {
 
     // Склейка статики — последним шагом, когда все меши на своих местах.
     this.mergeStatics();
+    // Обитатели: склейка жёстких частей + shader-анимация + инстансы рыб.
+    this.mergeActors();
   }
 
   private shaderShafts: { value: number }[] = [];
@@ -487,6 +494,398 @@ export class ReefWorld {
    * вершины, каждый класс становится одним мешем. Исходные меши удаляются,
    * их геометрии и «лишние» материалы освобождаются (текстуры общие — живут).
    */
+  /* ---------------------------------------------------------------- */
+  /*  Stage 3: анимированные обитатели — склейка + shader-анимация     */
+  /* ---------------------------------------------------------------- */
+
+  private fishInst: {
+    meshes: THREE.InstancedMesh[];
+    entries: { actor: FishActor; index: number; hidden: boolean }[];
+  }[] = [];
+
+  /** Пивоты и формулы — ровно как в creatures.ts/updateWorld (фаза сверена). */
+  private actorSlots() {
+    const p = Math.sin(0.32);
+    const q = Math.cos(0.32);
+    return {
+      fish: [
+        { axis1: new THREE.Vector3(0, 1, 0), base1: 0, freq1: 9, amp1: 0.36 },
+        { axis1: new THREE.Vector3(0, 0, 1), base1: 0.5, freq1: 6, amp1: 0.16 },
+      ] as ActorAnimSlot[],
+      whale: [
+        { axis1: new THREE.Vector3(1, 0, 0), base1: 0, freq1: 0.85, amp1: 0.14 },
+        { axis1: new THREE.Vector3(p, 0, q), base1: 0.34, freq1: 0.4, amp1: 0.06 },
+        { axis1: new THREE.Vector3(-p, 0, q), base1: -0.34, freq1: 0.4, amp1: -0.06 },
+      ] as ActorAnimSlot[],
+      turtle: [
+        { axis1: new THREE.Vector3(1, 0, 0), base1: 0, freq1: 1.35 * 0.8, amp1: 0.42 },
+        { axis1: new THREE.Vector3(1, 0, 0), base1: 0, freq1: 1.35 * 0.8, amp1: 0.26 },
+        { axis1: new THREE.Vector3(0, 1, 0), base1: 0, freq1: 0.24, amp1: 0.16 },
+      ] as ActorAnimSlot[],
+      manta: [
+        {
+          axis1: new THREE.Vector3(0, 0, 1), base1: 0, freq1: 0.72, amp1: -0.13,
+          axis2: new THREE.Vector3(0, 1, 0), base2: 0, freq2: 0.72, amp2: -0.035, phase2: 0.4,
+        },
+        {
+          axis1: new THREE.Vector3(0, 0, 1), base1: 0, freq1: 0.72, amp1: 0.13,
+          axis2: new THREE.Vector3(0, 1, 0), base2: 0, freq2: 0.72, amp2: 0.035, phase2: 0.4,
+        },
+      ] as ActorAnimSlot[],
+    };
+  }
+
+  /**
+   * Склеивает меши rig-группы в 2–5 мешей, перенося анимацию конечностей
+   * в vertex-shader (aAnim/aPhase + слоты вращения). Пустые pivot-группы
+   * остаются на месте — updateWorld продолжает их крутить, и это дёшево.
+   */
+  private mergeRigGroup(
+    group: THREE.Group,
+    animRoots: { root: THREE.Object3D; zeroRotation: ("x" | "y" | "z")[]; part: number; phase: number }[],
+    slots: ActorAnimSlot[],
+    opts: { cacheKey: string; exclude?: THREE.Object3D[]; timeOffset?: number }
+  ): THREE.Mesh[] {
+    group.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+    const excluded = opts.exclude ?? [];
+    const specs: ActorPartSpec[] = [];
+    const sources: THREE.Mesh[] = [];
+    group.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!(mesh as { isMesh?: boolean }).isMesh) return;
+      let n: THREE.Object3D | null = mesh;
+      while (n && n !== group) {
+        if (excluded.includes(n)) return;
+        n = n.parent;
+      }
+      let node: THREE.Object3D | null = mesh;
+      let found: (typeof animRoots)[number] | null = null;
+      const chain: THREE.Object3D[] = [];
+      while (node && node !== group) {
+        chain.push(node);
+        const hit = animRoots.find((r) => r.root === node);
+        if (hit) {
+          found = hit;
+          break;
+        }
+        node = node.parent;
+      }
+      // Матрица меша в системе anim-корня (без него — в системе группы).
+      const local = new THREE.Matrix4();
+      for (let i = chain.length - 2; i >= 0; i--) {
+        chain[i].updateMatrix();
+        local.multiply(chain[i].matrix);
+      }
+      const matrix = new THREE.Matrix4();
+      if (found) {
+        const e = found.root.rotation.clone();
+        for (const c of found.zeroRotation) (e as unknown as Record<string, number>)[c] = 0;
+        const rootStatic = new THREE.Matrix4().compose(
+          found.root.position,
+          new THREE.Quaternion().setFromEuler(e),
+          found.root.scale
+        );
+        // rootStatic × local уже в локальных координатах группы — inv не нужен.
+        matrix.copy(rootStatic).multiply(local);
+        const freq1 = slots[found.part - 1]?.freq1 ?? 0;
+        specs.push({
+          geometry: mesh.geometry,
+          matrix,
+          material: mesh.material as THREE.Material,
+          anim: {
+            part: found.part,
+            pivot: found.root.position.clone(),
+            phase: found.phase + (opts.timeOffset ?? 0) * freq1,
+          },
+        });
+      } else {
+        matrix.copy(inv).multiply(mesh.matrixWorld);
+        specs.push({ geometry: mesh.geometry, matrix, material: mesh.material as THREE.Material });
+      }
+      sources.push(mesh);
+    });
+    const meshes = mergeActorParts(specs, slots, { cacheKey: opts.cacheKey });
+    let castShadow = false;
+    sources.forEach((m) => {
+      if (m.castShadow) castShadow = true;
+    });
+    sources.forEach((m) => m.removeFromParent());
+    meshes.forEach((m) => {
+      m.matrixAutoUpdate = false;
+      m.castShadow = castShadow;
+      if (castShadow && slots.length > 0) {
+        // Тень должна повторять анимацию конечностей, иначе силуэт в тенях
+        // разъезжается с самим животным.
+        const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+        decorateActorMaterial(depth as unknown as THREE.MeshStandardMaterial, slots, {
+          cacheKey: `${opts.cacheKey}:depth`,
+        });
+        m.customDepthMaterial = depth;
+      }
+      group.add(m);
+    });
+    return meshes;
+  }
+
+  /** Рыбы: 4 InstancedMesh на вид вместо 7 мешей на рыбу. */
+  private buildFishInstances() {
+    const byKind = new Map<string, { actor: FishActor; index: number }[]>();
+    this.fishActors.forEach((actor, index) => {
+      const kind = actor.group.userData.kind as string;
+      const list = byKind.get(kind) ?? [];
+      list.push({ actor, index });
+      byKind.set(kind, list);
+    });
+    const slots = this.actorSlots().fish;
+    byKind.forEach((entries, kind) => {
+      const template = entries[0].actor.group;
+      template.updateMatrixWorld(true);
+      const all: THREE.Mesh[] = [];
+      template.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) all.push(o as THREE.Mesh);
+      });
+      const tailRoot = template.userData.tail as THREE.Object3D;
+      const tailMeshes: THREE.Mesh[] = [];
+      tailRoot.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) tailMeshes.push(o as THREE.Mesh);
+      });
+      const pectoral = template.userData.pectorals[0] as THREE.Mesh;
+      const finsMat = pectoral.material;
+      const finsRest = all.filter(
+        (m) => m.material === finsMat && m !== pectoral && !tailMeshes.includes(m)
+      );
+      const body = template.children.find((o) => (o as THREE.Mesh).isMesh) as THREE.Mesh;
+      const rest = all.filter(
+        (m) => m !== body && m !== pectoral && !tailMeshes.includes(m) && !finsRest.includes(m)
+      );
+      // eyes — одиночный меш, beads — пара с общим материалом.
+      const byMat = new Map<string, THREE.Mesh[]>();
+      rest.forEach((m) => {
+        const key = (m.material as THREE.Material).uuid;
+        byMat.set(key, [...(byMat.get(key) ?? []), m]);
+      });
+      const eyesMesh =
+        rest.find((m) => (byMat.get((m.material as THREE.Material).uuid) ?? []).length === 1) ?? rest[0];
+      const beadMeshes = rest.filter((m) => m !== eyesMesh);
+
+      // Матрицы частей — ОТНОСИТЕЛЬНО группы (масштаб рыбы живёт в instance-матрице).
+      const tailStatic = new THREE.Matrix4().compose(
+        tailRoot.position,
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0)),
+        tailRoot.scale
+      );
+      const finSpecs: ActorPartSpec[] = [
+        ...tailMeshes.map((m) => {
+          m.updateMatrix();
+          return {
+            geometry: m.geometry,
+            matrix: tailStatic.clone().multiply(m.matrix),
+            material: m.material as THREE.Material,
+            anim: { part: 1, pivot: tailRoot.position.clone(), phase: 0 },
+          };
+        }),
+        {
+          geometry: pectoral.geometry,
+          matrix: new THREE.Matrix4().compose(pectoral.position, new THREE.Quaternion(), pectoral.scale),
+          material: pectoral.material as THREE.Material,
+          anim: { part: 2, pivot: new THREE.Vector3(0, 0, 0), phase: 0 },
+        },
+        ...finsRest.map((m) => {
+          m.updateMatrix();
+          return {
+            geometry: m.geometry,
+            matrix: m.matrix.clone(),
+            material: m.material as THREE.Material,
+          };
+        }),
+      ];
+      const finsMesh = mergeActorParts(finSpecs, slots, {
+        cacheKey: `fish-fins:${kind}`,
+        instancedPhase: true,
+      })[0];
+
+      const beadSpecs: ActorPartSpec[] = beadMeshes.map((m) => {
+        m.updateMatrix();
+        return {
+          geometry: m.geometry,
+          matrix: m.matrix.clone(),
+          material: m.material as THREE.Material,
+        };
+      });
+      const beadGeom =
+        beadSpecs.length > 1
+          ? mergeActorParts(beadSpecs, [], { cacheKey: `fish-beads:${kind}` })[0]
+          : null;
+      body.updateMatrix();
+      eyesMesh.updateMatrix();
+
+      const count = entries.length;
+      const bodyInst = new THREE.InstancedMesh(body.geometry, body.material, count);
+      const finsInst = new THREE.InstancedMesh(finsMesh.geometry, finsMesh.material, count);
+      const eyesInst = new THREE.InstancedMesh(eyesMesh.geometry, eyesMesh.material, count);
+      const beadInst = new THREE.InstancedMesh(
+        beadGeom ? beadGeom.geometry : beadSpecs[0].geometry,
+        beadGeom ? beadGeom.material : beadSpecs[0].material,
+        count
+      );
+      // Фаза хвоста/плавников — per-instance.
+      const phases = new Float32Array(count);
+      entries.forEach((entry, i) => {
+        phases[i] = entry.actor.phase;
+      });
+      finsInst.geometry.setAttribute("aPhase", new THREE.InstancedBufferAttribute(phases, 1));
+
+      const meshes = [bodyInst, finsInst, eyesInst, beadInst];
+      meshes.forEach((im) => {
+        im.frustumCulled = false;
+        im.castShadow = false;
+        im.matrixAutoUpdate = false;
+        this.scene.add(im);
+      });
+      // Убираем меши у ВСЕХ рыб вида — теперь они живут в инстансах.
+      for (const entry of entries) {
+        const victims: THREE.Mesh[] = [];
+        entry.actor.group.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) victims.push(o as THREE.Mesh);
+        });
+        victims.forEach((m) => m.removeFromParent());
+      }
+      this.fishInst.push({
+        meshes,
+        entries: entries.map((entry) => ({ ...entry, hidden: false })),
+      });
+      void kind;
+    });
+  }
+
+  /** Покадровая синхронизация instance-матриц рыб с их путевыми группами. */
+  private updateFishInstances() {
+    const zero = new THREE.Matrix4().makeScale(0, 0, 0);
+    for (const set of this.fishInst) {
+      for (let i = 0; i < set.entries.length; i++) {
+        const entry = set.entries[i];
+        if (!entry.actor.group.visible) {
+          if (!entry.hidden) {
+            set.meshes.forEach((m) => m.setMatrixAt(i, zero));
+            entry.hidden = true;
+          }
+          continue;
+        }
+        entry.actor.group.updateMatrixWorld(true);
+        set.meshes.forEach((m) => m.setMatrixAt(i, entry.actor.group.matrixWorld));
+        entry.hidden = false;
+      }
+      set.meshes.forEach((m) => (m.instanceMatrix.needsUpdate = true));
+    }
+  }
+
+  /** Медузы: щупальца — один меш вместо девяти трубок. */
+  private mergeJellyTentacles() {
+    this.jellyfish.forEach((jelly) => {
+      const tubes: ActorPartSpec[] = [];
+      const sources: THREE.Mesh[] = [];
+      jelly.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!(mesh as { isMesh?: boolean }).isMesh) return;
+        const mat = mesh.material as THREE.MeshBasicMaterial;
+        if (mat.map || !mat.isMeshBasicMaterial) return;
+        if (mesh.name === "bell" || mesh === (jelly.userData.bell as THREE.Object3D)) return;
+        // Локальная матрица: щупальца — дети движущейся группы.
+        mesh.updateMatrix();
+        tubes.push({ geometry: mesh.geometry, matrix: mesh.matrix.clone(), material: mesh.material as THREE.Material });
+        sources.push(mesh);
+      });
+      if (tubes.length < 2) return;
+      const merged = mergeActorParts(tubes, [], { cacheKey: "jelly-tentacles" });
+      sources.forEach((m) => m.removeFromParent());
+      merged.forEach((m) => {
+        m.matrixAutoUpdate = false;
+        jelly.add(m);
+      });
+    });
+  }
+
+  /** Угри: 9 цилиндров — один меш с покачиванием в shader'е. */
+  private mergeEels() {
+    if (!this.eelAnchor) return;
+    const eels = (this.eelAnchor.userData.eels as THREE.Mesh[]) || [];
+    if (eels.length < 2) return;
+    const parts: ActorPartSpec[] = eels.map((eel, index) => {
+      const matrix = new THREE.Matrix4().makeTranslation(eel.position.x, eel.position.y, eel.position.z);
+      return {
+        geometry: eel.geometry,
+        matrix,
+        material: eel.material as THREE.Material,
+        anim: { part: 1, pivot: eel.position.clone(), phase: index },
+      };
+    });
+    const merged = mergeActorParts(parts, [], { cacheKey: "eels" });
+    const mesh = merged[0];
+    decorateEelMaterial(mesh.material as THREE.MeshStandardMaterial);
+    eels.forEach((eel) => eel.removeFromParent());
+    mesh.matrixAutoUpdate = false;
+    this.eelAnchor.add(mesh);
+    this.eelAnchor.userData.eels = [];
+  }
+
+  /** Киты, черепаха, манта: риги 2×11 / 10 / 24 меша → 5 / 3 / 4. */
+  private mergeRigs() {
+    const s = this.actorSlots();
+    const mergeWhale = (rig: WhaleRig, timeOffset: number, cacheKey: string) => {
+      this.mergeRigGroup(
+        rig.group,
+        [
+          { root: rig.tail, zeroRotation: ["x"], part: 1, phase: 0 },
+          { root: rig.pectorals[0], zeroRotation: ["z"], part: 2, phase: 0 },
+          { root: rig.pectorals[1], zeroRotation: ["z"], part: 3, phase: 1 },
+        ],
+        s.whale,
+        { cacheKey, timeOffset }
+      );
+    };
+    if (this.whaleAdult) mergeWhale(this.whaleAdult.rig, 0.5, "whale-adult");
+    if (this.whaleCalf) mergeWhale(this.whaleCalf.rig, 0.5, "whale-calf");
+    if (this.turtleRig) {
+      this.mergeRigGroup(
+        this.turtleRig.group,
+        [
+          ...this.turtleRig.flippers.map((f, i) => ({
+            root: f,
+            zeroRotation: ["x"] as ("x" | "y" | "z")[],
+            part: i < 2 ? 1 : 2,
+            phase: i < 2 ? 0 : 1.8,
+          })),
+          { root: this.turtleRig.head, zeroRotation: ["y"], part: 3, phase: 0 },
+        ],
+        s.turtle,
+        { cacheKey: "turtle" }
+      );
+    }
+    if (this.mantaRig) {
+      const spots = this.mantaRig.group.userData.spots as THREE.Group | undefined;
+      this.mergeRigGroup(
+        this.mantaRig.group,
+        [
+          { root: this.mantaRig.wings[0], zeroRotation: ["z", "y"], part: 1, phase: 0 },
+          { root: this.mantaRig.wings[1], zeroRotation: ["z", "y"], part: 2, phase: 0 },
+        ],
+        s.manta,
+        { cacheKey: "manta", exclude: spots ? [spots] : [] }
+      );
+      if (spots) {
+        this.mergeRigGroup(spots, [], [], { cacheKey: "manta-spots" });
+      }
+    }
+  }
+
+  private mergeActors() {
+    this.buildFishInstances();
+    this.mergeRigs();
+    this.mergeJellyTentacles();
+    this.mergeEels();
+  }
+
   private mergeStatics() {
     this.scene.updateMatrixWorld(true);
     const mergedCorals: THREE.Mesh[] = [];
@@ -1661,19 +2060,11 @@ export class ReefWorld {
       );
       actor.group.lookAt(tempNext);
       actor.group.rotation.z += Math.sin(angle * 2.2) * 0.08;
-      actor.tail.rotation.y = Math.sin(t * 9 + actor.phase) * 0.36;
-      actor.pectorals.forEach((fin, index) => {
-        fin.rotation.z = (index === 0 ? 1 : -1) * (0.5 + Math.sin(t * 6 + actor.phase) * 0.16);
-      });
+      // Хвост и плавники живут в vertex-shader'е (mergeStatic/decorateActorMaterial).
     });
 
     if (this.eelAnchor) {
-      const eels = (this.eelAnchor.userData.eels as THREE.Mesh[]) || [];
-      eels.forEach((eel, index) => {
-        const sway = Math.sin(t * 0.9 + index * 0.7) * 0.14;
-        eel.rotation.z = 0.08 + sway;
-        eel.scale.y = 0.85 + Math.sin(t * 1.4 + index) * 0.1;
-      });
+      // Угри покачиваются в shader'е (mergeEels); на группе — общий размах.
       this.eelAnchor.rotation.y = Math.sin(t * 0.18) * 0.08;
     }
 
@@ -1741,9 +2132,13 @@ export class ReefWorld {
       if (bell) bell.scale.set(1 + Math.sin(t * 1.2 + phase) * 0.08, 0.62 + Math.sin(t * 1.2 + phase) * 0.06, 1);
     });
 
-    // Школы и взвесь живут и в VR, но с половинной частотой обновления:
-    // это не видно на 5–8 Гц взгляда, зато экономит JS-время пары кадров.
-    if (!this.settings.vr || this.frame % 2 === 0) this.updateSchools(t);
+    // Школы, взвесь и instance-матрицы рыб живут и в VR, но с половинной
+    // частотой обновления: это не видно на 5–8 Гц взгляда, зато экономит
+    // JS-время пары кадров.
+    if (!this.settings.vr || this.frame % 2 === 0) {
+      this.updateSchools(t);
+      this.updateFishInstances();
+    }
   }
 
   private updateSchools(t: number) {

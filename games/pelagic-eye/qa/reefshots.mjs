@@ -35,12 +35,17 @@ await page.evaluate(() => { const w = window.__REEF__; if (w && w.recenterView) 
 await new Promise((r) => setTimeout(r, 2500));
 await page.screenshot({ path: `${OUT}/normal-right.png` });
 // VR
-await page.evaluate(() => [...document.querySelectorAll('[title]')].find((e) => (e.title || '').includes('VR-драйвер'))?.click());
-await new Promise((r) => setTimeout(r, 900));
-await click('QA-подача'); await new Promise((r) => setTimeout(r, 700));
-await click('Смотрю прямо'); await new Promise((r) => setTimeout(r, 700));
-await click('Войти в VR', 1);
-await new Promise((r) => setTimeout(r, 8000));
+for (let attempt = 0; attempt < 6; attempt++) {
+  const inVr = await page.evaluate(() => !!(window.__REEF__ && window.__REEF__.settings && window.__REEF__.settings.vr));
+  if (inVr) break;
+  await page.evaluate(() => [...document.querySelectorAll('[title]')].find((e) => (e.title || '').includes('VR-драйвер'))?.click());
+  await new Promise((r) => setTimeout(r, 900));
+  await click('QA-подача'); await new Promise((r) => setTimeout(r, 700));
+  await click('Смотрю прямо'); await new Promise((r) => setTimeout(r, 700));
+  await click('Войти в VR', 1);
+  await new Promise((r) => setTimeout(r, 2500));
+}
+await new Promise((r) => setTimeout(r, 6000));
 await page.screenshot({ path: `${OUT}/vr.png` });
 console.log('done', OUT);
 await browser.close();

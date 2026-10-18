@@ -1,0 +1,46 @@
+{
+  "task": "pelagic-eye — этап 3: анимированные обитатели (склейка + shader-анимация + инстансинг рыб)",
+  "date": "2026-10-18",
+  "branch": "arena/df11067f-agi",
+  "before": {
+    "source": "reef-vr-perf-fix.json / reefactors.mjs (этап 2)",
+    "drawsPerPairTotal": 282,
+    "actorDrawsPerPair": 232,
+    "actorMeshes": 217,
+    "actorTriShare": "92k/455k (20%)"
+  },
+  "after": {
+    "drawsPerPairTotal": 124,
+    "actorDrawsPerPairTrue": 74,
+    "actorMeshes": 21,
+    "fishInstanced": "16 рыб → 4 InstancedMesh на вид (16 мешей)",
+    "rigs": "кит 11→5 мешей (×2), черепаха 10→2, манта 24→3+spots, медузы 11→3 (×7), угри 10→1 mesh + 1 Points",
+    "transDrawsPerPair": 62,
+    "shadowDrawsPerPair": 7
+  },
+  "methods": {
+    "mergeStatic.ts": "mergeActorParts (бакеты материалов + color/emissive-бэйк), decorateActorMaterial (2 канала вращения, 6 слотов, aAnim vec4 + aPhase, Rodrigues в ЛОКАЛЬНОМ пространстве, нормали тоже), decorateEelMaterial, flipWinding для зеркал",
+    "ReefWorld.ts": "mergeRigGroup (аним-корни из rig-полей), buildFishInstances/updateFishInstances (instanceMatrix из group.matrixWorld, VR-скрытые → zero-matrix), mergeJellyTentacles, mergeEels, customDepthMaterial для теней анимируемых конечностей",
+    "сохранено": "формулы фаз animateWhale/Turtle/Manta и updateWorld сверены до последней константы; групповые sway продолжают работать через пустые pivot-группы; стерео-пара не тронута"
+  },
+  "visualParity": {
+    "метод": "скриншоты фиксированных ракурсов + matched-time A/B со старой сборкой (git show 65a0eb3:play/index.html), порог — шум анимации",
+    "noiseFloorRunToRun": {"normal": 3.95, "left": 14.83, "right": 0.28, "vr": 12.50},
+    "s2VsS3": {"normal": 1.22, "left": 17.12, "right": 17.43, "vr": 5.70},
+    "turtleVertexNN": "11940/11940 вершин совпали (max=0.0000) при t=0; A/B при t=20: hot=1.31%",
+    "eelsA": "hot=3.60% (matched time)",
+    "whalesA": "позиция/поза совпали (кадр с frozen lifeTime)",
+    "manta": "зеркальное крыло — flipWinding по determinant матрицы; силуэт совпал с эталоном"
+  },
+  "bugsFoundAndFixedDuringVerification": [
+    "matrixWorld вместо локальной матрицы щупальцев медуз (сдвоенный сдвиг)",
+    "зеркальные крылья манты: winding в слитой геометрии (renderer сам флипает только для matrixWorld с det<0) → белое крыло",
+    "нормали не поворачивались вместе с конечностями (beginnormal_vertex) → тёмные плавники",
+    "лишний inv(matrixWorld) в бэйке аним-частей: геометрия сжималась, пивот нет → поза конечностей мимо; найдено NN-пробой вершин"
+  ],
+  "qa": {
+    "scripts": "pelagic-eye/qa/: reefactors.mjs, reefverify.mjs, reefnoise.mjs, reefshots.mjs, imgdiff.py, turtleab3.mjs, eelab.mjs, nnprobe.mjs",
+    "hooks": "window.__REEF__ (debugSetVrGovTier, fishInst), счётчики через monkey-patch renderBufferDirect",
+    "invariants": "reefverify.mjs: errors=[], natural tiers 0/2/1/0, balancedOnEntry tier1, reenter true, composer samples 0"
+  }
+}
