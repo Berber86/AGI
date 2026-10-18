@@ -208,7 +208,7 @@ export class ReefWorld {
   private perfNotes = { renderMs: 0, cameraProcMs: 0, cameraQueue: 0, cameraTier: 0, stereo: false, dpr: 1 };
   // Метки для 15с-теста фризов (perfProbe): пофреймовая разбивка кадра.
   private probePrevT = 0;
-  private probeRender = { eye0: 0, eye1: 0, comp: 0 };
+  private probeRender = { eye0: 0, eye1: 0, comp: 0, gpuWait: 0 };
   private probeWorld = { uni: 0, act: 0, ani: 0, sch: 0 };
 
   constructor(
@@ -2014,6 +2014,7 @@ export class ReefWorld {
         rEye1Ms: this.probeRender.eye1,
         rCompMs: this.probeRender.comp,
         renderMs: p5 - p4,
+        gpuMs: this.probeRender.gpuWait,
         outsideMs: Math.max(0, wallMs - (p5 - p0)),
         calls: this.renderer.info.render.calls,
         triangles: this.renderer.info.render.triangles,
@@ -2398,6 +2399,16 @@ export class ReefWorld {
     this.camera.position.copy(BASE_POSITION);
     this.lastFrameMs = this.lastFrameMs * 0.9 + (performance.now() - started) * 0.1;
     this.perfNotes.renderMs = Math.round(this.lastFrameMs * 10) / 10;
+    // Замер честного GPU-времени кадра: gl.finish блокирует CPU, пока GPU не
+    // дорисует. Делается ТОЛЬКО во время 15с-теста — это диагностический
+    // синхронизирующий замер, он выносит GPU-ожидание из «вне кадра» в цифры.
+    if (perfProbe.active) {
+      const g0 = performance.now();
+      this.renderer.getContext().finish();
+      this.probeRender.gpuWait = performance.now() - g0;
+    } else {
+      this.probeRender.gpuWait = 0;
+    }
 
     // Контур камеры запускается только ПОСЛЕ этого места: GPU-чтение кадра
     // больше не встаёт перед стерео-кадром. Один кадр в полёте.

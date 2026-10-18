@@ -25,6 +25,8 @@ export interface FrameRecord {
   rEye1Ms: number;
   rCompMs: number;
   renderMs: number;
+  /** Синхронное ожидание GPU (gl.finish) в конце кадра — только при замере. */
+  gpuMs: number;
   outsideMs: number;
   calls: number;
   triangles: number;
@@ -42,15 +44,19 @@ export interface ProbeEvent {
   detail?: string;
 }
 
+export type FreezeCategory = "gpu" | "longtask" | "render" | "cpu" | "camera" | "outside";
+
 export interface FreezeRecord {
   frame: number;
   t: number;
   wallMs: number;
   updateMs: number;
   renderMs: number;
+  gpuMs: number;
   outsideMs: number;
   longtaskMs: number;
   camBusy: boolean;
+  category: FreezeCategory;
   label: string;
 }
 
@@ -160,23 +166,42 @@ class PerfProbe {
   }
 
   /** Классификация одного фриза: что ест время кадра. */
-  private classify(f: FrameRecord, longMs: number): string {
+  private classify(f: FrameRecord, longMs: number): { category: FreezeCategory; label: string } {
     const updateMs = f.gazeMs + f.worldMs + f.partMs + f.discMs;
-    if (longMs >= 30) return `длинная JS-задача ${fmt(longMs, 0)}мс (GC или тяжёлый JS вне кадра)`;
-    if (f.renderMs >= f.wallMs * 0.5) return `рендер/GPU (кадр ${fmt(f.renderMs, 0)}мс из ${fmt(f.wallMs, 0)}мс)`;
+    const parts: string[] = [];
+    let category: FreezeCategory = "outside";
+    // Приоритет: GPU-ожидание (gl.finish) — прямое доказательство fill-rate;
+    // затем длинные JS-задачи; затем CPU-метки; остальное — вне кадра.
+    if (f.gpuMs >= f.wallMs * 0.45) {
+      category = "gpu";
+      parts.push(`GPU-растеризация ${fmt(f.gpuMs, 0)}мс из ${fmt(f.wallMs, 0)}мс (fill-rate/шейдеры)`);
+    }
+    if (longMs >= 30) {
+      if (category === "outside") category = "longtask";
+      parts.push(`длинная JS-задача ${fmt(longMs, 0)}мс (GC/React/стили)`);
+    }
+    if (f.renderMs >= f.wallMs * 0.5) {
+      if (category === "outside") category = "render";
+      parts.push(`рендер/CPU-сабмит ${fmt(f.renderMs, 0)}мс`);
+    }
     if (updateMs >= f.wallMs * 0.5) {
-      const parts: [string, number][] = [
+      if (category === "outside") category = "cpu";
+      const sub: [string, number][] = [
         ["рыбы-пути", f.actMs],
         ["кит/черепаха/медузы", f.aniMs],
         ["школы/инстансы", f.schMs],
         ["частицы", f.partMs],
         ["взгляд", f.gazeMs],
       ];
-      parts.sort((a, b) => b[1] - a[1]);
-      return `CPU-сцена: ${parts[0][0]} ${fmt(parts[0][1], 0)}мс из ${fmt(updateMs, 0)}мс`;
+      sub.sort((a, b) => b[1] - a[1]);
+      parts.push(`CPU-сцена: ${sub[0][0]} ${fmt(sub[0][1], 0)}мс`);
     }
-    if (f.camBusy) return "камера: захват/чтение кадра (createImageBitmap/readback)";
-    return "вне кадра: GC/браузер/композитор/React";
+    if (f.camBusy && category === "outside") {
+      category = "camera";
+      parts.push("камера: захват/чтение кадра");
+    }
+    if (!parts.length) parts.push("вне кадра: GC/браузер/композитор/React");
+    return { category, label: parts.join(" + ") };
   }
 
   report(): { text: string; json: Record<string, unknown> } {
@@ -193,13 +218,13 @@ class PerfProbe {
     const spanMs = frames.length > 1 ? frames[frames.length - 1].t - frames[0].t : 0;
     const fps = spanMs > 0 ? (frames.length / spanMs) * 1000 : 0;
 
-    // Пересечения фризов с длинными задачами.
+    // Пересечения фризов с длинными задачами: считаем только реально общее
+    // время (раньше задача на секунду «дарила» весь свой вес каждому кадру).
     const longByFrame = (f: FrameRecord) => {
       let sum = 0;
       for (const lt of this.longTasks) {
-        // Длинная задача перекрывает кадр, если её окно попало в промежуток
-        // (t-wallMs, t].
-        if (lt.t + lt.ms > f.t - f.wallMs && lt.t < f.t) sum += lt.ms;
+        const overlap = Math.min(lt.t + lt.ms, f.t) - Math.max(lt.t, f.t - f.wallMs);
+        if (overlap > 0) sum += overlap;
       }
       return sum;
     };
@@ -209,33 +234,44 @@ class PerfProbe {
       .map((f) => {
         const longMs = longByFrame(f);
         const updateMs = f.gazeMs + f.worldMs + f.partMs + f.discMs;
+        const verdict = this.classify(f, longMs);
         return {
           frame: f.frame,
           t: Math.round(f.t),
           wallMs: Math.round(f.wallMs),
           updateMs: Math.round(updateMs),
           renderMs: Math.round(f.renderMs),
+          gpuMs: Math.round(f.gpuMs),
           outsideMs: Math.round(f.outsideMs),
           longtaskMs: Math.round(longMs),
           camBusy: f.camBusy,
-          label: this.classify(f, longMs),
+          category: verdict.category,
+          label: verdict.label,
         };
       })
       .sort((a, b) => b.wallMs - a.wallMs);
 
-    // Сводка виновников по сумме времени фризов.
-    const buckets = new Map<string, { ms: number; count: number }>();
+    // Сводка виновников по сумме времени фризов (по категориям).
+    const catNames: Record<FreezeCategory, string> = {
+      gpu: "GPU-растеризация (fill-rate/шейдеры)",
+      longtask: "длинные JS-задачи (GC/React/стили)",
+      render: "рендер/CPU-сабмит драйверу",
+      cpu: "CPU-сцена (JS-обновление мира)",
+      camera: "камера (захват/чтение кадра)",
+      outside: "вне кадра (GC/браузер/композитор)",
+    };
+    const buckets = new Map<FreezeCategory, { ms: number; count: number }>();
     for (const f of freezes) {
-      const key = f.label.split(" (")[0].split(":")[0];
-      const cur = buckets.get(key) || { ms: 0, count: 0 };
+      const cur = buckets.get(f.category) || { ms: 0, count: 0 };
       cur.ms += f.wallMs;
       cur.count += 1;
-      buckets.set(key, cur);
+      buckets.set(f.category, cur);
     }
     const freezeTotal = freezes.reduce((a, f) => a + f.wallMs, 0);
     const owners = [...buckets.entries()]
-      .map(([name, v]) => ({
-        name,
+      .map(([cat, v]) => ({
+        category: cat,
+        name: catNames[cat],
         count: v.count,
         freezeMs: Math.round(v.ms),
         sharePct: freezeTotal ? Math.round((v.ms / freezeTotal) * 100) : 0,
@@ -257,17 +293,31 @@ class PerfProbe {
       rEye0Ms: sum((f) => f.rEye0Ms),
       rEye1Ms: sum((f) => f.rEye1Ms),
       rCompMs: sum((f) => f.rCompMs),
+      gpuMs: sum((f) => f.gpuMs),
       outsideMs: sum((f) => f.outsideMs),
     };
+    const gpuVals = frames.map((f) => f.gpuMs);
+    const gpuMax = gpuVals.length ? Math.max(...gpuVals) : 0;
+    const drawsAvg = frames.length ? sum((f) => f.calls) : 0;
+    const trisAvg = frames.length ? sum((f) => f.triangles) : 0;
 
     const camTicks = this.events.filter((e) => e.kind === "cam:tick").length;
     const camResults = this.events.filter((e) => e.kind === "cam:result");
+    const camBitmaps = this.events.filter((e) => e.kind === "cam:bitmap");
     const camProcAvg = camResults.length
       ? camResults.reduce((a, e) => a + (e.ms || 0), 0) / camResults.length
       : 0;
+    const camProcMax = camResults.length ? Math.max(...camResults.map((e) => e.ms || 0)) : 0;
+    const camBitmapAvg = camBitmaps.length
+      ? camBitmaps.reduce((a, e) => a + (e.ms || 0), 0) / camBitmaps.length
+      : 0;
+    const camBitmapMax = camBitmaps.length ? Math.max(...camBitmaps.map((e) => e.ms || 0)) : 0;
     const freezesWithCam = freezes.filter((f) => f.camBusy).length;
     const longTotal = this.longTasks.reduce((a, l) => a + l.ms, 0);
     const longGc = this.longTasks.length;
+    const uiPolls = this.events.filter((e) => e.kind === "ui:poll");
+    const uiPollAvg = uiPolls.length ? uiPolls.reduce((a, e) => a + (e.ms || 0), 0) / uiPolls.length : 0;
+    const uiPollMax = uiPolls.length ? Math.max(...uiPolls.map((e) => e.ms || 0)) : 0;
     const resizeCount = this.events.filter((e) => e.kind === "resize").length;
     const govEvents = this.events.filter((e) => e.kind === "gov");
     const heap = frames.map((f) => f.heapMB).filter((v): v is number => typeof v === "number");
@@ -289,13 +339,20 @@ class PerfProbe {
       `Фризы (>${fmt(freezeMs, 0)}мс): ${freezes.length} шт, суммарно ${fmt(freezeTotal / 1000, 2)}с (${fmt((freezeTotal / Math.max(spanMs, 1)) * 100, 1)}% времени); >100мс: ${freezes.filter((f) => f.wallMs > 100).length}, >250мс: ${freezes.filter((f) => f.wallMs > 250).length}`
     );
     lines.push(
-      `Средний кадр: обновление сцены ${fmt(avg.gazeMs + avg.worldMs + avg.partMs + avg.discMs)}мс (пути ${fmt(avg.actMs)}, кит/черепаха ${fmt(avg.aniMs)}, школы ${fmt(avg.schMs)}, частицы ${fmt(avg.partMs)}), рендер ${fmt(avg.renderMs)}мс (глаз0 ${fmt(avg.rEye0Ms)}, глаз1 ${fmt(avg.rEye1Ms)}, composer ${fmt(avg.rCompMs)}), вне кадра ${fmt(avg.outsideMs)}мс`
+      `GPU-ожидание (gl.finish): среднее ${fmt(avg.gpuMs)}мс · макс ${fmt(gpuMax)}мс — ${avg.gpuMs > p50 * 0.45 ? "кадр УПИРАЕТСЯ В GPU (fill-rate/шейдеры)" : "GPU не главный источник кадра"}`
     );
     lines.push(
-      `Длинные JS-задачи: ${longGc} шт, суммарно ${fmt(longTotal, 0)}мс${longGc ? " — главный кандидат на «невидимые» фризы (GC)" : ""}`
+      `Средний кадр: обновление сцены ${fmt(avg.gazeMs + avg.worldMs + avg.partMs + avg.discMs)}мс (пути ${fmt(avg.actMs)}, кит/черепаха ${fmt(avg.aniMs)}, школы ${fmt(avg.schMs)}, частицы ${fmt(avg.partMs)}), рендер ${fmt(avg.renderMs)}мс (глаз0 ${fmt(avg.rEye0Ms)}, глаз1 ${fmt(avg.rEye1Ms)}, composer ${fmt(avg.rCompMs)}), GPU ${fmt(avg.gpuMs)}мс, вне кадра ${fmt(avg.outsideMs)}мс`
+    );
+    lines.push(`Сцена: ≈${fmt(drawsAvg, 0)} draws/кадр, ≈${fmt(trisAvg / 1000, 0)}k треугольников`);
+    lines.push(
+      `Длинные JS-задачи: ${longGc} шт, суммарно ${fmt(longTotal, 0)}мс${longGc ? " (GC/React/стили/драйвер)" : ""}`
     );
     lines.push(
-      `Камера: тиков ${camTicks}, ср. анализ ${fmt(camProcAvg, 0)}мс; фризов в момент тика камеры: ${freezesWithCam} из ${freezes.length}`
+      `UI-цикл (панель драйвера, опрос/превью): ${uiPolls.length} шт, ср. ${fmt(uiPollAvg)}мс, макс ${fmt(uiPollMax)}мс`
+    );
+    lines.push(
+      `Камера: тиков ${camTicks}, bitmap ср. ${fmt(camBitmapAvg, 0)}мс (макс ${fmt(camBitmapMax, 0)}), анализ ср. ${fmt(camProcAvg, 0)}мс (макс ${fmt(camProcMax, 0)}); фризов в момент тика камеры: ${freezesWithCam} из ${freezes.length}`
     );
     lines.push(
       `События: resize ×${resizeCount}, губернатор VR ${govEvents.length ? govEvents.map((e) => e.detail).join(", ") : "—"}, длинных задач ${longGc}`
@@ -312,10 +369,10 @@ class PerfProbe {
       lines.push("");
     }
     if (freezes.length) {
-      lines.push("Худшие кадры (wall / update / render / вне кадра / longtask / причина):");
+      lines.push("Худшие кадры (wall / update / render / GPU / вне кадра / JS-задача / причина):");
       for (const f of freezes.slice(0, 20)) {
         lines.push(
-          `  #${f.frame} ${f.wallMs}мс / ${f.updateMs} / ${f.renderMs} / ${f.outsideMs} / ${f.longtaskMs}${f.camBusy ? " / cam" : ""} / ${f.label}`
+          `  #${f.frame} ${f.wallMs}мс / ${f.updateMs} / ${f.renderMs} / ${f.gpuMs} / ${f.outsideMs} / ${f.longtaskMs}${f.camBusy ? " cam" : ""} / ${f.label}`
         );
       }
     } else {
@@ -330,11 +387,12 @@ class PerfProbe {
       for (let i = 0; i < normal.length; i += step) {
         const f = normal[i];
         lines.push(
-          `  #${f.frame} ${fmt(f.wallMs)}мс / ${fmt(f.gazeMs + f.worldMs + f.partMs + f.discMs)} / ${fmt(f.renderMs)} / ${fmt(f.outsideMs)}`
+          `  #${f.frame} ${fmt(f.wallMs)}мс / ${fmt(f.gazeMs + f.worldMs + f.partMs + f.discMs)} / ${fmt(f.renderMs)} / GPU ${fmt(f.gpuMs)} / ${fmt(f.outsideMs)}`
         );
       }
     }
-    const evs = this.events.filter((e) => e.kind !== "longtask").slice(-12);
+    const noisy = new Set(["longtask", "ui:poll"]);
+    const evs = this.events.filter((e) => !noisy.has(e.kind)).slice(-12);
     if (evs.length) {
       lines.push("");
       lines.push("События замера:");
@@ -359,7 +417,17 @@ class PerfProbe {
         owners,
         avg: Object.fromEntries(Object.entries(avg).map(([k, v]) => [k, +fmt(v, 2)])),
         longTasks: { count: longGc, totalMs: Math.round(longTotal) },
-        camera: { ticks: camTicks, procAvgMs: +fmt(camProcAvg, 0), freezesWithCam },
+        gpu: { avgMs: +fmt(avg.gpuMs), maxMs: +fmt(gpuMax), bound: avg.gpuMs > p50 * 0.45 },
+        uiPoll: { count: uiPolls.length, avgMs: +fmt(uiPollAvg), maxMs: +fmt(uiPollMax) },
+        scene: { drawsAvg: +fmt(drawsAvg, 0), trisAvg: Math.round(trisAvg) },
+        camera: {
+          ticks: camTicks,
+          procAvgMs: +fmt(camProcAvg, 0),
+          procMaxMs: +fmt(camProcMax, 0),
+          bitmapAvgMs: +fmt(camBitmapAvg, 0),
+          bitmapMaxMs: +fmt(camBitmapMax, 0),
+          freezesWithCam,
+        },
       },
       freezes,
       frames: this.frames,

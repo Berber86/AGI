@@ -165,6 +165,7 @@ export default function DriverWorkshop({
 
   useEffect(() => {
     const tick = () => {
+      const t0 = performance.now();
       const next = provider.getInfo();
       setInfo(next);
       const video = videoRef.current;
@@ -175,6 +176,8 @@ export default function DriverWorkshop({
       }
       if (!provider.getStream()) streamVersionRef.current = -1;
       drawPreview(next);
+      // Метка для теста фризов: стоимость UI-цикла панели (опрос + превью).
+      perfProbe.event("ui:poll", undefined, performance.now() - t0);
     };
     tick();
     const id = window.setInterval(tick, 180);

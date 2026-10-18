@@ -54,7 +54,8 @@ for (let i = 0; i < 40; i++) {
 const rep = report;
 const text = rep?.text ?? '';
 const freezeCaught = (rep?.worst ?? []).some((f) => f.wallMs >= 250);
-const classified = (rep?.worst ?? []).some((f) => /длинная JS-задача|вне кадра|GC/.test(f.label));
+const classified = (rep?.worst ?? []).some((f) => /длинная JS-задача|вне кадра|GC|GPU|рендер|CPU|камера/.test(f.label));
+const schemaOk = (rep?.worst ?? []).every((f) => typeof f.gpuMs === 'number' && typeof f.category === 'string');
 const result = {
   generatedAt: new Date().toISOString(),
   uiReady,
@@ -74,6 +75,8 @@ const assertions = {
   framesCollected: (rep?.summary?.frames ?? 0) > 3,
   freezeCaught,
   classified,
+  schemaOk,
+  gpuLine: (rep?.summary?.gpu?.avgMs ?? null) !== null,
   hasVerdictBlock: result.hasVerdictBlock === true,
   hasDeviceBlock: result.hasDeviceBlock === true,
   noPageErrors: errors.length === 0,
