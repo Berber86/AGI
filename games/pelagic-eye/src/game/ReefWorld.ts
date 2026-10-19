@@ -2053,12 +2053,15 @@ export class ReefWorld {
     }
 
     // Ориентация относительно позы калибровки, в осях самой головы.
-    // Знаки сохранены от прежнего режима: alpha+ даёт yaw+, beta+ даёт pitch−.
-    // Масштаб pitch теперь честный 1:1 (старый ×0.72 компенсировал не pitch,
+    // Euler относительного кватерниона — это углы камеры Three.js, а игровая
+    // камера ставится как rotation.set(pitch, -yaw): положительный Y камеры
+    // смотрит влево, положительный X — вверх. Поэтому игровые знаки именно
+    // такие (полевая проверка 2026-10-19: обратные знаки инвертировали обе оси).
+    // Масштаб pitch честный 1:1 (старый ×0.72 компенсировал не pitch,
     // а проекцию beta в окрестности особой точки).
     this.gyroRelQ.copy(this.gyroBaseQ).invert().multiply(qNow);
     this.gyroEuler.setFromQuaternion(this.gyroRelQ, "YXZ");
-    this.gyroRaw = { yaw: this.gyroEuler.y, pitch: -this.gyroEuler.x };
+    this.gyroRaw = { yaw: -this.gyroEuler.y, pitch: this.gyroEuler.x };
     this.gyroTarget.yaw = THREE.MathUtils.clamp(this.gyroRaw.yaw, -1.35, 1.35);
     this.gyroTarget.pitch = THREE.MathUtils.clamp(this.gyroRaw.pitch, -0.45, 0.92);
     this.gyroLastAt = performance.now();

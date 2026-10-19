@@ -188,17 +188,19 @@ try {
   const s1 = await fusionState();
   const gaze1 = await page.evaluate(() => window.__REEF__?.getGaze?.());
   check("статус fusion-gyro", s1?.status === "fusion-gyro", s1?.status);
-  check("fused yaw вырос на ~40°", Math.abs(s1.yaw - s0.yaw - 40 * DEG) < 3 * DEG, `d=${((s1.yaw - s0.yaw) / DEG).toFixed(1)}°`);
+  // Синтетический alpha+ — это поворот камеры Three вокруг +Y (влево),
+  // поэтому игровой yaw (вправо = плюс) обязан уйти на −40°.
+  check("fused yaw ушёл на ~−40° (alpha+ = влево)", Math.abs(s1.yaw - s0.yaw + 40 * DEG) < 3 * DEG, `d=${((s1.yaw - s0.yaw) / DEG).toFixed(1)}°`);
   check("камера сцены следует за слиянием", Math.abs(gaze1.yaw - s1.yaw) < 4 * DEG, `gaze=${(gaze1.yaw / DEG).toFixed(1)}° fused=${(s1.yaw / DEG).toFixed(1)}°`);
   await gyroSweep({ alpha: 30 }); // −20°
   await waitFrames(3);
   const s2 = await fusionState();
-  check("обратный поворот −20° отработан", Math.abs(s2.yaw - s1.yaw + 20 * DEG) < 3 * DEG, `d=${((s2.yaw - s1.yaw) / DEG).toFixed(1)}°`);
+  check("обратный поворот alpha −20° даёт игровой yaw +20°", Math.abs(s2.yaw - s1.yaw - 20 * DEG) < 3 * DEG, `d=${((s2.yaw - s1.yaw) / DEG).toFixed(1)}°`);
 
-  await gyroSweep({ beta: 70 });
+  await gyroSweep({ beta: 110 });
   await waitFrames(3);
   const sPitch = await fusionState();
-  check("кватернионный pitch: beta −20° даёт взгляд +20°", Math.abs(sPitch.pitch - s2.pitch - 20 * DEG) < 4 * DEG, `d=${((sPitch.pitch - s2.pitch) / DEG).toFixed(1)}°`);
+  check("кватернионный pitch: beta +20° даёт взгляд вверх +20°", Math.abs(sPitch.pitch - s2.pitch - 20 * DEG) < 4 * DEG, `d=${((sPitch.pitch - s2.pitch) / DEG).toFixed(1)}°`);
   check("pitch без заметного перекрёстного yaw", Math.abs(sPitch.yaw - s2.yaw) < 4 * DEG, `dyaw=${((sPitch.yaw - s2.yaw) / DEG).toFixed(1)}°`);
   await gyroSweep({ beta: 90 });
   await waitFrames(3);
@@ -283,7 +285,7 @@ try {
   await gyroSweep({ alpha: 185 }); // −15° от 200
   await waitFrames(3);
   const s6 = await fusionState();
-  check("поворот без меток отработан гироскопом", Math.abs(s6.yaw - s5.yaw + 15 * DEG) < 3 * DEG, `d=${((s6.yaw - s5.yaw) / DEG).toFixed(1)}°`);
+  check("поворот без меток отработан гироскопом", Math.abs(s6.yaw - s5.yaw - 15 * DEG) < 3 * DEG, `d=${((s6.yaw - s5.yaw) / DEG).toFixed(1)}°`);
 
   console.log("6) Регрессия: чистые режимы не пострадали");
   await page.evaluate(() => window.__REEF__?.setSource?.("gyro"));
@@ -291,7 +293,7 @@ try {
   await gyroSet(210); // +25°
   await waitFrames(12);
   const gazeGyro = await page.evaluate(() => window.__REEF__?.getGaze?.());
-  check("чистый gyro: взгляд ~+25° от базы", Math.abs(gazeGyro.yaw - 25 * DEG) < 6 * DEG, `yaw=${(gazeGyro.yaw / DEG).toFixed(1)}°`);
+  check("чистый gyro: alpha +25° даёт игровой взгляд −25° от базы", Math.abs(gazeGyro.yaw + 25 * DEG) < 6 * DEG, `yaw=${(gazeGyro.yaw / DEG).toFixed(1)}°`);
   await page.evaluate(() => window.__REEF__?.setSource?.("pointer"));
   await waitFrames(2);
   check("pointer выбирается без ошибок", await page.evaluate(() => window.__REEF__?.settings?.source === "pointer"));
