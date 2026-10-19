@@ -47,9 +47,9 @@ const sourcePresentation: Record<GazeStatus, { label: string; detail: string; to
   "camera-lost": { label: "Камера · поиск", detail: "метки не видны", tone: "coral" },
   "camera-off": { label: "Камера выключена", detail: "откройте VR-драйвер", tone: "coral" },
   fusion: { label: "Гибрид · метки + гиро", detail: "метки правят центр", tone: "aqua" },
-  "fusion-gyro": { label: "Гибрид · гироскоп", detail: "метки вне кадра — ведёт датчик", tone: "gold" },
+  "fusion-gyro": { label: "Гибрид · гироскоп", detail: "якорь меток не подтверждён — ведёт датчик", tone: "gold" },
   "fusion-camera": { label: "Гибрид · камера", detail: "гироскоп молчит — ведут метки", tone: "gold" },
-  "fusion-wait": { label: "Гибрид · ожидание", detail: "нет данных датчиков", tone: "coral" },
+  "fusion-wait": { label: "Гибрид · удержание", detail: "ждём подтверждённый источник", tone: "coral" },
 };
 
 const toneMap: Record<string, string> = {

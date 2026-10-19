@@ -5,9 +5,9 @@
 //
 // ВАЖНО про темп: SwiftShader тянет сцену лишь на ~3 кадр/с, а updateGaze
 // живёт в рендер-цикле, поэтому тест КАДРОВО-ориентированный: все ожидания —
-// «прошло N кадров» (waitFrames), а повороты гироскопа подаются ступенями
-// alpha (сумма приращений абсолютного сырья телескопируется между кадрами;
-// плавная подача мелкими шагами покрыта юнит-тестом qa/fusionunit.mjs).
+// «прошло N кадров» (waitFrames), а повороты гироскопа подаются малыми
+// ступенями с ожиданием кадров между ними: предохранитель слияния обязан
+// отвергать один физически невозможный большой шаг сырья.
 // dt в мире зажат 0.06 с, поэтому коррекция в headless идёт медленнее
 // реального времени — считаем её в кадрах, не в секундах.
 //
@@ -85,15 +85,50 @@ const gyroStart = (alpha, beta) =>
   page.evaluate((a, b) => {
     const w = window;
     if (w.__GYRO__?.timer) clearInterval(w.__GYRO__.timer);
-    w.__GYRO__ = { alpha: a, beta: b, timer: 0 };
+    w.__GYRO__ = { alpha: a, beta: b, gamma: 0, timer: 0 };
     const send = () =>
       window.dispatchEvent(
-        new DeviceOrientationEvent("deviceorientation", { alpha: w.__GYRO__.alpha, beta: w.__GYRO__.beta, gamma: 0 })
+        new DeviceOrientationEvent("deviceorientation", {
+          alpha: w.__GYRO__.alpha,
+          beta: w.__GYRO__.beta,
+          gamma: w.__GYRO__.gamma,
+        })
       );
     send();
     w.__GYRO__.timer = setInterval(send, 50);
   }, alpha, beta);
 const gyroSet = (alpha) => page.evaluate((a) => { if (window.__GYRO__) window.__GYRO__.alpha = a; }, alpha);
+const gyroPose = () =>
+  page.evaluate(() => {
+    const g = window.__GYRO__;
+    return g ? { alpha: g.alpha, beta: g.beta, gamma: g.gamma } : null;
+  });
+const gyroSetPose = (pose) =>
+  page.evaluate((next) => {
+    if (window.__GYRO__) Object.assign(window.__GYRO__, next);
+  }, pose);
+// Поворот головы малыми ступенями: между ступенями обязаны пройти кадры,
+// иначе предохранитель честно сочтёт один большой скачок выбросом.
+const gyroSweep = async (patch) => {
+  const from = await gyroPose();
+  if (!from) throw new Error("синтетический гироскоп не запущен");
+  const to = { ...from, ...patch };
+  const maxDelta = Math.max(
+    Math.abs(to.alpha - from.alpha),
+    Math.abs(to.beta - from.beta),
+    Math.abs(to.gamma - from.gamma)
+  );
+  const steps = Math.max(1, Math.ceil(maxDelta / 10));
+  for (let i = 1; i <= steps; i++) {
+    const k = i / steps;
+    await gyroSetPose({
+      alpha: from.alpha + (to.alpha - from.alpha) * k,
+      beta: from.beta + (to.beta - from.beta) * k,
+      gamma: from.gamma + (to.gamma - from.gamma) * k,
+    });
+    await waitFrames(2);
+  }
+};
 const gyroStop = () =>
   page.evaluate(() => {
     if (window.__GYRO__?.timer) clearInterval(window.__GYRO__.timer);
@@ -148,17 +183,45 @@ try {
   await waitFrames(4); // база гироскопа захвачена слиянием
   const s0 = await fusionState();
   check("гироскоп свеж для слияния", s0 && s0.gyroAgeMs !== null && s0.gyroAgeMs < 700, JSON.stringify(s0));
-  await gyroSet(50); // +40° одной ступенью сырья
-  await waitFrames(6);
+  await gyroSweep({ alpha: 50 }); // +40° малыми ступенями
+  await waitFrames(4);
   const s1 = await fusionState();
   const gaze1 = await page.evaluate(() => window.__REEF__?.getGaze?.());
   check("статус fusion-gyro", s1?.status === "fusion-gyro", s1?.status);
   check("fused yaw вырос на ~40°", Math.abs(s1.yaw - s0.yaw - 40 * DEG) < 3 * DEG, `d=${((s1.yaw - s0.yaw) / DEG).toFixed(1)}°`);
   check("камера сцены следует за слиянием", Math.abs(gaze1.yaw - s1.yaw) < 4 * DEG, `gaze=${(gaze1.yaw / DEG).toFixed(1)}° fused=${(s1.yaw / DEG).toFixed(1)}°`);
-  await gyroSet(30); // −20°
-  await waitFrames(4);
+  await gyroSweep({ alpha: 30 }); // −20°
+  await waitFrames(3);
   const s2 = await fusionState();
   check("обратный поворот −20° отработан", Math.abs(s2.yaw - s1.yaw + 20 * DEG) < 3 * DEG, `d=${((s2.yaw - s1.yaw) / DEG).toFixed(1)}°`);
+
+  await gyroSweep({ beta: 70 });
+  await waitFrames(3);
+  const sPitch = await fusionState();
+  check("кватернионный pitch: beta −20° даёт взгляд +20°", Math.abs(sPitch.pitch - s2.pitch - 20 * DEG) < 4 * DEG, `d=${((sPitch.pitch - s2.pitch) / DEG).toFixed(1)}°`);
+  check("pitch без заметного перекрёстного yaw", Math.abs(sPitch.yaw - s2.yaw) < 4 * DEG, `dyaw=${((sPitch.yaw - s2.yaw) / DEG).toFixed(1)}°`);
+  await gyroSweep({ beta: 90 });
+  await waitFrames(3);
+
+  console.log("2b) Одиночный выброс сырья не телепортирует камеру");
+  const sSpike0 = await fusionState();
+  await gyroSetPose({ alpha: 30, beta: -70, gamma: 0 }); // разрыв Euler-параметризации: raw yaw уходит на ~180°
+  await waitFrames(2);
+  const sSpikeDuring = await fusionState();
+  check(
+    "во время выброса взгляд не двинулся",
+    Math.abs(sSpikeDuring.yaw - sSpike0.yaw) < 3 * DEG && Math.abs(sSpikeDuring.pitch - sSpike0.pitch) < 3 * DEG,
+    `d=${((sSpikeDuring.yaw - sSpike0.yaw) / DEG).toFixed(1)}°,${((sSpikeDuring.pitch - sSpike0.pitch) / DEG).toFixed(1)}°`
+  );
+  await gyroSetPose({ alpha: 30, beta: 90, gamma: 0 });
+  await waitFrames(4);
+  const sSpike1 = await fusionState();
+  check(
+    "после выброса и возврата взгляд на месте",
+    Math.abs(sSpike1.yaw - sSpike0.yaw) < 3 * DEG && Math.abs(sSpike1.pitch - sSpike0.pitch) < 3 * DEG,
+    `d=${((sSpike1.yaw - sSpike0.yaw) / DEG).toFixed(1)}°,${((sSpike1.pitch - sSpike0.pitch) / DEG).toFixed(1)}°`
+  );
+  check("предохранитель зафиксировал выброс", (sSpike1.guards?.gyroJumps ?? 0) >= 1, JSON.stringify(sSpike1.guards));
 
   console.log("3) Гироскоп умер → ведёт камера (fusion-camera)");
   await gyroStop();
@@ -177,7 +240,7 @@ try {
   check("синтетические метки подтверждены", markersReady);
   const calib = await page.evaluate(() => window.__REEF__?.provider?.calibrate?.() ?? null);
   check("калибровка пары ok", !!calib?.ok, calib?.message || "");
-  await waitFrames(5);
+  await waitFrames(25); // грейс потери гироскопа + ограниченная скорость перехода на камеру
   const s3 = await fusionState();
   check("статус fusion-camera", s3?.status === "fusion-camera", s3?.status);
   check("взгляд у калибровочного центра", Math.abs(s3.yaw) < 6 * DEG, `yaw=${(s3.yaw / DEG).toFixed(1)}°`);
@@ -217,8 +280,8 @@ try {
   await waitFrames(4);
   const s5 = await fusionState();
   check("статус fusion-gyro", s5?.status === "fusion-gyro", s5?.status);
-  await gyroSet(185); // −15° от 200
-  await waitFrames(4);
+  await gyroSweep({ alpha: 185 }); // −15° от 200
+  await waitFrames(3);
   const s6 = await fusionState();
   check("поворот без меток отработан гироскопом", Math.abs(s6.yaw - s5.yaw + 15 * DEG) < 3 * DEG, `d=${((s6.yaw - s5.yaw) / DEG).toFixed(1)}°`);
 

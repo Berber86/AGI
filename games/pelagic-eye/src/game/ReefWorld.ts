@@ -193,7 +193,18 @@ export class ReefWorld {
   private statsTimer = 0;
   private statsFrames = 0;
   private lastFps = 60;
-  private gyroBase: { alpha: number; beta: number; gamma: number } | null = null;
+  // Гироскоп переводится в кватернион целиком (см. deviceQuaternion):
+  // alpha/beta/gamma по отдельности не вычитаются — у вертикального
+  // телефона в очках их параметризация около особой точки и даёт
+  // мгновенные «перекидывания» при неподвижной голове.
+  private static readonly GYRO_Q1 = new THREE.Quaternion(-Math.SQRT1_2, 0, 0, Math.SQRT1_2);
+  private static readonly GYRO_Z = new THREE.Vector3(0, 0, 1);
+  private gyroBaseQ: THREE.Quaternion | null = null;
+  private gyroScreenAngleDeg: number | null = null;
+  private gyroNowQ = new THREE.Quaternion();
+  private gyroRelQ = new THREE.Quaternion();
+  private gyroScreenQ = new THREE.Quaternion();
+  private gyroEuler = new THREE.Euler(0, 0, 0, "YXZ");
   private gyroTarget = { yaw: 0, pitch: 0 };
   private gyroLastAt = 0;
   private gyroListening = false;
@@ -1987,26 +1998,67 @@ export class ReefWorld {
     }
   };
 
+  private screenAngleDeg(): number {
+    const angle = window.screen?.orientation?.angle;
+    if (typeof angle === "number" && Number.isFinite(angle)) return angle;
+    const legacy = (window as unknown as { orientation?: unknown }).orientation;
+    if (typeof legacy === "number" && Number.isFinite(legacy)) return legacy;
+    return window.innerWidth > window.innerHeight ? 90 : 0;
+  }
+
+  /**
+   * DeviceOrientation → кватернион камеры по классической схеме
+   * DeviceOrientationControls (three.js): Euler(beta, alpha, -gamma, YXZ),
+   * затем -90° вокруг X и коррекция поворота экрана вокруг Z. Ключевой
+   * момент: тройка alpha/beta/gamma сначала собирается в одну ориентацию и
+   * только потом сравнивается с базой. Прямые разности углов здесь запрещены:
+   * при beta≈90° (телефон вертикально в очках) alpha и gamma могут резко
+   * меняться в противофазе при одной и той же физической позе.
+   */
+  private deviceQuaternion(event: DeviceOrientationEvent, out: THREE.Quaternion): THREE.Quaternion {
+    const alpha = THREE.MathUtils.degToRad(event.alpha || 0);
+    const beta = THREE.MathUtils.degToRad(event.beta || 0);
+    const gamma = THREE.MathUtils.degToRad(event.gamma || 0);
+    this.gyroEuler.set(beta, alpha, -gamma, "YXZ");
+    out.setFromEuler(this.gyroEuler);
+    out.multiply(ReefWorld.GYRO_Q1);
+    this.gyroScreenQ.setFromAxisAngle(
+      ReefWorld.GYRO_Z,
+      -THREE.MathUtils.degToRad(this.gyroScreenAngleDeg ?? 0)
+    );
+    out.multiply(this.gyroScreenQ);
+    return out;
+  }
+
   private onDeviceOrientation = (event: DeviceOrientationEvent) => {
     if (this.settings.source !== "gyro" && this.settings.source !== "fusion") return;
     if (event.alpha == null || event.beta == null) return;
-    if (!this.gyroBase) {
-      this.gyroBase = { alpha: event.alpha, beta: event.beta, gamma: event.gamma || 0 };
+
+    const screenAngleDeg = this.screenAngleDeg();
+    if (this.gyroScreenAngleDeg === null) this.gyroScreenAngleDeg = screenAngleDeg;
+    if (screenAngleDeg !== this.gyroScreenAngleDeg) {
+      // Поворот экрана меняет коррекцию в кватернионе. Это перебазирование,
+      // а не движение головы: гибрид обязан забыть старое сырьё.
+      this.gyroScreenAngleDeg = screenAngleDeg;
+      this.gyroBaseQ = null;
       this.gyroTarget = { yaw: 0, pitch: 0 };
-      // Новая база датчика: слияние обязано забыть прошлое сырьё, иначе
-      // следующее приращение прыгнет на всю величину перебазирования.
       this.fusion.forgetGyro();
     }
-    let deltaAlpha = event.alpha - this.gyroBase.alpha;
-    if (deltaAlpha > 180) deltaAlpha -= 360;
-    if (deltaAlpha < -180) deltaAlpha += 360;
-    const deltaBeta = event.beta - this.gyroBase.beta;
-    const landscape = window.innerWidth > window.innerHeight;
-    const yawRad = THREE.MathUtils.degToRad(deltaAlpha);
-    const pitchRad = THREE.MathUtils.degToRad(deltaBeta) * 0.72;
-    // Сырьё без зажимов — источник приращений для гибрида; gyroTarget по-прежнему
-    // зажатая абсолютная цель чистого гиро-режима (поведение не меняется).
-    this.gyroRaw = { yaw: landscape ? yawRad : -pitchRad, pitch: -pitchRad };
+
+    const qNow = this.deviceQuaternion(event, this.gyroNowQ);
+    if (!this.gyroBaseQ) {
+      this.gyroBaseQ = qNow.clone();
+      this.gyroTarget = { yaw: 0, pitch: 0 };
+      this.fusion.forgetGyro();
+    }
+
+    // Ориентация относительно позы калибровки, в осях самой головы.
+    // Знаки сохранены от прежнего режима: alpha+ даёт yaw+, beta+ даёт pitch−.
+    // Масштаб pitch теперь честный 1:1 (старый ×0.72 компенсировал не pitch,
+    // а проекцию beta в окрестности особой точки).
+    this.gyroRelQ.copy(this.gyroBaseQ).invert().multiply(qNow);
+    this.gyroEuler.setFromQuaternion(this.gyroRelQ, "YXZ");
+    this.gyroRaw = { yaw: this.gyroEuler.y, pitch: -this.gyroEuler.x };
     this.gyroTarget.yaw = THREE.MathUtils.clamp(this.gyroRaw.yaw, -1.35, 1.35);
     this.gyroTarget.pitch = THREE.MathUtils.clamp(this.gyroRaw.pitch, -0.45, 0.92);
     this.gyroLastAt = performance.now();
@@ -2029,7 +2081,8 @@ export class ReefWorld {
         window.addEventListener("deviceorientation", this.onDeviceOrientation);
         this.gyroListening = true;
       }
-      this.gyroBase = null;
+      this.gyroBaseQ = null;
+      this.gyroScreenAngleDeg = null;
       if (this.settings.source === "gyro") {
         this.setGazeStatus("gyro-wait");
       } else if (this.settings.source === "fusion") {
@@ -2042,7 +2095,8 @@ export class ReefWorld {
   }
 
   calibrateGyro() {
-    this.gyroBase = null;
+    this.gyroBaseQ = null;
+    this.gyroScreenAngleDeg = null;
     this.gyroLastAt = 0;
     this.gyroTarget = { yaw: 0, pitch: 0 };
     this.gyroRaw = { yaw: 0, pitch: 0 };
@@ -2604,7 +2658,8 @@ export class ReefWorld {
   setSource(source: GazeSource) {
     if (this.settings.source === source) return;
     this.settings.source = source;
-    this.gyroBase = null;
+    this.gyroBaseQ = null;
+    this.gyroScreenAngleDeg = null;
     this.gyroTarget = { yaw: 0, pitch: 0 };
     this.lastGazeStatus = "pointer";
     if (source === "gyro") {
@@ -2752,6 +2807,8 @@ export class ReefWorld {
       status: this.fusion.status,
       gyroRaw: { ...this.gyroRaw },
       gyroAgeMs: this.gyroLastAt ? Math.round(performance.now() - this.gyroLastAt) : null,
+      screenAngleDeg: this.gyroScreenAngleDeg,
+      guards: { ...this.fusion.diagnostics },
     };
   }
 
