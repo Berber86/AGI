@@ -1,5 +1,5 @@
 /* Офлайн-кэш «Шарик-непоседа»: после первой загрузки игра работает без сети. */
-var CACHE = 'tilt-ball-maze-v2';
+var CACHE = 'tilt-ball-maze-v3';
 var ASSETS = [
   './',
   './index.html',

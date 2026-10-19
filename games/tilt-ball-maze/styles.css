@@ -245,3 +245,17 @@ canvas#game {
 .hint { font-size: clamp(19px, 5.4vw, 26px); letter-spacing: 2px; text-align: center; }
 .sensor { font-size: 17px; padding: 3px 12px; }
 .hud-buttons .btn-small { font-size: clamp(19px, 5.4vw, 25px); padding: 7px 15px; }
+
+/* ---------- Чистый экран во время игры: только поле ---------- */
+html, body { height: 100%; }
+body { min-height: 100dvh; overflow: hidden; }
+.board-wrap { position: fixed; inset: 0; width: 100vw; height: 100dvh; }
+canvas#game { border-radius: 0; box-shadow: none; display: block; }
+.pause-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.pause-grid .btn-big { margin-top: 0; }
+.press-hint { font-size: 30px; margin-top: 16px; opacity: .75; }
+.win-stars { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 12px 0 4px; min-height: 52px; }
+.win-star { font-size: clamp(30px, 9vw, 44px); line-height: 1.1; display: inline-block; }
+.win-star.got { animation: bounce .7s ease infinite alternate; }
+.win-star:not(.got) { opacity: .45; filter: grayscale(1); }
+.level-btn .lv-stars { font-size: 15px; letter-spacing: 1px; line-height: 1.35; word-break: break-all; }

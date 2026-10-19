@@ -14,7 +14,7 @@
   'use strict';
 
   var LEVELS = window.TILT_LEVELS;
-  var SAVE_KEY = 'tiltBallMaze.v2';
+  var SAVE_KEY = 'tiltBallMaze.v3';
   var BALL_COLORS = ['#ef476f', '#f78c6b', '#ffd166', '#a7c957', '#06d6a0', '#4ecdc4', '#118ab2', '#4361ee', '#9b5de5', '#f15bb5'];
   var NUMBER_WORDS = ['один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять', 'десять'];
   var COUNT_NOTES = [523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760];
@@ -22,14 +22,9 @@
   // ---------- DOM ----------
   function $(id) { return document.getElementById(id); }
   var canvas = $('game'), ctx = canvas.getContext('2d');
-  var levelNumberEl = $('levelNumber'), levelDotsEl = $('levelDots');
-  var countNumberEl = $('countNumber'), countPipsEl = $('countPips'), totalCountEl = $('totalCount');
-  var countPopEl = $('countPop');
-  var levelHintEl = $('levelHint'), toastEl = $('toast');
-  var bubbleDotEl = $('bubbleDot'), sensorGyroEl = $('sensorGyro'), sensorAccelEl = $('sensorAccel');
-  var sensorModeIconEl = $('sensorModeIcon'), sensorNoteEl = $('sensorNote');
+  var sensorNoteEl = $('sensorNote');
   var startOverlay = $('startOverlay'), winOverlay = $('winOverlay'), levelsOverlay = $('levelsOverlay');
-  var emuPanel = $('emuPanel'), emuPad = $('emuPad'), emuKnob = $('emuKnob'), emuTiltEl = $('emuTilt');
+  var pauseOverlay = $('pauseOverlay');
 
   // ---------- Сохранение ----------
   var save = { unlocked: 1, stars: {}, best: {}, sound: true };
@@ -137,35 +132,22 @@
   function calibrate(message) {
     gyro.calBeta = gyro.beta; gyro.calGamma = gyro.gamma;
     accel.calX = accel.x; accel.calY = accel.y;
-    emu.x = 0; emu.y = 0; syncEmuKnob();
+    emu.x = 0; emu.y = 0;
     tiltTarget.x = 0; tiltTarget.y = 0; tilt.x = 0; tilt.y = 0;
-    if (message) showToast(message);
+    void message;
+    vibrate(30);
   }
 
-  // ---------- Эмулятор наклона (компьютер) ----------
+  // ---------- Эмулятор наклона (компьютер): только стрелки клавиатуры ----------
   var emu = { x: 0, y: 0 };
   var keysDown = {};
-  function syncEmuKnob() {
-    var max = 40;
-    emuKnob.style.transform = 'translate(' + (emu.x * max) + 'px,' + (emu.y * max) + 'px)';
-    emuTiltEl.style.transform = 'rotate(' + (emu.x * 22) + 'deg) perspective(120px) rotateX(' + (-emu.y * 24) + 'deg)';
-  }
-  function setEmuFromEvent(e) {
-    var r = emuPad.getBoundingClientRect();
-    var dx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2);
-    var dy = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-    var len = Math.hypot(dx, dy);
-    if (len > 1) { dx /= len; dy /= len; }
-    emu.x = dx; emu.y = dy; syncEmuKnob();
-  }
-  var emuDragging = false;
-  emuPad.addEventListener('pointerdown', function (e) { emuDragging = true; emuPad.setPointerCapture(e.pointerId); setEmuFromEvent(e); });
-  emuPad.addEventListener('pointermove', function (e) { if (emuDragging) setEmuFromEvent(e); });
-  emuPad.addEventListener('pointerup', function () { emuDragging = false; });
-  emuPad.addEventListener('pointercancel', function () { emuDragging = false; });
-  emuPad.addEventListener('dblclick', function () { emu.x = 0; emu.y = 0; syncEmuKnob(); });
+  function syncEmuKnob() { /* визуального эмулятора нет: экран во время игры чистый */ }
   window.addEventListener('keydown', function (e) {
-    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) >= 0) { keysDown[e.key] = true; if (inputMode === 'emu') e.preventDefault(); }
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Escape'].indexOf(e.key) >= 0) {
+      keysDown[e.key] = true;
+      if (inputMode === 'emu' && e.key !== 'Escape') e.preventDefault();
+      if (e.key === 'Escape' && game.playing) openPause();
+    }
   });
   window.addEventListener('keyup', function (e) { delete keysDown[e.key]; });
 
@@ -210,49 +192,11 @@
     resetBall();
     game.collected = 0; game.elapsed = 0; game.won = false; game.falling = 0; game.fallScale = 1;
     game.particles = [];
-    levelNumberEl.textContent = String(index + 1);
-    levelHintEl.textContent = lv.hintEmoji || '📱↔️↕️';
-    updateHud();
     resizeCanvas();
   }
   function resetBall() {
     game.ball.x = game.start.x; game.ball.y = game.start.y;
     game.ball.vx = 0; game.ball.vy = 0;
-  }
-
-  // Панель счёта: большая цифра + 10 кружков, закрашивающихся по одному.
-  function buildPips() {
-    countPipsEl.innerHTML = '';
-    for (var i = 0; i < 10; i++) countPipsEl.appendChild(document.createElement('i'));
-    levelDotsEl.innerHTML = '';
-    for (var d = 0; d < LEVELS.length; d++) levelDotsEl.appendChild(document.createElement('i'));
-  }
-  function updateHud() {
-    countNumberEl.textContent = String(game.collected);
-    var pips = countPipsEl.children;
-    for (var i = 0; i < pips.length; i++) {
-      var got = i < game.collected;
-      pips[i].classList.toggle('got', got);
-      pips[i].style.background = got ? BALL_COLORS[i % BALL_COLORS.length] : '';
-    }
-    var dots = levelDotsEl.children;
-    for (var d = 0; d < dots.length; d++) dots[d].classList.toggle('on', d === game.levelIndex);
-    var total = Object.keys(save.stars).reduce(function (s, k) { return s + (save.stars[k] || 0); }, 0);
-    totalCountEl.textContent = String(total);
-  }
-  function popCount(n) {
-    countPopEl.textContent = String(n);
-    countPopEl.classList.remove('pop');
-    void countPopEl.offsetWidth;
-    countPopEl.classList.add('pop');
-  }
-
-  var toastTimer = 0;
-  function showToast(text, ms) {
-    toastEl.textContent = text;
-    toastEl.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, ms || 2400);
   }
 
   function spawnParticles(x, y, n, colors, speed) {
@@ -279,7 +223,6 @@
       game.fallScale = Math.max(0.05, game.falling / 0.55);
       if (game.falling <= 0) {
         resetBall(); game.fallScale = 1;
-        showToast('🕳️ 😊 ↩️', 1800);
       }
       return;
     }
@@ -309,9 +252,6 @@
         spawnParticles(st.x, st.y, 16, [st.color, '#ffffff', BALL_COLORS[game.collected % BALL_COLORS.length]], 2.6);
         sndCount(game.collected);
         speakCount(game.collected);
-        popCount(game.collected);
-        updateHud();
-        if (game.collected === 10) showToast('🔟 🎉', 1800);
       }
     }
     // Ямки.
@@ -335,7 +275,7 @@
       var secs = Math.round(game.elapsed);
       if (!save.best[idx] || secs < save.best[idx]) save.best[idx] = secs;
       if (idx + 1 < LEVELS.length && save.unlocked < idx + 2) save.unlocked = idx + 2;
-      persist(); updateHud();
+      persist();
       setTimeout(showWin, 750);
     }
     // Частицы.
@@ -383,22 +323,21 @@
   }
 
   // ---------- Отрисовка ----------
-  var view = { tile: 32, w: 0, h: 0 };
+  var view = { tile: 32, w: 0, h: 0, ox: 0, oy: 0 };
   function resizeCanvas() {
-    var wrap = canvas.parentElement;
-    var availW = Math.min(wrap.clientWidth || window.innerWidth - 24, window.innerWidth - 24);
-    var availH;
-    if (window.innerWidth > window.innerHeight) availH = Math.max(220, window.innerHeight - 190);
-    else availH = Math.max(280, window.innerHeight * 0.52);
-    var tile = Math.floor(Math.min(availW / game.cols, availH / game.rows));
-    tile = Math.max(18, tile);
+    var W = window.innerWidth, H = window.innerHeight;
+    var tile = Math.floor(Math.min(W / game.cols, H / game.rows));
+    tile = Math.max(14, tile);
     view.tile = tile; view.w = tile * game.cols; view.h = tile * game.rows;
+    view.ox = Math.round((W - view.w) / 2); view.oy = Math.round((H - view.h) / 2);
     var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.style.width = view.w + 'px';
-    canvas.style.height = view.h + 'px';
-    canvas.width = Math.round(view.w * dpr);
-    canvas.height = Math.round(view.h * dpr);
-    ctx.setTransform(dpr * tile, 0, 0, dpr * tile, 0, 0);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.translate(view.ox, view.oy);
+    ctx.scale(tile, tile);
   }
   window.addEventListener('resize', resizeCanvas);
   window.addEventListener('orientationchange', function () { setTimeout(resizeCanvas, 120); });
@@ -413,8 +352,34 @@
     ctx.closePath();
   }
 
+  function drawStarShape(cx, cy, r, rot) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    for (var k = 0; k < 10; k++) {
+      var ang = -Math.PI / 2 + k * Math.PI / 5;
+      var rad = k % 2 === 0 ? r : r * 0.48;
+      var px = Math.cos(ang) * rad, py = Math.sin(ang) * rad;
+      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    var g = ctx.createRadialGradient(-r * 0.25, -r * 0.3, 0.02, 0, 0, r * 1.25);
+    g.addColorStop(0, '#fff3b0'); g.addColorStop(0.55, '#ffd166'); g.addColorStop(1, '#f59e0b');
+    ctx.fillStyle = g;
+    ctx.shadowColor = 'rgba(245,158,11,.75)'; ctx.shadowBlur = r * view.tile * 0.35;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(180,83,9,.65)'; ctx.lineWidth = 0.035;
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function draw() {
     var t = game.time;
+    ctx.fillStyle = '#e9defc';
+    ctx.fillRect(-view.ox / view.tile - 1, -view.oy / view.tile - 1,
+      (view.w + view.ox * 2) / view.tile + 2, (view.h + view.oy * 2) / view.tile + 2);
     ctx.fillStyle = '#7c4a21';
     ctx.fillRect(0, 0, game.cols, game.rows);
     for (var y = 0; y < game.rows; y++) {
@@ -458,20 +423,14 @@
     ctx.font = (0.30 * pulse) + 'px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('🏁', game.finish.x, game.finish.y + 0.02);
-    // Шарики счёта: цветные мячики с бликом.
+    // Звёздочки: золотые, медленно крутятся и покачиваются.
     for (var i = 0; i < game.stars.length; i++) {
       var st = game.stars[i];
       if (st.taken) continue;
       var bob = Math.sin(t * 3 + st.spin) * 0.045;
-      var br = 0.19 + Math.sin(t * 3 + st.spin) * 0.012;
-      ctx.fillStyle = 'rgba(70,30,0,.22)';
-      ctx.beginPath(); ctx.ellipse(st.x + 0.03, st.y + 0.16 + bob, br * 0.9, br * 0.35, 0, 0, 6.3); ctx.fill();
-      var bg = ctx.createRadialGradient(st.x - br * 0.35, st.y - br * 0.4 + bob, 0.02, st.x, st.y + bob, br * 1.3);
-      bg.addColorStop(0, '#ffffff'); bg.addColorStop(0.25, st.color); bg.addColorStop(1, st.color);
-      ctx.fillStyle = bg;
-      ctx.beginPath(); ctx.arc(st.x, st.y + bob, br, 0, 6.3); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.85)';
-      ctx.beginPath(); ctx.arc(st.x - br * 0.34, st.y - br * 0.38 + bob, br * 0.28, 0, 6.3); ctx.fill();
+      ctx.fillStyle = 'rgba(70,30,0,.20)';
+      ctx.beginPath(); ctx.ellipse(st.x + 0.03, st.y + 0.20 + bob, 0.17, 0.06, 0, 0, 6.3); ctx.fill();
+      drawStarShape(st.x, st.y + bob, 0.27, Math.sin(t * 1.6 + st.spin) * 0.35);
     }
     for (var p = 0; p < game.particles.length; p++) {
       var pt = game.particles[p];
@@ -540,11 +499,6 @@
     game.elapsed += dt;
     stepPhysics(dt);
 
-    bubbleDotEl.style.transform = 'translate(' + (tilt.x * 13) + 'px,' + (tilt.y * 13) + 'px)';
-    var fresh = 2500;
-    sensorGyroEl.classList.toggle('on', inputMode === 'sensor' && gyro.seen && now - gyro.lastTime < fresh);
-    sensorAccelEl.classList.toggle('on', inputMode === 'sensor' && accel.seen && now - accel.lastTime < fresh);
-
     draw();
   }
 
@@ -553,17 +507,16 @@
     if (!game.won) return;
     game.playing = false;
     stopSpeech();
-    var winBallsEl = $('winBalls');
-    winBallsEl.innerHTML = '';
-    for (var i = 0; i < 10; i++) {
-      var ball = document.createElement('i');
-      var got = i < game.collected;
-      ball.className = got ? 'got' : 'miss';
-      if (got) ball.style.background = BALL_COLORS[i % BALL_COLORS.length];
-      ball.style.animationDelay = (i * 0.07) + 's';
-      winBallsEl.appendChild(ball);
+    var winStarsEl = $('winStars');
+    winStarsEl.innerHTML = '';
+    var need = game.stars.length;
+    for (var i = 0; i < need; i++) {
+      var star = document.createElement('span');
+      star.className = 'win-star' + (i < game.collected ? ' got' : '');
+      star.textContent = i < game.collected ? '⭐' : '☆';
+      star.style.animationDelay = (i * 0.09) + 's';
+      winStarsEl.appendChild(star);
     }
-    $('winCountNumber').textContent = String(game.collected);
     $('btnNextLevel').style.display = game.levelIndex + 1 < LEVELS.length ? '' : 'none';
     winOverlay.hidden = false;
   }
@@ -577,12 +530,10 @@
       btn.className = 'level-btn' + (i === game.levelIndex ? ' current' : '') + (i >= save.unlocked ? ' locked' : '');
       btn.setAttribute('aria-label', 'Лабиринт ' + (i + 1));
       var count = save.stars[i] || 0;
-      var ballsHtml = '';
-      for (var p = 0; p < 10; p++) {
-        ballsHtml += '<i class="' + (p < count ? 'got' : '') + '"' + (p < count ? ' style="background:' + BALL_COLORS[p % BALL_COLORS.length] + '"' : '') + '></i>';
-      }
+      var starsHtml = '';
+      for (var p = 0; p < i + 1; p++) starsHtml += p < count ? '⭐' : '☆';
       btn.innerHTML = '<span class="lv-num">' + (i >= save.unlocked ? '🔒' : String(i + 1)) + '</span>' +
-        '<span class="lv-balls">' + ballsHtml + '</span>';
+        '<span class="lv-stars">' + starsHtml + '</span>';
       btn.disabled = i >= save.unlocked;
       btn.addEventListener('click', function () {
         levelsOverlay.hidden = true;
@@ -597,14 +548,12 @@
     loadLevel(index);
     game.playing = true;
     winOverlay.hidden = true;
-    showToast(LEVELS[index].hintEmoji || '📱↔️↕️', 2200);
+    pauseOverlay.hidden = true;
+    levelsOverlay.hidden = true;
   }
 
   function setMode(mode) {
     inputMode = mode;
-    emuPanel.hidden = mode !== 'emu';
-    sensorModeIconEl.textContent = mode === 'emu' ? '💻' : mode === 'sensor' ? '📱' : '💤';
-    if (mode === 'emu') syncEmuKnob();
   }
 
   async function enableSensorsAndPlay() {
@@ -631,10 +580,9 @@
     calibrateWhenReady = true;
     startOverlay.hidden = true;
     startLevel(0);
-    showToast('📱 🎯', 2200);
     setTimeout(function () {
       if (!gyro.seen && !accel.seen) {
-        showToast('📱 ❓ 💻', 3800);
+        sensorNoteEl.textContent = '📱 ❓';
       } else if (calibrateWhenReady) {
         calibrateWhenReady = false;
         calibrate('🎯 👍 📱');
@@ -648,13 +596,49 @@
     setMode('emu');
     startOverlay.hidden = true;
     startLevel(0);
-    showToast('💻 🌀 ⬇️', 2600);
   });
-  $('btnCalibrate').addEventListener('click', function () { ensureAudio(); calibrate('🎯 👍'); });
+  function openPause() {
+    if (!game.playing) return;
+    game.playing = false;
+    stopSpeech();
+    pauseOverlay.hidden = false;
+  }
+  // Удержание ДВУМЯ пальцами ~1 c — случайное детское касание меню не откроет.
+  var pointers = new Map();
+  var twoFingerStart = 0;
+  canvas.addEventListener('pointerdown', function (e) {
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2 && !twoFingerStart) twoFingerStart = performance.now();
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    var pt = pointers.get(e.pointerId);
+    if (pt && Math.hypot(e.clientX - pt.x, e.clientY - pt.y) > 32) twoFingerStart = 0;
+  });
+  function endPointer(e) {
+    if (twoFingerStart && performance.now() - twoFingerStart >= 900 && pointers.size >= 2) openPause();
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) twoFingerStart = 0;
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  $('btnResume').addEventListener('click', function () {
+    pauseOverlay.hidden = true;
+    game.playing = true;
+    lastFrame = performance.now();
+  });
+  $('btnCalibrate').addEventListener('click', function () {
+    ensureAudio(); calibrate();
+    var btn = this;
+    btn.textContent = '👍';
+    setTimeout(function () { btn.textContent = '🎯'; }, 700);
+  });
   $('btnRestart').addEventListener('click', function () { startLevel(game.levelIndex); });
-  $('btnLevels').addEventListener('click', function () { buildLevelGrid(); levelsOverlay.hidden = false; game.playing = false; });
-  $('btnWinLevels').addEventListener('click', function () { winOverlay.hidden = true; buildLevelGrid(); levelsOverlay.hidden = false; });
-  $('btnCloseLevels').addEventListener('click', function () { levelsOverlay.hidden = true; game.playing = true; });
+  var levelsReturnTo = 'pause';
+  $('btnLevels').addEventListener('click', function () { levelsReturnTo = 'pause'; pauseOverlay.hidden = true; buildLevelGrid(); levelsOverlay.hidden = false; game.playing = false; });
+  $('btnWinLevels').addEventListener('click', function () { levelsReturnTo = 'win'; winOverlay.hidden = true; buildLevelGrid(); levelsOverlay.hidden = false; });
+  $('btnCloseLevels').addEventListener('click', function () { levelsOverlay.hidden = true; if (levelsReturnTo === 'win') winOverlay.hidden = false; else pauseOverlay.hidden = false; });
   $('btnNextLevel').addEventListener('click', function () { startLevel(Math.min(game.levelIndex + 1, LEVELS.length - 1)); });
   $('btnReplayLevel').addEventListener('click', function () { startLevel(game.levelIndex); });
   $('btnSound').addEventListener('click', function () {
@@ -673,7 +657,6 @@
 
   // ---------- Старт ----------
   $('btnSound').textContent = save.sound ? '🔊' : '🔇';
-  buildPips();
   loadLevel(0);
   draw();
   requestAnimationFrame(loop);

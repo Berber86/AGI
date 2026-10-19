@@ -23,18 +23,27 @@ ok(js.includes('devicemotion'), 'слушается DeviceMotionEvent (аксе�
 ok(js.includes('accelerationIncludingGravity'), 'акселерометр: accelerationIncludingGravity');
 ok(js.includes('requestPermission'), 'iOS-разрешения на датчики запрашиваются');
 ok(js.includes('calBeta') && js.includes('calGamma'), 'есть калибровка нуля наклона');
-ok(!/canvas\.addEventListener\('pointer/.test(js) && !/canvas\.addEventListener\("pointer/.test(js),
-  'игровое поле НЕ управляет шариком касаниями');
+ok(!js.includes('setEmuFromEvent') && js.includes("canvas.addEventListener('pointerup'"),
+  'касания поля шариком НЕ управляют: только долгое нажатие открывает паузу');
 ok(!/addEventListener\('touchmove'/.test(js.split('emuPad')[0]), 'нет тач-управления шариком вне эмулятора');
 ok(js.includes("inputMode === 'emu'"), 'эмулятор наклона — отдельный явный режим для компьютера');
 ok(js.includes('window.__tiltMaze'), 'есть тестовый хук window.__tiltMaze');
 ok(html.includes('btnEnableSensors'), 'стартовый экран: большая кнопка с телефоном и треугольником');
 ok(js.includes('NUMBER_WORDS') && js.includes('speechSynthesis'), 'счёт до 10 произносится голосом');
-ok(js.includes('popCount') && js.includes('sndCount'), 'каждый шарик: большая цифра и нотка');
+ok(js.includes('drawStarShape') && js.includes('sndCount'), 'звёздочки рисует игра; каждый сбор — нотка');
 
 // Уровни: структура и проходимость (BFS от старта)
 const LEVELS = require(join(root, 'src/levels.js'));
-ok(Array.isArray(LEVELS) && LEVELS.length >= 5, `уровней >= 5 (сейчас ${LEVELS.length})`);
+ok(Array.isArray(LEVELS) && LEVELS.length === 10, `уровней ровно 10 (сейчас ${LEVELS.length})`);
+ok(!html.includes('class="hud"') && !html.includes('countPips') && !html.includes('emuPanel') && !html.includes('id="toast"'),
+  'во время игры экран чистый: нет HUD, счётчиков, эмулятора и всплывающих сообщений в разметке');
+ok(js.includes('openPause') && js.includes('pointers.size >= 2') && js.includes('900'), 'меню для взрослых — удержание двумя пальцами ~1 c');
+
+{
+  const lv1 = LEVELS[0];
+  const interior = lv1.grid.slice(1, -1).flatMap(r => [...r.slice(1, -1)]);
+  ok(interior.every(c => c !== '#'), 'уровень 1: внутри только периметр, ни одной внутренней стены');
+}
 
 for (const [i, lv] of LEVELS.entries()) {
   const tag = `уровень ${i + 1} «${lv.name}»`;
@@ -48,7 +57,7 @@ for (const [i, lv] of LEVELS.entries()) {
     if (c === '*') stars.push([x, y]);
   }));
   ok(!!start && !!finish, `${tag}: есть старт и финиш`);
-  ok(stars.length === 10, `${tag}: ровно 10 шариков для счёта до десяти (сейчас ${stars.length})`);
+  ok(stars.length === i + 1, `${tag}: звёздочек ровно ${i + 1} — по номеру уровня (сейчас ${stars.length})`);
   const seen = new Set([start.join(',')]); const q = [start];
   while (q.length) {
     const [x, y] = q.shift();
