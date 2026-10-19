@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Игра для детей, которые ещё не умеют читать: на экране нет слов,
+       только картинки, эмодзи, цифры и счёт шариков до 10. -->
+  <title>🌀📱</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="hud" aria-label="Панель игры">
+      <div class="hud-row">
+        <div class="hud-level" aria-label="Номер лабиринта">
+          <span id="levelNumber" class="level-number">1</span>
+          <span class="level-dots" id="levelDots" aria-hidden="true"></span>
+        </div>
+        <!-- Счёт до 10: большая цифра и 10 цветных кружков-шариков -->
+        <div class="count" aria-label="Сколько шариков собрано">
+          <span class="count-number" id="countNumber">0</span>
+          <span class="count-pips" id="countPips" aria-hidden="true"></span>
+        </div>
+        <div class="hud-trophy" aria-label="Всего шариков за всё время">
+          <span aria-hidden="true">🏆</span><span id="totalCount">0</span>
+        </div>
+      </div>
+      <div class="hud-row hud-row-2">
+        <div class="sensors" aria-label="Состояние датчиков">
+          <span class="sensor" id="sensorGyro"><i class="dot"></i>🧭</span>
+          <span class="sensor" id="sensorAccel"><i class="dot"></i>📐</span>
+          <span class="sensor" id="sensorMode"><i class="dot dot-mode"></i><span id="sensorModeIcon">💤</span></span>
+        </div>
+        <!-- Ватерпас: показывает текущий наклон, который видят датчики -->
+        <div class="bubble" id="bubble" aria-hidden="true">
+          <div class="bubble-cross"></div>
+          <div class="bubble-dot" id="bubbleDot"></div>
+        </div>
+      </div>
+      <div class="hud-buttons">
+        <button class="btn btn-small" id="btnCalibrate" type="button" aria-label="Калибровка: это ровно">🎯</button>
+        <button class="btn btn-small" id="btnLevels" type="button" aria-label="Выбрать лабиринт">🗺️</button>
+        <button class="btn btn-small" id="btnRestart" type="button" aria-label="Начать уровень сначала">↺</button>
+        <button class="btn btn-small" id="btnSound" type="button" aria-label="Звук">🔊</button>
+        <button class="btn btn-small" id="btnFullscreen" type="button" aria-label="На весь экран">⛶</button>
+      </div>
+      <p class="hint" id="levelHint" aria-hidden="true">📱↔️↕️</p>
+    </header>
+
+    <main class="board-wrap">
+      <canvas id="game" aria-label="Игровое поле: шарик в лабиринте"></canvas>
+      <!-- Большая цифра счёта: вспыхивает при каждом собранном шарике -->
+      <div class="count-pop" id="countPop" aria-hidden="true">1</div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </main>
+
+    <!-- Эмулятор наклона: только для компьютера без датчиков.
+         Он задаёт тот же самый вектор наклона, что и настоящий телефон:
+         шариком по-прежнему управляет только «наклон», а не касания поля. -->
+    <section class="emu" id="emuPanel" hidden aria-label="Эмулятор наклона телефона">
+      <div class="emu-phone" aria-hidden="true"><div class="emu-tilt" id="emuTilt">📱</div></div>
+      <div class="emu-pad" id="emuPad" role="application" aria-label="Кружок эмулятора наклона: ведите по нему, будто наклоняете телефон">
+        <div class="emu-pad-ring"></div>
+        <div class="emu-knob" id="emuKnob"></div>
+      </div>
+      <div class="emu-arrows" aria-hidden="true">⬅️⬆️⬇️➡️</div>
+    </section>
+
+    <footer class="foot" aria-hidden="true">📱 🌀 🌈</footer>
+  </div>
+
+  <!-- Стартовый экран: ни одного слова, только картинки и большие кнопки -->
+  <div class="overlay" id="startOverlay">
+    <div class="card">
+      <div class="ball-logo" aria-hidden="true"><div class="ball-face"><i class="eye e1"></i><i class="eye e2"></i><i class="mouth"></i></div></div>
+      <div class="start-pictos" aria-hidden="true">
+        <span class="picto phone-tilt">📱</span>
+        <span class="picto">↔️</span>
+        <span class="picto">↕️</span>
+        <span class="picto">🌀</span>
+        <span class="picto">🌈</span>
+      </div>
+      <div class="how" aria-hidden="true">
+        <div class="how-item"><span>🤲</span><span class="phone-tilt">📱</span></div>
+        <div class="how-item"><span>📱</span><span>↔️</span><span>↕️</span><span>➡️</span><span>🌀</span></div>
+        <div class="how-item"><span>🔟</span><span>🔴🟠🟡🟢🔵</span></div>
+      </div>
+      <button class="btn btn-huge btn-primary" id="btnEnableSensors" type="button" aria-label="Включить датчики и играть">📱 ▶️</button>
+      <button class="btn btn-huge" id="btnEmulator" type="button" aria-label="Играть на компьютере с эмулятором наклона">💻 ▶️</button>
+      <p class="note-emoji" id="sensorNote" aria-hidden="true"></p>
+    </div>
+  </div>
+
+  <!-- Экран прохождения уровня: праздник и собранные шарики -->
+  <div class="overlay" id="winOverlay" hidden>
+    <div class="card">
+      <div class="win-emoji" aria-hidden="true">🎉</div>
+      <div class="win-balls" id="winBalls" aria-hidden="true"></div>
+      <div class="win-count" aria-hidden="true"><span id="winCountNumber">10</span> 🔟</div>
+      <button class="btn btn-huge btn-primary" id="btnNextLevel" type="button" aria-label="Следующий лабиринт">▶️</button>
+      <div class="btn-row">
+        <button class="btn btn-big" id="btnReplayLevel" type="button" aria-label="Ещё раз этот лабиринт">↺</button>
+        <button class="btn btn-big" id="btnWinLevels" type="button" aria-label="Все лабиринты">🗺️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Выбор уровня: цифры и шарики, без слов -->
+  <div class="overlay" id="levelsOverlay" hidden>
+    <div class="card">
+      <div class="levels-title" aria-hidden="true">🗺️</div>
+      <div class="level-grid" id="levelGrid"></div>
+      <button class="btn btn-huge" id="btnCloseLevels" type="button" aria-label="Назад к игре">▶️</button>
+    </div>
+  </div>
+
+  <script src="./src/levels.js"></script>
+  <script src="./src/game.js"></script>
+</body>
+</html>

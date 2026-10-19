@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="110" fill="#7c3aed"/>
+  <rect x="56" y="56" width="400" height="400" rx="60" fill="#96622c"/>
+  <rect x="86" y="86" width="340" height="340" rx="40" fill="#ffe9c9"/>
+  <path d="M86 176h150v90H176v160h-90zM326 86h100v180H266v-90h60zM266 326h160v100H266z" fill="#b07a3f"/>
+  <text x="366" y="396" font-size="72" text-anchor="middle">🏁</text>
+  <circle cx="166" cy="136" r="62" fill="#f43f72"/>
+  <path d="M108 118a62 62 0 0 1 116 0z" fill="#ffd166"/>
+  <circle cx="144" cy="126" r="9" fill="#38104f"/><circle cx="188" cy="126" r="9" fill="#38104f"/>
+  <path d="M146 152q20 18 40 0" stroke="#38104f" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <ellipse cx="140" cy="100" rx="20" ry="12" fill="#fff" opacity=".7"/>
+  <text x="356" y="166" font-size="58" text-anchor="middle">⭐</text>
+</svg>
