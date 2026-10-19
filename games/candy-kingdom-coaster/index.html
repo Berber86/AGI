@@ -140,12 +140,20 @@
     <div id="screen-vr" class="screen hidden">
       <div class="menu-card vr-card">
         <h2>🥽 VR-поездка</h2>
-        <p class="vr-note">Машинка поедет сама по всей трассе. Ты только смотри по сторонам из очков! Гироскоп не используется: взгляд ведут метки или мягкий авто-обзор.</p>
+        <p class="vr-note">Машинка поедет сама по всей трассе. Ты только смотри по сторонам из очков! Взгляд ведут выбранный режим: метки, мягкий авто-обзор или явный гибрид «гироскоп + две метки».</p>
         <div class="vr-modes" role="group" aria-label="Режим взгляда">
           <button type="button" id="vr-mode-look" class="mid-btn vr-mode" aria-pressed="true">👀 Обзор сам</button>
           <button type="button" id="vr-mode-forward" class="mid-btn vr-mode" aria-pressed="false">🚗 Смотреть вперёд</button>
           <button type="button" id="vr-mode-camera" class="mid-btn vr-mode" aria-pressed="false">📷 По метке</button>
           <button type="button" id="vr-mode-camera-dual" class="mid-btn vr-mode" aria-pressed="false">📷📷 По двум меткам</button>
+          <button type="button" id="vr-mode-fusion" class="mid-btn vr-mode" aria-pressed="false">🧭 Гибрид + 2 метки</button>
+        </div>
+        <div id="vr-fusion-panel" class="hidden">
+          <p class="vr-note"><b>Гибрид:</b> гироскоп ведёт взгляд каждый кадр, а две метки медленно правят центр и убирают дрейф. Настройте и откалибруйте пару ниже, как в режиме двух меток.</p>
+          <div class="row">
+            <button type="button" id="vr-gyro-start" class="mid-btn">🧭 Включить гироскоп</button>
+          </div>
+          <p id="vr-gyro-status" class="vr-note" aria-live="polite">Гироскоп ещё не включён. Нажмите кнопку выше или «Надеть очки».</p>
         </div>
         <div id="vr-cam-panel" class="hidden">
           <div class="vr-cam-view">

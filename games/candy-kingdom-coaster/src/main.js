@@ -26,6 +26,8 @@ import { QualityGovernor } from './quality.js';
 import { VRController, normalizeVrSettings } from './vr.js';
 import { RemoteControl, parseFirebaseConfig } from './remote.js';
 import { CamTracker, CAM_COLORS } from './camtrack.js';
+import { GyroLook } from './gyro.js';
+import { FusionLook } from './fusionlook.js';
 import { loadTextures, countLoaded } from './textures.js';
 import { setLoading, finishLoading, paintLoading } from './loading.js';
 
@@ -113,9 +115,14 @@ const vr = new VRController(renderer, scene, camera);
 let remoteCtrl = null; // телефон-джойстик (создаётся из экрана подготовки)
 let vrSettings = normalizeVrSettings(Storage.getVrSettings());
 const isCameraLookMode = (mode = vrSettings.lookMode) => mode === 'camera' || mode === 'camera-dual';
+const isFusionLookMode = (mode = vrSettings.lookMode) => mode === 'fusion';
+const isMarkerLookMode = (mode = vrSettings.lookMode) => isCameraLookMode(mode) || isFusionLookMode(mode);
 const gestureDriverEnabled = () => vrSettings.driverMode === 'gesture';
 const gestureInputEnabled = () => !!vrSettings.gestureZoom || gestureDriverEnabled();
-const needsCameraInput = () => isCameraLookMode() || gestureInputEnabled();
+const needsCameraInput = () => isMarkerLookMode() || gestureInputEnabled();
+const gyroLook = new GyroLook();
+const fusionLook = new FusionLook({ yawLimitDeg: 80, pitchMinDeg: -20, pitchMaxDeg: 20 });
+gyroLook.onRebase = () => fusionLook.forgetGyro();
 
 // ---------------------------------------------------------------- state
 const game = {
@@ -188,6 +195,10 @@ const el = {
   vrModeLook: document.getElementById('vr-mode-look'),
   vrModeCamera: document.getElementById('vr-mode-camera'),
   vrModeCameraDual: document.getElementById('vr-mode-camera-dual'),
+  vrModeFusion: document.getElementById('vr-mode-fusion'),
+  vrFusionPanel: document.getElementById('vr-fusion-panel'),
+  vrGyroStart: document.getElementById('vr-gyro-start'),
+  vrGyroStatus: document.getElementById('vr-gyro-status'),
   vrCamPanel: document.getElementById('vr-cam-panel'),
   vrCamSingleControls: document.getElementById('vr-cam-single-controls'),
   vrCamDualControls: document.getElementById('vr-cam-dual-controls'),
@@ -528,7 +539,7 @@ function publishRemoteState() {
     throttle: game.driverMode === 'gesture' ? gestureThrottle() : (remoteCtrl ? +remoteCtrl.throttle().toFixed(2) : 0),
     steer: remoteCtrl ? +remoteCtrl.steer().toFixed(2) : 0,
     cam: {
-      on: isCameraLookMode() && !!game.camOn,
+      on: isMarkerLookMode() && !!game.camOn,
       found: !!(camTracker && camTracker.fresh(1200)),
       yaw: camTracker ? Math.round(camTracker.yaw) : 0,
       exit: camTracker ? camTracker.exitSideX : null,
@@ -538,6 +549,8 @@ function publishRemoteState() {
       gesture: !!(game.gestureOn && camTracker && camTracker.gestureV),
       thumb: !!(game.gestureOn && camTracker && camTracker.thumbUp),
       gestureDrive: game.driverMode === 'gesture',
+      fusion: isFusionLookMode() ? fusionLook.status : null,
+      gyro: isFusionLookMode() ? gyroLook.fresh(700) : false,
       zoom: vr.zoomFactor(),
     },
   };
@@ -554,7 +567,7 @@ function executeRemoteCommand(name) {
       break;
     case 'autoToggle': game.autoAssist = !game.autoAssist; break;
     case 'lookToggle':
-      if (isCameraLookMode()) { stopCamTracker(); vrSettings.lookMode = 'look'; }
+      if (isMarkerLookMode()) { stopCamTracker(); gyroLook.stop(); fusionLook.reset(0, 0); vrSettings.lookMode = 'look'; }
       else vrSettings.lookMode = vrSettings.lookMode === 'look' ? 'forward' : 'look';
       vr.setLookMode(vrSettings.lookMode);
       vrSettings = Storage.saveVrSettings(vrSettings);
@@ -568,7 +581,7 @@ function executeRemoteCommand(name) {
     }
     case 'muteToggle': SFX.toggleMute(); setSoundIcons(); break;
     case 'camToggle':
-      if (isCameraLookMode() && game.vrRide) {
+      if (isMarkerLookMode() && game.vrRide) {
         game.camOn = !game.camOn;
         if (game.camOn) {
           game.gestureOn = gestureInputEnabled();
@@ -599,7 +612,7 @@ const camSmooth = { yaw: 0, pitch: 0 };
 let camLastProcess = 0;
 function ensureCamTracker() {
   if (!camTracker) camTracker = new CamTracker();
-  const dual = vrSettings.lookMode === 'camera-dual';
+  const dual = vrSettings.lookMode === 'camera-dual' || isFusionLookMode();
   if (camTracker.dual !== dual) {
     camTracker.dual = dual;
     camTracker.c0n = null;
@@ -766,14 +779,66 @@ function updateGestureZoom() {
   vr.setGestureZoom(active);
 }
 
+let lastFusionCameraStatus = 'lost';
+function fusionCameraSample() {
+  const lost = { yaw: fusionLook.yaw, pitch: fusionLook.pitch, status: 'lost' };
+  if (!camTracker || !game.camOn) {
+    lastFusionCameraStatus = 'lost';
+    return lost;
+  }
+  const t = camTracker;
+  // В гибриде якорем служит само доказанное измерение трекера, а не
+  // camSmooth: camSmooth — уже сглаженная/выбегающая цель старого режима.
+  const pairFix = t.fresh(900) && t.pairFixation();
+  const singleFix = !pairFix && t.singleSteer();
+  if (pairFix || singleFix) {
+    lastFusionCameraStatus = pairFix ? 'valid' : 'single';
+    return {
+      yaw: THREE.MathUtils.degToRad(t.yaw),
+      pitch: THREE.MathUtils.degToRad(t.pitch),
+      status: lastFusionCameraStatus,
+    };
+  }
+  if (t.lastFoundAt) {
+    lastFusionCameraStatus = 'held';
+    return {
+      yaw: THREE.MathUtils.degToRad(t.heldYaw),
+      pitch: THREE.MathUtils.degToRad(t.heldPitch),
+      status: 'held',
+    };
+  }
+  lastFusionCameraStatus = 'lost';
+  return lost;
+}
+
+function updateFusionLook(dt) {
+  if (!game.vrRide || !isFusionLookMode()) return;
+  fusionLook.update(dt, gyroLook.value(), fusionCameraSample());
+  vr.setSimLook(
+    THREE.MathUtils.radToDeg(fusionLook.yaw),
+    THREE.MathUtils.radToDeg(fusionLook.pitch),
+  );
+}
+
+function fusionInfo() {
+  return {
+    ...fusionLook.info(),
+    cameraStatus: lastFusionCameraStatus,
+    gyro: gyroLook.info(),
+  };
+}
+
 function updateCameraLook(now, force = false) {
   const cameraLookActive = isCameraLookMode() && game.camOn;
-  if (!game.vrRide || !camTracker || (!cameraLookActive && !game.gestureOn)) return;
+  const fusionLookActive = isFusionLookMode() && game.camOn;
+  if (!game.vrRide || !camTracker || (!cameraLookActive && !fusionLookActive && !game.gestureOn)) return;
   if (!force && now - camLastProcess < (camTracker.intervalMs || 90)) return;
   camLastProcess = now;
   // Even when «По метке» is off, the same Worker must keep feeding the V
   // gesture state. Gesture-only VR deliberately never changes vr.setSimLook.
   camTracker.process();
+  // Гибрид читает этот замер в updateFusionLook() каждый кадр рендера;
+  // старый camSmooth/snap/coast здесь ему не нужен и не должен его вести.
   if (!cameraLookActive) return;
   const t = camTracker;
   const pairFix = t.pairFixation();
@@ -851,7 +916,7 @@ function requestFullscreenLandscape() {
 
 function startVrRide() {
   if (vrSettings.driverMode !== 'remote' && remoteCtrl) closeRemote();
-  game.camOn = isCameraLookMode();
+  game.camOn = isMarkerLookMode();
   game.gestureOn = gestureInputEnabled();
   camSmooth.yaw = 0; camSmooth.pitch = 0;
   if (needsCameraInput()) {
@@ -880,17 +945,28 @@ function startVrRide() {
 
 function enterVrStereo() {
   vr.start(vrSettings);
+  if (isFusionLookMode()) {
+    gyroLook.start();
+    gyroLook.calibrate();
+    fusionLook.reset(0, 0);
+    vr.setSimLook(0, 0);
+  } else {
+    gyroLook.stop();
+    fusionLook.reset(0, 0);
+  }
   document.body.classList.add('vr-active');
   // VR принадлежит самому себе: разрешение задаёт VR, тени 1024², bloom не считается.
   // Сначала VR-профиль губернатора (он не трогает pixelRatio в VR), потом разрешение.
   governor.setVr(true);
   // облегчённый стерео-рендер; в режиме камеры — ещё легче (телефон и так занят потоком)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, (isCameraLookMode() || game.gestureOn) ? 1.25 : 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, (isMarkerLookMode() || game.gestureOn) ? 1.25 : 1.5));
   // первые кадры стерео всегда дороже (новые варианты программ, тени) — не судим их
   governor.hold(3);
 }
 
 function stopVrStereo() {
+  gyroLook.stop();
+  fusionLook.reset(0, 0);
   if (!vr.active) return;
   vr.stop();
   document.body.classList.remove('vr-active');
@@ -975,7 +1051,7 @@ function updateCamPrepUi() {
       ? `${thumbStatus} ${vStatus} Руление — автопилот.`
       : vStatus}`;
   }
-  if (vrSettings.lookMode === 'camera-dual') {
+  if (vrSettings.lookMode === 'camera-dual' || isFusionLookMode()) {
     el.vrCamDualStatus.textContent = !info.running && !info.synthetic
       ? 'Камера выключена. Включите камеру и наведите её на две коробки.'
       : info.dualCalibrated
@@ -989,20 +1065,37 @@ function updateCamPrepUi() {
       ? `✅ Метка видна: yaw ${info.yaw}°, pitch ${info.pitch}° · обработка ${info.procMs} мс. Нажмите «Смотрю на метку», когда она прямо перед вами.`
       : 'Метка не видна: проверьте цвет (или «Взять цвет коробки») и освещение.';
 }
+function updateFusionPrepUi() {
+  if (!el.vrGyroStatus || !isFusionLookMode()) return;
+  const info = gyroLook.info();
+  el.vrGyroStatus.textContent = !info.supported || info.permission === 'unsupported'
+    ? '⚠ DeviceOrientation недоступен в этом браузере: гибрид не сможет вести взгляд гироскопом. Выберите режим по двум меткам.'
+    : info.permission === 'denied' || info.permission === 'error'
+      ? `⚠ Гироскоп не включён${info.error ? `: ${info.error}` : ''}. Проверьте разрешение датчика движения.`
+      : info.fresh
+        ? `✅ Гироскоп есть: yaw ${info.yawDeg}°, pitch ${info.pitchDeg}° · угол экрана ${info.screenAngleDeg}°.`
+        : info.listening
+          ? '🧭 Гироскоп включён, ждём первое событие датчика…'
+          : 'Гироскоп ещё не включён. Нажмите «Включить гироскоп» или «Надеть очки».';
+}
 function syncVrUi() {
-  const dual = vrSettings.lookMode === 'camera-dual';
+  const fusion = isFusionLookMode();
+  const dual = vrSettings.lookMode === 'camera-dual' || fusion;
   el.vrModeCamera.setAttribute('aria-pressed', String(vrSettings.lookMode === 'camera'));
-  el.vrModeCameraDual.setAttribute('aria-pressed', String(dual));
+  el.vrModeCameraDual.setAttribute('aria-pressed', String(vrSettings.lookMode === 'camera-dual'));
+  el.vrModeFusion.setAttribute('aria-pressed', String(fusion));
+  el.vrFusionPanel.classList.toggle('hidden', !fusion);
+  if (!fusion) gyroLook.stop();
   el.vrGestureZoom.setAttribute('aria-pressed', String(!!vrSettings.gestureZoom));
   el.vrGestureZoom.textContent = vrSettings.gestureZoom ? '✌️ Жест V — зум включён' : '✌️ Жест V — включить зум';
   el.vrGestureStatus.textContent = vrSettings.gestureZoom
     ? 'После старта VR задняя камера ищет V-жест. Ладонь держите в её поле зрения.'
     : 'Опционально: включает заднюю камеру только ради жеста и не меняет обычный режим.';
   // Gesture-only driving still needs the rear-camera controls/status visible.
-  el.vrCamPanel.classList.toggle('hidden', !(isCameraLookMode() || gestureInputEnabled()));
+  el.vrCamPanel.classList.toggle('hidden', !(isMarkerLookMode() || gestureInputEnabled()));
   el.vrCamSingleControls.classList.toggle('hidden', dual);
   el.vrCamDualControls.classList.toggle('hidden', !dual);
-  if (isCameraLookMode() && camTracker) ensureCamTracker();
+  if (isMarkerLookMode() && camTracker) ensureCamTracker();
   document.querySelectorAll('.vr-cam-color').forEach((b) =>
     b.setAttribute('aria-pressed', String(vrSettings.camColor === b.dataset.color)));
   document.querySelectorAll('.vr-cam-dual-preset').forEach((b) => {
@@ -1028,6 +1121,7 @@ function syncVrUi() {
     el.vrGestureStatus.textContent = 'Режим без джойстика: 👍 виден — газ, 👍 пропал — стоп; ✌️ — zoom. Руление остаётся автопилотом.';
   }
   updateRemoteUi();
+  updateFusionPrepUi();
 }
 function saveVrUi() {
   vrSettings = Storage.saveVrSettings(vrSettings);
@@ -1071,6 +1165,12 @@ setInterval(() => { if (remoteCtrl && remoteCtrl.room) publishRemoteState(); }, 
 el.vrModeForward.addEventListener('click', () => { vrSettings.lookMode = 'forward'; saveVrUi(); SFX.play('click'); });
 el.vrModeCamera.addEventListener('click', () => { vrSettings.lookMode = 'camera'; saveVrUi(); SFX.play('click'); });
 el.vrModeCameraDual.addEventListener('click', () => { vrSettings.lookMode = 'camera-dual'; saveVrUi(); SFX.play('click'); });
+el.vrModeFusion.addEventListener('click', () => { vrSettings.lookMode = 'fusion'; saveVrUi(); SFX.play('click'); });
+el.vrGyroStart.addEventListener('click', async () => {
+  SFX.play('click');
+  await gyroLook.request();
+  updateFusionPrepUi();
+});
 el.vrGestureZoom.addEventListener('click', () => {
   if (gestureDriverEnabled()) return; // combined mode deliberately keeps both gestures on
   vrSettings.gestureZoom = !vrSettings.gestureZoom;
@@ -1155,6 +1255,7 @@ document.querySelectorAll('.vr-cam-color').forEach((b) => b.addEventListener('cl
   SFX.play('click');
 }));
 setInterval(() => {
+  updateFusionPrepUi();
   if (!camTracker) return;
   if (!el.vrScreen.classList.contains('hidden') && (camTracker.running || camTracker.synthetic) && !game.vrRide) {
     camTracker.processMain();
@@ -1180,6 +1281,15 @@ el.btnVrStart.addEventListener('click', async () => {
   // Request camera permission synchronously from this user tap, before the
   // delayed 5-second countdown. Browsers may reject getUserMedia when it is
   // first called from the timer; that used to be swallowed in startVrRide().
+  if (isFusionLookMode()) {
+    const gyroOk = await gyroLook.request();
+    updateFusionPrepUi();
+    if (!gyroOk) {
+      el.btnVrStart.disabled = false;
+      return;
+    }
+  }
+
   if (needsCameraInput()) {
     try {
       const tracker = ensureCamTracker();
@@ -1582,7 +1692,8 @@ function updateGameplay(dt) {
     camera.position.y += Math.sin(tn * 53.3 + 1.7) * shake * 0.6;
   }
   camera.rotateZ(-((game.vrRide ? game.vrSteer : input.steer) || 0) * 0.02);
-  vr.applyLook(camera, dt); // взгляд: углы метки (готовит updateCameraLook) или мягкий авто-обзор; гироскопа нет
+  updateFusionLook(dt); // только явный fusion: гироскоп каждый кадр + якорь двух меток
+  vr.applyLook(camera, dt); // взгляд: углы метки/гибрида или мягкий авто-обзор старых режимов
   // FOV reads the actual speed, not just the boost button: the world opens up
   // as the car winds up, and boost adds its own extra kick on top.
   // normalised over the speeds the car actually reaches (cruise → flat out),
@@ -1969,7 +2080,25 @@ window.__TEST__ = {
   },
   vrStop() { exitVrToMenu(); return this.vrInfo(); },
   vrInfo() {
-    return { ...vr.info(), fov: +camera.fov.toFixed(2), vrRide: game.vrRide, plan: game.vrPlan, state: game.state };
+    const info = vr.info();
+    return {
+      ...info,
+      gyro: isFusionLookMode() ? gyroLook.fresh(700) : info.gyro,
+      fusion: isFusionLookMode() ? fusionInfo() : null,
+      fov: +camera.fov.toFixed(2), vrRide: game.vrRide, plan: game.vrPlan, state: game.state,
+    };
+  },
+  fusionInfo() { return fusionInfo(); },
+  gyroCalibrate() {
+    gyroLook.start();
+    gyroLook.calibrate();
+    fusionLook.reset(0, 0);
+    if (isFusionLookMode()) vr.setSimLook(0, 0);
+    return fusionInfo();
+  },
+  gyroAge(ms) {
+    gyroLook.lastAt = ms ? performance.now() - ms : 0;
+    return fusionInfo();
   },
   vrSetLook(yawDeg = null, pitchDeg = 0) { vr.setSimLook(yawDeg, pitchDeg); return this.vrInfo(); },
   async remoteDemo() {
@@ -2020,8 +2149,11 @@ window.__TEST__ = {
   // этим числом проверяются «нет возврата в центр» и «нет скачка».
   camLook() {
     const t = camTracker;
+    const fusion = isFusionLookMode();
     return {
-      yaw: +camSmooth.yaw.toFixed(2), pitch: +camSmooth.pitch.toFixed(2),
+      yaw: fusion ? +THREE.MathUtils.radToDeg(fusionLook.yaw).toFixed(2) : +camSmooth.yaw.toFixed(2),
+      pitch: fusion ? +THREE.MathUtils.radToDeg(fusionLook.pitch).toFixed(2) : +camSmooth.pitch.toFixed(2),
+      fusion: fusion ? fusionInfo() : null,
       snapPending: camSnapPending ? { yaw: +camSnapPending.yaw.toFixed(1), pitch: +camSnapPending.pitch.toFixed(1) } : null,
       wasLost: camWasLost,
       fixation: camFollowing,
@@ -2049,6 +2181,17 @@ window.__TEST__ = {
     game.camOn = true;
     t.resetDualCalibration();
     return t.info();
+  },
+  camEnableFusionSynthetic() {
+    vrSettings.lookMode = 'fusion';
+    const t = ensureCamTracker();
+    t.synthetic = true; t.running = true;
+    game.camOn = true;
+    t.resetDualCalibration();
+    gyroLook.start();
+    gyroLook.calibrate();
+    fusionLook.reset(0, 0);
+    return { info: t.info(), fusion: fusionInfo() };
   },
   camFeedDual(ax, ay, bx, by, r = 26, shape = 'rect') {
     const t = ensureCamTracker();

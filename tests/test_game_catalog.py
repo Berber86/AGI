@@ -72,9 +72,11 @@ class GameCatalogTests(unittest.TestCase):
         self.assertIn('stable-thumb', html)
         sw = (ROOT / 'games/candy-kingdom-coaster/sw.js').read_text()
         self.assertIn("'./gesture-stand/index.html'", sw)
-        self.assertIn("ckc-v55", sw)
+        self.assertIn("ckc-v56", sw)
         self.assertIn("ckc-ml-mediapipe-1.1.1", sw)
         self.assertIn("./vendor/mediapipe/vision_bundle.mjs", sw)
+        self.assertIn("'./src/gyro.js'", sw)
+        self.assertIn("'./src/fusionlook.js'", sw)
 
     def test_pelagic_eye_card_links_to_published_game_and_cover(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
