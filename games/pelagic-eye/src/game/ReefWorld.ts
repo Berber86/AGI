@@ -4,6 +4,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import type { CameraMarkerProvider, GazeSample } from "../lib/markerDriver";
+import { FusionLook, type FusionStatus } from "./fusionLook";
 import type { SpeciesId } from "../lib/species";
 import { perfProbe } from "../lib/perfProbe";
 import {
@@ -41,7 +42,7 @@ import {
   type StaticPart,
 } from "./mergeStatic";
 
-export type GazeSource = "pointer" | "gyro" | "camera";
+export type GazeSource = "pointer" | "gyro" | "camera" | "fusion";
 export type Quality = "high" | "balanced";
 export type GazeStatus =
   | "pointer"
@@ -51,7 +52,8 @@ export type GazeStatus =
   | "camera-single"
   | "camera-held"
   | "camera-lost"
-  | "camera-off";
+  | "camera-off"
+  | FusionStatus;
 
 export interface TargetUpdate {
   id: SpeciesId | null;
@@ -195,6 +197,9 @@ export class ReefWorld {
   private gyroTarget = { yaw: 0, pitch: 0 };
   private gyroLastAt = 0;
   private gyroListening = false;
+  // Гибрид (fusionLook): незажатые углы гироскопа для приращений и состояние слияния.
+  private gyroRaw = { yaw: 0, pitch: 0 };
+  private fusion = new FusionLook();
   private lastGazeStatus: GazeStatus = "pointer";
   private whaleSoundPlayed = false;
   private nextBubbleAt = 7;
@@ -1983,11 +1988,14 @@ export class ReefWorld {
   };
 
   private onDeviceOrientation = (event: DeviceOrientationEvent) => {
-    if (this.settings.source !== "gyro") return;
+    if (this.settings.source !== "gyro" && this.settings.source !== "fusion") return;
     if (event.alpha == null || event.beta == null) return;
     if (!this.gyroBase) {
       this.gyroBase = { alpha: event.alpha, beta: event.beta, gamma: event.gamma || 0 };
       this.gyroTarget = { yaw: 0, pitch: 0 };
+      // Новая база датчика: слияние обязано забыть прошлое сырьё, иначе
+      // следующее приращение прыгнет на всю величину перебазирования.
+      this.fusion.forgetGyro();
     }
     let deltaAlpha = event.alpha - this.gyroBase.alpha;
     if (deltaAlpha > 180) deltaAlpha -= 360;
@@ -1996,10 +2004,13 @@ export class ReefWorld {
     const landscape = window.innerWidth > window.innerHeight;
     const yawRad = THREE.MathUtils.degToRad(deltaAlpha);
     const pitchRad = THREE.MathUtils.degToRad(deltaBeta) * 0.72;
-    this.gyroTarget.yaw = THREE.MathUtils.clamp(landscape ? yawRad : -pitchRad, -1.35, 1.35);
-    this.gyroTarget.pitch = THREE.MathUtils.clamp(-pitchRad, -0.45, 0.92);
+    // Сырьё без зажимов — источник приращений для гибрида; gyroTarget по-прежнему
+    // зажатая абсолютная цель чистого гиро-режима (поведение не меняется).
+    this.gyroRaw = { yaw: landscape ? yawRad : -pitchRad, pitch: -pitchRad };
+    this.gyroTarget.yaw = THREE.MathUtils.clamp(this.gyroRaw.yaw, -1.35, 1.35);
+    this.gyroTarget.pitch = THREE.MathUtils.clamp(this.gyroRaw.pitch, -0.45, 0.92);
     this.gyroLastAt = performance.now();
-    this.setGazeStatus("gyro");
+    if (this.settings.source === "gyro") this.setGazeStatus("gyro");
   };
 
   async requestGyro(): Promise<{ ok: boolean; message: string }> {
@@ -2021,6 +2032,8 @@ export class ReefWorld {
       this.gyroBase = null;
       if (this.settings.source === "gyro") {
         this.setGazeStatus("gyro-wait");
+      } else if (this.settings.source === "fusion") {
+        this.setGazeStatus("fusion-wait");
       }
       return { ok: true, message: "Гироскоп подключён. Держите телефон так, как он стоит в очках." };
     } catch {
@@ -2032,6 +2045,9 @@ export class ReefWorld {
     this.gyroBase = null;
     this.gyroLastAt = 0;
     this.gyroTarget = { yaw: 0, pitch: 0 };
+    this.gyroRaw = { yaw: 0, pitch: 0 };
+    this.fusion.forgetGyro();
+    if (this.settings.source === "fusion") this.fusion.reset(0, 0);
   }
 
   private setGazeStatus(status: GazeStatus) {
@@ -2053,6 +2069,17 @@ export class ReefWorld {
         } else {
           this.setGazeStatus("gyro-wait");
         }
+      } else if (this.settings.source === "fusion") {
+        // Гибрид: гироскоп ведёт приращениями, камера-метка правит центр
+        // (контракт и фолбэки — fusionLook.ts). Свежесть гироскопа — тот же
+        // порог 700 мс, что в чистом гиро-режиме.
+        const now = performance.now();
+        const gyroFresh = now - this.gyroLastAt < 700;
+        const sample: GazeSample | null = this.provider?.getGaze(now) ?? null;
+        const status = this.fusion.update(dt, gyroFresh ? this.gyroRaw : null, sample);
+        this.targetYaw = this.fusion.yaw;
+        this.targetPitch = this.fusion.pitch;
+        this.setGazeStatus(status);
       } else {
         const sample: GazeSample | null = this.provider?.getGaze(performance.now()) ?? null;
         if (!sample || sample.status === "idle") {
@@ -2072,7 +2099,13 @@ export class ReefWorld {
       this.targetYaw = Math.sin(this.lifeTime * speed) * 0.24 - 0.04;
       this.targetPitch = -0.015 + Math.sin(this.lifeTime * speed * 0.68 + 1.8) * 0.045;
     }
-    const damping = this.settings.reducedMotion ? 3.4 : 6.2;
+    // Гибрид уже сглажен внутри (приращения ~60 Гц + медленная коррекция):
+    // тяжёлое общее сглаживание дало бы ему лишние ~160 мс отставания от головы.
+    const damping = this.settings.reducedMotion
+      ? 3.4
+      : this.settings.interactive && this.settings.source === "fusion"
+        ? 14
+        : 6.2;
     const alpha = 1 - Math.exp(-damping * dt);
     this.yaw += (this.targetYaw - this.yaw) * alpha;
     this.pitch += (this.targetPitch - this.pitch) * alpha;
@@ -2576,6 +2609,9 @@ export class ReefWorld {
     this.lastGazeStatus = "pointer";
     if (source === "gyro") {
       this.setGazeStatus("gyro-wait");
+    } else if (source === "fusion") {
+      this.fusion.reset(this.targetYaw, this.targetPitch);
+      this.setGazeStatus("fusion-wait");
     } else if (source === "camera") {
       const sample = this.provider?.getGaze();
       if (!sample || sample.status === "idle") this.setGazeStatus("camera-off");
@@ -2692,6 +2728,7 @@ export class ReefWorld {
   recenterView() {
     this.targetYaw = 0;
     this.targetPitch = 0;
+    if (this.settings.source === "fusion") this.fusion.reset(0, 0);
   }
 
   /** QA-хук: перемотать к проходу кита и встать взглядом выше рифа. */
@@ -2705,6 +2742,17 @@ export class ReefWorld {
 
   getGaze(): { yaw: number; pitch: number } {
     return { yaw: this.yaw, pitch: this.pitch };
+  }
+
+  /** QA/диагностика: состояние гибрида до рендер-сглаживания. */
+  getFusionState() {
+    return {
+      yaw: this.fusion.yaw,
+      pitch: this.fusion.pitch,
+      status: this.fusion.status,
+      gyroRaw: { ...this.gyroRaw },
+      gyroAgeMs: this.gyroLastAt ? Math.round(performance.now() - this.gyroLastAt) : null,
+    };
   }
 
   dispose() {

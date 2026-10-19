@@ -7,6 +7,7 @@ import {
   CameraIcon,
   CheckIcon,
   CloseIcon,
+  CompassIcon,
   CursorIcon,
   DownloadIcon,
   ExpandIcon,
@@ -81,6 +82,7 @@ const sourceCards: {
   { id: "pointer", title: "Ручной", sub: "мышь / палец", icon: CursorIcon, note: "Обычный режим без датчиков" },
   { id: "gyro", title: "Гироскоп", sub: "телефон в очках", icon: GyroIcon, note: "Нужно разрешение датчиков" },
   { id: "camera", title: "Камера-метки", sub: "2 цветные метки", icon: CameraIcon, note: "Тот же драйвер, что в VR-гонках" },
+  { id: "fusion", title: "Гибрид", sub: "гироскоп + метки", icon: CompassIcon, note: "Гироскоп ведёт взгляд, пара меток правит центр" },
 ];
 
 export default function DriverWorkshop({
@@ -326,8 +328,14 @@ export default function DriverWorkshop({
 
   const handleStop = () => {
     provider.stop();
-    if (source === "camera") onSourceChange("pointer");
-    ok("Камера остановлена. Взгляд переключён на ручной режим.");
+    if (source === "camera") {
+      onSourceChange("pointer");
+      ok("Камера остановлена. Взгляд переключён на ручной режим.");
+    } else if (source === "fusion") {
+      ok("Камера остановлена. Гибрид продолжит на одном гироскопе — центр будет медленно дрейфовать.");
+    } else {
+      ok("Камера остановлена.");
+    }
     setInfo(provider.getInfo());
   };
 
@@ -371,12 +379,16 @@ export default function DriverWorkshop({
     // requestFullscreen может не резолвиться, и тогда интерфейс «зависает»
     // при живой камере. Fullscreen — необязательное улучшение, не ворота.
     onEnterVr();
-    if (source === "camera" && !provider.getInfo().running) {
+    if ((source === "camera" || source === "fusion") && !provider.getInfo().running) {
       // Запасной вход: VR не должен открываться с мёртвым драйвером.
       void provider.startCamera().then((started) => {
         if (!started) {
-          onSourceChange("pointer");
-          warn(provider.getInfo().error || "Камера не запустилась. Взгляд переключён на ручной режим — без подмены данных.");
+          if (source === "fusion") {
+            warn(provider.getInfo().error || "Камера не запустилась. Гибрид продолжит на одном гироскопе — центр будет медленно дрейфовать.");
+          } else {
+            onSourceChange("pointer");
+            warn(provider.getInfo().error || "Камера не запустилась. Взгляд переключён на ручной режим — без подмены данных.");
+          }
         }
       });
     }
@@ -397,7 +409,7 @@ export default function DriverWorkshop({
     } else {
       lockLandscape();
     }
-    if (source === "gyro") void onRequestGyro();
+    if (source === "gyro" || source === "fusion") void onRequestGyro();
   };
 
   const exitVr = async () => {
@@ -423,11 +435,19 @@ export default function DriverWorkshop({
         : info.running
           ? "камера активна"
           : "камера выключена"
-      : source === "gyro"
-        ? gazeStatus === "gyro"
-          ? "гироскоп активен"
-          : "ожидание датчика"
-        : "ручной обзор";
+      : source === "fusion"
+        ? gazeStatus === "fusion"
+          ? "гибрид: метки + гироскоп"
+          : gazeStatus === "fusion-gyro"
+            ? "гибрид: ведёт гироскоп"
+            : gazeStatus === "fusion-camera"
+              ? "гибрид: ведёт камера"
+              : "гибрид: ожидание датчиков"
+        : source === "gyro"
+          ? gazeStatus === "gyro"
+            ? "гироскоп активен"
+            : "ожидание датчика"
+          : "ручной обзор";
 
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto overscroll-contain bg-[#011013]/75 px-0 py-0 backdrop-blur-md sm:px-5 sm:py-6 scroll-thin">
@@ -447,7 +467,7 @@ export default function DriverWorkshop({
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="font-display text-[26px] leading-none text-cream sm:text-[30px]">Драйвер взгляда</h2>
                 <span className="rounded-full border border-white/10 px-2 py-0.5 font-mono text-[8px] tracking-wider text-fog/55">
-                  v0.9 / marker
+                  v1.0 / marker + gyro
                 </span>
               </div>
               <p className="mt-1.5 text-[10px] leading-relaxed text-fog/60">
@@ -472,11 +492,11 @@ export default function DriverWorkshop({
               <div className="flex items-center justify-between">
                 <span className="eyebrow text-aqua/75">01 / источник взгляда</span>
                 <span className="flex items-center gap-1.5 text-[9px] text-fog/55">
-                  <span className={`h-1.5 w-1.5 rounded-full ${source === "camera" ? "bg-aqua" : source === "gyro" ? "bg-gold" : "bg-cream/50"}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${source === "camera" || source === "fusion" ? "bg-aqua" : source === "gyro" ? "bg-gold" : "bg-cream/50"}`} />
                   {sourceNote}
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 {sourceCards.map((card) => {
                   const Icon = card.icon;
                   const active = source === card.id;
@@ -509,7 +529,7 @@ export default function DriverWorkshop({
               </div>
               <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.015] px-3 py-2 text-[9px] leading-relaxed text-fog/45">
                 <InfoIcon className="mt-px h-3 w-3 shrink-0 text-aqua/60" />
-                Режимы не смешиваются. Камера не «дополняется» гироскопом для гладкости: источник выбран явно и подписан в HUD.
+                Смешанный режим ровно один — «Гибрид», и он включён явно: гироскоп ведёт каждый кадр, пара меток медленно правит ему центр. Остальные режимы — строго один источник; кто ведёт взгляд прямо сейчас, подписано в HUD.
               </div>
             </section>
 
@@ -708,10 +728,10 @@ export default function DriverWorkshop({
                   </div>
                   <div>
                     <div className="text-[11px] font-medium text-cream/85">
-                      {gazeStatus === "gyro" ? "Датчик передаёт ориентацию" : "Датчик ещё не отвечает"}
+                      {gazeStatus === "gyro" || gazeStatus === "fusion" || gazeStatus === "fusion-gyro" ? "Датчик передаёт ориентацию" : "Датчик ещё не отвечает"}
                     </div>
                     <div className="mt-0.5 max-w-[300px] text-[9px] leading-relaxed text-fog/45">
-                      Только явный режим. Если данных нет — обзор стоит на месте, HUD пишет «нет данных». Тихого смешивания с мышью нет.
+                      Явные режимы «Гироскоп» и «Гибрид». Если данных нет, HUD честно пишет об этом; в гибриде взгляд тогда продолжают вести метки. Тихого смешивания с мышью нет.
                     </div>
                   </div>
                 </div>
@@ -912,7 +932,7 @@ export default function DriverWorkshop({
                   ["Рендер", `${Math.round(fps)} fps`],
                   ["Draw calls", `${calls}`],
                   ["Камера", info.running ? `${info.fps.toFixed(1)} Гц` : "off"],
-                  ["Источник", source === "camera" ? "markers" : source === "gyro" ? "gyro" : "pointer"],
+                  ["Источник", source === "camera" ? "markers" : source === "fusion" ? "fusion" : source === "gyro" ? "gyro" : "pointer"],
                 ].map(([label, value]) => (
                   <div key={label} className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-2.5 py-2">
                     <div className="text-[7px] uppercase tracking-[0.14em] text-fog/35">{label}</div>

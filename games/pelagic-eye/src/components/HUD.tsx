@@ -46,6 +46,10 @@ const sourcePresentation: Record<GazeStatus, { label: string; detail: string; to
   "camera-held": { label: "Камера · удержание", detail: "метки вне кадра", tone: "gold" },
   "camera-lost": { label: "Камера · поиск", detail: "метки не видны", tone: "coral" },
   "camera-off": { label: "Камера выключена", detail: "откройте VR-драйвер", tone: "coral" },
+  fusion: { label: "Гибрид · метки + гиро", detail: "метки правят центр", tone: "aqua" },
+  "fusion-gyro": { label: "Гибрид · гироскоп", detail: "метки вне кадра — ведёт датчик", tone: "gold" },
+  "fusion-camera": { label: "Гибрид · камера", detail: "гироскоп молчит — ведут метки", tone: "gold" },
+  "fusion-wait": { label: "Гибрид · ожидание", detail: "нет данных датчиков", tone: "coral" },
 };
 
 const toneMap: Record<string, string> = {
@@ -350,7 +354,7 @@ export default function HUD({
           <div className="flex flex-col items-end gap-2">
             <div className="hidden items-center gap-2 text-[8px] uppercase tracking-[0.13em] text-fog/40 sm:flex">
               <span className={`h-1 w-1 rounded-full ${toneMap[presentation.tone]}`} />
-              {markerSources ? "камера-метки" : source === "gyro" ? "гироскоп" : "мышь / касание"}
+              {source === "fusion" ? "гибрид · камера + гироскоп" : markerSources ? "камера-метки" : source === "gyro" ? "гироскоп" : "мышь / касание"}
               <span className="text-fog/20">·</span>
               <span className="tabular">{Math.round(fps)} fps</span>
               <span className="text-fog/20">·</span>

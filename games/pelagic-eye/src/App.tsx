@@ -208,7 +208,7 @@ export default function App() {
   const handleSourceChange = useCallback(
     (next: GazeSource) => {
       setSource(next);
-      if (next === "camera") {
+      if (next === "camera" || next === "fusion") {
         const info = provider.getInfo();
         // Если уже идёт QA-подача или живая камера — не перезапускаем её.
         // Раньше переключение источника могло оборвать рабочий поток.
@@ -319,12 +319,15 @@ export default function App() {
   }, []);
 
   const driverOnline =
-    (source === "camera" && provider.getInfo().running) ||
+    ((source === "camera" || source === "fusion") && provider.getInfo().running) ||
     gazeStatus === "gyro" ||
     gazeStatus === "camera-valid" ||
-    gazeStatus === "camera-single";
+    gazeStatus === "camera-single" ||
+    gazeStatus === "fusion" ||
+    gazeStatus === "fusion-gyro" ||
+    gazeStatus === "fusion-camera";
   const driverLabel =
-    source === "camera"
+    source === "camera" || source === "fusion"
       ? provider.getInfo().running
         ? "в эфире"
         : "включить"
@@ -396,9 +399,11 @@ export default function App() {
             <EyeIcon className="h-3 w-3 text-aqua/80" />
             {source === "camera"
               ? "ведите головой · метки в кадре"
-              : source === "gyro"
-                ? "поворачивайте телефон, чтобы осмотреться"
-                : "перетащите сцену, чтобы осмотреться"}
+              : source === "fusion"
+                ? "осматривайтесь головой · метки держат центр"
+                : source === "gyro"
+                  ? "поворачивайте телефон, чтобы осмотреться"
+                  : "перетащите сцену, чтобы осмотреться"}
           </div>
         </div>
       )}
