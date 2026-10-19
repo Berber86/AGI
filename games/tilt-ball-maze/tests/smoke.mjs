@@ -74,6 +74,8 @@ for (const [i, lv] of LEVELS.entries()) {
 
 // Физика: грубая симуляция «шарик не проходит сквозь стены» на чистой логике уровней не проверяется,
 // но проверяем ключевые константы/функции в исходнике.
+ok(LEVELS.every(lv => !lv.grid.join('').includes('O')) && !js.includes('game.holes'),
+  'чёрных дыр нет: ни в уровнях, ни в движке');
 ok(js.includes('function collide'), 'есть столкновение шарика со стенами');
 ok(js.includes('function stepPhysics'), 'есть шаг физики');
 ok(js.includes('ACCEL'), 'ускорение шарика задаётся наклоном');

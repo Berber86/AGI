@@ -75,7 +75,6 @@
     if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
   }
   function sndBounce(strength) { tone(140 + Math.random() * 40, 0.09, 'sine', Math.min(0.22, 0.06 + strength * 0.03), 70); }
-  function sndHole() { tone(520, 0.45, 'sine', 0.18, 110); }
   function sndWin() { [523, 659, 784, 1046].forEach(function (f, i) { tone(f, 0.28, 'triangle', 0.2, null, i * 0.11); }); }
   function vibrate(pattern) { try { if (navigator.vibrate) navigator.vibrate(pattern); } catch (e) {} }
 
@@ -164,11 +163,11 @@
 
   // ---------- Игра ----------
   var game = {
-    levelIndex: 0, cols: 0, rows: 0, walls: [], stars: [], holes: [],
+    levelIndex: 0, cols: 0, rows: 0, walls: [], stars: [],
     start: { x: 1.5, y: 1.5 }, finish: { x: 0.5, y: 0.5 },
     ball: { x: 1.5, y: 1.5, vx: 0, vy: 0, r: 0.34, roll: 0 },
     collected: 0, elapsed: 0, playing: false, won: false,
-    falling: 0, fallScale: 1, particles: [], time: 0,
+    particles: [], time: 0,
   };
   var lastBounceSnd = 0;
 
@@ -176,7 +175,7 @@
     var lv = LEVELS[index];
     game.levelIndex = index;
     game.cols = lv.grid[0].length; game.rows = lv.grid.length;
-    game.walls = []; game.stars = []; game.holes = [];
+    game.walls = []; game.stars = [];
     var ballIndex = 0;
     for (var y = 0; y < game.rows; y++) {
       game.walls.push([]);
@@ -186,11 +185,10 @@
         if (c === 'S') game.start = { x: x + 0.5, y: y + 0.5 };
         else if (c === 'F') game.finish = { x: x + 0.5, y: y + 0.5 };
         else if (c === '*') game.stars.push({ x: x + 0.5, y: y + 0.5, taken: false, spin: Math.random() * 6.28, color: BALL_COLORS[ballIndex++ % BALL_COLORS.length] });
-        else if (c === 'O') game.holes.push({ x: x + 0.5, y: y + 0.5 });
       }
     }
     resetBall();
-    game.collected = 0; game.elapsed = 0; game.won = false; game.falling = 0; game.fallScale = 1;
+    game.collected = 0; game.elapsed = 0; game.won = false;
     game.particles = [];
     resizeCanvas();
   }
@@ -218,14 +216,6 @@
 
   function stepPhysics(dt) {
     var b = game.ball;
-    if (game.falling > 0) {
-      game.falling -= dt;
-      game.fallScale = Math.max(0.05, game.falling / 0.55);
-      if (game.falling <= 0) {
-        resetBall(); game.fallScale = 1;
-      }
-      return;
-    }
     var ACCEL = 17, MAXV = 7.5;
     b.vx += tilt.x * ACCEL * dt;
     b.vy += tilt.y * ACCEL * dt;
@@ -252,16 +242,6 @@
         spawnParticles(st.x, st.y, 16, [st.color, '#ffffff', BALL_COLORS[game.collected % BALL_COLORS.length]], 2.6);
         sndCount(game.collected);
         speakCount(game.collected);
-      }
-    }
-    // Ямки.
-    for (var h = 0; h < game.holes.length; h++) {
-      var hole = game.holes[h];
-      if (Math.hypot(b.x - hole.x, b.y - hole.y) < 0.30) {
-        game.falling = 0.55; game.fallScale = 1;
-        b.vx = 0; b.vy = 0;
-        sndHole(); vibrate(60);
-        return;
       }
     }
     // Финиш.
@@ -404,13 +384,6 @@
         roundRect(wx + 0.045, wy + 0.045, 0.91, 0.91, 0.12); ctx.stroke();
       }
     }
-    for (var h = 0; h < game.holes.length; h++) {
-      var hole = game.holes[h];
-      var hg = ctx.createRadialGradient(hole.x - 0.08, hole.y - 0.08, 0.05, hole.x, hole.y, 0.36);
-      hg.addColorStop(0, '#160a2e'); hg.addColorStop(0.75, '#2d1454'); hg.addColorStop(1, 'rgba(45,20,84,0)');
-      ctx.fillStyle = hg;
-      ctx.beginPath(); ctx.arc(hole.x, hole.y, 0.36, 0, 6.3); ctx.fill();
-    }
     // Радужный финиш.
     var pulse = 1 + Math.sin(t * 4) * 0.07;
     var rings = ['#ff5d8f', '#ff9f1c', '#ffd166', '#7ee081', '#4ecdc4', '#a78bfa'];
@@ -444,13 +417,11 @@
 
   function drawBall() {
     var b = game.ball;
-    var scale = game.falling > 0 ? game.fallScale : 1;
-    var r = b.r * scale;
+    var r = b.r;
     ctx.fillStyle = 'rgba(70,30,0,.28)';
     ctx.beginPath(); ctx.ellipse(b.x + 0.05, b.y + r * 0.82, r * 0.9, r * 0.34, 0, 0, 6.3); ctx.fill();
     ctx.save();
     ctx.translate(b.x, b.y);
-    ctx.scale(scale, scale);
     ctx.beginPath(); ctx.arc(0, 0, b.r, 0, 6.3); ctx.clip();
     var base = ctx.createRadialGradient(-b.r * 0.35, -b.r * 0.4, b.r * 0.15, 0, 0, b.r * 1.25);
     base.addColorStop(0, '#ff8fab'); base.addColorStop(0.55, '#f43f72'); base.addColorStop(1, '#c21847');
@@ -468,7 +439,6 @@
     ctx.restore();
     ctx.save();
     ctx.translate(b.x, b.y);
-    ctx.scale(scale, scale);
     var lookX = Math.max(-1, Math.min(1, b.vx / 4)) * b.r * 0.22;
     var lookY = Math.max(-1, Math.min(1, b.vy / 4)) * b.r * 0.22;
     ctx.fillStyle = '#38104f';
