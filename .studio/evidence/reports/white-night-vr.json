@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "checks": [
+    "VR preparation opens in gyro mode with the fusion tools hidden",
+    "Fusion preparation accepts a proven pair and persists the selected mode",
+    "Fresh gyro samples plus calibrated markers enable the real VR start button",
+    "Landscape VR renders a duplicated two-eye HUD over the stereo courtyard",
+    "Gaze focus earns the first of three searches and decays only to that earned segment",
+    "Ten seconds of bin focus reveals a find and locks the courtyard",
+    "Head turns and nods rotate only the find while the locked camera stays still",
+    "Three no swings auto-save the find and return to searching",
+    "Leaving VR during inspection still auto-saves the current find",
+    "The 18th VR find defers the normal completion dialog until after exit",
+    "Portrait uses the single-eye fallback and landscape restores stereo",
+    "No page errors, console errors or failed HTTP responses"
+  ],
+  "gaze": {
+    "yaw": 0,
+    "pitch": 0
+  },
+  "limitations": [
+    "Synthetic gyro/marker inputs and SwiftShader do not certify physical axis signs, the real rear camera, or phone FPS."
+  ]
+}
