@@ -1,6 +1,6 @@
 {
   "benchmarkVersion": 1,
-  "runId": "20261014T223742Z-ec584f",
+  "runId": "20261020T124511Z-ba5a56",
   "verdict": "qualified",
   "score": 100,
   "maximumScore": 100,
@@ -141,7 +141,7 @@
     }
   ],
   "allowedWork": "May continue with the full Arena Game Forge workflow.",
-  "evaluatedAt": "2026-10-14T22:38:09Z",
+  "evaluatedAt": "2026-10-20T12:46:31Z",
   "policy": {
     "qualified": "score >= 85, code >= 60, plan >= 15, no critical failures",
     "limited": "score >= 70, code >= 50, no critical failures",

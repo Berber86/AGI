@@ -1,0 +1,326 @@
+{
+  "generatedAt": "2026-10-20T15:14:56.752Z",
+  "url": "http://127.0.0.1:8899/games/candy-letters/play/",
+  "viewports": [
+    {
+      "name": "portrait-390x844",
+      "rotateHint": true
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "name": "landscape-844x390",
+      "rotate": false,
+      "overflow": false,
+      "cards": 5,
+      "board": {
+        "width": 289,
+        "height": 289
+      }
+    },
+    {
+      "width": 915,
+      "height": 412,
+      "name": "landscape-915x412",
+      "rotate": false,
+      "overflow": false,
+      "cards": 5,
+      "board": {
+        "width": 305,
+        "height": 305
+      }
+    }
+  ],
+  "checks": [
+    {
+      "name": "menu shows five candy letters",
+      "passed": true,
+      "detail": "cards=5"
+    },
+    {
+      "name": "menu lollipops are painted",
+      "passed": true,
+      "detail": "641"
+    },
+    {
+      "name": "portrait viewport shows rotate hint",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "letter card shows А",
+      "passed": true,
+      "detail": "А"
+    },
+    {
+      "name": "letter lollipop is painted",
+      "passed": true,
+      "detail": "499"
+    },
+    {
+      "name": "album shows five box slots",
+      "passed": true,
+      "detail": "5"
+    },
+    {
+      "name": "click #start-trace",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "wafer board with dashed strokes is painted",
+      "passed": true,
+      "detail": "2289"
+    },
+    {
+      "name": "three real strokes complete the trace",
+      "passed": true,
+      "detail": "strokesDone=3"
+    },
+    {
+      "name": "finished trace stays visible until the child continues",
+      "passed": true,
+      "detail": "trace"
+    },
+    {
+      "name": "click #trace-next",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "trace hands over to the listening game",
+      "passed": true,
+      "detail": "listen"
+    },
+    {
+      "name": "listen shows five unique options",
+      "passed": true,
+      "detail": "м,о,а,с,у"
+    },
+    {
+      "name": "listen includes the target letter",
+      "passed": true,
+      "detail": "м,о,а,с,у"
+    },
+    {
+      "name": "click #listen-grid .listen-candy[data-letter=\"а\"]",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "listen answer 1 counted",
+      "passed": true,
+      "detail": "{\"screen\":\"listen\",\"status\":\"playing\",\"letterId\":\"а\",\"task\":\"listen\",\"lives\":3,\"stickers\":0,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "click #listen-grid .listen-candy[data-letter=\"а\"]",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "listen answer 2 counted",
+      "passed": true,
+      "detail": "{\"screen\":\"listen\",\"status\":\"playing\",\"letterId\":\"а\",\"task\":\"listen\",\"lives\":3,\"stickers\":0,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "click #listen-grid .listen-candy[data-letter=\"а\"]",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "listen answer 3 counted",
+      "passed": true,
+      "detail": "{\"screen\":\"write\",\"status\":\"playing\",\"letterId\":\"а\",\"task\":\"write\",\"lives\":3,\"stickers\":0,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "click #write-next",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "sticker earned",
+      "passed": true,
+      "detail": "{\"screen\":\"sticker\",\"status\":\"playing\",\"letterId\":\"а\",\"task\":\"write\",\"lives\":3,\"stickers\":1,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "progress survives reload",
+      "passed": true,
+      "detail": "{\"screen\":\"menu\",\"status\":\"playing\",\"letterId\":\"а\",\"task\":\"trace\",\"lives\":3,\"stickers\":1,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "click #open-album",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "click #listen-grid .listen-candy[data-letter=\"с\"]",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "click #listen-grid .listen-candy[data-letter=\"с\"]",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "click #listen-grid .listen-candy[data-letter=\"с\"]",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "three mistakes empty the candy box",
+      "passed": true,
+      "detail": "{\"screen\":\"empty-box\",\"status\":\"playing\",\"letterId\":\"о\",\"task\":\"listen\",\"lives\":0,\"stickers\":0,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "click #empty-retry",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "refill restores three candies",
+      "passed": true,
+      "detail": "3"
+    },
+    {
+      "name": "all five stickers win the game",
+      "passed": true,
+      "detail": "{\"screen\":\"win\",\"status\":\"won\",\"letterId\":\"с\",\"task\":\"write\",\"lives\":3,\"stickers\":5,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "click #win-album",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "album shows five filled slots",
+      "passed": true,
+      "detail": "5"
+    },
+    {
+      "name": "click #open-parent",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "parent mode reports five stickers",
+      "passed": true,
+      "detail": " Наклеек в коробке: 5 из 5 Попыток обводки всего: 5 Ошибок на слух: 0 Допуск обводки: 11 ед., нужно покрытие 55%"
+    },
+    {
+      "name": "click #reset-progress",
+      "passed": true,
+      "detail": "element not found"
+    },
+    {
+      "name": "parent reset clears the box",
+      "passed": true,
+      "detail": "{\"screen\":\"menu\",\"status\":\"playing\",\"letterId\":\"с\",\"task\":\"write\",\"lives\":3,\"stickers\":0,\"letters\":[\"а\",\"о\",\"у\",\"м\",\"с\"]}"
+    },
+    {
+      "name": "one scene frame fits the 30 fps budget (< 33 ms)",
+      "passed": true,
+      "detail": "frame=0.15 ms"
+    },
+    {
+      "name": "initial payload stays under 0.5 MB",
+      "passed": true,
+      "detail": "93210 bytes"
+    },
+    {
+      "name": "landscape-844x390 fits without overflow",
+      "passed": true,
+      "detail": "{\"rotate\":false,\"overflow\":false,\"cards\":5}"
+    },
+    {
+      "name": "landscape-844x390 trace board is usable",
+      "passed": true,
+      "detail": "{\"width\":289,\"height\":289}"
+    },
+    {
+      "name": "landscape-915x412 fits without overflow",
+      "passed": true,
+      "detail": "{\"rotate\":false,\"overflow\":false,\"cards\":5}"
+    },
+    {
+      "name": "landscape-915x412 trace board is usable",
+      "passed": true,
+      "detail": "{\"width\":305,\"height\":305}"
+    },
+    {
+      "name": "no console errors",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no external requests",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "consoleErrors": [],
+  "loadDiagnostics": [],
+  "externalRequests": [],
+  "screenshots": [
+    ".studio/evidence/screenshots/candy-menu.png",
+    ".studio/evidence/screenshots/candy-portrait-hint.png",
+    ".studio/evidence/screenshots/candy-letter-a.png",
+    ".studio/evidence/screenshots/candy-album-empty.png",
+    ".studio/evidence/screenshots/candy-trace-start.png",
+    ".studio/evidence/screenshots/candy-trace-done.png",
+    ".studio/evidence/screenshots/candy-listen.png",
+    ".studio/evidence/screenshots/candy-write-empty.png",
+    ".studio/evidence/screenshots/candy-write-drawn.png",
+    ".studio/evidence/screenshots/candy-sticker.png",
+    ".studio/evidence/screenshots/candy-menu-with-sticker.png",
+    ".studio/evidence/screenshots/candy-album-filled.png",
+    ".studio/evidence/screenshots/candy-empty-box.png",
+    ".studio/evidence/screenshots/candy-win.png",
+    ".studio/evidence/screenshots/candy-album-full.png",
+    ".studio/evidence/screenshots/candy-parent.png",
+    ".studio/evidence/screenshots/candy-landscape-844x390.png",
+    ".studio/evidence/screenshots/candy-trace-landscape-844x390.png",
+    ".studio/evidence/screenshots/candy-landscape-915x412.png",
+    ".studio/evidence/screenshots/candy-trace-landscape-915x412.png"
+  ],
+  "assets": [
+    {
+      "name": "./styles.css",
+      "bytes": 16149
+    },
+    {
+      "name": "./assets/main.js",
+      "bytes": 27920
+    },
+    {
+      "name": "./assets/paths.js",
+      "bytes": 5922
+    },
+    {
+      "name": "./assets/letters.js",
+      "bytes": 4761
+    },
+    {
+      "name": "./assets/tracing.js",
+      "bytes": 4863
+    },
+    {
+      "name": "./assets/state.js",
+      "bytes": 11478
+    },
+    {
+      "name": "./assets/audio.js",
+      "bytes": 5718
+    },
+    {
+      "name": "./assets/render.js",
+      "bytes": 16399
+    }
+  ],
+  "fps": null,
+  "assetBytes": 93210,
+  "passed": true,
+  "retries": 1,
+  "observedHeadlessFps": 2,
+  "frameBudgetMs": 0.15
+}

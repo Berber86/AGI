@@ -3,17 +3,17 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "Iterations 7\u20139 verified: 20 unit, 180 poses, all 18 high-quality baselines, seven browser suites passed; static export 6648425 bytes matches dist",
-  "nextAction": "Physical Android and remaining audit if requested; git/chat records delivery of three commits",
+  "lastAction": "«Сладкие буквы» выпущены: 33 юнит-теста и 45 браузерных проверок зелёные, карточка на витрине, PWA-манифест и service worker, прогресс в localStorage",
+  "nextAction": "Физическая проверка на Android-планшете: русский TTS-голос, рисование пальцем, установка как PWA; при желании — следующие буквы алфавита",
   "blockers": [],
-  "latestHandoff": ".studio/handoffs/2026-10-15-visual-v5.md",
+  "latestHandoff": ".studio/handoffs/2026-10-20-candy-letters-release.md",
   "sessionBenchmark": {
-    "runId": "20261014T223742Z-ec584f",
+    "runId": "20261020T124511Z-ba5a56",
     "status": "qualified",
     "score": 100,
-    "evaluatedAt": "2026-10-14T22:38:09Z",
+    "evaluatedAt": "2026-10-20T12:46:31Z",
     "resultPath": ".studio/benchmarks/latest-result.json"
   },
-  "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-15T01:30:07.674572+00:00"
+  "createdAt": "2026-10-20T12:47:12Z",
+  "updatedAt": "2026-10-20T15:30:21+00:00"
 }

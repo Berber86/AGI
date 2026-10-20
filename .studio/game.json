@@ -1,103 +1,90 @@
 {
   "schemaVersion": 1,
   "status": "approved",
-  "title": "Белая ночь: находки",
-  "elevatorPitch": "Спокойный поиск вещей в мусорном баке петербургского двора белой ночью.",
-  "playerFantasy": "Замечать маленькие сокровища в забытых вещах",
-  "genre": "3D collection arcade",
-  "audience": "mobile and desktop casual players",
+  "title": "Сладкие буквы",
+  "elevatorPitch": "Кондитерская страна, где буквы — леденцы: ребёнок слышит звук буквы, обводит её глазурью по порядку штрихов и наполняет коробку конфет пятью наклейками.",
+  "playerFantasy": "Ребёнок — помощник кондитера, который украшает буквы-леденцы глазурью и собирает коробку сладких наклеек.",
+  "genre": "Обучающая мини-игра: звук буквы, обводка по штрихам, письмо по памяти",
+  "audience": "Ребёнок 4–7 лет, учится читать и писать русские буквы; рядом взрослый в родительском режиме",
   "coreLoop": [
-    "3 taps on bin",
-    "inspect and rotate 3D find",
-    "discard or keep",
-    "fill persistent unique catalog"
+    "Выбрать букву-леденец в коробке",
+    "Посмотреть и услышать звук буквы, проследить за пальцем-подсказкой",
+    "Обвести букву глазурью по порядку штрихов (3 попытки, оценка по покрытию штриха и выходу за поля)",
+    "Сыграть «услышь и найди»: игра произносит звук, ребёнок тыкает нужный леденец из пяти",
+    "Написать букву в пустой вафельной клетке (2 попытки)",
+    "Получить наклейку-конфету; пять наклеек = коробка собрана"
   ],
-  "perspective": "Fixed perspective courtyard, in-world inspection",
-  "orientation": "portrait",
-  "sessionLength": "Open-ended, 1–5 minute visits",
+  "perspective": "2D, вид на экран кондитерской",
+  "orientation": "landscape",
+  "sessionLength": "2–3 минуты на одну букву, 10–15 минут на все пять",
   "controls": [
-    "tap bin or search button three times",
-    "drag found object to rotate",
-    "cross discards",
-    "checkmark keeps",
-    "touch catalog cards to review"
+    "Касание пальцем или стилусом: выбор буквы, кнопки, обводка",
+    "Рисование пальцем по контуру буквы в вафельной клетке",
+    "Тап по букве-леденцу, чтобы услышать её звук",
+    "Без клавиатуры, мыши и наведения"
   ],
-  "progression": "12 interesting objects + 6 junk objects; unique catalog, duplicates marked; local save",
-  "difficulty": "No timer, no loss, weighted rarities",
-  "visualDirection": "White night in Saint Petersburg; realistic procedural geometry, PBR materials, soft shadows, aged courtyard; Three.js; no AAA claim",
-  "audioDirection": "Silent",
-  "winCondition": "All 18 unique finds kept; completion notification, continue searching",
-  "loseCondition": "None by explicit user selection; discard is a reversible choice through future finds",
+  "progression": "Пять букв А О У М С открываются сразу; наклейка выдаётся после трёх заданий по букве; прогресс сохраняется локально",
+  "difficulty": "Мягкая: 3 конфетки-сердца на раунд, ошибка отнимает одну, кончились — «коробка опустела, попробуй ещё» без потери прогресса",
+  "visualDirection": "Кондитерская страна: леденцы на палочке, вафельная клетка, шоколадные кнопки, посыпка-конфетти, пастельные карамельные цвета; всё рисуется векторно в canvas/SVG",
+  "audioDirection": "Синтезированная русская озвучка звука буквы и похвалы (Web Speech API), разблокировка после первого касания, мягкие WebAudio-эффекты как запас и как фидбек; без внешних аудиофайлов и CDN",
+  "winCondition": "В коробке пять наклеек-конфет — экран «Коробка сладостей собрана!»",
+  "loseCondition": "Три конфетки-сердца потрачены — экран «Коробка опустела», кнопка «Попробовать ещё» восстанавливает конфетки, прогресс не теряется",
   "mustHave": [
-    "One courtyard and detailed bin",
-    "12 interesting finds and 6 junk finds",
-    "Three-tap search animation",
-    "In-world rotating inspection",
-    "Keep/discard and duplicate marking",
-    "Saved catalog with reinspection",
-    "Portrait touch-first UI"
+    "5 букв А О У М С с данными штрихов для печатной и письменной формы",
+    "Детерминированная оценка обводки: покрытие штриха и доля «блуждающей» глазури",
+    "Озвучка звука буквы и похвалы с разблокировкой по первому жесту",
+    "Три задания на букву и наклейка за их прохождение",
+    "3 конфетки-сердца, экраны победы и «опустело», перезапуск",
+    "Родительский режим: выбор буквы, сброс прогресса, звук вкл/выкл",
+    "Пауза при уходе со вкладки и возобновление при возврате",
+    "Горизонтальная ориентация, подсказка повернуть устройство в портрете",
+    "PWA: manifest + service worker, офлайн, относительные пути",
+    "Тестовый мост window.__GAME_TEST__ (reset, state, dispatch, метрики)",
+    "Карточка игры на корневой странице index.html"
   ],
   "outOfScope": [
-    "Full AAA production",
-    "Trading",
-    "Sound",
-    "Timer",
-    "Fail state",
-    "Multiple courtyards",
-    "Backend",
-    "Multiplayer",
-    "Physical Android performance certification"
+    "Аккаунты и любой бэкенд",
+    "Сеть и мультиплеер",
+    "Монетизация и реклама",
+    "Распознавание речи и рукописного ввода",
+    "Камера и дополненная реальность",
+    "Остальные 28 букв русского алфавита",
+    "Портретная раскладка",
+    "Чтение слов и слогов (кроме показа слова-примера на карточке буквы)"
   ],
   "acceptanceCriteria": [
-    "Search opens exactly one object after three taps",
-    "Drag changes object rotation",
-    "Discard does not add collection entry",
-    "Keep adds unique entry; duplicates do not inflate progress",
-    "All 18 objects can be displayed and collected",
-    "Reload preserves progress",
-    "Completion state at 18/18 and reset works",
-    "Touch controls usable at 360x800 and 412x915",
-    "Visibility pause and resume",
-    "Static production build works under subpath with local assets and offline after cache"
+    "Юнит-тесты оценки обводки проходят: точная обводка даёт ≥2 звёзд, пустая — 0, рисование в стороне — 0",
+    "Юнит-тесты редьюсера состояний проходят: старт, выбор буквы, три задания, наклейка, победа, «опустело», перезапуск; входное состояние не мутируется",
+    "Полный круг «старт → обводка → наклейка → коробка» выполняется только касаниями",
+    "Оба исхода наблюдаемы: коробка из 5 наклеек и экран «Коробка опустела»",
+    "В консоли нет блокирующих ошибок при загрузке и прохождении буквы",
+    "Прогресс сохраняется после перезагрузки страницы и сбрасывается в родительском режиме",
+    "Все ассеты локальные, внешних запросов нет, размер пакета < 0.5 МБ"
   ],
   "platform": {
     "primary": "mobile-browser",
     "device": "Android",
     "installablePwa": true,
-    "offline": "After first successful production load"
+    "offline": "service-worker cache-first, полный офлайн после первой загрузки",
+    "note": "Целевое устройство — Android-планшет/телефон в горизонтальной ориентации"
   },
   "technical": {
-    "profile": "threejs-vite-javascript",
-    "rendererDprCap": 1.5,
-    "targetFps": 30,
+    "profile": "dom-canvas-vanilla-esm (build-free static deploy)",
+    "rendererDprCap": 2,
+    "targetFps": 60,
     "fallbackFps": 30,
-    "maxInitialAssetMb": 8,
-    "deployment": "Static build, GitHub Pages compatible"
+    "maxInitialAssetMb": 0.5,
+    "deployment": "GitHub Pages / любой статический хостинг"
   },
-  "approvedAt": "2026-10-14T17:29:22.525512+00:00",
-  "updatedAt": "2026-10-15",
-  "initialRequestPath": ".studio/request.md",
-  "visualRevision": {
-    "requested": "Для начала неплохо, но надо сделать графику в пару раз лучше, а находки детальнее",
-    "implemented": "PBR environment maps, high-quality contact shadows, detailed geometry and labels on all finds, inspection close-up, material batching; gameplay and save IDs unchanged",
-    "updatedAt": "2026-10-14T20:37:40.494662+00:00"
+  "approvedAt": "2026-10-20T13:18:37+00:00",
+  "updatedAt": "2026-10-20T15:30:21+00:00",
+  "build": {
+    "path": "games/candy-letters/play",
+    "buildFree": true,
+    "codeBytes": 105787,
+    "mediaBytes": 232981,
+    "playBundleBytes": 338768,
+    "initialPayloadBytes": 93210
   },
-  "visualIterationsV3": {
-    "request": "Хорошо. Приступай к реализации. Как сделаешь три итерации - пуш",
-    "implemented": "Three bounded passes: perspective-safe staging; priority cast models/materials; display-encoded archive thumbnails and readable UI. Mechanics and save schema unchanged.",
-    "journal": "games/white-night/VISUAL_ITERATIONS.md",
-    "evidence": ".studio/evidence/reports/visual-v3-release.json"
-  },
-  "visualIterationsV4": {
-    "request": "Хорошо. Сделай ещё 3 итерации и тоже запуш",
-    "implemented": "Iterations 4–6: inhabited courtyard/bin; localized item wear and highlights; staged reveal/feedback. Book warp reverted to preserve its print. Saves, IDs, silence and rules unchanged.",
-    "journal": "games/white-night/VISUAL_ITERATIONS.md",
-    "evidence": ".studio/evidence/reports/visual-v4-release.json"
-  },
-  "visualIterationsV5": {
-    "request": "Хорошо, делай ещё 3 итерации",
-    "implemented": "7 twilight lighting; 8 coherent landscape panel; 9 accessible view presets, rotation/off-axis-safe fit, stage-relative lights and outward underside print. No changes to rules, IDs, saves or silence.",
-    "journal": "games/white-night/VISUAL_ITERATIONS.md",
-    "evidence": ".studio/evidence/reports/visual-v5-release.json"
-  }
+  "releasedAt": "2026-10-20T15:30:29+00:00"
 }

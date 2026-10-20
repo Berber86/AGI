@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-10-20T15:30:13+00:00",
+  "command": "npm test (node --test tests/*.test.js)",
+  "tests": 33,
+  "passed": 33,
+  "failed": 0,
+  "suites": [
+    "tests/tracing.test.js",
+    "tests/state.test.js"
+  ],
+  "sourceFiles": [
+    "games/candy-letters/README.md",
+    "games/candy-letters/package.json",
+    "games/candy-letters/play/assets/audio.js",
+    "games/candy-letters/play/assets/letters.js",
+    "games/candy-letters/play/assets/main.js",
+    "games/candy-letters/play/assets/paths.js",
+    "games/candy-letters/play/assets/render.js",
+    "games/candy-letters/play/assets/state.js",
+    "games/candy-letters/play/assets/tracing.js",
+    "games/candy-letters/play/cover.png",
+    "games/candy-letters/play/icon-192.png",
+    "games/candy-letters/play/icon-512.png",
+    "games/candy-letters/play/index.html",
+    "games/candy-letters/play/manifest.webmanifest",
+    "games/candy-letters/play/styles.css",
+    "games/candy-letters/play/sw.js",
+    "games/candy-letters/scripts/build_icons.py",
+    "games/candy-letters/tests/browser.mjs",
+    "games/candy-letters/tests/state.test.js",
+    "games/candy-letters/tests/tracing.test.js"
+  ],
+  "covered": [
+    "пять букв и их штрихи в границах доски",
+    "шаг меток вдоль штриха меньше допуска",
+    "аккуратная обводка даёт >= 2 звёзд, пустая и посторонняя — 0",
+    "дрожание руки не ломает зачёт, длинный пропуск снижает балл",
+    "оценка детерминирована и не зависит от порядка точек",
+    "редьюсер не мутирует вход и возвращает новое состояние",
+    "полный круг буквы выдаёт наклейку, пять наклеек = победа",
+    "три ошибки на слух = «коробка опустела», прогресс сохраняется",
+    "письмо по памяти: две попытки, потом наклейка за старание",
+    "сохранение/загрузка прогресса, мусор в сохранении не ломает игру"
+  ],
+  "codeBytes": 105787,
+  "mediaBytes": 232981,
+  "playBundleBytes": 338768
+}
