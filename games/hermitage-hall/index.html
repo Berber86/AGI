@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#12261f" />
+  <meta name="description" content="Виртуальный парадный зал Эрмитажа: шесть подлинников и две скульптуры, осмотр взглядом и стерео VR для линзовых очков." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Эрмитаж · Парадный зал</title>
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="hall" aria-label="Парадный зал Эрмитажа. Смотрите на медальон на полу десять секунд, чтобы перейти к следующей точке."></canvas>
+
+    <div id="vignette" aria-hidden="true"></div>
+    <div id="fade" aria-hidden="true"></div>
+
+    <!-- HUD обычного режима -->
+    <div id="hud" class="hud" hidden>
+      <div id="reticle" class="reticle" aria-hidden="true">
+        <svg viewBox="0 0 96 96">
+          <circle class="reticle-track" cx="48" cy="48" r="30" />
+          <circle id="reticle-arc" class="reticle-arc" cx="48" cy="48" r="30" />
+          <circle class="reticle-dot" cx="48" cy="48" r="2.6" />
+        </svg>
+      </div>
+      <div id="dwell-note" class="dwell-note" hidden>
+        <span id="dwell-title">Точка</span>
+        <span id="dwell-time" class="dwell-time">0,0 с</span>
+      </div>
+
+      <header class="topbar">
+        <a class="wordmark" href="./" aria-label="Эрмитаж — парадный зал">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M4 12 16 4l12 8v2H4v-2Zm1 3h22v11H5V15Zm3 2v7m5-7v7m5-7v7m5-7v7M3 27h26v2H3v-2Z"/></svg>
+          <span>ЭРМИТАЖ<br><small>ПАРАДНЫЙ ЗАЛ</small></span>
+        </a>
+        <div class="topbar-right">
+          <button id="btn-collection" class="icon-btn" aria-label="Произведения зала" title="Произведения зала">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="1"/><path d="M7 8h6M7 12h10M7 15h4"/></svg>
+          </button>
+          <button id="btn-settings" class="icon-btn" aria-label="Настройки и управление" title="Настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg>
+          </button>
+          <button id="btn-vr" class="vr-btn" aria-label="Войти в VR-очки">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="11" rx="4"/><circle cx="8" cy="11.5" r="1.7"/><circle cx="16" cy="11.5" r="1.7"/></svg>
+            <span>В очки</span>
+          </button>
+        </div>
+      </header>
+
+      <aside id="info-card" class="info-card" hidden>
+        <span id="info-kind" class="eyebrow"></span>
+        <h2 id="info-title"></h2>
+        <p id="info-meta" class="info-meta"></p>
+        <p id="info-note" class="info-note"></p>
+      </aside>
+
+      <footer class="bottombar">
+        <span id="point-name" class="point-name">Точка 1 · У входа</span>
+        <button id="btn-recenter" class="text-btn">Вернуть взгляд</button>
+        <span id="debug-travel" class="debug-travel" hidden></span>
+      </footer>
+    </div>
+
+    <!-- Стартовый экран -->
+    <section id="start" class="start">
+      <div class="start-bg" aria-hidden="true"><img src="./start-hall.jpg" alt="" decoding="async"></div>
+      <div class="start-inner">
+        <p class="eyebrow">САНКТ-ПЕТЕРБУРГ · ЗИМНИЙ ДВОРЕЦ</p>
+        <h1>Эрмитаж<span>·</span><br>Парадный зал</h1>
+        <p class="lead">Одна комната, шесть подлинников и две скульптуры. Стойте на месте и смотрите: взгляд на парящий медальон в течение десяти секунд перенесёт вас к следующей точке.</p>
+        <div class="start-actions">
+          <button id="btn-enter" class="primary">Войти в зал</button>
+          <button id="btn-enter-vr" class="secondary">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="11" rx="4"/><circle cx="8" cy="11.5" r="1.7"/><circle cx="16" cy="11.5" r="1.7"/></svg>
+            Надеть очки
+          </button>
+        </div>
+        <div class="start-meta">
+          <span id="start-quality">Графика: высокая</span>
+          <span class="dot">·</span>
+          <span>9 точек осмотра</span>
+          <span class="dot">·</span>
+          <span>без звука</span>
+        </div>
+        <p class="start-hint">Для очков нужен телефон с гироскопом. Без него взгляд ведёт свайп.</p>
+      </div>
+      <ul class="exhibit-strip" id="exhibit-strip" aria-label="Произведения в зале"></ul>
+    </section>
+
+    <!-- Подготовка VR -->
+    <section id="vr-setup" class="panel" hidden>
+      <div class="panel-inner">
+        <p class="eyebrow">ПОДГОТОВКА VR</p>
+        <h2>Очки и гироскоп</h2>
+        <ol class="steps">
+          <li><b>1</b><div>Вставьте телефон в линзовые очки.<small>Экран делится на два глаза, интерфейса внутри нет. Номер точки парит перед вами, кольцо на полу заполняется, пока вы смотрите.</small></div></li>
+          <li><b>2</b><div>Сядьте или встаньте так, чтобы вокруг было безопасно поворачиваться.<small>Вы остаётесь на одной точке: ходить не нужно.</small></div></li>
+          <li><b>3</b><div>Нажмите «Войти» и подтвердите доступ к ориентации устройства.<small>Если гироскопа нет, смотрите свайпом по экрану.</small></div></li>
+        </ol>
+        <div class="panel-actions">
+          <button id="btn-vr-go" class="primary">Войти</button>
+          <button id="btn-vr-cancel" class="ghost">Назад</button>
+        </div>
+        <p class="panel-note">Внутри: короткое касание — вернуть взгляд к картине, долгое (1,2 с) — выйти из VR.</p>
+      </div>
+    </section>
+
+    <!-- Настройки -->
+    <section id="settings" class="panel" hidden>
+      <div class="panel-inner">
+        <button class="close" data-close="settings" aria-label="Закрыть">×</button>
+        <p class="eyebrow">УПРАВЛЕНИЕ</p>
+        <h2>Как смотреть</h2>
+        <div class="settings-grid">
+          <div><h3>Обычный экран</h3><p>Тяните мышью или пальцем, чтобы осмотреться. Наведите центр экрана на медальон на полу и удерживайте взгляд десять секунд.</p></div>
+          <div><h3>В очках</h3><p>Поворачивайте голову. Кольцо на медальоне заполняется — тогда вы переноситесь. Короткое касание возвращает взгляд к экспонату, долгое — выходит.</p></div>
+          <div><h3>Подсказка</h3><p>Цифры на полу — это точки. Медальон текущей точки не показывается: вы уже здесь.</p></div>
+        </div>
+        <div class="setting-row">
+          <span>Качество графики<small>Тени и плотность пикселей. В очках выбирайте лёгкое, если телефон греется.</small></span>
+          <div class="segmented" role="group" aria-label="Качество графики">
+            <button data-quality="high" aria-pressed="true">Высокое</button>
+            <button data-quality="low" aria-pressed="false">Лёгкое</button>
+          </div>
+        </div>
+        <p class="panel-note">Гироскоп: <b id="gyro-status">не запрошен</b>. Аккаунтов, звука и рекламы нет.</p>
+        <button class="text-btn" data-close="settings">Вернуться в зал</button>
+      </div>
+    </section>
+
+    <!-- Список произведений -->
+    <section id="collection" class="panel" hidden>
+      <div class="panel-inner">
+        <button class="close" data-close="collection" aria-label="Закрыть">×</button>
+        <p class="eyebrow">СОСТАВ ЗАЛА</p>
+        <h2>Что здесь висит</h2>
+        <div id="collection-list" class="collection-list"></div>
+        <p class="panel-note">Изображения — общественное достояние. Это учебная реконструкция зала, а не точная копия экспозиции Эрмитажа.</p>
+      </div>
+    </section>
+
+    <div id="loading" class="loading">
+      <div class="loading-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><path d="M4 12 16 4l12 8v2H4v-2Zm1 3h22v11H5V15Zm3 2v7m5-7v7m5-7v7m5-7v7M3 27h26v2H3v-2Z"/></svg>
+      </div>
+      <h2 id="loading-title">Открываем зал</h2>
+      <p id="loading-note">Загружаем полотна в высоком разрешении…</p>
+      <div class="loading-bar"><div id="loading-fill"></div></div>
+    </div>
+
+    <div id="webgl-error" class="panel" hidden>
+      <div class="panel-inner">
+        <h2>Зал не открылся</h2>
+        <p>Нужен браузер с WebGL 2. Попробуйте включить аппаратное ускорение или открыть страницу в свежем Chrome.</p>
+        <button class="primary" onclick="location.reload()">Попробовать снова</button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

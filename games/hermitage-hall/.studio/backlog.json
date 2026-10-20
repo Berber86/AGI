@@ -1,0 +1,132 @@
+{
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Зал: архитектура, материалы, свет, люстры, паркет, камин",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "В зале нет тёмных провалов и z-fighting",
+        "Свет проходит через окна"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/p1.jpg"
+      ]
+    },
+    {
+      "id": "ART-001",
+      "title": "Шесть полотен в высоком разрешении, рамы, таблички, подсветка",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "Все шесть картин ≥1200 px по длинной стороне",
+        "У каждой рамы есть табличка и подсветка"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "SCU-001",
+      "title": "Две скульптуры из CC0-сканов слепков на плинтах",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "Афродита и Гомер загружаются и стоят на плинтах",
+        "В подписи сказано «слепок»"
+      ],
+      "evidence": [
+        "licenses/README.md"
+      ]
+    },
+    {
+      "id": "GAZE-001",
+      "title": "10-секундный двелль и переносы (проход и золотая вспышка)",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "Двелль 10 с ±0,3 с",
+        "В VR перенос мгновенный, на экране плавный"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "VR-001",
+      "title": "Стереопара, гироскоп, свайп и ноль HUD в очках",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "GAZE-001"
+      ],
+      "acceptanceCriteria": [
+        "Оба глаза рисуют картинку на весь экран",
+        "В VR в DOM нет HUD"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/vr-stereo.jpg"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Юнит-тесты логики и браузерный E2E",
+      "ownerRole": "qa",
+      "status": "done",
+      "dependencies": [
+        "ART-001",
+        "SCU-001",
+        "GAZE-001",
+        "VR-001"
+      ],
+      "acceptanceCriteria": [
+        "19 юнит-тестов проходят",
+        "E2E 26/26 без ошибок консоли"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Сборка, PWA, статический подкаталог, карточка каталога",
+      "ownerRole": "release",
+      "status": "done",
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "play/ открывается из подкаталога",
+        "Каталог ссылается на игру и его тесты проходят"
+      ],
+      "evidence": [
+        "play/index.html",
+        "tests/test_game_catalog.py"
+      ]
+    },
+    {
+      "id": "DEVICE-001",
+      "title": "Живой тест на Android-телефоне и в линзовых очках",
+      "ownerRole": "qa",
+      "status": "blocked",
+      "dependencies": [
+        "RELEASE-001"
+      ],
+      "acceptanceCriteria": [
+        "Знак гироскопа совпадает с поворотом головы",
+        "Измерен FPS на устройстве"
+      ],
+      "evidence": []
+    }
+  ]
+}

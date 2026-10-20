@@ -1,0 +1,25 @@
+{
+  "name": "hermitage-hall",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && node scripts/service-worker.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "check": "node --check src/main.js && node --check src/world.js && node --check src/artworks.js && node --check src/vr.js && node --check src/gaze.js && node --check src/travel.js",
+    "test": "node --test tests/*.test.js",
+    "test:e2e": "node tests/e2e.mjs",
+    "export:static": "npm run build && node scripts/export-static.mjs",
+    "gate": "npm run check && npm test && npm run build && npm run test:e2e"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "@sparticuz/chromium": "138.0.2",
+    "puppeteer-core": "25.14.0",
+    "sharp": "0.35.5",
+    "vite": "6.4.4"
+  }
+}

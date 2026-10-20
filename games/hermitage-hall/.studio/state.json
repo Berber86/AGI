@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "phase": "qa",
+  "activeRole": "qa",
+  "currentTask": "DEVICE-001",
+  "lastAction": "Production-сборка 26/26 e2e, каталог и PWA готовы; сняты финальные кадры",
+  "nextAction": "Проверить знак гироскопа и FPS на живом Android-телефоне, затем перевести в release",
+  "blockers": [
+    "В песочнице нет телефона и очков: гироскоп и FPS не подтверждены"
+  ],
+  "latestHandoff": ".studio/handoffs/2026-10-21-hermitage-hall.md",
+  "sessionBenchmark": {
+    "runId": "20261020T232933Z-a723f9",
+    "status": "qualified",
+    "score": 95,
+    "evaluatedAt": "2026-10-20T23:29:49Z",
+    "resultPath": ".studio/benchmarks/latest-result.json",
+    "note": "Бенчмарк запущен в конце сборки, а не в начале сессии; отклонение записано в decisions.md"
+  },
+  "createdAt": "2026-10-21T00:00:00Z",
+  "updatedAt": "2026-10-21T00:00:00Z"
+}

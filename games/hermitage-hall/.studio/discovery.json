@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 3,
+  "completedStages": [
+    {
+      "stage": 1,
+      "title": "Характер зала и режим погружения",
+      "completedAt": "2026-10-21",
+      "answers": {
+        "hallStyle": "parade",
+        "collection": "six paintings + three sculptures (до сокращения)",
+        "vrMode": "stereo",
+        "travel": "auto"
+      },
+      "name": "hall-and-mode",
+      "optionsUsed": true
+    },
+    {
+      "stage": 2,
+      "title": "Объём коллекции: картины и скульптуры",
+      "completedAt": "2026-10-21",
+      "answers": {
+        "sculptureGroups": "excluded",
+        "sculptures": [
+          "venus-de-milo",
+          "homer"
+        ],
+        "paintings": 6
+      },
+      "name": "collection-scope",
+      "optionsUsed": true
+    },
+    {
+      "stage": 3,
+      "title": "Фиксация контракта",
+      "completedAt": "2026-10-21",
+      "answers": {
+        "variant": "lean",
+        "mood": "спокойная галерея без звука",
+        "device": "Android Chrome, ландшафт, линзовые очки"
+      },
+      "name": "contract-lock",
+      "optionsUsed": true
+    }
+  ],
+  "answers": {
+    "room": "Эрмитаж, один парадный зал",
+    "movement": "только взгляд 10 секунд на точку",
+    "orientation": "landscape для VR"
+  },
+  "openQuestions": [
+    "Реальный знак гироскопа на устройстве пользователя не проверен",
+    "Реальный FPS на мобильном GPU не измерен"
+  ],
+  "createdAt": "2026-10-21",
+  "updatedAt": "2026-10-21"
+}
