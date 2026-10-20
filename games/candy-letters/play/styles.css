@@ -1,0 +1,582 @@
+/* «Сладкие буквы» — кондитерская страна. Только системные шрифты, никаких внешних файлов. */
+
+:root {
+  --candy: #ff5d73;
+  --candy-deep: #c62746;
+  --candy-soft: #ffd0d8;
+  --choco: #6d4028;
+  --cream: #fff8ef;
+  --text: #4a2a3a;
+  --shadow: 0 12px 26px rgba(120, 50, 70, 0.22);
+  --font: "Baloo 2", "Comfortaa", "Trebuchet MS", "Segoe UI", "Noto Sans", sans-serif;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font);
+  color: var(--text);
+  background: #ffe2ef;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+.scene, .sprinkles {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sprinkles { pointer-events: none; z-index: 40; }
+
+.app {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(6px, 1.4vh, 14px) clamp(10px, 2vw, 26px) clamp(8px, 1.6vh, 16px);
+  gap: clamp(4px, 1vh, 10px);
+}
+
+/* ------------------------------- Шапка ------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.4vw, 18px);
+  padding: clamp(4px, 0.8vh, 10px) clamp(10px, 1.4vw, 18px);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.86);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+}
+
+.wordmark {
+  margin: 0;
+  font-size: clamp(16px, 2.6vh, 26px);
+  letter-spacing: 0.4px;
+  color: var(--choco);
+  white-space: nowrap;
+}
+
+.wordmark span { color: var(--candy-deep); }
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1vw, 14px);
+}
+
+.topbar-letter {
+  display: grid;
+  place-items: center;
+  width: clamp(28px, 4.6vh, 40px);
+  height: clamp(28px, 4.6vh, 40px);
+  border-radius: 50%;
+  background: var(--candy);
+  color: #fff;
+  font-weight: 800;
+  font-size: clamp(15px, 2.6vh, 22px);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12);
+}
+
+.lives { font-size: clamp(14px, 2.4vh, 20px); letter-spacing: 2px; }
+.candy-life { filter: grayscale(1) opacity(0.35); }
+.candy-life.on { filter: none; }
+
+.progress-pill {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: var(--choco);
+  color: #fff;
+  font: 700 clamp(13px, 2.2vh, 18px) var(--font);
+  cursor: pointer;
+}
+
+/* ------------------------------ Экраны ------------------------------- */
+
+.screens {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.screen {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(6px, 1.2vh, 14px);
+  padding: clamp(4px, 1vh, 12px);
+}
+
+.screen[hidden] { display: none; }
+
+.screen-title {
+  margin: 0;
+  font-size: clamp(17px, 3vh, 28px);
+  color: var(--choco);
+  background: rgba(255, 252, 246, 0.92);
+  border-radius: 999px;
+  padding: 4px 18px;
+  box-shadow: 0 6px 14px rgba(120, 50, 70, 0.14);
+}
+
+.screen-sub {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(14px, 2.4vh, 21px);
+  color: #7a4257;
+  background: rgba(255, 252, 246, 0.8);
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
+.screen-sub.small { font-size: clamp(12px, 2vh, 16px); opacity: 0.85; }
+
+.screen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(6px, 1vw, 12px);
+  justify-content: center;
+}
+
+.screen-actions.column { flex-direction: column; align-items: stretch; }
+
+/* ------------------------------ Кнопки ------------------------------- */
+
+.button {
+  border: 0;
+  border-radius: 999px;
+  padding: clamp(10px, 1.8vh, 16px) clamp(16px, 2.4vw, 28px);
+  font: 700 clamp(15px, 2.6vh, 22px) var(--font);
+  color: #fff;
+  background: linear-gradient(180deg, var(--candy) 0%, var(--candy-deep) 100%);
+  box-shadow: 0 6px 0 rgba(120, 40, 60, 0.28), var(--shadow);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.button:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(120, 40, 60, 0.28); }
+.button.big { font-size: clamp(17px, 3vh, 26px); padding-block: clamp(12px, 2.2vh, 20px); }
+
+.button.ghost {
+  background: rgba(255, 252, 246, 0.9);
+  color: var(--choco);
+  box-shadow: 0 5px 0 rgba(120, 70, 40, 0.16);
+}
+
+.button.danger { background: linear-gradient(180deg, #ff8a7a, #d64a3c); }
+.button.off { background: linear-gradient(180deg, #b9b0a8, #8d8580); }
+
+.button:disabled, .button.waiting {
+  filter: grayscale(0.55) opacity(0.6);
+  box-shadow: 0 3px 0 rgba(120, 40, 60, 0.2);
+  cursor: default;
+}
+
+.icon-button {
+  border: 0;
+  width: clamp(36px, 6vh, 48px);
+  height: clamp(36px, 6vh, 48px);
+  border-radius: 50%;
+  background: var(--candy-soft);
+  font-size: clamp(17px, 2.8vh, 24px);
+  cursor: pointer;
+}
+
+.chip {
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 16px;
+  font: 700 clamp(16px, 2.8vh, 22px) var(--font);
+  background: #fff;
+  color: var(--choco);
+  box-shadow: 0 4px 0 rgba(120, 70, 40, 0.14);
+  cursor: pointer;
+}
+
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ------------------------------- Меню -------------------------------- */
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(6px, 1.2vw, 16px);
+  width: min(100%, 900px);
+}
+
+.candy-card {
+  position: relative;
+  border: 0;
+  border-radius: 24px;
+  padding: clamp(6px, 1.2vh, 12px) 6px clamp(8px, 1.4vh, 14px);
+  background: linear-gradient(180deg, #fffdf8 0%, var(--candy-soft) 100%);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transition: transform 0.14s ease;
+}
+
+.candy-card:active { transform: scale(0.96); }
+.candy-card.done { outline: 3px solid var(--candy); outline-offset: 2px; }
+
+.candy-disc { width: clamp(46px, 12vh, 92px); height: clamp(46px, 12vh, 92px); }
+
+.candy-letter {
+  font-size: clamp(24px, 5.4vh, 46px);
+  font-weight: 800;
+  color: var(--candy-deep);
+  line-height: 1;
+}
+
+.candy-flavor { font-size: clamp(11px, 1.9vh, 15px); color: #8a5567; }
+.candy-stars { font-size: clamp(11px, 1.8vh, 15px); letter-spacing: 1px; }
+.candy-state { font-size: clamp(11px, 1.8vh, 15px); font-weight: 700; color: var(--choco); }
+
+.star { color: rgba(150, 110, 120, 0.35); }
+.star.on { color: #ffb703; }
+
+/* --------------------------- Карточка буквы --------------------------- */
+
+.letter-layout {
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 3vw, 40px);
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+}
+
+.letter-card {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  height: min(100%, 62vh);
+  aspect-ratio: 1;
+  padding: 0;
+}
+
+.letter-card canvas { width: 100%; height: 100%; display: block; }
+
+.letter-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 1vh, 10px);
+  background: rgba(255, 252, 246, 0.9);
+  border-radius: 28px;
+  padding: clamp(10px, 2vh, 22px) clamp(14px, 2.4vw, 28px);
+  box-shadow: var(--shadow);
+}
+
+.letter-big {
+  font-size: clamp(56px, 16vh, 130px);
+  line-height: 0.9;
+  font-weight: 800;
+  color: var(--candy-deep);
+}
+
+.letter-word { margin: 0; font-size: clamp(16px, 2.8vh, 26px); font-weight: 700; }
+.letter-flavor { margin: 0; font-size: clamp(13px, 2.2vh, 19px); color: #8a5567; }
+
+/* --------------------------- Доска обводки --------------------------- */
+
+.board-layout {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.4vw, 30px);
+  height: 100%;
+  width: 100%;
+  justify-content: center;
+}
+
+.board-wrap {
+  height: min(100%, 78vh);
+  aspect-ratio: 1;
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.board { width: 100%; height: 100%; display: block; touch-action: none; }
+
+.board-side {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.6vh, 16px);
+  background: rgba(255, 252, 246, 0.9);
+  border-radius: 24px;
+  padding: clamp(10px, 2vh, 20px);
+  box-shadow: var(--shadow);
+  min-width: min(34vw, 260px);
+}
+
+.status { display: flex; flex-direction: column; gap: 4px; }
+.status-line { font-size: clamp(14px, 2.4vh, 20px); font-weight: 700; }
+.status-line.muted { font-weight: 500; color: #8a5567; }
+.status-line.small { font-size: clamp(12px, 2vh, 16px); opacity: 0.8; }
+
+/* --------------------------- Услышь и найди --------------------------- */
+
+.listen-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(6px, 1.4vw, 18px);
+  width: min(100%, 820px);
+  margin: clamp(2px, 0.6vh, 8px) 0;
+}
+
+.listen-candy {
+  border: 0;
+  border-radius: 24px;
+  min-height: 0;
+  background: linear-gradient(180deg, #fffdf8, var(--candy));
+  padding: clamp(6px, 1.2vh, 12px);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font: 800 clamp(22px, 4.6vh, 40px) var(--font);
+  color: var(--candy-deep);
+}
+
+.listen-candy canvas { width: clamp(40px, 11vh, 96px); height: clamp(40px, 11vh, 96px); }
+.listen-candy.shake { animation: shake 0.4s ease; }
+.listen-candy.pop { animation: pop 0.42s ease; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-8px) rotate(-3deg); }
+  75% { transform: translateX(8px) rotate(3deg); }
+}
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.14) rotate(4deg); }
+  100% { transform: scale(1); }
+}
+
+/* ------------------------------ Коробка ------------------------------ */
+
+.album-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(8px, 1.6vw, 20px);
+  width: min(100%, 820px);
+}
+
+.box-slot {
+  border-radius: 20px;
+  padding: clamp(8px, 1.6vh, 16px) 6px;
+  background: rgba(255, 252, 246, 0.86);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 3px dashed rgba(150, 110, 120, 0.3);
+}
+
+.box-slot.filled { border: 3px solid var(--candy); background: #fff; }
+.slot-letter { font-size: clamp(26px, 6vh, 52px); font-weight: 800; color: var(--candy); }
+.box-slot:not(.filled) .slot-letter { color: rgba(150, 110, 120, 0.3); }
+.slot-flavor { font-size: clamp(11px, 1.9vh, 15px); color: #8a5567; }
+.count-pill {
+  display: inline-block;
+  background: #fff;
+  color: var(--choco);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: clamp(13px, 2.2vh, 18px);
+}
+
+/* --------------------------- Родительский режим --------------------------- */
+
+.parent-layout {
+  display: flex;
+  gap: clamp(14px, 3vw, 40px);
+  background: rgba(255, 252, 246, 0.92);
+  border-radius: 26px;
+  padding: clamp(12px, 2.4vh, 24px) clamp(16px, 2.6vw, 32px);
+  box-shadow: var(--shadow);
+  max-width: 820px;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.stats { margin: 6px 0 10px; padding-left: 20px; font-size: clamp(13px, 2.2vh, 18px); }
+.stats li { margin-bottom: 4px; }
+
+/* ------------------------------ Награды ------------------------------ */
+
+.reward-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(6px, 1.4vh, 14px);
+  background: rgba(255, 252, 246, 0.95);
+  border-radius: 30px;
+  padding: clamp(16px, 3vh, 32px) clamp(22px, 4vw, 48px);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.reward-letter {
+  display: grid;
+  place-items: center;
+  width: clamp(70px, 16vh, 130px);
+  height: clamp(70px, 16vh, 130px);
+  border-radius: 50%;
+  background: var(--candy, #ff5d73);
+  color: #fff;
+  font-size: clamp(38px, 9vh, 74px);
+  font-weight: 800;
+}
+
+.reward-text { margin: 0; font-size: clamp(18px, 3.2vh, 30px); font-weight: 800; }
+.reward-stars { margin: 0; font-size: clamp(18px, 3vh, 28px); letter-spacing: 4px; }
+.reward-card.sad .reward-letter { background: #ffd6a5; }
+.reward-card.win .reward-letter { background: linear-gradient(180deg, #ffd447, #ff9f43); }
+
+/* ------------------------------ Служебное ------------------------------ */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: clamp(10px, 3vh, 28px);
+  transform: translateX(-50%);
+  z-index: 60;
+  background: var(--choco);
+  color: #fff;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: clamp(13px, 2.2vh, 19px);
+  box-shadow: var(--shadow);
+  max-width: 88vw;
+  text-align: center;
+}
+
+.toast[data-kind="good"] { background: #2f9e63; }
+.toast[data-kind="warn"] { background: #e0574a; }
+.toast[hidden] { display: none; }
+
+.css-candy {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, #fff 0deg 18deg, #ff5d73 18deg 36deg);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.7);
+  vertical-align: -0.18em;
+}
+
+.css-candy.big { width: clamp(56px, 12vh, 96px); height: clamp(56px, 12vh, 96px); }
+.css-candy.happy { background: repeating-conic-gradient(from 0deg, #fff 0deg 18deg, #ffb703 18deg 36deg); }
+
+.pause-badge {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 70;
+  background: rgba(74, 42, 58, 0.92);
+  color: #fff;
+  padding: 16px 28px;
+  border-radius: 20px;
+  font-size: clamp(15px, 2.6vh, 22px);
+}
+
+.rotate-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 226, 239, 0.96);
+  padding: 20px;
+}
+
+.rotate-hint[hidden] { display: none; }
+
+.rotate-card {
+  background: #fff;
+  border-radius: 24px;
+  padding: 24px 28px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  font-size: clamp(15px, 2.6vh, 22px);
+}
+
+.rotate-icon { font-size: clamp(34px, 8vh, 60px); display: block; margin-bottom: 8px; }
+
+/* Узкие экраны: одна колонка, чтобы ничего не уезжало */
+@media (max-aspect-ratio: 1/1) {
+  .menu-grid, .listen-grid, .album-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .letter-layout, .board-layout { flex-direction: column; }
+  .board-wrap { height: min(52vh, 100%); }
+}
+
+
+/* Телефон в ландшафте: высота ~360-430px — ужимаем всё, что можно */
+@media (max-height: 460px) {
+  .app { padding: 4px 10px 6px; gap: 2px; }
+  .topbar { padding: 2px 10px; min-height: 0; }
+  .wordmark { font-size: 14px; }
+  .icon-button { width: 30px; height: 30px; }
+  .topbar-letter { width: 24px; height: 24px; font-size: 13px; }
+  .progress-pill { padding: 3px 10px; font-size: 12px; }
+  .screen { gap: 4px; padding: 2px; }
+  .screen-title { font-size: 15px; padding: 2px 12px; }
+  .screen-sub { font-size: 12px; padding: 3px 10px; }
+  .screen-sub.small { font-size: 10px; }
+  .button { padding: 6px 14px; font-size: 13px; box-shadow: 0 3px 0 rgba(120, 40, 60, 0.28); }
+  .button.big { font-size: 15px; padding-block: 8px; }
+  .candy-card { border-radius: 16px; padding: 4px 4px 6px; }
+  .candy-disc { width: clamp(30px, 9vh, 46px); height: clamp(30px, 9vh, 46px); }
+  .candy-letter { font-size: clamp(18px, 4.6vh, 26px); }
+  .candy-flavor, .candy-stars, .candy-state { font-size: 9px; }
+  .menu-grid { gap: 6px; }
+  .listen-grid { gap: 6px; width: min(100%, 640px); }
+  .listen-candy { border-radius: 16px; padding: 4px; font-size: clamp(18px, 5vh, 26px); }
+  .listen-candy canvas { width: clamp(30px, 8.5vh, 52px); height: clamp(30px, 8.5vh, 52px); }
+  .board-layout { gap: 10px; }
+  .board-wrap { height: min(100%, 74vh); }
+  .board-side { padding: 8px; gap: 6px; min-width: 190px; border-radius: 16px; }
+  .status-line { font-size: 12px; }
+  .status-line.small { font-size: 10px; }
+  .album-grid { gap: 8px; }
+  .slot-letter { font-size: clamp(20px, 5vh, 30px); }
+  .slot-flavor { font-size: 10px; }
+  .parent-layout { padding: 8px 12px; gap: 14px; }
+  .stats { font-size: 11px; }
+  .letter-side { padding: 8px 14px; border-radius: 18px; gap: 2px; }
+  .letter-big { font-size: clamp(34px, 12vh, 56px); }
+  .letter-word { font-size: 13px; }
+  .letter-flavor { font-size: 11px; }
+  .reward-card { padding: 10px 18px; gap: 4px; border-radius: 20px; }
+  .reward-letter { width: 56px; height: 56px; font-size: 30px; }
+  .reward-text { font-size: 16px; }
+  .reward-stars { font-size: 14px; }
+  .toast { font-size: 12px; padding: 6px 14px; bottom: 6px; }
+  .rotate-card { padding: 16px 20px; font-size: 15px; }
+}

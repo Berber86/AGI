@@ -1,9 +1,56 @@
-# White Night acceptance
+# Acceptance — «Сладкие буквы» (2026-10-20)
 
-See game.json acceptanceCriteria. All 18 models tested. No fail state by approved design. Physical Android tests are unavailable; software-rendered emulation is not device FPS evidence.
+Измеримые критерии заблокированы в `game.json`. Здесь — фактические результаты и ссылки на
+доказательства.
 
-## Further visual iterations v4 (4–6), 2026-10-15
-Final build: 17 unit tests and all seven browser suites passed after the final book print correction. All 18 baseline models, title visibility, viewport/zoom samples, 18 display-encoded thumbnails/cache/offline, 17 broad E2E groups, normal-motion desktop/landscape/catalog, courtyard touch/high-low and staged reveal/feedback. Static export identical to dist: **6,643,872 bytes**, below 8 MB. Root Python 15 tests and validator/self-test passed. Authoritative fingerprinted release report: `.studio/evidence/reports/visual-v4-release.json`. Physical Android/contrast/cutout, real screen locking and exhaustive per-item multi-angle review remain outside verified acceptance.
+## Discovery gate
 
-## v5 / iterations 7–9
-20 unit tests; 180 low-quality pose frames (18×5×2), all 18 high baselines, three landscape sizes, 18 thumbnails/cache/offline, 17 broad E2E groups, normal-motion desktop and root catalog passed. Static export SHA-identical to dist: 6648425 bytes. Details/limitations in `.studio/evidence/reports/visual-v5-release.json`. Physical Android and continuous turntable not certified.
+- [x] 3 этапа брейншторма: creative-direction → presentation-and-scope (правка темы «конфеты») →
+      contract-lock. Записаны в `discovery.json`.
+- [x] Структурированные вопросы с 4 вариантами и свободным ответом (`ask_user`).
+- [x] Контракт показан пользователю дважды: до и после правки темы.
+- [x] Контракт утверждён явно: `approve-candy-mvp`.
+
+## Playability gate
+
+- [x] Полный круг буквы проходится: карточка → обводка → «услышь и найди» → письмо → наклейка.
+      Доказательство: `.studio/evidence/reports/candy-letters-round.json` (сценарий
+      `scenarioFullRound`, реальные движения указателя по canvas).
+- [x] Касания меняют состояние: 3 штриха → `traceStrokesDone = 3`; 3 верных ответа → экран
+      письма; письмо → наклейка.
+- [x] Исход «победа»: пять наклеек → экран «Коробка сладостей собрана»
+      (`.studio/evidence/screenshots/candy-win.png`).
+- [x] Исход «коробка опустела»: три ошибки на слух → `lives = 0`
+      (`.studio/evidence/screenshots/candy-empty-box.png`), прогресс не теряется.
+- [x] Перезапуск: кнопка «Играть заново» и родительский сброс очищают коробку.
+
+## Mobile gate
+
+- [x] 844×390 (ландшафт телефона): без прокрутки и без подсказки повернуть, доска ≥ 200 px
+      (`.studio/evidence/screenshots/candy-landscape-844x390.png`).
+- [x] 915×412 (ландшафт телефона): то же (`.studio/evidence/screenshots/candy-landscape-915x412.png`).
+- [x] Портрет 390×844: показывается подсказка повернуть устройство
+      (`.studio/evidence/screenshots/candy-portrait-hint.png`).
+- [x] Клавиатура и наведение не нужны: управление — `pointerdown/move/up`, кнопки-касания.
+- [x] Пауза при уходе со вкладки (`visibilitychange` → `set-paused`, бейдж «Пауза»).
+- [x] Звук разблокируется первым касанием (`audio.unlock()` на `pointerdown`/клик).
+
+## Release gate
+
+- [x] Сборки нет: страница статическая, `index.html` + ES-модули, относительные пути.
+      Проверено тестом каталога `test_candy_letters_page_is_build_free_and_offline`.
+- [x] Пути безопасны для подкаталога GitHub Pages: все `src`/`href` относительные (`./...`),
+      внешних URL нет.
+- [x] PWA: `manifest.webmanifest` (landscape, ru, иконки 192/512) + `sw.js` кэширует весь пакет.
+- [x] Юнит-тесты: 33/33 (`npm test`), отчёт `.studio/evidence/reports/candy-letters-unit.json`.
+- [x] Браузерная QA: 45/45, отчёт `.studio/evidence/reports/candy-letters-round.json`.
+- [x] Нет ошибок консоли и внешних запросов (проверено в браузерном отчёте).
+- [x] Начальный пакет 93 КБ при лимите 512 КБ; бюджет кадра 0.46 мс при 33 мс.
+- [x] Карточка на витрине `index.html` ссылается на игру и обложку.
+- [x] Ограничения записаны в `games/candy-letters/README.md` и в handoff.
+
+## Не проверено (честно)
+
+- [ ] Реальный Android-планшет: палец вместо указателя, системный русский TTS, установка PWA.
+      В песочнице нет ни устройства, ни русского голоса — игра переходит на мелодии.
+- [ ] Оценка почерка как таковая: реализована геометрическая проверка коридора штриха, не OCR.

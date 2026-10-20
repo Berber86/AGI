@@ -1,69 +1,61 @@
 {
   "schemaVersion": 1,
   "status": "approved",
-  "plannedStages": 4,
+  "plannedStages": 3,
   "completedStages": [
     {
       "stage": 1,
       "name": "creative-direction",
       "optionsUsed": true,
       "answers": {
-        "atmosphere": "white-night",
-        "finds": "realistic",
-        "motivation": "collection"
+        "learning_focus": "sound-letter-trace",
+        "letter_set": "aoums",
+        "screen_and_writing": "landscape",
+        "audio": "voice-full"
+      },
+      "verbatim": {
+        "learning_focus": "Звук + письмо пальцем (обводка контура)",
+        "letter_set": "А О У М С (классика букваря)",
+        "screen_and_writing": "Горизонтальный планшет",
+        "audio": "Голос: звук буквы и похвала"
       }
     },
     {
       "stage": 2,
-      "name": "play-experience",
-      "optionsUsed": true,
-      "answers": {
-        "search_rhythm": "rummage",
-        "collection_rules": "album",
-        "screen": "portrait"
-      }
-    },
-    {
-      "stage": 3,
       "name": "presentation-and-scope",
       "optionsUsed": true,
       "answers": {
-        "first_release": "focused",
-        "inspection": "in-world",
-        "sound": "silent"
-      }
+        "theme": "candy",
+        "approval": "pending-retheme-confirmation"
+      },
+      "verbatim": {
+        "custom": "Игра должна быть наполнена темой конфет и сладостей"
+      },
+      "note": "Пользователь выбрал свободный ответ вместо варианта утверждения: правка темы принята, но явного «утверждаю» не было, поэтому discovery остаётся в статусе collecting до подтверждения пересобранного контракта."
     },
     {
-      "stage": 4,
+      "stage": 3,
       "name": "contract-lock",
       "optionsUsed": true,
       "answers": {
-        "approval": "approve-with-custom-edits",
-        "verbatim": "Утверждаю + 6 находок хлама типа бутылки или пустой консервной банки",
-        "totalFinds": 18,
-        "interestingFinds": 12,
-        "junkFinds": 6
+        "approval": "approve-candy-mvp"
+      },
+      "verbatim": {
+        "selectedOptionId": "approve-candy-mvp",
+        "customResponse": null
       }
     }
   ],
   "answers": {
-    "atmosphere": "white-night",
-    "finds": "realistic",
-    "motivation": "collection",
-    "search_rhythm": "rummage",
-    "collection_rules": "album",
-    "screen": "portrait",
-    "first_release": "focused",
-    "inspection": "in-world",
-    "sound": "silent",
-    "approval": "approve-with-custom-edits",
-    "verbatim": "Утверждаю + 6 находок хлама типа бутылки или пустой консервной банки",
-    "totalFinds": 18,
-    "interestingFinds": 12,
-    "junkFinds": 6
+    "learning_focus": "sound-letter-trace",
+    "letter_set": "aoums",
+    "screen_and_writing": "landscape",
+    "audio": "voice-full",
+    "theme": "candy",
+    "approval": "approve-candy-mvp"
   },
   "openQuestions": [],
   "initialRequestPath": ".studio/request.md",
-  "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-14T17:29:22.525512+00:00"
+  "createdAt": "2026-10-20T12:47:12Z",
+  "updatedAt": "2026-10-20T13:19:09+00:00"
 }

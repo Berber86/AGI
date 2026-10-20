@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#ff8fb1" />
+  <meta name="description" content="«Сладкие буквы» — обучающая игра для детей: русский звук буквы, обводка по штрихам и письмо по памяти. Пять букв: А О У М С." />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+  <title>Сладкие буквы — учим русские буквы А О У М С</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <canvas id="scene" class="scene" aria-hidden="true"></canvas>
+  <canvas id="sprinkles" class="sprinkles" aria-hidden="true"></canvas>
+
+  <div id="rotate-hint" class="rotate-hint" hidden>
+    <div class="rotate-card">
+      <span class="rotate-icon" aria-hidden="true"><svg viewBox="0 0 64 64" width="64" height="64"><rect x="6" y="14" width="26" height="40" rx="5" fill="none" stroke="#c62746" stroke-width="3"/><path d="M40 46a20 20 0 1 0-6-22" fill="none" stroke="#c62746" stroke-width="3" stroke-linecap="round"/><path d="M32 16l4 10-11-2z" fill="#c62746"/></svg></span>
+      <p>Поверни планшет на бок — так буквы крупнее</p>
+    </div>
+  </div>
+
+  <div class="app">
+    <header class="topbar">
+      <button class="icon-button topbar-home" type="button" aria-label="В меню">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      </button>
+      <h1 class="wordmark">Сладкие <span>буквы</span></h1>
+      <div class="topbar-right">
+        <span id="topbar-letter" class="topbar-letter" aria-hidden="true">А</span>
+        <span id="lives" class="lives" role="img" aria-label="Конфетки-жизни"></span>
+        <button id="progress-pill" class="progress-pill" type="button" aria-label="Коробка с наклейками"></button>
+      </div>
+    </header>
+
+    <main class="screens">
+      <!-- Меню: коробка с буквами-леденцами -->
+      <section class="screen" data-screen="menu">
+        <h2 class="screen-title">Выбери конфетку с буквой</h2>
+        <div id="menu-grid" class="menu-grid"></div>
+        <div class="screen-actions">
+          <button id="open-album" class="button" type="button">Коробка наклеек</button>
+          <button id="open-parent" class="button ghost" type="button">Взрослым</button>
+        </div>
+      </section>
+
+      <!-- Карточка буквы -->
+      <section class="screen" data-screen="letter">
+        <div class="letter-layout">
+          <button id="letter-card" class="letter-card" type="button" aria-label="Нажми, чтобы услышать букву">
+            <canvas id="letter-canvas" width="420" height="420"></canvas>
+          </button>
+          <div class="letter-side">
+            <div id="letter-big" class="letter-big">А</div>
+            <p id="letter-word" class="letter-word">Аа — Арбуз</p>
+            <p id="letter-flavor" class="letter-flavor">Вкус: Яблоко</p>
+            <div class="screen-actions column">
+              <button id="start-trace" class="button big" type="button">Обвести глазурью</button>
+              <button id="speak-letter" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8a5 5 0 0 1 0 8M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Услышать букву</button>
+              <button id="back-to-menu" class="button ghost" type="button">Другая буква</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Обводка по штрихам -->
+      <section class="screen" data-screen="trace">
+        <div class="board-layout">
+          <div class="board-wrap">
+            <canvas id="trace-board" class="board" aria-label="Обведи букву пальцем по пунктиру"></canvas>
+          </div>
+          <div class="board-side">
+            <div id="trace-status" class="status"></div>
+            <div class="screen-actions column">
+              <button id="trace-replay" class="button" type="button">Сначала</button>
+              <button id="trace-next" class="button big" type="button">Дальше</button>
+              <button id="speak-letter-2" class="button ghost" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8a5 5 0 0 1 0 8M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Звук буквы</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Услышь и найди -->
+      <section class="screen" data-screen="listen">
+        <h2 class="screen-title">Услышь и найди</h2>
+        <p id="listen-prompt" class="screen-sub"></p>
+        <p id="listen-round" class="screen-sub small"></p>
+        <div id="listen-grid" class="listen-grid"></div>
+        <div class="screen-actions">
+          <button id="listen-replay" class="button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8a5 5 0 0 1 0 8M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Повторить звук</button>
+          <button id="listen-menu" class="button ghost" type="button">В меню</button>
+        </div>
+      </section>
+
+      <!-- Письмо по памяти -->
+      <section class="screen" data-screen="write">
+        <div class="board-layout">
+          <div class="board-wrap">
+            <canvas id="write-board" class="board" aria-label="Напиши букву пальцем в пустой клетке"></canvas>
+          </div>
+          <div class="board-side">
+            <div id="write-status" class="status"></div>
+            <div class="screen-actions column">
+              <button id="write-clear" class="button" type="button">Стереть</button>
+              <button id="write-next" class="button big" type="button">Готово</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Коробка наклеек -->
+      <section class="screen" data-screen="album">
+        <h2 class="screen-title">Коробка сладостей <span id="album-count" class="count-pill"></span></h2>
+        <div id="album-grid" class="album-grid"></div>
+        <div class="screen-actions">
+          <button id="album-back" class="button" type="button">К буквам</button>
+        </div>
+      </section>
+
+      <!-- Родительский режим -->
+      <section class="screen" data-screen="parent">
+        <h2 class="screen-title">Взрослым</h2>
+        <div class="parent-layout">
+          <div>
+            <p class="screen-sub">Прогресс ребёнка</p>
+            <ul id="parent-stats" class="stats"></ul>
+            <p id="parent-voice" class="screen-sub small"></p>
+          </div>
+          <div class="screen-actions column">
+            <p class="screen-sub">Открыть букву</p>
+            <div id="parent-letters" class="chip-row"></div>
+            <button id="toggle-sound" class="button" type="button">Звук: вкл</button>
+            <button id="reset-progress" class="button danger" type="button">Сбросить прогресс</button>
+            <button id="parent-back" class="button ghost" type="button">Назад</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Наклейка -->
+      <section class="screen" data-screen="sticker">
+        <div class="reward-card">
+          <span id="reward-letter" class="reward-letter">А</span>
+          <p id="reward-text" class="reward-text"></p>
+          <p id="reward-stars" class="reward-stars"></p>
+          <button id="sticker-next" class="button big" type="button">Ещё букву!</button>
+        </div>
+      </section>
+
+      <!-- Коробка опустела -->
+      <section class="screen" data-screen="empty-box">
+        <div class="reward-card sad">
+          <span class="reward-letter empty" aria-hidden="true"><span class="css-candy big"></span></span>
+          <p class="reward-text">Конфетки кончились — но буквы остались!</p>
+          <p class="reward-stars">Прогресс не потерялся</p>
+          <button id="empty-retry" class="button big" type="button">Попробовать ещё</button>
+        </div>
+      </section>
+
+      <!-- Победа -->
+      <section class="screen" data-screen="win">
+        <div class="reward-card win">
+          <span class="reward-letter win" aria-hidden="true"><span class="css-candy big happy"></span></span>
+          <p class="reward-text">Коробка сладостей собрана!</p>
+          <p class="reward-stars"><span id="win-count">5</span> наклеек — ты знаешь буквы А О У М С</p>
+          <div class="screen-actions">
+            <button id="win-album" class="button" type="button">Посмотреть коробку</button>
+            <button id="win-again" class="button big" type="button">Играть заново</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="pause-badge" class="pause-badge" hidden>Пауза — вернись в игру</div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <script type="module" src="./assets/main.js"></script>
+</body>
+</html>

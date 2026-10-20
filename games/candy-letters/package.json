@@ -1,0 +1,12 @@
+{
+  "name": "candy-letters",
+  "private": true,
+  "version": "1.0.0",
+  "description": "«Сладкие буквы» — обучающая игра про русские буквы А О У М С: звук, обводка по штрихам, письмо по памяти. Без сборки, статическая страница + PWA.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "start": "python3 -m http.server 5173 --bind 0.0.0.0 --directory play"
+  },
+  "license": "MIT"
+}
