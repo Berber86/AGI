@@ -1,0 +1,95 @@
+{
+  "passed": true,
+  "checkedAt": "2026-10-20T18:53:24.410Z",
+  "checks": [
+    "412×915: star field (1150) and moon are present",
+    "412×915: head look raises to the sky and yaw is clamped",
+    "412×915: three real taps still open a find; veiled yard is skipped (58 calls)",
+    "360×800: star field (1150) and moon are present",
+    "360×800: head look raises to the sky and yaw is clamped",
+    "360×800: three real taps still open a find; veiled yard is skipped (58 calls)",
+    "1280×900: star field (1150) and moon are present",
+    "1280×900: head look raises to the sky and yaw is clamped",
+    "1280×900: three real taps still open a find; veiled yard is skipped (58 calls)",
+    "No page errors, console errors or failed responses"
+  ],
+  "rows": [
+    {
+      "viewport": "412x915",
+      "state": "courtyard/high",
+      "drawCalls": 131,
+      "triangles": 279262,
+      "geometries": 74,
+      "textures": 48
+    },
+    {
+      "viewport": "412x915",
+      "state": "inspect/high",
+      "drawCalls": 58,
+      "triangles": 188454,
+      "geometries": 91,
+      "textures": 59
+    },
+    {
+      "viewport": "360x800",
+      "state": "courtyard/high",
+      "drawCalls": 129,
+      "triangles": 279258,
+      "geometries": 74,
+      "textures": 47
+    },
+    {
+      "viewport": "360x800",
+      "state": "inspect/high",
+      "drawCalls": 58,
+      "triangles": 188454,
+      "geometries": 91,
+      "textures": 58
+    },
+    {
+      "viewport": "1280x900",
+      "state": "courtyard/high",
+      "drawCalls": 143,
+      "triangles": 282808,
+      "geometries": 79,
+      "textures": 53
+    },
+    {
+      "viewport": "1280x900",
+      "state": "inspect/high",
+      "drawCalls": 58,
+      "triangles": 188454,
+      "geometries": 95,
+      "textures": 63
+    }
+  ],
+  "errors": [],
+  "budget": {
+    "protocol": "audit-perf.mjs, same headless SwiftShader protocol",
+    "courtyardHigh": {
+      "before": {
+        "drawCalls": 216,
+        "triangles": 423840
+      },
+      "after": {
+        "drawCalls": 185,
+        "triangles": 417878
+      },
+      "note": "after includes the new fourth wall"
+    },
+    "inspectHigh": {
+      "before": {
+        "drawCalls": 173,
+        "triangles": 365952
+      },
+      "after": {
+        "drawCalls": 58,
+        "triangles": 188454
+      }
+    }
+  },
+  "limitations": [
+    "SwiftShader software rendering is not physical Android FPS.",
+    "Look drag and sky are captured at fixed angles, not on a real gyroscope."
+  ]
+}

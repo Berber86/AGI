@@ -5,6 +5,7 @@ import { materialAssetsReady } from './materials.js';
 import { ITEMS, RARITY, initialState, chooseItem, transition, loadSave, saveState } from './state.js';
 import { VrLook } from './vr/vrLook.js';
 import { HeadShakeDetector } from './vr/headGestures.js';
+const THREE_clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const $=selector=>document.querySelector(selector);
 const $$=selector=>[...document.querySelectorAll(selector)];
 const icon=id=>`<svg aria-hidden="true"><use href="#i-${id}"/></svg>`;
@@ -46,7 +47,7 @@ function collectionFeedback(){
  clearTimeout(feedbackTimer);feedbackTimer=setTimeout(()=>count.classList.remove('collected'),700);
 }
 function updateUI(){
- $('#app').classList.toggle('has-progress',state.searches>0);syncReveal();updateZoom();
+ $('#app').classList.toggle('has-progress',state.searches>0);syncReveal();updateZoom();ensureLookHint();
  $('#app').classList.toggle('is-inspecting',state.phase==='inspect');$('.inspection').hidden=state.phase!=='inspect';
  // The toast reports on the previous find; it must not cover the next one's
  // rarity chip while that find is being inspected.
@@ -84,6 +85,16 @@ function syncBinTag(){
  const p=world.binEdge();
  tag.style.left=`${Math.round(p.x)}px`;tag.style.top=`${Math.round(p.y)}px`;
 }
+const LOOK_HINT_KEY='white-night-look-hint-v1';
+let lookHintShown=false;
+function lookHintDismissed(){try{return storage.getItem(LOOK_HINT_KEY)==='done';}catch{return true;}}
+function markLookUsed(){
+ const hint=$('#look-hint');if(!hint||lookHintShown&&hint.hidden)return;
+ hint.classList.add('used');lookHintShown=true;
+ try{storage.setItem(LOOK_HINT_KEY,'done');}catch{}
+ setTimeout(()=>{hint.hidden=true;},520);
+}
+function ensureLookHint(){const hint=$('#look-hint');if(!hint)return;if(lookHintDismissed()||state.phase==='inspect'){hint.hidden=true;return;}hint.hidden=vrActive;}
 function ensureVrLook(){
  if(!vrLook){vrLook=new VrLook($('#vr-camera'));vrLook.setHues(vrSettings.leftHue,vrSettings.rightHue);vrLook.setMode(vrSettings.mode);}
  return vrLook;
@@ -218,7 +229,7 @@ function bind(){
  $('#reset-button').addEventListener('click',()=>{$('#reset-confirm').hidden=false;$('#reset-button').hidden=true;});$('#reset-cancel').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;});$('#reset-yes').addEventListener('click',reset);
  $('#continue-button').addEventListener('click',()=>$('#complete-dialog').close());$('#view-complete').addEventListener('click',()=>{$('#complete-dialog').close();openCollection();});
  const canvas=$('#world');canvas.addEventListener('pointerdown',e=>{if(vrActive){clearTimeout(vrHoldTimer);vrHoldTimer=setTimeout(()=>stopVr('long-press'),900);return;}if(dialogs.some(d=>d.open)||drag||!e.isPrimary)return;if(state.phase==='inspect'){world.finishReveal();syncReveal();}drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
- canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>10)drag.moved=true;if(state.phase==='inspect'){world.rotate(dx,dy);updateViews();}drag.x=e.clientX;drag.y=e.clientY;});
+ canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>10){drag.moved=true;if(state.phase!=='inspect'&&!vrActive)markLookUsed();}if(state.phase==='inspect'){world.rotate(dx,dy);updateViews();}else if(!vrActive){world.lookBy(dx,dy);}drag.x=e.clientX;drag.y=e.clientY;});
  canvas.addEventListener('pointerup',e=>{clearTimeout(vrHoldTimer);if(!drag||drag.id!==e.pointerId)return;const tap=!drag.moved;drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(tap&&state.phase==='search'&&world.hitBin(e.clientX,e.clientY))search();});canvas.addEventListener('pointercancel',()=>{clearTimeout(vrHoldTimer);drag=null;});canvas.addEventListener('lostpointercapture',()=>{clearTimeout(vrHoldTimer);drag=null;});
  document.addEventListener('visibilitychange',()=>{paused=document.hidden;drag=null;lastTime=0;if(document.hidden&&vrActive)stopVr('hidden');});window.addEventListener('blur',()=>drag=null);window.addEventListener('resize',()=>{world.resize();if(vrActive)syncVrStereoMode();if(dialogs.some(d=>d.open))world.update(.016);});
  document.addEventListener('fullscreenchange',()=>{if(vrActive&&!document.fullscreenElement)stopVr('fullscreen');});window.addEventListener('pagehide',()=>{if(vrPendingSave)finishVrFind('pagehide');if(vrActive)vrLook?.stop();});
@@ -228,7 +239,13 @@ function bind(){
 async function start(){
  try{world=new World($('#world'));try{if(storage.getItem('white-night-quality')==='low'){world.setQuality(true);$('#low-quality').checked=true;}}catch{}
  bind();updateUI();await Promise.all([document.fonts.ready,materialAssetsReady()]);world.update(.016);$('#loading').hidden=true;window.__READY__=true;raf=requestAnimationFrame(tick);
- if(testing)window.__GAME_TEST__={getState:()=>structuredClone(state),getMetrics:()=>world.metrics(),settle:()=>{world.finishReveal();world.kick=0;world.dirty=true;world.update(.016);syncReveal();},seekReveal:p=>{world.testRevealHold=true;world.reveal=Math.max(0,Math.min(1,p));world.applyReveal();world.dirty=true;world.update(0);syncReveal();},setPose:pose=>{world.setPose(pose);world.update(.1);updateViews();},getRotation:()=>({x:world.targetX,y:world.targetY}),binScreen:()=>world.binScreen(),forceNext:id=>{if(!ITEMS.some(i=>i.id===id))throw Error('unknown item');forcedItem=id;},reset:()=>{dialogs.forEach(d=>d.close());reset();},setCollection:ids=>{state=initialState({collection:ids,searches:ids.length});world.hide();persist();updateUI();},isPaused:()=>paused,items:ITEMS.map(i=>i.id),vr:{
+ if(testing){window.__WORLD__=world;}
+ if(testing)window.__GAME_TEST__={getState:()=>structuredClone(state),getMetrics:()=>world.metrics(),settle:()=>{world.finishReveal();world.kick=0;world.dirty=true;world.update(.016);syncReveal();},seekReveal:p=>{world.testRevealHold=true;world.reveal=Math.max(0,Math.min(1,p));world.applyReveal();world.dirty=true;world.update(0);syncReveal();},setPose:pose=>{world.setPose(pose);world.update(.1);updateViews();},getRotation:()=>({x:world.targetX,y:world.targetY}),binScreen:()=>world.binScreen(),forceNext:id=>{if(!ITEMS.some(i=>i.id===id))throw Error('unknown item');forcedItem=id;},
+   setView:view=>{const r=world.setView(view);world.update(.016);return r;},
+   look:(yawDeg,pitchDeg)=>{world.lookBy(0,0);world.headLook.yaw=THREE_clamp(yawDeg,-41,41)*Math.PI/180;world.headLook.pitch=Math.max(-9,Math.min(60,pitchDeg))*Math.PI/180;world.applyCameraPose();world.dirty=true;world.update(.016);return world.lookInfo();},
+   sky:()=>({stars:world.sky.stars.geometry.attributes.position.count,moon:world.sky.moon.position.toArray().map(v=>+v.toFixed(2)),direction:world.sky.moonDirection.toArray().map(v=>+v.toFixed(3))}),reset:()=>{dialogs.forEach(d=>d.close());reset();},setCollection:ids=>{state=initialState({collection:ids,searches:ids.length});world.hide();persist();updateUI();},isPaused:()=>paused,items:ITEMS.map(i=>i.id),
+   scene:()=>({staticVisible:world.static.visible,drawCalls:world.renderer.info.render.calls,headLook:world.lookInfo(),sky:{stars:world.sky.stars.geometry.attributes.position.count,moonVisible:world.sky.moon.visible}}),
+   vr:{
    info:()=>vrInfoSnapshot(),
    open:()=>openVr(),
    setMode:mode=>{vrSettings.mode=mode==='fusion'?'fusion':'gyro';persistVrSettings();ensureVrLook().setMode(vrSettings.mode);syncVrPrep();return vrInfoSnapshot();},

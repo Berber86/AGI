@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { RUBBISH } from './environment.js';
+import { RUBBISH, windowTreatment } from './environment.js';
 import { box, cyl, torus, mesh, ball } from './models.js';
-import { canvasTexture, materials as M, seeded, grimeTexture, assetTexture } from './materials.js';
+import { canvasTexture, textTexture, materials as M, seeded, grimeTexture, assetTexture } from './materials.js';
 
 const r=seeded(370);
 
@@ -164,7 +164,6 @@ function windowMats(){
  const laceTex=canvasTexture((c,w,rng,h)=>{c.fillStyle='rgba(232,226,205,.94)';c.fillRect(0,0,w,26);for(let x=0;x<w;x+=22){c.beginPath();c.arc(x+11,27,11,0,Math.PI,false);c.fill();}c.fillStyle='rgba(120,112,92,.55)';for(let i=0;i<180;i++)c.fillRect(rng()*w,rng()*38,2,2);c.fillStyle='rgba(232,226,205,.38)';c.fillRect(0,38,w,h-38);},256,128);
  windowMaterials={curtain:new THREE.MeshStandardMaterial({map:weave,roughness:1,side:THREE.DoubleSide}),blind:new THREE.MeshStandardMaterial({color:0x999c91,roughness:.9}),leaf:new THREE.MeshStandardMaterial({color:0x3e5e3f,roughness:1,flatShading:true}),pot:new THREE.MeshStandardMaterial({color:0x806451,roughness:.94}),interior:new THREE.MeshStandardMaterial({map:interiors,emissive:0xffffff,emissiveMap:interiors,emissiveIntensity:1.12,color:0x1a120c,roughness:.85}),lace:new THREE.MeshStandardMaterial({map:laceTex,transparent:true,alphaTest:.06,roughness:1,side:THREE.DoubleSide})};return windowMaterials;
 }
-const BALCONY_KEYS=new Set([12,15,26,113,125,211,224]);
 function addCat(parent,pos,scale=1,rotY=0,mat=M.black){
   const cat=new THREE.Group();cat.position.set(...pos);cat.rotation.y=rotY;cat.scale.setScalar(scale);parent.add(cat);
   blob(cat,.16,[0,.15,-.02],mat,[.95,.82,1.28]);
@@ -176,40 +175,8 @@ function addCat(parent,pos,scale=1,rotY=0,mat=M.black){
   lineTube(cat,[[.13,.08,-.16],[.22,.045,-.02],[.16,.055,.15]],.017,mat,10);
   return cat;
 }
-function addBalcony(g,x,y,w,h,key,trim){
-  const yard=yardMaterials(),slabY=y-h/2-.22,front=1.34,half=w/2+.52;
-  box(g,[w+1.05,.12,.86],[x,slabY,.94],trim,0);
-  for(const side of [-1,1])box(g,[.08,.5,.08],[x+side*(half-.13),slabY-.27,.78],M.black,0,[.55,0,0]);
-  box(g,[w+1.05,.045,.045],[x,slabY+.58,front],M.black,0);
-  box(g,[w+1.05,.035,.035],[x,slabY+.12,front],M.black,0);
-  for(let bx=-half+.07;bx<=half-.04;bx+=.18)box(g,[.018,.48,.018],[x+bx,slabY+.35,front],M.black,0);
-  for(const side of [-1,1]){
-    box(g,[.045,.045,.82],[x+side*half,slabY+.58,.95],M.black,0);
-    for(let z=.62;z<front;z+=.18)box(g,[.018,.48,.018],[x+side*half,slabY+.35,z],M.black,0);
-  }
-  for(let i=-2;i<=2;i++)box(g,[w+.72,.018,.09],[x,slabY+.07,.72+i*.14],yard.wood,0);
-  const variant=Math.abs(key)%3;
-  if(variant===0){
-    box(g,[w*.78,.17,.19],[x,slabY+.18,1.16],windowMats().pot,0);
-    for(let i=0;i<7;i++)blob(g,.075,[x-w*.32+i*w*.105,slabY+.31,1.16],i%2?yard.green:yard.leafDark,[1.2,.72,.8],0);
-    for(let i=0;i<8;i++)blob(g,.024,[x-w*.34+i*w*.095,slabY+.36,1.2],i%3?M.red:M.cream,[1,1,1],0);
-  }else if(variant===1){
-    box(g,[.4,.04,.38],[x-.38,slabY+.3,.92],yard.wood,0);
-    box(g,[.4,.46,.04],[x-.38,slabY+.54,.74],yard.wood,0);
-    for(const dx of [-.16,.16])for(const dz of [-.13,.13])box(g,[.035,.3,.035],[x-.38+dx,slabY+.15,.92+dz],M.black,0);
-    cyl(g,.23,.23,.035,[x+.36,slabY+.44,.94],yard.wood,[0,0,0],20);
-    cyl(g,.025,.025,.4,[x+.36,slabY+.23,.94],M.black,[0,0,0],10);
-    lowSphere(g,.045,[x+.36,slabY+.49,.94],M.cream);
-  }else if(variant===2){
-    box(g,[.48,.34,.42],[x-.42,slabY+.24,.92],yard.wood,.01);
-    box(g,[.4,.27,.36],[x-.4,slabY+.54,.94],M.paper,.01,[0,.16,0]);
-    mesh(new THREE.TorusGeometry(.29,.016,6,28),M.black,g,[x+.08,slabY+.38,.72]);
-    for(const dx of [.42,.49])box(g,[.055,1.28,.018],[x+dx,slabY+.7,.73],M.red,0,[0,0,.13]);
-  }
-}
 export function addWindowLife(g,x,y,w,h,state,trim,glass,key=0){
- const m=windowMats(),yard=yardMaterials(),n=hash(key+811),row=Math.max(0,Math.min(3,Math.round((y-1.72)/2.95))),hasBalcony=BALCONY_KEYS.has(key);
- if(hasBalcony)addBalcony(g,x,y,w,h,key,trim);
+ const m=windowMats(),yard=yardMaterials(),n=hash(key+811),row=Math.max(0,Math.min(3,Math.round((y-1.72)/2.95)));
  const addCurtains=(z=.574)=>{
   for(const side of [-1,1]){
    const geo=new THREE.PlaneGeometry(w*.27,h*.91,5,6),p=geo.attributes.position;
@@ -247,7 +214,7 @@ export function addWindowLife(g,x,y,w,h,state,trim,glass,key=0){
   for(const side of [-1,0,1])blob(g,.07,[px+side*.055,y-h/2+.17,.79],side?m.leaf:yard.green,[1.25,.72,.65],0);
  }
  if(state==='open'&&n%5===0)addCat(g,[x-.17,y-h/2-.015,.8],.58,0,M.black);
- if(!hasBalcony&&row>0&&row<3){
+ if(row>0&&row<3){
   if(n%9===2){
     box(g,[w*.82,.16,.2],[x,y-h/2+.045,.74],m.pot,0);
     for(let i=0;i<6;i++)blob(g,.07,[x-w*.31+i*w*.12,y-h/2+.17,.74],i%2?yard.green:m.leaf,[1.2,.72,.8],0);
@@ -284,17 +251,17 @@ export function addCourtyardDetails(g,scene){
   for(const x of [2.23,2.77])box(g,[.05,.01,.11],[x,.049,2.5],M.black,.005);
   // Warm sodium fixtures against the cold white-night skylight. Emissive carries the
   // glow; the point light only spreads it, so the light count stays fixed.
-  for(const x of [-5.35,-2.26]){
+  for(const x of [-4.55,4.55]){
    box(g,[.09,.38,.14],[x,2.49,-6.43],iron,.02);
    cyl(g,.018,.018,.42,[x,2.78,-6.22],iron,[Math.PI/2,0,0],12);
    cyl(g,.19,.09,.12,[x,2.7,-6.03],iron,[0,0,0],32);
    lowSphere(g,.085,[x,2.56,-6.03],bulb,[1,1.65,1]);
    const glow=new THREE.PointLight(0xffb266,2.4,4.2,2);glow.position.set(x,2.48,-5.97);scene.add(glow);
   }
-  // Old steps and worn threshold at the passage.
-  box(g,[2.26,.11,.46],[-3.8,.038,-6.13],stone,.025);
-  for(let i=0;i<9;i++)box(g,[.22,.027,.49],[-4.78+i*.25,.101,-6.12],stone,.012);
-  const wire=new THREE.CatmullRomCurve3([new THREE.Vector3(-6,3.3,-6.5),new THREE.Vector3(-1,2.96,-6.47),new THREE.Vector3(4.2,3.31,-6.46)]);
+  // Worn threshold in front of the passage gates.
+  box(g,[3.35,.1,.5],[0,.036,-6.03],stone,.03);
+  for(let i=0;i<12;i++)box(g,[.25,.026,.54],[-1.42+i*.26,.096,-6.02],stone,.012);
+  const wire=new THREE.CatmullRomCurve3([new THREE.Vector3(-6,5.3,-6.5),new THREE.Vector3(-1,4.96,-6.47),new THREE.Vector3(4.2,5.31,-6.46)]);
   mesh(new THREE.TubeGeometry(wire,24,.011,5),M.rubber,g);
   // Real wall posters with curled lower corners, not generic blank blocks.
   const paper=canvasTexture((c,s)=>{
@@ -302,7 +269,7 @@ export function addCourtyardDetails(g,scene){
     for(const [i,line] of ['Пожалуйста,','закрывайте ворота.','','Белые ночи —','не повод не спать.'].entries())c.fillText(line,s/2,165+i*41);
     c.strokeStyle='#555b4d';for(let x=28;x<s;x+=43){c.beginPath();c.moveTo(x,s-90);c.lineTo(x,s);c.stroke();}
   });
-  mesh(new THREE.PlaneGeometry(.42,.56),new THREE.MeshStandardMaterial({map:paper,roughness:.95,side:THREE.DoubleSide}),g,[-1.98,1.81,-6.45],[0,0,-.05]);
+  mesh(new THREE.PlaneGeometry(.42,.56),new THREE.MeshStandardMaterial({map:paper,roughness:.95,side:THREE.DoubleSide}),g,[-4.95,1.81,-6.45],[0,0,-.05]);
   // Contact patches ground rubbish bags and bicycle instead of letting them float.
   const shadowMap=YARD.shadowMap;
   for(const [x,z,w,h] of [...RUBBISH.map(b=>[b.x,b.z,b.scale*3.5,b.scale*3]),[3.5,-5.8,2.9,1],[-3.3,-2.6,1.4,1.1]])mesh(new THREE.PlaneGeometry(w,h),contact,g,[x,.022,z],[-Math.PI/2,0,0]);
@@ -431,7 +398,7 @@ function addLivingCourtyard(g){
   pigeonSpots.forEach(([x,z,rot],i)=>addPigeon(g,[x,0,z],rot,.9+i*.04));
   for(let i=0;i<14;i++)blob(g,.012,[3.45+((i*37)%70)/100,.025,1.15+((i*53)%55)/100],M.cream,[1,.55,1],0);
   // Warm pools below lamps and lit ground-floor windows (emissive decals, no new lights).
-  for(const [x,z,w,h,rot] of [[-5.3,-5.35,1.5,2.5,.1],[-2.25,-5.3,1.5,2.5,-.08],[-6.95,-4.85,1.7,2.3,1.45],[7.95,-4.85,1.7,2.3,-1.45],[-1.2,-5.65,1.9,1.5,0],[2.5,2.5,1.6,1.6,.4]]){
+  for(const [x,z,w,h,rot] of [[-4.5,-5.35,1.5,2.5,.1],[4.5,-5.3,1.5,2.5,-.08],[-6.95,-4.85,1.7,2.3,1.45],[7.95,-4.85,1.7,2.3,-1.45],[-1.2,-5.65,1.9,1.5,0],[2.5,2.5,1.6,1.6,.4]]){
     const glow=mesh(new THREE.PlaneGeometry(w,h),yard.glow,g,[x,.019,z],[-Math.PI/2,0,rot]);glow.renderOrder=1;
   }
   for(const [x,z,w,h] of [[7.5,-3.0,1.6,2.5],[-6.5,-4.9,1.7,1.5],[5.7,-5.25,2.4,1.2],[-5.45,-.75,1.4,2.4]]){
@@ -479,3 +446,147 @@ export function addBinDetails(g,lid,steel){
   const label=canvasTexture((c,s,rng)=>{c.fillStyle='#b1aa80';c.fillRect(0,0,s,s);c.fillStyle='#384634';c.textAlign='center';c.font='bold 53px Arial';c.fillText('1100 л',s/2,170);c.font='26px Arial';c.fillText('ТВЁРДЫЕ БЫТОВЫЕ',s/2,262);c.fillText('ОТХОДЫ',s/2,306);c.font='20px monospace';c.fillText('СПБ • ИНВ. 0017',s/2,410);for(let i=0;i<700;i++){c.fillStyle='rgba(62,52,31,.1)';c.fillRect(rng()*s,rng()*s,3,2);}});
   mesh(new THREE.PlaneGeometry(.42,.37),new THREE.MeshStandardMaterial({map:label,roughness:.84}),g,[1.284,1.09,.05],[0,Math.PI/2,0]);
 }
+
+// The fourth side of the courtyard: a full facade with the street passage.
+// A real arched hole through the masonry, a double iron gate (one leaf ajar)
+// and the warm alley behind it. The whole side is batched on its own so the
+// camera facing the bin can frustum-cull it completely.
+const gatePaint=new THREE.MeshStandardMaterial({color:0x3b4038,roughness:.82});
+export function addGateFacade(g,{width=23,height=13.5,stone,trim,dark,wall,glass,lit,seed=101,gateX=0}){
+  const yard=yardMaterials(),rand=seeded(seed*7+13);
+  const gateHalf=1.55,spring=2.55,archR=gateHalf,apex=spring+archR;
+  const outline=new THREE.Shape();
+  outline.moveTo(-width/2,0);outline.lineTo(width/2,0);outline.lineTo(width/2,height);outline.lineTo(-width/2,height);outline.closePath();
+  const hole=new THREE.Path();
+  hole.moveTo(gateX-gateHalf,0);hole.lineTo(gateX-gateHalf,spring);
+  hole.absarc(gateX,spring,archR,Math.PI,0,true);
+  hole.lineTo(gateX+gateHalf,0);hole.closePath();
+  outline.holes.push(hole);
+  mesh(new THREE.ExtrudeGeometry(outline,{depth:.65,bevelEnabled:false,curveSegments:22}),wall,g,[0,0,-.325]);
+  // Plinth and string courses stop at the arch pier, like real masonry.
+  for(const [x0,x1] of [[-width/2,gateX-gateHalf-.12],[gateX+gateHalf+.12,width/2]])box(g,[x1-x0,.75,.78],[(x0+x1)/2,.375,.025],stone,0);
+  for(const y of [3.28,6.2,9.15]){
+    for(const [x0,x1] of [[-width/2,gateX-gateHalf-.12],[gateX+gateHalf+.12,width/2]]){
+      const w=x1-x0;if(w<.5)continue;
+      box(g,[w,.14,.87],[(x0+x1)/2,y,.055],trim,0);
+      box(g,[w,.07,.98],[(x0+x1)/2,y+.09,.08],stone,0);
+    }
+  }
+  box(g,[width,.35,1.06],[0,height-.12,.05],trim,0);
+  // Stone frame around the opening: rusticated jambs, arch ring and keystone.
+  for(const sign of [-1,1])box(g,[.36,spring+.05,.62],[gateX+sign*(gateHalf+.18),spring/2,.06],stone,.02);
+  const archCurve=new THREE.EllipseCurve(0,0,archR+.20,archR+.20,0,Math.PI,false,0);
+  const pts=archCurve.getPoints(30).map(p=>new THREE.Vector3(p.x,p.y,0));
+  mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),30,.17,7,false),stone,g,[gateX,spring,.06]);
+  box(g,[.26,.62,.72],[gateX,apex+.16,.09],stone,.02);
+  for(let i=1;i<7;i++){
+    const a=Math.PI*i/7,x=Math.cos(a)*(archR+.20),y=Math.sin(a)*(archR+.20);
+    box(g,[.17,.3,.52],[gateX+x,spring+y,.03],stone,.012,[0,0,-a+Math.PI/2]);
+  }
+  // Recessed passage behind the gate: floor, jambs and a dim far end with a lamp.
+  const passage=new THREE.MeshStandardMaterial({color:0x1d211c,roughness:.96});
+  box(g,[gateHalf*2+.6,.06,3.6],[gateX,0,-1.85],stone,0);
+  box(g,[.24,4.6,3.6],[gateX-gateHalf-.32,2.3,-1.85],passage,0);
+  box(g,[.24,4.6,3.6],[gateX+gateHalf+.32,2.3,-1.85],passage,0);
+  box(g,[3.4,.2,3.6],[gateX,apex+.62,-1.85],stone,0);
+  box(g,[3.4,4.8,.12],[gateX,2.4,-3.7],passage,0);
+  const farLight=canvasTexture((c,s)=>{const gr=c.createLinearGradient(0,0,0,s);gr.addColorStop(0,'rgba(52,60,58,1)');gr.addColorStop(.42,'rgba(85,74,54,1)');gr.addColorStop(1,'rgba(34,38,34,1)');c.fillStyle=gr;c.fillRect(0,0,s,s);const lamp=c.createRadialGradient(s*.5,s*.30,0,s*.5,s*.30,s*.46);lamp.addColorStop(0,'rgba(255,198,118,.95)');lamp.addColorStop(.45,'rgba(255,174,92,.38)');lamp.addColorStop(1,'rgba(255,160,80,0)');c.fillStyle=lamp;c.fillRect(0,0,s,s);});
+    mesh(new THREE.PlaneGeometry(3.2,4.6),new THREE.MeshBasicMaterial({map:farLight,color:0xb9bdb4,fog:false}),g,[gateX,2.3,-3.63]);
+  // A dim second plane behind the first gives the alley real depth instead of
+  // one glowing wall filling the arch.
+  mesh(new THREE.PlaneGeometry(3.0,4.2),new THREE.MeshBasicMaterial({map:farLight,color:0x64685f,toneMapped:false}),g,[gateX,2.25,-4.6]);
+  box(g,[1.1,.4,.36],[gateX-.55,2.1,-2.1],passage,0);
+  box(g,[.5,.9,.3],[gateX+.7,.28,-2.2],passage,0);
+  // Iron gate: frame, lower wooden panel, bars. Both leaves stop at the
+  // springing; the arched transom above is fixed to the masonry.
+  const leaf=(side,open=0)=>{
+    const leafG=new THREE.Group(),w=gateHalf-.06,h=spring-.10;
+    leafG.position.set(gateX+side*(gateHalf-.02),0,.02);leafG.rotation.y=side*open;g.add(leafG);
+    const cx=-side*w/2;
+    for(const y of [.07,h])box(leafG,[w,.1,.09],[cx,y,0],M.black,.012);
+    for(const x of [cx-w/2+.045,cx+w/2-.045])box(leafG,[.09,h,.09],[x,h/2,0],M.black,.012);
+    const panelH=.92;
+    box(leafG,[w-.12,panelH,.07],[cx,panelH/2+.1,0],gatePaint,.01);
+    for(let i=0;i<3;i++)box(leafG,[w-.18,.03,.09],[cx,panelH*(i+.5)/3+.1,.012],M.rust,0);
+    for(let x=cx-w/2+.14;x<cx+w/2-.1;x+=.17)box(leafG,[.03,h-panelH-.24,.03],[x,panelH+.12+(h-panelH-.24)/2,.012],M.black,0);
+    for(const y of [h-.12,2.02,panelH+.32])box(leafG,[w-.14,.05,.055],[cx,y,.012],M.black,0);
+    for(const y of [.42,.95])cyl(leafG,.035,.035,.09,[cx+side*(w/2-.02),y,0],M.black,[0,0,0],10);
+    torus(leafG,.1,.013,[cx,h*.8,.02],M.black);
+    return leafG;
+  };
+  leaf(-1,.30);leaf(1,0);
+  // Arched transom bars above the leaves, following the stone arch.
+  for(let i=-3;i<=3;i++){
+    const x=gateX+i*.42,half=Math.sqrt(Math.max(0,archR*archR-x*x)),top=spring+half*.96,bottom=spring-.10;
+    if(top-bottom<.12)continue;
+    box(g,[.028,top-bottom,.028],[x,(top+bottom)/2,.055],M.black,0);
+  }
+  const transomArc=new THREE.EllipseCurve(0,0,archR-.02,archR-.02,0,Math.PI,false,0);
+  const tpts=transomArc.getPoints(20).map(p=>new THREE.Vector3(p.x,p.y,0));
+  mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(tpts),20,.03,5,false),M.black,g,[gateX,spring,.055]);
+  for(let i=0;i<5;i++){const a=Math.PI*(i+1)/6;box(g,[.05,.05,.05],[gateX+Math.cos(a)*(archR-.02),spring+Math.sin(a)*(archR-.02),.075],M.black,0);}
+  // A lamp above the gate and the enamel street plate beside it.
+  cyl(g,.02,.02,.5,[gateX,apex+.9,.36],M.black,[0,0,0],8);
+  cyl(g,.11,.2,.14,[gateX,apex+.5,.36],M.black,[0,0,0],14);
+  lowSphere(g,.082,[gateX,apex+.4,.36],yard.bulb,[1,1.45,1],0);
+  mesh(new THREE.PlaneGeometry(1.5,1.5),yard.glow,g,[gateX,apex+.36,.5]);
+  const plate=new THREE.MeshStandardMaterial({map:textTexture('',{bg:'#223c4a',color:'#ece8d5',lines:['ДОХОДНЫЙ ДОМ','17 · 2'],font:66}),roughness:.42});
+  box(g,[.62,.46,.06],[gateX+2.3,2.35,.35],M.black,0);mesh(new THREE.PlaneGeometry(.57,.41),plate,g,[gateX+2.3,2.35,.39]);
+  // Windows. Rows above the arch keep their life details; the ground floor
+  // beside the passage stays calmer so the gate reads first.
+  const cols=Math.floor(width/2.47);
+  for(let col=0;col<cols;col++)for(let row=0;row<4;row++){
+    const x=(col-(cols-1)/2)*2.47,y=1.72+row*2.95;
+    if(Math.abs(x-gateX)<3.3&&row<2)continue;
+    const w=1.16,h=1.91,key=300+row*10+col;
+    box(g,[w+.26,h+.27,.14],[x,y,.38],trim,0);
+    box(g,[w+.05,h+.06,.1],[x,y,.47],dark,0);
+    const state=windowTreatment(col,row,2);
+    const glazing=state==='lit'?lit:glass[(col+row)%glass.length];
+    box(g,[w,h,.04],[x,y,.54],glazing,0);
+    for(const dx of [-w/2,w/2,0])box(g,[.048,h,.09],[x+dx,y,.58],stone,0);
+    for(const dy of [-h/2,h/2,.24])box(g,[w,.047,.09],[x,y+dy,.58],stone,0);
+    box(g,[w+.4,.12,.43],[x,y-h/2-.09,.55],trim,0);
+    addWindowDetails(g,x,y,w,h,stone,dark,trim);
+    if(row>=1)addWindowLife(g,x,y,w,h,state,trim,glazing,key);
+  }
+  for(const x of [-width/2+.35,width/2-.38]){cyl(g,.07,.07,height,[x,height/2,.53],dark,[0,0,0],12);for(let y=1;y<height;y+=2)cyl(g,.087,.087,.055,[x,y,.53],M.rust,[0,0,0],12);}
+  // Weathering and paper only beside the passage, never across it.
+  const damp=new THREE.MeshBasicMaterial({map:grimeTexture(),transparent:true,depthWrite:false,opacity:.66,polygonOffset:true,polygonOffsetFactor:-1});
+  for(const [x0,x1] of [[-width/2,gateX-gateHalf-.5],[gateX+gateHalf+.5,width/2]].filter(([a,b])=>b-a>1)){
+    mesh(new THREE.PlaneGeometry(x1-x0,.9),damp,g,[(x0+x1)/2,.55,.345]);
+  }
+  mesh(atlasPlane(.48,.64,seed%4,2,2),yard.poster,g,[gateX-3.15,1.62,.353],[0,0,.03]);
+  for(let i=0;i<22;i++){
+    const baseX=i<11?-width/2+.55:width/2-.55,xx=baseX+Math.sin(i*.55)*.26+(rand()-.5)*.2;
+    mesh(new THREE.CircleGeometry(.05+rand()*.075,7),i%3?yard.leafDark:yard.green,g,[xx,.5+i*.17,.355+rand()*.04],[0,0,rand()*Math.PI]);
+  }
+  // Roofline: chimneys and an antenna, visible when the head is raised.
+  for(const x of [-width*.32,width*.3]){
+    box(g,[.78,.98,.78],[x,height+.48,-.05],stone,0);
+    box(g,[.94,.13,.94],[x,height+1.02,-.05],stone,0);
+    cyl(g,.09,.11,.24,[x-.16,height+1.19,-.05],M.rust,[0,0,0],10);
+    cyl(g,.09,.11,.24,[x+.16,height+1.19,-.05],M.rust,[0,0,0],10);
+  }
+  cyl(g,.018,.018,1.42,[width*.12,height+.76,.18],M.black,[0,0,0],8);
+  box(g,[.88,.025,.025],[width*.12,height+1.12,.18],M.black,0);
+  box(g,[.58,.025,.025],[width*.12,height+1.36,.18],M.black,0);
+  return g;
+}
+
+// A simple roof edge reads as a real skyline from inside the courtyard, so the
+// sky above the facades is not a raw box cut.
+export function addRoofBand(g,width,height,roofMat,trim){
+  // A cornice with a thin overhang and a parapet lip: from inside the well this
+  // reads as a real roofline, and it does not paint a huge slab across the sky.
+  box(g,[width+.1,.34,1.0],[0,height+.17,.28],trim,.01);
+  box(g,[width+.1,.08,1.28],[0,height+.36,.34],stoneLike(trim),0);
+  mesh(new THREE.BoxGeometry(width+.1,.1,1.05),roofMat,g,[0,height+.47,.62],[.22,0,0]);
+  box(g,[width+.1,.16,.12],[0,height+.5,1.06],trim,0);
+  for(const x of [-width*.34,width*.18,-width*.05])box(g,[.16,.2,.16],[x,height+.62,.95],M.rust,0);
+}
+function stoneLike(trim){
+  if(!stoneLike.mat)stoneLike.mat=trim.clone(),stoneLike.mat.color.offsetHSL(0,-.03,.04);
+  return stoneLike.mat;
+}
+

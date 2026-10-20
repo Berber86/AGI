@@ -25,17 +25,17 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 84,
-      "triangles": 169978,
-      "geometries": 170,
-      "textures": 83,
+      "drawCalls": 33,
+      "triangles": 95172,
+      "geometries": 172,
+      "textures": 89,
       "models": 18,
       "postprocessing": false,
       "zoom": 1,
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 70.16666666666659,
+      "meanFrameMs": 26.730303030302508,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -46,21 +46,53 @@
         "veil": 0.96,
         "ready": true
       },
-      "quality": "low"
+      "quality": "low",
+      "look": {
+        "yawDeg": 0,
+        "pitchDeg": 0
+      },
+      "perf": {
+        "samples": 99,
+        "meanMs": 0,
+        "fps": 0,
+        "dpr": 1,
+        "drops": 0,
+        "raises": 0
+      },
+      "vr": {
+        "stereo": false,
+        "inspectLock": false,
+        "yawDeg": 0,
+        "pitchDeg": 0,
+        "targetX": 5.73,
+        "targetY": -16.04,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 320,
+          "height": 256
+        },
+        "cameraQuaternion": [
+          -0.04284,
+          0.08162,
+          0.00351,
+          0.99574
+        ]
+      }
     },
     {
       "viewport": "412x915 SwiftShader, not a physical phone",
-      "drawCalls": 69,
-      "triangles": 127326,
-      "geometries": 78,
-      "textures": 37,
+      "drawCalls": 72,
+      "triangles": 139982,
+      "geometries": 79,
+      "textures": 44,
       "models": 1,
       "postprocessing": false,
       "zoom": 1,
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 527.6666666666666,
+      "meanFrameMs": 16.56666666666676,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -71,7 +103,39 @@
         "veil": 0.96,
         "ready": true
       },
-      "quality": "low"
+      "quality": "low",
+      "look": {
+        "yawDeg": 0,
+        "pitchDeg": 0
+      },
+      "perf": {
+        "samples": 6,
+        "meanMs": 0,
+        "fps": 0,
+        "dpr": 1,
+        "drops": 0,
+        "raises": 0
+      },
+      "vr": {
+        "stereo": false,
+        "inspectLock": false,
+        "yawDeg": 0,
+        "pitchDeg": 0,
+        "targetX": 6.88,
+        "targetY": -13.18,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 372,
+          "height": 371
+        },
+        "cameraQuaternion": [
+          -0.04284,
+          0.08162,
+          0.00351,
+          0.99574
+        ]
+      }
     }
   ],
   "models": [
@@ -383,7 +447,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6651796,
+    "totalBytes": 6741154,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -406,12 +470,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-CHJu4-5O.js",
-        "bytes": 664896
+        "file": "assets/index-Bvm5UjYO.css",
+        "bytes": 34483
       },
       {
-        "file": "assets/index-YGZEExfG.css",
-        "bytes": 29920
+        "file": "assets/index-btSJDnep.js",
+        "bytes": 744937
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -475,7 +539,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 11401
+        "bytes": 16155
       },
       {
         "file": "manifest.webmanifest",

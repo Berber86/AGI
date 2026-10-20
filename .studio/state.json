@@ -3,10 +3,10 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "Iterations 7\u20139 verified: 20 unit, 180 poses, all 18 high-quality baselines, seven browser suites passed; static export 6648425 bytes matches dist",
-  "nextAction": "Physical Android and remaining audit if requested; git/chat records delivery of three commits",
+  "lastAction": "v8 delivered: balconies removed, fourth side with arch and gates, stars and moon, look-up camera; 29 unit, yard 9, e2e 17, desktop, landscape 12, vr 12, thumbnails, catalog passed; export 6741154 bytes",
+  "nextAction": "Physical Android gesture/adaptation check if requested; no PR opened",
   "blockers": [],
-  "latestHandoff": ".studio/handoffs/2026-10-15-visual-v5.md",
+  "latestHandoff": ".studio/handoffs/2026-10-20-visual-v8.md",
   "sessionBenchmark": {
     "runId": "20261014T223742Z-ec584f",
     "status": "qualified",
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/latest-result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-15T01:30:07.674572+00:00"
+  "updatedAt": "2026-10-20T19:00:00Z"
 }
