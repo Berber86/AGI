@@ -1,12 +1,12 @@
 // headGestures.js — deliberate "no" head shake recognition.
 //
 // One counted swing is a movement from an extreme on one side to an extreme
-// on the other. Three such transitions inside four seconds trigger once;
+// on the other. Two such transitions inside four seconds trigger once;
 // merely turning to one side, or slowly inspecting an object, does not.
 const DEG = Math.PI / 180;
 
 export class HeadShakeDetector {
-  constructor({ thresholdDeg = 13, requiredTransitions = 3, windowMs = 4000, staleMs = 1800 } = {}) {
+  constructor({ thresholdDeg = 13, requiredTransitions = 2, windowMs = 4000, staleMs = 1800 } = {}) {
     this.thresholdDeg = thresholdDeg;
     this.requiredTransitions = requiredTransitions;
     this.windowMs = windowMs;

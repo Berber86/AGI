@@ -144,7 +144,7 @@ try {
   assert.equal(gameState.phase, 'search');
   assert.deepEqual(gameState.collection, ['camera']);
   assert.equal(info.pendingSave, false);
-  check('Three no swings auto-save the find and return to searching');
+  check('Two no swings auto-save the find and return to searching');
 
   await page.evaluate(() => window.__GAME_TEST__.forceNext('bottle'));
   await focusFor(page, gaze, 10.2);

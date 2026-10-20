@@ -221,7 +221,7 @@ function updateVrOverlay(now=performance.now()){
   const item=ITEMS.find(i=>i.id===state.current),phase=world.revealState?.phase||'ready';
   title=phase==='anticipation'?'Что-то осталось на дне…':phase==='silhouette'?'Знакомый силуэт…':item?.name||'Находка';
   progress=headShake.count/headShake.requiredTransitions;
-  hint=phase==='ready'?`Повороты и кивки вращают вещь · «нет» ${headShake.count}/3 — искать дальше`:'Ещё мгновение…';
+  hint=phase==='ready'?`Повороты и кивки вращают вещь · «нет» ${headShake.count}/${headShake.requiredTransitions} — искать дальше`:'Ещё мгновение…';
  }
  if(vrSettings.mode==='gyro'&&info.status!=='gyro')hint='Гироскоп молчит. Снимите очки и проверьте разрешение датчиков.';
  setVrOverlay(status,title,hint,progress);
@@ -231,7 +231,7 @@ function setVrGyroAbsolute(yawDeg,pitchDeg,steps=10,dt=.03){
  const look=ensureVrLook(),gyro=look.gyro,start={...gyro.raw},target={yaw:yawDeg*Math.PI/180,pitch:pitchDeg*Math.PI/180},n=Math.max(1,steps|0);
  gyro.lastAt=performance.now();if(vrActive)updateVrFrame(0,gyro.lastAt);else stepVrLook(0);
  for(let i=1;i<=n;i++){gyro.raw={yaw:start.yaw+(target.yaw-start.yaw)*i/n,pitch:start.pitch+(target.pitch-start.pitch)*i/n};gyro.lastAt=performance.now();if(vrActive)updateVrFrame(dt,gyro.lastAt);else stepVrLook(dt);}
- world.update(0);updateVrOverlay(performance.now());return vrInfoSnapshot();
+ world.update(0);gyro.lastAt=performance.now();updateVrOverlay(performance.now());return vrInfoSnapshot();
 }
 function tick(time){raf=requestAnimationFrame(tick);if(dialogs.some(d=>d.open)){if($('#vr-dialog').open&&!paused){vrLook?.processPrep();syncVrPrep();}lastTime=time;return;}if(paused||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;const dt=Math.min(rawDt,.1);if(vrActive)updateVrFrame(dt,time);world.update(dt,rawDt);syncReveal();if(vrActive){adaptVrQuality(rawDt);updateVrOverlay(time);}else syncBinTag();}
 function bind(){
@@ -275,8 +275,8 @@ async function start(){
    calibrate:now=>ensureVrLook().tracker.calibrate(now),
    start:()=>startVrSession(),
    stop:()=>stopVr('test'),
-   step:(seconds=.1)=>{let left=Math.max(0,seconds);while(left>0){const dt=Math.min(.05,left);updateVrFrame(dt,performance.now());left-=dt;}world.update(0);updateVrOverlay(performance.now());return vrInfoSnapshot();},
-   shake:(amplitudeDeg=25)=>{for(const yaw of [-amplitudeDeg,amplitudeDeg,-amplitudeDeg,amplitudeDeg])setVrGyroAbsolute(yaw,0,10,.03);return vrInfoSnapshot();},
+   step:(seconds=.1)=>{let left=Math.max(0,seconds);while(left>0){const dt=Math.min(.05,left);if(vrLook)vrLook.gyro.lastAt=performance.now();updateVrFrame(dt,performance.now());left-=dt;}world.update(0);updateVrOverlay(performance.now());return vrInfoSnapshot();},
+   shake:(amplitudeDeg=25)=>{for(const yaw of [-amplitudeDeg,amplitudeDeg,-amplitudeDeg])setVrGyroAbsolute(yaw,0,10,.03);return vrInfoSnapshot();},
    settings:()=>({...vrSettings}),
    finish:()=>finishVrFind('test')
   }};

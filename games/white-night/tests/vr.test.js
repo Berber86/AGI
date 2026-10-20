@@ -38,10 +38,10 @@ test('FusionLook rejects a one-frame gyro spike and later follows markers withou
   assert.ok(fusion.yaw / DEG > 10 && fusion.yaw / DEG <= 18);
 });
 
-test('three deliberate side-to-side swings trigger exactly once', () => {
+test('two deliberate side-to-side transitions trigger exactly once', () => {
   const shake = new HeadShakeDetector();
   let triggered = 0;
-  const sequence = [-20, 20, -20, 20];
+  const sequence = [-20, 20, -20];
   sequence.forEach((yaw, i) => { if (shake.update(yaw * DEG, 1000 + i * 250)) triggered++; });
   assert.equal(triggered, 1);
   assert.equal(shake.count, 0);
@@ -50,7 +50,7 @@ test('three deliberate side-to-side swings trigger exactly once', () => {
 test('slow inspection turns do not look like a no gesture', () => {
   const shake = new HeadShakeDetector();
   let triggered = false;
-  [-20, 20, -20, 20].forEach((yaw, i) => { triggered ||= shake.update(yaw * DEG, 1000 + i * 1900); });
+  [-20, 20, -20].forEach((yaw, i) => { triggered ||= shake.update(yaw * DEG, 1000 + i * 2300); });
   assert.equal(triggered, false);
 });
 

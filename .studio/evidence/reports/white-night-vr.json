@@ -8,7 +8,7 @@
     "Gaze focus earns the first of three searches and decays only to that earned segment",
     "Ten seconds of bin focus reveals a find and locks the courtyard",
     "Head turns and nods rotate only the find while the locked camera stays still",
-    "Three no swings auto-save the find and return to searching",
+    "Two no swings auto-save the find and return to searching",
     "Leaving VR during inspection still auto-saves the current find",
     "The 18th VR find defers the normal completion dialog until after exit",
     "Portrait uses the single-eye fallback and landscape restores stereo",
