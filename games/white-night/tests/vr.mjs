@@ -103,10 +103,9 @@ try {
   assert.equal(info.active, true);
   assert.equal(info.stereo, true);
   assert.equal(info.world.stereo, true);
-  assert.equal(await page.$$eval('.vr-eye', (eyes) => eyes.length), 2);
-  assert.equal(await page.$eval('#vr-overlay', (e) => e.hidden), false);
+  assert.equal(await page.evaluate(() => !document.querySelector('#vr-overlay') && !document.querySelector('#vr-exit') && !document.querySelector('.vr-reticle')), true);
   await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-stereo-search.png` });
-  check('Landscape VR renders a duplicated two-eye HUD over the stereo courtyard');
+  check('Landscape VR is pure stereo 3D with no HUD, reticle, captions or exit button');
 
   const gaze = await findGaze(page);
   await focusFor(page, gaze, 3.4);

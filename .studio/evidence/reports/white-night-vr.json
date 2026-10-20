@@ -4,7 +4,7 @@
     "VR preparation opens in gyro mode with the fusion tools hidden",
     "Fusion preparation accepts a proven pair and persists the selected mode",
     "Fresh gyro samples plus calibrated markers enable the real VR start button",
-    "Landscape VR renders a duplicated two-eye HUD over the stereo courtyard",
+    "Landscape VR is pure stereo 3D with no HUD, reticle, captions or exit button",
     "Gaze focus earns the first of three searches and decays only to that earned segment",
     "Ten seconds of bin focus reveals a find and locks the courtyard",
     "Head turns and nods rotate only the find while the locked camera stays still",

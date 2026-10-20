@@ -11,10 +11,9 @@ const icon=id=>`<svg aria-hidden="true"><use href="#i-${id}"/></svg>`;
 let storage;try{storage=window.localStorage;}catch{storage={getItem(){return null;},setItem(){throw Error('storage unavailable');}};}
 let state=loadSave(storage),world,filter='all',drag=null,toastTimer,feedbackTimer,lastRevealPhase=null,lastTime=0,raf=0,paused=document.hidden,forcedItem=null;
 const VR_SETTINGS_KEY='white-night-vr-v1',VR_FOCUS_SECONDS=10;
-function loadVrSettings(){try{const raw=storage.getItem(VR_SETTINGS_KEY),p=raw?JSON.parse(raw):{};return {mode:p.mode==='fusion'?'fusion':'gyro',quality:['auto','high','low'].includes(p.quality)?p.quality:'auto',leftHue:Number.isFinite(p.leftHue)?((p.leftHue%360)+360)%360:16,rightHue:Number.isFinite(p.rightHue)?((p.rightHue%360)+360)%360:338};}catch{return {mode:'gyro',quality:'auto',leftHue:16,rightHue:338};}}
-let vrSettings=loadVrSettings(),vrLook=null,vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrFrameSamples=[],vrMessageNote='',vrMessageUntil=0,vrPrepNote='',lastVrOverlayKey='';
+function loadVrSettings(){try{const raw=storage.getItem(VR_SETTINGS_KEY),p=raw?JSON.parse(raw):{};return {mode:p.mode==='fusion'?'fusion':'gyro',quality:p.quality==='low'?'low':'high',leftHue:Number.isFinite(p.leftHue)?((p.leftHue%360)+360)%360:16,rightHue:Number.isFinite(p.rightHue)?((p.rightHue%360)+360)%360:338};}catch{return {mode:'gyro',quality:'high',leftHue:16,rightHue:338};}}
+let vrSettings=loadVrSettings(),vrLook=null,vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrPrepNote='',vrHoldTimer=0;
 const headShake=new HeadShakeDetector();
-const vrEyeStatuses=$$('.vr-eye-status'),vrEyeTitles=$$('.vr-eye-title'),vrEyeHints=$$('.vr-eye-hint'),vrEyeBars=$$('.vr-eye-progress i');
 function persistVrSettings(){try{storage.setItem(VR_SETTINGS_KEY,JSON.stringify(vrSettings));}catch{}}
 const testing=new URLSearchParams(location.search).has('test');
 const dialogs=$$('dialog');
@@ -64,7 +63,7 @@ function updateUI(){
  }
 }
 function search(){if(state.phase!=='search'||dialogs.some(d=>d.open)||paused)return;world.poke(state.taps+1);let itemId=forcedItem || (state.searches===0?'camera':chooseItem().id);state=transition(state,{type:'tap',itemId});if(state.phase==='inspect'){forcedItem=null;world.show(state.current);persist();if(vrActive){vrPendingSave=true;vrFocus=0;vrGazeHit=false;headShake.reset();}}updateUI();}
-function decide(keep,{fromVr=false}={}){if(state.phase!=='inspect'||state.reviewing||!world.revealState?.ready)return;const item=ITEMS.find(i=>i.id===state.current),duplicate=state.collection.includes(item.id),before=state.collection.length;state=transition(state,{type:keep?'keep':'discard'});world.hide();persist();updateUI();notify(keep?(duplicate?'Уже сохранено. Продолжим искать?':`${item.name} — теперь в коллекции`):'Оставлено во дворе. Ищем дальше.',keep?(duplicate?'duplicate':'kept'):'discarded');if(keep&&!duplicate)collectionFeedback();if(before<18&&state.collection.length===18){if(fromVr){pendingCompletion=true;vrMessageNote='Коллекция собрана — 18 из 18';vrMessageUntil=performance.now()+3500;}else{renderComplete();$('#complete-dialog').showModal();}}}
+function decide(keep,{fromVr=false}={}){if(state.phase!=='inspect'||state.reviewing||!world.revealState?.ready)return;const item=ITEMS.find(i=>i.id===state.current),duplicate=state.collection.includes(item.id),before=state.collection.length;state=transition(state,{type:keep?'keep':'discard'});world.hide();persist();updateUI();notify(keep?(duplicate?'Уже сохранено. Продолжим искать?':`${item.name} — теперь в коллекции`):'Оставлено во дворе. Ищем дальше.',keep?(duplicate?'duplicate':'kept'):'discarded');if(keep&&!duplicate)collectionFeedback();if(before<18&&state.collection.length===18){if(fromVr){pendingCompletion=true;}else{renderComplete();$('#complete-dialog').showModal();}}}
 function renderCollection(){
  $('#collection-count').textContent=state.collection.length;$('#collection-progress').style.width=`${state.collection.length/18*100}%`;
  const list=ITEMS.filter(i=>filter==='all'||(filter==='junk'?i.rarity==='junk':i.rarity!=='junk'));
@@ -128,16 +127,7 @@ async function tryVrFullscreen(){
  try{await screen.orientation?.lock('landscape');}catch{}
 }
 function applyVrQuality(initial=false){
- if(initial){vrRestoreLow=$('#low-quality').checked;vrAppliedLow=vrSettings.quality==='low'||vrRestoreLow;vrFrameSamples=[];if(world.low!==vrAppliedLow)world.setQuality(vrAppliedLow);}
-}
-function adaptVrQuality(rawDt){
- if(!vrActive||vrSettings.quality!=='auto'||vrAppliedLow||!Number.isFinite(rawDt)||rawDt<=0||rawDt>.25)return;
- vrFrameSamples.push(rawDt*1000);if(vrFrameSamples.length>90)vrFrameSamples.shift();
- if(vrFrameSamples.length>=60){
-  const mean=vrFrameSamples.reduce((a,b)=>a+b,0)/vrFrameSamples.length;
-  if(mean>24){vrAppliedLow=true;world.setQuality(true);vrMessageNote='Качество снижено для плавности';vrMessageUntil=performance.now()+2200;}
-  vrFrameSamples=[];
- }
+ if(initial){vrRestoreLow=$('#low-quality').checked;vrAppliedLow=vrSettings.quality==='low';if(world.low!==vrAppliedLow)world.setQuality(vrAppliedLow);}
 }
 function syncVrStereoMode(force=false){
  if(!vrActive)return;const stereo=innerWidth>=innerHeight;document.body.classList.toggle('vr-single',!stereo);
@@ -147,9 +137,9 @@ async function startVrSession(){
  if(vrActive||state.phase==='inspect')return false;
  const look=ensureVrLook(),dialog=$('#vr-dialog');
  if(dialog.open){vrStarting=true;dialog.close();vrStarting=false;}
- applyVrQuality(true);look.start();vrActive=true;vrFocus=state.taps*(VR_FOCUS_SECONDS/3);vrGazeHit=false;vrPendingSave=false;vrFrameSamples=[];lastVrOverlayKey='';headShake.reset();
- document.body.classList.add('vr-active');$('#vr-overlay').hidden=false;$('#vr-exit').hidden=false;
- vrStereo=false;syncVrStereoMode(true);world.setHeadLook(0,0);world.resize();updateVrOverlay(performance.now());
+ applyVrQuality(true);look.start();vrActive=true;vrFocus=state.taps*(VR_FOCUS_SECONDS/3);vrGazeHit=false;vrPendingSave=false;headShake.reset();
+ document.body.classList.add('vr-active');
+ vrStereo=false;syncVrStereoMode(true);world.setHeadLook(0,0);world.resize();
  return true;
 }
 async function beginVrCountdown(){
@@ -167,7 +157,6 @@ function finishVrFind(reason='gesture'){
  if(!vrPendingSave||state.phase!=='inspect'||state.reviewing)return false;
  if(!world.revealState?.ready){world.finishReveal();syncReveal();}
  vrPendingSave=false;headShake.reset();decide(true,{fromVr:true});vrFocus=0;vrGazeHit=false;
- if(!pendingCompletion){vrMessageNote='Сохранено в коллекции';vrMessageUntil=performance.now()+2200;}
  return true;
 }
 function stopVr(reason='exit'){
@@ -175,7 +164,7 @@ function stopVr(reason='exit'){
  if(vrPendingSave)finishVrFind('exit');
  vrActive=false;vrCountdownToken++;vrCountingDown=false;$('#vr-countdown').hidden=true;
  vrLook?.stop();world.setVrStereo(false);world.setHeadLook(0,0);vrStereo=false;vrFocus=0;vrGazeHit=false;headShake.reset();
- document.body.classList.remove('vr-active','vr-single');$('#vr-overlay').hidden=true;$('#vr-exit').hidden=true;
+ document.body.classList.remove('vr-active','vr-single');
  if(world.low!==vrRestoreLow)world.setQuality(vrRestoreLow);
  try{screen.orientation?.unlock();}catch{}
  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
@@ -200,40 +189,14 @@ function updateVrFrame(dt,now=performance.now()){
   if(world.revealState?.ready&&headShake.update(look.yaw,now))finishVrFind('gesture');
  }
 }
-function vrStatusLabel(info){
- if(vrSettings.mode==='gyro')return info.status==='gyro'?'ГИРОСКОП':'НЕТ ГИРОСКОПА';
- return {'fusion':'ГИРОСКОП + МЕТКИ','fusion-camera':'МЕТКИ ВЕДУТ ВЗГЛЯД','fusion-gyro':'ГИРОСКОП · МЕТКИ НЕ ВИДНЫ','fusion-wait':'ИЩЕМ ИСТОЧНИК ВЗГЛЯДА'}[info.status]||'VR';
-}
-function setVrOverlay(status,title,hint,progress){
- const p=Math.max(0,Math.min(1,progress||0)),key=`${status}\n${title}\n${hint}`;
- $('#vr-overlay').style.setProperty('--vr-focus',`${p*360}deg`);vrEyeBars.forEach(bar=>bar.style.width=`${p*100}%`);
- if(key===lastVrOverlayKey)return;lastVrOverlayKey=key;
- vrEyeStatuses.forEach(el=>el.textContent=status);vrEyeTitles.forEach(el=>el.textContent=title);vrEyeHints.forEach(el=>el.textContent=hint);
-}
-function updateVrOverlay(now=performance.now()){
- if(!vrActive||!vrLook)return;
- const info=vrLook.info(),status=vrStatusLabel(info);let title='Белая ночь',hint='',progress=0;
- if(now<vrMessageUntil&&vrMessageNote){title=vrMessageNote;hint=state.phase==='search'?'Ищем следующую: смотрите на бак':'Вращайте находку головой';progress=state.phase==='search'?vrFocus/VR_FOCUS_SECONDS:headShake.count/headShake.requiredTransitions;}
- else if(state.phase==='search'){
-  title=vrGazeHit?'Смотрите на бак':'Найдите бак взглядом';progress=vrFocus/VR_FOCUS_SECONDS;
-  hint=vrGazeHit?`Находка через ${Math.max(1,Math.ceil(VR_FOCUS_SECONDS-vrFocus))} сек`:'Держите центр прицела на баке 10 секунд';
- }else if(state.phase==='inspect'){
-  const item=ITEMS.find(i=>i.id===state.current),phase=world.revealState?.phase||'ready';
-  title=phase==='anticipation'?'Что-то осталось на дне…':phase==='silhouette'?'Знакомый силуэт…':item?.name||'Находка';
-  progress=headShake.count/headShake.requiredTransitions;
-  hint=phase==='ready'?`Повороты и кивки вращают вещь · «нет» ${headShake.count}/${headShake.requiredTransitions} — искать дальше`:'Ещё мгновение…';
- }
- if(vrSettings.mode==='gyro'&&info.status!=='gyro')hint='Гироскоп молчит. Снимите очки и проверьте разрешение датчиков.';
- setVrOverlay(status,title,hint,progress);
-}
-function vrInfoSnapshot(){return {active:vrActive,stereo:vrStereo,settings:{...vrSettings},focus:+vrFocus.toFixed(3),gazeHit:vrGazeHit,pendingSave:vrPendingSave,pendingCompletion,shake:headShake.info(),look:vrLook?.info()||null,world:world?.vrInfo()||null,overlay:{status:vrEyeStatuses[0]?.textContent||'',title:vrEyeTitles[0]?.textContent||'',hint:vrEyeHints[0]?.textContent||''}};}
+function vrInfoSnapshot(){return {active:vrActive,stereo:vrStereo,settings:{...vrSettings},focus:+vrFocus.toFixed(3),gazeHit:vrGazeHit,pendingSave:vrPendingSave,pendingCompletion,shake:headShake.info(),look:vrLook?.info()||null,world:world?.vrInfo()||null};}
 function setVrGyroAbsolute(yawDeg,pitchDeg,steps=10,dt=.03){
  const look=ensureVrLook(),gyro=look.gyro,start={...gyro.raw},target={yaw:yawDeg*Math.PI/180,pitch:pitchDeg*Math.PI/180},n=Math.max(1,steps|0);
  gyro.lastAt=performance.now();if(vrActive)updateVrFrame(0,gyro.lastAt);else stepVrLook(0);
  for(let i=1;i<=n;i++){gyro.raw={yaw:start.yaw+(target.yaw-start.yaw)*i/n,pitch:start.pitch+(target.pitch-start.pitch)*i/n};gyro.lastAt=performance.now();if(vrActive)updateVrFrame(dt,gyro.lastAt);else stepVrLook(dt);}
- world.update(0);gyro.lastAt=performance.now();updateVrOverlay(performance.now());return vrInfoSnapshot();
+ world.update(0);gyro.lastAt=performance.now();return vrInfoSnapshot();
 }
-function tick(time){raf=requestAnimationFrame(tick);if(dialogs.some(d=>d.open)){if($('#vr-dialog').open&&!paused){vrLook?.processPrep();syncVrPrep();}lastTime=time;return;}if(paused||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;const dt=Math.min(rawDt,.1);if(vrActive)updateVrFrame(dt,time);world.update(dt,rawDt);syncReveal();if(vrActive){adaptVrQuality(rawDt);updateVrOverlay(time);}else syncBinTag();}
+function tick(time){raf=requestAnimationFrame(tick);if(dialogs.some(d=>d.open)){if($('#vr-dialog').open&&!paused){vrLook?.processPrep();syncVrPrep();}lastTime=time;return;}if(paused||world.testRevealHold){lastTime=time;return;}const rawDt=lastTime?(time-lastTime)/1000:.016;lastTime=time;const dt=Math.min(rawDt,.1);if(vrActive)updateVrFrame(dt,time);world.update(dt,rawDt);syncReveal();if(!vrActive)syncBinTag();}
 function bind(){
  $$('[data-pose]').forEach(b=>b.addEventListener('click',()=>{world.setPose(b.dataset.pose);updateViews();}));
  $('#zoom-in').addEventListener('click',()=>{world.setZoom(.2);updateZoom();});$('#zoom-out').addEventListener('click',()=>{world.setZoom(-.2);updateZoom();});$('#zoom-reset').addEventListener('click',()=>{world.setZoom(1-world.zoom);updateZoom();});
@@ -246,7 +209,7 @@ function bind(){
  $$('.vr-pick').forEach(b=>b.addEventListener('click',()=>{const side=b.id==='vr-pick-left'?'left':'right';vrPrepNote='';vrPickSide=vrPickSide===side?null:side;syncVrPrep();}));
  $('#vr-camera').addEventListener('click',e=>{if(!vrPickSide)return;const look=ensureVrLook(),sample=look.tracker.sampleColor(e.clientX,e.clientY,e.currentTarget.getBoundingClientRect());if(!sample||sample.chroma<35)return;if(vrPickSide==='left')vrSettings.leftHue=Math.round(sample.hue);else vrSettings.rightHue=Math.round(sample.hue);look.setHues(vrSettings.leftHue,vrSettings.rightHue);if(look.tracker.calibrated)look.tracker.clearCalibration();persistVrSettings();vrPrepNote='Цвет обновлён. Покажите обе метки и снова зафиксируйте центр.';vrPickSide=null;look.tracker.process(true);syncVrPrep();});
  $('#vr-calibrate').addEventListener('click',()=>{const look=ensureVrLook();look.tracker.process(true);const result=look.tracker.calibrate();vrPrepNote=result.ok?'':result.message;syncVrPrep();});
- $('#vr-start').addEventListener('click',beginVrCountdown);$('#vr-exit').addEventListener('click',()=>stopVr('button'));
+ $('#vr-start').addEventListener('click',beginVrCountdown);
  $('#vr-quality').value=vrSettings.quality;$('#vr-quality').addEventListener('change',e=>{vrSettings.quality=e.target.value;persistVrSettings();});
  $$('[data-close]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.close).close()));
  dialogs.forEach(d=>{d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}});d.addEventListener('close',()=>{drag=null;lastTime=0;if(d.id==='vr-dialog'&&!vrStarting&&!vrActive){vrCountdownToken++;vrCountingDown=false;$('#vr-countdown').hidden=true;vrPickSide=null;vrPrepNote='';vrLook?.stop();}});});
@@ -254,9 +217,9 @@ function bind(){
  $('#low-quality').addEventListener('change',e=>{world.setQuality(e.target.checked);world.update(.016);try{storage.setItem('white-night-quality',e.target.checked?'low':'high');}catch{}});
  $('#reset-button').addEventListener('click',()=>{$('#reset-confirm').hidden=false;$('#reset-button').hidden=true;});$('#reset-cancel').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;});$('#reset-yes').addEventListener('click',reset);
  $('#continue-button').addEventListener('click',()=>$('#complete-dialog').close());$('#view-complete').addEventListener('click',()=>{$('#complete-dialog').close();openCollection();});
- const canvas=$('#world');canvas.addEventListener('pointerdown',e=>{if(vrActive||dialogs.some(d=>d.open)||drag||!e.isPrimary)return;if(state.phase==='inspect'){world.finishReveal();syncReveal();}drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
+ const canvas=$('#world');canvas.addEventListener('pointerdown',e=>{if(vrActive){clearTimeout(vrHoldTimer);vrHoldTimer=setTimeout(()=>stopVr('long-press'),900);return;}if(dialogs.some(d=>d.open)||drag||!e.isPrimary)return;if(state.phase==='inspect'){world.finishReveal();syncReveal();}drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
  canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>10)drag.moved=true;if(state.phase==='inspect'){world.rotate(dx,dy);updateViews();}drag.x=e.clientX;drag.y=e.clientY;});
- canvas.addEventListener('pointerup',e=>{if(!drag||drag.id!==e.pointerId)return;const tap=!drag.moved;drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(tap&&state.phase==='search'&&world.hitBin(e.clientX,e.clientY))search();});canvas.addEventListener('pointercancel',()=>drag=null);canvas.addEventListener('lostpointercapture',()=>drag=null);
+ canvas.addEventListener('pointerup',e=>{clearTimeout(vrHoldTimer);if(!drag||drag.id!==e.pointerId)return;const tap=!drag.moved;drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(tap&&state.phase==='search'&&world.hitBin(e.clientX,e.clientY))search();});canvas.addEventListener('pointercancel',()=>{clearTimeout(vrHoldTimer);drag=null;});canvas.addEventListener('lostpointercapture',()=>{clearTimeout(vrHoldTimer);drag=null;});
  document.addEventListener('visibilitychange',()=>{paused=document.hidden;drag=null;lastTime=0;if(document.hidden&&vrActive)stopVr('hidden');});window.addEventListener('blur',()=>drag=null);window.addEventListener('resize',()=>{world.resize();if(vrActive)syncVrStereoMode();if(dialogs.some(d=>d.open))world.update(.016);});
  document.addEventListener('fullscreenchange',()=>{if(vrActive&&!document.fullscreenElement)stopVr('fullscreen');});window.addEventListener('pagehide',()=>{if(vrPendingSave)finishVrFind('pagehide');if(vrActive)vrLook?.stop();});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&vrActive){e.preventDefault();stopVr('escape');return;}if(e.key==='Escape'&&!dialogs.some(d=>d.open)&&state.phase==='inspect'){e.preventDefault();if(state.reviewing)closeReview();else{world.finishReveal();syncReveal();decide(false);}}});
@@ -275,7 +238,7 @@ async function start(){
    calibrate:now=>ensureVrLook().tracker.calibrate(now),
    start:()=>startVrSession(),
    stop:()=>stopVr('test'),
-   step:(seconds=.1)=>{let left=Math.max(0,seconds);while(left>0){const dt=Math.min(.05,left);if(vrLook)vrLook.gyro.lastAt=performance.now();updateVrFrame(dt,performance.now());left-=dt;}world.update(0);updateVrOverlay(performance.now());return vrInfoSnapshot();},
+   step:(seconds=.1)=>{let left=Math.max(0,seconds);while(left>0){const dt=Math.min(.05,left);if(vrLook)vrLook.gyro.lastAt=performance.now();updateVrFrame(dt,performance.now());left-=dt;}world.update(0);return vrInfoSnapshot();},
    shake:(amplitudeDeg=25)=>{for(const yaw of [-amplitudeDeg,amplitudeDeg,-amplitudeDeg])setVrGyroAbsolute(yaw,0,10,.03);return vrInfoSnapshot();},
    settings:()=>({...vrSettings}),
    finish:()=>finishVrFind('test')

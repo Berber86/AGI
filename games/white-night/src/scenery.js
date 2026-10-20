@@ -12,18 +12,13 @@ function atlasPlane(width,height,cell,cols,rows){
   return geo;
 }
 function blob(parent,radius,pos,mat,scale=[1,1,1],detail=1){const o=mesh(new THREE.IcosahedronGeometry(radius,detail),mat,parent,pos);o.scale.set(...scale);return o;}
-function lowSphere(parent,radius,pos,mat,scale=[1,1,1]){const o=mesh(new THREE.IcosahedronGeometry(radius,1),mat,parent,pos);o.scale.set(...scale);return o;}
+function lowSphere(parent,radius,pos,mat,scale=[1,1,1],detail=1){const o=mesh(new THREE.IcosahedronGeometry(radius,detail),mat,parent,pos);o.scale.set(...scale);return o;}
 function sagPoints(a,b,sag,count=5){
   const points=[];
   for(let i=0;i<count;i++){const t=i/(count-1);points.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t-sag*4*t*(1-t),a[2]+(b[2]-a[2])*t]);}
   return points;
 }
 function lineTube(parent,points,radius,mat,segments=24){return mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p))),segments,radius,5,false),mat,parent);}
-function clothGeometry(width,height,amp=.034){
-  const geo=new THREE.PlaneGeometry(width,height,6,4),pos=geo.attributes.position;
-  for(let i=0;i<pos.count;i++){const x=pos.getX(i),y=pos.getY(i),drop=.5-y/height;pos.setZ(i,Math.sin((x/width+.5)*Math.PI*2)*amp*drop);}
-  geo.computeVertexNormals();return geo;
-}
 function interiorAtlasTexture(){
   return canvasTexture((c,W,rng,H)=>{
     const cw=W/4,ch=H/2,sil='#251810',sil2='#3b2617';
@@ -70,8 +65,6 @@ function yardMaterials(){
   YARD.bulb=new THREE.MeshStandardMaterial({color:0xffd894,emissive:0xffa94f,emissiveIntensity:5.2,roughness:.35});
   const glowTex=canvasTexture((c,s)=>{const g=c.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);g.addColorStop(0,'rgba(255,190,105,.85)');g.addColorStop(.38,'rgba(255,166,76,.28)');g.addColorStop(1,'rgba(255,166,76,0)');c.fillStyle=g;c.fillRect(0,0,s,s);},128);
   YARD.glow=new THREE.MeshBasicMaterial({map:glowTex,color:0xffb266,transparent:true,opacity:.42,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
-  const clothTex=canvasTexture((c,s)=>{c.fillStyle='#f4f0e6';c.fillRect(0,0,s,s);for(let x=0;x<s;x+=16){const g=c.createLinearGradient(x,0,x+16,0);g.addColorStop(0,'rgba(70,70,60,.16)');g.addColorStop(.5,'rgba(255,255,255,.05)');g.addColorStop(1,'rgba(70,70,60,.12)');c.fillStyle=g;c.fillRect(x,0,16,s);}c.fillStyle='rgba(80,76,64,.18)';c.fillRect(0,s-10,s,4);},128);
-  YARD.cloths=[0xe9e2cf,0x8aa4bb,0xb56a5e,0xaeb99a,0xd8c58e].map(color=>new THREE.MeshStandardMaterial({map:clothTex,color,roughness:.96,side:THREE.DoubleSide}));
   const chalkTex=canvasTexture((c,w,rng,h)=>{c.strokeStyle='rgba(242,240,224,.78)';c.lineWidth=5;c.font='bold 34px Georgia';c.textAlign='center';const cell=(x,y,n)=>{c.strokeRect(x,y,62,62);c.fillStyle='rgba(242,240,224,.78)';c.fillText(String(n),x+31,y+43);};cell(97,410,1);cell(97,340,2);cell(62,270,3);cell(132,270,4);cell(97,200,5);cell(62,130,6);cell(132,130,7);c.beginPath();c.arc(128,82,45,Math.PI,0);c.stroke();c.fillText('8',128,92);c.beginPath();c.arc(205,438,18,0,Math.PI*2);c.stroke();for(let i=0;i<8;i++){const a=i*Math.PI/4;c.beginPath();c.moveTo(205+Math.cos(a)*24,438+Math.sin(a)*24);c.lineTo(205+Math.cos(a)*34,438+Math.sin(a)*34);c.stroke();}},256,512);
   YARD.chalk=new THREE.MeshBasicMaterial({map:chalkTex,transparent:true,opacity:.58,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1});
   const chessTex=canvasTexture((c,s)=>{for(let y=0;y<8;y++)for(let x=0;x<8;x++){c.fillStyle=(x+y)%2?'#3c2d20':'#d8c7a2';c.fillRect(x*s/8,y*s/8,s/8,s/8);}},128);
@@ -114,8 +107,8 @@ export function addFacadeDetails(group,width,height=14,seedBase=0){
     if(vx<width/2-.7){box(group,[.34,.24,.035],[vx,.92,.342],M.black,0);for(let i=0;i<3;i++)box(group,[.28,.025,.012],[vx,.86+i*.07,.365],M.rust,0);}
   }
   // Neighbourhood paper: a lost cat, courtyard jazz, small ads and a photo show.
-  const posterXs=seedBase===0?[-2.47,2.47,7.41]:[-6.18,-1.24,3.7];
-  posterXs.forEach((x,i)=>mesh(atlasPlane(.48,.64,seedBase+i,2,2),yard.poster,group,[x,1.5+((i+seedBase)%3)*.11,.353],[0,0,(i%2?-.035:.045)]));
+  const posterX=seedBase===0?2.47:seedBase===37?-1.24:3.7;
+  mesh(atlasPlane(.48,.64,seedBase+1,2,2),yard.poster,group,[posterX,1.58,.353],[0,0,.03]);
   // Ivy climbs the corners (and the arch pier on the back wall) as flat leaf patches.
   const ivyRand=seeded(910+seedBase);
   const ivyClusters=[[-width/2+.58,0],[width/2-.58,2]];
@@ -162,7 +155,6 @@ export function addWindowDetails(g,x,y,w,h,stone,dark,trim){
   box(g,[w+.28,.045,.05],[x,y-h/2-.155,.754],M.silver,0);
   // A shallow keystone and corbel blocks break the identical rectangular rhythm.
   box(g,[.12,.24,.19],[x,y+h/2+.12,.56],stone,0);
-  for(const sign of [-1,1])box(g,[.11,.09,.22],[x+sign*(w/2-.02),y+h/2+.055,.55],stone,0);
 }
 let windowMaterials;
 function windowMats(){
@@ -196,7 +188,7 @@ function addBalcony(g,x,y,w,h,key,trim){
     for(let z=.62;z<front;z+=.18)box(g,[.018,.48,.018],[x+side*half,slabY+.35,z],M.black,0);
   }
   for(let i=-2;i<=2;i++)box(g,[w+.72,.018,.09],[x,slabY+.07,.72+i*.14],yard.wood,0);
-  const variant=Math.abs(key)%4;
+  const variant=Math.abs(key)%3;
   if(variant===0){
     box(g,[w*.78,.17,.19],[x,slabY+.18,1.16],windowMats().pot,0);
     for(let i=0;i<7;i++)blob(g,.075,[x-w*.32+i*w*.105,slabY+.31,1.16],i%2?yard.green:yard.leafDark,[1.2,.72,.8],0);
@@ -213,9 +205,6 @@ function addBalcony(g,x,y,w,h,key,trim){
     box(g,[.4,.27,.36],[x-.4,slabY+.54,.94],M.paper,.01,[0,.16,0]);
     mesh(new THREE.TorusGeometry(.29,.016,6,28),M.black,g,[x+.08,slabY+.38,.72]);
     for(const dx of [.42,.49])box(g,[.055,1.28,.018],[x+dx,slabY+.7,.73],M.red,0,[0,0,.13]);
-  }else{
-    box(g,[w+.72,.016,.016],[x,slabY+.67,1.16],M.black,0);
-    [-.42,0,.42].forEach((offset,i)=>mesh(clothGeometry(.34,.48),yard.cloths[(key+i)%yard.cloths.length],g,[x+offset,slabY+.42,1.16]));
   }
 }
 export function addWindowLife(g,x,y,w,h,state,trim,glass,key=0){
@@ -236,7 +225,7 @@ export function addWindowLife(g,x,y,w,h,state,trim,glass,key=0){
   if(n%4===1){
     cyl(g,.006,.006,.34,[x+.18,y+h*.31,.59],M.black,[0,0,0],6);
     cyl(g,.035,.095,.1,[x+.18,y+h*.13,.59],yard.bulb,[0,0,0],14);
-    lowSphere(g,.032,[x+.18,y+h*.055,.59],yard.bulb);
+    lowSphere(g,.032,[x+.18,y+h*.055,.59],yard.bulb,[1,1,1],0);
   }
  }else if(state==='curtain'){
   addCurtains();
@@ -335,19 +324,6 @@ function addBench(g,pos,rotY){
   }
   return bench;
 }
-function addTree(g,pos,scale=1,seed=1){
-  const yard=yardMaterials(),tree=new THREE.Group();tree.position.set(...pos);tree.rotation.y=seed*.37;tree.scale.setScalar(scale);g.add(tree);
-  mesh(new THREE.CircleGeometry(1.08,28),M.rust,tree,[0,.018,0],[-Math.PI/2,0,0]);
-  mesh(new THREE.TorusGeometry(.84,.026,6,38),yard.iron,tree,[0,.038,0],[Math.PI/2,0,0]);
-  for(const z of [-.42,0,.42])box(tree,[1.35,.025,.07],[0,.042,z],yard.iron,0);
-  const trunk=mesh(new THREE.CylinderGeometry(.13,.21,2.35,10),M.rust,tree,[0,1.17,0]);trunk.rotation.z=.035;
-  const branches=[[0,1.9,0,.75,3.05,.25],[0,2.05,0,-.85,3.25,-.18],[0,2.2,0,.18,3.55,-.72],[0,2.15,0,-.35,3.65,.68]];
-  for(const [x1,y1,z1,x2,y2,z2] of branches)lineTube(tree,[[x1,y1,z1],[(x1+x2)/2,(y1+y2)/2,(z1+z2)/2],[x2,y2,z2]],.042,M.rust,8);
-  const canopy=[[-.95,3.25,-.25,.58],[-.45,3.65,.35,.66],[.15,3.35,-.55,.6],[.75,3.55,.25,.64],[1.05,3.15,-.25,.5],[-1.15,3.7,.35,.52],[-.2,4.05,-.15,.68],[.45,4.0,.55,.56],[.95,3.85,-.55,.5],[-.75,4.05,-.6,.52],[.05,4.35,.15,.62],[.55,3.3,.85,.46],[-.55,3.3,-.9,.46]];
-  canopy.forEach(([x,y,z,rad],i)=>blob(tree,rad,[x,y,z],i%3===1?yard.leafDark:yard.green,[1.25,.66,1.05]));
-  for(let i=0;i<7;i++){const a=i*2.35+seed;lowSphere(tree,.026,[Math.cos(a)*1.05,2.95+((i*13)%5)*.12,Math.sin(a)*1.05],yard.bulb);}
-  return tree;
-}
 function addGardenBed(g,pos,rotY,length,seed){
   const yard=yardMaterials(),bed=new THREE.Group(),rand=seeded(seed);bed.position.set(...pos);bed.rotation.y=rotY;g.add(bed);
   box(bed,[length,.1,.78],[0,.05,0],M.rust,0);
@@ -367,25 +343,12 @@ function addGardenBed(g,pos,rotY,length,seed){
   for(let i=0;i<12;i++){const blade=mesh(new THREE.CylinderGeometry(.001,.018,.13,5),yard.green,bed,[-length/2+.2+rand()*(length-.4),.13,(rand()-.5)*.58],[rand()*.3,0,rand()*.3]);}
   return bed;
 }
-function addLaundryLine(g,a,b,sag,seed){
-  const yard=yardMaterials();lineTube(g,sagPoints(a,b,sag,9),.008,M.black,22);
-  const yaw=Math.atan2(-(b[2]-a[2]),b[0]-a[0]);
-  const specs=[[.62,.8,0],[.46,.62,1],[.8,.94,2],[.38,.52,3],[.56,.72,4]];
-  specs.forEach(([w,h,variant],i)=>{
-    const t=.13+i*.18+((seed+i)%3)*.012;
-    const pos=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t-sag*4*t*(1-t),a[2]+(b[2]-a[2])*t];
-    const item=new THREE.Group();item.position.set(...pos);item.rotation.y=yaw;g.add(item);
-    mesh(clothGeometry(w,h,.026+variant*.006),yard.cloths[(seed+variant)%yard.cloths.length],item,[0,-h/2,0]);
-    for(const side of [-1,1])box(item,[.025,.075,.018],[side*(w/2-.035),.015,.012],yard.wood,0);
-    if(variant===1)for(const side of [-1,1])box(item,[.2,.3,.012],[side*(w/2+.045),-.18,0],yard.cloths[(seed+variant)%yard.cloths.length],0,[0,0,-side*.42]);
-  });
-}
 function addStringLights(g,a,b,sag,count=9){
   const yard=yardMaterials();lineTube(g,sagPoints(a,b,sag,7),.007,M.black,18);
   for(let i=1;i<count;i++){
     const t=i/count,x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t-sag*4*t*(1-t),z=a[2]+(b[2]-a[2])*t;
     box(g,[.006,.07,.006],[x,y-.035,z],M.black,0);
-    lowSphere(g,.026,[x,y-.095,z],yard.bulb);
+    lowSphere(g,.026,[x,y-.095,z],yard.bulb,[1,1,1],0);
   }
 }
 function addSideLantern(g,x,y,z,dir){
@@ -393,7 +356,7 @@ function addSideLantern(g,x,y,z,dir){
   box(g,[.07,.36,.13],[x,y,z],yard.iron,.01);
   cyl(g,.016,.016,.4,[x+dir*.2,y+.2,z],yard.iron,[0,0,Math.PI/2],8);
   cyl(g,.07,.18,.13,[x+dir*.4,y+.12,z],yard.iron,[0,0,0],18);
-  lowSphere(g,.068,[x+dir*.4,y-.015,z],yard.bulb,[1,1.25,1]);
+  lowSphere(g,.068,[x+dir*.4,y-.015,z],yard.bulb,[1,1.25,1],0);
   mesh(new THREE.PlaneGeometry(.85,.85),yard.glow,g,[x+dir*.43,y-.02,z],[0,dir>0?Math.PI/2:-Math.PI/2,0]);
 }
 function addPigeon(g,pos,rotY,scale=1){
@@ -417,19 +380,13 @@ function addPalletStack(g,pos,rotY){
 }
 function addLivingCourtyard(g){
   const yard=yardMaterials();
-  addTree(g,[-6.22,0,-1.65],.96,4);
-  addTree(g,[7.55,0,3.95],.66,9);
   addBench(g,[-5.45,0,-.75],Math.PI/2);
   addBench(g,[5.7,0,-5.25],0);
   addGardenBed(g,[-7.02,0,1.95],Math.PI/2,4.8,21);
   addGardenBed(g,[8.02,0,1.75],Math.PI/2,4.3,33);
   addGardenBed(g,[5.95,0,-6.08],0,3.5,47);
   addGardenBed(g,[-6.35,0,-6.08],0,2.1,58);
-  addLaundryLine(g,[-7.55,6.25,-3.4],[8.55,6.55,-2.65],.48,3);
-  addLaundryLine(g,[-7.55,7.35,1.9],[8.55,7.05,1.05],.58,11);
-  addLaundryLine(g,[-5.85,5.65,-6.55],[-7.55,6.05,4.55],.42,7);
-  addStringLights(g,[-5.85,4.65,-1.75],[-2.35,4.95,-6.55],.34,9);
-  addStringLights(g,[-6.0,4.7,-1.5],[-7.55,5.05,1.9],.3,8);
+  addStringLights(g,[-7.55,5.0,-3.6],[-2.35,5.05,-6.55],.34,9);
   addSideLantern(g,-7.62,2.75,-4.9,1);
   addSideLantern(g,-7.62,2.75,3.8,1);
   addSideLantern(g,8.62,2.75,-4.9,-1);
@@ -440,12 +397,12 @@ function addLivingCourtyard(g){
     box(g,[.96,.035,.72],[x,.018,z],yard.stone,0,[0,.1+((i%3)-1)*.035,0]);
     box(g,[.78,.012,.035],[x,.04,z+.34],yard.leafDark,0,[0,.1,0]);
   }
-  // Chess table and stools beneath the linden.
+  // Chess table and stools by the left wall.
   cyl(g,.035,.05,.66,[-4.5,.33,-1.85],yard.iron,[0,0,0],12);
   box(g,[.66,.045,.66],[-4.5,.68,-1.85],yard.wood,.01);
   mesh(new THREE.PlaneGeometry(.58,.58),yard.chess,g,[-4.5,.706,-1.85],[-Math.PI/2,0,.12]);
   for(const [x,z] of [[-5.05,-1.85],[-3.95,-1.85]]){cyl(g,.19,.16,.08,[x,.42,z],yard.wood,[0,0,0],18);cyl(g,.035,.045,.4,[x,.2,z],yard.iron,[0,0,0],10);}
-  for(let i=0;i<8;i++)lowSphere(g,.026,[-4.68+(i%4)*.12,.735,-1.98+Math.floor(i/4)*.28],i%2?M.black:M.cream,[1,.75,1]);
+  for(let i=0;i<8;i++)lowSphere(g,.026,[-4.68+(i%4)*.12,.735,-1.98+Math.floor(i/4)*.28],i%2?M.black:M.cream,[1,.75,1],0);
   addPalletStack(g,[-6.5,0,-4.9],.15);
   // An old panel door waits by the left wall.
   const door=new THREE.Group();door.position.set(-7.42,0,-4.05);door.rotation.z=.07;g.add(door);
@@ -477,7 +434,7 @@ function addLivingCourtyard(g){
   for(const [x,z,w,h,rot] of [[-5.3,-5.35,1.5,2.5,.1],[-2.25,-5.3,1.5,2.5,-.08],[-6.95,-4.85,1.7,2.3,1.45],[7.95,-4.85,1.7,2.3,-1.45],[-1.2,-5.65,1.9,1.5,0],[2.5,2.5,1.6,1.6,.4]]){
     const glow=mesh(new THREE.PlaneGeometry(w,h),yard.glow,g,[x,.019,z],[-Math.PI/2,0,rot]);glow.renderOrder=1;
   }
-  for(const [x,z,w,h] of [[-6.05,-1.65,3.4,3.2],[7.5,-3.0,1.6,2.5],[-6.5,-4.9,1.7,1.5],[5.7,-5.25,2.4,1.2],[-5.45,-.75,1.4,2.4]]){
+  for(const [x,z,w,h] of [[7.5,-3.0,1.6,2.5],[-6.5,-4.9,1.7,1.5],[5.7,-5.25,2.4,1.2],[-5.45,-.75,1.4,2.4]]){
     mesh(new THREE.PlaneGeometry(w,h),yard.contact,g,[x,.021,z],[-Math.PI/2,0,0]);
   }
 }
