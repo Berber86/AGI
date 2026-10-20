@@ -5,6 +5,11 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { materials as M, canvasTexture, distress, seeded } from './materials.js';
 import { castEllipsoids } from './sculpt.js';
 const TAU=Math.PI*2;
+// Scenery asks for coarser tessellation than examined finds. Every helper below
+// scales its segment counts through this factor; item models run at 1.
+let DETAIL=1;
+export function detailScale(value){DETAIL=Math.max(.24,Math.min(1,value))||1;}
+const seg=(n,min=4)=>Math.max(min,Math.round(n*DETAIL));
 
 export function mesh(geometry,material,parent,pos=[0,0,0],rot=[0,0,0]) {
   const object=new THREE.Mesh(geometry,material);object.position.set(...pos);object.rotation.set(...rot);
@@ -12,16 +17,16 @@ export function mesh(geometry,material,parent,pos=[0,0,0],rot=[0,0,0]) {
 }
 export function box(parent,dim,pos,mat=M.black,round=.025,rot=[0,0,0]) {
   const radius=Math.min(round,Math.min(...dim)*.48);
-  return mesh(round?new RoundedBoxGeometry(...dim,2,radius):new THREE.BoxGeometry(...dim),mat,parent,pos,rot);
+  return mesh(round?new RoundedBoxGeometry(...dim,DETAIL<.8?1:2,radius):new THREE.BoxGeometry(...dim),mat,parent,pos,rot);
 }
 export function cyl(parent,r1,r2,h,pos,mat=M.silver,rot=[Math.PI/2,0,0],segments=48) {
-  return mesh(new THREE.CylinderGeometry(r1,r2,h,segments),mat,parent,pos,rot);
+  return mesh(new THREE.CylinderGeometry(r1,r2,h,seg(segments,6)),mat,parent,pos,rot);
 }
 export function ball(parent,dim,pos,mat=M.cream) {
-  const object=mesh(new THREE.SphereGeometry(1,32,24),mat,parent,pos);object.scale.set(...dim);return object;
+  const object=mesh(new THREE.SphereGeometry(1,seg(32,8),seg(24,6)),mat,parent,pos);object.scale.set(...dim);return object;
 }
 export function torus(parent,r,t,pos,mat=M.gold,rot=[0,0,0],arc=TAU) {
-  return mesh(new THREE.TorusGeometry(r,t,8,64,arc),mat,parent,pos,rot);
+  return mesh(new THREE.TorusGeometry(r,t,seg(8,4),seg(64,8),arc),mat,parent,pos,rot);
 }
 function tube(parent,points,radius,mat=M.gold,segments=30) {
   return mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(...p))),segments,radius,8,false),mat,parent);

@@ -75,7 +75,7 @@
     "deployment": "Static build, GitHub Pages compatible"
   },
   "approvedAt": "2026-10-14T17:29:22.525512+00:00",
-  "updatedAt": "2026-10-15",
+  "updatedAt": "2026-10-20",
   "initialRequestPath": ".studio/request.md",
   "visualRevision": {
     "requested": "Для начала неплохо, но надо сделать графику в пару раз лучше, а находки детальнее",
@@ -99,5 +99,11 @@
     "implemented": "7 twilight lighting; 8 coherent landscape panel; 9 accessible view presets, rotation/off-axis-safe fit, stage-relative lights and outward underside print. No changes to rules, IDs, saves or silence.",
     "journal": "games/white-night/VISUAL_ITERATIONS.md",
     "evidence": ".studio/evidence/reports/visual-v5-release.json"
+  },
+  "visualIterationsV8": {
+    "request": "В Игре Белая ночь убери балконы, сделай 4 сторону двора, но с аркой и воротами. Почитай skills и постарайся увеличить fps без потери качества. Также на небе сделай звёзды и луну и соответственно угол обзора поднимающий голову к небу",
+    "implemented": "Balconies removed; fourth side closes the well with a real arched passage, iron gates, alley, lamp and roof band; static star field (1150 points) and moon with halo; drag look-up camera in the search phase; scenery tessellation/batching, hidden veiled yard during inspection, 2x MSAA and adaptive render scale on touch. Items, saves, rules, silence unchanged.",
+    "journal": "games/white-night/VISUAL_ITERATIONS.md",
+    "evidence": ".studio/evidence/reports/visual-v8-yard.json"
   }
 }

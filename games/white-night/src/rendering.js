@@ -17,12 +17,15 @@ class ContactPass extends SSAOPass {
   }
 }
 export class RenderPipeline {
-  constructor(renderer,scene,camera){
+  constructor(renderer,scene,camera,{samples=4}={}){
     this.renderer=renderer;this.scene=scene;this.camera=camera;this.low=false;
-    const target=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:Math.min(4,renderer.capabilities.maxSamples)});
+    // MSAA on a half-float target is one of the most expensive things a phone
+    // can be asked to do. On touch devices two samples plus the device pixel
+    // ratio still read clean; desktop keeps four.
+    const target=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:Math.min(samples,renderer.capabilities.maxSamples)});
     this.composer=new EffectComposer(renderer,target);
     this.composer.addPass(new RenderPass(scene,camera));
-    this.ao=new ContactPass(scene,camera,1,1,12);
+    this.ao=new ContactPass(scene,camera,1,1,9);
     this.ao.kernelRadius=.32;this.ao.minDistance=.00025;this.ao.maxDistance=.035;
     this.composer.addPass(this.ao);this.composer.addPass(new OutputPass());
     renderer.info.autoReset=false;
@@ -30,7 +33,7 @@ export class RenderPipeline {
   resize(w,h,dpr){
     this.composer.setPixelRatio(dpr);this.composer.setSize(w,h);
     // Only normals and AO are lower resolution; the color image stays sharp.
-    this.ao.setSize(Math.round(w*dpr*.6),Math.round(h*dpr*.6));
+    this.ao.setSize(Math.round(w*dpr*.55),Math.round(h*dpr*.55));
   }
   render(){
     this.renderer.info.reset();

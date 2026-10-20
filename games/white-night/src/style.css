@@ -193,3 +193,13 @@ body.vr-active #app{min-height:0}body.vr-active #world{cursor:default}
  .vr-dialog{padding:23px 19px}.vr-how{grid-template-columns:1fr}.vr-marker-actions{grid-template-columns:1fr 1fr}
  .vr-step{flex-wrap:wrap}.vr-step .vr-action{margin-left:42px}
 }
+
+
+/* v8: the fourth side, starry sky and free look. */
+.look-hint{position:absolute;right:auto;left:44px;bottom:104px;display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid #d6e3c833;border-radius:6px;background:#152a22b8;color:#dfe7d4;font-size:10px;letter-spacing:.6px;pointer-events:none;transition:opacity .45s,transform .45s;z-index:3;max-width:210px}
+.look-hint small{display:block;margin-top:3px;font-size:8px;line-height:1.5;letter-spacing:.2px;color:#a9bca0}
+.look-hint-arrow{font-size:20px;line-height:1;color:var(--accent);animation:look-hint-float 2.4s ease-in-out infinite}
+.look-hint.used{opacity:0;transform:translateY(-14px)}
+@keyframes look-hint-float{0%,100%{transform:translateY(2px)}50%{transform:translateY(-3px)}}
+@media(max-width:650px){.look-hint{left:auto;right:16px;bottom:calc(214px + env(safe-area-inset-bottom));max-width:168px;font-size:9px;line-height:1.35;padding:8px 10px;gap:7px;background:#152a22cc}.look-hint small{font-size:8px;margin-top:2px}.look-hint-arrow{font-size:17px}}
+@media(max-height:520px) and (min-width:651px){.look-hint{display:none}}

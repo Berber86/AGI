@@ -261,7 +261,27 @@
         ".studio/evidence/reports/visual-v5-9-poses.json",
         ".studio/evidence/reports/visual-v5-9.json"
       ]
+    },
+    {
+      "id": "VISUAL-V8-10",
+      "title": "Fourth courtyard side with arch and gates, sky stars and moon, look-up camera",
+      "ownerRole": "builder",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V5-9"
+      ],
+      "acceptanceCriteria": [
+        "Balconies removed from every facade",
+        "Fourth side closes the courtyard with an arched passage and gates",
+        "Stars and moon are part of the static sky",
+        "Head can be raised to the sky; the bin stays tappable",
+        "Draw calls and triangles do not regress for the same states"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v8-yard.json",
+        "games/white-night/VISUAL_ITERATIONS.md"
+      ]
     }
   ],
-  "updatedAt": "2026-10-15"
+  "updatedAt": "2026-10-20"
 }
