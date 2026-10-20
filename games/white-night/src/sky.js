@@ -27,19 +27,20 @@ export function createNightSky(){
     c.fillStyle=g;c.fillRect(0,0,s,s);
   },64);
 
-  const rand=seeded(20261),count=1150,positions=[],starColors=[];
+  // Колодец прячет почти всё небо: из двора виден лишь узкий прямоугольник над крышами,
+  // до 100 звёзд. Остальные за домом — рисовать их незачем, это лишь перерисовка.
+  const rand=seeded(20261),count=105,positions=[],starColors=[];
   const cool=new THREE.Color('#e6efff'),warm=new THREE.Color('#ffe8c6'),blue=new THREE.Color('#bcd3ff');
   for(let i=0;i<count;i++){
-    // Stars live above the pale horizon band of a white night; the lowest ones
-    // are the faintest, exactly like a real city sky just after sunset.
+    // Только то, что попадает в створ двора: высоко над крышей (>52°), иначе стена закрывает.
     const az=rand()*Math.PI*2;
-    const elev=.10+Math.pow(rand(),.72)*1.42;
+    const elev=.90+Math.pow(rand(),.65)*.58; // 52°—85°, узкое окно колодца
     const radius=49+rand()*3,ce=Math.cos(elev);
     positions.push(Math.sin(az)*ce*radius,Math.sin(elev)*radius,-Math.cos(az)*ce*radius);
     const pick=rand();
     const color=(pick>.72?warm:pick>.34?cool:blue).clone();
-    const fade=THREE.MathUtils.clamp((elev-.10)/.40,0,1);
-    const brightness=(.42+Math.pow(rand(),1.5)*.58)*fade;
+    const fade=THREE.MathUtils.clamp((elev-.90)/.25,0,1);
+    const brightness=(.55+Math.pow(rand(),1.4)*.45)*fade;
     starColors.push(color.r*brightness,color.g*brightness,color.b*brightness);
   }
   const starGeo=new THREE.BufferGeometry();
