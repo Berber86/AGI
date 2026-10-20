@@ -8,8 +8,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <title>Белая ночь — Бюро находок</title>
-  <script type="module" crossorigin src="./assets/index-CHJu4-5O.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-YGZEExfG.css">
+  <script type="module" crossorigin src="./assets/index-BfadjhYi.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BNNvwgzS.css">
 </head>
 <body>
   <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -24,6 +24,7 @@
     <symbol id="i-pin" viewBox="0 0 24 24"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 0 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
     <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 2.7 7.3L22 12l-7.3 2.7L12 22l-2.7-7.3L2 12l7.3-2.7L12 2Z"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-vr" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="11" rx="4"/><circle cx="8" cy="11.5" r="1.7"/><circle cx="16" cy="11.5" r="1.7"/><path d="M10 17l.8 2h2.4L14 17"/></symbol>
   </defs></svg>
   <main id="app">
     <canvas id="world" aria-label="Петербургский двор. Нажмите на мусорный бак три раза, чтобы найти предмет."></canvas>
@@ -32,7 +33,7 @@
     <header class="topbar">
       <a class="wordmark" href="./" aria-label="Белая ночь — главная"><svg><use href="#i-mark"/></svg><span>БЮРО<br>НАХОДОК</span></a>
       <div class="top-location"><span class="live-dot"></span> САНКТ-ПЕТЕРБУРГ <span class="divider">/</span> 02:17</div>
-      <nav aria-label="Игра"><button class="collection-trigger" id="open-collection"><svg><use href="#i-grid"/></svg><span class="nav-label">Коллекция</span><span id="header-count" class="count">00 <small>/ 18</small></span></button><button id="open-settings" class="icon-button" aria-label="Настройки и помощь"><svg><use href="#i-settings"/></svg></button></nav>
+      <nav aria-label="Игра"><button class="collection-trigger" id="open-collection"><svg><use href="#i-grid"/></svg><span class="nav-label">Коллекция</span><span id="header-count" class="count">00 <small>/ 18</small></span></button><button id="open-vr" class="vr-trigger"><svg><use href="#i-vr"/></svg><span class="nav-label">VR-обзор</span></button><button id="open-settings" class="icon-button" aria-label="Настройки и помощь"><svg><use href="#i-settings"/></svg></button></nav>
     </header>
     <section class="hero search-only">
       <div class="eyebrow"><span></span> МАЛЕНЬКИЕ ИСТОРИИ БОЛЬШОГО ГОРОДА</div>
@@ -68,7 +69,24 @@
     <p class="catalog-hint">Сохранённую вещь можно открыть и рассмотреть ещё раз.</p><div id="collection-grid"></div>
     <div class="dialog-foot"><span>Забытые вещи. Новые истории.</span><span id="save-status">Прогресс сохраняется на этом устройстве</span></div>
   </dialog>
-  <dialog id="settings-dialog" class="small-dialog"><div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ</span><h2>Без спешки.</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="Закрыть настройки"><svg><use href="#i-close"/></svg></button></div><div class="instructions"><div><b>01</b><p>Нажмите на бак три раза.<small>Или используйте кнопку внизу экрана.</small></p></div><div><b>02</b><p>Рассмотрите находку.<small>Тяните пальцем или мышью, чтобы вращать.</small></p></div><div><b>03</b><p>Выбросите или сохраните.<small>Крестик — оставить. Галочка — забрать себе.</small></p></div></div><label class="quality-setting"><span>Облегчённая графика<small>Меньше нагрузки: без контактного затенения и теней</small></span><input type="checkbox" id="low-quality" role="switch"></label><p class="settings-note">12 вещей с историей и 6 видов хлама. Без таймера, проигрыша и звука. Прогресс хранится только в этом браузере.</p><button id="reset-button" class="text-button">Начать коллекцию заново</button><div id="reset-confirm" hidden><p>Удалить все сохранённые находки?</p><div class="reset-actions"><button id="reset-cancel">Нет, оставить</button><button id="reset-yes">Да, начать заново</button></div></div></dialog>
+  <dialog id="settings-dialog" class="small-dialog"><div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ</span><h2>Без спешки.</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="Закрыть настройки"><svg><use href="#i-close"/></svg></button></div><div class="instructions"><div><b>01</b><p>Нажмите на бак три раза.<small>Или используйте кнопку внизу экрана.</small></p></div><div><b>02</b><p>Рассмотрите находку.<small>Тяните пальцем или мышью, чтобы вращать.</small></p></div><div><b>03</b><p>Выбросите или сохраните.<small>Крестик — оставить. Галочка — забрать себе.</small></p></div></div><label class="quality-setting"><span>Облегчённая графика<small>Меньше нагрузки: без контактного затенения и теней</small></span><input type="checkbox" id="low-quality" role="switch"></label><label class="quality-setting vr-quality-setting"><span>Качество VR<small>Выбирается вручную; игра сама качество не меняет</small></span><select id="vr-quality" aria-label="Качество VR"><option value="high">Высокое</option><option value="low">Лёгкое</option></select></label><p class="settings-note">12 вещей с историей и 6 видов хлама. Без таймера, проигрыша и звука. Прогресс хранится только в этом браузере.</p><button id="reset-button" class="text-button">Начать коллекцию заново</button><div id="reset-confirm" hidden><p>Удалить все сохранённые находки?</p><div class="reset-actions"><button id="reset-cancel">Нет, оставить</button><button id="reset-yes">Да, начать заново</button></div></div></dialog>
+  <dialog id="vr-dialog" class="vr-dialog">
+    <div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ · VR</span><h2>Двор в очках<span>.</span></h2></div><button class="icon-button" data-close="vr-dialog" aria-label="Закрыть подготовку VR"><svg><use href="#i-close"/></svg></button></div>
+    <p class="vr-intro">Выберите, чем вести взгляд. Гироскоп работает сразу, но со временем может уезжать вбок. Две цветные метки дополнительно удерживают настоящий центр.</p>
+    <div class="vr-mode-tabs" role="group" aria-label="Источник взгляда"><button id="vr-mode-gyro" data-vr-mode="gyro" class="active" aria-pressed="true">Гироскоп</button><button id="vr-mode-fusion" data-vr-mode="fusion" aria-pressed="false">Гироскоп + 2 метки</button></div>
+    <div class="vr-step"><b>1</b><div><strong>Разрешите гироскоп</strong><p id="vr-gyro-status">Нажмите кнопку и подтвердите доступ к ориентации телефона.</p></div><button id="vr-gyro-btn" class="vr-action">Разрешить</button></div>
+    <div id="vr-fusion-panel" hidden>
+      <div class="vr-step"><b>2</b><div><strong>Поставьте две метки</strong><p>По ходу вашего взгляда: оранжевую слева, малиновую справа. Сядьте там, откуда будете играть, и смотрите между ними.</p></div></div>
+      <video id="vr-camera" playsinline muted aria-label="Предпросмотр задней камеры для меток"></video>
+      <div class="vr-marker-actions"><button id="vr-start-camera" class="vr-action">Включить камеру</button><button id="vr-pick-left" class="vr-pick"><i id="vr-swatch-left"></i>Цвет левой</button><button id="vr-pick-right" class="vr-pick"><i id="vr-swatch-right"></i>Цвет правой</button><button id="vr-calibrate" class="vr-action" disabled>Это центр</button></div>
+      <p id="vr-marker-status" class="vr-status-line">Камера пока выключена. Если цвета не совпадают: выберите сторону и коснитесь метки на предпросмотре.</p>
+    </div>
+    <div class="vr-how"><div><b>10 сек</b><span>Смотрите прямо на бак десять секунд — находка появится сама.</span></div><div><b>Голова</b><span>Двор остановится, а повороты и кивки будут вращать вещь.</span></div><div><b>«Нет» ×2</b><span>Дважды мотните головой из стороны в сторону. Вещь уже сохранена, начнётся поиск следующей.</span></div></div>
+    <p id="vr-status" class="vr-status-line" role="status">Сначала подготовьте выбранный источник взгляда.</p>
+    <button id="vr-start" class="primary" disabled>Надеть очки · старт через 3 секунды</button>
+    <div id="vr-countdown" hidden aria-live="polite">3</div>
+    <p class="vr-note">В VR каждая находка сохраняется автоматически. Кнопок «забрать» и «выбросить» в очках нет. В очках нет ни прицела, ни надписей — только двор. Для выхода выйдите из полноэкранного режима (Esc или системный жест «назад») либо, сняв очки, удерживайте палец на экране секунду.</p>
+  </dialog>
   <dialog id="complete-dialog" class="small-dialog completion"><div class="completion-icon"><svg><use href="#i-spark"/></svg></div><span class="eyebrow">18 ИЗ 18 · КОЛЛЕКЦИЯ СОБРАНА</span><h2>Ничего<br>не потеряно.</h2><div id="completion-preview" class="completion-preview" aria-label="Последние сохранённые находки"></div><p>У всех этих вещей появилось продолжение.<br>И у этой белой ночи — тоже.</p><button id="continue-button" class="primary">Ещё немного погулять <svg><use href="#i-arrow"/></svg></button><button id="view-complete" class="text-button">Посмотреть коллекцию</button></dialog>
 </body>
 </html>

@@ -40,7 +40,7 @@ export const Storage = {
   },
   saveVrSettings(s) {
     const clean = {
-      lookMode: s && (s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual') ? s.lookMode : 'look',
+      lookMode: s && (s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual' || s.lookMode === 'fusion') ? s.lookMode : 'look',
       camColor: s && typeof s.camColor === 'string' ? s.camColor : 'raspberry',
       camHue: s && Number.isFinite(s.camHue) ? s.camHue : null,
       camLeftColor: s && typeof s.camLeftColor === 'string' ? s.camLeftColor : 'orange',

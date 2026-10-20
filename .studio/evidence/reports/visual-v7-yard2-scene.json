@@ -1,0 +1,149 @@
+{
+  "passed": true,
+  "iteration": "yard2",
+  "checks": [
+    "Three real touch taps still hit the detailed bin",
+    "Low-quality path retains scene and interaction"
+  ],
+  "metrics": [
+    {
+      "w": 1280,
+      "h": 900,
+      "drawCalls": 170,
+      "triangles": 379288,
+      "geometries": 92,
+      "textures": 51,
+      "models": 0,
+      "postprocessing": true,
+      "zoom": 1,
+      "inspectionBounds": null,
+      "modelDetails": null,
+      "meanFrameMs": 16,
+      "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
+      "quality": "high",
+      "vr": {
+        "stereo": false,
+        "inspectLock": false,
+        "yawDeg": 0,
+        "pitchDeg": 0,
+        "targetX": 4.58,
+        "targetY": -11.46,
+        "stage": {
+          "x": 310,
+          "y": 270,
+          "width": 660,
+          "height": 360
+        },
+        "cameraQuaternion": [
+          -0.07172,
+          0.27738,
+          0.02077,
+          0.95785
+        ]
+      }
+    },
+    {
+      "w": 412,
+      "h": 915,
+      "drawCalls": 163,
+      "triangles": 374640,
+      "geometries": 88,
+      "textures": 47,
+      "models": 0,
+      "postprocessing": true,
+      "zoom": 1,
+      "inspectionBounds": null,
+      "modelDetails": null,
+      "meanFrameMs": 16,
+      "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
+      "quality": "high",
+      "vr": {
+        "stereo": false,
+        "inspectLock": false,
+        "yawDeg": 0,
+        "pitchDeg": 0,
+        "targetX": 4.58,
+        "targetY": -11.46,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 372,
+          "height": 371
+        },
+        "cameraQuaternion": [
+          -0.08872,
+          0.12867,
+          0.01156,
+          0.98764
+        ]
+      }
+    },
+    {
+      "w": 360,
+      "h": 800,
+      "drawCalls": 163,
+      "triangles": 374640,
+      "geometries": 88,
+      "textures": 47,
+      "models": 0,
+      "postprocessing": true,
+      "zoom": 1,
+      "inspectionBounds": null,
+      "modelDetails": null,
+      "meanFrameMs": 16,
+      "renderer": "WebKit WebGL",
+      "reveal": {
+        "progress": 1,
+        "phase": "ready",
+        "visible": true,
+        "silhouette": 0,
+        "scale": 1,
+        "veil": 0.96,
+        "ready": true
+      },
+      "quality": "high",
+      "vr": {
+        "stereo": false,
+        "inspectLock": false,
+        "yawDeg": 0,
+        "pitchDeg": 0,
+        "targetX": 4.58,
+        "targetY": -11.46,
+        "stage": {
+          "x": 20,
+          "y": 244,
+          "width": 320,
+          "height": 256
+        },
+        "cameraQuaternion": [
+          -0.08872,
+          0.12867,
+          0.01156,
+          0.98764
+        ]
+      }
+    }
+  ],
+  "errors": [],
+  "limitations": [
+    "SwiftShader screenshots do not establish physical Android FPS."
+  ]
+}

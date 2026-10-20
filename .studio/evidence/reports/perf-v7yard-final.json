@@ -1,0 +1,118 @@
+{
+  "tag": "v7yard-final",
+  "checkedAt": "2026-10-20T03:52:23.719Z",
+  "rows": [
+    {
+      "label": "phone/courtyard/high",
+      "drawCalls": 234,
+      "triangles": 473438,
+      "geometries": 88,
+      "textures": 46,
+      "models": 0,
+      "postprocessing": true,
+      "meanFrameMs": 16,
+      "quality": "high"
+    },
+    {
+      "label": "phone/inspect-camera/high",
+      "drawCalls": 185,
+      "triangles": 399018,
+      "geometries": 103,
+      "textures": 55,
+      "models": 1,
+      "postprocessing": true,
+      "meanFrameMs": 16.23,
+      "quality": "high"
+    },
+    {
+      "label": "phone/inspect-record/high",
+      "drawCalls": 185,
+      "triangles": 399018,
+      "geometries": 103,
+      "textures": 55,
+      "models": 1,
+      "postprocessing": true,
+      "meanFrameMs": 16.17,
+      "quality": "high"
+    },
+    {
+      "label": "phone/courtyard/low",
+      "drawCalls": 87,
+      "triangles": 158118,
+      "geometries": 103,
+      "textures": 51,
+      "models": 1,
+      "postprocessing": false,
+      "meanFrameMs": 16.14,
+      "quality": "low"
+    },
+    {
+      "label": "phone/inspect-horse/low",
+      "drawCalls": 93,
+      "triangles": 179720,
+      "geometries": 107,
+      "textures": 52,
+      "models": 2,
+      "postprocessing": false,
+      "meanFrameMs": 16.12,
+      "quality": "low"
+    },
+    {
+      "label": "desktop/courtyard/high",
+      "drawCalls": 241,
+      "triangles": 478086,
+      "geometries": 92,
+      "textures": 50,
+      "models": 0,
+      "postprocessing": true,
+      "meanFrameMs": 16,
+      "quality": "high"
+    },
+    {
+      "label": "desktop/inspect-camera/high",
+      "drawCalls": 192,
+      "triangles": 403666,
+      "geometries": 107,
+      "textures": 59,
+      "models": 1,
+      "postprocessing": true,
+      "meanFrameMs": 371.77,
+      "quality": "high"
+    },
+    {
+      "label": "desktop/inspect-record/high",
+      "drawCalls": 192,
+      "triangles": 403666,
+      "geometries": 107,
+      "textures": 59,
+      "models": 1,
+      "postprocessing": true,
+      "meanFrameMs": 282.82,
+      "quality": "high"
+    },
+    {
+      "label": "desktop/courtyard/low",
+      "drawCalls": 93,
+      "triangles": 162764,
+      "geometries": 107,
+      "textures": 55,
+      "models": 1,
+      "postprocessing": false,
+      "meanFrameMs": 229.46,
+      "quality": "low"
+    },
+    {
+      "label": "desktop/inspect-horse/low",
+      "drawCalls": 99,
+      "triangles": 184366,
+      "geometries": 111,
+      "textures": 56,
+      "models": 2,
+      "postprocessing": false,
+      "meanFrameMs": 193.88,
+      "quality": "low"
+    }
+  ],
+  "errors": [],
+  "note": "SwiftShader software rendering. Frame times are not device performance evidence; draw calls, triangles, geometries and textures are the comparable budgets."
+}

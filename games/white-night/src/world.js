@@ -28,6 +28,7 @@ export class World {
   skyGeo.setAttribute('color',new THREE.Float32BufferAttribute(skyColors,3));
   this.scene.add(new THREE.Mesh(skyGeo,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.BackSide,depthWrite:false,fog:false})));
   this.camera=new THREE.PerspectiveCamera(46,1,.1,70);this.scene.add(this.camera);
+   this.eyeL=new THREE.PerspectiveCamera(62,1,.1,70);this.eyeR=new THREE.PerspectiveCamera(62,1,.1,70);this.vrStereo=false;this.vrInspectLock=false;this.baseCameraPosition=new THREE.Vector3();this.baseCameraQuaternion=new THREE.Quaternion();this.lockedCameraQuaternion=new THREE.Quaternion();this.headLook={yaw:0,pitch:0};this.headInspectBase=null;this.headInspectRotation=null;this.normalStage=null;
   const pmrem=new THREE.PMREMGenerator(this.renderer);const room=new RoomEnvironment();this.envTarget=pmrem.fromScene(room,.03);this.scene.environment=this.envTarget.texture;this.scene.environmentIntensity=.15;room.dispose();pmrem.dispose();
   // White night: a cold moon from high above, a weak cool bounce, and warm sodium
   // spill from the street. The light count is unchanged on purpose - a point light
@@ -57,7 +58,7 @@ export class World {
   const groundMat=new THREE.MeshStandardMaterial({...pbrMaps('courtyard-stone',[18,18]),normalScale:new THREE.Vector2(1.2,1.2),roughness:.7,metalness:.13,color:0x9aa0a2});mesh(new THREE.PlaneGeometry(38,38),groundMat,this.static,[0,-.03,0],[-Math.PI/2,0,0]);
   const plaster=new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/plaster.jpg`);plaster.colorSpace=THREE.SRGBColorSpace;plaster.wrapS=plaster.wrapT=THREE.RepeatWrapping;plaster.repeat.set(3,3);plaster.anisotropy=4;
   const wall=new THREE.MeshStandardMaterial({map:plaster,color:0x8a877b,roughness:.92,bumpMap:plaster,bumpScale:.065});const side=wall.clone();side.color.set(0x79837f);const stone=new THREE.MeshStandardMaterial({color:0x7d827a,roughness:.9});const trim=new THREE.MeshStandardMaterial({color:0xa3a496,roughness:.84});const dark=new THREE.MeshStandardMaterial({color:0x2c3630,roughness:.78});
-  const reflected=canvasTexture((c,s)=>{const sky=c.createLinearGradient(0,0,s,s);sky.addColorStop(0,'#788b91');sky.addColorStop(.48,'#495b60');sky.addColorStop(1,'#1d302c');c.fillStyle=sky;c.fillRect(0,0,s,s);c.save();c.transform(1,.16,-.07,1,0,0);for(let x=-30;x<s;x+=94){c.fillStyle='#283b3a';c.fillRect(x,70,65,s);for(let y=94;y<s;y+=104){c.fillStyle='#83938b';c.globalAlpha=.24;c.fillRect(x+6,y,24,66);c.fillRect(x+34,y,24,66);}}c.restore();});
+  const reflected=canvasTexture((c,s)=>{const sky=c.createLinearGradient(0,0,s,s);sky.addColorStop(0,'#788b91');sky.addColorStop(.48,'#495b60');sky.addColorStop(1,'#1d302c');c.fillStyle=sky;c.fillRect(0,0,s,s);c.save();c.transform(1,.16,-.07,1,0,0);for(let x=-30;x<s;x+=94){c.fillStyle='#283b3a';c.fillRect(x,70,65,s);for(let y=94;y<s;y+=104){c.fillStyle='#83938b';c.globalAlpha=.24;c.fillRect(x+6,y,24,66);c.fillRect(x+34,y,24,66);}}c.restore();const sheen=c.createLinearGradient(0,0,s,s*.8);sheen.addColorStop(0,'rgba(238,246,238,.20)');sheen.addColorStop(.38,'rgba(238,246,238,.03)');sheen.addColorStop(.62,'rgba(238,246,238,0)');c.fillStyle=sheen;c.beginPath();c.moveTo(0,s);c.lineTo(s*.52,0);c.lineTo(s*.78,0);c.lineTo(s*.24,s);c.closePath();c.fill();c.fillStyle='rgba(18,31,31,.55)';c.beginPath();c.moveTo(0,82);c.lineTo(120,38);c.lineTo(150,38);c.lineTo(150,12);c.lineTo(178,12);c.lineTo(178,34);c.lineTo(335,66);c.lineTo(360,30);c.lineTo(386,30);c.lineTo(386,72);c.lineTo(512,96);c.lineTo(512,0);c.lineTo(0,0);c.closePath();c.fill();c.fillStyle='rgba(255,190,110,.5)';for(let i=0;i<24;i++)c.fillRect(28+(i*67)%470,150+(i*89)%300,7,10);});
   const glassMats=[0x687d7c,0x859794,0x9eaea4,0x465957].map(c=>new THREE.MeshStandardMaterial({color:c,map:reflected,metalness:.24,roughness:.28}));const lit=LIT;
   const facade=(width,height,pos,rotation,mat)=>{
    const g=new THREE.Group();g.position.set(...pos);g.rotation.y=rotation;this.static.add(g);
@@ -71,14 +72,14 @@ export class World {
    }else{box(g,[width,height,.65],[0,height/2,0],mat,0);box(g,[width,.75,.78],[0,.375,.025],stone,0);}
    for(const y of [3.2,6.15,9.1,12.1]){box(g,[width,.14,.87],[0,y,.055],trim,0);box(g,[width,.07,.98],[0,y+.09,.08],stone,0);}
    box(g,[width,.35,1.06],[0,height-.12,.05],trim,0);
-   addFacadeDetails(g,width);
+   addFacadeDetails(g,width,height,rotation===0?0:rotation>0?37:73);
    let cols=Math.floor(width/2.45);for(let col=0;col<cols;col++)for(let row=0;row<4;row++){
     let x=(col-(cols-1)/2)*2.47,y=1.72+row*2.95;if(rotation===0&&row===0&&Math.abs(x+3.8)<1.2)continue;const w=1.16,h=1.91;
     box(g,[w+.26,h+.27,.14],[x,y,.38],trim,0);box(g,[w+.05,h+.06,.1],[x,y,.47],dark,0);const treatment=windowTreatment(col,row,rotation===0?0:rotation>0?1:2);
     const glazing=treatment==='lit'?lit:glassMats[(col+row)%glassMats.length];box(g,[w,h,.04],[x,y,.54],glazing,0);
     for(const dx of [-w/2,w/2,0])box(g,[.048,h,.09],[x+dx,y,.58],stone,0);for(const dy of [-h/2,h/2,.24])box(g,[w,.047,.09],[x,y+dy,.58],stone,0);box(g,[w+.4,.12,.43],[x,y-h/2-.09,.55],trim,0);
     addWindowDetails(g,x,y,w,h,stone,dark,trim);
-    addWindowLife(g,x,y,w,h,treatment,trim,glazing);
+    addWindowLife(g,x,y,w,h,treatment,trim,glazing,(rotation===0?0:rotation>0?100:200)+row*10+col);
    }
    // Drainpipes, fixing collars and irregular patched plaster.
    for(const x of [-width/2+.35,width/2-.38]){cyl(g,.07,.07,height,[x,height/2,.53],dark,[0,0,0],12);for(let y=1;y<height;y+=2)cyl(g,.087,.087,.055,[x,y,.53],M.rust,[0,0,0],12);}
@@ -155,11 +156,11 @@ export class World {
   // item is anchored in camera space, so this only reframes the courtyard.
   const landscape=!portrait&&h<=520&&w>650,wide=!portrait&&!landscape&&w>1050;
   this.camera.position.set(landscape?4.15:wide?4.35:portrait?3.35:4.6,landscape?2.65:wide?3.3:portrait?3.45:3.5,landscape?8.3:wide?8.7:portrait?10.3:9.8);
-  this.camera.lookAt(landscape?.25:wide?-1.15:portrait?.62:0,landscape?1.32:wide?1.75:portrait?1.52:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);
+  this.camera.lookAt(landscape?.25:wide?-1.15:portrait?.62:0,landscape?1.32:wide?1.75:portrait?1.52:1.9,0);this.camera.updateProjectionMatrix();this.camera.updateMatrixWorld(true);this.baseCameraPosition.copy(this.camera.position);this.baseCameraQuaternion.copy(this.camera.quaternion);this.applyCameraPose();
   this.portrait=portrait;const styles=getComputedStyle(document.documentElement);
-  this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);
+  this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);this.normalStage={...this.stage};if(this.vrStereo){const side=Math.min(w/2,h)*.72;this.stage={x:(w/2-side)/2,y:(h-side)/2,width:side,height:side};}
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
-  this.itemAnchor.position.set((this.stage.x+this.stage.width/2-w/2)*perPixel,(h/2-this.stage.y-this.stage.height/2)*perPixel,-4.2);
+  if(this.vrStereo)this.itemAnchor.position.set(0,0,-4.2);else this.itemAnchor.position.set((this.stage.x+this.stage.width/2-w/2)*perPixel,(h/2-this.stage.y-this.stage.height/2)*perPixel,-4.2);
   this.inspectionVeil.scale.set(2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))*w/h,2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2)),1);
   document.querySelector('#app').style.setProperty('--stage-bottom',`${this.stage.y+this.stage.height}px`);
   this.updateItemLights();if(this.item)this.fitItem();
@@ -170,7 +171,7 @@ export class World {
   const box=new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max));
   box.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(this.item.rotation));
   const size=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
-  this.baseScale=fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth);
+  this.baseScale=this.vrStereo?((2*4.2*Math.tan(THREE.MathUtils.degToRad(31))*.56)/Math.max(.001,Math.max(size.x,size.y)*2)):fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth);
   this.item.scale.setScalar(this.baseScale*this.zoom);
   const s=this.baseScale*this.zoom;
   this.itemShadow.scale.set(Math.max(size.x*s*2.5,.3),Math.max(size.x*s*.85,.16),1);
@@ -186,7 +187,23 @@ export class World {
   return {left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),top:Math.min(...points.map(p=>p.y)),bottom:Math.max(...points.map(p=>p.y)),stage:this.stage};
  }
  poke(step=1){this.kick=this.reduced?0:1;this.kickAmp=[.12,.24,.42][Math.min(2,Math.max(0,step-1))];this.dirty=true;}
- hitBin(x,y){this.pointer.set(x/innerWidth*2-1,-y/innerHeight*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;}
+ applyCameraPose(){
+   if(!this.baseCameraPosition)return;this.camera.position.copy(this.baseCameraPosition);
+   if(this.vrInspectLock)this.camera.quaternion.copy(this.lockedCameraQuaternion);
+   else{this.camera.quaternion.copy(this.baseCameraQuaternion);this.camera.rotateY(-this.headLook.yaw);this.camera.rotateX(this.headLook.pitch);}
+   this.camera.updateMatrixWorld(true);
+  }
+  setVrStereo(on){this.vrStereo=!!on;if(!on){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;}this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,innerWidth,innerHeight);this.applyCameraPose();this.resize();this.dirty=true;}
+  setHeadLook(yaw=0,pitch=0){this.headLook={yaw:Number.isFinite(yaw)?yaw:0,pitch:Number.isFinite(pitch)?pitch:0};
+   if(this.vrInspectLock&&this.item&&this.headInspectBase&&this.headInspectRotation){const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.headInspectBase.yaw+Math.PI,Math.PI*2)-Math.PI;this.targetY=this.headInspectRotation.y+dyaw*1.5;this.targetX=THREE.MathUtils.clamp(this.headInspectRotation.x-(this.headLook.pitch-this.headInspectBase.pitch)*1.5,-Math.PI,Math.PI);this.pose='head';}
+   else this.applyCameraPose();this.dirty=true;return this.vrInfo();}
+  lockInspectionView(){this.lockedCameraQuaternion.copy(this.camera.quaternion);this.vrInspectLock=true;this.headInspectBase={...this.headLook};this.headInspectRotation={x:this.targetX,y:this.targetY,z:this.targetZ};this.applyCameraPose();this.dirty=true;return this.vrInfo();}
+  unlockInspectionView(){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();this.dirty=true;return this.vrInfo();}
+  syncEyeCameras(w=innerWidth,h=innerHeight){const aspect=Math.max(.1,(w/2)/Math.max(1,h));for(const [eye,side] of [[this.eyeL,-1],[this.eyeR,1]]){eye.aspect=aspect;eye.fov=62;eye.updateProjectionMatrix();eye.position.copy(this.camera.position);eye.quaternion.copy(this.camera.quaternion);eye.position.add(new THREE.Vector3(side*.032,0,0).applyQuaternion(this.camera.quaternion));eye.updateMatrixWorld(true);}}
+  renderStereo(){const w=innerWidth,h=innerHeight,half=Math.floor(w/2);this.syncEyeCameras(w,h);this.renderer.setScissorTest(true);this.renderer.setViewport(0,0,half,h);this.renderer.setScissor(0,0,half,h);this.renderer.render(this.scene,this.eyeL);this.renderer.setViewport(half,0,w-half,h);this.renderer.setScissor(half,0,w-half,h);this.renderer.render(this.scene,this.eyeR);this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,w,h);}
+  gazeHitsBin(){this.camera.updateMatrixWorld(true);this.pointer.set(0,0);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;}
+  vrInfo(){const d=THREE.MathUtils.radToDeg;return {stereo:!!this.vrStereo,inspectLock:!!this.vrInspectLock,yawDeg:+d(this.headLook.yaw).toFixed(2),pitchDeg:+d(this.headLook.pitch).toFixed(2),targetX:+d(this.targetX||0).toFixed(2),targetY:+d(this.targetY||0).toFixed(2),stage:this.stage,cameraQuaternion:this.camera.quaternion.toArray().map(v=>+v.toFixed(5))};}
+  hitBin(x,y){this.pointer.set(x/innerWidth*2-1,-y/innerHeight*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;}
  binScreen(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(0,1.2,0).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
  // The left edge of the bin, used to anchor the callout to the bin itself.
  binEdge(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(-1.26,1.12,.22).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
@@ -203,9 +220,9 @@ export class World {
     this.item.updateMatrixWorld(true);const inverseRoot=this.item.matrixWorld.clone().invert();
     for(const o of meshes){const m=new THREE.Mesh(o.geometry,this.silhouetteMat);m.matrix.multiplyMatrices(inverseRoot,o.matrixWorld);m.matrixAutoUpdate=false;m.renderOrder=10;this.silhouette.add(m);}this.item.add(this.silhouette);
   }
-  this.reveal=this.reduced||review?1:0;this.applyReveal();
+  this.reveal=this.reduced||review?1:0;this.applyReveal();if(this.vrStereo)this.lockInspectionView();
  }
- hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;}
+ hide(){this.testRevealHold=false;this.dirty=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();}
  finishReveal(){this.testRevealHold=false;this.reveal=1;this.applyReveal();this.dirty=true;}
  applyReveal(){
   this.revealState=revealFrame(this.reveal,this.reduced);
@@ -258,7 +275,7 @@ export class World {
  }
  update(dt,rawDt=dt){this.time+=dt;if(this.kick>0){this.renderer.shadowMap.needsUpdate=true;this.dirty=true;}this.kick=Math.max(0,this.kick-dt*2.8);this.lid.rotation.x=-.045-(this.reduced?0:Math.sin(this.kick*Math.PI)*(this.kickAmp??.12));this.bin.rotation.z=this.reduced?0:Math.sin(this.kick*Math.PI*4)*this.kick*.009;
   if(this.item){const old=this.item.rotation.clone();const k=this.reduced?1:1-Math.exp(-dt*12);this.item.rotation.y=THREE.MathUtils.lerp(this.item.rotation.y,this.targetY,k);this.item.rotation.x=THREE.MathUtils.lerp(this.item.rotation.x,this.targetX,k);this.item.rotation.z=THREE.MathUtils.lerp(this.item.rotation.z,this.targetZ,k);if(!old.equals(this.item.rotation))this.fitItem();this.item.position.y=this.reduced?0:Math.sin(this.time*1.5)*.008;this.reveal=this.reduced?1:Math.min(1,(this.reveal||0)+dt/REVEAL_SECONDS);this.applyReveal();}
-  if(this.dirty||(this.item&&!this.reduced)){this.pipeline.render();this.dirty=false;if(rawDt>0){this.frames.push(rawDt*1000);if(this.frames.length>120)this.frames.shift();}}
+  if(this.vrStereo||this.dirty||(this.item&&!this.reduced)){if(this.vrStereo)this.renderStereo();else this.pipeline.render();this.dirty=false;if(rawDt>0){this.frames.push(rawDt*1000);if(this.frames.length>120)this.frames.shift();}}
  }
- metrics(){return {drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,geometries:this.renderer.info.memory.geometries,textures:this.renderer.info.memory.textures,models:this.modelCache.size,postprocessing:!this.low,zoom:this.zoom,pose:this.pose,inspectionBounds:this.inspectionBounds(),modelDetails:this.item?.userData||null,meanFrameMs:this.frames.length?this.frames.reduce((a,b)=>a+b,0)/this.frames.length:0,renderer:this.renderer.getContext().getParameter(this.renderer.getContext().RENDERER),reveal:this.revealState||revealFrame(1),quality:this.low?'low':'high'};}
+ metrics(){return {drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,geometries:this.renderer.info.memory.geometries,textures:this.renderer.info.memory.textures,models:this.modelCache.size,postprocessing:!this.low,zoom:this.zoom,pose:this.pose,inspectionBounds:this.inspectionBounds(),modelDetails:this.item?.userData||null,meanFrameMs:this.frames.length?this.frames.reduce((a,b)=>a+b,0)/this.frames.length:0,renderer:this.renderer.getContext().getParameter(this.renderer.getContext().RENDERER),reveal:this.revealState||revealFrame(1),quality:this.low?'low':'high',vr:this.vrInfo()};}
 }

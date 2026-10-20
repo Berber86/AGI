@@ -5,11 +5,12 @@
 // (VR_BRAINSTORM.md). Рендер идёт в обход EffectComposer: нет bloom, сцена
 // рисуется дважды — по разу на глаз — бережным разрешением.
 //
-// ВЗГЛЯД: гироскопа нет и не будет (у владельца нет датчика, позыв — только
-// камера-метка). Обработчик `deviceorientation` не подключается вообще:
-// взгляд задают метки («По метке» / «По двум меткам») либо мягкий авто-обзор.
-// `setSimLook()` остался: им пользуются режимы меток (main.js кладёт туда
-// сглаженные углы) и QA.
+// ВЗГЛЯД: этот контроллер сам `deviceorientation` не слушает. Старые режимы
+// по-прежнему ведут метки («По метке» / «По двум меткам») либо мягкий
+// авто-обзор. Гироскоп участвует только в явном режиме «Гибрид»: его
+// обрабатывает main.js (gyro.js + fusionlook.js) и кладёт уже слитые углы
+// в `setSimLook()`, как и режимы меток/QA. Никакого скрытого слияния в
+// старых режимах нет.
 //
 // ТЕНИ: `WebGLShadowMap` в three.js перерисовывает карту при каждом вызове
 // `renderer.render()`, а стереопара вызывает его дважды за кадр — карта 2048²
@@ -28,7 +29,7 @@ export function normalizeVrSettings(raw) {
   const s = raw && typeof raw === 'object' ? raw : {};
   const driverMode = s.driverMode === 'remote' || s.driverMode === 'gesture' ? s.driverMode : 'auto';
   return {
-    lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual' ? s.lookMode : 'look',
+    lookMode: s.lookMode === 'forward' || s.lookMode === 'camera' || s.lookMode === 'camera-dual' || s.lookMode === 'fusion' ? s.lookMode : 'look',
     driverMode,
     gestureZoom: s.gestureZoom === true || driverMode === 'gesture',
     camColor: typeof s.camColor === 'string' ? s.camColor : 'raspberry',
@@ -87,7 +88,7 @@ export class VRController {
   // Живые настройки из команд джойстика: взгляд перецентрируется, базис
   // применяется со следующего кадра (render читает settings каждый кадр).
   setLookMode(mode) {
-    this.settings.lookMode = mode === 'forward' || mode === 'camera' || mode === 'camera-dual' ? mode : 'look';
+    this.settings.lookMode = mode === 'forward' || mode === 'camera' || mode === 'camera-dual' || mode === 'fusion' ? mode : 'look';
     this._yaw = 0; this._pitch = 0;
   }
   setBaselineCm(cm) {
@@ -121,11 +122,22 @@ export class VRController {
       : { yaw: +yawDeg || 0, pitch: +pitchDeg || 0 };
   }
 
-  // Текущая цель взгляда. Гироскопа нет: «вперёд» — всегда 0; режимы метки
-  // берут углы из setSimLook (их кладёт main.js); если углов нет — мягкий
-  // авто-обзор красивых мест. Режим «Осматриваться» без метки = тот же авто-обзор.
+  // Текущая цель взгляда. «Вперёд» — всегда 0; режимы метки и гибрида
+  // берут углы из setSimLook (их кладёт main.js). Для гибрида отсутствие
+  // слитого угла НЕ подменяем авто-обзором: честно держим центр и ждём
+  // FusionLook. Режим «Осматриваться» без метки = мягкий авто-обзор.
   lookTarget(now = performance.now()) {
     if (this.settings.lookMode === 'forward') return { yaw: 0, pitch: 0, source: 'forward' };
+    if (this.settings.lookMode === 'fusion') {
+      if (this._sim) {
+        return {
+          yaw: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.yaw), -MAX_DUAL_CAMERA_YAW, MAX_DUAL_CAMERA_YAW),
+          pitch: THREE.MathUtils.clamp(THREE.MathUtils.degToRad(this._sim.pitch), -MAX_PITCH, MAX_PITCH),
+          source: 'fusion',
+        };
+      }
+      return { yaw: 0, pitch: 0, source: 'fusion-wait' };
+    }
     if (this.settings.lookMode === 'camera' || this.settings.lookMode === 'camera-dual') {
       // Взгляд ведёт камера (main подаёт углы одной или двух меток в setSimLook);
       // нет свежих углов — мягкий авто-обзор.
@@ -153,7 +165,10 @@ export class VRController {
   applyLook(camera, dt, now = performance.now()) {
     if (!this.active) return;
     const target = this.lookTarget(now);
-    const k = 1 - Math.exp(-7 * Math.max(0, dt));
+    // Гибрид уже сглажен FusionLook и ведётся гироскопом каждый кадр:
+    // обычная доводка k=7 добавляла бы заметную задержку головы.
+    const rate = this.settings.lookMode === 'fusion' ? 14 : 7;
+    const k = 1 - Math.exp(-rate * Math.max(0, dt));
     this._yaw += (target.yaw - this._yaw) * k;
     this._pitch += (target.pitch - this._pitch) * k;
     const lookGain = this.zoomLookGain();
@@ -215,7 +230,7 @@ export class VRController {
       lookMode: this.settings.lookMode,
       baselineCm: this.settings.baselineCm,
       baselineM: this.settings.baselineCm / 100,
-      gyro: false, // датчика нет: взгляд ведут метки или авто-обзор
+      gyro: this.settings.lookMode === 'fusion', // режим требует гироскоп; свежесть датчика уточняет main.js
       lookSource: this.active ? t.source : 'off',
       yawDeg: +THREE.MathUtils.radToDeg(this._yaw).toFixed(1),
       pitchDeg: +THREE.MathUtils.radToDeg(this._pitch).toFixed(1),
