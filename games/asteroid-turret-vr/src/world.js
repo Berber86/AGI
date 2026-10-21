@@ -32,7 +32,7 @@ function canvasTex(size, draw, { repeat = false } = {}) {
 export function makeRockTexture(seed = 7) {
   const r = mulberry(seed);
   return canvasTex([256, 256], (ctx, w, h) => {
-    ctx.fillStyle = '#8a6f5a'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#ab8c6d'; ctx.fillRect(0, 0, w, h);
     for (let i = 0; i < 2600; i++) {
       const g = 90 + Math.floor(r() * 90);
       ctx.fillStyle = `rgba(${g + 30},${g},${Math.floor(g * 0.72)},${0.16 + r() * 0.2})`;
@@ -40,7 +40,7 @@ export function makeRockTexture(seed = 7) {
     }
     for (let i = 0; i < 26; i++) { // craters: dark pit + lit lower rim
       const x = r() * w, y = r() * h, rad = 5 + r() * 16;
-      ctx.fillStyle = 'rgba(38,26,18,0.55)';
+      ctx.fillStyle = 'rgba(38,26,18,0.38)';
       ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
       ctx.strokeStyle = 'rgba(230,200,160,0.35)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(x, y, rad, 0.4, 2.4); ctx.stroke();
@@ -92,6 +92,29 @@ export function makePlanetTexture(seed = 3) {
     const g = ctx.createRadialGradient(sx, sy, 2, sx, sy, 26);
     g.addColorStop(0, 'rgba(255,170,120,0.85)'); g.addColorStop(1, 'rgba(255,170,120,0)');
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, 26, 0, 7); ctx.fill();
+  });
+}
+
+/** Earth-like planet: oceans, continents, polar cap, cloud swirls. */
+export function makeEarthTexture(seed = 17) {
+  const r = mulberry(seed);
+  return canvasTex([1024, 512], (ctx, w, h) => {
+    const ocean = ctx.createLinearGradient(0, 0, 0, h);
+    ocean.addColorStop(0, '#1b4f8a'); ocean.addColorStop(0.5, '#2568ad'); ocean.addColorStop(1, '#173f6e');
+    ctx.fillStyle = ocean; ctx.fillRect(0, 0, w, h);
+    for (let c = 0; c < 9; c++) { // continents: clustered blobs
+      const cx = r() * w, cy = h * 0.18 + r() * h * 0.64;
+      for (let i = 0; i < 42; i++) {
+        const x = cx + (r() - 0.5) * 190, y = cy + (r() - 0.5) * 95, rad = 8 + r() * 30;
+        ctx.fillStyle = r() > 0.35 ? `rgba(74,138,74,${0.5 + r() * 0.4})` : `rgba(168,140,92,${0.5 + r() * 0.4})`;
+        ctx.beginPath(); ctx.arc((x + w) % w, y, rad, 0, 7); ctx.fill();
+      }
+    }
+    ctx.fillStyle = 'rgba(240,248,255,0.9)'; ctx.fillRect(0, 0, w, 14); ctx.fillRect(0, h - 18, w, 18); // polar caps
+    for (let i = 0; i < 240; i++) { // clouds
+      ctx.fillStyle = `rgba(255,255,255,${0.05 + r() * 0.16})`;
+      ctx.beginPath(); ctx.ellipse(r() * w, r() * h, 14 + r() * 46, 3 + r() * 7, (r() - 0.5) * 0.4, 0, 7); ctx.fill();
+    }
   });
 }
 
@@ -161,7 +184,7 @@ export function createEnvironment(scene) {
 
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(260, 32, 20),
-    new THREE.MeshBasicMaterial({ map: makeNebulaTexture(), color: 0x8d99bd, side: THREE.BackSide, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ map: makeNebulaTexture(), color: 0xc2cfe8, side: THREE.BackSide, depthWrite: false }),
   );
   sky.frustumCulled = false; group.add(sky);
 
@@ -192,6 +215,64 @@ export function createEnvironment(scene) {
   );
   moon.position.set(58, 34, -150); group.add(moon);
 
+  // --- Earth horizon below the play sector (like the reference art) ---
+  const earthTex = makeEarthTexture();
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(150, 56, 36),
+    new THREE.MeshStandardMaterial({ map: earthTex, roughness: 0.75, metalness: 0, emissive: 0x7fa8d8, emissiveMap: earthTex, emissiveIntensity: 0.26 }),
+  );
+  earth.position.set(10, -172, -55); earth.rotation.set(0.48, 0.6, 0.22); group.add(earth);
+  const earthGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(110,190,255,0.55)', 'rgba(110,190,255,0)'), transparent: true, depthWrite: false }));
+  earthGlow.position.set(10, -58, -70); earthGlow.scale.set(190, 60, 1); group.add(earthGlow);
+
+  // --- warm sun, low-left (reference: golden key light) ---
+  const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(255,214,140,1)', 'rgba(255,140,40,0)'), color: 0xffbe78, transparent: true, depthWrite: false, opacity: 0.9 }));
+  sunSprite.position.set(-205, 74, -155); sunSprite.scale.setScalar(95); group.add(sunSprite);
+  const sunCore = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(255,246,220,1)', 'rgba(255,214,140,0)'), transparent: true, depthWrite: false }));
+  sunCore.position.copy(sunSprite.position); sunCore.scale.setScalar(12); group.add(sunCore);
+
+  // --- background asteroid belt: one InstancedMesh, ~140 far rocks ---
+  const beltGeo = displacedRock(1.6, 2, 23);
+  const beltMat = new THREE.MeshStandardMaterial({ map: makeRockTexture(41), bumpMap: makeRockBump(41), bumpScale: 0.7, color: 0xf7ecdc, roughness: 1, flatShading: true, emissive: 0x241610, emissiveIntensity: 0.8 });
+  const BELT = 150;
+  const belt = new THREE.InstancedMesh(beltGeo, beltMat, BELT);
+  {
+    const m = new THREE.Matrix4(); const q = new THREE.Quaternion(); const e = new THREE.Euler(); const s = new THREE.Vector3(); const pv = new THREE.Vector3();
+    const br = mulberry(123);
+    for (let i = 0; i < BELT; i++) {
+      const yaw = (br() * 2 - 1) * 1.25, pitch = (br() - 0.42) * 0.85, dist = 85 + br() * 95;
+      pv.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)).multiplyScalar(dist);
+      e.set(br() * 3, br() * 3, br() * 3); q.setFromEuler(e);
+      const sc = 0.8 + br() * br() * 4.2; s.set(sc, sc * (0.75 + br() * 0.4), sc);
+      belt.setMatrixAt(i, m.compose(pv, q, s));
+    }
+  }
+  belt.frustumCulled = false; group.add(belt);
+
+  // --- orbital station, right side (procedural silhouette with lit windows) ---
+  const station = new THREE.Group();
+  {
+    const hullM = new THREE.MeshStandardMaterial({ color: 0x9fb4cc, metalness: 0.75, roughness: 0.35, emissive: 0x223a55, emissiveIntensity: 0.7 });
+    const panelM = new THREE.MeshStandardMaterial({ color: 0x2456a8, metalness: 0.4, roughness: 0.5, emissive: 0x0a2c66, emissiveIntensity: 0.9 });
+    const winM = new THREE.MeshBasicMaterial({ color: 0xbfe8ff });
+    const truss = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 26, 10), hullM); truss.rotation.z = Math.PI / 2; station.add(truss);
+    const hub = new THREE.Mesh(new THREE.SphereGeometry(2.6, 18, 14), hullM); station.add(hub);
+    const dockRing = new THREE.Mesh(new THREE.TorusGeometry(5.2, 0.55, 10, 32), hullM); dockRing.rotation.y = Math.PI / 2; dockRing.position.x = -9; station.add(dockRing);
+    for (const dx of [-4.5, 4.5]) for (const sgn of [-1, 1]) {
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(7.5, 3.1, 0.18), panelM);
+      panel.position.set(dx, sgn * 3.4, 0); station.add(panel);
+    }
+    for (let i = 0; i < 22; i++) {
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.1), winM);
+      const a = (i / 22) * Math.PI * 2;
+      win.position.set(Math.cos(a) * 2.62, Math.sin(a) * 2.62, 0.6); station.add(win);
+    }
+    const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.3, 6.5, 8), hullM); spire.position.y = 5; station.add(spire);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 10), new THREE.MeshBasicMaterial({ color: 0xff3df0 })); tip.position.y = 8.4; station.add(tip);
+    station.position.set(108, 30, -155); station.rotation.set(0.15, -0.5, 0.22); station.scale.setScalar(1.55);
+  }
+  group.add(station);
+
   // distant traffic: two slow blinking beacons far off-axis
   const beacons = [];
   for (const [x, y, z, col] of [[-120, 60, -140, 0xff3df0], [130, -40, -120, 0x38f5ff]]) {
@@ -220,6 +301,9 @@ export function createEnvironment(scene) {
     group,
     update(dt, nowSec) {
       planet.rotation.y += dt * 0.004;
+      earth.rotation.y += dt * 0.0016;
+      belt.rotation.y += dt * 0.0022;
+      station.rotation.y += dt * 0.01;
       moon.rotation.y += dt * 0.01;
       sky.rotation.y += dt * 0.0012; // near-imperceptible parallax drift
       beacons.forEach((b, i) => { b.material.opacity = 0.35 + 0.65 * Math.max(0, Math.sin(nowSec * 1.4 + i * 2.4)); });
@@ -261,18 +345,48 @@ export function createShip() {
   });
   const deck = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.3, 6.2), new THREE.MeshStandardMaterial({ map: deckTex, metalness: 0.6, roughness: 0.5 }));
   deck.position.set(0, -1.3, 0.7); group.add(deck);
-  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 1.9, 3.2, 4, 1), dark);
-  nose.rotation.x = Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.scale.y = 1; nose.position.set(0, -1.28, -3.4); group.add(nose);
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 1.9, 3.2, 4, 1), metal);
+  nose.rotation.x = Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.position.set(0, -1.42, -3.4); group.add(nose);
+
+  // cockpit frame: angled white struts with neon inlays (reference framing)
+  const white = new THREE.MeshStandardMaterial({ color: 0xe9eff7, metalness: 0.3, roughness: 0.3, emissive: 0x2a3648, emissiveIntensity: 0.35 });
+  for (const dx of [-1.28, 1.28]) {
+    const strut = new THREE.Mesh(new THREE.BoxGeometry(0.17, 1.15, 0.3), white);
+    strut.position.set(dx, -0.62, -1.05); strut.rotation.z = dx < 0 ? 0.38 : -0.38; strut.rotation.x = 0.15; group.add(strut);
+    const inlay = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.95, 0.32), dx < 0 ? neon : pink);
+    inlay.position.copy(strut.position); inlay.rotation.copy(strut.rotation); group.add(inlay);
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.16, 0.65), white);
+    dash.position.set(dx * 0.78, -1.12, -0.85); dash.rotation.x = -0.42; group.add(dash);
+  }
+  // dashboard console with a little radar screen (canvas texture)
+  const dashTex = canvasTex([256, 128], (ctx, w, h) => {
+    ctx.fillStyle = '#04101f'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(56,245,255,0.85)'; ctx.lineWidth = 2;
+    for (const rr of [16, 30, 44]) { ctx.beginPath(); ctx.arc(52, 64, rr, 0, 7); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(52, 64); ctx.lineTo(88, 34); ctx.stroke();
+    ctx.fillStyle = '#ffd23e'; ctx.beginPath(); ctx.moveTo(52, 54); ctx.lineTo(58, 70); ctx.lineTo(46, 70); ctx.fill();
+    ctx.fillStyle = '#bfefff';
+    for (const [x, y] of [[70, 44], [38, 82], [84, 76], [30, 40]]) { ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.fill(); }
+    ctx.fillStyle = 'rgba(56,245,255,0.75)';
+    for (let i = 0; i < 5; i++) ctx.fillRect(120 + i * 24, 88 - (i % 3) * 16, 14, 6);
+    ctx.font = '700 17px system-ui'; ctx.fillStyle = '#9fefff'; ctx.fillText('РАДАР', 118, 34);
+  });
+  const console_ = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.3, 0.55), dark);
+  console_.position.set(0, -1.08, -1.02); console_.rotation.x = -0.4; group.add(console_);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.55), new THREE.MeshBasicMaterial({ map: dashTex }));
+  screen.position.set(0, -1.13, -0.52); screen.rotation.x = -1.02; group.add(screen);
 
   // turret pedestal, rotating head, twin barrels
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.78, 0.38, 24), metal); base.position.y = -0.58; group.add(base);
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.05, 10, 28), neon); collar.rotation.x = Math.PI / 2; collar.position.y = -0.4; group.add(collar);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.15, 0.46), dark); head.position.y = -0.39; group.add(head);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.48), white); head.position.y = -0.39; group.add(head);
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.21, 20, 14), new THREE.MeshStandardMaterial({ color: 0x123a63, metalness: 0.85, roughness: 0.14, emissive: 0x0d3f6e, emissiveIntensity: 0.8 }));
+  canopy.scale.set(1, 0.62, 1.35); canopy.position.set(0, -0.3, -0.02); group.add(canopy);
   const headStrip = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.04, 0.26), neon); headStrip.position.set(0, -0.29, -0.1); group.add(headStrip);
   const sight = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.22), neon); sight.position.set(0, -0.06, -0.2); group.add(sight);
   const muzzle = new THREE.Object3D();
   for (const dx of [-0.16, 0.16]) {
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.07, 1.25, 12), accent);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.07, 1.25, 12), white);
     barrel.rotation.x = Math.PI / 2; barrel.position.set(dx, -0.26, -0.8); group.add(barrel);
     const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 10), neon);
     tipGlow.position.set(dx, -0.26, -1.42); group.add(tipGlow);
@@ -328,13 +442,24 @@ function displacedRock(radius, detail, seed) {
   const geo = new THREE.IcosahedronGeometry(radius, detail);
   const pos = geo.attributes.position;
   const v = new THREE.Vector3();
+  // crater dents: fixed directions per variant, pressed into the surface
+  const cr = mulberry(seed * 31 + 7);
+  const craters = [];
+  for (let i = 0; i < 8; i++) {
+    const cv = new THREE.Vector3(cr() * 2 - 1, cr() * 2 - 1, cr() * 2 - 1).normalize();
+    craters.push({ dir: cv, cosR: 0.82 + cr() * 0.1, depth: 0.1 + cr() * 0.16 });
+  }
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const d = v.clone().normalize();
     const n = hashNoise(d.x, d.y, d.z, seed) * 0.6
       + hashNoise(d.x * 2.7, d.y * 2.7, d.z * 2.7, seed + 9) * 0.3
       + hashNoise(d.x * 6.1, d.y * 6.1, d.z * 6.1, seed + 27) * 0.16;
-    const s = 0.78 + n * 0.5;
+    let s = 0.78 + n * 0.5;
+    for (const c of craters) {
+      const dot = d.dot(c.dir);
+      if (dot > c.cosR) { const f = (dot - c.cosR) / (1 - c.cosR); s -= c.depth * f * f; }
+    }
     // slight elongation so rocks are not spheres
     pos.setXYZ(i, v.x * s * 1.12, v.y * s * 0.88, v.z * s);
   }
@@ -348,7 +473,7 @@ export function createAsteroidAssets() {
   const geometries = [displacedRock(1.6, 2, 3), displacedRock(1.6, 2, 14), displacedRock(1.6, 2, 29)];
   const baseMaterial = new THREE.MeshStandardMaterial({
     map: texture, bumpMap: bump, bumpScale: 0.9,
-    color: 0xb59a80, roughness: 0.96, metalness: 0.04, flatShading: true,
+    color: 0xf5e9d8, roughness: 0.96, metalness: 0.04, flatShading: true,
     emissive: 0x1a0d06, emissiveIntensity: 1,
   });
   return {

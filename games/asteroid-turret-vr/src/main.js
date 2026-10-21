@@ -51,8 +51,9 @@ camera.add(ship.group);
 const fx = new FxSystem(scene);
 
 scene.add(new THREE.HemisphereLight(0xbdd4ff, 0x1a0f2e, 0.85));
-const sun = new THREE.DirectionalLight(0xffffff, 2.4); sun.position.set(4, 6, 2); scene.add(sun);
+const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); scene.add(sun); // warm key from the sun side
 const rim = new THREE.DirectionalLight(0xff3df0, 0.55); rim.position.set(-6, -2, 6); scene.add(rim);
+const fill = new THREE.DirectionalLight(0x8fb4ff, 0.55); fill.position.set(6, 3, 12); scene.add(fill); // camera-side fill so rocks read
 const hitFlash = new THREE.PointLight(0xff4444, 0, 9); hitFlash.position.set(0, 0, -1); camera.add(hitFlash);
 
 // ---------------------------------------------------------------- asteroids
@@ -98,6 +99,7 @@ function meshFor(a) {
   if (!m) {
     const group = new THREE.Group();
     const rock = new THREE.Mesh(rockAssets.geometryFor(a.id), rockAssets.makeMaterial());
+    rock.material.color.offsetHSL(((a.id * 37) % 10 - 5) * 0.004, 0, ((a.id * 53) % 10 - 5) * 0.012); // per-rock tint variety
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
     const arc = makeArc(2.45, 0x38f5ff);
     const arc2 = makeArc(2.62, 0xff3df0); // counter-rotating outer arc

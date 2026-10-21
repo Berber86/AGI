@@ -111,6 +111,21 @@
       "evidence": [
         ".studio/evidence/reports/visual-v3.json"
       ]
+    },
+    {
+      "id": "VISUAL-V4",
+      "title": "Reference-matching iterations 1-3: Earth horizon/sun/belt/station, cockpit, cratered bright asteroids",
+      "status": "in-progress",
+      "dependencies": [
+        "VISUAL-V3"
+      ],
+      "acceptance": [
+        "iter screenshots inspected",
+        "push after iter3 and iter6"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4.json"
+      ]
     }
   ]
 }
