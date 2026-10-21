@@ -111,6 +111,34 @@ class GameCatalogTests(unittest.TestCase):
         links = [a.get('href') for t, a in tags if t == 'a']
         self.assertIn('./games/candy-kingdom-coaster/index.html', links)
 
+    def test_self_conveyor_card_links_to_published_app_and_cover(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a.get('href') for t, a in tags if t == 'a' and 'self-conveyor' in a.get('href', '')]
+        self.assertEqual(links, ['./games/self-conveyor/play/index.html'] * 2)
+        for link in links:
+            self.assertTrue((ROOT / link).is_file())
+        images = [a for t, a in tags if t == 'img' and 'self-conveyor' in a.get('src', '')]
+        self.assertEqual(len(images), 1)
+        self.assertTrue((ROOT / images[0]['src']).is_file())
+        self.assertTrue(images[0].get('alt'))
+
+    def test_self_conveyor_published_app_has_local_relative_assets(self):
+        base = ROOT / 'games/self-conveyor/play'
+        html = (base / 'index.html').read_text()
+        self.assertNotIn('src/main.tsx', html)
+        tags = Tags(html).tags
+        scripts = [a for t, a in tags if t == 'script' and a.get('type') == 'module']
+        self.assertGreaterEqual(len(scripts), 1)
+        for tag, attrs in tags:
+            for attr in ('src', 'href'):
+                value = attrs.get(attr, '')
+                if not value or value.startswith('#'):
+                    continue
+                self.assertFalse(urlsplit(value).netloc, value)
+                self.assertFalse(value.startswith('/'), value)
+                asset = base / urlsplit(value).path
+                self.assertTrue(asset.exists(), str(asset))
+
 
 if __name__ == '__main__':
     unittest.main()
