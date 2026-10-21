@@ -45,6 +45,9 @@ check('asteroid spawned inside sector', Math.abs(aim.yawDeg) <= 45 && aim.pitchD
 await new Promise((r) => setTimeout(r, 2600));
 const after = await page.evaluate(() => window.__GAME_TEST__.state());
 check('dwell shot fired and scored', after.shots >= 1 && after.score >= 100, `shots=${after.shots} score=${after.score}`);
+const fx = await page.evaluate(() => window.__GAME_TEST__.info().fx);
+check('explosion FX burst produced (particles/beam)', fx.bursts >= 1, JSON.stringify(fx));
+check('kill streak tracked', after.kills >= 1 && after.streak >= 1, `kills=${after.kills} streak=${after.streak}`);
 await page.screenshot({ path: OUT + 'screenshots/game-412x915.png' });
 
 // hull/lose path via deterministic bridge steps

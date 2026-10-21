@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, stepGame, spawnIntervalAt, asteroidSpeedAt, difficultyAt, DWELL_SECONDS, SPAWN_YAW_DEG, SPAWN_PITCH_MIN_DEG, SPAWN_PITCH_MAX_DEG } from '../src/sim.js';
+import { createGame, stepGame, spawnIntervalAt, asteroidSpeedAt, difficultyAt, killScore, DWELL_SECONDS, SPAWN_YAW_DEG, SPAWN_PITCH_MIN_DEG, SPAWN_PITCH_MAX_DEG } from '../src/sim.js';
 import { mulberry32 } from '../src/sim.js';
 
 function run(sec, gaze = { yawDeg: 0, pitchDeg: 0 }, seed = 5) {
@@ -69,4 +69,30 @@ test('step does not mutate input state', () => {
   const s = createGame(2); const frozen = JSON.stringify(s);
   stepGame(s, 0.05, { yawDeg: 0, pitchDeg: 0 }, mulberry32(2));
   assert.equal(JSON.stringify(s), frozen);
+});
+
+test('kill streak: bonus grows, hull hit resets streak', () => {
+  assert.equal(killScore(1), 100); assert.equal(killScore(2), 110); assert.equal(killScore(30), 200);
+  let s = createGame(4); const rand = mulberry32(4);
+  for (let i = 0; i < 200 && !s.asteroids.length; i++) s = stepGame(s, 0.05, { yawDeg: 0, pitchDeg: 0 }, rand).state;
+  const a = s.asteroids[0]; const gaze = { yawDeg: a.yawDeg, pitchDeg: a.pitchDeg };
+  for (let i = 0; i < 34; i++) s = stepGame(s, 0.05, gaze, rand).state;
+  assert.ok(s.kills >= 1 && s.streak >= 1 && s.score >= 100);
+  const streakBefore = s.streak;
+  assert.ok(streakBefore >= 1);
+  // force an impact: put a fresh asteroid at hit distance and look away
+  if (!s.asteroids.length) { for (let i = 0; i < 200 && !s.asteroids.length; i++) s = stepGame(s, 0.05, { yawDeg: 0, pitchDeg: 0 }, rand).state; }
+  s.asteroids[0].dist = 2.0;
+  s = stepGame(s, 0.05, { yawDeg: -44, pitchDeg: 28 }, rand).state;
+  assert.equal(s.streak, 0);
+});
+
+test('explosion event carries world position for FX', () => {
+  let s = createGame(6); const rand = mulberry32(6);
+  for (let i = 0; i < 200 && !s.asteroids.length; i++) s = stepGame(s, 0.05, { yawDeg: 0, pitchDeg: 0 }, rand).state;
+  const a = s.asteroids[0]; const gaze = { yawDeg: a.yawDeg, pitchDeg: a.pitchDeg };
+  let evs = [];
+  for (let i = 0; i < 40; i++) { const r = stepGame(s, 0.05, gaze, rand); s = r.state; evs.push(...r.events); }
+  const ex = evs.find((e) => e.type === 'explosion');
+  assert.ok(ex && Number.isFinite(ex.x) && Number.isFinite(ex.y) && Number.isFinite(ex.z));
 });

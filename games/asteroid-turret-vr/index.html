@@ -47,7 +47,7 @@
 <body>
 <canvas id="game-canvas"></canvas>
 
-<div id="hud" class="hidden"><div id="hud-score">Счёт: 0</div><div id="hud-hull">Корпус: 100</div></div>
+<div id="hud" class="hidden"><div id="hud-score">Счёт: 0</div><div style="text-align:right"><div id="hud-hull">Корпус: 100</div><div style="width:130px;height:7px;background:rgba(255,255,255,.18);border-radius:4px;margin-top:4px;overflow:hidden"><div id="hull-fill" style="height:100%;width:100%;background:#38f5ff;transition:width .2s"></div></div></div></div>
 <div id="cross" class="hidden"></div>
 
 <main id="prep">
@@ -59,6 +59,7 @@
       <h2>Результат</h2>
       <div class="stat"><span>Последний счёт</span><b id="last-score">—</b></div>
       <div class="stat"><span>Рекорд</span><b id="best-score">0</b></div>
+      <div class="stat"><span>Сбито / лучшая серия / время</span><b id="last-stats">—</b></div>
     </div>
 
     <div class="card">

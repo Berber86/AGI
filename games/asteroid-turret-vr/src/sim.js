@@ -10,7 +10,7 @@ export const ESCALATION_SECONDS = 480;  // calm-long: caps at ~8 minutes
 export const HULL_MAX = 100;
 export const ASTEROID_DAMAGE = 15;
 export const ASTEROID_HP = 1;
-export const SPAWN_DISTANCE = 60;
+export const SPAWN_DISTANCE = 42;
 export const HIT_DISTANCE = 2.2;
 export const MAX_ALIVE = 14;
 
@@ -27,6 +27,9 @@ export function mulberry32(seed) {
 const lerp = (a, b, t) => a + (b - a) * t;
 
 /** Difficulty 0..1, monotonic, capped at ESCALATION_SECONDS. */
+/** Score for the n-th consecutive kill (1-based streak after this kill). */
+export function killScore(streak) { return 100 + Math.min(10, Math.max(0, streak - 1)) * 10; }
+
 export function difficultyAt(elapsedSec) {
   return Math.min(1, Math.max(0, elapsedSec / ESCALATION_SECONDS));
 }
@@ -45,6 +48,9 @@ export function createGame(seed = 1) {
     elapsed: 0,
     score: 0,
     shots: 0,
+    kills: 0,
+    streak: 0,      // consecutive kills without taking hull damage
+    bestStreak: 0,
     hull: HULL_MAX,
     asteroids: [],
     nextId: 1,
@@ -140,8 +146,13 @@ export function stepGame(state, dt, gaze, rand) {
       s.shots += 1;
       events.push({ type: 'shot', id: a.id });
       if (a.hp <= 0) {
-        s.score += 100;
-        events.push({ type: 'explosion', id: a.id, yawDeg: a.yawDeg, pitchDeg: a.pitchDeg, dist: a.dist });
+        s.kills += 1;
+        s.streak += 1;
+        s.bestStreak = Math.max(s.bestStreak, s.streak);
+        const gained = killScore(s.streak);
+        s.score += gained;
+        const pos = asteroidPos(a);
+        events.push({ type: 'explosion', id: a.id, yawDeg: a.yawDeg, pitchDeg: a.pitchDeg, dist: a.dist, x: pos.x, y: pos.y, z: pos.z, streak: s.streak, gained });
         continue; // destroyed
       }
       a.dwell = 0;
@@ -151,7 +162,9 @@ export function stepGame(state, dt, gaze, rand) {
     a.spin += dt * 0.7;
     if (a.dist <= HIT_DISTANCE) {
       s.hull = Math.max(0, s.hull - ASTEROID_DAMAGE);
-      events.push({ type: 'hullHit', id: a.id, hull: s.hull });
+      s.streak = 0; // taking damage breaks the kill streak
+      const pos = asteroidPos(a);
+      events.push({ type: 'hullHit', id: a.id, hull: s.hull, x: pos.x, y: pos.y, z: pos.z });
       if (s.hull <= 0) {
         s.status = 'lost';
         events.push({ type: 'lost', score: s.score });

@@ -55,6 +55,46 @@
       "evidence": [
         ".studio/evidence/reports/release.json"
       ]
+    },
+    {
+      "id": "V2-001",
+      "title": "Faster action start, kill streak, explosion position in events",
+      "status": "done",
+      "dependencies": [],
+      "acceptance": [
+        "Unit tests: streak grows/resets, spawn distance 42, explosion carries position"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-v2.json"
+      ]
+    },
+    {
+      "id": "V2-002",
+      "title": "FX: particle explosions, shards, real beam to impact point, dwell arc, hull flash, ship/space environment",
+      "status": "done",
+      "dependencies": [
+        "V2-001"
+      ],
+      "acceptance": [
+        "E2E screenshots show asteroids/FX; zero-HUD VR kept"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e-v2.json"
+      ]
+    },
+    {
+      "id": "V2-003",
+      "title": "Bundle diet (minified three build) + re-export + catalog/root tests",
+      "status": "done",
+      "dependencies": [
+        "V2-002"
+      ],
+      "acceptance": [
+        "Export measurably below 514663 bytes; root tests pass"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release-v2.json"
+      ]
     }
   ]
 }

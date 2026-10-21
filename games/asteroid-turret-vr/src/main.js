@@ -51,21 +51,57 @@ const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 300);
 }
 function mulberryForStars(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
-// turret (in-world, at the camera base; this is the visible "ship")
+// --- space environment: nebula sprites + a ringed planet (procedural, 0 assets)
+function glowTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+  g.addColorStop(0, inner); g.addColorStop(1, outer);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+{
+  const nebTexA = glowTexture('rgba(70,40,160,0.55)', 'rgba(70,40,160,0)');
+  const nebTexB = glowTexture('rgba(10,90,110,0.5)', 'rgba(10,90,110,0)');
+  const mkNeb = (tex, x, y, z, s) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false })); sp.position.set(x, y, z); sp.scale.setScalar(s); scene.add(sp); };
+  mkNeb(nebTexA, -70, 26, -150, 150); mkNeb(nebTexB, 85, -18, -140, 130); mkNeb(nebTexA, 10, 55, -165, 110);
+  const planet = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 24), new THREE.MeshStandardMaterial({ color: 0x2c5f8a, roughness: 0.8, emissive: 0x06182c }));
+  planet.position.set(-72, -26, -150); scene.add(planet);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(21, 30, 48), new THREE.MeshBasicMaterial({ color: 0x6fd8ff, transparent: true, opacity: 0.28, side: THREE.DoubleSide }));
+  ring.position.copy(planet.position); ring.rotation.x = Math.PI / 2.7; scene.add(ring);
+}
+
+// turret + ship deck (in-world; child of the camera so it rides the look)
 const turret = new THREE.Group();
+let muzzleTip = null;
 {
   const metal = new THREE.MeshStandardMaterial({ color: 0x3a4a66, metalness: 0.7, roughness: 0.35, emissive: 0x0a2a3a });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1b2740, metalness: 0.6, roughness: 0.5, emissive: 0x050b16 });
   const neon = new THREE.MeshBasicMaterial({ color: 0x38f5ff });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.7, 0.35, 20), metal); base.position.y = -0.55;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.6), metal); head.position.y = -0.28;
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.1, 10), metal);
-  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, -0.28, -0.7);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 10), neon); tip.position.set(0, -0.28, -1.25);
-  turret.add(base, head, barrel, tip);
-  scene.add(turret);
+  const pink = new THREE.MeshBasicMaterial({ color: 0xff3df0 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.72, 0.35, 20), metal); base.position.y = -0.55;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 0.62), metal); head.position.y = -0.28;
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 1.15, 10), metal);
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, -0.28, -0.72);
+  muzzleTip = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 10), neon); muzzleTip.position.set(0, -0.28, -1.3);
+  // ship deck + side rails with running lights, below the turret
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.28, 5.5), dark); deck.position.set(0, -1.28, 0.6);
+  const railL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 4.6), metal); railL.position.set(-2.4, -0.98, 0.2);
+  const railR = railL.clone(); railR.position.x = 2.4;
+  const stripL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 4.2), neon); stripL.position.set(-2.4, -0.88, 0.2);
+  const stripR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 4.2), pink); stripR.position.set(2.4, -0.88, 0.2);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 8), metal); mast.position.set(1.7, -0.6, 1.3);
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), pink); beacon.position.set(1.7, -0.18, 1.3);
+  beacon.name = 'beacon';
+  turret.add(base, head, barrel, muzzleTip, deck, railL, railR, stripL, stripR, mast, beacon);
+  turret.scale.setScalar(0.6);
+  turret.position.set(0, -0.42, -1.45);
+  scene.add(camera);
+  camera.add(turret);
 }
 scene.add(new THREE.AmbientLight(0x8899bb, 1.1));
 const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(4, 6, 2); scene.add(sun);
+const hitFlash = new THREE.PointLight(0xff4444, 0, 9); hitFlash.position.set(0, 0, -1); camera.add(hitFlash);
 
 // asteroids: shared geometry/material, one type (contract)
 const rockGeo = new THREE.IcosahedronGeometry(1.6, 1);
@@ -75,22 +111,120 @@ const rockGeo = new THREE.IcosahedronGeometry(1.6, 1);
   rockGeo.computeVertexNormals();
 }
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a6f5a, roughness: 0.95, metalness: 0.05, flatShading: true, emissive: 0x1a0d06 });
-const ringGeo = new THREE.RingGeometry(2.05, 2.3, 40);
-const meshes = new Map(); // id -> {group, rock, ring}
+const ringGeo = new THREE.RingGeometry(2.08, 2.2, 48);
+const ARC_POINTS = 48;
+const meshes = new Map(); // id -> {group, rock, ring, arc, arcGeo}
 const beams = [];
+const fxBursts = [];
+
+function makeArc() {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ARC_POINTS * 3), 3));
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 1 }));
+  line.frustumCulled = false;
+  return { line, geo };
+}
+function setArc(arc, frac) {
+  const pos = arc.geo.attributes.position;
+  const n = Math.max(2, Math.floor(ARC_POINTS * Math.min(1, frac)));
+  for (let i = 0; i < ARC_POINTS; i++) {
+    const t = (i / (ARC_POINTS - 1)) * Math.PI * 2 * Math.min(1, frac) - Math.PI / 2;
+    const idx = Math.min(i, n - 1);
+    const tt = (idx / (ARC_POINTS - 1)) * Math.PI * 2 * Math.min(1, frac) - Math.PI / 2;
+    pos.setXYZ(i, Math.cos(tt) * 2.45, Math.sin(tt) * 2.45, 0);
+    void t;
+  }
+  pos.needsUpdate = true;
+  arc.geo.setDrawRange(0, n);
+}
 
 function meshFor(a) {
   let m = meshes.get(a.id);
   if (!m) {
     const group = new THREE.Group();
-    const rock = new THREE.Mesh(rockGeo, rockMat);
-    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide }));
-    group.add(rock, ring); scene.add(group);
-    m = { group, rock, ring }; meshes.set(a.id, m);
+    const rock = new THREE.Mesh(rockGeo, rockMat.clone());
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
+    const arc = makeArc();
+    group.add(rock, ring, arc.line); scene.add(group);
+    m = { group, rock, ring, arc }; meshes.set(a.id, m);
   }
   return m;
 }
-function removeMesh(id) { const m = meshes.get(id); if (m) { scene.remove(m.group); m.ring.material.dispose(); meshes.delete(id); } }
+function removeMesh(id) { const m = meshes.get(id); if (m) { scene.remove(m.group); m.ring.material.dispose(); m.rock.material.dispose(); m.arc.geo.dispose(); m.arc.line.material.dispose(); meshes.delete(id); } }
+
+// --- explosion FX: pooled particle bursts + tumbling shards (all in-world) ---
+const MAX_PARTICLES = 420;
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3));
+particleGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3));
+const particleMat = new THREE.PointsMaterial({ size: 0.55, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false });
+const particlePoints = new THREE.Points(particleGeo, particleMat);
+particlePoints.frustumCulled = false; scene.add(particlePoints);
+const particles = []; // {pos, vel, life, maxLife, r,g,b}
+const shardGeo = new THREE.TetrahedronGeometry(0.34);
+const shardMat = new THREE.MeshStandardMaterial({ color: 0x7a5f4c, roughness: 0.9, flatShading: true, emissive: 0x200f04 });
+const shards = [];
+for (let i = 0; i < 26; i++) { const s = new THREE.Mesh(shardGeo, shardMat); s.visible = false; scene.add(s); shards.push({ mesh: s, vel: new THREE.Vector3(), rot: new THREE.Vector3(), life: 0 }); }
+let fxStats = { bursts: 0, hullFlashes: 0 };
+
+function burst(x, y, z, big = true) {
+  fxStats.bursts += 1;
+  const count = big ? 46 : 22;
+  const origin = new THREE.Vector3(x, y, z);
+  for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+    const v = new THREE.Vector3((Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5)).normalize().multiplyScalar(2.5 + Math.random() * (big ? 7 : 4));
+    const warm = Math.random();
+    particles.push({ pos: origin.clone(), vel: v, life: 0, maxLife: 0.55 + Math.random() * 0.7, r: 1, g: 0.45 + warm * 0.4, b: 0.12 + warm * 0.2 });
+  }
+  let spawned = 0;
+  for (const sh of shards) {
+    if (sh.life > 0) continue;
+    sh.life = 0.7 + Math.random() * 0.5;
+    sh.mesh.visible = true; sh.mesh.position.copy(origin);
+    sh.mesh.scale.setScalar(0.6 + Math.random() * 0.9);
+    sh.vel.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);
+    sh.rot.set(Math.random() * 5, Math.random() * 5, Math.random() * 5);
+    if (++spawned >= (big ? 6 : 3)) break;
+  }
+  // impact flash sprite
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,190,90,1)', 'rgba(255,90,20,0)'), transparent: true, depthWrite: false }));
+  flash.position.copy(origin); flash.scale.setScalar(big ? 7 : 4);
+  scene.add(flash); fxBursts.push({ flash, life: 0.22, max: 0.22 });
+}
+function updateFx(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const pt = particles[i]; pt.life += dt;
+    if (pt.life >= pt.maxLife) { particles.splice(i, 1); continue; }
+    pt.vel.multiplyScalar(1 - dt * 1.4); pt.pos.addScaledVector(pt.vel, dt);
+  }
+  const pos = particleGeo.attributes.position; const col = particleGeo.attributes.color;
+  for (let i = 0; i < MAX_PARTICLES; i++) {
+    const pt = particles[i];
+    if (pt) { const fade = 1 - pt.life / pt.maxLife; pos.setXYZ(i, pt.pos.x, pt.pos.y, pt.pos.z); col.setXYZ(i, pt.r * fade, pt.g * fade, pt.b * fade); }
+    else { pos.setXYZ(i, 0, 0, -999); col.setXYZ(i, 0, 0, 0); }
+  }
+  pos.needsUpdate = true; col.needsUpdate = true;
+  for (const sh of shards) {
+    if (sh.life <= 0) continue;
+    sh.life -= dt; sh.mesh.position.addScaledVector(sh.vel, dt);
+    sh.mesh.rotation.x += sh.rot.x * dt; sh.mesh.rotation.y += sh.rot.y * dt;
+    if (sh.life <= 0) sh.mesh.visible = false;
+  }
+  for (let i = fxBursts.length - 1; i >= 0; i--) {
+    const f = fxBursts[i]; f.life -= dt;
+    f.flash.material.opacity = Math.max(0, f.life / f.max);
+    f.flash.scale.multiplyScalar(1 + dt * 6);
+    if (f.life <= 0) { scene.remove(f.flash); f.flash.material.dispose(); fxBursts.splice(i, 1); }
+  }
+  for (let i = beams.length - 1; i >= 0; i--) {
+    beams[i].life -= dt;
+    beams[i].mesh.material.opacity = Math.max(0, beams[i].life / beams[i].max) * 0.95;
+    if (beams[i].life <= 0) { scene.remove(beams[i].mesh); beams[i].mesh.geometry.dispose(); beams[i].mesh.material.dispose(); beams.splice(i, 1); }
+  }
+  hitFlash.intensity = Math.max(0, hitFlash.intensity - dt * 26);
+  const beacon = turret.getObjectByName('beacon');
+  if (beacon) beacon.material.color.setHex(Math.sin(performance.now() / 280) > 0 ? 0xff3df0 : 0x57104f);
+}
 
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -243,6 +377,8 @@ function endRun(reason) {
   const best = Math.max(Number(localStorage.getItem(BEST_KEY) || 0), game.score);
   localStorage.setItem(BEST_KEY, String(best));
   bestEl.textContent = String(best); lastScoreEl.textContent = String(game.score);
+  const statsEl = document.getElementById('last-stats');
+  if (statsEl) statsEl.textContent = `${game.kills} / ×${game.bestStreak} / ${Math.floor(game.elapsed / 60)}:${String(Math.floor(game.elapsed % 60)).padStart(2, '0')}`;
   if (vrActive) exitVr(reason || 'gameover');
   prepEl.classList.remove('hidden');
   hudEl.classList.add('hidden'); crossEl.classList.add('hidden');
@@ -257,12 +393,20 @@ function exitVr() {
 document.getElementById('start').addEventListener('click', startGame);
 document.addEventListener('visibilitychange', () => { if (document.hidden && running) endRun('hidden'); });
 
-// laser beam flash
-function fireBeam(a) {
-  const p = asteroidPos(a);
-  const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -0.28, -1.2), new THREE.Vector3(p.x, p.y, p.z)]);
-  const beam = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 1 }));
-  scene.add(beam); beams.push({ beam, life: 0.12 });
+// laser beam: glowing cylinder from the real muzzle to the real impact point
+const beamMat = () => new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.95, depthWrite: false });
+const _muzzle = new THREE.Vector3(); const _target = new THREE.Vector3(); const _mid = new THREE.Vector3(); const _dir = new THREE.Vector3();
+function fireBeamTo(x, y, z) {
+  if (muzzleTip) muzzleTip.getWorldPosition(_muzzle); else _muzzle.set(0, -0.3, -1);
+  _target.set(x, y, z);
+  const len = _muzzle.distanceTo(_target);
+  const geo = new THREE.CylinderGeometry(0.045, 0.075, len, 8, 1, true);
+  const mesh = new THREE.Mesh(geo, beamMat());
+  _mid.addVectors(_muzzle, _target).multiplyScalar(0.5);
+  mesh.position.copy(_mid);
+  _dir.subVectors(_target, _muzzle).normalize();
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), _dir);
+  scene.add(mesh); beams.push({ mesh, life: 0.16, max: 0.16 });
   playShot();
 }
 
@@ -300,48 +444,48 @@ function frame() {
 
   if (running) {
     look = currentLook(nowSec);
-    const { state, events } = stepGame(game, dt, look, rng);
-    game = state;
-    for (const ev of events) {
-      if (ev.type === 'shot') { const a = game.asteroids.find((x) => x.id === ev.id); }
-      if (ev.type === 'explosion') playExplosion();
-      if (ev.type === 'hullHit') playExplosion();
-    }
-    // sync meshes
-    const alive = new Set(game.asteroids.map((a) => a.id));
-    for (const id of [...meshes.keys()]) if (!alive.has(id)) removeMesh(id);
-    for (const a of game.asteroids) {
-      const m = meshFor(a); const p = asteroidPos(a);
-      m.group.position.set(p.x, p.y, p.z);
-      m.rock.rotation.set(a.spin, a.spin * 0.7, 0);
-      // dwell ring: in-world ring around the asteroid, closes over 1.5 s
-      const frac = a.dwell / DWELL_SECONDS;
-      m.ring.visible = a.dwell > 0.01;
-      m.ring.material.color.setHSL(0.52 - frac * 0.15, 1, 0.55);
-      m.ring.scale.setScalar(1.6 - frac * 0.55);
-      m.ring.lookAt(camera.getWorldPosition(new THREE.Vector3()));
-      if (frac >= 1) { /* shot handled in sim events next step */ }
-    }
-    // fire beams for shots fired this frame: sim already destroyed targets;
-    // show beam toward any asteroid that just reached full dwell last frame
-    for (const ev of events) if (ev.type === 'shot') {
-      const a = game.asteroids.find((x) => x.id === ev.id) || { yawDeg: ev.yawDeg || look.yawDeg, pitchDeg: ev.pitchDeg || look.pitchDeg, dist: 20 };
-      fireBeam(a);
-    }
-    // turret + camera follow the look (single application point, guide §2)
+    // camera follows the look FIRST (single application point, guide §2),
+    // so muzzle/beam world positions below are correct for this frame
     camera.position.set(0, 0, 0);
     camera.rotation.set(0, 0, 0);
     camera.rotateY((-look.yawDeg * Math.PI) / 180);
     camera.rotateX((look.pitchDeg * Math.PI) / 180);
-    // turret is a camera child: it inherits the look rotation directly
-    document.getElementById('hud-score').textContent = `Счёт: ${game.score}`;
+    camera.updateMatrixWorld();
+    const { state, events } = stepGame(game, dt, look, rng);
+    game = state;
+    for (const ev of events) {
+      if (ev.type === 'explosion') { fireBeamTo(ev.x, ev.y, ev.z); burst(ev.x, ev.y, ev.z, true); playExplosion(); removeMesh(ev.id); }
+      if (ev.type === 'hullHit') { burst(ev.x, ev.y, ev.z, false); hitFlash.intensity = 14; fxStats.hullFlashes += 1; playExplosion(); removeMesh(ev.id); }
+    }
+    // sync meshes
+    const alive = new Set(game.asteroids.map((a) => a.id));
+    for (const id of [...meshes.keys()]) if (!alive.has(id)) removeMesh(id);
+    const camPos = camera.getWorldPosition(new THREE.Vector3());
+    for (const a of game.asteroids) {
+      const m = meshFor(a); const p = asteroidPos(a);
+      m.group.position.set(p.x, p.y, p.z);
+      m.rock.rotation.set(a.spin, a.spin * 0.7, a.spin * 0.3);
+      // proximity warning: the closer the rock, the hotter its rim glow
+      m.rock.material.emissive.setRGB(0.10 + Math.max(0, (16 - a.dist) / 16) * 0.35, 0.04, 0.02);
+      // dwell: faint full ring + bright arc that closes over 1.5 s
+      const frac = a.dwell / DWELL_SECONDS;
+      const targeted = game.gazeTargetId === a.id;
+      m.ring.visible = targeted || a.dwell > 0.01;
+      m.arc.line.visible = a.dwell > 0.01;
+      if (m.arc.line.visible) setArc(m.arc, frac);
+      m.ring.material.color.setHSL(0.52 - frac * 0.38, 1, 0.55); // cyan -> magenta when charged
+      m.arc.line.material.color.copy(m.ring.material.color);
+      m.group.lookAt(camPos);
+      const pulse = targeted ? 1 + Math.sin(nowSec * 10) * 0.03 : 1;
+      m.rock.scale.setScalar(pulse);
+    }
+    document.getElementById('hud-score').textContent = `Счёт: ${game.score}${game.streak >= 2 ? ` · серия ×${game.streak}` : ''}`;
     document.getElementById('hud-hull').textContent = `Корпус: ${game.hull}`;
+    const hullBar = document.getElementById('hull-fill');
+    if (hullBar) { hullBar.style.width = game.hull + '%'; hullBar.style.background = game.hull > 50 ? '#38f5ff' : (game.hull > 25 ? '#ffb02e' : '#ff4444'); }
     if (game.status === 'lost') endRun('lost');
   }
-  for (let i = beams.length - 1; i >= 0; i--) {
-    beams[i].life -= dt; beams[i].beam.material.opacity = Math.max(0, beams[i].life / 0.12);
-    if (beams[i].life <= 0) { scene.remove(beams[i].beam); beams.splice(i, 1); }
-  }
+  updateFx(dt);
   if (vrActive) {
     renderer.setScissorTest(true);
     renderEye(-0.032); renderEye(0.032);
@@ -361,7 +505,7 @@ frame();
 const bridge = {
   ready: true,
   start: async (m) => { if (m) { const el = document.querySelector(`input[name="look"][value="${m}"]`); if (el) el.checked = true; } await startGame(); return bridge.info(); },
-  info: () => ({ mode, quality, vrActive, running, audio: audioInfo(), cam: camInfo(), inVrDomOverlay: vrActive ? document.querySelectorAll('#hud:not(.hidden),#cross:not(.hidden),#prep:not(.hidden)').length : 0 }),
+  info: () => ({ mode, quality, vrActive, running, audio: audioInfo(), cam: camInfo(), fx: { ...fxStats, activeParticles: particles.length, activeBeams: beams.length }, inVrDomOverlay: vrActive ? document.querySelectorAll('#hud:not(.hidden),#cross:not(.hidden),#prep:not(.hidden)').length : 0 }),
   reset: (seed = 1) => { game = createGame(seed); rngState = (seed * 2654435761) >>> 0; for (const id of [...meshes.keys()]) removeMesh(id); return bridge.state(); },
   setLook: (yawDeg, pitchDeg) => { look = { yawDeg, pitchDeg }; flatPointer = { x: yawDeg / 55, y: -pitchDeg / 35 }; return look; },
   // Deterministic step for QA (mirrors the sim used by the render loop)
