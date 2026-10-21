@@ -31,15 +31,15 @@ function canvasTex(size, draw, { repeat = false } = {}) {
 /** Rocky asteroid albedo: mottled regolith, darker crater blotches, warm rim dust. */
 export function makeRockTexture(seed = 7) {
   const r = mulberry(seed);
-  return canvasTex([256, 256], (ctx, w, h) => {
-    ctx.fillStyle = '#ab8c6d'; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2600; i++) {
-      const g = 90 + Math.floor(r() * 90);
-      ctx.fillStyle = `rgba(${g + 30},${g},${Math.floor(g * 0.72)},${0.16 + r() * 0.2})`;
+  return canvasTex([512, 512], (ctx, w, h) => {
+    ctx.fillStyle = '#c2a37c'; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 5200; i++) {
+      const g = 125 + Math.floor(r() * 95);
+      ctx.fillStyle = `rgba(${g + 22},${g + 4},${Math.floor(g * 0.78)},${0.15 + r() * 0.2})`;
       ctx.beginPath(); ctx.arc(r() * w, r() * h, 1 + r() * 5, 0, 7); ctx.fill();
     }
-    for (let i = 0; i < 26; i++) { // craters: dark pit + lit lower rim
-      const x = r() * w, y = r() * h, rad = 5 + r() * 16;
+    for (let i = 0; i < 34; i++) { // craters: dark pit + lit lower rim
+      const x = r() * w, y = r() * h, rad = 8 + r() * 26;
       ctx.fillStyle = 'rgba(38,26,18,0.38)';
       ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
       ctx.strokeStyle = 'rgba(230,200,160,0.35)'; ctx.lineWidth = 2;
@@ -102,17 +102,17 @@ export function makeEarthTexture(seed = 17) {
     const ocean = ctx.createLinearGradient(0, 0, 0, h);
     ocean.addColorStop(0, '#1b4f8a'); ocean.addColorStop(0.5, '#2568ad'); ocean.addColorStop(1, '#173f6e');
     ctx.fillStyle = ocean; ctx.fillRect(0, 0, w, h);
-    for (let c = 0; c < 9; c++) { // continents: clustered blobs
+    for (let c = 0; c < 7; c++) { // continents: clustered blobs
       const cx = r() * w, cy = h * 0.18 + r() * h * 0.64;
       for (let i = 0; i < 42; i++) {
-        const x = cx + (r() - 0.5) * 190, y = cy + (r() - 0.5) * 95, rad = 8 + r() * 30;
+        const x = cx + (r() - 0.5) * 150, y = cy + (r() - 0.5) * 75, rad = 6 + r() * 20;
         ctx.fillStyle = r() > 0.35 ? `rgba(74,138,74,${0.5 + r() * 0.4})` : `rgba(168,140,92,${0.5 + r() * 0.4})`;
         ctx.beginPath(); ctx.arc((x + w) % w, y, rad, 0, 7); ctx.fill();
       }
     }
     ctx.fillStyle = 'rgba(240,248,255,0.9)'; ctx.fillRect(0, 0, w, 14); ctx.fillRect(0, h - 18, w, 18); // polar caps
-    for (let i = 0; i < 240; i++) { // clouds
-      ctx.fillStyle = `rgba(255,255,255,${0.05 + r() * 0.16})`;
+    for (let i = 0; i < 380; i++) { // clouds
+      ctx.fillStyle = `rgba(255,255,255,${0.08 + r() * 0.22})`;
       ctx.beginPath(); ctx.ellipse(r() * w, r() * h, 14 + r() * 46, 3 + r() * 7, (r() - 0.5) * 0.4, 0, 7); ctx.fill();
     }
   });
@@ -133,7 +133,7 @@ export function makeNebulaTexture(seed = 11) {
         const x = fx * w + (r() - 0.5) * rad * 1.4, y = fy * h + (r() - 0.5) * rad * 0.7;
         const rr = 20 + r() * rad * 0.4;
         const g = ctx.createRadialGradient(x, y, 1, x, y, rr);
-        g.addColorStop(0, `rgba(${rgb},${0.03 + r() * 0.05})`); g.addColorStop(1, `rgba(${rgb},0)`);
+        g.addColorStop(0, `rgba(${rgb},${0.06 + r() * 0.09})`); g.addColorStop(1, `rgba(${rgb},0)`);
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.fill();
       }
     }
@@ -247,6 +247,11 @@ export function createEnvironment(scene) {
       belt.setMatrixAt(i, m.compose(pv, q, s));
     }
   }
+  {
+    const col = new THREE.Color(); const cr2 = mulberry(77);
+    for (let i = 0; i < BELT; i++) { col.setHSL(0.08 + cr2() * 0.03, 0.12 + cr2() * 0.18, 0.84 + cr2() * 0.16); belt.setColorAt(i, col); }
+    if (belt.instanceColor) belt.instanceColor.needsUpdate = true;
+  }
   belt.frustumCulled = false; group.add(belt);
 
   // --- orbital station, right side (procedural silhouette with lit windows) ---
@@ -345,8 +350,8 @@ export function createShip() {
   });
   const deck = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.3, 6.2), new THREE.MeshStandardMaterial({ map: deckTex, metalness: 0.6, roughness: 0.5 }));
   deck.position.set(0, -1.3, 0.7); group.add(deck);
-  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 1.9, 3.2, 4, 1), metal);
-  nose.rotation.x = Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.position.set(0, -1.42, -3.4); group.add(nose);
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.8, 2.8, 4, 1), metal);
+  nose.rotation.x = Math.PI / 2; nose.rotation.y = Math.PI / 4; nose.position.set(0, -1.52, -3.2); group.add(nose);
 
   // cockpit frame: angled white struts with neon inlays (reference framing)
   const white = new THREE.MeshStandardMaterial({ color: 0xe9eff7, metalness: 0.3, roughness: 0.3, emissive: 0x2a3648, emissiveIntensity: 0.35 });
@@ -372,9 +377,9 @@ export function createShip() {
     ctx.font = '700 17px system-ui'; ctx.fillStyle = '#9fefff'; ctx.fillText('РАДАР', 118, 34);
   });
   const console_ = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.3, 0.55), dark);
-  console_.position.set(0, -1.08, -1.02); console_.rotation.x = -0.4; group.add(console_);
+  console_.position.set(-0.98, -1.1, -0.88); console_.rotation.x = -0.4; group.add(console_);
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.55), new THREE.MeshBasicMaterial({ map: dashTex }));
-  screen.position.set(0, -1.13, -0.52); screen.rotation.x = -1.02; group.add(screen);
+  screen.position.set(-0.98, -0.94, -0.92); screen.rotation.x = -1.02; screen.rotation.z = 0.08; group.add(screen);
 
   // turret pedestal, rotating head, twin barrels
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.78, 0.38, 24), metal); base.position.y = -0.58; group.add(base);

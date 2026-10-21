@@ -1,5 +1,5 @@
 {
-  "when": "2026-10-21T23:10:57.176Z",
+  "when": "2026-10-21T23:15:42.078Z",
   "base": "http://127.0.0.1:8899/games/asteroid-turret-vr/play/index.html",
   "passed": 13,
   "total": 13,
@@ -37,12 +37,12 @@
     {
       "name": "V3 beam fired (core+sheath pooled)",
       "ok": true,
-      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":13,\"activeBeams\":0,\"activeWaves\":0}"
+      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":0,\"activeBeams\":0,\"activeWaves\":0}"
     },
     {
       "name": "V3 FX info exposes particles/waves",
       "ok": true,
-      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":13,\"activeBeams\":0,\"activeWaves\":0}"
+      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":0,\"activeBeams\":0,\"activeWaves\":0}"
     },
     {
       "name": "lose path reachable (hull 0)",
@@ -52,7 +52,7 @@
     {
       "name": "gyro VR starts (synthetic)",
       "ok": true,
-      "detail": "{\"mode\":\"gyro\",\"quality\":\"high\",\"vrActive\":true,\"running\":true,\"audio\":{\"available\":true,\"state\":\"running\"},\"cam\":{\"active\":false,\"workerActive\":false,\"procMs\":null,\"width\":160,\"busy\":false},\"fx\":{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":10,\"activeBeams\":0,\"activeWaves\":0},\"inVrDomOverlay\":0}"
+      "detail": "{\"mode\":\"gyro\",\"quality\":\"high\",\"vrActive\":true,\"running\":true,\"audio\":{\"available\":true,\"state\":\"running\"},\"cam\":{\"active\":false,\"workerActive\":false,\"procMs\":null,\"width\":160,\"busy\":false},\"fx\":{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":0,\"activeBeams\":0,\"activeWaves\":0},\"inVrDomOverlay\":0}"
     },
     {
       "name": "zero HUD inside VR (no overlay nodes)",

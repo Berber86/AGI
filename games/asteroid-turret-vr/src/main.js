@@ -38,7 +38,7 @@ function rng() { rngState = (Math.imul(rngState, 1664525) + 1013904223) >>> 0; r
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
+renderer.toneMappingExposure = 1.24;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x04060f);
@@ -50,7 +50,7 @@ scene.add(camera);
 camera.add(ship.group);
 const fx = new FxSystem(scene);
 
-scene.add(new THREE.HemisphereLight(0xbdd4ff, 0x1a0f2e, 0.85));
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a1c30, 1.25));
 const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); scene.add(sun); // warm key from the sun side
 const rim = new THREE.DirectionalLight(0xff3df0, 0.55); rim.position.set(-6, -2, 6); scene.add(rim);
 const fill = new THREE.DirectionalLight(0x8fb4ff, 0.55); fill.position.set(6, 3, 12); scene.add(fill); // camera-side fill so rocks read

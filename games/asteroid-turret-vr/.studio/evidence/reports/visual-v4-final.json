@@ -1,0 +1,21 @@
+{
+  "gate": "visual-v4-final",
+  "iterationsTotal": 6,
+  "pushes": [
+    "after iter3: e182096",
+    "after iter6: this commit"
+  ],
+  "finalReview": "Dense belt + station + Earth horizon + golden sun + white/blue cockpit with radar screen; dwell arc on target; warm-cloud wedge found in iter6 and removed",
+  "qa": [
+    "unit 16/16",
+    "e2e 13/13",
+    "root 20 OK"
+  ],
+  "screenshots": [
+    "evidence/screenshots/v4-front.png",
+    "evidence/screenshots/v4-dwell.png"
+  ],
+  "size": "play/ 599718 bytes",
+  "deviceTested": false,
+  "honestGap": "Still real-time procedural three.js, not offline-rendered concept art: rocks/ship are stylized low-poly rather than photoreal; device FPS not measured."
+}

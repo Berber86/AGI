@@ -3,8 +3,8 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "V4 iters 1-3 done (environment/cockpit/asteroids), pushing; iters 4-6 next",
-  "nextAction": "Physical Android check (FPS with new visuals, gyro sign, live camera) if requested",
+  "lastAction": "V4 done: 6 reference-matching iterations, pushes after iter3 (e182096) and iter6; unit 16/16, E2E 13/13, root 20/20",
+  "nextAction": "Physical Android check if requested; further visual iterations on request",
   "blockers": [],
   "sessionBenchmark": {
     "runId": "20261021T170038Z-f8761c",
@@ -12,6 +12,6 @@
     "score": 95
   },
   "createdAt": "2026-10-21T17:05:00Z",
-  "updatedAt": "2026-10-21T19:40:00Z",
-  "latestHandoff": ".studio/handoffs/2026-10-21-visual-v3.md"
+  "updatedAt": "2026-10-21T20:15:00Z",
+  "latestHandoff": ".studio/handoffs/2026-10-21-visual-v4.md"
 }
