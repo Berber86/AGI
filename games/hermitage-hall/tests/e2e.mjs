@@ -25,14 +25,32 @@ try {
   check('страница готова без ошибок консоли', errors.length === 0, errors.slice(0, 3).join(' | '));
   check('сцена: есть отрисовка и прогрев шейдеров', info0.stereoReady === true, JSON.stringify({ calls: info0.drawCalls }));
   check('в зале 9 точек и 8 произведений', await page.evaluate(() => window.__HERMITAGE__.points().length === 9 && window.__HERMITAGE__.exhibits().length === 8));
+  const lights = await page.evaluate(() => window.__HERMITAGE__.lights());
+  check('источников света не больше девяти', lights <= 9, `${lights} источников`);
 
-  // 2. Все шесть полотен реально загрузились (не заглушка)
-  const paintings = await page.evaluate(() => {
+  // 2. В зале живут только миниатюры: полотна не грузятся в полном разрешении постоянно.
+  const textures = await page.evaluate(() => {
     const api = window.__HERMITAGE__;
-    return api.artworks().map((a) => ({ id: a.id, dbg: api.debugCanvas(a.id) }));
+    return { list: api.textures(), detail: api.detailInfo() };
   });
-  const loaded = paintings.filter((p) => p.dbg && p.dbg.hasMap && p.dbg.imageSize && p.dbg.imageSize[0] >= 1200);
-  check('шесть полотен в высоком разрешении на месте', loaded.length === 6, loaded.map((p) => `${p.id}:${p.dbg.imageSize}`).join(', '));
+  const based = textures.list.filter((p) => p.base);
+  const biggestBase = Math.max(...based.map((p) => Math.max(...p.base)));
+  check('в зале шесть миниатюр, полного разрешения нет', based.length === 6
+    && textures.list.every((p) => p.detail === null) && biggestBase <= 720,
+  `${based.length} миниатюр, максимум ${biggestBase} px, деталей ${textures.detail.resident.length}`);
+
+  // 3. Файлы высокого разрешения лежат рядом и подгружаются к точке
+  const detail = await page.evaluate(async () => {
+    const api = window.__HERMITAGE__;
+    const res = await api.detail('rembrandt');
+    const canvas = api.debugCanvas('rembrandt');
+    const tex = api.textures().find((p) => p.id === 'rembrandt');
+    return { res, tex, hasMap: canvas.hasMap, isCanvas: canvas.imageIsCanvas };
+  });
+  check('деталь полотна подгружается по требованию', detail.res && detail.tex.detail
+    && Math.max(...detail.tex.detail) >= 1200 && Math.min(...detail.tex.detail) <= 2048,
+  JSON.stringify(detail.tex.detail));
+  check('деталь лежит вверх ногами? нет', detail.isCanvas === true, `imageIsCanvas=${detail.isCanvas}`);
 
   // 3. Вход в зал
   await page.evaluate(() => window.__HERMITAGE__.enter());
@@ -179,7 +197,7 @@ try {
     return { low: low.quality, high: high.quality, calls: high.drawCalls };
   });
   check('качество переключается вручную', quality.low === 'low' && quality.high === 'high', JSON.stringify(quality));
-  check('draw calls в разумном бюджете', quality.calls < 160, `${quality.calls} вызовов`);
+  check('draw calls в разумном бюджете', quality.calls < 90, `${quality.calls} вызовов`);
 
   // 13. Кадр в разумном бюджете времени на SwiftShader
   const timing = await page.evaluate(async () => {

@@ -8,7 +8,8 @@
       "dependencies": [],
       "acceptanceCriteria": [
         "В зале нет тёмных провалов и z-fighting",
-        "Свет проходит через окна"
+        "Свет проходит через окна",
+        "Источников света не больше девяти, draw calls в общем плане < 90"
       ],
       "evidence": [
         ".studio/evidence/screenshots/p1.jpg"
@@ -23,8 +24,8 @@
         "CORE-001"
       ],
       "acceptanceCriteria": [
-        "Все шесть картин ≥1200 px по длинной стороне",
-        "У каждой рамы есть табличка и подсветка"
+        "Миниатюры 720 px в зале, деталь ≥1200 px подгружается к точке",
+        "В видеопамяти не больше двух крупных текстур"
       ],
       "evidence": [
         ".studio/evidence/reports/e2e.json"
@@ -72,7 +73,8 @@
       ],
       "acceptanceCriteria": [
         "Оба глаза рисуют картинку на весь экран",
-        "В VR в DOM нет HUD"
+        "В VR в DOM нет HUD",
+        "В VR потолок DPR 0.95 и адаптивный масштаб до 0.5"
       ],
       "evidence": [
         ".studio/evidence/screenshots/vr-stereo.jpg"
@@ -91,7 +93,7 @@
       ],
       "acceptanceCriteria": [
         "19 юнит-тестов проходят",
-        "E2E 26/26 без ошибок консоли"
+        "E2E 29/29 без ошибок консоли"
       ],
       "evidence": [
         ".studio/evidence/reports/e2e.json"

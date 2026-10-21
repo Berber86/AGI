@@ -144,6 +144,16 @@ export function createMarkers(scene) {
   scene.add(group);
 
   let time = 0;
+  let simple = false;
+
+  function setSimple(flag) {
+    simple = Boolean(flag);
+    for (const m of markers) {
+      // Столб света и ореол — украшение; на лёгкой графике их нет.
+      m.holder.children[2].visible = !simple && m.columnMat.opacity > 0.02;
+      m.holder.children[3].visible = !simple;
+    }
+  }
 
   function update(dt, { currentPointId, targetId, progress, visible }) {
     time += dt;
@@ -158,12 +168,13 @@ export function createMarkers(scene) {
       m.ringMat.uniforms.uActive.value += (active - m.ringMat.uniforms.uActive.value) * Math.min(1, dt * 8);
       m.discMat.opacity = 0.62 + 0.3 * (isTarget ? 1 : 0);
       m.columnMat.opacity += ((isTarget ? 0.4 : 0.0) - m.columnMat.opacity) * Math.min(1, dt * 6);
-      m.holder.children[2].visible = m.columnMat.opacity > 0.02;
+      m.holder.children[2].visible = !simple && m.columnMat.opacity > 0.02;
+      m.holder.children[3].visible = !simple;
       m.haloMat.opacity += ((isTarget ? 0.8 : 0.3) - m.haloMat.opacity) * Math.min(1, dt * 8);
       const scale = isTarget ? 0.72 : 0.6;
       m.holder.children[3].scale.lerp(new THREE.Vector3(scale, scale, scale), Math.min(1, dt * 8));
     }
   }
 
-  return { group, markers, update };
+  return { group, markers, update, setSimple };
 }

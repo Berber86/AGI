@@ -6,12 +6,13 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALL, WALL, LIGHT } from './config.js';
 import {
   parquetTexture, silkTexture, marbleTexture, malachiteTexture, plafondTexture,
-  rugTexture, windowViewTexture, doorTexture, grainTexture, mirrorTexture,
+  rugTexture, windowViewTexture, doorTexture, grainTexture, mirrorTexture, setTextureScale,
 } from './textures.js';
 
 const GOLD = 0xc8a45c;
 
 export function createMaterials(quality = 'high') {
+  setTextureScale(quality === 'high' ? 1 : 0.55);
   const parquet = parquetTexture();
   parquet.repeat.set(1, 1);
   const silk = silkTexture();
@@ -281,6 +282,25 @@ function buildFireplace(kit, materials) {
   kit.box(0.04, 1.44, 0.42, soot, [0.97, 0.72, z + 0.27]);
   kit.box(1.98, 0.04, 0.42, soot, [0, 1.43, z + 0.27]);
   kit.box(1.98, 0.04, 0.42, soot, [0, 0.02, z + 0.27]);
+  // тёплое зарево в топке: аддитивная плоскость вместо ещё одного источника света
+  if (!materials.fireGlow) {
+    const glowCanvas = document.createElement('canvas');
+    glowCanvas.width = 128;
+    glowCanvas.height = 64;
+    const gctx = glowCanvas.getContext('2d');
+    const grad = gctx.createRadialGradient(64, 52, 2, 64, 52, 62);
+    grad.addColorStop(0, 'rgba(255, 176, 96, 0.85)');
+    grad.addColorStop(0.45, 'rgba(255, 120, 42, 0.32)');
+    grad.addColorStop(1, 'rgba(255, 90, 20, 0)');
+    gctx.fillStyle = grad;
+    gctx.fillRect(0, 0, 128, 64);
+    const tex = new THREE.CanvasTexture(glowCanvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    materials.fireGlow = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+    });
+  }
+  kit.add(new THREE.PlaneGeometry(1.2, 0.5), materials.fireGlow, { position: [0, 0.34, z + 0.42], uvScale: [1, 1] });
   // под зола и угли
   kit.box(1.5, 0.06, 0.16, new THREE.MeshStandardMaterial({ color: 0x241812, roughness: 1 }), [0, 0.16, z + 0.32]);
   kit.box(1.24, 0.03, 0.13, materials.ember, [0, 0.2, z + 0.33]);
@@ -507,10 +527,8 @@ export function createLights(scene) {
     lights.add(p);
   }
 
-  // Тёплый отсвет камина.
-  const hearth = new THREE.PointLight(0xff8a3c, 3.0, 6.5, 2);
-  hearth.position.set(0, 1.0, WALL.zNorth + 1.0);
-  lights.add(hearth);
+  // Отсвет камина больше не отдельный источник: угли светятся сами, а каждый
+  // лишний PointLight — это ещё один цикл освещения в шейдере каждого фрагмента.
 
   // Мягкая подсветка стен с живописью (без теней).
   const spots = [

@@ -14,15 +14,22 @@ export function mulberry32(seed) {
   };
 }
 
+// Плотность процедурных текстур: на лёгкой графике рисуем вдвое мельче.
+let textureScale = 1;
+
+export function setTextureScale(scale) {
+  textureScale = Math.max(0.35, Math.min(1, scale || 1));
+}
+
 function canvas2d(w, h) {
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
+  canvas.width = Math.max(64, Math.round(w * textureScale));
+  canvas.height = Math.max(64, Math.round(h * textureScale));
   const ctx = canvas.getContext('2d');
   return { canvas, ctx };
 }
 
-function finish(canvas, { repeat = [1, 1], srgb = true, anisotropy = 8 } = {}) {
+function finish(canvas, { repeat = [1, 1], srgb = true, anisotropy = 4 } = {}) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
@@ -436,6 +443,23 @@ export function doorTexture(seed = 71) {
 }
 
 /** Табличка под картиной: латунь, гравировка. */
+/** Тёплое пятно света вокруг рамы: заменяет прожектор над полотном. */
+export function lightPoolTexture() {
+  const size = 256;
+  const { canvas, ctx } = canvas2d(size, size);
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(255, 238, 206, 0.9)');
+  gradient.addColorStop(0.42, 'rgba(255, 222, 176, 0.34)');
+  gradient.addColorStop(0.75, 'rgba(255, 214, 164, 0.09)');
+  gradient.addColorStop(1, 'rgba(255, 210, 160, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = finish(canvas, { anisotropy: 1 });
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  return texture;
+}
+
 export function plaqueTexture(lines, { width = 1024, height = 512, align = 'center' } = {}) {
   const { canvas, ctx } = canvas2d(width, height);
   const bg = ctx.createLinearGradient(0, 0, width, height);

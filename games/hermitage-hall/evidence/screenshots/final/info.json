@@ -1,7 +1,7 @@
 {
   "info": {
     "mode": "vr",
-    "quality": "high",
+    "quality": "low",
     "pointId": "p3",
     "position": [
       0.4,
@@ -13,12 +13,26 @@
     "source": "touch",
     "gyro": "requested",
     "fps": 0,
-    "frames": 26,
+    "frames": 36,
     "stereoReady": true,
-    "drawCalls": 42,
-    "triangles": 17670,
-    "meshes": 20,
-    "travel": null
+    "drawCalls": 33,
+    "triangles": 18400,
+    "meshes": 21,
+    "travel": null,
+    "dpr": 0.95,
+    "renderScale": 1,
+    "detail": {
+      "maxWidth": 1024,
+      "maxResident": 2,
+      "current": "aivazovsky",
+      "resident": [
+        {
+          "id": "aivazovsky",
+          "width": 1024,
+          "height": 677
+        }
+      ]
+    }
   },
   "errors": []
 }

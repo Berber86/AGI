@@ -6,7 +6,10 @@ import {
   pointById, pointPose, EXHIBITS, lookAngles,
 } from './config.js';
 import { createMaterials, buildWorld, createLights } from './world.js';
-import { loadPaintings, loadSculptures } from './artworks.js';
+import {
+  loadPaintings, loadSculptures, createArtworkDetails, featuredArtwork, mergePaintingStatics,
+  setPaintingEffects,
+} from './artworks.js';
 import { createMarkers } from './markers.js';
 import { createGaze, forwardFromAngles, ringFraction, markerDirection, MARKER_EYE_HEIGHT } from './gaze.js';
 import { createTravel } from './travel.js';
@@ -36,6 +39,7 @@ let rig = null;
 let look = null;
 let gaze = null;
 let markers = null;
+let details = null;
 let showMarkers = true;
 let ui = null;
 let hoverMeshes = [];
@@ -44,6 +48,8 @@ let dust = null;
 let travelClock = 0;
 let hoverClock = 0;
 let stereoReady = false;
+let renderScale = 1;
+let lastTune = 0;
 let lastGaze = null;
 let lastArrival = null;
 let lastTargetId = null;
@@ -146,7 +152,8 @@ async function boot() {
 
   renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: window.devicePixelRatio < 2,
+    // MSAA дорог на мобильном GPU и при адаптивном разрешении почти не виден.
+    antialias: !isHandheld() && window.devicePixelRatio < 2,
     powerPreference: 'high-performance',
     alpha: false,
     stencil: false,
@@ -155,7 +162,7 @@ async function boot() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.16;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.setClearColor(0x0a1511, 1);
   resize();
 
@@ -182,6 +189,9 @@ async function boot() {
     onRecenter: () => recenter(),
     onQuality: (quality) => applyQuality(quality),
   });
+  // На телефоне по умолчанию лёгкая графика: тени выключены, DPR ограничен.
+  // Пользователь может вернуть высокую в настройках — выбор запоминается.
+  state.quality = isHandheld() ? 'low' : 'high';
   ui.setQualityLabel(state.quality);
   const saved = readQuality();
   if (saved && saved !== state.quality) applyQuality(saved);
@@ -194,16 +204,23 @@ async function boot() {
   createLights(scene);
   buildDust(scene);
   markers = createMarkers(scene);
+  markers.setSimple(state.quality !== 'high');
 
-  ui.setLoading(0.28, 'Развешиваем полотна в высоком разрешении…');
+  ui.setLoading(0.28, 'Развешиваем полотна…');
   const paintings = await loadPaintings(scene, materials, state.quality, (p) => {
-    ui.setLoading(0.28 + p * 0.5, p < 1 ? `Загружаем полотна: ${Math.round(p * 100)} %` : 'Последние штрихи…');
+    ui.setLoading(0.28 + p * 0.5, p < 1 ? `Вешаем полотна: ${Math.round(p * 100)} %` : 'Последние штрихи…');
   });
   for (const painting of paintings) {
     painting.canvas.userData.exhibitId = painting.art.id;
     painting.anchor.userData.exhibitId = painting.art.id;
     hoverMeshes.push(painting.canvas, painting.anchor);
   }
+
+  // Сливаем рамы, подсветку и пятна света шести полотен в общие сетки.
+  mergePaintingStatics(scene, paintings);
+
+  // Постоянно в зале живут только миниатюры; крупные текстуры подгружаются к точке.
+  details = createArtworkDetails(paintings, { maxWidth: detailMaxWidth(), maxResident: 2 });
 
   ui.setLoading(0.82, 'Ставим скульптуры на плинты…');
   const sculptures = await loadSculptures(scene, materials);
@@ -247,6 +264,74 @@ async function boot() {
   requestAnimationFrame(frame);
 }
 
+function isHandheld() {
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+  const touch = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+  return touch && Math.min(window.innerWidth, window.innerHeight) < 820;
+}
+
+function detailMaxWidth() {
+  if (state.quality === 'low') return 1024;
+  return isHandheld() ? 1280 : 2048;
+}
+
+function dprCap() {
+  const dpr = window.devicePixelRatio || 1;
+  return state.quality === 'low' ? Math.min(dpr, 1) : Math.min(dpr, 1.5);
+}
+
+function targetDpr() {
+  const cap = dprCap();
+  // В стереопаре два глаза делят один экран: пикселей вдвое больше, поэтому
+  // потолок ниже, а запас адаптивного разрешения — глубже.
+  const limit = state.mode === 'vr' ? Math.min(cap, 0.95) : cap;
+  const floor = state.mode === 'vr' ? 0.5 : 0.62;
+  return Math.max(floor, Math.min(limit, cap * renderScale));
+}
+
+function applyRenderScale() {
+  if (!renderer) return;
+  const dpr = targetDpr();
+  const size = renderer.getSize(new THREE.Vector2());
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  if (Math.abs(renderer.getPixelRatio() - dpr) < 0.01 && size.x === width && size.y === height) return;
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(width, height, false);
+}
+
+let slowWindows = 0;
+
+function tuneResolution(fps, now) {
+  // В headless-браузере FPS ничего не значит: не портим кадры тестов адаптивом.
+  if (navigator.webdriver) return;
+  if (state.mode !== 'explore' && state.mode !== 'vr') return;
+  if (now - lastTune < 2000) return;
+  lastTune = now;
+
+  const floor = state.mode === 'vr' ? 0.5 : 0.62;
+  if (fps < 45 && renderScale > floor) {
+    renderScale = Math.max(floor, renderScale - 0.15);
+    applyRenderScale();
+    slowWindows += 1;
+  } else if (fps > 58 && renderScale < 1) {
+    renderScale = Math.min(1, renderScale + 0.06);
+    applyRenderScale();
+    slowWindows = 0;
+  } else if (fps >= 45) {
+    slowWindows = 0;
+  }
+
+  // Совсем тяжёлый случай: даже минимальное разрешение не даёт 26 кадров —
+  // убираем тени и лишние эффекты совсем (один раз, без «мигания»).
+  if (state.quality === 'high' && slowWindows >= 3 && fps < 26) {
+    slowWindows = 0;
+    applyQuality('low');
+    ui.toast('Графика переключена на лёгкую: так плавнее', 3200);
+  }
+}
+
 function readQuality() {
   try {
     return window.localStorage.getItem('hermitage-quality');
@@ -281,32 +366,51 @@ async function warmUp() {
 }
 
 function applyQuality(quality) {
+  const previous = state.quality;
   state.quality = quality;
   ui.setQualityLabel(quality);
   try {
     window.localStorage.setItem('hermitage-quality', quality);
   } catch { /* приватный режим */ }
   if (!renderer) return;
-  const dpr = quality === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : Math.min(window.devicePixelRatio || 1, 1.25);
-  renderer.setPixelRatio(dpr);
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
+
+  renderScale = 1;
+  applyRenderScale();
+
+  const shadowsChanged = (quality === 'high') !== (previous === 'high');
   renderer.shadowMap.enabled = quality === 'high';
+  setPaintingEffects(quality === 'high');
+  if (markers) markers.setSimple(quality !== 'high');
   renderer.toneMappingExposure = quality === 'high' ? 1.16 : 1.22;
-  scene.traverse((obj) => {
-    if (obj.isMesh) {
-      if (obj.material) obj.material.needsUpdate = true;
-    }
-  });
-  if (quality === 'high') renderer.shadowMap.needsUpdate = true;
+  if (!scene) return;
+
+  if (shadowsChanged) {
+    // Тени — отдельная пермутация шейдера: пересобираем программы один раз и
+    // прогреваем их, чтобы переключение не превратилось в фриз посреди зала.
+    scene.traverse((obj) => {
+      if (obj.isMesh && obj.material) obj.material.needsUpdate = true;
+    });
+    if (quality === 'high') renderer.shadowMap.needsUpdate = true;
+    warmPrograms();
+  }
+  if (details) details.setMaxWidth(detailMaxWidth());
+}
+
+function warmPrograms() {
+  const size = renderer.getSize(new THREE.Vector2());
+  const dpr = renderer.getPixelRatio();
+  renderer.setPixelRatio(1);
+  renderer.setSize(160, 90, false);
+  renderMono(renderer, scene, rig.mono);
+  renderStereo(renderer, scene, rig, { quality: state.quality });
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(size.x, size.y, false);
+  renderer.shadowMap.needsUpdate = true;
 }
 
 function resize() {
   if (!renderer) return;
-  const dpr = state.quality === 'high'
-    ? Math.min(window.devicePixelRatio || 1, 2)
-    : Math.min(window.devicePixelRatio || 1, 1.25);
-  renderer.setPixelRatio(dpr);
-  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  applyRenderScale();
 }
 
 function placeAtPoint(point, pose) {
@@ -316,6 +420,10 @@ function placeAtPoint(point, pose) {
   state.currentPointId = point.id;
   look.recenter(pose.yaw, pose.pitch);
   ui.setPointName(point);
+  if (details) {
+    const art = featuredArtwork(point);
+    details.show(art ? art.id : null);
+  }
 }
 
 function enterExplore() {
@@ -343,6 +451,8 @@ async function enterVR() {
   ui.showHUD(false);
   document.body.classList.add('vr');
   state.mode = 'vr';
+  renderScale = 1;
+  applyRenderScale();
 
   try {
     if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
@@ -370,6 +480,8 @@ async function enterVR() {
 }
 
 function exitVR() {
+  renderScale = 1;
+  applyRenderScale();
   if (state.mode !== 'vr') return;
   document.body.classList.remove('vr');
   state.mode = 'explore';
@@ -459,6 +571,8 @@ function updateHover(dt) {
     if (exhibit && (!state.hover || state.hover.id !== id)) {
       state.hover = exhibit;
       ui.setInfo(exhibit, true);
+      // Смотрим на полотно вблизи — подтягиваем крупную текстуру только этой картины.
+      if (details && exhibit.kind === 'painting' && hit.distance < 6.5) details.preload(exhibit.id);
     }
   } else if (state.hover) {
     state.hover = null;
@@ -516,6 +630,11 @@ function advance(dt) {
       });
       if (snapshot.targetId && snapshot.targetId !== lastTargetId) {
         ui.toast(`Держите взгляд: ${targetPoint ? targetPoint.name : 'точка'} · 10 секунд`, 2400);
+        // Пока кольцо заполняется, успеваем скачать крупную текстуру той картины.
+        if (details && targetPoint) {
+          const art = featuredArtwork(targetPoint);
+          if (art) details.preload(art.id);
+        }
       }
     } else {
       ui.setDwell({ active: false, progress: 0 });
@@ -540,17 +659,27 @@ function renderFrame() {
   state.frames += 1;
 }
 
+let lastStartRender = 0;
+
 function frame(now) {
   if (state.paused) {
     state.lastFrame = now;
     requestAnimationFrame(frame);
     return;
   }
+  // За стартовым экраном сцена не нуждается в 60 кадрах: экономим батарею и нагрев.
+  if (state.mode === 'start' && now - lastStartRender < 70) {
+    state.lastFrame = now;
+    requestAnimationFrame(frame);
+    return;
+  }
+  if (state.mode === 'start') lastStartRender = now;
   const dt = Math.min(0.05, (now - state.lastFrame) / 1000 || 0.016);
   state.lastFrame = now;
   state.fpsWindow += dt;
   if (state.fpsWindow > 1.5) {
     state.fps = Math.round(state.frames / state.fpsWindow);
+    tuneResolution(state.fps, now);
     state.frames = 0;
     state.fpsWindow = 0;
   }
@@ -680,6 +809,9 @@ function exposeAPI(extra) {
       triangles: renderer.info.render.triangles,
       meshes: extra.meshes,
       travel: state.travel ? state.travel.id : null,
+      dpr: renderer.getPixelRatio(),
+      renderScale,
+      detail: details ? details.info() : null,
     }),
     dwell: () => {
       const snap = lastGaze || gaze.snapshot();
@@ -729,6 +861,19 @@ function exposeAPI(extra) {
     clearTravel: () => { state.travel = null; ui.fadeTo(0); },
     setQuality: (q) => { applyQuality(q); return state.quality; },
     sceneInfo: () => ({ children: scene.children.length, hall: extra.meshes }),
+    detail: (id) => (details ? details.show(id) : null),
+    detailInfo: () => (details ? details.info() : null),
+    textures: () => extra.paintings.map((p) => ({
+      id: p.art.id,
+      base: p.baseTexture ? [p.baseTexture.image.width, p.baseTexture.image.height] : null,
+      detail: p.detailTexture ? [p.detailTexture.image.width, p.detailTexture.image.height] : null,
+    })),
+    resolution: () => ({ dpr: renderer.getPixelRatio(), scale: renderScale, cap: dprCap() }),
+    lights: () => {
+      let count = 0;
+      scene.traverse((obj) => { if (obj.isLight) count += 1; });
+      return count;
+    },
     debugCanvas: (id) => {
       const painting = extra.paintings.find((p) => p.art.id === id);
       if (!painting) return null;
@@ -737,6 +882,7 @@ function exposeAPI(extra) {
         hasMap: Boolean(mat.map),
         mapColor: mat.map && mat.map.colorSpace,
         imageSize: mat.map && mat.map.image ? [mat.map.image.width, mat.map.image.height] : null,
+        imageIsCanvas: Boolean(mat.map && (mat.map.image instanceof HTMLCanvasElement)),
         visible: painting.canvas.visible,
         worldPos: painting.canvas.getWorldPosition(new THREE.Vector3()).toArray(),
         scale: painting.canvas.getWorldScale(new THREE.Vector3()).toArray(),
