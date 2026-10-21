@@ -25,6 +25,8 @@ export function createUI(handlers = {}) {
     infoNote: $('info-note'),
     debugTravel: $('debug-travel'),
     pointName: $('point-name'),
+    back: $('btn-back'),
+    recenter: $('btn-recenter'),
     vrSetup: $('vr-setup'),
     settings: $('settings'),
     collection: $('collection'),
@@ -62,6 +64,16 @@ export function createUI(handlers = {}) {
     if (!point) return;
     const index = POINTS.findIndex((p) => p.id === point.id) + 1;
     el.pointName.textContent = `Точка ${index} · ${point.name}`;
+  }
+
+  // Близкий осмотр: внизу вместо «Вернуть взгляд» — «Отойти», в углу — название холста.
+  function setCloseUp(active, title = '') {
+    document.body.classList.toggle('studying', Boolean(active));
+    if (el.back) el.back.hidden = !active;
+    if (el.recenter) el.recenter.hidden = Boolean(active);
+    if (el.pointName && active) {
+      el.pointName.textContent = `Близкий осмотр · ${title}`;
+    }
   }
 
   function setDwell({ active, progress = 0, point = null }) {
@@ -185,6 +197,7 @@ export function createUI(handlers = {}) {
     $('btn-settings').addEventListener('click', () => openPanel('settings'));
     $('btn-collection').addEventListener('click', () => openPanel('collection'));
     $('btn-recenter').addEventListener('click', () => handlers.onRecenter && handlers.onRecenter());
+    $('btn-back').addEventListener('click', () => handlers.onBack && handlers.onBack());
     document.querySelectorAll('[data-close]').forEach((btn) => {
       btn.addEventListener('click', () => closePanels());
     });
@@ -211,6 +224,7 @@ export function createUI(handlers = {}) {
     showStart,
     showHUD,
     setPointName,
+    setCloseUp,
     setDwell,
     setInfo,
     setQualityLabel,

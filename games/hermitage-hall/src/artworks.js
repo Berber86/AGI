@@ -10,6 +10,7 @@ const loader = new THREE.TextureLoader();
 let poolTexture = null;
 let tubeMaterial = null;
 let poolMaterial = null;
+let glowTexture = null;
 
 /** Картина, к которой ведёт точка: ближайшее полотно к её якорю. */
 export function featuredArtwork(point) {
@@ -335,6 +336,22 @@ export function buildPainting(art, materials, quality) {
   pool.renderOrder = 1;
   group.add(pool);
 
+  // Тихий индикатор для очков: пока взгляд держится на холсте, он мягко светлеет.
+  // В обычном режиме прогресс показывает кольцо в центре экрана, поэтому здесь
+  // свечение выключено — включаем только в стереопаре.
+  if (!glowTexture) glowTexture = lightPoolTexture();
+  const glow = new THREE.Mesh(
+    new THREE.PlaneGeometry(w * 1.35, h * 1.28),
+    new THREE.MeshBasicMaterial({
+      map: glowTexture, transparent: true, opacity: 0, depthWrite: false,
+      blending: THREE.AdditiveBlending, toneMapped: false,
+    }),
+  );
+  glow.position.set(0, 0, 0.072);
+  glow.visible = false;
+  glow.renderOrder = 2;
+  group.add(glow);
+
   // Табличка
   const plaqueLines = [art.title, art.author, `${art.year} · ${art.technique.split('.')[0]}`];
   const plaqueTex = plaqueTexture(plaqueLines, { width: 1024, height: 512 });
@@ -351,7 +368,7 @@ export function buildPainting(art, materials, quality) {
   anchor.position.set(x + facing[0] * 0.4, y, z + facing[2] * 0.4);
   group.add(anchor);
 
-  return { group, canvas, canvasMat, anchor, plaque };
+  return { group, canvas, canvasMat, anchor, plaque, glow };
 }
 
 /**
@@ -375,7 +392,7 @@ export function mergePaintingStatics(scene, paintings) {
     const removable = [];
     for (const child of painting.group.children) {
       if (!child.isMesh) continue;
-      if (child === painting.canvas || child === painting.plaque) continue;
+      if (child === painting.canvas || child === painting.plaque || child === painting.glow) continue;
       const material = child.material;
       if (!material) continue;
       const geo = child.geometry.clone();

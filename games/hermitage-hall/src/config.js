@@ -234,6 +234,11 @@ export const DWELL_SECONDS = 10;
 export const DWELL_ANGLE_DEG = 6.0;
 export const DWELL_GRACE = 0.45;
 
+// Взгляд на само полотно: через десять секунд камера подходит вплотную.
+export const STUDY_SECONDS = 10;
+export const STUDY_LEAVE_ANGLE_DEG = 26;
+export const STUDY_LEAVE_SECONDS = 1.1;
+
 export function pointById(id) {
   return POINTS.find((p) => p.id === id) || null;
 }

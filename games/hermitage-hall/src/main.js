@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import {
   HALL, POINTS, ARTWORKS, SCULPTURES, START_POINT, DWELL_SECONDS, DWELL_ANGLE_DEG, DWELL_GRACE,
-  pointById, pointPose, EXHIBITS, lookAngles,
+  STUDY_SECONDS, STUDY_LEAVE_ANGLE_DEG, STUDY_LEAVE_SECONDS,
+  pointById, pointPose, artworkById, EXHIBITS, lookAngles,
 } from './config.js';
 import { createMaterials, buildWorld, createLights } from './world.js';
 import {
@@ -14,7 +15,10 @@ import { createMarkers } from './markers.js';
 import { createGaze, forwardFromAngles, ringFraction, markerDirection, MARKER_EYE_HEIGHT } from './gaze.js';
 import { createTravel } from './travel.js';
 import {
-  createLookController, createStereoRig, applyRigPose, renderStereo, renderMono, clampPitch,
+  closeUpPose, paintingCoverage, createStudyDwell, CLOSE_FOV, NORMAL_FOV,
+} from './study.js';
+import {
+  createLookController, createStereoRig, applyRigPose, renderStereo, renderMono, clampPitch, setRigFov,
 } from './vr.js';
 import { createUI } from './ui.js';
 
@@ -27,6 +31,7 @@ const state = {
   travel: null,
   hover: null,
   paused: false,
+  closeUp: null, // { id, pose, entryPoint, zoom } — близкий осмотр полотна
   lastFrame: 0,
   frames: 0,
   fps: 0,
@@ -38,12 +43,16 @@ let scene = null;
 let rig = null;
 let look = null;
 let gaze = null;
+let study = null;
+let studyLookAway = 0;
+let lastStudyId = null;
 let markers = null;
 let details = null;
 let showMarkers = true;
 let ui = null;
 let hoverMeshes = [];
 let exhibitIndex = new Map();
+let paintingIndex = new Map();
 let dust = null;
 let travelClock = 0;
 let hoverClock = 0;
@@ -187,6 +196,7 @@ async function boot() {
     },
     onEnterVR: () => enterVR(),
     onRecenter: () => recenter(),
+    onBack: () => leaveCloseUp(),
     onQuality: (quality) => applyQuality(quality),
   });
   // На телефоне по умолчанию лёгкая графика: тени выключены, DPR ограничен.
@@ -233,6 +243,7 @@ async function boot() {
   }
 
   for (const exhibit of EXHIBITS) exhibitIndex.set(exhibit.id, exhibit);
+  for (const painting of paintings) paintingIndex.set(painting.art.id, painting);
 
   gaze = createGaze({
     points: POINTS,
@@ -240,6 +251,7 @@ async function boot() {
     angleDeg: DWELL_ANGLE_DEG,
     grace: DWELL_GRACE,
   });
+  study = createStudyDwell({ seconds: STUDY_SECONDS, grace: 0.35 });
 
   ui.setLoading(0.92, 'Прогреваем шейдеры, чтобы первый кадр не замер…');
   await nextFrame();
@@ -428,6 +440,11 @@ function placeAtPoint(point, pose) {
 
 function enterExplore() {
   state.mode = 'explore';
+  state.closeUp = null;
+  if (study) study.reset();
+  lastStudyId = null;
+  setRigFov(rig, NORMAL_FOV);
+  ui.setCloseUp(false);
   ui.showStart(false);
   ui.showHUD(true);
   const point = pointById(state.currentPointId) || pointById(START_POINT);
@@ -508,6 +525,8 @@ function recenter() {
 function startTravel(pointId) {
   const target = pointById(pointId);
   if (!target) return;
+  state.closeUp = null;
+  ui.setCloseUp(false);
   const targetPose = pointPose(target);
   const mode = state.mode === 'vr' ? 'fade' : 'glide';
   state.travel = {
@@ -539,29 +558,219 @@ function advanceTravel(dt) {
   }
   applyRigPose(rig, { position: sample.position, yaw: sample.yaw, pitch: sample.pitch });
   if (t >= 1) {
-    const target = state.travel.target;
+    const entry = state.travel;
     state.travel = null;
     ui.fadeTo(0);
     if (DEBUG) ui.debugTravel('');
-    ui.toast(`Вы у точки: ${target.name}`, 1900);
-    placeAtPoint(target, pointPose(target));
+
+    if (entry.kind === 'study' && state.closeUp) {
+      const { pose } = state.closeUp;
+      player.position = [pose.position[0], HALL.eye, pose.position[2]];
+      player.yaw = pose.yaw;
+      player.pitch = pose.pitch;
+      look.recenter(pose.yaw, pose.pitch);
+      gaze.reset(null);
+      study.reset();
+      studyLookAway = 0;
+      if (details) details.show(entry.art.id);
+      const exhibit = exhibitIndex.get(entry.art.id);
+      if (exhibit) ui.setInfo(exhibit, true);
+      setRigFov(rig, CLOSE_FOV);
+      ui.setCloseUp(true, `«${entry.art.title}»`);
+      if (state.mode !== 'vr') ui.toast('Отведите взгляд в сторону, чтобы вернуться к точке', 3000);
+      return true;
+    }
+
+    if (entry.kind === 'study-back') {
+      state.closeUp = null;
+      setRigFov(rig, NORMAL_FOV);
+      placeAtPoint(entry.target, pointPose(entry.target));
+      ui.setCloseUp(false);
+      gaze.reset(null);
+      study.reset();
+      studyLookAway = 0;
+      return true;
+    }
+
+    state.closeUp = null;
+    ui.setCloseUp(false);
+    ui.toast(`Вы у точки: ${entry.target.name}`, 1900);
+    placeAtPoint(entry.target, pointPose(entry.target));
     gaze.reset(null);
   }
   return true;
+}
+
+function setStudyGlow(id, progress) {
+  for (const painting of paintingIndex.values()) {
+    const glow = painting.glow;
+    if (!glow) continue;
+    const value = painting.art.id === id && state.mode === 'vr' ? Math.min(0.42, progress * 0.42) : 0;
+    glow.visible = value > 0.01;
+    glow.material.opacity = value;
+  }
+}
+
+function advanceStudy(dt) {
+  const hoverArt = state.hover && state.hover.kind === 'painting' ? state.hover : null;
+  const snapshot = study.update(dt, hoverArt ? hoverArt.id : null);
+  const medallionBusy = Boolean(lastGaze && lastGaze.targetId);
+
+  if (snapshot.artId && snapshot.artId !== lastStudyId) {
+    lastStudyId = snapshot.artId;
+    if (!medallionBusy) ui.toast('Держите взгляд на полотне · 10 секунд — подойдёте ближе', 2800);
+    if (details) details.preload(snapshot.artId);
+  }
+  if (!snapshot.artId) {
+    lastStudyId = null;
+    setStudyGlow(null, 0);
+    return;
+  }
+  setStudyGlow(snapshot.artId, snapshot.progress);
+  if (!medallionBusy) {
+    ui.setDwell({
+      active: true,
+      progress: snapshot.progress,
+      point: { name: `«${hoverArt.title}»` },
+    });
+  }
+  if (snapshot.ready) {
+    const art = artworkById(snapshot.artId);
+    if (art) startCloseUp(art);
+  }
+}
+
+function startCloseUp(art) {
+  if (!art || state.travel || state.closeUp) return false;
+  // В стереопаре у каждого глаза своя, более узкая горизонталь — считаем по ней.
+  const aspect = state.mode === 'vr'
+    ? (window.innerWidth / 2) / window.innerHeight
+    : window.innerWidth / window.innerHeight;
+  const pose = closeUpPose(art, { fov: CLOSE_FOV, aspect, eye: HALL.eye });
+  const fade = state.mode === 'vr';
+  state.closeUp = { id: art.id, pose, entryPoint: state.currentPointId, zoom: 0 };
+  state.travel = {
+    id: art.id,
+    kind: 'study',
+    art,
+    travel: createTravel({
+      mode: fade ? 'fade' : 'glide',
+      from: [player.position[0], player.position[2]],
+      to: [pose.position[0], pose.position[2]],
+      fromYaw: player.yaw,
+      fromPitch: player.pitch,
+      toYaw: pose.yaw,
+      toPitch: pose.pitch,
+      eye: HALL.eye,
+      duration: 1.9,
+    }),
+  };
+  travelClock = 0;
+  study.reset();
+  studyLookAway = 0;
+  lastStudyId = null;
+  setStudyGlow(null, 0);
+  gaze.reset(null);
+  lastGaze = { targetId: null, progress: 0 };
+  if (details) details.preload(art.id);
+  if (state.mode === 'vr') ui.hideVRHint(0);
+  else ui.toast(`Подходим ближе: «${art.title}»`, 1700);
+  return true;
+}
+
+/**
+ * Лупа: 0 — холст целиком, 1 — самый близкий допустимый кадр.
+ * Точка обзора едет вдоль нормали к картине, поэтому камера не уходит в стену.
+ */
+function setCloseUpZoom(value) {
+  if (!state.closeUp) return 0;
+  const art = artworkById(state.closeUp.id);
+  if (!art) return 0;
+  const zoom = Math.max(0, Math.min(1, value));
+  const aspect = state.mode === 'vr'
+    ? (window.innerWidth / 2) / window.innerHeight
+    : window.innerWidth / window.innerHeight;
+  const base = state.closeUp.pose.baseDistance || state.closeUp.pose.distance;
+  const target = base * (1 - 0.7 * zoom);
+  const pose = closeUpPose(art, { fov: CLOSE_FOV, aspect, eye: HALL.eye, distance: target });
+  state.closeUp.pose = pose;
+  state.closeUp.zoom = zoom;
+  player.position = [pose.position[0], HALL.eye, pose.position[2]];
+  player.yaw = pose.yaw;
+  player.pitch = pose.pitch;
+  look.recenter(pose.yaw, pose.pitch);
+  applyRigPose(rig, { position: player.position, yaw: pose.yaw, pitch: pose.pitch });
+  return zoom;
+}
+
+function nudgeCloseUpZoom(delta) {
+  if (!state.closeUp) return;
+  setCloseUpZoom(state.closeUp.zoom + delta);
+}
+
+function leaveCloseUp() {
+  if (!state.closeUp || state.travel) return false;
+  const point = pointById(state.currentPointId) || pointById(START_POINT);
+  const pose = pointPose(point);
+  state.travel = {
+    id: point.id,
+    kind: 'study-back',
+    target: point,
+    travel: createTravel({
+      mode: state.mode === 'vr' ? 'fade' : 'glide',
+      from: [player.position[0], player.position[2]],
+      to: [point.position[0], point.position[1]],
+      fromYaw: player.yaw,
+      fromPitch: player.pitch,
+      toYaw: pose.yaw,
+      toPitch: pose.pitch,
+      eye: HALL.eye,
+      duration: 1.7,
+    }),
+  };
+  travelClock = 0;
+  study.reset();
+  studyLookAway = 0;
+  setStudyGlow(null, 0);
+  gaze.reset(null);
+  ui.setCloseUp(false);
+  ui.setInfo(null);
+  if (state.mode !== 'vr') ui.toast('Возвращаемся к точке', 1500);
+  return true;
+}
+
+function advanceStudyLeave(dt) {
+  const art = state.closeUp ? artworkById(state.closeUp.id) : null;
+  if (!art) return;
+  const dx = art.position[0] - player.position[0];
+  const dy = art.position[1] - player.position[1];
+  const dz = art.position[2] - player.position[2];
+  const len = Math.hypot(dx, dy, dz) || 1e-6;
+  const forward = forwardFromAngles(player.yaw, player.pitch);
+  const dot = (forward[0] * dx + forward[1] * dy + forward[2] * dz) / len;
+  const angle = Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI);
+  if (angle > STUDY_LEAVE_ANGLE_DEG) {
+    studyLookAway += dt;
+    if (studyLookAway > STUDY_LEAVE_SECONDS) leaveCloseUp();
+  } else {
+    studyLookAway = 0;
+  }
 }
 
 function updateHover(dt) {
   hoverClock += dt;
   if (hoverClock < 0.1) return;
   hoverClock = 0;
-  if (state.mode !== 'explore') {
+  if (state.mode !== 'explore' && state.mode !== 'vr') {
     if (state.hover) {
       state.hover = null;
       ui.setInfo(null);
     }
     return;
   }
-  rig.mono.updateMatrixWorld(true);
+  // Обновляем весь риг: камера — ребёнок группы, и без этого матрица мира
+  // остаётся от прошлого кадра (а в тестах без render — от прошлой точки).
+  rig.updateMatrixWorld(true);
   raycaster.setFromCamera(CENTER, rig.mono);
   const hits = raycaster.intersectObjects(hoverMeshes, false);
   const hit = hits.find((h) => h.distance < 17);
@@ -570,7 +779,7 @@ function updateHover(dt) {
     const exhibit = exhibitIndex.get(id);
     if (exhibit && (!state.hover || state.hover.id !== id)) {
       state.hover = exhibit;
-      ui.setInfo(exhibit, true);
+      if (state.mode !== 'vr') ui.setInfo(exhibit, true);
       // Смотрим на полотно вблизи — подтягиваем крупную текстуру только этой картины.
       if (details && exhibit.kind === 'painting' && hit.distance < 6.5) details.preload(exhibit.id);
     }
@@ -602,7 +811,13 @@ function advance(dt) {
     applyRigPose(rig, { position: player.position, yaw: player.yaw, pitch: player.pitch });
   }
 
-  if (!traveling) {
+  if (!traveling && state.closeUp) {
+    // Близкий осмотр: медальоны и двелль выключены, выйти можно взглядом в сторону.
+    markers.update(dt, { currentPointId: state.currentPointId, targetId: null, progress: 0, visible: false });
+    ui.setDwell({ active: false, progress: 0 });
+    advanceStudyLeave(dt);
+    if (dust) dust.rotation.y += dt * 0.006;
+  } else if (!traveling) {
     const forward = forwardFromAngles(player.yaw, player.pitch);
     const snapshot = gaze.update(dt, {
       position: [player.position[0], player.position[1], player.position[2]],
@@ -647,6 +862,10 @@ function advance(dt) {
   }
 
   updateHover(dt);
+
+  if (!traveling && !state.closeUp && study && (state.mode === 'explore' || state.mode === 'vr')) {
+    advanceStudy(dt);
+  }
 }
 
 function renderFrame() {
@@ -700,6 +919,43 @@ function onVisibility() {
   }
 }
 
+function bindStudyZoom() {
+  canvas.addEventListener('wheel', (event) => {
+    if (!state.closeUp) return;
+    event.preventDefault();
+    nudgeCloseUpZoom(event.deltaY < 0 ? 0.12 : -0.12);
+  }, { passive: false });
+
+  const points = new Map();
+  let pinchStart = 0;
+  let zoomStart = 0;
+  const spread = () => {
+    const [a, b] = [...points.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y) || 1e-6;
+  };
+  canvas.addEventListener('pointerdown', (event) => {
+    if (!state.closeUp) return;
+    points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (points.size === 2) {
+      pinchStart = spread();
+      zoomStart = state.closeUp.zoom;
+    }
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!state.closeUp || !points.has(event.pointerId)) return;
+    points.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (points.size === 2 && pinchStart > 0) {
+      setCloseUpZoom(zoomStart + (spread() / pinchStart - 1) * 1.6);
+    }
+  });
+  const drop = (event) => {
+    points.delete(event.pointerId);
+    if (points.size < 2) pinchStart = 0;
+  };
+  canvas.addEventListener('pointerup', drop);
+  canvas.addEventListener('pointercancel', drop);
+}
+
 function bindVRTouch() {
   let pressTimer = 0;
   let longPress = false;
@@ -716,14 +972,19 @@ function bindVRTouch() {
   const release = () => {
     window.clearTimeout(pressTimer);
     if (state.mode === 'vr' && !longPress && performance.now() - startAt < 350) {
-      recenter();
+      // В очках нет колеса: короткое касание — лупа, взгляд в сторону — выход.
+      if (state.closeUp) setCloseUpZoom(state.closeUp.zoom > 0.5 ? 0 : 1);
+      else recenter();
     }
   };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', () => window.clearTimeout(pressTimer));
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && state.mode === 'vr') exitVR();
-    if (event.key.toLowerCase() === 'r' && state.mode !== 'vr') recenter();
+    if (event.key === 'Escape') {
+      if (state.closeUp) leaveCloseUp();
+      else if (state.mode === 'vr') exitVR();
+    }
+    if (event.key.toLowerCase() === 'r' && state.mode !== 'vr' && !state.closeUp) recenter();
   });
   window.addEventListener('resize', () => {
     resize();
@@ -738,6 +999,10 @@ function instantGoto(id) {
   const target = pointById(id);
   if (!target) return false;
   state.travel = null;
+  state.closeUp = null;
+  if (study) study.reset();
+  setRigFov(rig, NORMAL_FOV);
+  ui.setCloseUp(false);
   ui.fadeTo(0);
   placeAtPoint(target, pointPose(target));
   applyRigPose(rig, { position: player.position, yaw: player.yaw, pitch: player.pitch });
@@ -838,6 +1103,49 @@ function exposeAPI(extra) {
     render: () => renderFrame(),
     quality: (q) => { applyQuality(q); return state.quality; },
     hover: () => (state.hover ? { id: state.hover.id, title: state.hover.title } : null),
+    debugHover: () => {
+      rig.updateMatrixWorld(true);
+      raycaster.setFromCamera(CENTER, rig.mono);
+      const hits = raycaster.intersectObjects(hoverMeshes, false).slice(0, 3)
+        .map((h) => ({ name: h.object.name, id: h.object.userData.exhibitId, distance: +h.distance.toFixed(2) }));
+      return { hits, hoverMeshes: hoverMeshes.length, camera: rig.mono.getWorldPosition(new THREE.Vector3()).toArray() };
+    },
+    study: () => ({
+      seconds: STUDY_SECONDS,
+      artId: study ? study.artId : null,
+      progress: study ? study.progress : 0,
+      closeUp: state.closeUp ? state.closeUp.id : null,
+    }),
+    closeUp: () => (state.closeUp ? {
+      id: state.closeUp.id,
+      zoom: state.closeUp.zoom || 0,
+      pose: { ...state.closeUp.pose, position: [...state.closeUp.pose.position] },
+      pointId: state.closeUp.entryPoint,
+    } : null),
+    setCloseUpZoom: (value) => setCloseUpZoom(value),
+    debugState: () => ({
+      travel: state.travel ? { kind: state.travel.kind, t: +(travelClock / state.travel.travel.duration).toFixed(3) } : null,
+      lookAway: +studyLookAway.toFixed(3),
+      closeUp: state.closeUp ? state.closeUp.id : null,
+      look: { yaw: +look.state.yaw.toFixed(3), pitch: +look.state.pitch.toFixed(3), source: look.state.source },
+      player: { yaw: +player.yaw.toFixed(3), pitch: +player.pitch.toFixed(3) },
+    }),
+    enterCloseUp: (id) => {
+      const art = artworkById(id);
+      return art ? startCloseUp(art) : false;
+    },
+    exitCloseUp: () => leaveCloseUp(),
+    coverage: (id) => {
+      const art = artworkById(id);
+      if (!art) return null;
+      const aspect = state.mode === 'vr'
+        ? (window.innerWidth / 2) / window.innerHeight
+        : window.innerWidth / window.innerHeight;
+      const pose = state.closeUp && state.closeUp.id === id
+        ? state.closeUp.pose
+        : closeUpPose(art, { fov: CLOSE_FOV, aspect, eye: HALL.eye });
+      return { ...paintingCoverage(art, pose, { fov: CLOSE_FOV, aspect }), pose };
+    },
     setMarkers: (on) => {
       showMarkers = on !== false;
       if (!showMarkers) markers.markers.forEach((m) => { m.holder.visible = false; });
@@ -895,6 +1203,7 @@ function exposeAPI(extra) {
 
 window.addEventListener('resize', () => resize());
 bindVRTouch();
+bindStudyZoom();
 
 // PWA: офлайн-кэш после первой успешной загрузки (в dev-режиме sw.js нет — молча пропускаем).
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

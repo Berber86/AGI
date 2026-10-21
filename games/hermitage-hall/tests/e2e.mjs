@@ -111,6 +111,52 @@ try {
   });
   check('все девять точек доступны', allPoints.every((r) => r.id === r.point), JSON.stringify(allPoints));
 
+  // 7б. Близкий осмотр полотна: десять секунд взгляда на холст
+  const closeUp = await page.evaluate(async () => {
+    const api = window.__HERMITAGE__;
+    api.goto('p6');
+    api.lookAtExhibit('rembrandt');
+    await new Promise((r) => setTimeout(r, 500));
+    let firstProgress = null;
+    let arrived = null;
+    for (let i = 0; i < 1200; i += 1) {
+      api.step(1 / 60, 1);
+      const s = api.study();
+      if (firstProgress === null && s.progress > 0) firstProgress = i / 60;
+      if (s.closeUp) { arrived = { sec: i / 60, id: s.closeUp }; break; }
+    }
+    // Подход занимает ~1,9 с: пока он идёт, взгляд ведёт перенос, а не зритель.
+    for (let i = 0; i < 200 && api.debugState().travel; i += 1) api.step(1 / 60, 1);
+    const coverage = api.coverage('rembrandt');
+    // Лупа: подходим вплотную
+    const base = coverage.distance;
+    api.setCloseUpZoom(1);
+    const zoomed = api.coverage('rembrandt');
+    // Взгляд в сторону возвращает на точку
+    api.setLook(api.pose().yaw + Math.PI, 0);
+    api.step(1 / 60, 240);
+    const afterLookAway = api.closeUp();
+    for (let i = 0; i < 300 && api.closeUp(); i += 1) api.step(1 / 60, 1);
+    return {
+      firstProgress, arrived, coverage: { width: coverage.widthShare, height: coverage.heightShare, distance: base },
+      zoomed: { width: zoomed.widthShare, height: zoomed.heightShare, distance: zoomed.distance },
+      afterLookAway, left: api.closeUp() === null, pose: api.pose(), point: api.info().pointId,
+      detail: api.textures().find((p) => p.id === 'rembrandt').detail,
+    };
+  });
+  check('взгляд на полотно 10 секунд подводит вплотную',
+    Boolean(closeUp.arrived) && closeUp.arrived.id === 'rembrandt' && closeUp.arrived.sec >= 9.5 && closeUp.arrived.sec <= 10.6,
+    `через ${closeUp.arrived ? closeUp.arrived.sec.toFixed(2) : '—'} с`);
+  check('вблизи холст занимает почти весь кадр',
+    closeUp.coverage.height >= 0.95 && closeUp.coverage.height <= 1.6 && closeUp.coverage.width >= 0.5,
+    `${Math.round(closeUp.coverage.width * 100)}×${Math.round(closeUp.coverage.height * 100)} % кадра, ${closeUp.coverage.distance.toFixed(2)} м`);
+  check('лупа подводит ещё ближе', closeUp.zoomed.distance < closeUp.coverage.distance * 0.55,
+    `${closeUp.coverage.distance.toFixed(2)} → ${closeUp.zoomed.distance.toFixed(2)} м`);
+  check('крупная текстура подгружена к осмотру', Boolean(closeUp.detail) && Math.max(...closeUp.detail) >= 1200, JSON.stringify(closeUp.detail));
+  check('взгляд в сторону возвращает на точку',
+    closeUp.afterLookAway === null && closeUp.left && closeUp.point === 'p6',
+    JSON.stringify({ afterLookAway: closeUp.afterLookAway, point: closeUp.point }));
+
   // 8. VR-режим и золотая вспышка
   await page.setViewport({ width: 1280, height: 720, isMobile: true, hasTouch: true });
   // Смена isMobile/hasTouch перезагружает страницу — дожидаемся готовности заново.

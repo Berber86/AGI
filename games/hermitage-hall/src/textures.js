@@ -222,6 +222,42 @@ export function malachiteTexture(seed = 31) {
   return finish(canvas, { repeat: [1, 1] });
 }
 
+/**
+ * Малахитовое поле над камином. Крупнее и спокойнее, чем у плинта: доска висит
+ * высоко и смотрится издалека, поэтому мелкие контрастные полосы давали бы
+ * рябь даже после исправления z-fighting.
+ */
+export function malachitePanelTexture(seed = 37) {
+  const size = 1024;
+  const { canvas, ctx } = canvas2d(size, size);
+  const rnd = mulberry32(seed);
+  ctx.fillStyle = '#1d5c3d';
+  ctx.fillRect(0, 0, size, size);
+  for (let i = 0; i < 30; i += 1) {
+    const y = (i / 30) * size + (rnd() - 0.5) * 18;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= size; x += 32) {
+      ctx.lineTo(x, y + Math.sin((x / size) * Math.PI * (1.3 + rnd() * 1.6) + i * 0.7) * (16 + rnd() * 26));
+    }
+    ctx.strokeStyle = i % 2 ? 'rgba(122,198,150,0.30)' : 'rgba(12,66,42,0.62)';
+    ctx.lineWidth = 9 + rnd() * 20;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+  // мягкие светлые прожилки
+  for (let i = 0; i < 18; i += 1) {
+    ctx.beginPath();
+    const x = rnd() * size;
+    ctx.moveTo(x, 0);
+    for (let y = 0; y <= size; y += 48) ctx.lineTo(x + Math.sin(y / 90 + i) * 22, y);
+    ctx.strokeStyle = 'rgba(178,228,196,0.13)';
+    ctx.lineWidth = 3 + rnd() * 6;
+    ctx.stroke();
+  }
+  return finish(canvas, { repeat: [1, 1], anisotropy: 8 });
+}
+
 /** Плафон: вечернее небо с облаками и золочёной овальной рамкой. */
 export function plafondTexture(seed = 41) {
   const w = 1024;

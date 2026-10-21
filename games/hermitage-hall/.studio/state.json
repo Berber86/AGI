@@ -3,12 +3,12 @@
   "phase": "qa",
   "activeRole": "qa",
   "currentTask": "DEVICE-001",
-  "lastAction": "Производительность: миниатюры в зале + ленивая деталь, 8 источников света, слитые рамы, адаптивный DPR, лёгкая графика на телефоне; e2e 29/29 dev и production",
+  "lastAction": "Исправлено мерцание малахитовой доски; добавлен близкий осмотр полотна (10 с взгляда, лупа, возврат взглядом); e2e 34/34, юнит 23/23",
   "nextAction": "Проверить FPS и знак гироскопа на живом Android-телефоне, затем перевести в release",
   "blockers": [
     "В песочнице нет телефона и очков: гироскоп и FPS не подтверждены"
   ],
-  "latestHandoff": ".studio/handoffs/2026-10-21-perf.md",
+  "latestHandoff": ".studio/handoffs/2026-10-21-closeup.md",
   "sessionBenchmark": {
     "runId": "20261020T232933Z-a723f9",
     "status": "qualified",

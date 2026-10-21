@@ -10,6 +10,7 @@ import {
   createGaze, forwardFromAngles as gazeForward, markerDirection, angleBetween, ringFraction, MARKER_EYE_HEIGHT,
 } from '../src/gaze.js';
 import { createGlide, createFade, createTravel, shortestAngle, lerpAngle } from '../src/travel.js';
+import { closeUpPose, paintingCoverage, createStudyDwell, CLOSE_FOV } from '../src/study.js';
 import { anglesFromQuaternion, applyOrientation, clampPitch, forwardFromAngles as vrForward } from '../src/vr.js';
 
 const D2R = Math.PI / 180;
@@ -259,4 +260,72 @@ test('углы не зависят от D2R-константы в тесте', (
   assert.ok(Math.abs(pose.yaw) < 1e-9, `yaw ${pose.yaw}`);
   assert.ok(Math.abs(pose.pitch) < 1e-9);
   void D2R;
+});
+
+
+// --- Близкий осмотр полотна ---------------------------------------------------
+
+test('близкий осмотр: холст занимает почти весь кадр', () => {
+  for (const art of ARTWORKS) {
+    for (const aspect of [16 / 9, 4 / 3, 2.15]) {
+      const pose = closeUpPose(art, { fov: CLOSE_FOV, aspect, eye: HALL.eye });
+      const cover = paintingCoverage(art, pose, { fov: CLOSE_FOV, aspect });
+      // Холст упирается в кадр по «ведущей» стороне, а вторая сторона повторяет
+      // пропорции самого полотна (вертикальное на широком экране и не может
+      // заполнить кадр по ширине — и не должно: важна фактура, а не обрезка).
+      const longest = Math.max(cover.widthShare, cover.heightShare);
+      const shortest = Math.min(cover.widthShare, cover.heightShare);
+      assert.ok(longest >= 0.97 && longest <= 1.45, `${art.id} ${aspect.toFixed(2)}: ${longest.toFixed(2)} кадра`);
+      // Доли кадра соотносятся как пропорции полотна, делённые на пропорции экрана.
+      const screenRatio = cover.widthShare / cover.heightShare;
+      const expectedRatio = (art.width / art.height) / aspect;
+      assert.ok(Math.abs(screenRatio - expectedRatio) < 0.06,
+        `${art.id} ${aspect.toFixed(2)}: ${screenRatio.toFixed(2)} против ${expectedRatio.toFixed(2)}`);
+    }
+  }
+});
+
+test('близкий осмотр: камера стоит внутри зала перед картиной', () => {
+  for (const art of ARTWORKS) {
+    const pose = closeUpPose(art, { fov: CLOSE_FOV, aspect: 16 / 9 });
+    assert.ok(Math.abs(pose.position[0]) < HALL.width / 2, `${art.id}: x в стене`);
+    assert.ok(Math.abs(pose.position[2]) < HALL.depth / 2, `${art.id}: z в стене`);
+    assert.ok(pose.distance >= 0.5, `${art.id}: слишком близко`);
+    // Камера смотрит на полотно, а не мимо.
+    const toArt = lookAngles([pose.position[0], pose.position[1], pose.position[2]], art.position);
+    assert.ok(Math.abs(shortestAngle(pose.yaw, toArt.yaw)) < 0.02, `${art.id}: yaw мимо`);
+    assert.ok(Math.abs(pose.pitch - toArt.pitch) < 0.02, `${art.id}: pitch мимо`);
+  }
+});
+
+test('лупа приближает, но не проходит сквозь стену', () => {
+  const art = ARTWORKS[0];
+  const base = closeUpPose(art, { fov: CLOSE_FOV, aspect: 16 / 9 });
+  const near = closeUpPose(art, { fov: CLOSE_FOV, aspect: 16 / 9, distance: base.distance * 0.25 });
+  assert.ok(near.distance < base.distance * 0.55);
+  assert.ok(near.distance >= 0.5);
+  assert.ok(Math.abs(near.position[2]) < HALL.depth / 2);
+});
+
+test('изучение: десять секунд на полотне, сброс при уходе', () => {
+  const study = createStudyDwell({ seconds: 10, grace: 0.35 });
+  let done = null;
+  for (let i = 0; i < 900; i += 1) {
+    const snap = study.update(1 / 60, 'rembrandt');
+    if (snap.ready) { done = i / 60; break; }
+  }
+  assert.ok(done !== null && Math.abs(done - 10) < 0.1, `сработало через ${done}`);
+
+  const second = createStudyDwell({ seconds: 10, grace: 0.35 });
+  for (let i = 0; i < 300; i += 1) second.update(1 / 60, 'rembrandt');
+  const before = second.progress;
+  second.update(1 / 60, null);
+  assert.ok(second.progress > before - 0.02, 'короткий уход внутри grace не сбрасывает');
+  for (let i = 0; i < 40; i += 1) second.update(1 / 60, null);
+  assert.equal(second.progress, 0, 'после grace прогресс сброшен');
+
+  const third = createStudyDwell({ seconds: 10, grace: 0.35 });
+  for (let i = 0; i < 300; i += 1) third.update(1 / 60, 'rembrandt');
+  third.update(1 / 60, 'monet');
+  assert.ok(third.progress < 0.02, 'смена полотна начинает отсчёт заново');
 });

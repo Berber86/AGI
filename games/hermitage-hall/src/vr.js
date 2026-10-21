@@ -133,16 +133,15 @@ export function createLookController({ onSourceChange = () => {} } = {}) {
     window.removeEventListener('pointercancel', onPointerUp);
   }
 
-  /** Сбрасывает взгляд на угол look. Если работает гироскоп — ставит смещение. */
   function recenter(yaw = state.yaw, pitch = state.pitch) {
-    swipeYaw = yaw;
-    swipePitch = clampPitch(pitch);
-    if (gyroRaw) {
-      gyroOffsetYaw = yaw - gyroRaw.yaw;
-      gyroOffsetPitch = clampPitch(pitch) - gyroRaw.pitch;
-    }
     state.yaw = yaw;
-    state.pitch = clampPitch(pitch);
+    state.pitch = pitch;
+    swipeYaw = yaw;
+    swipePitch = pitch;
+    // Гироскоп считает дельту от своего опорного угла: без этого сброса
+    // «recenter» возвращался следующим же событием ориентации.
+    gyroOffsetYaw = yaw + (gyroRaw ? -gyroRaw.yaw : 0);
+    gyroOffsetPitch = pitch + (gyroRaw ? -gyroRaw.pitch : 0);
   }
 
   function update(dt) {
@@ -227,6 +226,15 @@ export function createStereoRig(scene, { ipd = 0.064, fov = 66 } = {}) {
   rig.ipd = ipd;
   scene.add(rig);
   return rig;
+}
+
+/** Плавное сужение поля зрения для близкого осмотра: меньше перспективных искажений. */
+export function setRigFov(rig, fov) {
+  for (const camera of [rig.left, rig.right, rig.mono]) {
+    if (!camera || camera.fov === fov) continue;
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+  }
 }
 
 export function applyRigPose(rig, { position, yaw, pitch, roll = 0 }) {

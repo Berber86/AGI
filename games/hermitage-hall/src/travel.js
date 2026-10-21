@@ -84,7 +84,7 @@ export function createFade({ out = 0.42, hold = 0.22, back = 0.62 }) {
   };
 }
 
-export function createTravel({ mode, from, to, fromYaw, fromPitch, toYaw, toPitch, eye }) {
+export function createTravel({ mode, from, to, fromYaw, fromPitch, toYaw, toPitch, eye, duration = null }) {
   if (mode === 'fade') {
     const fade = createFade({});
     return {
@@ -101,5 +101,5 @@ export function createTravel({ mode, from, to, fromYaw, fromPitch, toYaw, toPitc
       },
     };
   }
-  return createGlide({ from, to, fromYaw, fromPitch, toYaw, toPitch, eye });
+  return createGlide({ from, to, fromYaw, fromPitch, toYaw, toPitch, eye, duration });
 }

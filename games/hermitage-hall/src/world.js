@@ -6,7 +6,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALL, WALL, LIGHT } from './config.js';
 import {
   parquetTexture, silkTexture, marbleTexture, malachiteTexture, plafondTexture,
-  rugTexture, windowViewTexture, doorTexture, grainTexture, mirrorTexture, setTextureScale,
+  rugTexture, windowViewTexture, doorTexture, grainTexture, mirrorTexture, malachitePanelTexture,
+  setTextureScale,
 } from './textures.js';
 
 const GOLD = 0xc8a45c;
@@ -45,7 +46,13 @@ export function createMaterials(quality = 'high') {
     flame: new THREE.MeshStandardMaterial({ color: 0xffdda0, emissive: 0xffbe6a, emissiveIntensity: 2.4, roughness: 0.5 }),
     iron: new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.62, metalness: 0.65 }),
     mirror: new THREE.MeshStandardMaterial({ map: mirror, color: 0x8b9994, roughness: 0.3, metalness: 0.45, envMapIntensity: 0.7, emissive: 0x0a100f, emissiveIntensity: 0.6 }),
-    malachitePanel: new THREE.MeshStandardMaterial({ map: malachite, color: 0x9fdcb8, roughness: 0.3, metalness: 0.25, emissive: 0x0c2a1c, emissiveIntensity: 0.5 }),
+    malachitePanel: new THREE.MeshStandardMaterial({
+      map: malachitePanelTexture(), color: 0x8fd0ab, roughness: 0.46, metalness: 0.12,
+      emissive: 0x0b2e1e, emissiveIntensity: 0.55,
+      // Полигоны доски и профиля стоят вплотную; полигонное смещение гарантирует,
+      // что профиль всегда выигрывает глубину, даже на слабом 16-битном буфере.
+      polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+    }),
     ember: new THREE.MeshStandardMaterial({ color: 0x3a1408, emissive: 0xff6a1e, emissiveIntensity: 1.3, roughness: 0.9 }),
   };
 }
@@ -314,20 +321,30 @@ function buildFireplace(kit, materials) {
   }
   kit.box(1.72, 0.018, 0.018, materials.iron, [0, 0.49, z + 0.44]);
   // Над камином — золочёный картуш с малахитовым полем: так делали в парадных залах.
-  kit.box(2.56, 2.96, 0.12, materials.gold, [0, 3.58, z + 0.28]);
-  kit.box(2.28, 2.68, 0.06, materials.malachitePanel, [0, 3.58, z + 0.36]);
-  kit.box(2.06, 2.46, 0.03, materials.ceiling, [0, 3.58, z + 0.375]);
-  // золочёный медальон-розетка
-  kit.add(new THREE.TorusGeometry(0.52, 0.05, 10, 40), materials.gold, { position: [0, 3.66, z + 0.44] });
-  kit.add(new THREE.TorusGeometry(0.3, 0.035, 8, 32), materials.brass, { position: [0, 3.66, z + 0.45] });
+  // ВАЖНО: ни одна плоскость не должна совпадать с другой. Раньше поверх
+  // малахитовой доски лежала кремовая панель ровно в той же плоскости (z + 0,39),
+  // и при движении камеры доска мерцала полосами z-fighting.
+  kit.box(2.56, 2.96, 0.12, materials.gold, [0, 3.58, z + 0.28]);          // фронт 0,34
+  kit.box(2.28, 2.68, 0.06, materials.malachitePanel, [0, 3.58, z + 0.36]); // фронт 0,39
+  // тонкий золочёный профиль по краю поля (не плоскость, а рама)
+  const margin = 0.075;
+  for (const [bw, bh, ox, oy] of [
+    [2.2, margin, 0, 1.27], [2.2, margin, 0, -1.27],
+    [margin, 2.5, -1.1, 0], [margin, 2.5, 1.1, 0],
+  ]) {
+    kit.box(bw, bh, 0.04, materials.gold, [ox, 3.58 + oy, z + 0.4]);      // фронт 0,42
+  }
+  // золочёный медальон-розетка: каждая деталь на своём отступе от доски
+  kit.add(new THREE.TorusGeometry(0.5, 0.045, 10, 40), materials.gold, { position: [0, 3.62, z + 0.455] });
+  kit.add(new THREE.TorusGeometry(0.29, 0.032, 8, 32), materials.brass, { position: [0, 3.62, z + 0.47] });
   for (let i = 0; i < 12; i += 1) {
     const a = (i / 12) * Math.PI * 2;
-    kit.box(0.05, 0.24, 0.03, materials.gold, [Math.cos(a) * 0.41, 3.66 + Math.sin(a) * 0.41, z + 0.46], { rotation: [0, 0, a - Math.PI / 2] });
+    kit.box(0.045, 0.22, 0.026, materials.gold, [Math.cos(a) * 0.395, 3.62 + Math.sin(a) * 0.395, z + 0.49], { rotation: [0, 0, a - Math.PI / 2] });
   }
-  kit.cylinder(0.1, 0.1, 0.04, materials.gold, [0, 3.66, z + 0.47], { segments: 16, rotation: [Math.PI / 2, 0, 0] });
-  // угловые розетки поля
+  kit.cylinder(0.09, 0.09, 0.035, materials.gold, [0, 3.62, z + 0.51], { segments: 16, rotation: [Math.PI / 2, 0, 0] });
+  // угловые розетки поля — на 0,03 впереди доски, чтобы не тонули в ней
   for (const [dx, dy] of [[-0.88, 1.02], [0.88, 1.02], [-0.88, -1.02], [0.88, -1.02]]) {
-    kit.add(new THREE.TorusGeometry(0.13, 0.025, 8, 20), materials.gold, { position: [dx, 3.58 + dy, z + 0.4] });
+    kit.add(new THREE.TorusGeometry(0.12, 0.022, 8, 20), materials.gold, { position: [dx, 3.58 + dy, z + 0.42] });
   }
 
 }
