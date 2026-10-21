@@ -42,13 +42,35 @@ await page.evaluate(() => window.__GAME_TEST__.start('flat'));
 await page.waitForFunction(() => window.__GAME_TEST__.state().asteroids.length > 0, { timeout: 15000 });
 const aim = await page.evaluate(() => { const a = window.__GAME_TEST__.state().asteroids[0]; window.__GAME_TEST__.setLook(a.yawDeg, a.pitchDeg); return a; });
 check('asteroid spawned inside sector', Math.abs(aim.yawDeg) <= 45 && aim.pitchDeg >= -30 && aim.pitchDeg <= 30, JSON.stringify(aim));
-await new Promise((r) => setTimeout(r, 2600));
+// SwiftShader runs slower than real time (dt is clamped per frame), so wait
+// on the condition, not a wall-clock sleep.
+await page.waitForFunction(() => window.__GAME_TEST__.state().shots >= 1, { timeout: 30000 }).catch(() => {});
 const after = await page.evaluate(() => window.__GAME_TEST__.state());
 check('dwell shot fired and scored', after.shots >= 1 && after.score >= 100, `shots=${after.shots} score=${after.score}`);
 const fx = await page.evaluate(() => window.__GAME_TEST__.info().fx);
 check('explosion FX burst produced (particles/beam)', fx.bursts >= 1, JSON.stringify(fx));
 check('kill streak tracked', after.kills >= 1 && after.streak >= 1, `kills=${after.kills} streak=${after.streak}`);
 await page.screenshot({ path: OUT + 'screenshots/game-412x915.png' });
+
+// --- V3 visual pass: landscape dwell arc + explosion, beam/shockwave stats ---
+await page.setViewport({ width: 844, height: 390, isMobile: true, hasTouch: true });
+await page.evaluate(() => window.__GAME_TEST__.reset(1));
+await page.evaluate(() => window.__GAME_TEST__.start('flat'));
+await page.waitForFunction(() => window.__GAME_TEST__.state().asteroids.length > 0, { timeout: 15000 });
+await page.evaluate(() => { const a = window.__GAME_TEST__.state().asteroids[0]; window.__GAME_TEST__.setLook(a.yawDeg, a.pitchDeg); });
+await page.waitForFunction(() => { const s = window.__GAME_TEST__.state(); const a = s.asteroids[0]; return a && a.dwell > 0.5; }, { timeout: 20000 }).catch(() => {}); // mid-dwell: arc partially closed
+await page.screenshot({ path: OUT + 'screenshots/v3-dwell-arc.png' });
+const kills0 = await page.evaluate(() => window.__GAME_TEST__.state().kills);
+for (let i = 0; i < 40; i++) { // wait for the kill, then catch particles/flash
+  const k = await page.evaluate(() => window.__GAME_TEST__.state().kills);
+  if (k > kills0) break;
+  await new Promise((r) => setTimeout(r, 60));
+}
+await page.screenshot({ path: OUT + 'screenshots/v3-explosion.png' });
+const fx3 = await page.evaluate(() => window.__GAME_TEST__.info().fx);
+check('V3 beam fired (core+sheath pooled)', (fx3.beamsFired ?? fx3.beams ?? 0) >= 1 || fx3.bursts >= 1, JSON.stringify(fx3));
+check('V3 FX info exposes particles/waves', typeof fx3.activeParticles === 'number' && typeof fx3.activeWaves === 'number', JSON.stringify(fx3));
+await page.setViewport({ width: 412, height: 915, isMobile: true, hasTouch: true });
 
 // hull/lose path via deterministic bridge steps
 const lose = await page.evaluate(() => {

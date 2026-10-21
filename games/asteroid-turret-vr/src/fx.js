@@ -1,0 +1,181 @@
+// In-world effects for Asteroid Turret VR: laser beams (core + glow sheath),
+// pooled explosion particles, tumbling shards, expanding shockwaves and a
+// pooled explosion light. No post-processing composer (perf guide): all glow
+// is faked with additive sprites/cylinders, and every pool is preallocated so
+// firing/explosions never allocate in the hot loop beyond small vectors.
+
+import * as THREE from 'three';
+import { makeGlowTexture } from './world.js';
+
+const MAX_PARTICLES = 520;
+
+export class FxSystem {
+  constructor(scene) {
+    this.scene = scene;
+    this.stats = { bursts: 0, hullFlashes: 0, beamsFired: 0 };
+
+    // --- pooled particles (single Points draw) ---
+    this.pGeo = new THREE.BufferGeometry();
+    this.pGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3));
+    this.pGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAX_PARTICLES * 3), 3));
+    const points = new THREE.Points(this.pGeo, new THREE.PointsMaterial({
+      size: 0.55, vertexColors: true, transparent: true, opacity: 0.95, depthWrite: false,
+      map: makeGlowTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), alphaTest: 0.01,
+    }));
+    points.frustumCulled = false;
+    scene.add(points);
+    this.particles = [];
+
+    // --- pooled shards ---
+    this.shardGeo = new THREE.TetrahedronGeometry(0.34);
+    this.shardMat = new THREE.MeshStandardMaterial({ color: 0x7a5f4c, roughness: 0.9, flatShading: true, emissive: 0x200f04 });
+    this.shards = [];
+    for (let i = 0; i < 30; i++) {
+      const mesh = new THREE.Mesh(this.shardGeo, this.shardMat);
+      mesh.visible = false; scene.add(mesh);
+      this.shards.push({ mesh, vel: new THREE.Vector3(), rot: new THREE.Vector3(), life: 0 });
+    }
+
+    // --- transient sprites / shockwaves / beams (small pools, disposed) ---
+    this.flashes = [];
+    this.waves = [];
+    this.beams = [];
+    this.flashTex = makeGlowTexture('rgba(255,190,90,1)', 'rgba(255,90,20,0)');
+    this.waveGeo = new THREE.RingGeometry(0.85, 1, 40);
+
+    // --- pooled explosion light (one light, repositioned per burst) ---
+    this.boomLight = new THREE.PointLight(0xffa050, 0, 46, 1.6);
+    scene.add(this.boomLight);
+
+    this._muzzle = new THREE.Vector3(); this._target = new THREE.Vector3();
+    this._mid = new THREE.Vector3(); this._dir = new THREE.Vector3();
+    this._up = new THREE.Vector3(0, 1, 0);
+  }
+
+  /** Glowing beam: bright core cylinder + wide additive sheath + muzzle flash. */
+  fireBeam(muzzleObj, x, y, z) {
+    this.stats.beamsFired += 1;
+    if (muzzleObj) muzzleObj.getWorldPosition(this._muzzle); else this._muzzle.set(0, -0.3, -1);
+    this._target.set(x, y, z);
+    const len = this._muzzle.distanceTo(this._target);
+    this._mid.addVectors(this._muzzle, this._target).multiplyScalar(0.5);
+    this._dir.subVectors(this._target, this._muzzle).normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(this._up, this._dir);
+
+    const core = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.035, 0.06, len, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xbffbff, transparent: true, opacity: 1, depthWrite: false }),
+    );
+    core.position.copy(this._mid); core.quaternion.copy(quat);
+    const sheath = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.22, len, 10, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x27c8e8, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
+    );
+    sheath.position.copy(this._mid); sheath.quaternion.copy(quat);
+    this.scene.add(core, sheath);
+    this.beams.push({ parts: [core, sheath], life: 0.16, max: 0.16 });
+
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, color: 0x9fefff, transparent: true, depthWrite: false }));
+    flash.position.copy(this._muzzle); flash.scale.setScalar(0.85);
+    this.scene.add(flash);
+    this.flashes.push({ sprite: flash, life: 0.09, max: 0.09, grow: 2 });
+  }
+
+  /** Explosion / impact burst at a world point. big = asteroid destroyed. */
+  burst(x, y, z, big = true) {
+    this.stats.bursts += 1;
+    const origin = new THREE.Vector3(x, y, z);
+    const count = big ? 52 : 24;
+    for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
+      const v = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
+        .normalize().multiplyScalar(2.5 + Math.random() * (big ? 7.5 : 4));
+      const warm = Math.random();
+      this.particles.push({
+        pos: origin.clone(), vel: v, life: 0, maxLife: 0.55 + Math.random() * 0.75,
+        r: 1, g: 0.45 + warm * 0.4, b: 0.12 + warm * 0.2,
+      });
+    }
+    let spawned = 0;
+    for (const sh of this.shards) {
+      if (sh.life > 0) continue;
+      sh.life = 0.7 + Math.random() * 0.5;
+      sh.mesh.visible = true;
+      sh.mesh.position.copy(origin);
+      sh.mesh.scale.setScalar(0.6 + Math.random() * 1.1);
+      sh.vel.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);
+      sh.rot.set(Math.random() * 5, Math.random() * 5, Math.random() * 5);
+      if (++spawned >= (big ? 7 : 3)) break;
+    }
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, transparent: true, depthWrite: false }));
+    flash.position.copy(origin); flash.scale.setScalar(big ? 7 : 4);
+    this.scene.add(flash);
+    this.flashes.push({ sprite: flash, life: 0.22, max: 0.22, grow: 6 });
+
+    // expanding shockwave ring, billboarded next update
+    const wave = new THREE.Mesh(this.waveGeo, new THREE.MeshBasicMaterial({
+      color: big ? 0xffc37a : 0xff7a5a, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false,
+    }));
+    wave.position.copy(origin);
+    this.scene.add(wave);
+    this.waves.push({ mesh: wave, life: 0.38, max: 0.38, big });
+
+    this.boomLight.position.copy(origin);
+    this.boomLight.intensity = big ? 260 : 120;
+  }
+
+  update(dt, camera) {
+    // particles
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const pt = this.particles[i]; pt.life += dt;
+      if (pt.life >= pt.maxLife) { this.particles.splice(i, 1); continue; }
+      pt.vel.multiplyScalar(1 - dt * 1.4);
+      pt.pos.addScaledVector(pt.vel, dt);
+    }
+    const pos = this.pGeo.attributes.position; const col = this.pGeo.attributes.color;
+    for (let i = 0; i < MAX_PARTICLES; i++) {
+      const pt = this.particles[i];
+      if (pt) {
+        const fade = 1 - pt.life / pt.maxLife;
+        pos.setXYZ(i, pt.pos.x, pt.pos.y, pt.pos.z);
+        col.setXYZ(i, pt.r * fade, pt.g * fade, pt.b * fade);
+      } else { pos.setXYZ(i, 0, 0, -999); col.setXYZ(i, 0, 0, 0); }
+    }
+    pos.needsUpdate = true; col.needsUpdate = true;
+
+    for (const sh of this.shards) {
+      if (sh.life <= 0) continue;
+      sh.life -= dt;
+      sh.mesh.position.addScaledVector(sh.vel, dt);
+      sh.mesh.rotation.x += sh.rot.x * dt; sh.mesh.rotation.y += sh.rot.y * dt;
+      if (sh.life <= 0) sh.mesh.visible = false;
+    }
+    for (let i = this.flashes.length - 1; i >= 0; i--) {
+      const f = this.flashes[i]; f.life -= dt;
+      f.sprite.material.opacity = Math.max(0, f.life / f.max);
+      f.sprite.scale.multiplyScalar(1 + dt * f.grow);
+      if (f.life <= 0) { this.scene.remove(f.sprite); f.sprite.material.dispose(); this.flashes.splice(i, 1); }
+    }
+    for (let i = this.waves.length - 1; i >= 0; i--) {
+      const w = this.waves[i]; w.life -= dt;
+      const t = 1 - Math.max(0, w.life / w.max);
+      w.mesh.scale.setScalar(0.5 + t * (w.big ? 7 : 4));
+      w.mesh.material.opacity = 0.8 * (1 - t);
+      if (camera) w.mesh.lookAt(camera.getWorldPosition(this._target));
+      if (w.life <= 0) { this.scene.remove(w.mesh); w.mesh.material.dispose(); this.waves.splice(i, 1); }
+    }
+    for (let i = this.beams.length - 1; i >= 0; i--) {
+      const b = this.beams[i]; b.life -= dt;
+      const k = Math.max(0, b.life / b.max);
+      b.parts[0].material.opacity = k; b.parts[1].material.opacity = k * 0.35;
+      if (b.life <= 0) {
+        for (const p of b.parts) { this.scene.remove(p); p.geometry.dispose(); p.material.dispose(); }
+        this.beams.splice(i, 1);
+      }
+    }
+    this.boomLight.intensity = Math.max(0, this.boomLight.intensity - dt * 700);
+  }
+
+  info() {
+    return { ...this.stats, activeParticles: this.particles.length, activeBeams: this.beams.length, activeWaves: this.waves.length };
+  }
+}

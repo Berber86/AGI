@@ -95,6 +95,22 @@
       "evidence": [
         ".studio/evidence/reports/release-v2.json"
       ]
+    },
+    {
+      "id": "VISUAL-V3",
+      "title": "Visual overhaul: world.js environment/ship/asteroids, fx.js beams/particles/shockwaves, prep banner",
+      "status": "done",
+      "dependencies": [
+        "BUILD-001"
+      ],
+      "acceptance": [
+        "Screenshots inspected (v3-dwell-arc, v3-explosion)",
+        "E2E 13/13",
+        "unit 16/16"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3.json"
+      ]
     }
   ]
 }

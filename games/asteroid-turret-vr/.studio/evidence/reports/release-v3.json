@@ -1,0 +1,1 @@
+{ "gate": "release-v3", "build": "npm run export:static -> play/ 561040 bytes", "unit": "16/16", "e2e": "13/13", "rootTests": "20 OK", "deviceTested": false, "note": "Headless SwiftShader only; physical device FPS/gyro/camera still not device-tested." }

@@ -1,8 +1,8 @@
 {
-  "when": "2026-10-21T17:52:55.690Z",
+  "when": "2026-10-21T19:02:39.415Z",
   "base": "http://127.0.0.1:8899/games/asteroid-turret-vr/play/index.html",
-  "passed": 11,
-  "total": 11,
+  "passed": 13,
+  "total": 13,
   "results": [
     {
       "name": "prep screen visible",
@@ -17,7 +17,7 @@
     {
       "name": "asteroid spawned inside sector",
       "ok": true,
-      "detail": "{\"id\":1,\"yawDeg\":-39.11985562182963,\"pitchDeg\":22.37812772858888,\"dist\":41.83401464948921,\"speed\":3.319707010215685,\"radius\":1.6,\"hp\":1,\"dwell\":0,\"spin\":2.5893980119931697}"
+      "detail": "{\"id\":1,\"yawDeg\":-39.11985562182963,\"pitchDeg\":22.37812772858888,\"dist\":41.83403525507789,\"speed\":3.319294898442098,\"radius\":1.6,\"hp\":1,\"dwell\":0,\"spin\":2.5893980119931697}"
     },
     {
       "name": "dwell shot fired and scored",
@@ -27,12 +27,22 @@
     {
       "name": "explosion FX burst produced (particles/beam)",
       "ok": true,
-      "detail": "{\"bursts\":1,\"hullFlashes\":0,\"activeParticles\":16,\"activeBeams\":0}"
+      "detail": "{\"bursts\":1,\"hullFlashes\":0,\"beamsFired\":1,\"activeParticles\":52,\"activeBeams\":1,\"activeWaves\":1}"
     },
     {
       "name": "kill streak tracked",
       "ok": true,
       "detail": "kills=1 streak=1"
+    },
+    {
+      "name": "V3 beam fired (core+sheath pooled)",
+      "ok": true,
+      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":34,\"activeBeams\":0,\"activeWaves\":0}"
+    },
+    {
+      "name": "V3 FX info exposes particles/waves",
+      "ok": true,
+      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":34,\"activeBeams\":0,\"activeWaves\":0}"
     },
     {
       "name": "lose path reachable (hull 0)",
@@ -42,7 +52,7 @@
     {
       "name": "gyro VR starts (synthetic)",
       "ok": true,
-      "detail": "{\"mode\":\"gyro\",\"quality\":\"high\",\"vrActive\":true,\"running\":true,\"audio\":{\"available\":true,\"state\":\"running\"},\"cam\":{\"active\":false,\"workerActive\":false,\"procMs\":null,\"width\":160,\"busy\":false},\"fx\":{\"bursts\":1,\"hullFlashes\":0,\"activeParticles\":0,\"activeBeams\":0},\"inVrDomOverlay\":0}"
+      "detail": "{\"mode\":\"gyro\",\"quality\":\"high\",\"vrActive\":true,\"running\":true,\"audio\":{\"available\":true,\"state\":\"running\"},\"cam\":{\"active\":false,\"workerActive\":false,\"procMs\":null,\"width\":160,\"busy\":false},\"fx\":{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":30,\"activeBeams\":0,\"activeWaves\":0},\"inVrDomOverlay\":0}"
     },
     {
       "name": "zero HUD inside VR (no overlay nodes)",
