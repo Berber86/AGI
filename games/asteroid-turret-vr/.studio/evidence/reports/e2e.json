@@ -1,0 +1,56 @@
+{
+  "when": "2026-10-21T17:35:30.601Z",
+  "base": "http://127.0.0.1:8899/games/asteroid-turret-vr/play/index.html",
+  "passed": 9,
+  "total": 9,
+  "results": [
+    {
+      "name": "prep screen visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "test bridge present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "asteroid spawned inside sector",
+      "ok": true,
+      "detail": "{\"id\":1,\"yawDeg\":-39.11985562182963,\"pitchDeg\":22.37812772858888,\"dist\":59.94490032099724,\"speed\":3.3192577712552884,\"radius\":1.6,\"hp\":1,\"dwell\":0,\"spin\":2.5660180119931533}"
+    },
+    {
+      "name": "dwell shot fired and scored",
+      "ok": true,
+      "detail": "shots=1 score=100"
+    },
+    {
+      "name": "lose path reachable (hull 0)",
+      "ok": true,
+      "detail": "status=lost hull=0 score=100"
+    },
+    {
+      "name": "gyro VR starts (synthetic)",
+      "ok": true,
+      "detail": "{\"mode\":\"gyro\",\"quality\":\"high\",\"vrActive\":true,\"running\":true,\"audio\":{\"available\":true,\"state\":\"running\"},\"cam\":{\"active\":false,\"workerActive\":false,\"procMs\":null,\"width\":160,\"busy\":false},\"inVrDomOverlay\":0}"
+    },
+    {
+      "name": "zero HUD inside VR (no overlay nodes)",
+      "ok": true,
+      "detail": "overlay=0"
+    },
+    {
+      "name": "360x800 prep renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "deviceTested": false,
+  "note": "Headless SwiftShader synthetic run; gyro/camera physical signs not device-tested."
+}

@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Core simulation: dwell 1.5s, spawn sector 90x60, hull/score, escalation",
+      "status": "done",
+      "dependencies": [],
+      "acceptance": [
+        "Unit tests for dwell, sector, damage, lose, escalation cap"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core.json"
+      ]
+    },
+    {
+      "id": "CORE-002",
+      "title": "Look providers: gyro VR stereo, dual-marker fusion, flat screen; sign + fusion unit tests",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptance": [
+        "Unit tests for signs, entity>=0.15s, pair-straight, hold-on-loss, rate limit"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/look.json"
+      ]
+    },
+    {
+      "id": "BUILD-001",
+      "title": "Three.js scene, prep screen, zero-HUD VR, PWA, test bridge",
+      "status": "done",
+      "dependencies": [
+        "CORE-001",
+        "CORE-002"
+      ],
+      "acceptance": [
+        "Production build passes; browser QA no page errors; screenshots 360x800/412x915"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Static export to play/, catalog card, handoff",
+      "status": "done",
+      "dependencies": [
+        "BUILD-001"
+      ],
+      "acceptance": [
+        "play/ served statically; root unit tests pass"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json"
+      ]
+    }
+  ]
+}
