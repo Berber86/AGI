@@ -1,7 +1,7 @@
-// ===== Хранение: localStorage (основное) + Firebase Firestore (опциональная синхронизация) =====
+// ===== Хранение: localStorage (основное) + Firebase Firestore (опционально) =====
 import type { FirebaseCfg, State } from './types';
 
-export const STORAGE_KEY = 'self-conveyor-state-v1';
+const V1_KEY = 'self-conveyor-state-v1';
 
 // --- индикатор сохранения (для UI) ---
 let lastSavedAt: number | null = null;
@@ -18,20 +18,23 @@ export function onSaved(cb: (t: number) => void): () => void {
 
 const hasLocalStorage = typeof localStorage !== 'undefined';
 
-export function loadLocal(): State | null {
+/** Читает состояние; если свежего ключа нет — поднимает старые данные v1 для миграции. */
+export function loadLocal(key: string): unknown | null {
   if (!hasLocalStorage) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as State) : null;
+    const raw = localStorage.getItem(key);
+    if (raw) return JSON.parse(raw);
+    const legacy = localStorage.getItem(V1_KEY);
+    return legacy ? JSON.parse(legacy) : null;
   } catch {
     return null;
   }
 }
 
-export function saveLocal(s: State): void {
+export function saveLocal(key: string, s: State): void {
   if (!hasLocalStorage) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    localStorage.setItem(key, JSON.stringify(s));
     lastSavedAt = Date.now();
     for (const cb of savedListeners) cb(lastSavedAt);
   } catch (e) {
@@ -39,8 +42,7 @@ export function saveLocal(s: State): void {
   }
 }
 
-type Fs = unknown;
-let fsPromise: Promise<Fs> | null = null;
+let fsPromise: Promise<unknown> | null = null;
 let fsProjectKey = '';
 
 async function getFirestoreFor(cfg: FirebaseCfg): Promise<any> {

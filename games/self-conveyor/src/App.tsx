@@ -1,44 +1,18 @@
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
-import { BoardView } from './views/Board';
 import { TodayView } from './views/Today';
-import { TechniquesView } from './views/Techniques';
-import { MetricsView } from './views/Metrics';
-import { JournalsView } from './views/Journals';
-import { MetaprojectsView } from './views/Metaprojects';
-import { RetroView } from './views/Retro';
-import { InboxView } from './views/Inbox';
+import { PoolView } from './views/Pool';
+import { DataView } from './views/Data';
 import { SettingsView } from './views/SettingsView';
-import { addItem, collectToday, useApp } from './store';
+import { addItem, useApp } from './store';
 import { getLastSaved, onSaved } from './persistence';
 
-type ViewId =
-  | 'today'
-  | 'board'
-  | 'techniques'
-  | 'metrics'
-  | 'journals'
-  | 'meta'
-  | 'retro'
-  | 'inbox'
-  | 'settings';
+type ViewId = 'today' | 'pool' | 'data' | 'settings';
 
-const NAV: { id: ViewId; label: string }[] = [
-  { id: 'today', label: 'Сегодня' },
-  { id: 'board', label: 'Конвейер' },
-  { id: 'techniques', label: 'Техники' },
-  { id: 'metrics', label: 'Метрики' },
-  { id: 'journals', label: 'Дневники' },
-  { id: 'inbox', label: 'Входящее (ИИ)' },
-  { id: 'meta', label: 'Метапроекты' },
-  { id: 'retro', label: 'Ретро и HADI' },
-  { id: 'settings', label: 'Настройки' },
-];
-
-const GROUPS: { title: string; ids: ViewId[] }[] = [
-  { title: 'Этап 1 · база', ids: ['today', 'board'] },
-  { title: 'Черновики · этап 2', ids: ['techniques', 'metrics', 'journals'] },
-  { title: 'Черновики · этап 3', ids: ['inbox', 'meta', 'retro'] },
-  { title: 'Система', ids: ['settings'] },
+const NAV: { id: ViewId; label: string; hint: string }[] = [
+  { id: 'today', label: 'Сегодня', hint: 'силы → план → шторка' },
+  { id: 'pool', label: 'Склад', hint: 'дела и аффект-фильтр' },
+  { id: 'data', label: 'Данные', hint: 'страх против факта' },
+  { id: 'settings', label: 'Настройки', hint: 'хранилище и ключи' },
 ];
 
 function useLastSaved(): number | null {
@@ -60,42 +34,39 @@ export default function App() {
   const quickAdd = () => {
     const t = quick.trim();
     if (!t) return;
-    addItem({ title: t, list: 'desires' });
+    addItem({ title: t });
     setQuick('');
-    notify('Желание добавлено в начало конвейера');
+    notify('На складе — уточните аффект в карточке, когда будет время');
   };
-
-  const todayCount = collectToday(state).open.length;
 
   return (
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <h1>⚙ Конвейер</h1>
-          <div className="sub">управление собой</div>
+          <h1>⚙ По силам</h1>
+          <div className="sub">конвейер нового типа</div>
         </div>
-        {GROUPS.map((g) => (
-          <div key={g.title}>
-            <div className="nav-group">{g.title}</div>
-            {g.ids.map((id) => {
-              const n = NAV.find((x) => x.id === id)!;
-              return (
-                <button
-                  key={id}
-                  className={`nav-item ${view === id ? 'active' : ''}`}
-                  onClick={() => setView(id)}
-                >
-                  <span className="label">{n.label}</span>
-                  {id === 'today' && todayCount > 0 && <span className="badge">{todayCount}</span>}
-                </button>
-              );
-            })}
-          </div>
+        {NAV.map((n) => (
+          <button
+            key={n.id}
+            className={`nav-item ${view === n.id ? 'active' : ''}`}
+            onClick={() => setView(n.id)}
+            title={n.hint}
+          >
+            <span className="label">{n.label}</span>
+          </button>
         ))}
         <div className="grow" />
         <div className="small muted" style={{ padding: '8px 10px' }}>
           {lastSaved ? (
-            <>сохранено в {new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</>
+            <>
+              сохранено в{' '}
+              {new Date(lastSaved).toLocaleTimeString('ru-RU', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
+            </>
           ) : (
             <>данные в localStorage</>
           )}
@@ -106,7 +77,7 @@ export default function App() {
         <div className="topbar">
           <input
             className="grow"
-            placeholder="быстрое захват: мысль или желание → Enter добавит в «Желания»"
+            placeholder="быстрый захват дела → Enter положит на склад"
             value={quick}
             onChange={(e) => setQuick(e.target.value)}
             onKeyDown={(e) => {
@@ -114,18 +85,13 @@ export default function App() {
             }}
           />
           <button className="primary" onClick={quickAdd}>
-            + желание
+            + дело
           </button>
         </div>
 
         {view === 'today' && <TodayView notify={notify} />}
-        {view === 'board' && <BoardView notify={notify} />}
-        {view === 'techniques' && <TechniquesView />}
-        {view === 'metrics' && <MetricsView notify={notify} />}
-        {view === 'journals' && <JournalsView notify={notify} />}
-        {view === 'meta' && <MetaprojectsView notify={notify} />}
-        {view === 'retro' && <RetroView notify={notify} />}
-        {view === 'inbox' && <InboxView notify={notify} />}
+        {view === 'pool' && <PoolView notify={notify} />}
+        {view === 'data' && <DataView />}
         {view === 'settings' && <SettingsView notify={notify} />}
       </main>
       {toast && <div className={`toast ${toast.err ? 'err' : ''}`}>{toast.text}</div>}

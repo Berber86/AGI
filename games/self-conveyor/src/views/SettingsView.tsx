@@ -5,7 +5,7 @@ import { aiPing } from '../ai';
 import { ErrorBox, Field, useAIAction } from '../ui';
 import type { State } from '../types';
 
-export function SettingsView({ notify }: { notify: (m: string) => void }) {
+export function SettingsView({ notify }: { notify: (m: string, err?: boolean) => void }) {
   const state = useApp();
   const { busy, error, run } = useAIAction();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -15,9 +15,27 @@ export function SettingsView({ notify }: { notify: (m: string) => void }) {
     <div>
       <h1 className="page-title">Настройки</h1>
       <p className="page-hint">
-        Ключи хранятся только в вашем браузере (localStorage) и не попадают в код репозитория. Основное хранение
-        данных — локальное; Firebase — опциональное облако-синхронизация.
+        Ключи хранятся только в вашем браузере (localStorage) и не попадают в код. Основное хранение —
+        локальное; Firebase — опциональная синхронизация.
       </p>
+
+      <div className="panel section">
+        <h2 style={{ fontSize: 14 }}>Правила «по силам»</h2>
+        <div className="row">
+          <Field label="Максимум дел в дне (квота)">
+            <input
+              type="number"
+              style={{ maxWidth: 110 }}
+              value={state.settings.quotaMax}
+              onChange={(e) => updateSettings({ quotaMax: Math.max(1, Math.min(8, Number(e.target.value) || 4)) })}
+            />
+          </Field>
+          <div className="small muted" style={{ maxWidth: 380 }}>
+            Фактическая квота дня = мин(силы, максимум). Бюджет стоимости = уровень сил. Слот «на радость»
+            один в день и бесплатный.
+          </div>
+        </div>
+      </div>
 
       <div className="panel section">
         <h2 style={{ fontSize: 14 }}>ИИ (OpenAI-совместимый API)</h2>
@@ -46,43 +64,23 @@ export function SettingsView({ notify }: { notify: (m: string) => void }) {
         <div className="row">
           <button
             className="tiny"
-            onClick={() =>
-              updateSettings({
-                llm: { ...state.settings.llm, baseUrl: 'https://openrouter.ai/api/v1' },
-              })
-            }
+            onClick={() => updateSettings({ llm: { ...state.settings.llm, baseUrl: 'https://openrouter.ai/api/v1' } })}
           >
             OpenRouter
           </button>
           <button
             className="tiny"
-            onClick={() =>
-              updateSettings({
-                llm: { ...state.settings.llm, baseUrl: 'https://api.openai.com/v1' },
-              })
-            }
+            onClick={() => updateSettings({ llm: { ...state.settings.llm, baseUrl: 'https://api.openai.com/v1' } })}
           >
             OpenAI
           </button>
           <button
             className="tiny"
             onClick={() =>
-              updateSettings({
-                llm: { ...state.settings.llm, baseUrl: 'https://api.deepseek.com/v1' },
-              })
+              updateSettings({ llm: { ...state.settings.llm, model: 'meta-llama/llama-3.3-70b-instruct:free' } })
             }
           >
-            DeepSeek
-          </button>
-          <button
-            className="tiny"
-            onClick={() =>
-              updateSettings({
-                llm: { ...state.settings.llm, model: 'meta-llama/llama-3.3-70b-instruct:free' },
-              })
-            }
-          >
-            бесплатная модель (OpenRouter)
+            бесплатная модель
           </button>
           <button
             className="ai"
@@ -98,8 +96,7 @@ export function SettingsView({ notify }: { notify: (m: string) => void }) {
           </button>
         </div>
         <div className="small muted" style={{ marginTop: 6 }}>
-          Подойдёт любой провайдер с API в формате OpenAI <span className="mono">/chat/completions</span>. У OpenRouter
-          одним ключом доступны и платные, и бесплатные модели (с суффиксом <span className="mono">:free</span>).
+          ИИ используется в одном месте — подсказка страха и микро-шага в протоколе избегания.
         </div>
         <ErrorBox error={error} />
       </div>
@@ -165,33 +162,6 @@ export function SettingsView({ notify }: { notify: (m: string) => void }) {
           </button>
         </div>
         {cloudMsg && <div className="ok-box">{cloudMsg}</div>}
-        <div className="small muted" style={{ marginTop: 6 }}>
-          Документ: коллекция <span className="mono">selfConveyor</span>, документ <span className="mono">state</span>.
-          При включённом Firebase любое изменение автосохраняется в облако. Настройте правила Firestore под себя
-          (например, доступ только вам).
-        </div>
-      </div>
-
-      <div className="panel section">
-        <h2 style={{ fontSize: 14 }}>Помодоро</h2>
-        <div className="row">
-          <Field label="Минут работы">
-            <input
-              type="number"
-              style={{ maxWidth: 110 }}
-              value={state.settings.pomodoroWork}
-              onChange={(e) => updateSettings({ pomodoroWork: Math.max(1, Number(e.target.value) || 25) })}
-            />
-          </Field>
-          <Field label="Минут перерыва">
-            <input
-              type="number"
-              style={{ maxWidth: 110 }}
-              value={state.settings.pomodoroBreak}
-              onChange={(e) => updateSettings({ pomodoroBreak: Math.max(1, Number(e.target.value) || 5) })}
-            />
-          </Field>
-        </div>
       </div>
 
       <div className="panel section">
@@ -222,7 +192,7 @@ export function SettingsView({ notify }: { notify: (m: string) => void }) {
                 replaceState(data);
                 notify('Данные импортированы');
               } catch {
-                notify('Не удалось разобрать файл');
+                notify('Не удалось разобрать файл', true);
               }
             }}
           />
@@ -237,6 +207,9 @@ export function SettingsView({ notify }: { notify: (m: string) => void }) {
           >
             сбросить всё
           </button>
+        </div>
+        <div className="small muted" style={{ marginTop: 6 }}>
+          Данные старого формата (v1) автоматически переносятся на склад при первом запуске.
         </div>
       </div>
     </div>

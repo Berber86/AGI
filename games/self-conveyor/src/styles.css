@@ -162,6 +162,30 @@ button.ai:hover { background: rgba(124, 92, 255, 0.15); }
   font-size: 12.5px;
 }
 
+/* бюджет сил и шторка */
+.budget-bar {
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 20px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.budget-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 20px;
+  transition: width 0.3s ease;
+}
+.budget-fill.full { background: var(--orange); }
+.shutter {
+  border-color: var(--orange);
+  background: rgba(245, 165, 69, 0.08);
+}
+.shutter-done {
+  border-color: var(--green);
+  background: rgba(52, 201, 142, 0.08);
+}
+
 .addbox { display: flex; gap: 4px; margin-top: 6px; }
 .addbox input { padding: 5px 8px; font-size: 12px; }
 

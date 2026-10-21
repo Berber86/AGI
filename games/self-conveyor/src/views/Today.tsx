@@ -1,126 +1,36 @@
-import { useEffect, useState } from 'react';
-import { LIST_LABEL, todayISO } from '../types';
+import { useState } from 'react';
 import {
-  collectToday,
-  completeItem,
-  completeRoutine,
-  updateItem,
-  updateStep,
+  AFFECT_LABEL,
+  COST_LABEL,
+  RESISTANCE_LABEL,
+  budgetFor,
+  quotaFor,
+  todayISO,
+  type Item,
+} from '../types';
+import {
+  closeDay,
+  getDay,
+  planAdd,
+  planComplete,
+  planRemove,
+  poolItems,
+  reopenDay,
+  setEnergy,
+  setEvening,
   useApp,
-  type TodayTask,
 } from '../store';
+import { ProtocolModal } from './Protocol';
 import { Check } from '../ui';
 
-// ---- Помодоро с сохранением счётчика за день ----
-
-const POMODORO_KEY = 'self-conveyor-pomodoro';
-
-function loadPomodoro(): { date: string; sessions: number } {
-  try {
-    const raw = localStorage.getItem(POMODORO_KEY);
-    if (raw) {
-      const data = JSON.parse(raw);
-      if (data.date === todayISO()) return data;
-    }
-  } catch {
-    /* ignore */
-  }
-  return { date: todayISO(), sessions: 0 };
-}
-
-function savePomodoro(sessions: number) {
-  try {
-    localStorage.setItem(POMODORO_KEY, JSON.stringify({ date: todayISO(), sessions }));
-  } catch {
-    /* ignore */
-  }
-}
-
-function Pomodoro({ work, brk }: { work: number; brk: number }) {
-  const [mode, setMode] = useState<'idle' | 'work' | 'break'>('idle');
-  const [left, setLeft] = useState(work * 60);
-  const [sessions, setSessions] = useState(() => loadPomodoro().sessions);
-
-  useEffect(() => {
-    if (mode === 'idle') return;
-    const t = setInterval(() => {
-      setLeft((s) => {
-        if (s > 1) return s - 1;
-        if (mode === 'work') {
-          setSessions((c) => {
-            const n = c + 1;
-            savePomodoro(n);
-            return n;
-          });
-          setMode('break');
-          return brk * 60;
-        }
-        setMode('work');
-        return work * 60;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [mode, work, brk]);
-
-  const mm = String(Math.floor(left / 60)).padStart(2, '0');
-  const ss = String(left % 60).padStart(2, '0');
-
-  return (
-    <div className="pomodoro">
-      <div>
-        <div className="time">
-          {mm}:{ss}
-        </div>
-        <div className="mode">
-          {mode === 'idle' && 'готов к запуску'}
-          {mode === 'work' && 'работа — без отвлечений'}
-          {mode === 'break' && 'перерыв'}
-        </div>
-      </div>
-      <div className="row">
-        {mode === 'idle' ? (
-          <button
-            className="primary"
-            onClick={() => {
-              setLeft(work * 60);
-              setMode('work');
-            }}
-          >
-            ▶ старт ({work} мин)
-          </button>
-        ) : (
-          <button onClick={() => setMode('idle')}>⏸ пауза</button>
-        )}
-        <button
-          className="ghost"
-          onClick={() => {
-            setMode('idle');
-            setLeft(work * 60);
-          }}
-        >
-          сброс
-        </button>
-      </div>
-      <div className="grow" />
-      <div className="muted small">
-        помидорок сегодня: <b style={{ color: 'var(--text)', fontSize: 16 }}>{sessions}</b>
-        <br />
-        норма 3–5 в день, не больше
-      </div>
-    </div>
-  );
-}
-
-// ---- Онбординг (показывается, пока не закрыт) ----
-
-const QUICKSTART_KEY = 'self-conveyor-quickstart-v1';
+const QUICKSTART_KEY = 'self-conveyor-quickstart-v2';
 
 function Quickstart({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div className="panel section" style={{ borderColor: 'var(--accent)' }}>
       <div className="row">
         <h2 style={{ fontSize: 14, margin: 0 }} className="grow">
-          Как устроен конвейер — 5 шагов базы
+          Два механизма — вот и вся система
         </h2>
         <button className="tiny ghost" onClick={onDismiss}>
           понятно, скрыть
@@ -128,77 +38,71 @@ function Quickstart({ onDismiss }: { onDismiss: () => void }) {
       </div>
       <ol className="small" style={{ margin: '10px 0 0 18px', padding: 0, lineHeight: 1.9 }}>
         <li>
-          <b>Желания</b> — сваливайте всё, чего хочется (поле быстрого добавления сверху).
+          <b>По силам.</b> Утром отметьте силы (1–5) — день соберётся из бюджета сил, а не из списка
+          «должен». Квота закрывает день: набрали план — конвейеру можно выключаться. Никаких просроченных.
         </li>
         <li>
-          <b>Отбор и фокус</b> — переносите выжившие желания в «Отфильтрованные», затем выберите ровно{' '}
-          <b>ТОП-5</b>. Остальное — в игнор до победы.
-        </li>
-        <li>
-          <b>Цель</b> — сформулируйте «что сделать» с измеримым критерием (кнопка ✨ SMART подставит
-          формулировку от ИИ).
-        </li>
-        <li>
-          <b>Проект</b> — разбейте цель на атомарные шаги (✨ или вручную), невыполненные шаги кнопкой
-          «☑ в сегодня» отправляйте в план дня.
-        </li>
-        <li>
-          <b>Исполнение</b> — работайте помидорками: 3–5 в день, план — намерение, а не обязательство.
-          Закрытие проекта — только через проверку цели.
+          <b>Протокол избегания.</b> Дело, которого тянет избежать, — не напоминание, а протокол: назвать
+          страх → разрешение сделать плохо и на 2 минуты → старт → сверка «что было на самом деле».
+          Страх почти всегда преувеличивает.
         </li>
       </ol>
     </div>
   );
 }
 
-// ---- Вспомогательные секции ----
-
-function TaskRow({
-  task,
+function PlanCard({
+  item,
+  joy,
+  done,
+  onProtocol,
   notify,
 }: {
-  task: TodayTask;
-  notify: (m: string) => void;
+  item: Item;
+  joy: boolean;
+  done: boolean;
+  onProtocol: (item: Item) => void;
+  notify: (m: string, err?: boolean) => void;
 }) {
-  const { kind, item, step, overdue } = task;
-
-  const check = () => {
-    if (step) updateStep(item.id, step.id, { done: true });
-    else if (kind === 'routine') completeRoutine(item.id);
-    else completeItem(item.id);
-  };
-
-  const uncheck = () => {
-    if (step) updateStep(item.id, step.id, { done: false });
-    else if (kind === 'item') updateItem(item.id, { list: 'someday', completedAt: null, inToday: true });
-  };
-
-  const removeFromDay = () => {
-    if (step) {
-      updateStep(item.id, step.id, { inToday: false, done: false });
-    } else {
-      updateItem(item.id, { inToday: false });
-    }
-    notify('Убрано из плана на сегодня');
-  };
-
-  const checked = step ? step.done : kind === 'routine' ? false : item.list === 'done';
-  const title = step ? step.title : item.title;
-
   return (
-    <div className={`today-item ${checked ? 'checked' : ''}`}>
-      <Check on={checked} onToggle={() => (checked ? uncheck() : check())} />
+    <div className={`today-item ${done ? 'checked' : ''}`}>
+      <Check
+        on={done}
+        onToggle={() => {
+          if (!done) {
+            planComplete(item.id);
+            notify('Сделано ✓');
+          }
+        }}
+      />
       <div className="grow">
-        <div className="title">{title}</div>
+        <div className="title">{item.title}</div>
         <div className="from">
-          {step ? `из проекта «${item.title}»` : LIST_LABEL[item.list]}
-          {kind === 'routine' && item.nextDue ? ` · следующий срок: ${item.nextDue}` : ''}
-          {overdue && <span className="overdue"> · просрочено</span>}
+          {joy ? 'слот «на радость» · ' : ''}
+          стоимость: {COST_LABEL[item.cost]}
+          {item.resistance > 0 && ` · сопротивление: ${RESISTANCE_LABEL[item.resistance]}`}
+          {item.affect !== 'none' && ` · ${AFFECT_LABEL[item.affect]}`}
         </div>
       </div>
-      {kind === 'routine' && !checked && <span className="chip">↻ рутина</span>}
-      {!checked && (
-        <button className="tiny ghost" title="Убрать из плана на сегодня" onClick={removeFromDay}>
+      {!done && item.resistance >= 2 && (
+        <button className="tiny ai" title="Протокол избегания" onClick={() => onProtocol(item)}>
+          🫁 избегаю
+        </button>
+      )}
+      {!done && (
+        <button className="tiny ghost" title="Протокол избегания — для любого дела" onClick={() => onProtocol(item)}>
+          протокол
+        </button>
+      )}
+      {!done && (
+        <button
+          className="tiny ghost"
+          title="Убрать из плана"
+          onClick={() => {
+            planRemove(item.id);
+            notify('Убрано из плана');
+          }}
+        >
           ✕
         </button>
       )}
@@ -206,9 +110,10 @@ function TaskRow({
   );
 }
 
-export function TodayView({ notify }: { notify: (m: string) => void }) {
+export function TodayView({ notify }: { notify: (m: string, err?: boolean) => void }) {
   const state = useApp();
-  const { open, done } = collectToday(state);
+  const day = getDay(state);
+  const [protocolItem, setProtocolItem] = useState<Item | null>(null);
   const [quickstart, setQuickstart] = useState(() => {
     try {
       return localStorage.getItem(QUICKSTART_KEY) !== 'hidden';
@@ -226,71 +131,183 @@ export function TodayView({ notify }: { notify: (m: string) => void }) {
     }
   };
 
-  const steps = open.filter((t) => t.kind === 'step');
-  const overdue = open.filter((t) => t.overdue && t.kind !== 'step');
-  const routines = open.filter((t) => t.kind === 'routine' && !t.overdue);
-  const plain = open.filter((t) => t.kind === 'item' && !t.overdue);
+  const budget = budgetFor(day.energy);
+  const quota = quotaFor(day.energy, state.settings.quotaMax);
+  const nonJoy = day.plan.filter((p) => !p.joy);
+  const spent = nonJoy.reduce((sum, p) => sum + (state.items.find((i) => i.id === p.itemId)?.cost ?? 0), 0);
+  const itemsById = (id: string) => state.items.find((i) => i.id === id);
+
+  const candidates = poolItems(state)
+    .filter((it) => !day.plan.some((p) => p.itemId === it.id))
+    .sort((a, b) => b.resistance - a.resistance || a.cost - b.cost);
+
+  const allDone = day.plan.length > 0 && day.plan.every((p) => p.done);
+  const shuttered = day.closed || allDone;
 
   return (
     <div>
       <h1 className="page-title">Сегодня · {todayISO()}</h1>
       <p className="page-hint">
-        План — намерение, не обязательство. Не доделали — просто берите меньше завтра. Это марафон, а не гонка.
+        День собирается из ваших сил, а не из чувства долга. Набрали квоту — день закрыт, остальное спит.
       </p>
 
       {quickstart && <Quickstart onDismiss={dismiss} />}
-      <Pomodoro work={state.settings.pomodoroWork} brk={state.settings.pomodoroBreak} />
 
-      {open.length === 0 && !quickstart && (
-        <div className="panel muted">
-          План на сегодня пуст. Возьмите шаги из проектов (кнопка «☑ в сегодня» на карточке), отметьте дело
-          «взять в Сегодня» или добавьте задачу быстрым полем сверху.
+      {/* ---- Чекин сил ---- */}
+      <div className="panel section">
+        <div className="row">
+          <b className="grow">Силы сейчас:</b>
+          {[1, 2, 3, 4, 5].map((e) => (
+            <button
+              key={e}
+              className={day.energy === e ? 'primary' : ''}
+              onClick={() => setEnergy(e)}
+              title={e <= 2 ? 'выживание' : e === 3 ? 'обычный день' : 'хороший ресурс'}
+            >
+              {e}
+            </button>
+          ))}
+          {day.energy == null && <span className="muted small">отметьте 1–5 — и система соберёт план по силам</span>}
+        </div>
+        {day.energy != null && (
+          <div className="small muted" style={{ marginTop: 8 }}>
+            бюджет дня: <b style={{ color: 'var(--text)' }}>{spent}/{budget}</b> единиц стоимости ·
+            квота: <b style={{ color: 'var(--text)' }}>{nonJoy.length}/{quota}</b> дел
+            {day.energy <= 2 && ' · режим выживания: система не осуждает'}
+          </div>
+        )}
+        {day.energy != null && (
+          <div className="budget-bar">
+            <div
+              className={`budget-fill ${spent >= budget ? 'full' : ''}`}
+              style={{ width: `${Math.min(100, (spent / Math.max(1, budget)) * 100)}%` }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* ---- Шторка ---- */}
+      {shuttered && (
+        <div className={`panel section ${allDone ? 'shutter-done' : 'shutter'}`}>
+          <div className="row">
+            <div className="grow">
+              <b style={{ fontSize: 15 }}>{allDone ? 'Всё на сегодня выполнено 🎉' : 'День закрыт'}</b>
+              <div className="small" style={{ marginTop: 4 }}>
+                Остальное спит до завтра. Жизнь — не бэклог: конвейер выключен по правилам, а не по вине.
+              </div>
+            </div>
+            {!allDone && (
+              <button className="ghost" onClick={() => reopenDay()}>
+                открыть заново
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {steps.length > 0 && (
-        <div className="today-section">
-          <h2 style={{ fontSize: 15 }}>Из проектов ({steps.length})</h2>
-          {steps.map((t) => (
-            <TaskRow key={t.step!.id} task={t} notify={notify} />
+      {/* ---- План дня ---- */}
+      <div className="today-section">
+        <h2 style={{ fontSize: 15 }}>
+          План дня ({day.plan.filter((p) => p.done).length}/{day.plan.length})
+        </h2>
+        {day.plan.length === 0 && (
+          <div className="panel muted">
+            {day.energy == null
+              ? 'Сначала — чекин сил сверху. Потом наберите дела из «Склада» по бюджету.'
+              : 'Наберите дела из кандидатов ниже — по бюджету сил, не по чувству долга.'}
+          </div>
+        )}
+        {day.plan.map((p) => {
+          const it = itemsById(p.itemId);
+          if (!it) return null;
+          return (
+            <PlanCard
+              key={p.itemId}
+              item={it}
+              joy={p.joy}
+              done={p.done}
+              onProtocol={setProtocolItem}
+              notify={notify}
+            />
+          );
+        })}
+        {day.plan.length > 0 && !shuttered && (
+          <button
+            className="ghost"
+            style={{ marginTop: 8 }}
+            onClick={() => {
+              closeDay();
+              notify('Шторка опущена — день закрыт по квоте');
+            }}
+          >
+            закрыть день (шторка)
+          </button>
+        )}
+      </div>
+
+      {/* ---- Вечерний микро-разбор ---- */}
+      <div className="today-section">
+        <h2 style={{ fontSize: 15 }}>Как прошёл день?</h2>
+        <div className="row">
+          {[1, 2, 3, 4, 5].map((e) => (
+            <button key={e} className={day.evening === e ? 'primary' : ''} onClick={() => setEvening(e)}>
+              {e}
+            </button>
           ))}
+          <span className="muted small">одним тапом — без анализа и самоедства</span>
+        </div>
+      </div>
+
+      {/* ---- Кандидаты из склада ---- */}
+      {!shuttered && (
+        <div className="today-section">
+          <h2 style={{ fontSize: 15 }}>Кандидаты со склада</h2>
+          {candidates.length === 0 && <div className="panel muted">Склад пуст или всё уже в плане.</div>}
+          {candidates.map((it) => {
+            const freeJoy = !day.plan.some((p) => p.joy);
+            return (
+              <div key={it.id} className="today-item">
+                <div className="grow">
+                  <div className="title">{it.title}</div>
+                  <div className="from">
+                    {COST_LABEL[it.cost]} · {RESISTANCE_LABEL[it.resistance]}
+                    {it.affect !== 'none' && ` · ${AFFECT_LABEL[it.affect]}`}
+                  </div>
+                </div>
+                <button
+                  className="tiny primary"
+                  title="В план дня"
+                  onClick={() => {
+                    const res = planAdd(it.id, false);
+                    if (!res.ok) notify(res.reason ?? 'не удалось взять', true);
+                  }}
+                >
+                  + в план
+                </button>
+                {it.joy && freeJoy && (
+                  <button
+                    className="tiny"
+                    title="Бесплатный слот «на радость» — не тратит бюджет"
+                    onClick={() => {
+                      const res = planAdd(it.id, true);
+                      if (!res.ok) notify(res.reason ?? 'не удалось взять', true);
+                    }}
+                  >
+                    ☺ на радость
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {overdue.length > 0 && (
-        <div className="today-section">
-          <h2 style={{ fontSize: 15, color: 'var(--red)' }}>Просроченные ({overdue.length})</h2>
-          {overdue.map((t) => (
-            <TaskRow key={t.item.id} task={t} notify={notify} />
-          ))}
-        </div>
-      )}
-
-      {routines.length > 0 && (
-        <div className="today-section">
-          <h2 style={{ fontSize: 15 }}>Рутины ({routines.length})</h2>
-          {routines.map((t) => (
-            <TaskRow key={t.item.id} task={t} notify={notify} />
-          ))}
-        </div>
-      )}
-
-      {plain.length > 0 && (
-        <div className="today-section">
-          <h2 style={{ fontSize: 15 }}>Взято в работу ({plain.length})</h2>
-          {plain.map((t) => (
-            <TaskRow key={t.item.id} task={t} notify={notify} />
-          ))}
-        </div>
-      )}
-
-      {done.length > 0 && (
-        <div className="today-section">
-          <h2 style={{ fontSize: 15, color: 'var(--green)' }}>Сделано сегодня ({done.length})</h2>
-          {done.map((t) => (
-            <TaskRow key={t.step ? t.step.id : t.item.id} task={t} notify={notify} />
-          ))}
-        </div>
+      {protocolItem && (
+        <ProtocolModal
+          item={protocolItem}
+          onClose={() => setProtocolItem(null)}
+          notify={notify}
+        />
       )}
     </div>
   );
