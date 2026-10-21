@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Сгенерированные прогоны бенчмарка и указатель на активный прогон
+.studio/benchmarks/runs/
+.studio/benchmarks/active.json
