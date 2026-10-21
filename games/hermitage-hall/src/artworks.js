@@ -265,7 +265,7 @@ export function buildPainting(art, materials, quality) {
 
   // Подрамник — заметно позади полотна, иначе z-fighting съедает живопись
   const backing = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, h + 0.02, 0.06), materials.wood);
-  backing.position.z = 0.012;
+  backing.position.z = 0.03;
   group.add(backing);
 
   // Рама: ступенчатый профиль. Брусья сливаются в одну сетку на материал —
@@ -455,7 +455,8 @@ function pedestalMaterial(kind) {
     return new THREE.MeshStandardMaterial({ map, roughness: 0.22, metalness: 0.4, color: 0xd6f2df, emissive: 0x0d2a1c, emissiveIntensity: 0.6 });
   }
   const map = marbleTexture();
-  return new THREE.MeshStandardMaterial({ map, roughness: 0.34, metalness: 0.04, color: 0xf4f1e8 });
+  // Гипс статуй: шероховатый, иначе острые грани бликуют и белый «сыпется».
+  return new THREE.MeshStandardMaterial({ map, roughness: 0.72, metalness: 0, color: 0xf4f1e8, envMapIntensity: 0.35 });
 }
 
 export async function loadSculptures(scene, materials, onProgress = () => {}) {
@@ -503,13 +504,16 @@ export async function loadSculptures(scene, materials, onProgress = () => {}) {
         geo.computeVertexNormals();
         geo.computeBoundingSphere();
         const scale = (spec.modelHeight * spec.scale) / Math.max(0.001, data.height || spec.modelHeight);
+        // Статуя — гладкий гипс. Плоские грани (flatShading) превращали
+        // скульптуру в смятый белый комок: каждая грань вспыхивала и гасла
+        // при движении. Сглаженные нормали дают тот же силуэт без искр.
         const statueMat = new THREE.MeshStandardMaterial({
-          color: 0xf1ead9,
-          roughness: 0.42,
-          metalness: 0.03,
-          flatShading: true,
-          emissive: 0x120f0a,
-          emissiveIntensity: 0.6,
+          color: 0xe8dfcb,
+          roughness: 0.82,
+          metalness: 0,
+          emissive: 0x0d0b07,
+          emissiveIntensity: 0.4,
+          envMapIntensity: 0.25,
         });
         mesh = new THREE.Mesh(geo, statueMat);
         mesh.scale.setScalar(scale);

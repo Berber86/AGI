@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {
   HALL, POINTS, ARTWORKS, SCULPTURES, START_POINT, DWELL_SECONDS, DWELL_ANGLE_DEG, DWELL_GRACE,
   STUDY_SECONDS, STUDY_LEAVE_ANGLE_DEG, STUDY_LEAVE_SECONDS,
-  pointById, pointPose, artworkById, EXHIBITS, lookAngles,
+  pointById, pointPose, artworkById, EXHIBITS, lookAngles, wallFacing,
 } from './config.js';
 import { createMaterials, buildWorld, createLights } from './world.js';
 import {
@@ -46,6 +46,7 @@ let gaze = null;
 let study = null;
 let studyLookAway = 0;
 let lastStudyId = null;
+let studyAim = null;
 let markers = null;
 let details = null;
 let showMarkers = true;
@@ -54,6 +55,7 @@ let hoverMeshes = [];
 let exhibitIndex = new Map();
 let paintingIndex = new Map();
 let dust = null;
+let lightRig = null;
 let travelClock = 0;
 let hoverClock = 0;
 let stereoReady = false;
@@ -161,8 +163,9 @@ async function boot() {
 
   renderer = new THREE.WebGLRenderer({
     canvas,
-    // MSAA дорог на мобильном GPU и при адаптивном разрешении почти не виден.
-    antialias: !isHandheld() && window.devicePixelRatio < 2,
+    // Сглаживание включено всегда: без него белый мрамор и лепнина «кипят»
+    // на каждом движении камеры. MSAA 4x дешевле, чем потеря вида.
+    antialias: true,
     powerPreference: 'high-performance',
     alpha: false,
     stencil: false,
@@ -171,7 +174,7 @@ async function boot() {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.16;
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(0x0a1511, 1);
   resize();
 
@@ -211,7 +214,7 @@ async function boot() {
 
   const materials = createMaterials(state.quality);
   const { meshes } = buildWorld(scene, materials, { quality: state.quality });
-  createLights(scene);
+  lightRig = createLights(scene);
   buildDust(scene);
   markers = createMarkers(scene);
   markers.setSimple(state.quality !== 'high');
@@ -290,6 +293,8 @@ function detailMaxWidth() {
 
 function dprCap() {
   const dpr = window.devicePixelRatio || 1;
+  // Потолок прежний: сглаживание даёт больше, чем лишние пиксели, а FPS на
+  // телефоне важнее. MSAA включён всегда.
   return state.quality === 'low' ? Math.min(dpr, 1) : Math.min(dpr, 1.5);
 }
 
@@ -298,7 +303,7 @@ function targetDpr() {
   // В стереопаре два глаза делят один экран: пикселей вдвое больше, поэтому
   // потолок ниже, а запас адаптивного разрешения — глубже.
   const limit = state.mode === 'vr' ? Math.min(cap, 0.95) : cap;
-  const floor = state.mode === 'vr' ? 0.5 : 0.62;
+  const floor = state.mode === 'vr' ? 0.62 : 0.75;
   return Math.max(floor, Math.min(limit, cap * renderScale));
 }
 
@@ -314,6 +319,7 @@ function applyRenderScale() {
 }
 
 let slowWindows = 0;
+let lastDowngrade = 0;
 
 function tuneResolution(fps, now) {
   // В headless-браузере FPS ничего не значит: не портим кадры тестов адаптивом.
@@ -322,16 +328,20 @@ function tuneResolution(fps, now) {
   if (now - lastTune < 2000) return;
   lastTune = now;
 
-  const floor = state.mode === 'vr' ? 0.5 : 0.62;
-  if (fps < 45 && renderScale > floor) {
-    renderScale = Math.max(floor, renderScale - 0.15);
+  const floor = state.mode === 'vr' ? 0.62 : 0.72;
+  if (fps < 44 && renderScale > floor) {
+    // Шаг крупный и вниз — только так, чтобы не «дышать» вокруг порога.
+    renderScale = Math.max(floor, Math.round((renderScale - 0.12) * 20) / 20);
     applyRenderScale();
+    lastDowngrade = now;
     slowWindows += 1;
-  } else if (fps > 58 && renderScale < 1) {
-    renderScale = Math.min(1, renderScale + 0.06);
+  } else if (fps > 59 && renderScale < 1 && now - lastDowngrade > 12000) {
+    // Возвращаем разрешение не раньше, чем через 12 с после понижения:
+    // иначе картинка пересэмплируется туда-сюда на каждой границе.
+    renderScale = Math.min(1, Math.round((renderScale + 0.05) * 20) / 20);
     applyRenderScale();
     slowWindows = 0;
-  } else if (fps >= 45) {
+  } else if (fps >= 44) {
     slowWindows = 0;
   }
 
@@ -611,8 +621,8 @@ function setStudyGlow(id, progress) {
   }
 }
 
-function advanceStudy(dt) {
-  const hoverArt = state.hover && state.hover.kind === 'painting' ? state.hover : null;
+function advanceStudy(dt, targetArt = null) {
+  const hoverArt = targetArt || (state.hover && state.hover.kind === 'painting' ? state.hover : null);
   const snapshot = study.update(dt, hoverArt ? hoverArt.id : null);
   const medallionBusy = Boolean(lastGaze && lastGaze.targetId);
 
@@ -792,6 +802,41 @@ function updateHover(dt) {
 const raycaster = new THREE.Raycaster();
 const CENTER = new THREE.Vector2(0, 0);
 
+// Запас вокруг полотна: рама и небольшая дрожь рук не должны сбрасывать
+// осмотр, но и взгляд по диагонали через весь зал не должен считаться
+// «смотрю на картину». 25 см хватает и на раму, и на дрожание.
+const STUDY_MARGIN = 0.25;
+// Медальоны замолкают только при уверенном попадании в холст: с запасом
+// «на раму» любой взгляд по диагонали через зал отменял перенос.
+const AIM_MARGIN = 0.06;
+
+/**
+ * Полотно прямо по курсу — с учётом рамы и промаха на пол-метра.
+ * Луч пересекается с плоскостью стены, попадание проверяется по прямоугольнику.
+ */
+function paintingAhead(margin = STUDY_MARGIN) {
+  const o = [player.position[0], player.position[1], player.position[2]];
+  const f = forwardFromAngles(player.yaw, player.pitch);
+  let best = null;
+  for (const art of ARTWORKS) {
+    const facing = wallFacing(art.rotationY);
+    const denom = f[0] * facing[0] + f[2] * facing[2];
+    if (denom > -0.08) continue; // взгляд уходит от полотна, а не в него
+    const t = ((art.position[0] - o[0]) * facing[0] + (art.position[2] - o[2]) * facing[2]) / denom;
+    if (t < 0.35 || t > 12) continue;
+    const hx = o[0] + f[0] * t;
+    const hy = o[1] + f[1] * t;
+    const hz = o[2] + f[2] * t;
+    const tangent = [-facing[2], facing[0]];
+    const dx = (hx - art.position[0]) * tangent[0] + (hz - art.position[2]) * tangent[1];
+    const dy = hy - art.position[1];
+    if (Math.abs(dx) > art.width / 2 + margin) continue;
+    if (Math.abs(dy) > art.height / 2 + margin) continue;
+    if (!best || t < best.t) best = { art, t };
+  }
+  return best ? best.art : null;
+}
+
 function advance(dt) {
   if (state.mode === 'loading' || state.mode === 'start') {
     // На стартовом экране зал медленно живёт: лёгкий параллакс от указателя не нужен.
@@ -819,11 +864,16 @@ function advance(dt) {
     if (dust) dust.rotation.y += dt * 0.006;
   } else if (!traveling) {
     const forward = forwardFromAngles(player.yaw, player.pitch);
+    // Пока в центре кадра полотно, перенос по медальонам выключен: иначе
+    // десятая секунда осмотра совпадала с десятой секундой перехода и зрителя
+    // уносило на другую точку вместо приближения к картине.
+    const hovered = state.hover && state.hover.kind === 'painting' ? state.hover : null;
+    studyAim = hovered || paintingAhead();
     const snapshot = gaze.update(dt, {
       position: [player.position[0], player.position[1], player.position[2]],
       forward,
       currentPointId: state.currentPointId,
-      enabled: true,
+      enabled: !paintingAhead(AIM_MARGIN),
     });
     lastGaze = snapshot;
     if (snapshot.arrival) {
@@ -844,7 +894,8 @@ function advance(dt) {
         point: targetPoint,
       });
       if (snapshot.targetId && snapshot.targetId !== lastTargetId) {
-        ui.toast(`Держите взгляд: ${targetPoint ? targetPoint.name : 'точка'} · 10 секунд`, 2400);
+        // Плашка двелля уже показывает цель и остаток секунд — второй тост
+        // с тем же текстом только засорял низ экрана.
         // Пока кольцо заполняется, успеваем скачать крупную текстуру той картины.
         if (details && targetPoint) {
           const art = featuredArtwork(targetPoint);
@@ -864,7 +915,7 @@ function advance(dt) {
   updateHover(dt);
 
   if (!traveling && !state.closeUp && study && (state.mode === 'explore' || state.mode === 'vr')) {
-    advanceStudy(dt);
+    advanceStudy(dt, studyAim);
   }
 }
 
@@ -1123,6 +1174,46 @@ function exposeAPI(extra) {
       pointId: state.closeUp.entryPoint,
     } : null),
     setCloseUpZoom: (value) => setCloseUpZoom(value),
+    // Диагностика источников: по одному выключаем свет.
+    debugLights: (which) => {
+      if (!lightRig) return null;
+      const map = { hemi: lightRig.hemi, fill: lightRig.fill, sun: lightRig.sun };
+      lightRig.lights.children.forEach((obj) => {
+        if (obj.isPointLight) obj.visible = which !== 'point';
+      });
+      if (map[which]) map[which].visible = false;
+      renderFrame();
+      return which;
+    },
+    debugLightsReset: () => {
+      if (!lightRig) return null;
+      lightRig.lights.traverse((obj) => { if (obj.isLight) obj.visible = true; });
+      renderFrame();
+      return true;
+    },
+    // Диагностика: подмена материала показывает, виновата ли геометрия/нормали
+    // или освещение. 'normal' — нормали, 'basic' — чистый цвет без света.
+    debugShade: (mode) => {
+      if (mode === 'normal') scene.overrideMaterial = new THREE.MeshNormalMaterial({ flatShading: false });
+      else if (mode === 'flat') scene.overrideMaterial = new THREE.MeshNormalMaterial({ flatShading: true });
+      else if (mode === 'basic') scene.overrideMaterial = new THREE.MeshBasicMaterial({ color: 0x8899aa });
+      else scene.overrideMaterial = null;
+      renderFrame();
+      return mode || 'off';
+    },
+    // Диагностика глубины/теней: изолирует причину артефактов на живом устройстве.
+    debugRender: ({ shadows = true, near = null } = {}) => {
+      if (lightRig) lightRig.sun.castShadow = shadows;
+      if (near) {
+        for (const cam of [rig.left, rig.right, rig.mono]) {
+          cam.near = near;
+          cam.updateProjectionMatrix();
+        }
+      }
+      renderer.shadowMap.needsUpdate = true;
+      renderFrame();
+      return { shadows, near: rig.mono.near };
+    },
     debugState: () => ({
       travel: state.travel ? { kind: state.travel.kind, t: +(travelClock / state.travel.travel.duration).toFixed(3) } : null,
       lookAway: +studyLookAway.toFixed(3),

@@ -29,7 +29,7 @@ function canvas2d(w, h) {
   return { canvas, ctx };
 }
 
-function finish(canvas, { repeat = [1, 1], srgb = true, anisotropy = 4 } = {}) {
+function finish(canvas, { repeat = [1, 1], srgb = true, anisotropy = 8 } = {}) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;

@@ -84,7 +84,7 @@ export function createMarkers(scene) {
     });
     const disc = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.95), discMat);
     disc.rotation.x = -Math.PI / 2;
-    disc.position.y = 0.021;
+    disc.position.y = 0.052;
     disc.renderOrder = 2;
     holder.add(disc);
 
@@ -104,7 +104,7 @@ export function createMarkers(scene) {
     });
     const ring = new THREE.Mesh(new THREE.PlaneGeometry(1.85, 1.85), ringMat);
     ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.025;
+    ring.position.y = 0.058;
     ring.renderOrder = 3;
     holder.add(ring);
 

@@ -1,7 +1,7 @@
 // Сгенерировано scripts/service-worker.mjs
-const CACHE = 'hermitage-code-39b70266edc8';
+const CACHE = 'hermitage-code-bb74b2613ce2';
 const MEDIA_CACHE = 'hermitage-media-v1';
-const CODE = ["./","./assets/index-BJhFb44j.css","./assets/index-BleVYiDe.js","./index.html","./manifest.webmanifest","./sculpture/homer.json","./sculpture/venus-de-milo.json"];
+const CODE = ["./","./assets/index-CKi2ypia.js","./assets/index-CLNiHJIm.css","./index.html","./manifest.webmanifest","./sculpture/homer.json","./sculpture/venus-de-milo.json"];
 const MEDIA = ["./art/aivazovsky-ninth-wave-thumb.jpg","./art/aivazovsky-ninth-wave.webp","./art/leonardo-litta-thumb.jpg","./art/leonardo-litta.webp","./art/matisse-dance-thumb.jpg","./art/matisse-dance.webp","./art/monet-garden-thumb.jpg","./art/monet-garden.webp","./art/rembrandt-prodigal-thumb.jpg","./art/rembrandt-prodigal.webp","./art/van-gogh-lilac-thumb.jpg","./art/van-gogh-lilac.webp","./icon-192.png","./icon-512.png","./icon.svg","./start-hall.jpg"];
 
 self.addEventListener('install', (event) => {

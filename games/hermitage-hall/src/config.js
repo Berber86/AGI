@@ -20,7 +20,7 @@ export const WALL = Object.freeze({
 // Свет — тёплый вечер: окна на востоке, люстры, подсветка картин.
 export const LIGHT = Object.freeze({
   sun: { color: 0xffe2bd, intensity: 4.4, position: [13.5, 11.5, 5.4] },
-  sky: { color: 0xc6d6e6, ground: 0x4a392a, intensity: 1.15 },
+  sky: { color: 0xc6d6e6, ground: 0x4a392a, intensity: 1.55 },
   chandeliers: [
     { position: [0, 5.15, -2.2], color: 0xffd8a0, intensity: 42 },
     { position: [0, 5.15, 3.0], color: 0xffd3a0, intensity: 36 },

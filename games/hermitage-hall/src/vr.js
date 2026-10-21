@@ -211,13 +211,15 @@ export function createStereoRig(scene, { ipd = 0.064, fov = 66 } = {}) {
   const rig = new THREE.Group();
   rig.name = 'rig';
   rig.rotation.order = 'YXZ';
-  const left = new THREE.PerspectiveCamera(fov, 1, 0.05, 90);
-  const right = new THREE.PerspectiveCamera(fov, 1, 0.05, 90);
+  // near не 0,05: в зале ближе 15 см ничего нет, а каждый сантиметр near
+  // съедает точность глубины — от неё зависят ковёр, медальоны и рамы.
+  const left = new THREE.PerspectiveCamera(fov, 1, 0.15, 60);
+  const right = new THREE.PerspectiveCamera(fov, 1, 0.15, 60);
   left.position.x = -ipd / 2;
   right.position.x = ipd / 2;
   left.name = 'eye-left';
   right.name = 'eye-right';
-  const mono = new THREE.PerspectiveCamera(fov, 1, 0.05, 90);
+  const mono = new THREE.PerspectiveCamera(fov, 1, 0.15, 60);
   mono.name = 'eye-mono';
   rig.add(left, right, mono);
   rig.left = left;

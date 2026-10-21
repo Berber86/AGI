@@ -157,6 +157,32 @@ try {
     closeUp.afterLookAway === null && closeUp.left && closeUp.point === 'p6',
     JSON.stringify({ afterLookAway: closeUp.afterLookAway, point: closeUp.point }));
 
+  // 7в. Осмотр не срывается: цель — полотно, а не точка на полу.
+  // Раньше смотрели строго в холст: промах на раму обнулял накопитель, а
+  // совпавший по направлению медальон уносил зрителя на другую точку.
+  const frameAim = await page.evaluate(async () => {
+    const api = window.__HERMITAGE__;
+    api.goto('p2');
+    api.lookAtExhibit('vangogh');
+    await new Promise((r) => setTimeout(r, 400));
+    const base = api.pose();
+    api.setLook(base.yaw, base.pitch + 0.22); // выше холста — рама и подсветка
+    const points = new Set();
+    let arrived = null;
+    for (let i = 0; i < 1200; i += 1) {
+      api.step(1 / 60, 1);
+      points.add(api.pose().pointId);
+      if (api.closeUp()) { arrived = { sec: i / 60, id: api.closeUp().id }; break; }
+    }
+    const left = api.closeUp() ? api.exitCloseUp() : null;
+    return { arrived, points: [...points], left, hover: api.hover() };
+  });
+  check('осмотр ловится и по раме, а не только в центр холста',
+    Boolean(frameAim.arrived) && frameAim.arrived.id === 'vangogh' && frameAim.arrived.sec <= 11.2,
+    `через ${frameAim.arrived ? frameAim.arrived.sec.toFixed(2) : '—'} с, hover ${frameAim.hover ? frameAim.hover.id : '—'}`);
+  check('пока в центре полотно, медальоны не уводят на другую точку',
+    frameAim.points.length === 1 && frameAim.points[0] === 'p2', JSON.stringify(frameAim.points));
+
   // 8. VR-режим и золотая вспышка
   await page.setViewport({ width: 1280, height: 720, isMobile: true, hasTouch: true });
   // Смена isMobile/hasTouch перезагружает страницу — дожидаемся готовности заново.

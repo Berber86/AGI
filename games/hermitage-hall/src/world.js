@@ -6,14 +6,14 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { HALL, WALL, LIGHT } from './config.js';
 import {
   parquetTexture, silkTexture, marbleTexture, malachiteTexture, plafondTexture,
-  rugTexture, windowViewTexture, doorTexture, grainTexture, mirrorTexture, malachitePanelTexture,
+  rugTexture, windowViewTexture, doorTexture, mirrorTexture, malachitePanelTexture,
   setTextureScale,
 } from './textures.js';
 
 const GOLD = 0xc8a45c;
 
 export function createMaterials(quality = 'high') {
-  setTextureScale(quality === 'high' ? 1 : 0.55);
+  setTextureScale(quality === 'high' ? 1 : 0.75);
   const parquet = parquetTexture();
   parquet.repeat.set(1, 1);
   const silk = silkTexture();
@@ -23,18 +23,25 @@ export function createMaterials(quality = 'high') {
   const rug = rugTexture();
   const view = windowViewTexture();
   const door = doorTexture();
-  const grain = grainTexture();
   const mirror = mirrorTexture();
   const high = quality === 'high';
   return {
     parquet: new THREE.MeshStandardMaterial({ map: parquet, roughness: 0.38, metalness: 0.06, color: 0xffffff }),
     silk: new THREE.MeshStandardMaterial({ map: silk, roughness: 0.74, metalness: 0.03, color: 0xdfe8df }),
-    marble: new THREE.MeshStandardMaterial({ map: marble, roughness: 0.32, metalness: 0.05, color: 0xf2f0e8 }),
+    // Белый мрамор — самая мерцающая поверхность зала: блики на нём дрожат
+    // от кадра к кадру. Гасим зеркальность: шероховатость выше, металл в ноль,
+    // отражения окружения слабые.
+    marble: new THREE.MeshStandardMaterial({
+      map: marble, roughness: 0.58, metalness: 0, color: 0xf2f0e8, envMapIntensity: 0.35,
+    }),
     malachite: new THREE.MeshStandardMaterial({ map: malachite, roughness: 0.24, metalness: 0.32, color: 0xffffff }),
-    gold: new THREE.MeshStandardMaterial({ color: 0xe6c47c, roughness: high ? 0.3 : 0.42, metalness: 0.85, roughnessMap: high ? grain : null, emissive: 0x2a1f0c, emissiveIntensity: 0.35 }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xa88a4a, roughness: 0.44, metalness: 0.92 }),
-    cream: new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.8, metalness: 0.02 }),
-    plaster: new THREE.MeshStandardMaterial({ color: 0xf0e9da, roughness: 0.9, metalness: 0 }),
+    gold: new THREE.MeshStandardMaterial({
+      color: 0xe6c47c, roughness: high ? 0.42 : 0.52, metalness: 0.7,
+      emissive: 0x2a1f0c, emissiveIntensity: 0.35, envMapIntensity: 0.8,
+    }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xa88a4a, roughness: 0.55, metalness: 0.7, envMapIntensity: 0.8 }),
+    cream: new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.88, metalness: 0, envMapIntensity: 0.25 }),
+    plaster: new THREE.MeshStandardMaterial({ color: 0xf0e9da, roughness: 0.94, metalness: 0, envMapIntensity: 0.2 }),
     wood: new THREE.MeshStandardMaterial({ map: door, roughness: 0.42, metalness: 0.08, color: 0xffffff }),
     velvet: new THREE.MeshStandardMaterial({ color: 0x6d1a26, roughness: 0.92, metalness: 0 }),
     rug: new THREE.MeshStandardMaterial({ map: rug, roughness: 0.95, metalness: 0 }),
@@ -42,7 +49,10 @@ export function createMaterials(quality = 'high') {
     ceiling: new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: 0.9, metalness: 0.02, emissive: 0x3a2f22, emissiveIntensity: 0.55 }),
     windowView: new THREE.MeshBasicMaterial({ map: view, toneMapped: false, color: 0xf3e6d2 }),
     glass: new THREE.MeshStandardMaterial({ color: 0xbcd4e0, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }),
-    crystal: new THREE.MeshStandardMaterial({ color: 0xfff4dd, roughness: 0.06, metalness: 0.2, transparent: true, opacity: 0.82, emissive: 0xffe2ae, emissiveIntensity: 0.28, depthWrite: false }),
+    crystal: new THREE.MeshStandardMaterial({
+      color: 0xfff6e4, roughness: 0.16, metalness: 0.12,
+      emissive: 0xffe9c4, emissiveIntensity: 0.5, envMapIntensity: 1.1,
+    }),
     flame: new THREE.MeshStandardMaterial({ color: 0xffdda0, emissive: 0xffbe6a, emissiveIntensity: 2.4, roughness: 0.5 }),
     iron: new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.62, metalness: 0.65 }),
     mirror: new THREE.MeshStandardMaterial({ map: mirror, color: 0x8b9994, roughness: 0.3, metalness: 0.45, envMapIntensity: 0.7, emissive: 0x0a100f, emissiveIntensity: 0.6 }),
@@ -177,12 +187,12 @@ function buildEastWall(kit, materials) {
     kit.box(0.14, 0.16, frameW, materials.gold, [x - 0.06, top + 0.07, center]);
     kit.box(0.26, 0.2, frameW + 0.2, materials.marble, [x - 0.16, sill - 0.02, center]);
     // переплёт
-    kit.box(0.09, top - sill, 0.09, materials.cream, [x - 0.03, (sill + top) / 2, center]);
+    kit.box(0.12, top - sill, 0.13, materials.cream, [x - 0.03, (sill + top) / 2, center]);
     for (const dz of [-width / 4, width / 4]) {
-      kit.box(0.08, top - sill, 0.07, materials.cream, [x - 0.03, (sill + top) / 2, center + dz]);
+      kit.box(0.12, top - sill, 0.1, materials.cream, [x - 0.03, (sill + top) / 2, center + dz]);
     }
     for (const y of [sill + 1.35, sill + 2.7]) {
-      kit.box(0.08, 0.07, width, materials.cream, [x - 0.03, y, center]);
+      kit.box(0.12, 0.1, width, materials.cream, [x - 0.03, y, center]);
     }
     // стекло
     const glass = new THREE.PlaneGeometry(width, top - sill);
@@ -219,8 +229,9 @@ function buildWalls(kit, materials) {
     runGold(s.w, 0.14, s.x, s.z, s.rotY, 1.02);
     runGold(s.w, 0.1, s.x, s.z, s.rotY, 1.16);
     // карниз
-    kit.box(s.w, 0.3, 0.34, materials.gold, [s.x * 0.999, HALL.height - 0.32, s.z], { rotationY: s.rotY });
-    kit.box(s.w, 0.08, 0.5, materials.cream, [s.x * 0.997, HALL.height - 0.12, s.z], { rotationY: s.rotY });
+    kit.box(s.w, 0.3, 0.34, materials.gold, [s.x, HALL.height - 0.32, s.z], { rotationY: s.rotY });
+    // Тонкий лепной поясок над золотом, вплотную к потолку и не выступая вперёд.
+    kit.box(s.w, 0.06, 0.24, materials.cream, [s.x, HALL.height - 0.14, s.z], { rotationY: s.rotY });
   }
 
   // Пилястры по стенам
@@ -250,7 +261,8 @@ function buildCeilingAndFloor(kit, materials) {
   kit.add(floor, materials.parquet, { position: [0, 0, 0], rotation: [-Math.PI / 2, 0, 0], uvScale: [HALL.width / 3, HALL.depth / 3] });
   // Ковёр
   const rug = new THREE.PlaneGeometry(8.4, 5.6);
-  kit.add(rug, materials.rug, { position: [0, 0.014, 0.4], rotation: [-Math.PI / 2, 0, 0], uvScale: [1, 1] });
+  // 3 см над паркетом: 1,4 см на слабом буфере глубины давали мерцающую кайму.
+  kit.add(rug, materials.rug, { position: [0, 0.03, 0.4], rotation: [-Math.PI / 2, 0, 0], uvScale: [1, 1] });
   // Потолок
   const ceil = new THREE.PlaneGeometry(HALL.width, HALL.depth);
   kit.add(ceil, materials.ceiling, { position: [0, HALL.height, 0], rotation: [Math.PI / 2, 0, 0] });
@@ -259,10 +271,10 @@ function buildCeilingAndFloor(kit, materials) {
   kit.add(plafond, materials.plafond, { position: [0, HALL.height - 0.03, 0], rotation: [Math.PI / 2, 0, 0] });
   // Золочёные рёбра потолка
   for (const x of [-4.4, 0, 4.4]) {
-    kit.box(0.16, 0.14, HALL.depth - 0.6, materials.gold, [x, HALL.height - 0.12, 0]);
+    kit.box(0.16, 0.14, HALL.depth - 0.6, materials.gold, [x, HALL.height - 0.05, 0]);
   }
   for (const z of [-3.2, 0, 3.2]) {
-    kit.box(HALL.width - 0.6, 0.14, 0.16, materials.gold, [0, HALL.height - 0.12, z]);
+    kit.box(HALL.width - 0.6, 0.14, 0.16, materials.gold, [0, HALL.height - 0.05, z]);
   }
   // Розетки под люстры
   for (const c of LIGHT.chandeliers) {
@@ -481,7 +493,7 @@ export function shadowBlob(width, depth, x, z, opacity = 0.55) {
   const mat = new THREE.MeshBasicMaterial({ map: blobMap, transparent: true, depthWrite: false, opacity, color: 0x000000 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), mat);
   mesh.rotation.x = -Math.PI / 2;
-  mesh.position.set(x, 0.02, z);
+  mesh.position.set(x, 0.045, z);
   mesh.renderOrder = 1;
   return mesh;
 }
@@ -514,27 +526,33 @@ export function buildWorld(scene, materials, { quality = 'high' } = {}) {
 export function createLights(scene) {
   const lights = new THREE.Group();
   lights.name = 'lights';
-  const hemi = new THREE.HemisphereLight(LIGHT.sky.color, LIGHT.sky.ground, LIGHT.sky.intensity);
+  const hemi = new THREE.HemisphereLight(LIGHT.sky.color, LIGHT.sky.ground, LIGHT.sky.intensity * 1.3);
   lights.add(hemi);
   // Мягкий верхний заполняющий свет: потолок и карнизы перестают быть чёрными.
-  const fill = new THREE.DirectionalLight(0xdfe8f2, 0.95);
+  const fill = new THREE.DirectionalLight(0xdfe8f2, 1.15);
   fill.position.set(-4, 12, 8);
   fill.target.position.set(0, 1, 0);
   lights.add(fill, fill.target);
 
-  const sun = new THREE.DirectionalLight(LIGHT.sun.color, LIGHT.sun.intensity);
+  const sun = new THREE.DirectionalLight(LIGHT.sun.color, LIGHT.sun.intensity * 0.62);
   sun.position.set(...LIGHT.sun.position);
   sun.target.position.set(0, 0, 0);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  // Солнце светит, но НЕ отбрасывает тень: карта теней 1024–2048 px на зал
+  // 18×13 м давала рваные диагональные клинья на мраморе и шёлке — их и было
+  // видно как «артефакты геометрии». Контактные тени под мебелью и статуями
+  // рисуются мягкими пятнами (shadowBlob) и от карты не зависят.
+  sun.castShadow = false;
+  // Мягкая тень: рваные края жёсткой PCF на белом читались как «сломанная
+  // геометрия». Карта вдвое крупнее, смещение по нормали больше.
+  sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -11;
   sun.shadow.camera.right = 11;
   sun.shadow.camera.top = 9;
   sun.shadow.camera.bottom = -9;
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 40;
-  sun.shadow.bias = -0.0009;
-  sun.shadow.normalBias = 0.02;
+  sun.shadow.bias = -0.00035;
+  sun.shadow.normalBias = 0.06;
   lights.add(sun);
   lights.add(sun.target);
 
@@ -547,20 +565,10 @@ export function createLights(scene) {
   // Отсвет камина больше не отдельный источник: угли светятся сами, а каждый
   // лишний PointLight — это ещё один цикл освещения в шейдере каждого фрагмента.
 
-  // Мягкая подсветка стен с живописью (без теней).
-  const spots = [
-    { position: [0, 6.2, -3.4], target: [0, 3.0, -6.4], angle: 1.0, intensity: 12 },
-    { position: [-4.9, 6.2, 0], target: [-8.9, 3.2, 0], angle: 1.05, intensity: 17 },
-    { position: [0, 6.2, 3.4], target: [0, 3.0, 6.4], angle: 0.95, intensity: 13 },
-  ];
-  for (const s of spots) {
-    const light = new THREE.SpotLight(0xffe9c8, s.intensity, 14, s.angle, 0.85, 1.6);
-    light.position.set(...s.position);
-    light.target.position.set(...s.target);
-    lights.add(light);
-    lights.add(light.target);
-  }
+  // Точечные прожекторы над стенами убраны: их конусы давали на мраморе и
+  // шёлке резкие диагональные границы, похожие на артефакты геометрии.
+  // Стены освещают люстры, верхний заполняющий свет и полусфера.
 
   scene.add(lights);
-  return { lights, sun, hemi };
+  return { lights, sun, hemi, fill };
 }
