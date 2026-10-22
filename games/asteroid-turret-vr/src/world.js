@@ -18,12 +18,15 @@ export function mulberry(seed) {
 }
 
 // ---------------------------------------------------------- canvas textures
+let maxAnisotropy = 1;
+export function setTextureAnisotropy(n) { maxAnisotropy = Math.max(1, n | 0); }
 function canvasTex(size, draw, { repeat = false } = {}) {
   const c = document.createElement('canvas');
   c.width = size[0]; c.height = size[1];
   draw(c.getContext('2d'), c.width, c.height);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAnisotropy;
   if (repeat) { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; }
   return tex;
 }
@@ -121,7 +124,7 @@ export function makeEarthTexture(seed = 17) {
 /** Painted nebula backdrop (equirect-ish): deep space, colour clouds, stars. */
 export function makeNebulaTexture(seed = 11) {
   const r = mulberry(seed);
-  return canvasTex([1024, 512], (ctx, w, h) => {
+  return canvasTex([2048, 1024], (ctx, w, h) => {
     ctx.fillStyle = '#04060f'; ctx.fillRect(0, 0, w, h);
     const clouds = [
       [0.22, 0.38, 300, '124,58,237'], [0.55, 0.3, 340, '8,145,178'],
@@ -137,7 +140,7 @@ export function makeNebulaTexture(seed = 11) {
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.fill();
       }
     }
-    for (let i = 0; i < 900; i++) { // backdrop stars baked in
+    for (let i = 0; i < 1800; i++) { // backdrop stars baked in
       const b = r();
       ctx.fillStyle = `rgba(${200 + b * 55},${210 + b * 45},255,${0.25 + b * 0.75})`;
       ctx.fillRect(r() * w, r() * h, b > 0.97 ? 2 : 1, b > 0.97 ? 2 : 1);
@@ -188,8 +191,8 @@ export function createEnvironment(scene) {
   );
   sky.frustumCulled = false; group.add(sky);
 
-  group.add(starLayer(1100, 190, 0.75, 0xaecdf5, 7));
-  group.add(starLayer(350, 170, 1.5, 0xeaf6ff, 21)); // brighter near layer
+  group.add(starLayer(1500, 190, 0.75, 0xaecdf5, 7));
+  group.add(starLayer(480, 170, 1.5, 0xeaf6ff, 21)); // brighter near layer
 
   // ringed gas giant + crater moon, low-left of the play sector
   const planetTex = makePlanetTexture();
@@ -475,7 +478,7 @@ function displacedRock(radius, detail, seed) {
 export function createAsteroidAssets() {
   const texture = makeRockTexture(7);
   const bump = makeRockBump(7);
-  const geometries = [displacedRock(1.6, 2, 3), displacedRock(1.6, 2, 14), displacedRock(1.6, 2, 29)];
+  const geometries = [displacedRock(1.6, 3, 3), displacedRock(1.6, 3, 14), displacedRock(1.6, 3, 29)];
   const baseMaterial = new THREE.MeshStandardMaterial({
     map: texture, bumpMap: bump, bumpScale: 0.9,
     color: 0xf5e9d8, roughness: 0.96, metalness: 0.04, flatShading: true,

@@ -38,7 +38,10 @@ export function spawnIntervalAt(elapsedSec) {
 }
 export function asteroidSpeedAt(elapsedSec, rand) {
   // One asteroid type; only speed varies (contract: one-type).
-  return lerp(3.2, 7.5, difficultyAt(elapsedSec)) * (0.85 + rand * 0.3);
+  // Approach is deliberately 10x slower than the original tuning (user
+  // request, 2026-10-21): rotation/spin rate is unchanged, asteroids mostly
+  // hang and tumble in the sector while the player picks them off.
+  return lerp(0.32, 0.75, difficultyAt(elapsedSec)) * (0.85 + rand * 0.3);
 }
 
 export function createGame(seed = 1) {

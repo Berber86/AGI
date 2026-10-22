@@ -63,6 +63,9 @@ test('escalation monotonic and capped at ~8 minutes', () => {
   assert.ok(spawnIntervalAt(0) > spawnIntervalAt(240)); assert.ok(spawnIntervalAt(240) >= spawnIntervalAt(480));
   assert.equal(spawnIntervalAt(480), spawnIntervalAt(5000));
   assert.ok(asteroidSpeedAt(480, 0.5) > asteroidSpeedAt(0, 0.5));
+  // 10x slower approach than the original 3.2..7.5 tuning (rand 0.5 => x1.0)
+  assert.ok(Math.abs(asteroidSpeedAt(0, 0.5) - 0.32) < 1e-9);
+  assert.ok(Math.abs(asteroidSpeedAt(480, 0.5) - 0.75) < 1e-9);
 });
 
 test('step does not mutate input state', () => {

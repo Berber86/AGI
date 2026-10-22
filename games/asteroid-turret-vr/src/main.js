@@ -3,7 +3,8 @@ import { createGame, stepGame, asteroidPos, DWELL_SECONDS } from './sim.js';
 import { deviceOrientationToYawPitch, centroidToYawPitch, clampDeg, angDiffDeg } from './look/math.js';
 import { MarkerTracker, FusionLook } from './look/markers.js';
 import { unlockAudio, playShot, playExplosion, audioInfo } from './audio.js';
-import { createEnvironment, createShip, createAsteroidAssets } from './world.js';
+import { createEnvironment, createShip, createAsteroidAssets, setTextureAnisotropy } from './world.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { FxSystem } from './fx.js';
 
 // ---------------------------------------------------------------- state
@@ -40,7 +41,17 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.24;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
 const scene = new THREE.Scene();
+// Image-based lighting from a tiny procedural room: metal, glass canopy and
+// white armour pick up real reflections instead of flat specular streaks.
+// Generated once at startup (PMREM), zero per-frame cost.
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.38;
+  pmrem.dispose();
+}
 scene.background = new THREE.Color(0x04060f);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
 

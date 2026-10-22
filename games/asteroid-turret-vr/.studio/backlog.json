@@ -126,6 +126,22 @@
       "evidence": [
         ".studio/evidence/reports/visual-v4.json"
       ]
+    },
+    {
+      "id": "V5",
+      "title": "Quality iteration + asteroid approach 10x slower (spin unchanged)",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4"
+      ],
+      "acceptance": [
+        "speed unit pins 0.32/0.75",
+        "screenshots inspected",
+        "e2e 13/13"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/v5.json"
+      ]
     }
   ]
 }
