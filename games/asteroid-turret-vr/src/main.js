@@ -387,6 +387,8 @@ function frame() {
       if (ev.type === 'hullHit') {
         fx.burst(ev.x, ev.y, ev.z, false); fx.stats.hullFlashes += 1;
         hitFlash.intensity = 14; hullShake = 1; playExplosion(); removeMesh(ev.id);
+        const hf = document.getElementById('hitFlash');
+        if (hf) { hf.style.opacity = '0.35'; setTimeout(() => { hf.style.opacity = '0'; }, 120); }
       }
     }
     // sync meshes
@@ -427,6 +429,21 @@ function frame() {
     document.getElementById('hud-hull').textContent = `Корпус: ${game.hull}`;
     const hullBar = document.getElementById('hull-fill');
     if (hullBar) { hullBar.style.width = game.hull + '%'; hullBar.style.background = game.hull > 50 ? '#38f5ff' : (game.hull > 25 ? '#ffb02e' : '#ff4444'); }
+
+    // Dynamic vignette tint based on hull condition (damage warning)
+    const vignette = document.getElementById('vignette');
+    if (vignette) {
+      const crit = game.hull < 25;
+      const warn = game.hull < 50;
+      if (crit) {
+        const pulse = 0.4 + 0.3 * Math.abs(Math.sin(nowSec * 4));
+        vignette.style.background = `radial-gradient(circle at center, transparent 0%, rgba(80,0,0,${pulse}) 60%, #02040a 100%)`;
+      } else if (warn) {
+        vignette.style.background = `radial-gradient(circle at center, transparent 0%, rgba(60,30,0,0.35) 60%, #02040a 100%)`;
+      } else {
+        vignette.style.background = 'radial-gradient(circle at center, transparent 0%, #05070f 70%, #02040a 100%)';
+      }
+    }
 
     // Crosshair charging state (flat mode only)
     const cross = document.getElementById('cross');

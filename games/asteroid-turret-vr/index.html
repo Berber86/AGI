@@ -12,6 +12,13 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
   #game-canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+  /* ---------- screen overlay effects (vignette, hit flash) ---------- */
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:3;
+    background:radial-gradient(circle at center, transparent 0%, #05070f 70%, #02040a 100%);
+    opacity:0.85; }
+  #hitFlash { position:fixed; inset:0; pointer-events:none; z-index:2; background:#ff4444;
+    opacity:0; transition:opacity 0.1s linear; }
   /* ---------- prep / result screen (ALL text lives here, never in VR) ---------- */
   #prep { position:fixed; inset:0; overflow-y:auto; padding:20px 16px 32px; background:radial-gradient(120% 100% at 50% 0%, #0d1734 0%, var(--bg) 60%); z-index:10; }
   #prep.hidden { display:none; }
@@ -60,6 +67,8 @@
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
+<div id="vignette"></div>
+<div id="hitFlash"></div>
 
 <div id="hud" class="hidden"><div class="hud-block"><div id="hud-score">Счёт: 0</div><div id="hud-streak"></div></div><div class="hud-block" style="text-align:right"><div id="hud-hull">Корпус: 100</div><div id="hull-container"><div id="hull-fill" style="height:100%;width:100%"></div></div></div></div>
 <div id="cross" class="hidden"><div id="cross-ring"></div><div id="cross-dot"></div><div id="cross-charge"></div></div>
