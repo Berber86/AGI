@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { makeGlowTexture } from './world.js';
 
-const MAX_PARTICLES = 520;
+const MAX_PARTICLES = 720;
 
 export class FxSystem {
   constructor(scene) {
@@ -85,42 +85,50 @@ export class FxSystem {
   burst(x, y, z, big = true) {
     this.stats.bursts += 1;
     const origin = new THREE.Vector3(x, y, z);
-    const count = big ? 52 : 24;
+    const count = big ? 84 : 32;
     for (let i = 0; i < count && this.particles.length < MAX_PARTICLES; i++) {
       const v = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
-        .normalize().multiplyScalar(2.5 + Math.random() * (big ? 7.5 : 4));
+        .normalize().multiplyScalar(3 + Math.random() * (big ? 9 : 5));
       const warm = Math.random();
       this.particles.push({
-        pos: origin.clone(), vel: v, life: 0, maxLife: 0.55 + Math.random() * 0.75,
+        pos: origin.clone(), vel: v, life: 0, maxLife: 0.6 + Math.random() * 0.9,
         r: 1, g: 0.45 + warm * 0.4, b: 0.12 + warm * 0.2,
       });
     }
     let spawned = 0;
     for (const sh of this.shards) {
       if (sh.life > 0) continue;
-      sh.life = 0.7 + Math.random() * 0.5;
+      sh.life = 0.8 + Math.random() * 0.6;
       sh.mesh.visible = true;
       sh.mesh.position.copy(origin);
-      sh.mesh.scale.setScalar(0.6 + Math.random() * 1.1);
-      sh.vel.set((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);
-      sh.rot.set(Math.random() * 5, Math.random() * 5, Math.random() * 5);
-      if (++spawned >= (big ? 7 : 3)) break;
+      sh.mesh.scale.setScalar(0.7 + Math.random() * 1.4);
+      sh.vel.set((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9);
+      sh.rot.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+      if (++spawned >= (big ? 10 : 4)) break;
     }
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, transparent: true, depthWrite: false }));
-    flash.position.copy(origin); flash.scale.setScalar(big ? 7 : 4);
+    flash.position.copy(origin); flash.scale.setScalar(big ? 9 : 5);
     this.scene.add(flash);
-    this.flashes.push({ sprite: flash, life: 0.22, max: 0.22, grow: 6 });
+    this.flashes.push({ sprite: flash, life: 0.28, max: 0.28, grow: 8 });
 
     // expanding shockwave ring, billboarded next update
     const wave = new THREE.Mesh(this.waveGeo, new THREE.MeshBasicMaterial({
-      color: big ? 0xffc37a : 0xff7a5a, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false,
+      color: big ? 0xffd27a : 0xff8a5a, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false,
     }));
     wave.position.copy(origin);
     this.scene.add(wave);
-    this.waves.push({ mesh: wave, life: 0.38, max: 0.38, big });
+    this.waves.push({ mesh: wave, life: 0.45, max: 0.45, big });
+
+    // secondary outer flash for big explosions
+    if (big) {
+      const flash2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, color: 0xffa050, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      flash2.position.copy(origin); flash2.scale.setScalar(14);
+      this.scene.add(flash2);
+      this.flashes.push({ sprite: flash2, life: 0.18, max: 0.18, grow: 10 });
+    }
 
     this.boomLight.position.copy(origin);
-    this.boomLight.intensity = big ? 260 : 120;
+    this.boomLight.intensity = big ? 340 : 150;
   }
 
   update(dt, camera) {

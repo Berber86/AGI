@@ -5,6 +5,9 @@ import { MarkerTracker, FusionLook } from './look/markers.js';
 import { unlockAudio, playShot, playExplosion, audioInfo } from './audio.js';
 import { createEnvironment, createShip, createAsteroidAssets, setTextureAnisotropy } from './world.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { FxSystem } from './fx.js';
 
 // ---------------------------------------------------------------- state
@@ -42,6 +45,22 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.24;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+
+// --- post-processing: bloom for neon glow (flat mode only; VR stereo renders directly) ---
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.7,   // strength
+  0.4,   // radius
+  0.85   // threshold
+);
+bloomPass.threshold = 0.85;
+bloomPass.strength = 1.1;   // strong neon glow
+bloomPass.radius = 0.5;
+composer.addPass(bloomPass);
+let useComposer = true; // false in VR stereo (per-eye direct render)
+
 const scene = new THREE.Scene();
 // Image-based lighting from a tiny procedural room: metal, glass canopy and
 // white armour pick up real reflections instead of flat specular streaks.
@@ -143,6 +162,8 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  composer.setSize(w, h);
+  bloomPass.size.set(w, h);
 }
 window.addEventListener('resize', resize); resize();
 
@@ -404,17 +425,18 @@ function frame() {
   }
   fx.update(dt, camera);
   hitFlash.intensity = Math.max(0, hitFlash.intensity - dt * 26);
+  useComposer = !vrActive;
   if (vrActive) {
     renderer.setScissorTest(true);
     renderEye(-0.032); renderEye(0.032);
     renderer.setScissorTest(false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     camera.position.set(0, 0, 0);
-  } else {
+  } else if (useComposer) {
     renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.setScissorTest(false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-    renderer.render(scene, camera);
+    composer.render();
   }
 }
 frame();
