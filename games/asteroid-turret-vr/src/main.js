@@ -418,10 +418,27 @@ function frame() {
       const pulse = targeted ? 1 + Math.sin(nowSec * 10) * 0.03 : 1;
       m.rock.scale.setScalar(pulse);
     }
-    document.getElementById('hud-score').textContent = `Счёт: ${game.score}${game.streak >= 2 ? ` · серия ×${game.streak}` : ''}`;
+    document.getElementById('hud-score').textContent = `Счёт: ${game.score}`;
+    const streakEl = document.getElementById('hud-streak');
+    if (streakEl) streakEl.textContent = game.streak >= 2 ? `Серия ×${game.streak}` : '';
     document.getElementById('hud-hull').textContent = `Корпус: ${game.hull}`;
     const hullBar = document.getElementById('hull-fill');
     if (hullBar) { hullBar.style.width = game.hull + '%'; hullBar.style.background = game.hull > 50 ? '#38f5ff' : (game.hull > 25 ? '#ffb02e' : '#ff4444'); }
+
+    // Crosshair charging state (flat mode only)
+    const cross = document.getElementById('cross');
+    if (cross && !vrActive) {
+      const charging = game.gazeTargetId !== null;
+      cross.classList.toggle('charging', charging);
+      if (charging) {
+        const t = game.asteroids.find((a) => a.id === game.gazeTargetId);
+        if (t) {
+          const charge = t.dwell / DWELL_SECONDS;
+          const chargeEl = document.getElementById('cross-charge');
+          if (chargeEl) chargeEl.style.opacity = Math.min(1, 0.3 + charge * 0.7);
+        }
+      }
+    }
     if (game.status === 'lost') endRun('lost');
   }
   fx.update(dt, camera);
