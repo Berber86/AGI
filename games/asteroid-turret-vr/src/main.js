@@ -41,6 +41,8 @@ function rng() { rngState = (Math.imul(rngState, 1664525) + 1013904223) >>> 0; r
 // ---------------------------------------------------------------- three setup
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.24;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -81,7 +83,7 @@ camera.add(ship.group);
 const fx = new FxSystem(scene);
 
 scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a1c30, 1.25));
-const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); scene.add(sun); // warm key from the sun side
+const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 60; sun.shadow.camera.left = -20; sun.shadow.camera.right = 20; sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20; sun.shadow.bias = -0.0005; scene.add(sun); // warm key from the sun side
 const rim = new THREE.DirectionalLight(0xff3df0, 0.55); rim.position.set(-6, -2, 6); scene.add(rim);
 const fill = new THREE.DirectionalLight(0x8fb4ff, 0.55); fill.position.set(6, 3, 12); scene.add(fill); // camera-side fill so rocks read
 const hitFlash = new THREE.PointLight(0xff4444, 0, 9); hitFlash.position.set(0, 0, -1); camera.add(hitFlash);
@@ -129,6 +131,7 @@ function meshFor(a) {
   if (!m) {
     const group = new THREE.Group();
     const rock = new THREE.Mesh(rockAssets.geometryFor(a.id), rockAssets.makeMaterial());
+    rock.castShadow = true; rock.receiveShadow = true;
     // Per-rock material variety: tint, roughness, metalness
     const hueShift = ((a.id * 37) % 10 - 5) * 0.005;
     rock.material.color.offsetHSL(hueShift, 0, ((a.id * 53) % 10 - 5) * 0.012);
