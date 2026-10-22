@@ -1,13 +1,16 @@
 // In-world effects for Asteroid Turret VR: laser beams (core + glow sheath),
-// pooled explosion particles, tumbling shards, expanding shockwaves and a
-// pooled explosion light. No post-processing composer (perf guide): all glow
-// is faked with additive sprites/cylinders, and every pool is preallocated so
-// firing/explosions never allocate in the hot loop beyond small vectors.
+// pooled explosion particles, tumbling shards, expanding shockwaves, smoke,
+// beam trails and a pooled explosion light. No post-processing composer (perf
+// guide): all glow is faked with additive sprites/cylinders, and every pool is
+// preallocated so firing/explosions never allocate in the hot loop beyond small
+// vectors.
 
 import * as THREE from 'three';
 import { makeGlowTexture } from './world.js';
 
 const MAX_PARTICLES = 720;
+const MAX_BEAM_TRAILS = 64;
+const MAX_SMOKE = 40;
 
 export class FxSystem {
   constructor(scene) {
@@ -25,6 +28,31 @@ export class FxSystem {
     points.frustumCulled = false;
     scene.add(points);
     this.particles = [];
+
+    // --- beam trails: fading laser streaks between turret and target ---
+    this.trailGeo = new THREE.BufferGeometry();
+    this.trailGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_BEAM_TRAILS * 6), 3));
+    this.trailGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAX_BEAM_TRAILS * 6), 3));
+    const trails = new THREE.LineSegments(this.trailGeo, new THREE.LineBasicMaterial({
+      vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }));
+    trails.frustumCulled = false;
+    scene.add(trails);
+    this.beamTrails = []; // {x1,y1,z1,x2,y2,z2,life,maxLife,color}
+
+    // --- smoke particles after explosions ---
+    this.sGeo = new THREE.BufferGeometry();
+    this.sGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_SMOKE * 3), 3));
+    this.sGeo.setAttribute('size', new THREE.BufferAttribute(new Float32Array(MAX_SMOKE), 1));
+    this.sGeo.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(MAX_SMOKE), 1));
+    const smoke = new THREE.Points(this.sGeo, new THREE.PointsMaterial({
+      size: 0.8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      map: makeGlowTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), alphaTest: 0.01,
+    }));
+    smoke.frustumCulled = false;
+    scene.add(smoke);
+    this.smoke = []; // {x,y,z,size,alpha,life,maxLife,rise}
 
     // --- pooled shards ---
     this.shardGeo = new THREE.TetrahedronGeometry(0.34);
@@ -74,6 +102,15 @@ export class FxSystem {
     sheath.position.copy(this._mid); sheath.quaternion.copy(quat);
     this.scene.add(core, sheath);
     this.beams.push({ parts: [core, sheath], life: 0.16, max: 0.16 });
+
+    // beam trail: fading laser streak
+    const trail = {
+      x1: this._muzzle.x, y1: this._muzzle.y, z1: this._muzzle.z,
+      x2: this._target.x, y2: this._target.y, z2: this._target.z,
+      life: 0, maxLife: 0.12,
+    };
+    this.beamTrails.push(trail);
+    if (this.beamTrails.length > MAX_BEAM_TRAILS) this.beamTrails.shift();
 
     const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.flashTex, color: 0x9fefff, transparent: true, depthWrite: false }));
     flash.position.copy(this._muzzle); flash.scale.setScalar(0.85);
@@ -129,6 +166,20 @@ export class FxSystem {
 
     this.boomLight.position.copy(origin);
     this.boomLight.intensity = big ? 340 : 150;
+
+    // smoke: rising dark particles after explosion
+    const smokeCount = big ? 14 : 6;
+    for (let i = 0; i < smokeCount; i++) {
+      this.smoke.push({
+        x: origin.x + (Math.random() - 0.5) * 1.5,
+        y: origin.y,
+        z: origin.z + (Math.random() - 0.5) * 1.5,
+        size: 0.4 + Math.random() * 1.2,
+        alpha: 0.35 + Math.random() * 0.25,
+        life: 0, maxLife: 1.2 + Math.random() * 1.0,
+        rise: 0.8 + Math.random() * 1.2,
+      });
+    }
   }
 
   update(dt, camera) {
@@ -180,10 +231,64 @@ export class FxSystem {
         this.beams.splice(i, 1);
       }
     }
+
+    // beam trails: fade out laser streaks
+    const tPos = this.trailGeo.attributes.position; const tCol = this.trailGeo.attributes.color;
+    for (let i = 0; i < MAX_BEAM_TRAILS; i++) {
+      const tr = this.beamTrails[i];
+      if (tr) {
+        tr.life += dt;
+        const fade = 1 - tr.life / tr.maxLife;
+        tPos.setXYZ(i * 6, tr.x1, tr.y1, tr.z1);
+        tPos.setXYZ(i * 6 + 1, tr.x2, tr.y2, tr.z2);
+        tPos.setXYZ(i * 6 + 2, tr.x2, tr.y2, tr.z2);
+        tPos.setXYZ(i * 6 + 3, tr.x1, tr.y1, tr.z1);
+        tPos.setXYZ(i * 6 + 4, tr.x1 + (tr.x2 - tr.x1) * 0.5, tr.y1 + (tr.y2 - tr.y1) * 0.5 + 0.1, tr.z1 + (tr.z2 - tr.z1) * 0.5);
+        tPos.setXYZ(i * 6 + 5, tr.x1 + (tr.x2 - tr.x1) * 0.5, tr.y1 + (tr.y2 - tr.y1) * 0.5 - 0.1, tr.z1 + (tr.z2 - tr.z1) * 0.5);
+        const c = fade * 0.9;
+        tCol.setXYZ(i * 6, c, c * 0.8, c * 1.0);
+        tCol.setXYZ(i * 6 + 1, c, c * 0.8, c * 1.0);
+        tCol.setXYZ(i * 6 + 2, c, c * 0.8, c * 1.0);
+        tCol.setXYZ(i * 6 + 3, c, c * 0.8, c * 1.0);
+        tCol.setXYZ(i * 6 + 4, c * 0.6, c * 0.5, c * 0.9);
+        tCol.setXYZ(i * 6 + 5, c * 0.6, c * 0.5, c * 0.9);
+        if (tr.life >= tr.maxLife) this.beamTrails[i] = null;
+      } else {
+        tPos.setXYZ(i * 6, 0, 0, -999); tPos.setXYZ(i * 6 + 1, 0, 0, -999);
+        tPos.setXYZ(i * 6 + 2, 0, 0, -999); tPos.setXYZ(i * 6 + 3, 0, 0, -999);
+        tPos.setXYZ(i * 6 + 4, 0, 0, -999); tPos.setXYZ(i * 6 + 5, 0, 0, -999);
+        tCol.setXYZ(i * 6, 0, 0, 0); tCol.setXYZ(i * 6 + 1, 0, 0, 0);
+        tCol.setXYZ(i * 6 + 2, 0, 0, 0); tCol.setXYZ(i * 6 + 3, 0, 0, 0);
+        tCol.setXYZ(i * 6 + 4, 0, 0, 0); tCol.setXYZ(i * 6 + 5, 0, 0, 0);
+      }
+    }
+    tPos.needsUpdate = true; tCol.needsUpdate = true;
+
+    // smoke: rising dark particles
+    const sPos = this.sGeo.attributes.position; const sSize = this.sGeo.attributes.size; const sAlpha = this.sGeo.attributes.alpha;
+    for (let i = 0; i < MAX_SMOKE; i++) {
+      const sm = this.smoke[i];
+      if (sm) {
+        sm.life += dt;
+        sm.y += sm.rise * dt;
+        sm.x += (Math.sin(sm.life * 3) * 0.1) * dt;
+        const fade = 1 - sm.life / sm.maxLife;
+        sPos.setXYZ(i, sm.x, sm.y, sm.z);
+        sSize.setX(i, sm.size * (1 + fade * 1.5));
+        sAlpha.setX(i, sm.alpha * fade * 0.6);
+        if (sm.life >= sm.maxLife) this.smoke[i] = null;
+      } else {
+        sPos.setXYZ(i, 0, 0, -999);
+        sSize.setX(i, 0);
+        sAlpha.setX(i, 0);
+      }
+    }
+    sPos.needsUpdate = true; sSize.needsUpdate = true; sAlpha.needsUpdate = true;
+
     this.boomLight.intensity = Math.max(0, this.boomLight.intensity - dt * 700);
   }
 
   info() {
-    return { ...this.stats, activeParticles: this.particles.length, activeBeams: this.beams.length, activeWaves: this.waves.length };
+    return { ...this.stats, activeParticles: this.particles.length, activeBeams: this.beams.length, activeWaves: this.waves.length, activeTrails: this.beamTrails.filter(Boolean).length, activeSmoke: this.smoke.filter(Boolean).length };
   }
 }
