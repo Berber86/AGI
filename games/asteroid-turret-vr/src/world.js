@@ -381,8 +381,59 @@ export function createEnvironment(scene) {
   }));
   dust.frustumCulled = false; group.add(dust);
 
+  // --- comets: slow icy wanderers with glowing tails ---
+  const COMETS = 4;
+  const comets = [];
+  const cometGeo = new THREE.SphereGeometry(0.5, 12, 10);
+  const cometMat = new THREE.MeshBasicMaterial({ color: 0xbee3ff, transparent: true, opacity: 0.9 });
+  const cometTailGeo = new THREE.ConeGeometry(0.05, 8, 8, 1, true);
+  const cometTailMat = new THREE.MeshBasicMaterial({ color: 0x6fb3ff, transparent: true, opacity: 0.5, depthWrite: false });
+  const cr3 = mulberry(131);
+  for (let i = 0; i < COMETS; i++) {
+    const c = new THREE.Group();
+    const head = new THREE.Mesh(cometGeo, cometMat.clone());
+    const tail = new THREE.Mesh(cometTailGeo, cometTailMat.clone());
+    tail.rotation.x = Math.PI / 2;
+    tail.position.z = -4;
+    c.add(head, tail);
+    c.position.set((cr3() - 0.5) * 300, (cr3() - 0.5) * 200, -400 - cr3() * 300);
+    c.userData = {
+      vel: new THREE.Vector3((cr3() - 0.5) * 0.6, (cr3() - 0.5) * 0.4, 1.5 + cr3() * 2),
+      life: cr3() * 30,
+      maxLife: 20 + cr3() * 40,
+    };
+    group.add(c); comets.push(c);
+  }
+
+  // --- shooting stars: fast meteors with streaks ---
+  const SHOOTING = 6;
+  const shootingStars = [];
+  const starGeo = new THREE.SphereGeometry(0.15, 8, 6);
+  const starMat = new THREE.MeshBasicMaterial({ color: 0xffffd0 });
+  const streakGeo = new THREE.CylinderGeometry(0.02, 0.06, 3, 6, 1, true);
+  const streakMat = new THREE.MeshBasicMaterial({ color: 0xaaeeff, transparent: true, opacity: 0.7, depthWrite: false });
+  const cr4 = mulberry(173);
+  for (let i = 0; i < SHOOTING; i++) {
+    const s = new THREE.Group();
+    const head = new THREE.Mesh(starGeo, starMat.clone());
+    const streak = new THREE.Mesh(streakGeo, streakMat.clone());
+    streak.rotation.z = Math.PI / 2;
+    streak.position.z = -1.5;
+    s.add(head, streak);
+    s.position.set((cr4() - 0.5) * 400, (cr4() - 0.5) * 300, -300 - cr4() * 200);
+    s.userData = {
+      vel: new THREE.Vector3((cr4() - 0.5) * 8, (cr4() - 0.5) * 6, 12 + cr4() * 15),
+      rotSpeed: 0.4 + cr4() * 0.6,
+      active: cr4() > 0.5,
+      timer: cr4() * 20,
+    };
+    group.add(s); shootingStars.push(s);
+  }
+
   return {
     group,
+    comets,
+    shootingStars,
     update(dt, nowSec) {
       planet.rotation.y += dt * 0.004;
       earth.rotation.y += dt * 0.0016;
@@ -421,6 +472,41 @@ export function createEnvironment(scene) {
         pos.setZ(i, z);
       }
       pos.needsUpdate = true;
+
+      // Comets: slow icy wanderers with glowing tails
+      comets.forEach((c) => {
+        const ud = c.userData;
+        c.position.addScaledVector(ud.vel, dt);
+        ud.life += dt;
+        if (ud.life >= ud.maxLife) {
+          // respawn far away
+          c.position.set((cr3() - 0.5) * 300, (cr3() - 0.5) * 200, -450);
+          ud.life = 0;
+          ud.vel.set((cr3() - 0.5) * 0.6, (cr3() - 0.5) * 0.4, 1.5 + cr3() * 2);
+        }
+        c.rotation.y += dt * 0.3;
+        c.children[1].scale.setScalar(0.8 + Math.sin(nowSec * 8) * 0.2); // tail pulse
+      });
+
+      // Shooting stars: fast meteors
+      shootingStars.forEach((s) => {
+        const ud = s.userData;
+        ud.timer -= dt;
+        if (ud.timer <= 0) {
+          ud.active = !ud.active;
+          ud.timer = 3 + Math.random() * 12;
+        }
+        if (ud.active) {
+          s.position.addScaledVector(ud.vel, dt);
+          s.rotation.z += dt * ud.rotSpeed;
+          s.rotation.x += dt * ud.rotSpeed * 0.5;
+          // respawn if too close
+          if (s.position.z > 5) {
+            s.position.set((cr4() - 0.5) * 400, (cr4() - 0.5) * 300, -350);
+          }
+        }
+        s.visible = ud.active;
+      });
     },
   };
 }
