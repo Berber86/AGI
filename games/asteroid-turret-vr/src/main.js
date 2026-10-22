@@ -361,7 +361,7 @@ function frame() {
   const nowSec = performance.now() / 1000;
   if (mode === 'fusion' && running) pumpCameraFrame();
   environment.update(dt, nowSec);
-  ship.update(nowSec);
+  ship.update(nowSec, dt);
 
   if (running) {
     look = currentLook(nowSec);
@@ -379,7 +379,8 @@ function frame() {
     const { state, events } = stepGame(game, dt, look, rng);
     game = state;
     for (const ev of events) {
-      if (ev.type === 'explosion') { fx.fireBeam(ship.muzzle, ev.x, ev.y, ev.z); fx.burst(ev.x, ev.y, ev.z, true); playShot(); playExplosion(); removeMesh(ev.id); }
+      if (ev.type === 'shot') { ship.fire(); playShot(); }
+      if (ev.type === 'explosion') { fx.fireBeam(ship.muzzle, ev.x, ev.y, ev.z); fx.burst(ev.x, ev.y, ev.z, true); playExplosion(); removeMesh(ev.id); }
       if (ev.type === 'hullHit') {
         fx.burst(ev.x, ev.y, ev.z, false); fx.stats.hullFlashes += 1;
         hitFlash.intensity = 14; hullShake = 1; playExplosion(); removeMesh(ev.id);
