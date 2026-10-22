@@ -213,20 +213,30 @@ export function makeGlowTexture(inner, outer) {
 // ------------------------------------------------------------- environment
 function starLayer(count, radius, size, color, seed) {
   const pos = new Float32Array(count * 3);
+  const opacity = new Float32Array(count);
+  const twinkleSpeed = new Float32Array(count);
+  const twinkleOffset = new Float32Array(count);
   const r = mulberry(seed);
   for (let i = 0; i < count; i++) {
     const t = r() * Math.PI * 2, p = Math.acos(r() * 2 - 1);
     pos[i * 3] = radius * Math.sin(p) * Math.cos(t);
     pos[i * 3 + 1] = radius * Math.cos(p);
     pos[i * 3 + 2] = radius * Math.sin(p) * Math.sin(t);
+    // Per-star twinkle: random base opacity and speed
+    opacity[i] = 0.3 + r() * 0.7;
+    twinkleSpeed[i] = 0.8 + r() * 2.4; // cycles per second
+    twinkleOffset[i] = r() * Math.PI * 2;
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('opacity', new THREE.BufferAttribute(opacity, 1));
   const pts = new THREE.Points(g, new THREE.PointsMaterial({
     color, size, sizeAttenuation: true, depthWrite: false, transparent: true,
+    vertexColors: false,
     map: makeGlowTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)'), alphaTest: 0.01,
   }));
   pts.frustumCulled = false;
+  pts.userData = { opacityAttr: opacity, twinkleSpeed, twinkleOffset, geoOpacity: g.attributes.opacity };
   return pts;
 }
 
@@ -243,30 +253,33 @@ export function createEnvironment(scene) {
   );
   sky.frustumCulled = false; group.add(sky);
 
-  group.add(starLayer(1500, 190, 0.75, 0xaecdf5, 7));
-  group.add(starLayer(480, 170, 1.5, 0xeaf6ff, 21)); // brighter near layer
+  const stars1 = starLayer(1500, 190, 0.75, 0xaecdf5, 7);
+  const stars2 = starLayer(480, 170, 1.5, 0xeaf6ff, 21); // brighter near layer
+  group.add(stars1, stars2);
 
   // ringed gas giant + crater moon, low-left of the play sector
   const planetTex = makePlanetTexture();
   const planet = new THREE.Mesh(
-    new THREE.SphereGeometry(13, 48, 32),
-    new THREE.MeshStandardMaterial({ map: planetTex, roughness: 0.85, metalness: 0, emissive: 0x8fb8dd, emissiveMap: planetTex, emissiveIntensity: 0.38 }),
+    new THREE.SphereGeometry(13, 64, 48),
+    new THREE.MeshStandardMaterial({ map: planetTex, roughness: 0.85, metalness: 0, emissive: 0x8fb8dd, emissiveMap: planetTex, emissiveIntensity: 0.42 }),
   );
   planet.position.set(-125, -68, -195); group.add(planet);
   const atmo = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(110,190,255,0.5)', 'rgba(110,190,255,0)'), transparent: true, depthWrite: false }));
-  atmo.position.copy(planet.position); atmo.scale.setScalar(52); group.add(atmo);
+  atmo.position.copy(planet.position); atmo.scale.setScalar(56); group.add(atmo);
+  const atmo2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(60,100,160,0.3)', 'rgba(60,100,160,0)'), transparent: true, depthWrite: false }));
+  atmo2.position.copy(planet.position); atmo2.scale.setScalar(72); group.add(atmo2);
   const ringTex = canvasTex([256, 16], (ctx, w, h) => {
     const r = mulberry(5);
     for (let x = 0; x < w; x += 2) { ctx.fillStyle = `rgba(160,215,255,${0.12 + r() * 0.55})`; ctx.fillRect(x, 0, 2, h); }
   });
   const rings = new THREE.Mesh(
-    new THREE.RingGeometry(22, 34, 64),
-    new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false }),
+    new THREE.RingGeometry(22, 36, 80),
+    new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, opacity: 0.78, side: THREE.DoubleSide, depthWrite: false }),
   );
   rings.position.copy(planet.position); rings.scale.setScalar(0.62); rings.rotation.x = Math.PI / 2.6; rings.rotation.y = 0.35; group.add(rings);
   const moon = new THREE.Mesh(
-    new THREE.SphereGeometry(3.4, 24, 18),
-    new THREE.MeshStandardMaterial({ map: makeRockTexture(31), bumpMap: makeRockBump(31), bumpScale: 0.6, roughness: 1 }),
+    new THREE.SphereGeometry(3.4, 32, 24),
+    new THREE.MeshStandardMaterial({ map: makeRockTexture(31), bumpMap: makeRockBump(31), bumpScale: 0.7, roughness: 1 }),
   );
   moon.position.set(58, 34, -150); group.add(moon);
 
@@ -285,6 +298,17 @@ export function createEnvironment(scene) {
   sunSprite.position.set(-205, 74, -155); sunSprite.scale.setScalar(95); group.add(sunSprite);
   const sunCore = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(255,246,220,1)', 'rgba(255,214,140,0)'), transparent: true, depthWrite: false }));
   sunCore.position.copy(sunSprite.position); sunCore.scale.setScalar(12); group.add(sunCore);
+
+  // --- sun lens flare: horizontal streak + radial spikes ---
+  const flareTex = makeGlowTexture('rgba(255,220,160,1)', 'rgba(255,140,40,0)');
+  const flareH = new THREE.Sprite(new THREE.SpriteMaterial({ map: flareTex, color: 0xffd48a, transparent: true, depthWrite: false, opacity: 0.55 }));
+  flareH.position.copy(sunSprite.position); flareH.scale.set(150, 12, 1); group.add(flareH);
+  const flareV = new THREE.Sprite(new THREE.SpriteMaterial({ map: flareTex, color: 0xffd48a, transparent: true, depthWrite: false, opacity: 0.45 }));
+  flareV.position.copy(sunSprite.position); flareV.scale.set(12, 150, 1); group.add(flareV);
+  const flareDiag1 = new THREE.Sprite(new THREE.SpriteMaterial({ map: flareTex, color: 0xffd48a, transparent: true, depthWrite: false, opacity: 0.35 }));
+  flareDiag1.position.copy(sunSprite.position); flareDiag1.scale.setScalar(110); flareDiag1.rotation.z = 0.7; group.add(flareDiag1);
+  const flareDiag2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: flareTex, color: 0xffd48a, transparent: true, depthWrite: false, opacity: 0.35 }));
+  flareDiag2.position.copy(sunSprite.position); flareDiag2.scale.setScalar(110); flareDiag2.rotation.z = -0.7; group.add(flareDiag2);
 
   // --- background asteroid belt: one InstancedMesh, ~140 far rocks ---
   const beltGeo = displacedRock(1.6, 2, 23);
@@ -366,6 +390,29 @@ export function createEnvironment(scene) {
       station.rotation.y += dt * 0.01;
       moon.rotation.y += dt * 0.01;
       sky.rotation.y += dt * 0.0012; // near-imperceptible parallax drift
+      sky.rotation.z += dt * 0.0006; // slow nebula drift
+      rings.rotation.y += dt * 0.0015; // ring precession
+
+      // Star twinkling: sine-modulated opacity per layer
+      for (const layer of [stars1, stars2]) {
+        const ud = layer.userData;
+        const opacityAttr = ud.geoOpacity;
+        const count = ud.opacityAttr.length;
+        for (let i = 0; i < count; i++) {
+          const t = nowSec * ud.twinkleSpeed[i] + ud.twinkleOffset[i];
+          const twinkle = 0.5 + 0.5 * Math.sin(t);
+          opacityAttr.setX(i, ud.opacityAttr[i] * (0.5 + twinkle * 0.5));
+        }
+        opacityAttr.needsUpdate = true;
+      }
+
+      // Sun flare subtle pulse
+      const flarePulse = 0.85 + 0.15 * Math.sin(nowSec * 2.2);
+      flareH.material.opacity = 0.55 * flarePulse;
+      flareV.material.opacity = 0.45 * flarePulse;
+      flareDiag1.material.opacity = 0.35 * flarePulse;
+      flareDiag2.material.opacity = 0.35 * flarePulse;
+
       beacons.forEach((b, i) => { b.material.opacity = 0.35 + 0.65 * Math.max(0, Math.sin(nowSec * 1.4 + i * 2.4)); });
       const pos = dustGeo.attributes.position;
       for (let i = 0; i < DUST; i++) {
