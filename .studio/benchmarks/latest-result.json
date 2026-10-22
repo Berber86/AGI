@@ -1,8 +1,8 @@
 {
   "benchmarkVersion": 1,
-  "runId": "20261014T223742Z-ec584f",
+  "runId": "20261021T170038Z-f8761c",
   "verdict": "qualified",
-  "score": 100,
+  "score": 95,
   "maximumScore": 100,
   "subscores": {
     "codeReasoning": {
@@ -10,7 +10,7 @@
       "possible": 70
     },
     "productPlanning": {
-      "earned": 20,
+      "earned": 15,
       "possible": 20
     },
     "processIntegrity": {
@@ -113,10 +113,10 @@
     },
     {
       "name": "task-plan",
-      "earned": 5,
+      "earned": 0,
       "possible": 5,
-      "passed": true,
-      "detail": "pass"
+      "passed": false,
+      "detail": "AssertionError: CORE-001 evidence missing"
     },
     {
       "name": "workspace-integrity",
@@ -141,7 +141,7 @@
     }
   ],
   "allowedWork": "May continue with the full Arena Game Forge workflow.",
-  "evaluatedAt": "2026-10-14T22:38:09Z",
+  "evaluatedAt": "2026-10-21T17:00:54Z",
   "policy": {
     "qualified": "score >= 85, code >= 60, plan >= 15, no critical failures",
     "limited": "score >= 70, code >= 50, no critical failures",

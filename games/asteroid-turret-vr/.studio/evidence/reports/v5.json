@@ -1,0 +1,23 @@
+{
+  "gate": "v5-quality-and-slow-approach",
+  "change1": "Asteroid approach speed exactly 10x slower: asteroidSpeedAt 3.2..7.5 -> 0.32..0.75 u/s (unit test pins 0.32/0.75); rotation unchanged (spin += dt*0.7 in sim, same render rotation)",
+  "runtimeProbe": "live asteroid speed 0.278 u/s at spawn (was ~2.78)",
+  "quality": [
+    "game asteroid geometry detail 2 -> 3 (smoother close-ups, craters kept)",
+    "nebula backdrop 1024x512 -> 2048x1024, baked stars 900 -> 1800",
+    "star layers 1100/350 -> 1500/480",
+    "texture anisotropy up to 4 (setTextureAnisotropy from renderer caps)",
+    "image-based lighting: PMREM RoomEnvironment, scene.environmentIntensity 0.38 — canopy/metal/white armour get real reflections"
+  ],
+  "qa": [
+    "unit 16/16 (incl. new speed pins)",
+    "e2e 13/13",
+    "root 20 OK"
+  ],
+  "screenshots": [
+    "evidence/screenshots/v5-dwell.png",
+    "evidence/screenshots/v5-front.png"
+  ],
+  "gameplayNote": "At 0.32-0.75 u/s from 42 units, asteroids take ~55-130 s to arrive; the sector fills to the 14-alive cap and hangs tumbling — a calm shooting gallery as requested. Hull pressure is now minimal.",
+  "deviceTested": false
+}

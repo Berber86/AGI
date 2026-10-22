@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Core simulation: dwell 1.5s, spawn sector 90x60, hull/score, escalation",
+      "status": "done",
+      "dependencies": [],
+      "acceptance": [
+        "Unit tests for dwell, sector, damage, lose, escalation cap"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core.json"
+      ]
+    },
+    {
+      "id": "CORE-002",
+      "title": "Look providers: gyro VR stereo, dual-marker fusion, flat screen; sign + fusion unit tests",
+      "status": "done",
+      "dependencies": [
+        "CORE-001"
+      ],
+      "acceptance": [
+        "Unit tests for signs, entity>=0.15s, pair-straight, hold-on-loss, rate limit"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/look.json"
+      ]
+    },
+    {
+      "id": "BUILD-001",
+      "title": "Three.js scene, prep screen, zero-HUD VR, PWA, test bridge",
+      "status": "done",
+      "dependencies": [
+        "CORE-001",
+        "CORE-002"
+      ],
+      "acceptance": [
+        "Production build passes; browser QA no page errors; screenshots 360x800/412x915"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Static export to play/, catalog card, handoff",
+      "status": "done",
+      "dependencies": [
+        "BUILD-001"
+      ],
+      "acceptance": [
+        "play/ served statically; root unit tests pass"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release.json"
+      ]
+    },
+    {
+      "id": "V2-001",
+      "title": "Faster action start, kill streak, explosion position in events",
+      "status": "done",
+      "dependencies": [],
+      "acceptance": [
+        "Unit tests: streak grows/resets, spawn distance 42, explosion carries position"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/core-v2.json"
+      ]
+    },
+    {
+      "id": "V2-002",
+      "title": "FX: particle explosions, shards, real beam to impact point, dwell arc, hull flash, ship/space environment",
+      "status": "done",
+      "dependencies": [
+        "V2-001"
+      ],
+      "acceptance": [
+        "E2E screenshots show asteroids/FX; zero-HUD VR kept"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e-v2.json"
+      ]
+    },
+    {
+      "id": "V2-003",
+      "title": "Bundle diet (minified three build) + re-export + catalog/root tests",
+      "status": "done",
+      "dependencies": [
+        "V2-002"
+      ],
+      "acceptance": [
+        "Export measurably below 514663 bytes; root tests pass"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/release-v2.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V3",
+      "title": "Visual overhaul: world.js environment/ship/asteroids, fx.js beams/particles/shockwaves, prep banner",
+      "status": "done",
+      "dependencies": [
+        "BUILD-001"
+      ],
+      "acceptance": [
+        "Screenshots inspected (v3-dwell-arc, v3-explosion)",
+        "E2E 13/13",
+        "unit 16/16"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v3.json"
+      ]
+    },
+    {
+      "id": "VISUAL-V4",
+      "title": "Reference-matching iterations 1-3: Earth horizon/sun/belt/station, cockpit, cratered bright asteroids",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V3"
+      ],
+      "acceptance": [
+        "iter screenshots inspected",
+        "push after iter3 and iter6"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/visual-v4.json"
+      ]
+    },
+    {
+      "id": "V5",
+      "title": "Quality iteration + asteroid approach 10x slower (spin unchanged)",
+      "status": "done",
+      "dependencies": [
+        "VISUAL-V4"
+      ],
+      "acceptance": [
+        "speed unit pins 0.32/0.75",
+        "screenshots inspected",
+        "e2e 13/13"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/v5.json"
+      ]
+    }
+  ]
+}

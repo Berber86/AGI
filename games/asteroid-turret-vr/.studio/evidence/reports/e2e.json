@@ -1,0 +1,76 @@
+{
+  "when": "2026-10-22T03:08:53.401Z",
+  "base": "http://127.0.0.1:8899/games/asteroid-turret-vr/play/index.html",
+  "passed": 13,
+  "total": 13,
+  "results": [
+    {
+      "name": "prep screen visible",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "test bridge present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "asteroid spawned inside sector",
+      "ok": true,
+      "detail": "{\"id\":1,\"yawDeg\":-39.11985562182963,\"pitchDeg\":22.37812772858888,\"dist\":41.98340139533545,\"speed\":0.33197209329107386,\"radius\":1.6,\"hp\":1,\"dwell\":0,\"spin\":2.5893980119931697}"
+    },
+    {
+      "name": "dwell shot fired and scored",
+      "ok": true,
+      "detail": "shots=1 score=100"
+    },
+    {
+      "name": "explosion FX burst produced (particles/beam)",
+      "ok": true,
+      "detail": "{\"bursts\":1,\"hullFlashes\":0,\"beamsFired\":1,\"activeParticles\":52,\"activeBeams\":1,\"activeWaves\":1}"
+    },
+    {
+      "name": "kill streak tracked",
+      "ok": true,
+      "detail": "kills=1 streak=1"
+    },
+    {
+      "name": "V3 beam fired (core+sheath pooled)",
+      "ok": true,
+      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":25,\"activeBeams\":0,\"activeWaves\":0}"
+    },
+    {
+      "name": "V3 FX info exposes particles/waves",
+      "ok": true,
+      "detail": "{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":25,\"activeBeams\":0,\"activeWaves\":0}"
+    },
+    {
+      "name": "lose path reachable (hull 0)",
+      "ok": true,
+      "detail": "status=lost hull=0 score=210"
+    },
+    {
+      "name": "gyro VR starts (synthetic)",
+      "ok": true,
+      "detail": "{\"mode\":\"gyro\",\"quality\":\"high\",\"vrActive\":true,\"running\":true,\"audio\":{\"available\":true,\"state\":\"running\"},\"cam\":{\"active\":false,\"workerActive\":false,\"procMs\":null,\"width\":160,\"busy\":false},\"fx\":{\"bursts\":2,\"hullFlashes\":0,\"beamsFired\":2,\"activeParticles\":15,\"activeBeams\":0,\"activeWaves\":0},\"inVrDomOverlay\":0}"
+    },
+    {
+      "name": "zero HUD inside VR (no overlay nodes)",
+      "ok": true,
+      "detail": "overlay=0"
+    },
+    {
+      "name": "360x800 prep renders",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "errors": [],
+  "deviceTested": false,
+  "note": "Headless SwiftShader synthetic run; gyro/camera physical signs not device-tested."
+}

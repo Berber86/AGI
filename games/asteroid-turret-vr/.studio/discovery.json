@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 4,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "completedAt": "2026-10-21T17:10:00Z",
+      "optionsUsed": true,
+      "questions": [
+        "tone",
+        "run_structure",
+        "lose_condition"
+      ],
+      "answers": {
+        "tone": "neon-arcade",
+        "run_structure": "endless-escalation",
+        "lose_condition": "hull-100"
+      },
+      "summary": "Neon arcade space; endless escalating asteroid stream (no waves); hull 100 HP, damage scaled by asteroid size."
+    },
+    {
+      "stage": 2,
+      "name": "play-experience",
+      "completedAt": "2026-10-21T17:15:00Z",
+      "optionsUsed": true,
+      "questions": [
+        "look_sources",
+        "difficulty_curve",
+        "dwell_feedback"
+      ],
+      "answers": {
+        "look_sources": "vr-camera-markers",
+        "difficulty_curve": "calm-long",
+        "dwell_feedback": "ring-plus-charge"
+      },
+      "summary": "Look: lens-VR stereo (gyro) plus camera/marker hybrid per repo guide, flat-screen mouse/touch fallback; calm ~8-minute escalation; dwell shown as neon ring + rising charge tone, progress decays instead of instant reset."
+    },
+    {
+      "stage": 3,
+      "name": "presentation-and-scope",
+      "completedAt": "2026-10-21T17:20:00Z",
+      "optionsUsed": true,
+      "questions": [
+        "marker_scope",
+        "asteroid_variety",
+        "sound_level"
+      ],
+      "answers": {
+        "marker_scope": "full-guide",
+        "asteroid_variety": "one-type",
+        "sound_level": "minimal"
+      },
+      "summary": "Full guide scope: prep screen with gyro / dual-marker fusion / flat-screen modes; one asteroid type varying only speed; minimal synthesized audio (shot + explosion only, dwell carried by the visual ring)."
+    },
+    {
+      "stage": 4,
+      "name": "contract-lock",
+      "completedAt": "2026-10-21T17:25:00Z",
+      "optionsUsed": true,
+      "questions": [
+        "approval"
+      ],
+      "answers": {
+        "approval": "approve-mvp"
+      },
+      "summary": "User approved the MVP exactly as synthesized: neon endless hull-100 gaze-dwell shooter, full guide VR/camera-marker scope, one asteroid type, minimal audio."
+    }
+  ],
+  "answers": {
+    "tone": "neon-arcade",
+    "run_structure": "endless-escalation",
+    "lose_condition": "hull-100",
+    "look_sources": "vr-camera-markers",
+    "difficulty_curve": "calm-long",
+    "dwell_feedback": "ring-plus-charge",
+    "marker_scope": "full-guide",
+    "asteroid_variety": "one-type",
+    "sound_level": "minimal",
+    "approval": "approve-mvp"
+  },
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-21T17:05:00Z",
+  "updatedAt": "2026-10-21T17:25:00Z"
+}

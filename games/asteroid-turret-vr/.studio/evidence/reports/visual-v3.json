@@ -1,0 +1,16 @@
+{ "gate": "visual-v3", "scope": "Full visual overhaul on top of V2 (user: '6 minutes and 500 KB... surely bad graphics, work more')",
+  "changes": [
+    "src/world.js (new, ~380 lines): procedural canvas textures (rock albedo+bump with craters/veins, gas-giant bands with storm spot, painted 1024px nebula backdrop, deck panel texture)",
+    "Environment: nebula sky sphere, two star layers with glow-sprite points, ringed planet with atmosphere sprite + textured rings, crater moon, blinking distant beacons, 240 dust motes streaming past the ship",
+    "Asteroids: detail-2 icosahedra displaced by direction-hash noise (watertight, 3 visual variants of the one mechanical type), textured + bump, tumbling",
+    "Ship: wedge nose, panelled deck, rotating turret collar, twin barrels with muzzle object, side cannons/pods, nav lights, pulsing engine glow; flat-only hull-impact camera shake (never in VR)",
+    "src/fx.js (new): FxSystem — beam core+additive sheath, muzzle flash, pooled particles (520) with glow texture, shards, expanding shockwave rings, pooled explosion point light",
+    "Dwell feedback: faint ring + closing arc + slower counter-rotating magenta arc + corner brackets on the gazed target",
+    "Renderer: ACES tone mapping, sRGB output, antialias on, hemisphere+rim lights; still NO post-processing composer (perf guide)",
+    "Prep screen: in-game cover banner"
+  ],
+  "qa": ["npm run check: 16/16", "node qa/e2e.mjs: 13/13 (new V3 beam/FX checks)", "root unittest: 20 OK"],
+  "screenshots": ["evidence/screenshots/v3-dwell-arc.png", "evidence/screenshots/v3-explosion.png", "evidence/screenshots/prep-412x915.png", "evidence/screenshots/game-412x915.png"],
+  "visualReview": "Screenshots inspected by agent: planet-ring wedge artefact found and fixed (planet moved down-left, rings shrunk), square point-sprites fixed with glow textures, turret head de-mirrored and lowered, nebula saturation reduced",
+  "size": "play/ 561040 bytes total; source 1535 lines JS",
+  "deviceTested": false }

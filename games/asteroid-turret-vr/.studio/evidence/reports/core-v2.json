@@ -1,0 +1,1 @@
+{ "gate": "core-v2", "command": "npm run check", "result": "16/16", "new": ["spawn distance 60 -> 42 (action starts ~2x sooner)", "kill streak: killScore 100 + 10/kill capped +100, hull hit resets streak", "explosion/hullHit events carry world position for FX"], "deviceTested": false }

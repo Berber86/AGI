@@ -1,0 +1,7 @@
+{ "gate": "visual-v4", "reference": "two user-supplied concept images (bright cartoon space, Earth horizon, dense belt, white/blue turret cockpit)",
+  "iterations": [
+    {"n": 1, "scope": "Earth horizon below, warm sun sprite+key light, 150-rock InstancedMesh belt, procedural orbital station", "review": "rocks too dark/red, Earth polar cap faced camera, sun read as white moon"},
+    {"n": 2, "scope": "cockpit: white struts with neon inlays, glass canopy, radar dashboard; brighter sky, camera fill light, Earth tilt fix", "review": "belt still red-brown; nose pyramid reads as dark slab; dashboard screen sunk into deck"},
+    {"n": 3, "scope": "crater dents in geometry, lighter regolith, per-rock tint, sun warm/smaller, nose lightened", "review": "sun fixed; rock palette still browner than reference (iter4), nose slab slimming (iter4)"}
+  ],
+  "qa": ["unit 16/16", "e2e 13/13"], "deviceTested": false }
