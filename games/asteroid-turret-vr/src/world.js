@@ -31,45 +31,97 @@ function canvasTex(size, draw, { repeat = false } = {}) {
   return tex;
 }
 
-/** Rocky asteroid albedo: mottled regolith, darker crater blotches, warm rim dust. */
+/** Rocky asteroid albedo: layered regolith, crater blotches, mineral veins, warm rim dust. Higher res. */
 export function makeRockTexture(seed = 7) {
   const r = mulberry(seed);
-  return canvasTex([512, 512], (ctx, w, h) => {
-    ctx.fillStyle = '#c2a37c'; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 5200; i++) {
-      const g = 125 + Math.floor(r() * 95);
-      ctx.fillStyle = `rgba(${g + 22},${g + 4},${Math.floor(g * 0.78)},${0.15 + r() * 0.2})`;
-      ctx.beginPath(); ctx.arc(r() * w, r() * h, 1 + r() * 5, 0, 7); ctx.fill();
+  return canvasTex([1024, 1024], (ctx, w, h) => {
+    // Base regolith tone with noise
+    const base = '#c2a37c'; ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
+    // Fine grain noise
+    const img = ctx.createImageData(w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      img.data[i] = 194 + (r() - 0.5) * 40;
+      img.data[i + 1] = 163 + (r() - 0.5) * 40;
+      img.data[i + 2] = 124 + (r() - 0.5) * 30;
+      img.data[i + 3] = 255;
     }
-    for (let i = 0; i < 34; i++) { // craters: dark pit + lit lower rim
-      const x = r() * w, y = r() * h, rad = 8 + r() * 26;
-      ctx.fillStyle = 'rgba(38,26,18,0.38)';
+    ctx.putImageData(img, 0, 0);
+    // Mottled patches
+    for (let i = 0; i < 7000; i++) {
+      const g = 120 + Math.floor(r() * 100);
+      ctx.fillStyle = `rgba(${g + 25},${g + 8},${Math.floor(g * 0.75)},${0.12 + r() * 0.25})`;
+      ctx.beginPath(); ctx.arc(r() * w, r() * h, 2 + r() * 8, 0, 7); ctx.fill();
+    }
+    // Craters: dark pit + lit lower rim + ejecta ring
+    for (let i = 0; i < 60; i++) {
+      const x = r() * w, y = r() * h, rad = 10 + r() * 40;
+      ctx.fillStyle = 'rgba(30,20,14,0.5)';
       ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
-      ctx.strokeStyle = 'rgba(230,200,160,0.35)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, y, rad, 0.4, 2.4); ctx.stroke();
+      ctx.strokeStyle = 'rgba(240,210,170,0.45)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, rad, 0.3, 2.6); ctx.stroke();
+      // ejecta speckles
+      for (let j = 0; j < 6; j++) {
+        ctx.fillStyle = `rgba(${180 + r() * 60},${150 + r() * 60},${110 + r() * 60},${0.3 + r() * 0.3})`;
+        ctx.beginPath(); ctx.arc(x + (r() - 0.5) * rad * 1.8, y + (r() - 0.5) * rad * 1.8, 1 + r() * 3, 0, 7); ctx.fill();
+      }
     }
-    for (let i = 0; i < 40; i++) { // pale mineral veins
-      ctx.strokeStyle = `rgba(210,190,160,${0.05 + r() * 0.1})`; ctx.lineWidth = 1;
+    // Pale mineral veins
+    for (let i = 0; i < 70; i++) {
+      ctx.strokeStyle = `rgba(215,200,170,${0.06 + r() * 0.12})`; ctx.lineWidth = 1.5;
       ctx.beginPath(); const x = r() * w, y = r() * h;
-      ctx.moveTo(x, y); ctx.lineTo(x + (r() - 0.5) * 60, y + (r() - 0.5) * 60); ctx.stroke();
+      ctx.moveTo(x, y); ctx.lineTo(x + (r() - 0.5) * 90, y + (r() - 0.5) * 90); ctx.stroke();
+    }
+    // Dark oxidation streaks
+    for (let i = 0; i < 30; i++) {
+      ctx.strokeStyle = `rgba(60,45,30,${0.15 + r() * 0.2})`; ctx.lineWidth = 3 + r() * 5;
+      ctx.beginPath(); const x = r() * w, y = r() * h;
+      ctx.moveTo(x, y); ctx.lineTo(x + (r() - 0.5) * 120, y + (r() - 0.5) * 30); ctx.stroke();
     }
   }, { repeat: true });
 }
 
-/** Bump map companion for the rock albedo (grayscale height noise). */
+/** Bump map: grayscale height noise with crater depth. */
 export function makeRockBump(seed = 7) {
   const r = mulberry(seed + 100);
-  const tex = canvasTex([256, 256], (ctx, w, h) => {
+  const tex = canvasTex([512, 512], (ctx, w, h) => {
     ctx.fillStyle = '#808080'; ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2000; i++) {
-      const g = 70 + Math.floor(r() * 120);
-      ctx.fillStyle = `rgba(${g},${g},${g},0.25)`;
-      ctx.beginPath(); ctx.arc(r() * w, r() * h, 1 + r() * 6, 0, 7); ctx.fill();
+    // Height noise
+    const img = ctx.createImageData(w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 128 + (r() - 0.5) * 60;
+      img.data[i] = v; img.data[i + 1] = v; img.data[i + 2] = v; img.data[i + 3] = 255;
     }
-    for (let i = 0; i < 26; i++) {
-      const x = r() * w, y = r() * h, rad = 5 + r() * 16;
-      ctx.fillStyle = 'rgba(20,20,20,0.6)';
-      ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    ctx.putImageData(img, 0, 0);
+    // Craters: deep dark holes
+    for (let i = 0; i < 40; i++) {
+      const x = r() * w, y = r() * h, rad = 8 + r() * 24;
+      const g = ctx.createRadialGradient(x, y, rad * 0.6, x, y, rad);
+      g.addColorStop(0, 'rgba(10,10,10,1)'); g.addColorStop(0.7, 'rgba(60,60,60,0.6)'); g.addColorStop(1, 'rgba(128,128,128,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    }
+    // Raised ridges around craters
+    for (let i = 0; i < 20; i++) {
+      const x = r() * w, y = r() * h, rad = 12 + r() * 28;
+      const g = ctx.createRadialGradient(x, y, rad * 0.85, x, y, rad * 1.3);
+      g.addColorStop(0, 'rgba(200,200,200,0.5)'); g.addColorStop(1, 'rgba(128,128,128,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    }
+  }, { repeat: true });
+  tex.colorSpace = THREE.NoColorSpace;
+  return tex;
+}
+
+/** Normal map: fake surface detail for per-asteroid variety. */
+export function makeRockNormal(seed = 7) {
+  const r = mulberry(seed + 200);
+  const tex = canvasTex([512, 512], (ctx, w, h) => {
+    ctx.fillStyle = '#7f7fff'; ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 3000; i++) {
+      const x = r() * w, y = r() * h;
+      const g = 128 + Math.floor((r() - 0.5) * 60);
+      const b = 128 + Math.floor((r() - 0.5) * 80);
+      ctx.fillStyle = `rgba(128,${g},${b},0.3)`;
+      ctx.beginPath(); ctx.arc(x, y, 2 + r() * 6, 0, 7); ctx.fill();
     }
   }, { repeat: true });
   tex.colorSpace = THREE.NoColorSpace;
@@ -478,15 +530,23 @@ function displacedRock(radius, detail, seed) {
 export function createAsteroidAssets() {
   const texture = makeRockTexture(7);
   const bump = makeRockBump(7);
-  const geometries = [displacedRock(1.6, 3, 3), displacedRock(1.6, 3, 14), displacedRock(1.6, 3, 29)];
+  const normal = makeRockNormal(7);
+  // Five visual variants: different detail levels, crater depth and elongation
+  const geometries = [
+    displacedRock(1.4, 3, 3),   // small, smooth-ish
+    displacedRock(1.6, 4, 14),  // medium, high detail
+    displacedRock(1.8, 3, 29),  // large, cratered
+    displacedRock(1.5, 4, 44),  // medium, spiky
+    displacedRock(1.7, 3, 61),  // large, elongated
+  ];
   const baseMaterial = new THREE.MeshStandardMaterial({
-    map: texture, bumpMap: bump, bumpScale: 0.9,
-    color: 0xf5e9d8, roughness: 0.96, metalness: 0.04, flatShading: true,
-    emissive: 0x1a0d06, emissiveIntensity: 1,
+    map: texture, bumpMap: bump, normalMap: normal, normalScale: new THREE.Vector2(0.85, 0.85), bumpScale: 1.1,
+    color: 0xf5e9d8, roughness: 0.94, metalness: 0.05, flatShading: false,
+    emissive: 0x1a0d06, emissiveIntensity: 1.2,
   });
   return {
     geometries,
-    /** Per-mesh material clone (emissive heat differs), shared maps. */
+    /** Per-mesh material clone (emissive heat differs per asteroid), shared maps. */
     makeMaterial() { return baseMaterial.clone(); },
     geometryFor(id) { return geometries[Math.abs(id) % geometries.length]; },
   };

@@ -110,7 +110,14 @@ function meshFor(a) {
   if (!m) {
     const group = new THREE.Group();
     const rock = new THREE.Mesh(rockAssets.geometryFor(a.id), rockAssets.makeMaterial());
-    rock.material.color.offsetHSL(((a.id * 37) % 10 - 5) * 0.004, 0, ((a.id * 53) % 10 - 5) * 0.012); // per-rock tint variety
+    // Per-rock material variety: tint, roughness, metalness
+    const hueShift = ((a.id * 37) % 10 - 5) * 0.005;
+    rock.material.color.offsetHSL(hueShift, 0, ((a.id * 53) % 10 - 5) * 0.012);
+    rock.material.roughness = 0.88 + (a.id % 7) * 0.02;
+    rock.material.metalness = 0.03 + (a.id % 5) * 0.02;
+    // Rim heat glow: stronger when close, fades with distance
+    rock.material.emissive.setHex(0x1a0d06);
+    rock.material.emissiveIntensity = 1.4;
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
     const arc = makeArc(2.45, 0x38f5ff);
     const arc2 = makeArc(2.62, 0xff3df0); // counter-rotating outer arc
@@ -365,8 +372,14 @@ function frame() {
       const m = meshFor(a); const p = asteroidPos(a);
       m.group.position.set(p.x, p.y, p.z);
       m.rock.rotation.set(a.spin, a.spin * 0.7, a.spin * 0.3);
-      // proximity warning: the closer the rock, the hotter its rim glow
-      m.rock.material.emissive.setRGB(0.05 + Math.max(0, (16 - a.dist) / 16) * 0.22, 0.025, 0.015);
+      // proximity warning: the closer the rock, the hotter its rim glow (red-orange fade)
+      const heat = Math.max(0, (16 - a.dist) / 16);
+      const flicker = 1 + Math.sin(a.spin * 3 + nowSec * 6) * 0.15;
+      m.rock.material.emissive.setRGB(
+        0.05 + heat * 0.5 * flicker,
+        0.025 + heat * 0.18 * flicker,
+        0.015 + heat * 0.05 * flicker
+      );
       // dwell: faint full ring + bright arc that closes over 1.5 s +
       // a slower counter-rotating outer arc once charging is underway
       const frac = a.dwell / DWELL_SECONDS;
