@@ -20,7 +20,7 @@ const BEST_KEY = 'asteroid-turret-vr-best';
 
 let mode = 'flat'; // flat | gyro | fusion
 let quality = localStorage.getItem('asteroid-turret-vr-quality') || 'high';
-if (quality === 'auto') quality = 'high'; // saved auto migrates to high (guide §4a)
+if (!['low','medium','high'].includes(quality)) quality = 'high';
 let running = false;
 let vrActive = false;
 let game = createGame(1);
@@ -31,6 +31,87 @@ let gyroSeenAt = -Infinity;
 let flatPointer = null; // {x,y} normalized -1..1
 let hullShake = 0; // flat-screen only impact shake (never in VR: comfort)
 
+// ---------------------------------------------------------------- quality presets
+const QUALITY_PRESETS = {
+  low: {
+    label: 'Низкое',
+    dprCap: 1.0,
+    vrScale: 0.6,
+    bloomEnabled: false,
+    bloomStrength: 0.0,
+    bloomRadius: 0.3,
+    bloomThreshold: 0.95,
+    shadowsEnabled: false,
+    shadowMapSize: 512,
+    maxParticles: 240,
+    maxBeamTrails: 16,
+    maxSmoke: 8,
+    starCount1: 600,
+    starCount2: 160,
+    cometCount: 0,
+    shootingStarCount: 0,
+    engineTrailCount: 40,
+    asteroidDetail: 2,
+  },
+  medium: {
+    label: 'Среднее',
+    dprCap: 1.25,
+    vrScale: 0.85,
+    bloomEnabled: true,
+    bloomStrength: 0.7,
+    bloomRadius: 0.4,
+    bloomThreshold: 0.85,
+    shadowsEnabled: true,
+    shadowMapSize: 1024,
+    maxParticles: 480,
+    maxBeamTrails: 32,
+    maxSmoke: 20,
+    starCount1: 1000,
+    starCount2: 320,
+    cometCount: 2,
+    shootingStarCount: 3,
+    engineTrailCount: 80,
+    asteroidDetail: 3,
+  },
+  high: {
+    label: 'Высокое',
+    dprCap: 1.5,
+    vrScale: 1.0,
+    bloomEnabled: true,
+    bloomStrength: 1.1,
+    bloomRadius: 0.5,
+    bloomThreshold: 0.85,
+    shadowsEnabled: true,
+    shadowMapSize: 1024,
+    maxParticles: 720,
+    maxBeamTrails: 64,
+    maxSmoke: 40,
+    starCount1: 1500,
+    starCount2: 480,
+    cometCount: 4,
+    shootingStarCount: 6,
+    engineTrailCount: 120,
+    asteroidDetail: 4,
+  },
+};
+const Q = QUALITY_PRESETS[quality];
+
+// ---------------------------------------------------------------- FPS counter
+let fpsFrameCount = 0;
+let fpsLastTime = performance.now();
+let fpsValue = 0;
+const fpsEl = document.getElementById('fps-counter');
+function updateFps() {
+  fpsFrameCount++;
+  const now = performance.now();
+  if (now - fpsLastTime >= 1000) {
+    fpsValue = fpsFrameCount;
+    fpsFrameCount = 0;
+    fpsLastTime = now;
+    if (fpsEl) fpsEl.textContent = `FPS: ${fpsValue}`;
+  }
+}
+
 const tracker = new MarkerTracker();
 const fusion = new FusionLook();
 let camState = { active: false, worker: null, busy: false, stream: null, video: null, lastDet: null, procMs: null, workerActive: false, tier: 160 };
@@ -40,9 +121,9 @@ function rng() { rngState = (Math.imul(rngState, 1664525) + 1013904223) >>> 0; r
 
 // ---------------------------------------------------------------- three setup
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.dprCap));
+renderer.shadowMap.enabled = Q.shadowsEnabled;
+renderer.shadowMap.type = Q.shadowsEnabled ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.24;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -53,15 +134,13 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 const bloomPass = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.7,   // strength
-  0.4,   // radius
-  0.85   // threshold
+  Q.bloomStrength,
+  Q.bloomRadius,
+  Q.bloomThreshold
 );
-bloomPass.threshold = 0.85;
-bloomPass.strength = 1.1;   // strong neon glow
-bloomPass.radius = 0.5;
+bloomPass.enabled = Q.bloomEnabled;
 composer.addPass(bloomPass);
-let useComposer = true; // false in VR stereo (per-eye direct render)
+let useComposer = true && Q.bloomEnabled; // false in VR stereo or when bloom disabled
 
 const scene = new THREE.Scene();
 // Image-based lighting from a tiny procedural room: metal, glass canopy and
@@ -76,14 +155,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x04060f);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
 
-const environment = createEnvironment(scene);
-const ship = createShip();
+const environment = createEnvironment(scene, Q);
+const ship = createShip(Q);
 scene.add(camera);
 camera.add(ship.group);
-const fx = new FxSystem(scene);
+const fx = new FxSystem(scene, Q);
 
 scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a1c30, 1.25));
-const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024); sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 60; sun.shadow.camera.left = -20; sun.shadow.camera.right = 20; sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20; sun.shadow.bias = -0.0005; scene.add(sun); // warm key from the sun side
+const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); sun.castShadow = Q.shadowsEnabled; sun.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize); sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 60; sun.shadow.camera.left = -20; sun.shadow.camera.right = 20; sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20; sun.shadow.bias = -0.0005; scene.add(sun); // warm key from the sun side
 const rim = new THREE.DirectionalLight(0xff3df0, 0.55); rim.position.set(-6, -2, 6); scene.add(rim);
 const fill = new THREE.DirectionalLight(0x8fb4ff, 0.55); fill.position.set(6, 3, 12); scene.add(fill); // camera-side fill so rocks read
 const hitFlash = new THREE.PointLight(0xff4444, 0, 9); hitFlash.position.set(0, 0, -1); camera.add(hitFlash);
@@ -275,6 +354,17 @@ function setQualityInputs() {
 setQualityInputs();
 document.querySelectorAll('input[name="quality"]').forEach((i) => i.addEventListener('change', () => {
   quality = i.value; localStorage.setItem('asteroid-turret-vr-quality', quality);
+  // Apply new quality preset immediately (re-reads DPR, bloom, shadows etc.)
+  Object.assign(Q, QUALITY_PRESETS[quality]);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.dprCap));
+  renderer.shadowMap.enabled = Q.shadowsEnabled;
+  renderer.shadowMap.type = Q.shadowsEnabled ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+  bloomPass.enabled = Q.bloomEnabled;
+  bloomPass.strength = Q.bloomStrength;
+  bloomPass.radius = Q.bloomRadius;
+  bloomPass.threshold = Q.bloomThreshold;
+  sun.castShadow = Q.shadowsEnabled;
+  sun.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);
 }));
 document.querySelectorAll('input[name="look"]').forEach((i) => i.addEventListener('change', () => {
   document.getElementById('fusion-block').style.display = i.value === 'fusion' && i.checked ? 'block' : 'none';
@@ -348,7 +438,7 @@ function renderEye(offsetX) {
   const w = window.innerWidth, h = window.innerHeight;
   const halfW = Math.floor(w / 2);
   const x = offsetX < 0 ? 0 : halfW;
-  const scale = quality === 'light' ? 0.7 : 1;
+  const scale = Q.vrScale;
   renderer.setViewport(x, 0, halfW * scale, h * scale);
   renderer.setScissor(x, 0, halfW * scale, h * scale);
   renderer.setScissorTest(true);
@@ -360,6 +450,7 @@ function renderEye(offsetX) {
 const _camPos = new THREE.Vector3();
 function frame() {
   requestAnimationFrame(frame);
+  updateFps();
   const dt = Math.min(0.05, clock.getDelta());
   const nowSec = performance.now() / 1000;
   if (mode === 'fusion' && running) pumpCameraFrame();
@@ -463,18 +554,24 @@ function frame() {
   }
   fx.update(dt, camera);
   hitFlash.intensity = Math.max(0, hitFlash.intensity - dt * 26);
-  useComposer = !vrActive;
+  const useBloom = !vrActive && Q.bloomEnabled;
   if (vrActive) {
     renderer.setScissorTest(true);
     renderEye(-0.032); renderEye(0.032);
     renderer.setScissorTest(false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     camera.position.set(0, 0, 0);
-  } else if (useComposer) {
+  } else if (useBloom) {
     renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.setScissorTest(false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     composer.render();
+  } else {
+    // Direct render without post-processing (low quality mode)
+    renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+    renderer.setScissorTest(false);
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
   }
 }
 frame();

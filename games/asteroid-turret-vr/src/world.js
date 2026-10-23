@@ -243,18 +243,20 @@ function starLayer(count, radius, size, color, seed) {
 /**
  * Builds sky backdrop, layered stars, ringed planet + moon, and a drifting
  * dust field that sells forward motion. Returns { update(dt, speedScale) }.
+ * `q` is a quality preset from QUALITY_PRESETS (main.js).
  */
-export function createEnvironment(scene) {
+export function createEnvironment(scene, q) {
   const group = new THREE.Group(); scene.add(group);
 
+  const skySegments = q.asteroidDetail >= 3 ? 64 : 32;
   const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(260, 32, 20),
+    new THREE.SphereGeometry(260, skySegments, 20),
     new THREE.MeshBasicMaterial({ map: makeNebulaTexture(), color: 0xc2cfe8, side: THREE.BackSide, depthWrite: false }),
   );
   sky.frustumCulled = false; group.add(sky);
 
-  const stars1 = starLayer(1500, 190, 0.75, 0xaecdf5, 7);
-  const stars2 = starLayer(480, 170, 1.5, 0xeaf6ff, 21); // brighter near layer
+  const stars1 = starLayer(q.starCount1, 190, 0.75, 0xaecdf5, 7);
+  const stars2 = starLayer(q.starCount2, 170, 1.5, 0xeaf6ff, 21); // brighter near layer
   group.add(stars1, stars2);
 
   // ringed gas giant + crater moon, low-left of the play sector
@@ -382,11 +384,11 @@ export function createEnvironment(scene) {
   dust.frustumCulled = false; group.add(dust);
 
   // --- comets: slow icy wanderers with glowing tails ---
-  const COMETS = 4;
+  const COMETS = q.cometCount;
   const comets = [];
-  const cometGeo = new THREE.SphereGeometry(0.5, 12, 10);
+  const cometGeo = new THREE.SphereGeometry(0.5, q.asteroidDetail >= 3 ? 12 : 8, 10);
   const cometMat = new THREE.MeshBasicMaterial({ color: 0xbee3ff, transparent: true, opacity: 0.9 });
-  const cometTailGeo = new THREE.ConeGeometry(0.05, 8, 8, 1, true);
+  const cometTailGeo = new THREE.ConeGeometry(0.05, 8, q.asteroidDetail >= 3 ? 8 : 6, 1, true);
   const cometTailMat = new THREE.MeshBasicMaterial({ color: 0x6fb3ff, transparent: true, opacity: 0.5, depthWrite: false });
   const cr3 = mulberry(131);
   for (let i = 0; i < COMETS; i++) {
@@ -406,11 +408,11 @@ export function createEnvironment(scene) {
   }
 
   // --- shooting stars: fast meteors with streaks ---
-  const SHOOTING = 6;
+  const SHOOTING = q.shootingStarCount;
   const shootingStars = [];
-  const starGeo = new THREE.SphereGeometry(0.15, 8, 6);
+  const starGeo = new THREE.SphereGeometry(0.15, q.asteroidDetail >= 3 ? 8 : 6, 6);
   const starMat = new THREE.MeshBasicMaterial({ color: 0xffffd0 });
-  const streakGeo = new THREE.CylinderGeometry(0.02, 0.06, 3, 6, 1, true);
+  const streakGeo = new THREE.CylinderGeometry(0.02, 0.06, 3, q.asteroidDetail >= 3 ? 6 : 4, 1, true);
   const streakMat = new THREE.MeshBasicMaterial({ color: 0xaaeeff, transparent: true, opacity: 0.7, depthWrite: false });
   const cr4 = mulberry(173);
   for (let i = 0; i < SHOOTING; i++) {
@@ -518,13 +520,14 @@ export function createEnvironment(scene) {
  * child of the camera, so it rides the look exactly like a cockpit.
  * Returns { group, muzzle (Object3D at the barrel tip), update(nowSec) }.
  */
-export function createShip() {
+export function createShip(q) {
   const group = new THREE.Group();
   const metal = new THREE.MeshStandardMaterial({ color: 0x44587a, metalness: 0.82, roughness: 0.28, emissive: 0x0a2436, emissiveIntensity: 1 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x162236, metalness: 0.7, roughness: 0.45, emissive: 0x040812 });
   const accent = new THREE.MeshStandardMaterial({ color: 0x2b3d5f, metalness: 0.75, roughness: 0.35, emissive: 0xff8c1a, emissiveIntensity: 0.1 });
   const neon = new THREE.MeshBasicMaterial({ color: 0x38f5ff });
   const pink = new THREE.MeshBasicMaterial({ color: 0xff3df0 });
+  const detail = q.asteroidDetail;
 
   // deck: wedge hull nose + panel-line texture
   const deckTex = canvasTex([512, 512], (ctx, w, h) => {
@@ -578,10 +581,10 @@ export function createShip() {
   screen.position.set(-1.1, -0.96, -1.18); screen.rotation.x = -1.05; screen.rotation.z = 0.08; group.add(screen);
 
   // turret pedestal, rotating head, twin barrels
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 0.5, 32), metal); base.position.y = -0.75; group.add(base);
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, 12, 36), neon); collar.rotation.x = Math.PI / 2; collar.position.y = -0.52; group.add(collar);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.95, 0.5, detail >= 3 ? 32 : 16), metal); base.position.y = -0.75; group.add(base);
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.07, detail >= 3 ? 12 : 8, detail >= 3 ? 36 : 18), neon); collar.rotation.x = Math.PI / 2; collar.position.y = -0.52; group.add(collar);
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.65), white); head.position.y = -0.5; group.add(head);
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.28, 28, 20), new THREE.MeshStandardMaterial({ color: 0x0e3055, metalness: 0.9, roughness: 0.1, emissive: 0x0b3a66, emissiveIntensity: 1 }));
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.28, detail >= 3 ? 28 : 12, detail >= 3 ? 20 : 10), new THREE.MeshStandardMaterial({ color: 0x0e3055, metalness: 0.9, roughness: 0.1, emissive: 0x0b3a66, emissiveIntensity: 1 }));
   canopy.scale.set(1, 0.7, 1.5); canopy.position.set(0, -0.38, -0.04); group.add(canopy);
   const headStrip = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.35), neon); headStrip.position.set(0, -0.36, -0.14); group.add(headStrip);
   const sight = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.3), neon); sight.position.set(0, -0.08, -0.28); group.add(sight);
@@ -591,10 +594,10 @@ export function createShip() {
   const barrels = [];
   const tipGlows = [];
   for (const dx of [-0.22, 0.22]) {
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 1.7, 14), white);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 1.7, detail >= 3 ? 14 : 8), white);
     barrel.rotation.x = Math.PI / 2; barrel.position.set(dx, -0.34, -1.1); group.add(barrel);
     barrels.push(barrel);
-    const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 14), neon);
+    const tipGlow = new THREE.Mesh(new THREE.SphereGeometry(0.09, detail >= 3 ? 14 : 8, detail >= 3 ? 14 : 8), neon);
     tipGlow.position.set(dx, -0.34, -2.0); group.add(tipGlow);
     tipGlows.push(tipGlow);
   }
@@ -611,21 +614,21 @@ export function createShip() {
   for (const dx of [-3.2, 3.2]) {
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 6.2), metal); rail.position.set(dx, -1.15, 0.4); group.add(rail);
     const strip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.07, 5.8), dx < 0 ? neon : pink); strip.position.set(dx, -1.02, 0.4); group.add(strip);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 14), dx < 0 ? neon : pink);
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.1, detail >= 3 ? 14 : 8, detail >= 3 ? 14 : 8), dx < 0 ? neon : pink);
     lamp.position.set(dx, -1.0, -2.6); group.add(lamp); navLights.push(lamp);
     // side cannon stubs
     const cannon = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 1.2, 12), dark);
     cannon.rotation.x = Math.PI / 2; cannon.position.set(dx * 1.15, -1.2, -2.1); group.add(cannon);
   }
   const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 1.2, 10), metal); mast.position.set(2.4, -0.7, 2); group.add(mast);
-  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.1, 14, 14), pink.clone()); beacon.position.set(2.4, -0.1, 2); group.add(beacon);
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.1, detail >= 3 ? 14 : 8, detail >= 3 ? 14 : 8), pink.clone()); beacon.position.set(2.4, -0.1, 2); group.add(beacon);
 
   // engine glow behind the deck (fake bloom sprite)
   const engine = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlowTexture('rgba(80,200,255,0.9)', 'rgba(80,200,255,0)'), transparent: true, depthWrite: false }));
   engine.position.set(0, -1.45, 4.6); engine.scale.set(4.2, 1.6, 1); group.add(engine);
 
   // --- engine trail: streaming exhaust particles behind the ship ---
-  const TRAIL = 120;
+  const TRAIL = q.engineTrailCount;
   const trailPos = new Float32Array(TRAIL * 3);
   const trailLife = new Float32Array(TRAIL);
   const tr = mulberry(55);
