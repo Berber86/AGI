@@ -3,13 +3,13 @@
 import * as THREE from 'three';
 import {
   HALL, POINTS, ARTWORKS, SCULPTURES, START_POINT, DWELL_SECONDS, DWELL_ANGLE_DEG, DWELL_GRACE,
-  STUDY_SECONDS, STUDY_LEAVE_ANGLE_DEG, STUDY_LEAVE_SECONDS,
+  STUDY_SECONDS,
   pointById, pointPose, artworkById, EXHIBITS, lookAngles, wallFacing,
 } from './config.js';
 import { createMaterials, buildWorld, createLights } from './world.js';
 import {
   loadPaintings, loadSculptures, createArtworkDetails, featuredArtwork, mergePaintingStatics,
-  setPaintingEffects,
+  setPaintingEffects, setArtworkAnisotropy,
 } from './artworks.js';
 import { createMarkers } from './markers.js';
 import { createGaze, forwardFromAngles, ringFraction, markerDirection, MARKER_EYE_HEIGHT } from './gaze.js';
@@ -44,7 +44,6 @@ let rig = null;
 let look = null;
 let gaze = null;
 let study = null;
-let studyLookAway = 0;
 let lastStudyId = null;
 let studyAim = null;
 let markers = null;
@@ -163,9 +162,11 @@ async function boot() {
 
   renderer = new THREE.WebGLRenderer({
     canvas,
-    // Сглаживание включено всегда: без него белый мрамор и лепнина «кипят»
-    // на каждом движении камеры. MSAA 4x дешевле, чем потеря вида.
-    antialias: true,
+    // На экранах с DPR ≥ 2 сверхсэмплинг делает работу MSAA бесплатно
+    // (пикселей и так вчетверо больше), а MSAA там — лишняя пропускная
+    // способность. На обычных экранах MSAA обязателен: без него белый
+    // мрамор и лепнина «кипят» на каждом движении камеры.
+    antialias: (window.devicePixelRatio || 1) < 2,
     powerPreference: 'high-performance',
     alpha: false,
     stencil: false,
@@ -176,6 +177,8 @@ async function boot() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setClearColor(0x0a1511, 1);
+  // Полотно вплотную видно под углом: анизотропия по максимуму GPU.
+  setArtworkAnisotropy(renderer.capabilities.getMaxAnisotropy());
   resize();
 
   scene = new THREE.Scene();
@@ -287,23 +290,32 @@ function isHandheld() {
 }
 
 function detailMaxWidth() {
-  if (state.quality === 'low') return 1024;
-  return isHandheld() ? 1280 : 2048;
+  // Крупная копия полотна нужна только вплотную: там холст закрывает весь
+  // вертикальный кадр, и 1024 px читались как мыло. 2048 хватает и на телефоне
+  // с DPR 2,5; в памяти живут максимум две такие копии (~13 МБ каждая).
+  return 2048;
 }
 
 function dprCap() {
   const dpr = window.devicePixelRatio || 1;
-  // Потолок прежний: сглаживание даёт больше, чем лишние пиксели, а FPS на
-  // телефоне важнее. MSAA включён всегда.
-  return state.quality === 'low' ? Math.min(dpr, 1) : Math.min(dpr, 1.5);
+  // Раньше потолок был 1 — на телефоне с DPR 3 картинка растягивалась втрое,
+  // и в очках каждая половина экрана выглядела мылом. Теперь рисуем вплотную
+  // к физическим пикселям: в стереокадре у каждого глаза своя половина экрана
+  // в честном разрешении. Если устройство не тянет, адаптивный масштаб
+  // опустит плотность сам — вплоть до 0,85 от потолка.
+  // 2,5 — это 83 % пикселей экрана с DPR 3: уже не мыло, но ещё по силам
+  // мобильному GPU. Если не тянет, адаптивный масштаб опустится до 0,7.
+  return Math.min(dpr, 2.5);
 }
 
 function targetDpr() {
   const cap = dprCap();
-  // В стереопаре два глаза делят один экран: пикселей вдвое больше, поэтому
-  // потолок ниже, а запас адаптивного разрешения — глубже.
-  const limit = state.mode === 'vr' ? Math.min(cap, 0.95) : cap;
-  const floor = state.mode === 'vr' ? 0.62 : 0.75;
+  // В стереопаре экран делится пополам, и каждый глаз должен получить
+  // столько же пикселей, сколько отдал бы моно-кадр: плотность здесь важнее
+  // всего, поэтому запас адаптивного масштаба ниже (0,85 от потолка).
+  const limit = cap;
+  // Запас вниз: на слабом телефоне честнее просесть по плотности, чем по кадрам.
+  const floor = state.mode === 'vr' ? 0.7 : 0.75;
   return Math.max(floor, Math.min(limit, cap * renderScale));
 }
 
@@ -328,7 +340,7 @@ function tuneResolution(fps, now) {
   if (now - lastTune < 2000) return;
   lastTune = now;
 
-  const floor = state.mode === 'vr' ? 0.62 : 0.72;
+  const floor = state.mode === 'vr' ? 0.7 : 0.75;
   if (fps < 44 && renderScale > floor) {
     // Шаг крупный и вниз — только так, чтобы не «дышать» вокруг порога.
     renderScale = Math.max(floor, Math.round((renderScale - 0.12) * 20) / 20);
@@ -460,7 +472,7 @@ function enterExplore() {
   const point = pointById(state.currentPointId) || pointById(START_POINT);
   placeAtPoint(point, pointPose(point));
   gaze.reset(null);
-  ui.toast('Смотрите на медальон · 10 секунд', 3200);
+  ui.toast(`Смотрите на медальон · ${DWELL_SECONDS} секунд`, 3200);
 }
 
 function isLandscape() {
@@ -535,8 +547,15 @@ function recenter() {
 function startTravel(pointId) {
   const target = pointById(pointId);
   if (!target) return;
+  const fromCloseUp = Boolean(state.closeUp);
   state.closeUp = null;
   ui.setCloseUp(false);
+  if (fromCloseUp) {
+    setRigFov(rig, NORMAL_FOV);
+    setStudyGlow(null, 0);
+    study.reset();
+    ui.setInfo(null);
+  }
   const targetPose = pointPose(target);
   const mode = state.mode === 'vr' ? 'fade' : 'glide';
   state.travel = {
@@ -581,13 +600,12 @@ function advanceTravel(dt) {
       look.recenter(pose.yaw, pose.pitch);
       gaze.reset(null);
       study.reset();
-      studyLookAway = 0;
       if (details) details.show(entry.art.id);
       const exhibit = exhibitIndex.get(entry.art.id);
       if (exhibit) ui.setInfo(exhibit, true);
       setRigFov(rig, CLOSE_FOV);
       ui.setCloseUp(true, `«${entry.art.title}»`);
-      if (state.mode !== 'vr') ui.toast('Отведите взгляд в сторону, чтобы вернуться к точке', 3000);
+      if (state.mode !== 'vr') ui.toast('Медальон — переход по залу · «Отойти» — назад', 3000);
       return true;
     }
 
@@ -598,7 +616,6 @@ function advanceTravel(dt) {
       ui.setCloseUp(false);
       gaze.reset(null);
       study.reset();
-      studyLookAway = 0;
       return true;
     }
 
@@ -628,7 +645,7 @@ function advanceStudy(dt, targetArt = null) {
 
   if (snapshot.artId && snapshot.artId !== lastStudyId) {
     lastStudyId = snapshot.artId;
-    if (!medallionBusy) ui.toast('Держите взгляд на полотне · 10 секунд — подойдёте ближе', 2800);
+    if (!medallionBusy) ui.toast(`Держите взгляд на полотне · ${STUDY_SECONDS} секунд — подойдёте ближе`, 2800);
     if (details) details.preload(snapshot.artId);
   }
   if (!snapshot.artId) {
@@ -677,7 +694,6 @@ function startCloseUp(art) {
   };
   travelClock = 0;
   study.reset();
-  studyLookAway = 0;
   lastStudyId = null;
   setStudyGlow(null, 0);
   gaze.reset(null);
@@ -740,7 +756,6 @@ function leaveCloseUp() {
   };
   travelClock = 0;
   study.reset();
-  studyLookAway = 0;
   setStudyGlow(null, 0);
   gaze.reset(null);
   ui.setCloseUp(false);
@@ -749,22 +764,39 @@ function leaveCloseUp() {
   return true;
 }
 
-function advanceStudyLeave(dt) {
-  const art = state.closeUp ? artworkById(state.closeUp.id) : null;
-  if (!art) return;
-  const dx = art.position[0] - player.position[0];
-  const dy = art.position[1] - player.position[1];
-  const dz = art.position[2] - player.position[2];
-  const len = Math.hypot(dx, dy, dz) || 1e-6;
+// Из близкой точки взгляд за рамку ничего не отменяет: посетитель просто
+// осматривает зал и медальоны. Пять секунд на медальоне — и перенос уносит его
+// туда; вернуться на точку, с которой пришли, можно кнопкой «Отойти».
+function advanceCloseUpTravel(dt) {
   const forward = forwardFromAngles(player.yaw, player.pitch);
-  const dot = (forward[0] * dx + forward[1] * dy + forward[2] * dz) / len;
-  const angle = Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI);
-  if (angle > STUDY_LEAVE_ANGLE_DEG) {
-    studyLookAway += dt;
-    if (studyLookAway > STUDY_LEAVE_SECONDS) leaveCloseUp();
-  } else {
-    studyLookAway = 0;
+  const snapshot = gaze.update(dt, {
+    position: [player.position[0], player.position[1], player.position[2]],
+    forward,
+    currentPointId: state.currentPointId,
+    enabled: true,
+    // Стоим не на своей точке, а у стены: доступны все медальоны зала.
+    ignoreCurrent: true,
+  });
+  lastGaze = snapshot;
+  const targetPoint = snapshot.targetId ? pointById(snapshot.targetId) : null;
+  markers.update(dt, {
+    currentPointId: null,
+    targetId: snapshot.targetId,
+    progress: snapshot.progress,
+    visible: showMarkers,
+  });
+  if (state.mode !== 'vr') {
+    ui.setDwell({
+      active: Boolean(snapshot.targetId),
+      progress: snapshot.progress,
+      point: targetPoint,
+    });
   }
+  if (snapshot.arrival) {
+    lastArrival = snapshot.arrival;
+    startTravel(snapshot.arrival);
+  }
+  if (dust) dust.rotation.y += dt * 0.006;
 }
 
 function updateHover(dt) {
@@ -857,11 +889,7 @@ function advance(dt) {
   }
 
   if (!traveling && state.closeUp) {
-    // Близкий осмотр: медальоны и двелль выключены, выйти можно взглядом в сторону.
-    markers.update(dt, { currentPointId: state.currentPointId, targetId: null, progress: 0, visible: false });
-    ui.setDwell({ active: false, progress: 0 });
-    advanceStudyLeave(dt);
-    if (dust) dust.rotation.y += dt * 0.006;
+    advanceCloseUpTravel(dt);
   } else if (!traveling) {
     const forward = forwardFromAngles(player.yaw, player.pitch);
     // Пока в центре кадра полотно, перенос по медальонам выключен: иначе
@@ -1216,7 +1244,6 @@ function exposeAPI(extra) {
     },
     debugState: () => ({
       travel: state.travel ? { kind: state.travel.kind, t: +(travelClock / state.travel.travel.duration).toFixed(3) } : null,
-      lookAway: +studyLookAway.toFixed(3),
       closeUp: state.closeUp ? state.closeUp.id : null,
       look: { yaw: +look.state.yaw.toFixed(3), pitch: +look.state.pitch.toFixed(3), source: look.state.source },
       player: { yaw: +player.yaw.toFixed(3), pitch: +player.pitch.toFixed(3) },

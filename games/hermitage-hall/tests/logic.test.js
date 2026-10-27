@@ -110,7 +110,7 @@ test('кватернион из DeviceOrientation переводится в до
   assert.ok(Math.abs(result.pitch) < 1e-6);
 });
 
-test('двелль: 10 секунд по точке, затем прибытие', () => {
+test('двелль: 5 секунд по точке, затем прибытие', () => {
   const point = pointById('p3');
   const from = [-2, HALL.eye, 3];
   const pose = aimAt(from, point);
@@ -124,7 +124,7 @@ test('двелль: 10 секунд по точке, затем прибытие
     if (snap.arrival) break;
   }
   assert.equal(snap.arrival, 'p3');
-  assert.ok(elapsed > 9.5 && elapsed < 11.5, `прибытие через ${elapsed.toFixed(2)} с`);
+  assert.ok(elapsed > 4.5 && elapsed < 5.6, `прибытие через ${elapsed.toFixed(2)} с`);
 });
 
 test('двелль: взгляд мимо не копит прогресс', () => {

@@ -230,14 +230,16 @@ export function pointPose(point, eye = HALL.eye) {
 }
 
 export const START_POINT = 'p1';
-export const DWELL_SECONDS = 10;
+// Пять секунд: дольше держать взгляд на медальоне утомительно, а короче —
+// начинаешь уезжать случайно, просто разглядывая зал.
+export const DWELL_SECONDS = 5;
 export const DWELL_ANGLE_DEG = 6.0;
 export const DWELL_GRACE = 0.45;
 
-// Взгляд на само полотно: через десять секунд камера подходит вплотную.
-export const STUDY_SECONDS = 10;
-export const STUDY_LEAVE_ANGLE_DEG = 26;
-export const STUDY_LEAVE_SECONDS = 1.1;
+// Взгляд на само полотно: через пять секунд камера подходит вплотную.
+// Из близкой точки взгляд на медальон снова переносит по залу — кнопка
+// «Отойти» остаётся для возврата на точку, с которой пришли.
+export const STUDY_SECONDS = 5;
 
 export function pointById(id) {
   return POINTS.find((p) => p.id === id) || null;

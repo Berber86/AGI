@@ -57,7 +57,7 @@ try {
   const info1 = await page.evaluate(() => window.__HERMITAGE__.info());
   check('вход переводит в режим осмотра', info1.mode === 'explore', info1.mode);
 
-  // 4. Взгляд на медальон копит прогресс ровно 10 секунд
+  // 4. Взгляд на медальон копит прогресс ровно 5 секунд
   const dwell = await page.evaluate(() => {
     const api = window.__HERMITAGE__;
     api.goto('p1');
@@ -77,7 +77,7 @@ try {
   });
   const arrival = dwell.trace.find((t) => t.arrival);
   check('взгляд на медальон завершается прибытием', Boolean(arrival), JSON.stringify(dwell.trace.slice(-3)));
-  check('двелль длится около 10 секунд', arrival && arrival.t > 9.6 && arrival.t < 11.2, arrival ? `${arrival.t.toFixed(2)} с` : 'нет');
+  check('двелль длится около 5 секунд', arrival && arrival.t > 4.5 && arrival.t < 5.7, arrival ? `${arrival.t.toFixed(2)} с` : 'нет');
   check('после прибытия запускается перенос', dwell.travel && dwell.travel.id === 'p3', JSON.stringify(dwell.travel));
   check('в обычном режиме перенос — плавный проход', dwell.travel && dwell.travel.kind === 'glide', dwell.travel?.kind);
 
@@ -111,7 +111,7 @@ try {
   });
   check('все девять точек доступны', allPoints.every((r) => r.id === r.point), JSON.stringify(allPoints));
 
-  // 7б. Близкий осмотр полотна: десять секунд взгляда на холст
+  // 7б. Близкий осмотр полотна: пять секунд взгляда на холст
   const closeUp = await page.evaluate(async () => {
     const api = window.__HERMITAGE__;
     api.goto('p6');
@@ -127,25 +127,40 @@ try {
     }
     // Подход занимает ~1,9 с: пока он идёт, взгляд ведёт перенос, а не зритель.
     for (let i = 0; i < 200 && api.debugState().travel; i += 1) api.step(1 / 60, 1);
+    // Крупную копию читаем, пока стоим у холста: после перехода её вытеснит другая.
+    const detailTexture = api.textures().find((p) => p.id === 'rembrandt').detail;
     const coverage = api.coverage('rembrandt');
     // Лупа: подходим вплотную
     const base = coverage.distance;
     api.setCloseUpZoom(1);
     const zoomed = api.coverage('rembrandt');
-    // Взгляд в сторону возвращает на точку
-    api.setLook(api.pose().yaw + Math.PI, 0);
-    api.step(1 / 60, 240);
-    const afterLookAway = api.closeUp();
-    for (let i = 0; i < 300 && api.closeUp(); i += 1) api.step(1 / 60, 1);
+    api.setCloseUpZoom(0);
+
+    // Взгляд за рамку — на потолок — больше не выкидывает из осмотра.
+    api.setLook(api.pose().yaw, 0.9);
+    api.step(1 / 60, 300);
+    const stillStudying = api.closeUp() ? api.closeUp().id : null;
+    const markersVisible = api.markers().filter((m) => m.visible).length;
+
+    // Из близкой точки медальон так же ведёт по залу.
+    api.lookAtPoint('p4');
+    let travel = null;
+    let travelAt = null;
+    for (let i = 0; i < 1200; i += 1) {
+      api.step(1 / 60, 1);
+      if (!travel && api.debugState().travel) { travel = api.travelInfo(); travelAt = i / 60; }
+      if (travel && !api.debugState().travel) break;
+    }
     return {
       firstProgress, arrived, coverage: { width: coverage.widthShare, height: coverage.heightShare, distance: base },
       zoomed: { width: zoomed.widthShare, height: zoomed.heightShare, distance: zoomed.distance },
-      afterLookAway, left: api.closeUp() === null, pose: api.pose(), point: api.info().pointId,
-      detail: api.textures().find((p) => p.id === 'rembrandt').detail,
+      stillStudying, markersVisible, travel, travelAt,
+      pose: api.pose(), point: api.info().pointId, closeUp: api.closeUp(),
+      detail: detailTexture,
     };
   });
-  check('взгляд на полотно 10 секунд подводит вплотную',
-    Boolean(closeUp.arrived) && closeUp.arrived.id === 'rembrandt' && closeUp.arrived.sec >= 9.5 && closeUp.arrived.sec <= 10.6,
+  check('взгляд на полотно 5 секунд подводит вплотную',
+    Boolean(closeUp.arrived) && closeUp.arrived.id === 'rembrandt' && closeUp.arrived.sec >= 4.4 && closeUp.arrived.sec <= 5.6,
     `через ${closeUp.arrived ? closeUp.arrived.sec.toFixed(2) : '—'} с`);
   check('вблизи холст занимает почти весь кадр',
     closeUp.coverage.height >= 0.95 && closeUp.coverage.height <= 1.6 && closeUp.coverage.width >= 0.5,
@@ -153,9 +168,15 @@ try {
   check('лупа подводит ещё ближе', closeUp.zoomed.distance < closeUp.coverage.distance * 0.55,
     `${closeUp.coverage.distance.toFixed(2)} → ${closeUp.zoomed.distance.toFixed(2)} м`);
   check('крупная текстура подгружена к осмотру', Boolean(closeUp.detail) && Math.max(...closeUp.detail) >= 1200, JSON.stringify(closeUp.detail));
-  check('взгляд в сторону возвращает на точку',
-    closeUp.afterLookAway === null && closeUp.left && closeUp.point === 'p6',
-    JSON.stringify({ afterLookAway: closeUp.afterLookAway, point: closeUp.point }));
+  check('взгляд за рамку не выкидывает из осмотра',
+    closeUp.stillStudying === 'rembrandt',
+    JSON.stringify({ stillStudying: closeUp.stillStudying }));
+  check('из близкой точки видны медальоны зала',
+    closeUp.markersVisible >= 6, `видимых ${closeUp.markersVisible}`);
+  check('из близкой точки медальон переносит по залу',
+    Boolean(closeUp.travel) && closeUp.travel.id === 'p4' && closeUp.travel.kind === 'glide'
+      && closeUp.pose.pointId === 'p4' && closeUp.closeUp === null,
+    JSON.stringify({ travel: closeUp.travel, at: closeUp.travelAt, point: closeUp.pose.pointId }));
 
   // 7в. Осмотр не срывается: цель — полотно, а не точка на полу.
   // Раньше смотрели строго в холст: промах на раму обнулял накопитель, а
@@ -178,7 +199,7 @@ try {
     return { arrived, points: [...points], left, hover: api.hover() };
   });
   check('осмотр ловится и по раме, а не только в центр холста',
-    Boolean(frameAim.arrived) && frameAim.arrived.id === 'vangogh' && frameAim.arrived.sec <= 11.2,
+    Boolean(frameAim.arrived) && frameAim.arrived.id === 'vangogh' && frameAim.arrived.sec <= 6.2,
     `через ${frameAim.arrived ? frameAim.arrived.sec.toFixed(2) : '—'} с, hover ${frameAim.hover ? frameAim.hover.id : '—'}`);
   check('пока в центре полотно, медальоны не уводят на другую точку',
     frameAim.points.length === 1 && frameAim.points[0] === 'p2', JSON.stringify(frameAim.points));

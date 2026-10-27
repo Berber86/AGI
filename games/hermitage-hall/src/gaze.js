@@ -1,4 +1,4 @@
-// Взгляд-двелль: выбор точки, на которую смотрит посетитель, и накопление 10 секунд.
+// Взгляд-двелль: выбор точки, на которую смотрит посетитель, и накопление 5 секунд.
 // Чистая логика без three.js — проверяется юнит-тестами.
 
 export const MARKER_EYE_HEIGHT = 1.45;
@@ -31,7 +31,10 @@ export function markerDirection(from, position) {
 
 /**
  * Двелль по точкам. Возвращает объект с update(dt, view) и снимком состояния.
- * view: { position:[x,y,z], forward:[x,y,z], currentPointId, enabled }
+ * view: { position:[x,y,z], forward:[x,y,z], currentPointId, enabled, ignoreCurrent }
+ * ignoreCurrent — из близкого осмотра доступны все медальоны, включая тот,
+ * с которого пришли: посетитель стоит уже не на нём.
+
  */
 export function createGaze({
   points,
@@ -60,7 +63,7 @@ export function createGaze({
     let best = null;
     let bestAngle = Infinity;
     for (const p of points) {
-      if (p.id === view.currentPointId) continue;
+      if (!view.ignoreCurrent && p.id === view.currentPointId) continue;
       const angle = angleBetween(view.forward, markerDirection(view.position, p.position));
       if (angle > limit) continue;
       const isCurrent = p.id === targetId;

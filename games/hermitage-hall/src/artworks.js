@@ -46,7 +46,7 @@ function placeholderTexture(color = '#3a2a1a') {
   return t;
 }
 
-export function loadArtworkTexture(file, { anisotropy = 4 } = {}) {
+export function loadArtworkTexture(file, { anisotropy = artworkAnisotropy } = {}) {
   return new Promise((resolve) => {
     loader.load(
       file,
@@ -73,7 +73,15 @@ export function loadArtworkTexture(file, { anisotropy = 4 } = {}) {
  * причём сразу уменьшается до экранного размера: видеопамять не растёт от «полного
  * разрешения с любой дистанции».
  */
-function textureFromSource(source, anisotropy = 4) {
+// Анизотропия полотен: вплотную холст виден под углом, и при 4× дальние
+// мазки превращаются в кашу. Ставим столько, сколько умеет GPU (обычно 16).
+let artworkAnisotropy = 4;
+
+export function setArtworkAnisotropy(value) {
+  artworkAnisotropy = Math.max(1, Math.min(16, Math.round(value) || 4));
+}
+
+function textureFromSource(source, anisotropy = artworkAnisotropy) {
   const texture = new THREE.Texture(source);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = anisotropy;
@@ -430,7 +438,7 @@ export function mergePaintingStatics(scene, paintings) {
 export async function loadPaintings(scene, materials, quality, onProgress = () => {}) {
   const built = [];
   let done = 0;
-  const anisotropy = quality === 'high' ? 4 : 1;
+  const anisotropy = artworkAnisotropy;
   for (const art of ARTWORKS) {
     const item = buildPainting(art, materials, quality);
     scene.add(item.group);

@@ -1,7 +1,7 @@
 // DOM-слой: стартовый экран, панели, подсказки и карточка произведения.
 // Внутри VR весь этот слой скрыт: интерфейс там — медальоны на полу.
 
-import { ARTWORKS, SCULPTURES, POINTS } from './config.js';
+import { ARTWORKS, SCULPTURES, POINTS, DWELL_SECONDS } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -83,7 +83,7 @@ export function createUI(handlers = {}) {
     if (active && point) {
       el.dwellNote.hidden = false;
       el.dwellTitle.textContent = point.name;
-      const left = Math.max(0, 10 * (1 - frac));
+      const left = Math.max(0, DWELL_SECONDS * (1 - frac));
       el.dwellTime.textContent = `${left.toFixed(1).replace('.', ',')} с`;
     } else {
       el.dwellNote.hidden = true;

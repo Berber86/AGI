@@ -13,23 +13,23 @@
     "source": "touch",
     "gyro": "requested",
     "fps": 0,
-    "frames": 37,
+    "frames": 34,
     "stereoReady": true,
     "drawCalls": 33,
     "triangles": 18436,
     "meshes": 21,
     "travel": null,
-    "dpr": 0.95,
+    "dpr": 1,
     "renderScale": 1,
     "detail": {
-      "maxWidth": 1024,
+      "maxWidth": 2048,
       "maxResident": 2,
       "current": "aivazovsky",
       "resident": [
         {
           "id": "aivazovsky",
-          "width": 1024,
-          "height": 677
+          "width": 2048,
+          "height": 1353
         }
       ]
     }
