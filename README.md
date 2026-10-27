@@ -33,6 +33,7 @@
 │   ├── workflow.md
 │   ├── headless-browser-setup.md      ← как ставить headless-браузер для скриншотов/тестов
 │   ├── immersive-vr-remote-input.md   ← VR, камера-метки, внешний джойстик и полевой QA
+│   ├── cheap-vr-sensing-ideas.md       ← каталог дешёвых сенсоров: 6DoF, теги, компас, ESP32
 │   ├── lifehacks-and-pitfalls.md      ← проверенные приёмы и тупики живых сессий
 │   ├── perf-freeze-triage.md          ← фризы мобильного 3D: шейдерные пермутации, прогрев, 15с-пробник
 │   └── workspace-resets-and-recovery.md ← что теряется при сбросах окружения и как восстанавливаться
@@ -44,6 +45,7 @@
 
 - [Установка headless-браузера](.agents/skills/arena-game-forge/references/headless-browser-setup.md)
 - [VR, камера и внешний джойстик](.agents/skills/arena-game-forge/references/immersive-vr-remote-input.md)
+- [Дешёвые сенсоры для VR](.agents/skills/arena-game-forge/references/cheap-vr-sensing-ideas.md)
 - [Сбросы окружения и восстановление](.agents/skills/arena-game-forge/references/workspace-resets-and-recovery.md)
 - [Диагностика фризов мобильного 3D](.agents/skills/arena-game-forge/references/perf-freeze-triage.md)
 
