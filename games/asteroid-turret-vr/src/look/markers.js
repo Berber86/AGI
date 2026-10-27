@@ -169,47 +169,245 @@ export class MarkerTracker {
 }
 
 // --- Fusion: gyro leads every frame, pair slowly corrects drift (guide §4a) ---
+// Ported smoothing guards from White Night / Candy Kingdom Coaster:
+//   * exponential smoothing  a = 1 - exp(-k * dt)
+//   * rate clamp per axis
+//   * gyro confirmation over N frames before accepting a jump
+//   * anchor gate with time confirmation before snapping to camera
+//   * grace period when gyro goes missing
+// Semantics: yaw > 0 right, pitch > 0 up, degrees.
 export const FUSION_MAX_CORRECTION_DEG_S = 5;
 export const FUSION_GRACE_SECONDS = 2;
+export const FUSION_GYRO_CONFIRM_FRAMES = 3;
+export const FUSION_ANCHOR_JUMP_YAW = 20;
+export const FUSION_ANCHOR_JUMP_PITCH = 15;
+export const FUSION_ANCHOR_MATCH = 6;
+export const FUSION_ANCHOR_CONFIRM_SEC = 0.35;
+export const FUSION_ANCHOR_STALE_SEC = 3;
+export const FUSION_GYRO_LOSS_GRACE_SEC = 0.6;
+export const FUSION_CAMERA_FOLLOW_K = 7;
+export const FUSION_CAMERA_YAW_RATE = 1.2;
+export const FUSION_CAMERA_PITCH_RATE = 0.8;
+export const FUSION_HELD_MATCH = 12;
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const wrapDeg = (v) => {
+  let x = v;
+  while (x > 180) x -= 360;
+  while (x < -180) x += 360;
+  return x;
+};
 
 export class FusionLook {
   constructor() {
-    this.correction = { yaw: 0, pitch: 0 };
-    this.pending = null; // candidate camera measurement {yaw,pitch,at,count}
+    this.yaw = 0;
+    this.pitch = 0;
+    this.lastRaw = null; // last accepted gyro {yawDeg,pitchDeg}
+    this.pendingRaw = null;
+    this.pendingGyroFrames = 0;
+    this.gyroMissingSec = 0;
+    this.camPending = null; // {yaw,pitch,count} awaiting 2-frame camera confirmation
+    this.anchorTrack = null; // {yaw,pitch} accepted camera anchor
+    this.anchorCandidate = null; // {yaw,pitch,age} for spurious-reading guard
+    this.anchorCandidateAgeSec = 0;
+    this.anchorMissingSec = 0;
     this.lastAnchorAt = -Infinity;
   }
 
-  /**
-   * gyro: {yawDeg,pitchDeg}; cam: tracker output or null.
-   * Safeguards: confirmation (2 agreeing camera frames), grace after pair
-   * loss, rate-limited correction; the anchor is the direct tracker
-   * measurement, never a smoothed trajectory.
-   */
-  update(gyro, cam, nowSec, dtSec) {
-    if (cam && cam.pairVisible && cam.mode === 'pair') {
-      const meas = { yaw: cam.yawDeg, pitch: cam.pitchDeg };
-      if (this.pending && Math.abs(meas.yaw - this.pending.yaw) <= 3 && Math.abs(meas.pitch - this.pending.pitch) <= 3) {
-        this.pending.count += 1;
-      } else {
-        this.pending = { ...meas, count: 1 };
-      }
-      if (this.pending.count >= 2) {
-        const target = {
-          yaw: meas.yaw - gyro.yawDeg,
-          pitch: meas.pitch - gyro.pitchDeg,
-        };
-        const maxStep = FUSION_MAX_CORRECTION_DEG_S * Math.max(0, dtSec);
-        this.correction.yaw += Math.max(-maxStep, Math.min(maxStep, target.yaw - this.correction.yaw));
-        this.correction.pitch += Math.max(-maxStep, Math.min(maxStep, target.pitch - this.correction.pitch));
-        this.lastAnchorAt = nowSec;
-      }
-    } else if (nowSec - this.lastAnchorAt > FUSION_GRACE_SECONDS) {
-      this.pending = null; // stale candidate dies; correction itself is kept
+  /** Gyro leads: integrate delta between consecutive raw gyro readings. */
+  integrateGyro(raw, dtSec) {
+    const step = clamp(Number.isFinite(dtSec) ? dtSec : 0, 0, 0.1);
+    const maxStep = clamp(
+      FUSION_MAX_CORRECTION_DEG_S * Math.max(step, 1 / 60),
+      0.3,
+      0.75,
+    );
+    if (!this.lastRaw) {
+      // First reading: anchor the smoothed angle directly to gyro.
+      this.yaw = raw.yawDeg;
+      this.pitch = raw.pitchDeg;
+      this.lastRaw = { yaw: raw.yawDeg, pitch: raw.pitchDeg };
+      this.pendingRaw = null;
+      this.pendingGyroFrames = 0;
+      return;
     }
-    return {
-      yawDeg: gyro.yawDeg + this.correction.yaw,
-      pitchDeg: gyro.pitchDeg + this.correction.pitch,
-      anchored: nowSec - this.lastAnchorAt <= FUSION_GRACE_SECONDS,
-    };
+    const dYaw = wrapDeg(raw.yawDeg - this.lastRaw.yaw);
+    const dPitch = raw.pitchDeg - this.lastRaw.pitchDeg;
+    if (Math.abs(dYaw) <= maxStep && Math.abs(dPitch) <= maxStep) {
+      this.yaw += dYaw;
+      this.pitch += dPitch;
+      this.lastRaw = { yaw: raw.yawDeg, pitch: raw.pitchDeg };
+      this.pendingRaw = null;
+      this.pendingGyroFrames = 0;
+      return;
+    }
+    const pending = this.pendingRaw;
+    if (
+      pending
+      && Math.abs(wrapDeg(raw.yawDeg - pending.yaw)) <= maxStep
+      && Math.abs(raw.pitchDeg - pending.pitch) <= maxStep
+    ) {
+      this.pendingGyroFrames += 1;
+    } else {
+      this.pendingGyroFrames = 1;
+    }
+    this.pendingRaw = { yaw: raw.yawDeg, pitch: raw.pitchDeg };
+    if (this.pendingGyroFrames >= FUSION_GYRO_CONFIRM_FRAMES) {
+      this.lastRaw = { yaw: raw.yawDeg, pitch: raw.pitchDeg };
+      this.pendingRaw = null;
+      this.pendingGyroFrames = 0;
+    }
+  }
+
+  /** Gate a camera anchor: sample is already 2-frame confirmed, so accept it
+   *  unless it is wildly different from the last accepted anchor (spurious). */
+  gateAnchor(sample) {
+    if (this.anchorTrack) {
+      const dYaw = Math.abs(wrapDeg(sample.yawDeg - this.anchorTrack.yaw));
+      const dPitch = Math.abs(sample.pitchDeg - this.anchorTrack.pitch);
+      if (dYaw > FUSION_ANCHOR_JUMP_YAW || dPitch > FUSION_ANCHOR_JUMP_PITCH) {
+        // Spurious reading: ignore, keep the last accepted anchor.
+        return null;
+      }
+    }
+    return this.acceptAnchor(sample);
+  }
+
+  acceptAnchor(sample) {
+    this.anchorTrack = { yaw: sample.yawDeg, pitch: sample.pitchDeg };
+    this.anchorCandidate = null;
+    this.anchorCandidateAgeSec = 0;
+    return sample;
+  }
+
+  /** Exponential smoothing toward a target, rate-clamped per axis. */
+  easeToward(targetYaw, targetPitch, k, maxRateDegS, dtSec) {
+    if (dtSec <= 0) return;
+    const a = 1 - Math.exp(-k * dtSec);
+    this.yaw += clamp(wrapDeg(targetYaw - this.yaw) * a, -maxRateDegS * dtSec, maxRateDegS * dtSec);
+    this.pitch += clamp((targetPitch - this.pitch) * a, -maxRateDegS * dtSec, maxRateDegS * dtSec);
+  }
+
+  update(gyro, cam, nowSec, dtSec) {
+    const step = clamp(Number.isFinite(dtSec) ? dtSec : 0, 0, 0.1);
+
+    // --- gyro integration with jump confirmation ---
+    if (gyro) {
+      this.gyroMissingSec = 0;
+      this.integrateGyro(gyro, step);
+    } else {
+      this.lastRaw = null;
+      this.pendingRaw = null;
+      this.pendingGyroFrames = 0;
+      this.gyroMissingSec += step;
+    }
+
+    // --- camera anchor confirmation: 2 agreeing frames ---
+    let camAnchor = null;
+    if (cam && cam.pairVisible && cam.mode === 'pair') {
+      const r = cam;
+      if (
+        this.camPending
+        && Math.abs(wrapDeg(r.yawDeg - this.camPending.yawDeg)) <= FUSION_ANCHOR_MATCH
+        && Math.abs(r.pitchDeg - this.camPending.pitchDeg) <= FUSION_ANCHOR_MATCH
+      ) {
+        this.camPending.count += 1;
+      } else {
+        this.camPending = { yawDeg: r.yawDeg, pitchDeg: r.pitchDeg, count: 1 };
+      }
+      if (this.camPending.count >= 2) {
+        camAnchor = this.camPending;
+      }
+    } else {
+      this.camPending = null;
+    }
+    const trustedAnchor = camAnchor ? this.gateAnchor(camAnchor) : null;
+
+    if (cam && cam.pairVisible && cam.mode === 'pair') {
+      this.anchorMissingSec = 0;
+    } else {
+      this.anchorMissingSec += step;
+      if (this.anchorMissingSec > FUSION_ANCHOR_STALE_SEC) {
+        this.anchorTrack = null;
+        this.anchorCandidate = null;
+        this.anchorCandidateAgeSec = 0;
+      }
+    }
+
+    // --- fuse: gyro + anchor correction, or camera follow after gyro loss ---
+    if (gyro) {
+      if (trustedAnchor) {
+        this.easeToward(
+          trustedAnchor.yawDeg - gyro.yawDeg,
+          trustedAnchor.pitchDeg - gyro.pitchDeg,
+          FUSION_CAMERA_FOLLOW_K,
+          FUSION_MAX_CORRECTION_DEG_S,
+          step,
+        );
+        this.lastAnchorAt = nowSec;
+        return {
+          yawDeg: this.yaw,
+          pitchDeg: this.pitch,
+          anchored: true,
+        };
+      }
+      return {
+        yawDeg: this.yaw,
+        pitchDeg: this.pitch,
+        anchored: false,
+      };
+    }
+
+    // No gyro: grace period then camera follow
+    if (this.gyroMissingSec <= FUSION_GYRO_LOSS_GRACE_SEC) {
+      return {
+        yawDeg: this.yaw,
+        pitchDeg: this.pitch,
+        anchored: false,
+      };
+    }
+    if (trustedAnchor) {
+      this.easeToward(
+        trustedAnchor.yawDeg,
+        trustedAnchor.pitchDeg,
+        FUSION_CAMERA_FOLLOW_K,
+        FUSION_CAMERA_YAW_RATE,
+        step,
+      );
+      this.lastAnchorAt = nowSec;
+      return { yawDeg: this.yaw, pitchDeg: this.pitch, anchored: true };
+    }
+    if (cam && cam.mode === 'single') {
+      const ref = this.anchorTrack || { yaw: this.yaw, pitch: this.pitch };
+      if (
+        Math.abs(wrapDeg(cam.yawDeg - ref.yaw)) <= FUSION_HELD_MATCH
+        && Math.abs(cam.pitchDeg - ref.pitch) <= FUSION_HELD_MATCH
+      ) {
+        this.easeToward(
+          cam.yawDeg,
+          cam.pitchDeg,
+          FUSION_CAMERA_FOLLOW_K,
+          FUSION_CAMERA_PITCH_RATE,
+          step,
+        );
+        return { yawDeg: this.yaw, pitchDeg: this.pitch, anchored: false };
+      }
+    }
+    return { yawDeg: this.yaw, pitchDeg: this.pitch, anchored: false };
+  }
+
+  reset(yaw = 0, pitch = 0) {
+    this.yaw = yaw;
+    this.pitch = pitch;
+    this.lastRaw = null;
+    this.pendingRaw = null;
+    this.pendingGyroFrames = 0;
+    this.gyroMissingSec = 0;
+    this.camPending = null;
+    this.anchorTrack = null;
+    this.anchorCandidate = null;
+    this.anchorCandidateAgeSec = 0;
+    this.anchorMissingSec = 0;
+    this.lastAnchorAt = -Infinity;
   }
 }

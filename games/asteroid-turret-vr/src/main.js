@@ -393,6 +393,7 @@ async function startGame() {
   } else vrActive = false;
   game = createGame(1); rngState = 987654321;
   look = { yawDeg: 0, pitchDeg: 0 }; gyroLook = { yawDeg: 0, pitchDeg: 0 };
+  fusion.reset();
   hullShake = 0;
   prepEl.classList.add('hidden');
   hudEl.classList.toggle('hidden', vrActive); // zero HUD inside glasses
@@ -424,9 +425,11 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && run
 // ---------------------------------------------------------------- main loop
 const clock = new THREE.Clock();
 function currentLook(nowSec) {
-  if (mode === 'gyro') return (nowSec - gyroSeenAt < 0.7) ? gyroLook : look; // stale gyro: hold
+  const gyro = (nowSec - gyroSeenAt < 0.7) ? gyroLook : null;
+  if (mode === 'gyro') {
+    return fusion.update(gyro, null, nowSec, 1 / 60);
+  }
   if (mode === 'fusion') {
-    const gyro = (nowSec - gyroSeenAt < 0.7) ? gyroLook : look;
     const cam = tracker.update(detectionsFromWorker(nowSec), nowSec);
     return fusion.update(gyro, cam, nowSec, 1 / 60);
   }
