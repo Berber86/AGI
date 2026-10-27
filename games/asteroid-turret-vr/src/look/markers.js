@@ -176,7 +176,9 @@ export class MarkerTracker {
 //   * anchor gate with time confirmation before snapping to camera
 //   * grace period when gyro goes missing
 // Semantics: yaw > 0 right, pitch > 0 up, degrees.
-export const FUSION_MAX_CORRECTION_DEG_S = 5;
+export const FUSION_VALID_MAX_DEG_S = 6;   // пара меток: быстрое исправление дрейфа
+export const FUSION_SINGLE_MAX_DEG_S = 3;  // одна метка: осторожная коррекция
+export const FUSION_PITCH_RATE_SCALE = 0.5;
 export const FUSION_GRACE_SECONDS = 2;
 export const FUSION_GYRO_CONFIRM_FRAMES = 3;
 export const FUSION_ANCHOR_JUMP_YAW = 20;
@@ -189,6 +191,10 @@ export const FUSION_CAMERA_FOLLOW_K = 7;
 export const FUSION_CAMERA_YAW_RATE = 1.2;
 export const FUSION_CAMERA_PITCH_RATE = 0.8;
 export const FUSION_HELD_MATCH = 12;
+// Look limits (comfort zone, matches White Night / Candy Kingdom Coaster)
+export const FUSION_YAW_LIMIT_DEG = 80;
+export const FUSION_PITCH_MIN_DEG = -55;
+export const FUSION_PITCH_MAX_DEG = 55;
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const wrapDeg = (v) => {
@@ -218,7 +224,7 @@ export class FusionLook {
   integrateGyro(raw, dtSec) {
     const step = clamp(Number.isFinite(dtSec) ? dtSec : 0, 0, 0.1);
     const maxStep = clamp(
-      FUSION_MAX_CORRECTION_DEG_S * Math.max(step, 1 / 60),
+      FUSION_VALID_MAX_DEG_S * Math.max(step, 1 / 60),
       0.3,
       0.75,
     );
@@ -259,18 +265,23 @@ export class FusionLook {
     }
   }
 
-  /** Gate a camera anchor: sample is already 2-frame confirmed, so accept it
-   *  unless it is wildly different from the last accepted anchor (spurious). */
+  /** Gate a camera anchor: sample is already 2-frame confirmed.
+   *  First anchor always establishes the track.  Afterwards, accept unless
+   *  it is far from both the fused angle AND the last track (spurious).
+   *  If close to either one, accept — drift correction is what anchors are
+   *  for (White Night / Candy pattern). */
   gateAnchor(sample) {
-    if (this.anchorTrack) {
-      const dYaw = Math.abs(wrapDeg(sample.yawDeg - this.anchorTrack.yaw));
-      const dPitch = Math.abs(sample.pitchDeg - this.anchorTrack.pitch);
-      if (dYaw > FUSION_ANCHOR_JUMP_YAW || dPitch > FUSION_ANCHOR_JUMP_PITCH) {
-        // Spurious reading: ignore, keep the last accepted anchor.
-        return null;
-      }
-    }
-    return this.acceptAnchor(sample);
+    if (!this.anchorTrack) return this.acceptAnchor(sample);
+
+    const farFromFused =
+      Math.abs(wrapDeg(sample.yawDeg - this.yaw)) > FUSION_ANCHOR_JUMP_YAW
+      || Math.abs(sample.pitchDeg - this.pitch) > FUSION_ANCHOR_JUMP_PITCH;
+    const abrupt =
+      Math.abs(wrapDeg(sample.yawDeg - this.anchorTrack.yaw)) > FUSION_ANCHOR_JUMP_YAW
+      || Math.abs(sample.pitchDeg - this.anchorTrack.pitch) > FUSION_ANCHOR_JUMP_PITCH;
+
+    if (!farFromFused || !abrupt) return this.acceptAnchor(sample);
+    return null; // far from both: spurious, keep last track
   }
 
   acceptAnchor(sample) {
@@ -280,12 +291,20 @@ export class FusionLook {
     return sample;
   }
 
-  /** Exponential smoothing toward a target, rate-clamped per axis. */
-  easeToward(targetYaw, targetPitch, k, maxRateDegS, dtSec) {
+  /** Exponential smoothing toward a target, rate-clamped per axis.
+   *  Separate yaw/pitch rate limits, then clamp to comfort zone. */
+  easeTowardClamped(targetYaw, targetPitch, k, maxYawRateDegS, maxPitchRateDegS, dtSec) {
     if (dtSec <= 0) return;
     const a = 1 - Math.exp(-k * dtSec);
-    this.yaw += clamp(wrapDeg(targetYaw - this.yaw) * a, -maxRateDegS * dtSec, maxRateDegS * dtSec);
-    this.pitch += clamp((targetPitch - this.pitch) * a, -maxRateDegS * dtSec, maxRateDegS * dtSec);
+    this.yaw += clamp(wrapDeg(targetYaw - this.yaw) * a, -maxYawRateDegS * dtSec, maxYawRateDegS * dtSec);
+    this.pitch += clamp((targetPitch - this.pitch) * a, -maxPitchRateDegS * dtSec, maxPitchRateDegS * dtSec);
+    this.yaw = clamp(this.yaw, -FUSION_YAW_LIMIT_DEG, FUSION_YAW_LIMIT_DEG);
+    this.pitch = clamp(this.pitch, FUSION_PITCH_MIN_DEG, FUSION_PITCH_MAX_DEG);
+  }
+
+  /** Exponential smoothing toward a target, rate-clamped per axis. */
+  easeToward(targetYaw, targetPitch, k, maxRateDegS, dtSec) {
+    this.easeTowardClamped(targetYaw, targetPitch, k, maxRateDegS, maxRateDegS, dtSec);
   }
 
   update(gyro, cam, nowSec, dtSec) {
@@ -337,11 +356,16 @@ export class FusionLook {
     // --- fuse: gyro + anchor correction, or camera follow after gyro loss ---
     if (gyro) {
       if (trustedAnchor) {
-        this.easeToward(
-          trustedAnchor.yawDeg - gyro.yawDeg,
-          trustedAnchor.pitchDeg - gyro.pitchDeg,
+        // correct toward absolute camera anchor (like White Night / Candy),
+        // not relative to gyro — otherwise we double-subtract gyro
+        const maxRate = FUSION_VALID_MAX_DEG_S;
+        const pitchRate = maxRate * FUSION_PITCH_RATE_SCALE;
+        this.easeTowardClamped(
+          trustedAnchor.yawDeg,
+          trustedAnchor.pitchDeg,
           FUSION_CAMERA_FOLLOW_K,
-          FUSION_MAX_CORRECTION_DEG_S,
+          maxRate,
+          pitchRate,
           step,
         );
         this.lastAnchorAt = nowSec;
@@ -383,10 +407,11 @@ export class FusionLook {
         Math.abs(wrapDeg(cam.yawDeg - ref.yaw)) <= FUSION_HELD_MATCH
         && Math.abs(cam.pitchDeg - ref.pitch) <= FUSION_HELD_MATCH
       ) {
-        this.easeToward(
+        this.easeTowardClamped(
           cam.yawDeg,
           cam.pitchDeg,
           FUSION_CAMERA_FOLLOW_K,
+          FUSION_CAMERA_YAW_RATE,
           FUSION_CAMERA_PITCH_RATE,
           step,
         );
