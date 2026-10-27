@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#7c3aed">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- Игра для нечитающих детей. ВО ВРЕМЯ ИГРЫ экран абсолютно чистый:
+       только поле, шарик и звёздочки. Никаких кнопок и счётчиков.
+       Меню для взрослых — долгое нажатие по полю. -->
+  <title>🌀📱</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="playing">
+  <!-- Только игровое поле. Больше ничего. -->
+  <main class="board-wrap">
+    <canvas id="game" aria-label="Игровое поле: шарик в лабиринте. Меню — долгое нажатие"></canvas>
+  </main>
+
+  <!-- Стартовый экран (до игры) -->
+  <div class="overlay" id="startOverlay">
+    <div class="card">
+      <div class="ball-logo" aria-hidden="true"><div class="ball-face"><i class="eye e1"></i><i class="eye e2"></i><i class="mouth"></i></div></div>
+      <div class="start-pictos" aria-hidden="true">
+        <span class="picto phone-tilt">📱</span>
+        <span class="picto">↔️</span>
+        <span class="picto">↕️</span>
+        <span class="picto">🌀</span>
+        <span class="picto">🌈</span>
+      </div>
+      <div class="how" aria-hidden="true">
+        <div class="how-item"><span>🤲</span><span class="phone-tilt">📱</span></div>
+        <div class="how-item"><span>📱</span><span>↔️</span><span>↕️</span><span>➡️</span><span>🌀</span></div>
+        <div class="how-item"><span>⭐</span><span>🔟</span><span>🌈</span></div>
+      </div>
+      <button class="btn btn-huge btn-primary" id="btnEnableSensors" type="button" aria-label="Включить датчики и играть">📱 ▶️</button>
+      <button class="btn btn-huge" id="btnEmulator" type="button" aria-label="Играть на компьютере: наклон стрелками клавиатуры">💻 ▶️</button>
+      <p class="note-emoji" id="sensorNote" aria-hidden="true"></p>
+    </div>
+  </div>
+
+  <!-- Пауза для взрослых: открывается долгим нажатием по полю во время игры -->
+  <div class="overlay" id="pauseOverlay" hidden>
+    <div class="card">
+      <div class="levels-title" aria-hidden="true">⏸️</div>
+      <button class="btn btn-huge btn-primary" id="btnResume" type="button" aria-label="Продолжить игру">▶️</button>
+      <div class="pause-grid">
+        <button class="btn btn-big" id="btnCalibrate" type="button" aria-label="Калибровка: это ровно">🎯</button>
+        <button class="btn btn-big" id="btnRestart" type="button" aria-label="Начать уровень сначала">↺</button>
+        <button class="btn btn-big" id="btnLevels" type="button" aria-label="Выбрать лабиринт">🗺️</button>
+        <button class="btn btn-big" id="btnSound" type="button" aria-label="Звук">🔊</button>
+        <button class="btn btn-big" id="btnFullscreen" type="button" aria-label="На весь экран">⛶</button>
+      </div>
+      <div class="press-hint" aria-hidden="true">✌️⏱️</div>
+    </div>
+  </div>
+
+  <!-- Экран прохождения уровня (после игры) -->
+  <div class="overlay" id="winOverlay" hidden>
+    <div class="card">
+      <div class="win-emoji" aria-hidden="true">🎉</div>
+      <div class="win-stars" id="winStars" aria-hidden="true"></div>
+      <button class="btn btn-huge btn-primary" id="btnNextLevel" type="button" aria-label="Следующий лабиринт">▶️</button>
+      <div class="btn-row">
+        <button class="btn btn-big" id="btnReplayLevel" type="button" aria-label="Ещё раз этот лабиринт">↺</button>
+        <button class="btn btn-big" id="btnWinLevels" type="button" aria-label="Все лабиринты">🗺️</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Выбор уровня: цифры и звёздочки -->
+  <div class="overlay" id="levelsOverlay" hidden>
+    <div class="card">
+      <div class="levels-title" aria-hidden="true">🗺️</div>
+      <div class="level-grid" id="levelGrid"></div>
+      <button class="btn btn-huge" id="btnCloseLevels" type="button" aria-label="Назад">◀️</button>
+    </div>
+  </div>
+
+  <script src="./src/levels.js"></script>
+  <script src="./src/game.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "title": "Астероидный рубеж",
+  "elevatorPitch": "Неоновый VR-шутер обороны космического корабля: взгляд вращает лазерную турель, а 1,5 секунды концентрации взгляда на астероиде превращаются в выстрел.",
+  "playerFantasy": "Быть живой системой наведения корабля: держать астероид взглядом, пока лазер не будет готов, и не дать потоку пробить корпус.",
+  "genre": "3D gaze-dwell VR arcade shooter",
+  "audience": "mobile and desktop casual players with or without lens VR glasses",
+  "coreLoop": [
+    "Look around to rotate the laser turret toward an incoming asteroid",
+    "Hold gaze on the asteroid for 1.5 s while the neon dwell ring closes",
+    "Laser fires automatically and destroys the asteroid, score increases",
+    "Asteroids that reach the ship damage the hull; survive the endless escalating stream as long as possible"
+  ],
+  "perspective": "First-person fixed turret position, look direction free within game limits",
+  "orientation": "landscape for VR stereo; adaptive flat-screen fallback",
+  "sessionLength": "One endless run; calm escalation reaches maximum density/speed in about 8 minutes",
+  "controls": [
+    "Prep screen chooses look source: gyro VR stereo, camera dual-marker fusion, or flat screen",
+    "Gyro: DeviceOrientation quaternion, yaw>0 right, pitch>0 up, rotateY(-yaw) then rotateX(pitch)",
+    "Fusion: gyro leads every frame; dual color markers slowly correct drift with confirmation, grace and rate limit; marker entity >=0.15 s; only the pair proves straight; loss holds last look with no timer return to centre",
+    "Flat screen: mouse/touch drag or pointer position rotates the turret",
+    "Fire: gaze-dwell 1.5 s on one asteroid; progress decays on gaze loss instead of instant reset",
+    "Exit VR: Esc, system back (fullscreen exit) or invisible ~0.9 s long-press; zero HUD inside glasses"
+  ],
+  "progression": "Endless escalating stream without waves: spawn interval and asteroid speed grow smoothly over about 8 minutes to a capped maximum; score and persistent best score",
+  "difficulty": "Calm-long escalation; moderate spawn rate; spawn sector strictly yaw ±45 degrees and pitch -30..+30 degrees relative to forward",
+  "visualDirection": "Neon arcade space: dark starfield, neon laser and explosions, readable asteroid silhouettes, three.js",
+  "audioDirection": "Minimal synthesized WebAudio: laser shot and explosion only; unlocked after a user gesture; no dwell charge tone by user choice",
+  "winCondition": "None (endless score survival); personal best score is the goal",
+  "loseCondition": "Hull reaches 0: each asteroid that reaches the ship deals damage; run ends, score and best are shown on the prep/result screen outside VR",
+  "mustHave": [
+    "Gaze-controlled laser turret with 1.5 s dwell-to-fire and decaying dwell progress shown as a neon ring",
+    "Endless moderately escalating asteroid stream spawning only inside the 90x60 degree sector",
+    "Hull 100 HP, damage on impact, lose path, score and persistent best",
+    "Prep screen with look-source choice (gyro VR stereo / dual-marker camera fusion / flat screen), manual VR quality (high/light, never auto), marker calibration",
+    "Zero HUD inside VR glasses; exit via Esc/back/invisible long-press",
+    "Camera marker pipeline off the render hot path (Worker with HSV/blob analysis, small frames, busy flag) with explicit fallback",
+    "Pause/resume on visibility change; WebAudio unlock after user gesture",
+    "Test bridge window.__GAME_TEST__ with seeded reset, state inspection and input simulation"
+  ],
+  "outOfScope": [
+    "Multiplayer",
+    "Backend/accounts",
+    "Monetization",
+    "Missions/levels",
+    "Splitting asteroids and multiple asteroid classes (one type, speed varies)",
+    "Second-phone remote joystick",
+    "Physical device certification (device tests reported separately)"
+  ],
+  "acceptanceCriteria": [
+    "Dwell: holding gaze on one asteroid for 1.5 s fires exactly one shot and destroys it; looking away decays progress without instant reset",
+    "Spawn: every asteroid spawns with yaw within ±45 degrees and pitch within -30..+30 degrees and moves toward the player",
+    "Hull decreases when an asteroid reaches the ship; hull 0 ends the run and shows score/best outside VR",
+    "Escalation: spawn interval and speed increase monotonically and cap at about 8 minutes",
+    "Look signs: synthetic gyro poses and marker centroid shifts yield yaw>0 right / pitch>0 up in unit tests",
+    "Marker contract: entity requires >=0.15 s visibility; a lone marker never proves straight; pair loss holds look without returning to centre; fusion correction is rate-limited and needs confirmation",
+    "VR session DOM contains no HUD/crosshair/buttons overlay; quality stays as manually chosen for the whole session",
+    "No blocking console errors; playable at 360x800 and 412x915 flat viewports; pause on visibilitychange",
+    "Production build is static, subpath-safe, offline after first load via service worker with separate code/media caches"
+  ],
+  "platform": {
+    "primary": "mobile-browser",
+    "device": "Android",
+    "installablePwa": true,
+    "offline": "After first successful production load"
+  },
+  "technical": {
+    "profile": "threejs-vite-javascript",
+    "rendererDprCap": 1.5,
+    "targetFps": 30,
+    "fallbackFps": 30,
+    "maxInitialAssetMb": 8,
+    "deployment": "Static build, GitHub Pages compatible"
+  },
+  "approvedAt": "2026-10-21T17:25:00Z",
+  "updatedAt": "2026-10-21T17:25:00Z",
+  "initialRequestPath": ".studio/request.md"
+}

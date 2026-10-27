@@ -1,0 +1,1 @@
+{ "gate": "e2e-v2", "command": "node qa/e2e.mjs", "result": "11/11", "newChecks": ["explosion FX burst produced (fx.bursts>=1, particles active)", "kill streak tracked in live run"], "screenshots": ["v2-dwell-arc.png (dwell ring on asteroid, ship deck, nebula)", "v2-explosion.png (particle burst)"], "deviceTested": false }
