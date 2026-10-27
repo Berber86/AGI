@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "phase": "qa",
+  "activeRole": "qa",
+  "currentTask": "DEVICE-001",
+  "lastAction": "Двелль сокращён до 5 секунд; из близкого осмотра работают медальоны (взгляд за рамку больше ничего не отменяет); плотность пикселей поднята до DPR 2,5 — в очках каждый глаз получает полное разрешение половины экрана; e2e 38/38, юнит 23/23",
+  "nextAction": "Проверить FPS и знак гироскопа на живом Android-телефоне, затем перевести в release",
+  "blockers": [
+    "В песочнице нет телефона и очков: гироскоп и FPS не подтверждены"
+  ],
+  "latestHandoff": ".studio/handoffs/2026-10-21-dwell5-dpr.md",
+  "sessionBenchmark": {
+    "runId": "20261020T232933Z-a723f9",
+    "status": "qualified",
+    "score": 95,
+    "evaluatedAt": "2026-10-20T23:29:49Z",
+    "resultPath": ".studio/benchmarks/latest-result.json",
+    "note": "Бенчмарк запущен в конце сборки, а не в начале сессии; отклонение записано в decisions.md"
+  },
+  "createdAt": "2026-10-21T00:00:00Z",
+  "updatedAt": "2026-10-21T00:00:00Z"
+}
