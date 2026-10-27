@@ -468,9 +468,10 @@ function frame() {
     hullShake = Math.max(0, hullShake - dt * 2.2);
     const shakeAmp = (!vrActive && hullShake > 0) ? hullShake * 0.35 : 0;
     camera.position.set((Math.random() - 0.5) * shakeAmp * 0.1, (Math.random() - 0.5) * shakeAmp * 0.1, 0);
+    camera.rotation.order = 'YXZ';
     camera.rotation.set(0, 0, 0);
-    camera.rotateY((-look.yawDeg * Math.PI) / 180);
-    camera.rotateX((look.pitchDeg * Math.PI) / 180);
+    camera.rotation.y = (-look.yawDeg * Math.PI) / 180;
+    camera.rotation.x = (look.pitchDeg * Math.PI) / 180;
     if (shakeAmp > 0) camera.rotateZ((Math.random() - 0.5) * shakeAmp * 0.01);
     camera.updateMatrixWorld();
     const { state, events } = stepGame(game, dt, look, rng);
