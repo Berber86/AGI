@@ -344,3 +344,107 @@ test('Full vertical range (raise high up, lower relaxed down) + torso grounding 
   }
   assert.ok(raisedHeadSnap.pos.y < levelHeadSnap.pos.y - 0.18, `stationary arm stays grounded on torso when head pitches up: level=${levelHeadSnap.pos.y}, lookUp=${raisedHeadSnap.pos.y}`);
 });
+
+test('Whole-body turn (+45 deg right) keeps arm centered in front of torso, and chair swivel auto-recenters', () => {
+  const fusion = new WristHandFusion('right');
+  const qPose1 = w3cDeviceQuaternion(0, 88, 0, 0);
+  const qPose2 = qMul(qAxisAngle([0, 1, 0], 40 * DEG), qMul(qAxisAngle([1, 0, 0], 50 * DEG), qPose1));
+
+  fusion.feedSensor({ q: qPose1, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qPose2, ts: 10 });
+  const cal = fusion.calibrateBendPose();
+  assert.equal(cal.ok, true);
+
+  // 1) Даже после 40° увода к груди на Шаге 2 чистый подъём предплечья вперёд имеет 0° бокового скоса!
+  fusion.feedSensor({ q: qMul(qAxisAngle([1, 0, 0], 45 * DEG), qPose1), ts: 50 });
+  fusion.update(1 / 60, { now: 66 });
+  const fwdCheck = qRotVec(fusion.qArmTorso, [0, 0, -1]);
+  assert.ok(Math.abs(fwdCheck[0]) < 0.005, `zero ψ/2 horizontal skew after chest-cross calibration: x=${fwdCheck[0]}`);
+
+  // Базовое положение прямой руки при взгляде прямо (0°)
+  let baseSnap;
+  fusion.feedSensor({ q: qPose1, ts: 100 });
+  for (let i = 0; i < 30; i++) {
+    baseSnap = fusion.update(1 / 60, { headLook: { yaw: 0, pitch: 0 }, phase: 'search', now: 100 + i * 16 });
+  }
+
+  // 2) Игрок поворачивается всем телом, головой и рукой на 45° ВПРАВО (headYaw = +45°, мир = Ry(-45°)):
+  // рука остаётся точно перед тем же правым плечом (без улёта на 90° вбок!)
+  const qBodyRight45 = qMul(qAxisAngle([0, 1, 0], -45 * DEG), qPose1);
+  fusion.feedSensor({ q: qBodyRight45, ts: 700 });
+  let snap;
+  for (let i = 0; i < 90; i++) {
+    snap = fusion.update(1 / 60, { headLook: { yaw: 45 * DEG, pitch: 0 }, phase: 'search', now: 700 + i * 16 });
+  }
+  assert.ok(Math.abs(snap.pos.x - baseSnap.pos.x) < 0.03, `arm matches base shoulder alignment after 45° body turn: base=${baseSnap.pos.x}, turned=${snap.pos.x}`);
+
+  // 3) Проверка авто-выравнивания кресла при старте VR (recenterOnSessionStart)
+  const fusion2 = new WristHandFusion('right');
+  fusion2.feedSensor({ q: qPose1, ts: 0 });
+  fusion2.calibrateStretchPose();
+  fusion2.feedSensor({ q: qPose2, ts: 10 });
+  fusion2.calibrateBendPose();
+  // Пока надевал очки, повернулся на кресле на 38° влево (Ry(+38°))
+  const qSwiveled = qMul(qAxisAngle([0, 1, 0], 38 * DEG), qPose1);
+  fusion2.feedSensor({ q: qSwiveled, ts: 500 });
+  fusion2.recenterOnSessionStart(520);
+  let recenteredSnap;
+  for (let i = 0; i < 20; i++) {
+    recenteredSnap = fusion2.update(1 / 60, { headLook: { yaw: 0, pitch: 0 }, phase: 'search', now: 520 + i * 16 });
+  }
+  assert.ok(Math.abs(recenteredSnap.pos.x - 0.12) < 0.08, `recentered pos.x=${recenteredSnap.pos.x}`);
+});
+
+test('Inspection wrist yaw matches true 1:1 physical direction even with elbow bent 55 deg', () => {
+  const fusion = new WristHandFusion('right');
+  const qPose1 = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qPose2 = qMul(qAxisAngle([1, 0, 0], 55 * DEG), qPose1);
+  fusion.feedSensor({ q: qPose1, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qPose2, ts: 10 });
+  fusion.calibrateBendPose();
+
+  // Начинаем осмотр с согнутым на 55° локтем (естественная поза осмотра находки!)
+  fusion.feedSensor({ q: qPose2, ts: 100 });
+  fusion.update(1 / 60, { phase: 'search', now: 116 });
+  fusion.onPhaseChange('inspect', 120);
+  fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now: 136 });
+
+  // Поворачиваем руку в пространстве корпуса ВЛЕВО (+30° вокруг вертикали +Y):
+  // предмет обязан повернуться в +Y (itemRot.y > +0.6), а НЕ зеркально назад и НЕ уйти весь в roll!
+  const qTurnLeftInTorso = qMul(qAxisAngle([0, 1, 0], 30 * DEG), qPose2);
+  fusion.feedSensor({ q: qTurnLeftInTorso, ts: 300 });
+  const snap = fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now: 316 });
+  assert.ok(snap.itemRot.y > 0.65, `1:1 left yaw rotation itemRot.y=${snap.itemRot.y}`);
+  assert.ok(Math.abs(snap.itemRot.z) < 0.15, `minimal parasitic roll when turning horizontally with bent elbow: z=${snap.itemRot.z}`);
+});
+
+test('WristBeaconTracker ignores room clutter (plants/posters) and rejects lone false spots', () => {
+  const tracker = new WristBeaconTracker();
+
+  // 1) Только зелёный комнатный цветок в углу кадра (без розового напарника) -> строго 'none'!
+  const lonePlant = makeDualBeaconRgba(200, 150, { u: 0.12, v: 0.25, rad: 10 }, null);
+  const resLone = tracker.analyzeRgba(lonePlant, 200, 150, 1000);
+  assert.equal(resLone.status, 'none');
+
+  // 2) В кадре одновременно и тусклый зелёный цветок слева (u=0.10), и яркий двухцветный браслет справа (u=0.64, 0.72)
+  const cluttered = makeDualBeaconRgba(
+    200,
+    150,
+    { u: 0.64, v: 0.56, rad: 8 },
+    { u: 0.72, v: 0.56, rad: 8 }
+  );
+  // Дорисуем посторонний зелёный предмет в левом верхнем углу
+  for (let y = 18; y <= 34; y++) {
+    for (let x = 12; x <= 28; x++) {
+      const idx = (y * 200 + x) * 4;
+      cluttered[idx] = 20;
+      cluttered[idx + 1] = 155;
+      cluttered[idx + 2] = 65;
+    }
+  }
+  const resPair = tracker.analyzeRgba(cluttered, 200, 150, 1200);
+  assert.equal(resPair.status, 'pair');
+  assert.ok(Math.abs(resPair.u - 0.68) < 0.03, `beacon locks onto wrist (0.68), ignoring plant at 0.10: u=${resPair.u}`);
+});

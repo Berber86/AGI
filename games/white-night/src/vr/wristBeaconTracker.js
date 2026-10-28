@@ -1,19 +1,24 @@
-// wristBeaconTracker.js — детектор двухцветного светящегося маяка на экране
-// телефона-браслета для задней камеры VR-очков «Белой ночи».
+// wristBeaconTracker.js — помехозащищённый детектор двухцветного светящегося
+// маяка на экране телефона-браслета для задней камеры VR-очков «Белой ночи».
 //
-// На чисто-чёрном экране второго телефона горят два контрастных пятна:
-//   - distal   (ближе к кисти/пальцам): лаймово-зелёный (#00ff66, Hue ≈ 144°)
-//   - proximal (ближе к локтю):         ярко-пурпурный  (#ff00aa, Hue ≈ 320°)
-//
-// Середина отрезка даёт 2D-положение запястья (u, v) в поле зрения очков,
-// видимое расстояние между пятнами (spanNorm) даёт оптическую дальность руки,
-// а угол вектора proximal -> distal даёт 2D-крен экрана без участия компаса.
+// Защита от бытовых помех в комнате:
+//   1. Поиск локального максимума яркости по сетке (8x6 ячеек) вместо наивного
+//      усреднения по всему кадру: зелёный цветок на окне и зелёное пятно на руке
+//      не сливаются в воображаемую точку между ними.
+//   2. Учёт лёгкого пересвета центра OLED-пятна автоэкспозицией камеры в сумерках.
+//   3. Геометрическая взаимная проверка пары (#00ff66 + #ff00aa): сопоставимая
+//      площадь пятен и разумный разнос; одиночное пятно ('single') удерживается
+//      только 400 мс после подтверждённой пары и только рядом с её позицией,
+//      чтобы случайные цветные предметы в комнате никогда не уводили руку.
 
 import { hueOf } from './markerTracker.js';
 
 const ANALYZE_W = 200;
 const ANALYZE_H = 150;
 const PROCESS_INTERVAL_MS = 90; // ~11 Гц (ведущий контур — 60 Гц гироскоп)
+const GRID_COLS = 8;
+const GRID_ROWS = 6;
+const SINGLE_GRACE_MS = 400;
 
 function circularHueDist(a, b) {
   const d = Math.abs(a - b) % 360;
@@ -21,19 +26,85 @@ function circularHueDist(a, b) {
 }
 
 export function detectLuminousSpot(data, w, h, targetHue, hueTol = 34) {
-  let sx = 0, sy = 0, sw = 0, count = 0;
-  let minX = w, maxX = -1, minY = h, maxY = -1;
+  const cellW = w / GRID_COLS;
+  const cellH = h / GRID_ROWS;
+  const gridScore = new Float64Array(GRID_COLS * GRID_ROWS);
+  const gridSumX = new Float64Array(GRID_COLS * GRID_ROWS);
+  const gridSumY = new Float64Array(GRID_COLS * GRID_ROWS);
+
+  // Шаг 1: находим самую яркую локальную ячейку нужного оттенка
   for (let y = 0; y < h; y++) {
+    const gy = Math.min(GRID_ROWS - 1, (y / cellH) | 0);
     const row = y * w * 4;
     for (let x = 0; x < w; x++) {
       const i = row + x * 4;
       const r = data[i], g = data[i + 1], b = data[i + 2];
-      // Светящийся экран даёт высокую яркость и насыщенность даже в сумерках
       const { hue, sat, val, chroma } = hueOf(r, g, b);
-      if (hue < 0 || sat < 38 || val < 75 || chroma < 55) continue;
+      if (hue < 0 || val < 72) continue;
+      // Допускаем чуть меньшую насыщенность в самом ярком ядре экрана (val >= 200)
+      const minSat = val >= 205 ? 20 : 36;
+      const minChroma = val >= 205 ? 34 : 52;
+      if (sat < minSat || chroma < minChroma) continue;
       const dist = circularHueDist(hue, targetHue);
       if (dist > hueTol) continue;
-      const weight = (1 - dist / (hueTol + 1)) * (sat / 100) * (val / 255);
+
+      const weight = (1 - dist / (hueTol + 1)) * (0.35 + (sat / 100) * 0.65) * Math.pow(val / 255, 1.35);
+      const cellIdx = gy * GRID_COLS + Math.min(GRID_COLS - 1, (x / cellW) | 0);
+      gridScore[cellIdx] += weight;
+      gridSumX[cellIdx] += x * weight;
+      gridSumY[cellIdx] += y * weight;
+    }
+  }
+
+  // Находим лучший кластер 2x2 соседних ячеек (на случай, если пятно легло на границу ячейки)
+  let bestScore = 0;
+  let seedX = w * 0.5;
+  let seedY = h * 0.5;
+  for (let gy = 0; gy < GRID_ROWS; gy++) {
+    for (let gx = 0; gx < GRID_COLS; gx++) {
+      let sumS = 0, sumX = 0, sumY = 0;
+      for (let dy = 0; dy <= 1 && gy + dy < GRID_ROWS; dy++) {
+        for (let dx = 0; dx <= 1 && gx + dx < GRID_COLS; dx++) {
+          const idx = (gy + dy) * GRID_COLS + (gx + dx);
+          sumS += gridScore[idx];
+          sumX += gridSumX[idx];
+          sumY += gridSumY[idx];
+        }
+      }
+      if (sumS > bestScore) {
+        bestScore = sumS;
+        seedX = sumX / sumS;
+        seedY = sumY / sumS;
+      }
+    }
+  }
+
+  if (bestScore < 1.2) return { found: false, count: 0 };
+
+  // Шаг 2: собираем компактное пятно ТОЛЬКО в локальном радиусе вокруг найденного пика
+  const winR = Math.max(22, Math.round(Math.min(w, h) * 0.24));
+  const x0 = Math.max(0, Math.floor(seedX - winR));
+  const x1 = Math.min(w - 1, Math.ceil(seedX + winR));
+  const y0 = Math.max(0, Math.floor(seedY - winR));
+  const y1 = Math.min(h - 1, Math.ceil(seedY + winR));
+
+  let sx = 0, sy = 0, sw = 0, count = 0;
+  let minX = w, maxX = -1, minY = h, maxY = -1;
+  for (let y = y0; y <= y1; y++) {
+    const row = y * w * 4;
+    for (let x = x0; x <= x1; x++) {
+      if (Math.hypot(x - seedX, y - seedY) > winR) continue;
+      const i = row + x * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const { hue, sat, val, chroma } = hueOf(r, g, b);
+      if (hue < 0 || val < 72) continue;
+      const minSat = val >= 205 ? 20 : 36;
+      const minChroma = val >= 205 ? 34 : 52;
+      if (sat < minSat || chroma < minChroma) continue;
+      const dist = circularHueDist(hue, targetHue);
+      if (dist > hueTol) continue;
+
+      const weight = (1 - dist / (hueTol + 1)) * (0.35 + (sat / 100) * 0.65) * (val / 255);
       sx += x * weight;
       sy += y * weight;
       sw += weight;
@@ -44,10 +115,14 @@ export function detectLuminousSpot(data, w, h, targetHue, hueTol = 34) {
       if (y > maxY) maxY = y;
     }
   }
-  if (count < 8 || sw <= 0) return { found: false, count: 0 };
+
+  if (count < 7 || sw <= 0) return { found: false, count: 0 };
   const bbW = maxX - minX + 1;
   const bbH = maxY - minY + 1;
-  if (bbW > w * 0.8 || bbH > h * 0.8) return { found: false, count: 0 };
+  const fill = count / Math.max(1, bbW * bbH);
+  // Пятно на экране компактное (не растянутая на полкомнаты штора и не редкий шум)
+  if (bbW > w * 0.45 || bbH > h * 0.45 || fill < 0.25) return { found: false, count: 0 };
+
   const cx = sx / sw;
   const cy = sy / sw;
   return {
@@ -57,6 +132,7 @@ export function detectLuminousSpot(data, w, h, targetHue, hueTol = 34) {
     v: (cy + 0.5) / h,
     bbW,
     bbH,
+    fill,
   };
 }
 
@@ -77,6 +153,8 @@ export class WristBeaconTracker {
     this.ctx = this.canvas?.getContext('2d', { willReadFrequently: true }) || null;
     this.lastProcessAt = 0;
     this.processMs = 0;
+    this.lastPairAt = -10000;
+    this.lastPairPos = { u: 0.5, v: 0.55, spanNorm: 0.12 };
     this.latest = {
       status: 'none',
       u: 0.5,
@@ -146,11 +224,19 @@ export class WristBeaconTracker {
       const dx = distal.u - proximal.u;
       const dy = (distal.v - proximal.v) * aspectY;
       const spanNorm = Math.hypot(dx, dy);
-      if (spanNorm >= 0.018 && spanNorm <= 0.65) {
+      const areaA = Math.max(1, distal.count || 1);
+      const areaB = Math.max(1, proximal.count || 1);
+      const areaRatio = Math.max(areaA / areaB, areaB / areaA);
+      // Оба пятна на одном экране имеют сопоставимый размер и лежат рядом
+      if (spanNorm >= 0.018 && spanNorm <= 0.58 && areaRatio <= 9) {
+        const u = (distal.u + proximal.u) * 0.5;
+        const v = (distal.v + proximal.v) * 0.5;
+        this.lastPairAt = now;
+        this.lastPairPos = { u, v, spanNorm };
         this.latest = {
           status: 'pair',
-          u: (distal.u + proximal.u) * 0.5,
-          v: (distal.v + proximal.v) * 0.5,
+          u,
+          v,
           spanNorm,
           rollRad: Math.atan2(-dy, dx),
           distalFound: true,
@@ -160,14 +246,20 @@ export class WristBeaconTracker {
         return this.latest;
       }
     }
+
+    // Одиночное пятно допускаем ТОЛЬКО как кратковременное удержание после недавней пары
+    // и только рядом с последней известной позицией браслета (игнорируя цветные вещи в комнате!)
     const one = distal.found ? distal : (proximal.found ? proximal : null);
-    if (one) {
-      const singleScale = Math.sqrt(one.count / (w * h)) * 2.35;
+    if (
+      one &&
+      now - this.lastPairAt <= SINGLE_GRACE_MS &&
+      Math.hypot(one.u - this.lastPairPos.u, one.v - this.lastPairPos.v) <= 0.20
+    ) {
       this.latest = {
         status: 'single',
         u: one.u,
         v: one.v,
-        spanNorm: singleScale,
+        spanNorm: this.lastPairPos.spanNorm,
         rollRad: this.latest.rollRad,
         distalFound: !!distal.found,
         proximalFound: !!proximal.found,
@@ -175,6 +267,7 @@ export class WristBeaconTracker {
       };
       return this.latest;
     }
+
     this.latest = {
       ...this.latest,
       status: 'none',

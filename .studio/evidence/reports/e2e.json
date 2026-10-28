@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 43.570707070707144,
+      "meanFrameMs": 25.554545454544773,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -101,7 +101,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.533333333332696,
+      "meanFrameMs": 16.533333333333303,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -465,7 +465,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6831418,
+    "totalBytes": 6835248,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -488,8 +488,8 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-DaeJ5nbi.js",
-        "bytes": 794211
+        "file": "assets/index-2c_oPkHh.js",
+        "bytes": 797779
       },
       {
         "file": "assets/index-DoXyVP2U.css",
@@ -573,11 +573,11 @@
       },
       {
         "file": "wrist/index.html",
-        "bytes": 10105
+        "bytes": 10215
       },
       {
         "file": "wrist/wrist.js",
-        "bytes": 23865
+        "bytes": 24017
       }
     ]
   },

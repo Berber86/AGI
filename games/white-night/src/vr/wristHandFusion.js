@@ -450,44 +450,38 @@ export class WristHandFusion {
     }
 
     const upLocal = vNorm(qRotVec(qConj(this.qStretch), [0, 1, 0]));
-    const rawBendAxis = vNorm([dqx, dqy, dqz]);
-    const proj = [
-      rawBendAxis[0] - vDot(rawBendAxis, upLocal) * upLocal[0],
-      rawBendAxis[1] - vDot(rawBendAxis, upLocal) * upLocal[1],
-      rawBendAxis[2] - vDot(rawBendAxis, upLocal) * upLocal[2],
+    const g2 = vNorm(qRotVec(qConj(qBend), [0, 1, 0]));
+    const cosLift = clamp(vDot(g2, upLocal), -1, 1);
+    const projG2 = [
+      g2[0] - cosLift * upLocal[0],
+      g2[1] - cosLift * upLocal[1],
+      g2[2] - cosLift * upLocal[2],
     ];
-    const projLen = Math.hypot(proj[0], proj[1], proj[2]);
-    if (projLen < 0.22) {
+    const sinLift = Math.hypot(projG2[0], projG2[1], projG2[2]);
+    if (sinLift < Math.sin(13 * DEG)) {
       return {
         ok: false,
-        message: 'Движение было почти чисто горизонтальным. Поднимите предплечье в локте вверх к груди.',
+        message: 'Поднимите предплечье в локте вверх хотя бы на 20° выше горизонтали (не выворачивая кисть).',
       };
     }
 
-    let rightLocal = [proj[0] / projLen, proj[1] / projLen, proj[2] / projLen];
-    let backLocal = vNorm(vCross(rightLocal, upLocal));
-    let upOrtho = vNorm(vCross(backLocal, rightLocal));
+    // Проекция гравитации 2-й позы ортогонально гравитации 1-й позы даёт ТОЧНУЮ продольную
+    // ось предплечья без ошибки ψ/2, даже если игрок естественно увёл кисть внутрь к груди!
+    const fwdLocal = [projG2[0] / sinLift, projG2[1] / sinLift, projG2[2] / sinLift];
+    const backLocal = [-fwdLocal[0], -fwdLocal[1], -fwdLocal[2]];
+    const rightLocal = vNorm(vCross(upLocal, backLocal));
+    const upOrtho = vNorm(vCross(backLocal, rightLocal));
 
-    // Проверяем знак подъёма: в позе 2 предплечье [0, 0, -1] обязано подняться вверх (y > 0),
-    // как на правой, так и на левой руке, даже если игрок сильно увёл кисть внутрь к груди!
-    let qBasisCandidate = basisColumnsToQuat(rightLocal, upOrtho, backLocal);
-    let qRefInvCandidate = qConj(qMul(this.qStretch, qBasisCandidate));
-    let qBendArm = qMul(qRefInvCandidate, qMul(qBend, qBasisCandidate));
-    let bendFwd = qRotVec(qBendArm, [0, 0, -1]);
-    if (bendFwd[1] < 0) {
-      rightLocal = [-rightLocal[0], -rightLocal[1], -rightLocal[2]];
-      backLocal = vNorm(vCross(rightLocal, upLocal));
-      upOrtho = vNorm(vCross(backLocal, rightLocal));
-      qBasisCandidate = basisColumnsToQuat(rightLocal, upOrtho, backLocal);
-      qRefInvCandidate = qConj(qMul(this.qStretch, qBasisCandidate));
-      qBendArm = qMul(qRefInvCandidate, qMul(qBend, qBasisCandidate));
-      bendFwd = qRotVec(qBendArm, [0, 0, -1]);
-    }
+    const qBasisCandidate = basisColumnsToQuat(rightLocal, upOrtho, backLocal);
+    const qRefInvCandidate = qConj(qMul(this.qStretch, qBasisCandidate));
+    const qBendArm = qMul(qRefInvCandidate, qMul(qBend, qBasisCandidate));
+    const bendFwd = qRotVec(qBendArm, [0, 0, -1]);
+    const liftAngleRad = Math.atan2(sinLift, cosLift);
 
     this.qBend = qBend;
     this.qBasis = qBasisCandidate;
     this.qRefInv = qRefInvCandidate;
-    this.bendSpanRad = clamp(Math.asin(clamp(bendFwd[1], 0.25, 1)), 18 * DEG, 105 * DEG);
+    this.bendSpanRad = clamp(liftAngleRad, 18 * DEG, 115 * DEG);
     this.bendInwardYawRad = Math.atan2(bendFwd[0], Math.max(0.15, -bendFwd[2]));
     this.yawTrimRad = 0;
 
@@ -507,17 +501,35 @@ export class WristHandFusion {
       };
     }
 
-    // Сразу синхронизируем стартовую точку пружины без скачка
     this.calibratedStep = 2;
     const armLabel = this.handSide === 'left' ? 'левая рука' : 'правая рука';
     return {
       ok: true,
       step: 2,
       handSide: this.handSide,
-      bendDeg: +(angleRad * RAD).toFixed(1),
+      bendDeg: +(liftAngleRad * RAD).toFixed(1),
       beaconCaptured: this.beaconFar.captured && this.beaconNear.captured,
-      message: `Калибровка готова (${armLabel}, сгиб ${Math.round(angleRad * RAD)}°). Можно надевать очки!`,
+      message: `Калибровка готова (${armLabel}, сгиб ${Math.round(liftAngleRad * RAD)}°). Можно надевать очки!`,
     };
+  }
+
+  /**
+   * Мягкая синхронизация горизонтального азимута при входе в VR (после 3-секундного отсчёта):
+   * если игрок повернулся на кресле, надевая очки, и рука ушла > 22° вбок от нового взгляда,
+   * компенсируем этот поворот кресла, чтобы рука смотрела вперёд вместе с игроком.
+   */
+  recenterOnSessionStart(now = performance.now()) {
+    this.torsoYaw = 0;
+    if (!this.lastSensor?.q || !this.qStretch) return;
+    if (now - this.lastSensor.ts > 2000) return;
+    const qRaw = qNormalize(qMul(this.qRefInv, qMul(this.lastSensor.q, this.qBasis)));
+    const fwd = qRotVec(qRaw, [0, 0, -1]);
+    const horizLen = Math.hypot(fwd[0], fwd[2]);
+    if (horizLen < 0.35) return; // рука почти вертикальна — азимут не трогаем
+    const azRad = Math.atan2(fwd[0], -fwd[2]);
+    if (Math.abs(azRad) > 22 * DEG) {
+      this.yawTrimRad = azRad;
+    }
   }
 
   onPhaseChange(phase, now = performance.now()) {
@@ -567,11 +579,10 @@ export class WristHandFusion {
     // Корпус мягко поворачивается вслед за большими поворотами головы по горизонту,
     // но строго сохраняет гравитационную вертикаль при кивках вверх/вниз!
     const yawDiff = headYaw - this.torsoYaw;
-    if (Math.abs(yawDiff) > 24 * DEG) {
-      this.torsoYaw += (yawDiff - Math.sign(yawDiff) * 24 * DEG) * 0.35;
-    } else {
-      this.torsoYaw += yawDiff * Math.min(1, safeDt * 1.4);
+    if (Math.abs(yawDiff) > 18 * DEG) {
+      this.torsoYaw += (yawDiff - Math.sign(yawDiff) * 18 * DEG) * 0.45;
     }
+    this.torsoYaw += (headYaw - this.torsoYaw) * Math.min(1, safeDt * 2.8);
     const relHeadYaw = headYaw - this.torsoYaw;
     // Перевод из системы корпуса в систему камеры очков: Rx(-headPitch) * Ry(+relHeadYaw)
     const qTorsoToCam = qMul(
@@ -580,8 +591,10 @@ export class WristHandFusion {
     );
     const qCamToTorso = qConj(qTorsoToCam);
 
-    // 1. 60 Гц ориентация предплечья и кисти в гравитационной системе корпуса
-    const qYawTrim = qAxisAngle([0, 1, 0], this.yawTrimRad - this.torsoYaw);
+    // 1. 60 Гц ориентация предплечья и кисти в гравитационной системе корпуса:
+    // Внимание на знак: headYaw > 0 — это физический поворот ВПРАВО (Ry(-headYaw) в OpenGL),
+    // поэтому переход из мира в повернувшийся корпус требует умножения на Ry(+torsoYaw)!
+    const qYawTrim = qAxisAngle([0, 1, 0], this.yawTrimRad + this.torsoYaw);
     this.qArmTorso = qNormalize(qMul(qYawTrim, qMul(this.qRefInv, qMul(sensor.q, this.qBasis))));
     this.qArm = qNormalize(qMul(qTorsoToCam, this.qArmTorso));
 
@@ -696,8 +709,8 @@ export class WristHandFusion {
         const maxTrimStep = 12 * DEG * safeDt;
         this.yawTrimRad = clamp(
           this.yawTrimRad - clamp(uErr * 0.35, -maxTrimStep, maxTrimStep),
-          -55 * DEG,
-          55 * DEG
+          -180 * DEG,
+          180 * DEG
         );
       } else {
         const optCamX = clamp((beacon.u - this.beaconFar.u) * 1.10 + side * 0.10, -0.52, 0.52);
@@ -798,12 +811,15 @@ export class WristHandFusion {
         this.inspectBaseQ = [...this.qArmTorso];
         this.inspectEnteredAt = now;
       }
-      const qInspectDelta = qMul(qConj(this.inspectBaseQ), this.qArmTorso);
+      // Дельта вращения в системе корпуса (а не в наклонённых осях согнутой кисти!):
+      // поворот руки влево крутит предмет влево (+yaw), наклон вверх наклоняет на себя (-pitch),
+      // супинация предплечья поворачивает предмет как ножку бокала в ту же сторону.
+      const qInspectDelta = qMul(this.qArmTorso, qConj(this.inspectBaseQ));
       const eul = quatToEulerYXZ(qInspectDelta);
       this.itemRot = {
         x: clamp(-eul.pitch * 1.55, -Math.PI, Math.PI),
-        y: clamp(-eul.yaw * 1.75 - eul.roll * 0.65, -Math.PI * 1.5, Math.PI * 1.5),
-        z: clamp(-eul.roll * 1.35, -Math.PI, Math.PI),
+        y: clamp(eul.yaw * 1.75 + eul.roll * 0.70, -Math.PI * 1.5, Math.PI * 1.5),
+        z: clamp(-eul.roll * 1.25, -Math.PI, Math.PI),
       };
 
       const armedForDecision =

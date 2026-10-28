@@ -527,7 +527,8 @@ function sendCalibrationStep(step, delayMs = 2000) {
   els.calMsg.textContent = `${label}: примите позу… запись через ${(delayMs / 1000).toFixed(0)} с`;
   els.beaconStatus.textContent = `${label}: держите позу…`;
   setTimeout(() => {
-    const payload = { k: 'cal', room: link.room, step, ts: Date.now() };
+    const cmdId = 'c' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
+    const payload = { k: 'cal', id: cmdId, room: link.room, step, ts: Date.now() };
     if (link.mode === 'demo' && link.bc) {
       link.bc.postMessage(payload);
     } else {
@@ -541,7 +542,7 @@ function sendCalibrationStep(step, delayMs = 2000) {
       }
     }
     els.calMsg.textContent = step === 'pose1'
-      ? '✓ Шаг 1 отправлен! Теперь нажмите Шаг 2 и согните руку в локте.'
+      ? '✓ Шаг 1 отправлен! Теперь нажмите Шаг 2 и согните руку в локте (не выворачивая кисть).'
       : '✓ Шаг 2 отправлен! Включите экран-маяк и наденьте VR-очки.';
     renderStatus();
   }, delayMs);

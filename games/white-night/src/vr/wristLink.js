@@ -117,6 +117,7 @@ export class WristHostLink {
     this.lastFastRxAt = 0;
     this.lastAnyRxAt = 0;
     this.lastSeq = -1;
+    this.seenCalIds = new Set();
     this.rxTimes = [];
     this.pingTimer = null;
     this.watchdogTimer = null;
@@ -160,8 +161,12 @@ export class WristHostLink {
           this.connected = true;
           this.p2pOpen = true;
           this._handlePacket(msg, true);
-        } else if (msg.k === 'cal') {
-          this.onCalCommand(msg.step);
+        } else if (msg.k === 'cal' && msg.step) {
+          const cid = msg.id || `${msg.step}:${msg.ts || 0}`;
+          if (!this.seenCalIds.has(cid)) {
+            this.seenCalIds.add(cid);
+            this.onCalCommand(msg.step);
+          }
         } else if (msg.k === 'hand_side' && (msg.side === 'left' || msg.side === 'right')) {
           this.onHandSide(msg.side);
         }
@@ -232,14 +237,21 @@ export class WristHostLink {
         })
       );
 
-      // Команды калибровки с экрана браслета
+      // Команды калибровки с экрана браслета (без зависимости от сверки часов двух телефонов!)
+      let initialCalSnap = true;
       this.unsubs.push(
         onValue(ref(this.db, `${roomPath}/calCmd`), (snap) => {
           const cmd = snap.val();
-          if (!cmd || !cmd.step) return;
-          if (Date.now() - (cmd.ts || 0) < 6000) {
-            this.onCalCommand(cmd.step);
+          if (initialCalSnap) {
+            initialCalSnap = false;
+            if (cmd?.id) this.seenCalIds.add(cmd.id);
+            return;
           }
+          if (!cmd || !cmd.step) return;
+          const cid = cmd.id || `${cmd.step}:${cmd.ts || 0}`;
+          if (this.seenCalIds.has(cid)) return;
+          this.seenCalIds.add(cid);
+          this.onCalCommand(cmd.step);
         })
       );
 
@@ -443,7 +455,11 @@ export class WristHostLink {
       return;
     }
     if (msg.k === 'cal' && msg.step) {
-      this.onCalCommand(msg.step);
+      const cid = msg.id || `${msg.step}:${msg.ts || 0}`;
+      if (!this.seenCalIds.has(cid)) {
+        this.seenCalIds.add(cid);
+        this.onCalCommand(msg.step);
+      }
       return;
     }
     if (msg.k === 'hand_side' && (msg.side === 'left' || msg.side === 'right')) {

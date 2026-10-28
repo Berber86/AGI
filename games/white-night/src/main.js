@@ -66,7 +66,7 @@ function updateUI(){
   $('#duplicate-badge').hidden=state.reviewing||!state.collection.includes(item.id);$('.decision-buttons').hidden=state.reviewing;$('#close-review').hidden=!state.reviewing;
  }
 }
-function search(){if(state.phase!=='search'||dialogs.some(d=>d.open)||paused)return;world.poke(state.taps+1);let itemId=forcedItem || (state.searches===0?'camera':chooseItem().id);state=transition(state,{type:'tap',itemId});if(state.phase==='inspect'){forcedItem=null;world.show(state.current);persist();if(vrActive){vrPendingSave=true;vrFocus=0;vrGazeHit=false;headShake.reset();wristFusion?.onPhaseChange('inspect',performance.now());}}updateUI();}
+function search(){if(state.phase!=='search'||dialogs.some(d=>d.open)||paused)return;world.poke(state.taps+1);let itemId=forcedItem || (state.searches===0?'camera':chooseItem().id);state=transition(state,{type:'tap',itemId});if(state.phase==='inspect'){forcedItem=null;world.show(state.current);persist();if(vrActive){vrPendingSave=vrSettings.mode!=='hand';vrFocus=0;vrGazeHit=false;headShake.reset();wristFusion?.onPhaseChange('inspect',performance.now());}}updateUI();}
 function decide(keep,{fromVr=false}={}){if(state.phase!=='inspect'||state.reviewing||!world.revealState?.ready)return;const item=ITEMS.find(i=>i.id===state.current),duplicate=state.collection.includes(item.id),before=state.collection.length;state=transition(state,{type:keep?'keep':'discard'});world.hide();persist();updateUI();notify(keep?(duplicate?'Уже сохранено. Продолжим искать?':`${item.name} — теперь в коллекции`):'Оставлено во дворе. Ищем дальше.',keep?(duplicate?'duplicate':'kept'):'discarded');if(keep&&!duplicate)collectionFeedback();if(before<18&&state.collection.length===18){if(fromVr){pendingCompletion=true;}else{renderComplete();$('#complete-dialog').showModal();}}}
 function renderCollection(){
  $('#collection-count').textContent=state.collection.length;$('#collection-progress').style.width=`${state.collection.length/18*100}%`;
@@ -106,18 +106,12 @@ function ensureBeaconTracker(){
  if(!vrBeaconTracker)vrBeaconTracker=new WristBeaconTracker($('#vr-hand-camera'));
  return vrBeaconTracker;
 }
-function persistWristCalibration(){
- if(!wristFusion)return;
- const cal=wristFusion.exportCalibration();
- if(cal){try{storage.setItem(WRIST_CAL_KEY,JSON.stringify(cal));}catch{}}
-}
 function runWristCalibrationStep(step){
  const fusion=ensureWrist();
  vrBeaconTracker?.process(true);
  const beacon=vrBeaconTracker?.sample()||null;
  const res=step==='pose1'?fusion.calibrateStretchPose(fusion.lastSensor,beacon):fusion.calibrateBendPose(fusion.lastSensor,beacon);
  wristCalNote=res.message||'';
- if(res.ok&&step==='pose2')persistWristCalibration();
  if($('#vr-dialog')?.open)syncVrPrep();
  return res;
 }
@@ -131,9 +125,9 @@ function setVrHandSide(side,{fromRemote=false}={}){
 }
 function ensureWrist(){
  if(!wristFusion){
+  // Не восстанавливаем вчерашний мировой азимут qRefInv из localStorage:
+  // в мобильных браузерах alpha гироскопа начинается со случайного нуля при каждом открытии вкладки!
   wristFusion=new WristHandFusion({handSide:vrSettings.handSide});
-  try{const raw=storage.getItem(WRIST_CAL_KEY);if(raw)wristFusion.importCalibration(JSON.parse(raw));}catch{}
-  wristFusion.setHandSide(vrSettings.handSide);
  }
  if(!wristLink){
   wristLink=new WristHostLink({
@@ -225,9 +219,10 @@ async function startVrSession(){
  if(vrActive||state.phase==='inspect')return false;
  const look=ensureVrLook(),isHand=vrSettings.mode==='hand',dialog=$('#vr-dialog');
  look.setMode(vrSettings.mode==='fusion'?'fusion':'gyro');
- if(isHand){ensureWrist();wristFusion.onPhaseChange('search',performance.now());}
  if(dialog.open){vrStarting=true;dialog.close();vrStarting=false;}
- applyVrQuality(true);look.start();vrActive=true;vrFocus=state.taps*(VR_FOCUS_SECONDS/3);vrGazeHit=false;vrPendingSave=false;headShake.reset();
+ applyVrQuality(true);look.start();
+ if(isHand){ensureWrist();const now=performance.now();wristFusion.recenterOnSessionStart(now);wristFusion.onPhaseChange('search',now);}
+ vrActive=true;vrFocus=state.taps*(VR_FOCUS_SECONDS/3);vrGazeHit=false;vrPendingSave=false;headShake.reset();
  document.body.classList.add('vr-active');
  world.setVrHandMode(isHand);
  vrStereo=false;syncVrStereoMode(true);world.setHeadLook(0,0);world.resize();

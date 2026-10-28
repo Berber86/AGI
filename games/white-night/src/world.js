@@ -64,7 +64,7 @@ export class World {
   this.inspectionVeil.position.z=-6;this.inspectionVeil.visible=false;this.inspectionVeil.renderOrder=-10;this.camera.add(this.inspectionVeil);
   this.silhouette=new THREE.Group();this.silhouetteMat=new THREE.MeshBasicMaterial({color:0x101d2b,transparent:true,opacity:1,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   this.itemAnchor=new THREE.Group();this.camera.add(this.itemAnchor);this.itemAnchor.position.set(0,0,-4.2);
-  this.vrHand=createGlovedHand();this.camera.add(this.vrHand.group);this.vrHandMode=false;this.itemBaseRot=[0,0,0];this.tossGroup=new THREE.Group();this.camera.add(this.tossGroup);this.tossState=null;
+  this.vrHand=createGlovedHand();this.camera.add(this.vrHand.group);this.vrHandMode=false;this.handInspectHeadBase=null;this.itemBaseRot=[0,0,0];this.tossGroup=new THREE.Group();this.scene.add(this.tossGroup);this.tossState=null;
   const shadowTex=canvasTexture((c,s2)=>{const g=c.createRadialGradient(s2/2,s2/2,0,s2/2,s2/2,s2/2);g.addColorStop(0,'rgba(3,7,11,.62)');g.addColorStop(.55,'rgba(3,7,11,.34)');g.addColorStop(1,'rgba(3,7,11,0)');c.fillStyle=g;c.fillRect(0,0,s2,s2);},128);
   this.itemShadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,toneMapped:false}));
   this.itemShadow.renderOrder=-5;this.itemShadow.visible=false;this.itemAnchor.add(this.itemShadow);this.inspectLamp=new THREE.PointLight(0xfff4e7,17,9,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
@@ -221,10 +221,19 @@ export class World {
   updateVrHand(dt,handState){if(!this.vrHand)return;const vis=!!(this.vrStereo&&this.vrHandMode&&handState?.visible);this.vrHand.update(dt,{...handState,visible:vis});if(vis)this.dirty=true;}
   handHitsBin(){if(!this.vrHand?.group?.visible)return this.gazeHitsBin();this.camera.updateMatrixWorld(true);this.vrHand.wristPivot.updateMatrixWorld(true);const tip=this.vrHand.wristPivot.localToWorld(new THREE.Vector3(0,0,-.15));const dir=tip.clone().sub(this.camera.position).normalize();this.raycaster.set(this.camera.position,dir);if(this.raycaster.intersectObject(this.bin,true).length>0)return true;const toBin=new THREE.Vector3(0,1.25,0).sub(this.camera.position).normalize();return dir.angleTo(toBin)<=.44;}
   setHandItemRotation(rx=0,ry=0,rz=0){if(!this.item)return;const [bx,by,bz]=this.itemBaseRot||[0,0,0];this.targetX=THREE.MathUtils.clamp(bx+rx,-Math.PI,Math.PI);this.targetY=by+ry;this.targetZ=THREE.MathUtils.clamp(bz+rz,-Math.PI,Math.PI);this.pose='hand';this.dirty=true;}
-  launchDiscardToss(vel={x:4.5,y:2.4,z:-6.5}){if(!this.item||this.reduced)return;const clone=this.item.clone(true);clone.remove(this.silhouette);this.tossGroup.clear();clone.position.copy(this.itemAnchor.position);this.tossGroup.add(clone);this.tossState={mesh:clone,t:0,dur:.34,vx:vel.x??4.5,vy:vel.y??2.4,vz:vel.z??-6.5};this.dirty=true;}
+  launchDiscardToss(vel={x:4.5,y:2.4,z:-6.5}){if(!this.item||this.reduced)return;this.camera.updateMatrixWorld(true);this.item.updateMatrixWorld(true);const wp=new THREE.Vector3(),wq=new THREE.Quaternion(),ws=new THREE.Vector3();this.item.matrixWorld.decompose(wp,wq,ws);const clone=this.item.clone(true);clone.remove(this.silhouette);clone.matrixAutoUpdate=true;clone.position.copy(wp);clone.quaternion.copy(wq);clone.scale.copy(ws);this.tossGroup.clear();this.tossGroup.add(clone);const wv=new THREE.Vector3(vel.x??4.5,vel.y??2.4,vel.z??-6.5).applyQuaternion(this.camera.quaternion);this.tossState={mesh:clone,t:0,dur:.42,vx:wv.x,vy:wv.y,vz:wv.z};this.dirty=true;}
   setHeadLook(yaw=0,pitch=0){this.headLook={yaw:Number.isFinite(yaw)?yaw:0,pitch:Number.isFinite(pitch)?pitch:0};
    if(this.vrInspectLock&&!this.vrHandMode&&this.item&&this.headInspectBase&&this.headInspectRotation){const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.headInspectBase.yaw+Math.PI,Math.PI*2)-Math.PI;this.targetY=this.headInspectRotation.y+dyaw*1.5;this.targetX=THREE.MathUtils.clamp(this.headInspectRotation.x-(this.headLook.pitch-this.headInspectBase.pitch)*1.5,-Math.PI,Math.PI);this.pose='head';}
-   else this.applyCameraPose();this.dirty=true;return this.vrInfo();}
+   else{
+    this.applyCameraPose();
+    if(this.vrStereo&&this.vrHandMode&&this.inspect&&this.handInspectHeadBase){
+     const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.handInspectHeadBase.yaw+Math.PI,Math.PI*2)-Math.PI;
+     const dpitch=this.headLook.pitch-this.handInspectHeadBase.pitch;
+     this.itemAnchor.position.set(THREE.MathUtils.clamp(-dyaw*2.4,-.95,.95),THREE.MathUtils.clamp(-dpitch*2.4,-.70,.70),-4.2);
+     this.updateItemLights();
+    }
+   }
+   this.dirty=true;return this.vrInfo();}
   lockInspectionView(){if(this.vrHandMode)return this.vrInfo();this.lockedCameraQuaternion.copy(this.camera.quaternion);this.vrInspectLock=true;this.headInspectBase={...this.headLook};this.headInspectRotation={x:this.targetX,y:this.targetY,z:this.targetZ};this.applyCameraPose();this.dirty=true;return this.vrInfo();}
   unlockInspectionView(){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();this.dirty=true;return this.vrInfo();}
   syncEyeCameras(w=innerWidth,h=innerHeight){const aspect=Math.max(.1,(w/2)/Math.max(1,h));for(const [eye,side] of [[this.eyeL,-1],[this.eyeR,1]]){eye.aspect=aspect;eye.fov=62;eye.updateProjectionMatrix();eye.position.copy(this.camera.position);eye.quaternion.copy(this.camera.quaternion);eye.position.add(new THREE.Vector3(side*.032,0,0).applyQuaternion(this.camera.quaternion));eye.updateMatrixWorld(true);}}
@@ -237,7 +246,7 @@ export class World {
  binEdge(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(-1.26,1.12,.22).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
  getModel(id){if(!this.modelCache.has(id))this.modelCache.set(id,createItem(id));return this.modelCache.get(id);}
  show(id,{review=false}={}){
-  this.dirty=true;this.testRevealHold=false;this.zoom=1;this.headLook={yaw:0,pitch:0};this.applyCameraPose();if(this.item){this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();
+  this.dirty=true;this.testRevealHold=false;this.zoom=1;if(!this.vrStereo)this.headLook={yaw:0,pitch:0};this.handInspectHeadBase={...this.headLook};if(this.vrStereo)this.itemAnchor.position.set(0,0,-4.2);this.applyCameraPose();if(this.item){this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();
   this.itemId=id;this.pose='front';this.item=this.getModel(id);this.itemAnchor.add(this.item);
   this.inspectLamp.intensity=PRESENTATION[id].lamp??17;this.itemRim.intensity=PRESENTATION[id].rim??18;
   this.updateItemLights();
@@ -250,7 +259,7 @@ export class World {
   }
   this.reveal=this.reduced||review?1:0;this.applyReveal();if(this.vrStereo&&!this.vrHandMode)this.lockInspectionView();
  }
- hide(){this.testRevealHold=false;this.dirty=true;this.static.visible=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();}
+ hide(){this.testRevealHold=false;this.dirty=true;this.static.visible=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.handInspectHeadBase=null;if(this.vrStereo)this.itemAnchor.position.set(0,0,-4.2);this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();}
  finishReveal(){this.testRevealHold=false;this.reveal=1;this.applyReveal();this.dirty=true;}
  applyReveal(){
   this.revealState=revealFrame(this.reveal,this.reduced);
