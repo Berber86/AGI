@@ -280,6 +280,7 @@ export class WristHandFusion {
 
     // Входные сэмплы
     this.lastSensor = null;
+    this.sensorSilentSec = 0;
     this.prevQuat = null;
     this.prevFwd = null;
 
@@ -407,6 +408,7 @@ export class WristHandFusion {
       acc: Array.isArray(sample.acc) ? sample.acc : [0, 0, 0],
       ts: sample.ts ?? performance.now(),
     };
+    this.sensorSilentSec = 0;
   }
 
   calibrateStretchPose(sensor = this.lastSensor, beacon = null) {
@@ -641,6 +643,16 @@ export class WristHandFusion {
     }
     this.prevQuat = [...this.qArmTorso];
 
+    // Защита от обрыва связи / сна экрана браслета посреди игры:
+    // если новых пакетов нет > 120 мс, плавно гасим старый импульс linMag/rotRate,
+    // а после 1.6 с тишины блокируем любые фантомные «рытья» и авто-решения!
+    const silentSec = this.sensorSilentSec;
+    this.sensorSilentSec += safeDt;
+    const impulseDecay = silentSec > 0.12 ? Math.exp(-(silentSec - 0.12) * 8) : 1;
+    const effLinMag = sensor.linMag * impulseDecay;
+    rotRateDeg *= impulseDecay;
+    const sensorStale = silentSec > 1.6;
+
     // Куда в пространстве камеры смотрит экран браслета (+Z телефона)
     const screenLocalInArm = qRotVec(qConj(this.qBasis), [0, 0, 1]);
     const screenCamNormal = qRotVec(this.qArm, screenLocalInArm);
@@ -763,7 +775,7 @@ export class WristHandFusion {
         targetTorso.y = targetTorso.y * 0.55 + optTorso[1] * 0.45;
       }
     } else {
-      this.trackingSource = 'gyro-only';
+      this.trackingSource = sensorStale ? 'stale' : 'gyro-only';
     }
 
     // 4. Критически демпфированная пружина 2-го порядка (масса предплечья, без дрожи и перерегулирования!)
@@ -811,6 +823,12 @@ export class WristHandFusion {
     let decision = null;
     let throwVel = null;
 
+    if (sensorStale) {
+      this.dwellAccumSec = 0;
+      this.calmLowerSec = 0;
+      return this.snapshot({ pokes: 0, decision: null, throwVel: null, pitchUpDeg: +(pitchUpRad * RAD).toFixed(1) });
+    }
+
     if (phase === 'search') {
       const extended = this.reach >= 0.60 && handOverBin;
       if (extended) {
@@ -826,7 +844,7 @@ export class WristHandFusion {
 
         const cooldownOk = now - this.lastPokeAt >= 270;
         const wristSweepHit = sweepDeg >= 6.8 && (this.rummageDir === 0 || newDir !== this.rummageDir);
-        const accelRummageHit = sensor.linMag >= 1.35 && rotRateDeg >= 28;
+        const accelRummageHit = effLinMag >= 1.35 && rotRateDeg >= 28;
 
         if (cooldownOk && (wristSweepHit || accelRummageHit)) {
           pokes = 1;
@@ -835,7 +853,7 @@ export class WristHandFusion {
           this.rummageAnchorYaw = yawRightRad;
           this.rummageAnchorPitch = pitchUpRad;
           this.dwellAccumSec = 0;
-        } else if (rotRateDeg >= 12 || sensor.linMag >= 0.55) {
+        } else if (rotRateDeg >= 12 || effLinMag >= 0.55) {
           this.dwellAccumSec += safeDt;
           if (this.dwellAccumSec >= 0.62 && cooldownOk) {
             pokes = 1;
@@ -898,8 +916,8 @@ export class WristHandFusion {
       if (armedForDecision) {
         // Отличаем настоящий взмах рукой (ускорение ИЛИ быстрый пространственный мах оси предплечья)
         // от быстрого проворота кисти вокруг своей продольной оси при переворачивании открытки/ключа!
-        const sharpAccel = sensor.linMag >= 7.2;
-        const sharpWhip = rotRateDeg >= 245 && sensor.linMag >= 2.4;
+        const sharpAccel = effLinMag >= 7.2;
+        const sharpWhip = rotRateDeg >= 245 && effLinMag >= 2.4;
         const spatialWaveWhip = rotRateDeg >= 310 && swingRateDeg >= 195;
         if (sharpAccel || sharpWhip || spatialWaveWhip) {
           decision = 'discard';
@@ -922,7 +940,7 @@ export class WristHandFusion {
             (pitchUpRad <= -21 * DEG && pitchDropFromPeak >= 16 * DEG) ||
             pitchUpRad <= -38 * DEG ||
             (ik.wrist.y <= -0.38 && pitchDropFromPeak >= 14 * DEG);
-          const handCalm = sensor.linMag < 3.1 && rotRateDeg < 105;
+          const handCalm = effLinMag < 3.1 && rotRateDeg < 105;
           if (intentionalDrop && handCalm) {
             this.calmLowerSec += safeDt;
             if (this.calmLowerSec >= 0.65) {

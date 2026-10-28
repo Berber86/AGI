@@ -47,6 +47,22 @@ function w3cDeviceQuaternion(alphaDeg = 0, betaDeg = 0, gammaDeg = 0, screenAngl
   return qNormalize(qMul(qGl, qAxisAngle([0, 0, 1], -screenAngleDeg * DEG)));
 }
 
+function gravityOnlyDeviceQuaternion(betaDeg = 0, gammaDeg = 0, screenAngleDeg = 0) {
+  const b = betaDeg * DEG;
+  const g = gammaDeg * DEG;
+  const s = screenAngleDeg * DEG;
+  const ux = -Math.cos(b) * Math.sin(g);
+  const uy = Math.sin(b);
+  const uz = Math.cos(b) * Math.cos(g);
+  const cs = Math.cos(s);
+  const sn = Math.sin(s);
+  const sx = ux * cs - uy * sn;
+  const sy = ux * sn + uy * cs;
+  const sz = uz;
+  if (sy < -0.99999) return [1, 0, 0, 0];
+  return qNormalize([-sz, 0, sx, 1 + sy]);
+}
+
 function parseFirebaseConfig(raw) {
   if (!raw || typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -120,12 +136,15 @@ const link = {
   dcFast: null,
   dcCtrl: null,
   hid: '',
+  pendingCandidates: [],
+  dcOpenedAt: 0,
   lastPongAt: 0,
   lastFastTxAt: 0,
   lastFbWriteAt: 0,
   wakeLock: null,
   txTimer: null,
   pingTimer: null,
+  calTimer: null,
 };
 
 function readScreenAngleDeg() {
@@ -153,8 +172,10 @@ function bindSensorListenersOnce() {
   window.addEventListener('deviceorientation', (ev) => {
     if (sensorState.synthetic) return;
     if (!Number.isFinite(ev.beta) || !Number.isFinite(ev.gamma)) return;
-    const alpha = Number.isFinite(ev.alpha) ? ev.alpha : 0;
-    sensorState.q = w3cDeviceQuaternion(alpha, ev.beta, ev.gamma, readScreenAngleDeg());
+    const scr = readScreenAngleDeg();
+    sensorState.q = Number.isFinite(ev.alpha)
+      ? w3cDeviceQuaternion(ev.alpha, ev.beta, ev.gamma, scr)
+      : gravityOnlyDeviceQuaternion(ev.beta, ev.gamma, scr);
     sensorState.active = true;
     sensorState.lastAt = performance.now();
   });
@@ -209,8 +230,9 @@ async function requestSensors() {
 function isFastHealthy(now = performance.now()) {
   if (link.mode === 'demo') return link.connected;
   if (!link.dcFast || link.dcFast.readyState !== 'open') return false;
-  if (!link.lastPongAt) return true;
-  return now - link.lastPongAt < 8500;
+  const refAt = link.lastPongAt || link.dcOpenedAt;
+  if (!refAt) return false;
+  return now - refAt < 8500;
 }
 
 function renderStatus() {
@@ -264,6 +286,12 @@ function startTransmitLoop() {
     if (link.mode === 'off') return;
     const pkt = buildPacket();
     const now = performance.now();
+    // Затухание импульса devicemotion между кадрами во ВСЕХ режимах (demo / WebRTC / Firebase),
+    // чтобы одиночный пик ускорения никогда не «залипал» на стационарном реальном браузере!
+    if (!sensorState.synthetic) {
+      sensorState.linMag = +(sensorState.linMag * 0.92).toFixed(2);
+      sensorState.rotRate = +(sensorState.rotRate * 0.92).toFixed(1);
+    }
 
     if (link.mode === 'demo' && link.bc) {
       link.bc.postMessage(pkt);
@@ -274,9 +302,6 @@ function startTransmitLoop() {
       try {
         link.dcFast.send(JSON.stringify(pkt));
         link.lastFastTxAt = now;
-        // Decaying импульса между событиями devicemotion
-        sensorState.linMag = +(sensorState.linMag * 0.92).toFixed(2);
-        sensorState.rotRate = +(sensorState.rotRate * 0.92).toFixed(1);
         return;
       } catch { /* упадём в резерв Firebase ниже */ }
     }
@@ -309,12 +334,15 @@ function closePcOnly() {
   link.dcFast = null;
   link.dcCtrl = null;
   link.pc = null;
+  link.pendingCandidates = [];
+  link.dcOpenedAt = 0;
   link.p2pOpen = false;
 }
 
 function stopLink() {
   clearInterval(link.txTimer);
   clearInterval(link.pingTimer);
+  clearTimeout(link.calTimer);
   for (const u of link.unsubs) {
     try { u(); } catch { /* ignore */ }
   }
@@ -416,12 +444,15 @@ async function connectFirebase() {
   els.connMsg.textContent = 'Подключаемся к комнате…';
 
   try {
-    const [{ initializeApp, getApps }, dbMod] = await Promise.all([
+    const [{ initializeApp, getApps, deleteApp }, dbMod] = await Promise.all([
       import(`${FB_CDN}/firebase-app.js`),
       import(`${FB_CDN}/firebase-database.js`),
     ]);
     const existing = getApps().find((a) => a.name === 'wn-wrist-peer');
-    const app = existing || initializeApp(cfg, 'wn-wrist-peer');
+    if (existing) {
+      try { await deleteApp(existing); } catch { /* ignore */ }
+    }
+    const app = initializeApp(cfg, 'wn-wrist-peer');
     link.db = dbMod.getDatabase(app, cfg.databaseURL);
     link.fbMod = dbMod;
 
@@ -452,7 +483,14 @@ async function connectFirebase() {
     link.unsubs.push(
       onChildAdded(ref(link.db, `${roomPath}/rtc/hostCandidates`), async (snap) => {
         const item = snap.val();
-        if (!item || item.hid !== link.hid || !link.pc) return;
+        if (!item || !item.candidate || !item.hid) return;
+        if (item.hid !== link.hid || !link.pc || !link.pc.remoteDescription) {
+          // Если кандидат локальной сети пришёл на микросекунду раньше setRemoteDescription(offer),
+          // бережно сохраняем его в очередь, чтобы НЕ потерять прямой Wi-Fi LAN-маршрут!
+          link.pendingCandidates.push(item);
+          if (link.pendingCandidates.length > 48) link.pendingCandidates.shift();
+          return;
+        }
         try { await link.pc.addIceCandidate(item.candidate); } catch { /* ignore */ }
       })
     );
@@ -468,8 +506,10 @@ async function connectFirebase() {
 
 async function answerOffer(offer) {
   if (typeof RTCPeerConnection === 'undefined' || !link.db || !link.fbMod) return;
+  const savedEarly = link.pendingCandidates.filter((c) => c.hid === offer.hid);
   closePcOnly();
   link.hid = offer.hid;
+  link.pendingCandidates = savedEarly;
   const currentHid = offer.hid;
   const iceServers = offer.iceMode === 'lan' ? [] : GOOGLE_STUN_SERVERS;
   const pc = new RTCPeerConnection({ iceServers });
@@ -485,7 +525,9 @@ async function answerOffer(offer) {
     ch.onopen = () => {
       if (link.hid !== currentHid) return;
       link.p2pOpen = true;
-      link.lastPongAt = performance.now();
+      const now = performance.now();
+      link.dcOpenedAt = now;
+      link.lastPongAt = now;
       renderStatus();
     };
     ch.onmessage = (mEv) => {
@@ -524,6 +566,12 @@ async function answerOffer(offer) {
 
   try {
     await pc.setRemoteDescription({ type: 'offer', sdp: offer.sdp });
+    const queued = link.pendingCandidates.filter((c) => c.hid === currentHid);
+    link.pendingCandidates = [];
+    for (const item of queued) {
+      if (link.hid !== currentHid) break;
+      try { await pc.addIceCandidate(item.candidate); } catch { /* ignore */ }
+    }
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     await set(ref(link.db, `${rtcBase}/answer`), {
@@ -535,10 +583,13 @@ async function answerOffer(offer) {
 }
 
 function sendCalibrationStep(step, delayMs = 2000) {
+  requestSensors();
+  clearTimeout(link.calTimer);
   const label = step === 'pose1' ? 'Шаг 1 (прямая рука)' : 'Шаг 2 (согнуть локоть)';
   els.calMsg.textContent = `${label}: примите позу… запись через ${(delayMs / 1000).toFixed(0)} с`;
   els.beaconStatus.textContent = `${label}: держите позу…`;
-  setTimeout(() => {
+  link.calTimer = setTimeout(() => {
+    link.calTimer = null;
     const cmdId = 'c' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-4);
     const payload = { k: 'cal', id: cmdId, room: link.room, step, ts: Date.now() };
     if (link.mode === 'demo' && link.bc) {

@@ -110,9 +110,11 @@ export class WristHostLink {
     this.dcFast = null;
     this.dcCtrl = null;
     this.hid = '';
+    this.pendingCandidates = [];
     this.attempt = 0;
     this.preferLanOnly = false;
     this.peerJoined = false;
+    this.dcOpenedAt = 0;
     this.lastPongAt = 0;
     this.lastFastRxAt = 0;
     this.lastAnyRxAt = 0;
@@ -191,12 +193,15 @@ export class WristHostLink {
     this.error = null;
 
     try {
-      const [{ initializeApp, getApps }, dbMod] = await Promise.all([
+      const [{ initializeApp, getApps, deleteApp }, dbMod] = await Promise.all([
         import(`${FB_CDN}/firebase-app.js`),
         import(`${FB_CDN}/firebase-database.js`),
       ]);
       const existing = getApps().find((a) => a.name === 'wn-wrist-host');
-      const app = existing || initializeApp(cfg, 'wn-wrist-host');
+      if (existing) {
+        try { await deleteApp(existing); } catch { /* ignore */ }
+      }
+      const app = initializeApp(cfg, 'wn-wrist-host');
       this.db = dbMod.getDatabase(app, cfg.databaseURL);
       this.fbMod = dbMod;
 
@@ -283,8 +288,15 @@ export class WristHostLink {
           const ans = snap.val();
           if (!ans || ans.hid !== this.hid || !this.pc) return;
           if (this.pc.signalingState !== 'have-local-offer') return;
+          const currentHid = this.hid;
           try {
             await this.pc.setRemoteDescription({ type: 'answer', sdp: ans.sdp });
+            const queued = this.pendingCandidates.filter((c) => c.hid === currentHid);
+            this.pendingCandidates = [];
+            for (const item of queued) {
+              if (this.hid !== currentHid || !this.pc) break;
+              try { await this.pc.addIceCandidate(item.candidate); } catch { /* ignore */ }
+            }
           } catch { /* ignore */ }
         })
       );
@@ -292,7 +304,13 @@ export class WristHostLink {
       this.unsubs.push(
         onChildAdded(ref(this.db, `${roomPath}/rtc/wristCandidates`), async (snap) => {
           const item = snap.val();
-          if (!item || item.hid !== this.hid || !this.pc) return;
+          if (!item || !item.candidate || !item.hid) return;
+          if (item.hid !== this.hid || !this.pc || !this.pc.remoteDescription) {
+            // Буферизуем ранние LAN-кандидаты браслета до завершения setRemoteDescription(answer)!
+            this.pendingCandidates.push(item);
+            if (this.pendingCandidates.length > 48) this.pendingCandidates.shift();
+            return;
+          }
           try {
             await this.pc.addIceCandidate(item.candidate);
           } catch { /* ignore */ }
@@ -313,10 +331,12 @@ export class WristHostLink {
   isFastHealthy(now = performance.now()) {
     if (this.mode === 'demo') return this.p2pOpen;
     if (!this.dcFast || this.dcFast.readyState !== 'open') return false;
-    const pongAge = this.lastPongAt ? now - this.lastPongAt : 0;
-    const rxAge = this.lastFastRxAt ? now - this.lastFastRxAt : 0;
-    const freshest = Math.min(pongAge || 0, rxAge || 0);
-    return freshest < 8500;
+    const pongAge = this.lastPongAt > 0 ? Math.max(0, now - this.lastPongAt) : Infinity;
+    const rxAge = this.lastFastRxAt > 0 ? Math.max(0, now - this.lastFastRxAt) : Infinity;
+    const freshest = Math.min(pongAge, rxAge);
+    if (Number.isFinite(freshest)) return freshest < 8500;
+    // Короткое стартовое окно (3.5 с) сразу после onopen, пока летит первый пакет/pong
+    return this.dcOpenedAt > 0 && Math.max(0, now - this.dcOpenedAt) < 3500;
   }
 
   async _startRtcOffer(forceStun = false) {
@@ -351,7 +371,7 @@ export class WristHostLink {
       if (this.hid !== currentHid) return;
       this.p2pOpen = true;
       this.connected = true;
-      this.lastPongAt = performance.now();
+      this.dcOpenedAt = performance.now();
       this._inspectRoute(useLanOnly);
       this._emitStatus();
     };
@@ -562,6 +582,10 @@ export class WristHostLink {
     this.dcFast = null;
     this.dcCtrl = null;
     this.pc = null;
+    this.pendingCandidates = [];
+    this.dcOpenedAt = 0;
+    this.lastPongAt = 0;
+    this.lastFastRxAt = 0;
     this.p2pOpen = false;
   }
 

@@ -216,7 +216,7 @@ export class World {
    else{this.camera.quaternion.copy(this.baseCameraQuaternion);this.camera.rotateY(-this.headLook.yaw);this.camera.rotateX(this.headLook.pitch);}
    this.camera.updateMatrixWorld(true);
   }
-  setVrStereo(on){this.vrStereo=!!on;this.static.visible=true;if(!on){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;if(this.vrHand)this.vrHand.group.visible=false;}this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,innerWidth,innerHeight);this.applyCameraPose();this.resize();this.dirty=true;}
+  setVrStereo(on){this.vrStereo=!!on;this.static.visible=true;if(!on){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;if(this.vrHand)this.vrHand.group.visible=false;}this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,innerWidth,innerHeight);this.applyCameraPose();this.resize();if(this.item)this.applyReveal();this.dirty=true;}
   setVrHandMode(on){this.vrHandMode=!!on;if(!on&&this.vrHand)this.vrHand.group.visible=false;if(on&&this.vrInspectLock)this.unlockInspectionView();this.dirty=true;}
   updateVrHand(dt,handState){if(!this.vrHand)return;const vis=!!(this.vrStereo&&this.vrHandMode&&handState?.visible);this.vrHand.update(dt,{...handState,visible:vis});if(vis)this.dirty=true;}
   handHitsBin(){if(!this.vrHand?.group?.visible)return this.gazeHitsBin();this.camera.updateMatrixWorld(true);this.vrHand.wristPivot.updateMatrixWorld(true);const tip=this.vrHand.wristPivot.localToWorld(new THREE.Vector3(0,0,-.15));const dir=tip.clone().sub(this.camera.position).normalize();this.raycaster.set(this.camera.position,dir);if(this.raycaster.intersectObject(this.bin,true).length>0)return true;const toBin=new THREE.Vector3(0,1.25,0).sub(this.camera.position).normalize();return dir.angleTo(toBin)<=.44;}
@@ -278,7 +278,7 @@ export class World {
  }
  setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.targetItemQuat=null;this.pose=pose;this.dirty=true;}
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
- rotate(dx,dy){this.pose='free';this.targetItemQuat=null;this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
+ rotate(dx,dy){if(this.targetItemQuat&&this.item){this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;this.targetItemQuat=null;}this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
  setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
   this.sun.intensity=low?2.05:1.62;this.hemi.intensity=low?.82:1.12;this.scene.environmentIntensity=low?.07:.15;this.resize();}
  thumbnail(id){

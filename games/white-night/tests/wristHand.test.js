@@ -13,6 +13,7 @@ import {
   qAngleRad,
 } from '../src/vr/wristHandFusion.js';
 import { createGlovedHand } from '../src/vr/handMesh.js';
+import { WristHostLink } from '../src/vr/wristLink.js';
 
 const DEG = Math.PI / 180;
 
@@ -660,4 +661,52 @@ test('createGlovedHand stays non-singular (no NaN / zero quaternion) for straigh
     });
   }
 });
+
+test('WristHostLink.isFastHealthy detects dead one-way DataChannel instead of sticking true on 0 timestamp', () => {
+  const host = new WristHostLink();
+  host.mode = 'firebase';
+  host.dcFast = { readyState: 'open' };
+  host.dcOpenedAt = 1000;
+  host.lastPongAt = 0;
+  host.lastFastRxAt = 0;
+
+  // Сразу после открытия даётся 3.5 с на приход первого пакета
+  assert.equal(host.isFastHealthy(2500), true);
+  // Через 5 с без единого пакета и без pong канал ОБЯЗАН признаться нездоровым, чтобы включились облако и Auto-Heal!
+  assert.equal(host.isFastHealthy(6000), false);
+
+  // Пришёл живой пакет на t=6200 -> канал снова здоров, а после 9 с тишины (t=15500) -> снова нездоров
+  host.lastFastRxAt = 6200;
+  assert.equal(host.isFastHealthy(10000), true);
+  assert.equal(host.isFastHealthy(15500), false);
+});
+
+test('WristHandFusion suppresses phantom bin pokes and phantom throws when wrist packets stall mid-VR', () => {
+  const fusion = new WristHandFusion('right');
+  const qStraight = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qBent = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qStraight);
+  fusion.feedSensor({ q: qStraight, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qBent, ts: 10 });
+  fusion.calibrateBendPose();
+
+  // Последний пришедший перед обрывом Wi-Fi пакет имел высокое ускорение (9.5 м/с²), и связь замолчала на 2 с:
+  let now = 100;
+  fusion.feedSensor({ q: qStraight, linMag: 9.5, rotRate: 320, ts: now });
+  let stalePokes = 0;
+  for (let i = 0; i < 130; i++) {
+    now += 16;
+    const s = fusion.update(1 / 60, { phase: 'search', handOverBin: true, now });
+    if (i > 105) stalePokes += s.pokes;
+  }
+  assert.equal(fusion.trackingSource, 'stale');
+  assert.equal(stalePokes, 0, 'disconnected wrist must not keep poking bin by itself');
+
+  // Даже если в этот момент открыта находка, «застывший» старый пакет НЕ должен её выбрасывать!
+  fusion.onPhaseChange('inspect', now);
+  now += 600;
+  const staleInspect = fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now });
+  assert.equal(staleInspect.decision, null, 'stale pre-disconnect impulse must not discard find');
+});
+
 

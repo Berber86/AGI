@@ -72,6 +72,40 @@ test('gyro provider returns semantic right and up signs for a landscape headset 
   assert.ok(Math.abs(move({ ...base, gamma: -110 }).pitch - 20) < 0.001);
 });
 
+test('gyro provider keeps horizon level from tilted/rolled start, supports angle=270, and handles alpha=null across horizon without 180 deg flip', () => {
+  // 1) Старт VR с наклонённой и заваленной набок головой (beta=20, gamma=-60):
+  //    чистый горизонтальный поворот вокруг гравитации на 60° даёт ровно 60° yaw и 0° паразитного pitch!
+  globalThis.window = {
+    screen: { orientation: { angle: 90 } },
+    DeviceOrientationEvent: function DeviceOrientationEvent() {},
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const gTilted = new GyroLook();
+  gTilted.handle({ alpha: 0, beta: 20, gamma: -60 });
+  gTilted.handle({ alpha: -60, beta: 20, gamma: -60 });
+  assert.ok(Math.abs(gTilted.raw.yaw / DEG - 60) < 0.05, `tilted yaw=${gTilted.raw.yaw / DEG}`);
+  assert.ok(Math.abs(gTilted.raw.pitch / DEG) < 0.05, `zero parasitic pitch=${gTilted.raw.pitch / DEG}`);
+
+  // 2) Телефон вставлен в Cardboard другой стороной (Landscape-Right, angle=270)
+  globalThis.window.screen.orientation.angle = 270;
+  const g270 = new GyroLook();
+  g270.handle({ alpha: 0, beta: 0, gamma: 85 });
+  g270.handle({ alpha: -20, beta: 0, gamma: 85 });
+  assert.ok(Math.abs(g270.raw.yaw / DEG - 20) < 0.05, `angle=270 yaw=${g270.raw.yaw / DEG}`);
+  assert.ok(Math.abs(g270.raw.pitch / DEG) < 0.05, `angle=270 pitch=${g270.raw.pitch / DEG}`);
+
+  // 3) Смартфон без магнитометра (alpha === null) проходит взгляд через горизонт (-5° -> +5°, W3C beta 0 -> 180):
+  //    никакого разворота на 180° и плавный подъём взгляда ровно на +10°!
+  globalThis.window.screen.orientation.angle = 90;
+  const gNoCompass = new GyroLook();
+  gNoCompass.handle({ alpha: null, beta: 0, gamma: -85 });   // -5° ниже горизонта
+  assert.equal(gNoCompass.fresh(700), true);
+  gNoCompass.handle({ alpha: null, beta: 180, gamma: 85 });  // +5° выше горизонта (+10° вверх!)
+  assert.ok(Math.abs(gNoCompass.raw.yaw / DEG) < 0.05, `no 180 deg flip on alpha=null: yaw=${gNoCompass.raw.yaw / DEG}`);
+  assert.ok(Math.abs(gNoCompass.raw.pitch / DEG - 10) < 0.05, `smooth +10 deg pitch across horizon: pitch=${gNoCompass.raw.pitch / DEG}`);
+});
+
 function calibratedTracker() {
   const tracker = new DualMarkerTracker();
   const markers = [

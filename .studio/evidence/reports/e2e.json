@@ -25,8 +25,8 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 33,
-      "triangles": 95172,
+      "drawCalls": 71,
+      "triangles": 139980,
       "geometries": 172,
       "textures": 89,
       "models": 18,
@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 18.310101010100468,
+      "meanFrameMs": 36.96599999999966,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -52,7 +52,7 @@
         "pitchDeg": 0
       },
       "perf": {
-        "samples": 99,
+        "samples": 100,
         "meanMs": 0,
         "fps": 0,
         "dpr": 1,
@@ -101,7 +101,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 208.1833333333337,
+      "meanFrameMs": 16.583333333333183,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -465,7 +465,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6837556,
+    "totalBytes": 6841494,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -488,8 +488,8 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-Clpp_zNU.js",
-        "bytes": 799384
+        "file": "assets/index-CVcscS-4.js",
+        "bytes": 801170
       },
       {
         "file": "assets/index-DoXyVP2U.css",
@@ -577,7 +577,7 @@
       },
       {
         "file": "wrist/wrist.js",
-        "bytes": 24617
+        "bytes": 26769
       }
     ]
   },

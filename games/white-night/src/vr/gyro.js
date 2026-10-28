@@ -7,6 +7,7 @@ import * as THREE from 'three';
 
 const DEG = Math.PI / 180;
 const Q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
 export class GyroLook {
@@ -19,9 +20,12 @@ export class GyroLook {
     this.screenAngleDeg = this.readScreenAngleDeg();
     this.hasBase = false;
     this.baseQ = new THREE.Quaternion();
+    this.basePitch = 0;
     this.qNow = new THREE.Quaternion();
     this.qScreen = new THREE.Quaternion();
     this.relQ = new THREE.Quaternion();
+    this.fwdVec = new THREE.Vector3();
+    this.upVec = new THREE.Vector3();
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
     this.onRebase = null;
     this.onOrientation = (event) => this.handle(event);
@@ -97,6 +101,20 @@ export class GyroLook {
   }
 
   deviceQuaternion(alpha, beta, gamma, screenAngleDeg) {
+    if (!Number.isFinite(alpha)) {
+      // Телефон без магнитометра/гироскопа рыскания (alpha === null): строим гладкий
+      // гравитационный кватернион без скачка на 180° при переходе горизонта (beta 0 -> 180)!
+      const b = beta * DEG;
+      const g = gamma * DEG;
+      const s = screenAngleDeg * DEG;
+      const ux = -Math.cos(b) * Math.sin(g);
+      const uy = Math.sin(b);
+      const uz = Math.cos(b) * Math.cos(g);
+      const cs = Math.cos(s);
+      const sn = Math.sin(s);
+      this.upVec.set(ux * cs - uy * sn, ux * sn + uy * cs, uz).normalize();
+      return this.qNow.setFromUnitVectors(this.upVec, Y_AXIS);
+    }
     this.euler.set(beta * DEG, alpha * DEG, -gamma * DEG, 'YXZ');
     this.qNow.setFromEuler(this.euler).multiply(Q1);
     this.qScreen.setFromAxisAngle(Z_AXIS, -screenAngleDeg * DEG);
@@ -105,7 +123,7 @@ export class GyroLook {
 
   handle(event) {
     const { alpha, beta, gamma } = event || {};
-    if (!Number.isFinite(alpha) || !Number.isFinite(beta) || !Number.isFinite(gamma)) return;
+    if (!Number.isFinite(beta) || !Number.isFinite(gamma)) return;
     const screenAngleDeg = this.readScreenAngleDeg();
     if (screenAngleDeg !== this.screenAngleDeg) {
       this.screenAngleDeg = screenAngleDeg;
@@ -114,7 +132,15 @@ export class GyroLook {
     }
     this.deviceQuaternion(alpha, beta, gamma, screenAngleDeg);
     if (!this.hasBase) {
-      this.baseQ.copy(this.qNow);
+      // Фиксируем ТОЛЬКО горизонтальный азимут вокруг истинной вертикали гравитации (+Y),
+      // чтобы наклон или боковой завал головы в момент старта VR НЕ перекашивал горизонт двора!
+      this.fwdVec.set(0, 0, -1).applyQuaternion(this.qNow);
+      const horizLen = Math.hypot(this.fwdVec.x, this.fwdVec.z);
+      const yaw0 = horizLen > 1e-4 ? Math.atan2(this.fwdVec.x, -this.fwdVec.z) : 0;
+      this.baseQ.setFromAxisAngle(Y_AXIS, -yaw0);
+      this.relQ.copy(this.baseQ).invert().multiply(this.qNow);
+      this.euler.setFromQuaternion(this.relQ, 'YXZ');
+      this.basePitch = this.euler.x;
       this.hasBase = true;
       this.raw = { yaw: 0, pitch: 0 };
       this.lastAt = performance.now();
@@ -122,7 +148,7 @@ export class GyroLook {
     }
     this.relQ.copy(this.baseQ).invert().multiply(this.qNow);
     this.euler.setFromQuaternion(this.relQ, 'YXZ');
-    this.raw = { yaw: -this.euler.y, pitch: this.euler.x };
+    this.raw = { yaw: -this.euler.y, pitch: this.euler.x - this.basePitch };
     this.lastAt = performance.now();
   }
 
