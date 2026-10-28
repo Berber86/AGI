@@ -6,6 +6,7 @@
 const FB_CDN = 'https://www.gstatic.com/firebasejs/11.0.1';
 const SHARED_CFG_KEY = 'ckc_stand_cfg';
 const LOCAL_CFG_KEY = 'wn_firebase_cfg';
+const HAND_SIDE_KEY = 'wn_wrist_hand_side';
 const DEMO_CHANNEL = 'wn-wrist-demo-v1';
 const DEG = Math.PI / 180;
 const Q_ENU_TO_GL = [-Math.SQRT1_2, 0, 0, Math.SQRT1_2];
@@ -76,6 +77,9 @@ const els = {
   connectBtn: document.getElementById('connect-btn'),
   demoBtn: document.getElementById('demo-btn'),
   connMsg: document.getElementById('conn-msg'),
+  handLeftBtn: document.getElementById('hand-left-btn'),
+  handRightBtn: document.getElementById('hand-right-btn'),
+  handSideMsg: document.getElementById('hand-side-msg'),
   calMsg: document.getElementById('cal-msg'),
   calStep1: document.getElementById('cal-step1'),
   calStep2: document.getElementById('cal-step2'),
@@ -91,6 +95,7 @@ const els = {
 const sensorState = {
   active: false,
   synthetic: false,
+  handSide: 'right',
   q: [0, 0, 0, 1],
   linMag: 0,
   rotRate: 0,
@@ -312,6 +317,38 @@ function stopLink() {
   renderStatus();
 }
 
+function renderHandSideUI() {
+  const isLeft = sensorState.handSide === 'left';
+  els.handLeftBtn?.classList.toggle('primary', isLeft);
+  els.handRightBtn?.classList.toggle('primary', !isLeft);
+  if (els.handSideMsg) {
+    els.handSideMsg.textContent = isLeft
+      ? 'Левая рука активна: плечо слева, сгиб локтя и большой палец отзеркалены под левую кисть.'
+      : 'Правая рука активна: плечо справа, естественный локтевой сгиб и хват правой кисти.';
+  }
+}
+
+function setHandSide(side, broadcast = true) {
+  const clean = side === 'left' ? 'left' : 'right';
+  sensorState.handSide = clean;
+  try { localStorage.setItem(HAND_SIDE_KEY, clean); } catch { /* ignore */ }
+  renderHandSideUI();
+  if (!broadcast || link.mode === 'off') return;
+  const payload = { k: 'hand_side', room: link.room, side: clean, ts: Date.now() };
+  if (link.mode === 'demo' && link.bc) {
+    link.bc.postMessage(payload);
+  } else {
+    const ch = link.dcCtrl?.readyState === 'open' ? link.dcCtrl : link.dcFast;
+    if (ch?.readyState === 'open') {
+      try { ch.send(JSON.stringify(payload)); } catch { /* ignore */ }
+    }
+    if (link.db && link.fbMod && link.room) {
+      const { ref, set } = link.fbMod;
+      set(ref(link.db, `wn_wrist_rooms/${link.room}/handSide`), payload).catch(() => {});
+    }
+  }
+}
+
 function connectDemo(code) {
   stopLink();
   const cleanCode = String(code || '').replace(/\D/g, '').slice(0, 6) || '111111';
@@ -323,12 +360,16 @@ function connectDemo(code) {
   if (typeof BroadcastChannel !== 'undefined') {
     link.bc = new BroadcastChannel(DEMO_CHANNEL);
     link.bc.onmessage = (ev) => {
-      if (ev?.data?.k === 'ack' && String(ev.data.room) === link.room) {
+      const d = ev?.data;
+      if (!d || String(d.room) !== link.room) return;
+      if (d.k === 'ack') {
         link.connected = true;
         renderStatus();
+      } else if (d.k === 'hand_side' && (d.side === 'left' || d.side === 'right')) {
+        setHandSide(d.side, false);
       }
     };
-    link.bc.postMessage({ k: 'hello', room: link.room, ts: Date.now() });
+    link.bc.postMessage({ k: 'hello', room: link.room, side: sensorState.handSide, ts: Date.now() });
   }
   acquireWakeLock();
   requestSensors();
@@ -375,8 +416,18 @@ async function connectFirebase() {
     const { ref, set, push, onValue, onChildAdded } = dbMod;
     const roomPath = `wn_wrist_rooms/${code}`;
     await set(ref(link.db, `${roomPath}/wristJoined`), { ts: Date.now() });
+    await set(ref(link.db, `${roomPath}/handSide`), { side: sensorState.handSide, ts: Date.now() });
     await set(ref(link.db, `${roomPath}/rtc/hello`), { ts: Date.now() });
     link.connected = true;
+
+    link.unsubs.push(
+      onValue(ref(link.db, `${roomPath}/hostHandSide`), (snap) => {
+        const hs = snap.val();
+        if (hs && (hs.side === 'left' || hs.side === 'right')) {
+          setHandSide(hs.side, false);
+        }
+      })
+    );
 
     link.unsubs.push(
       onValue(ref(link.db, `${roomPath}/rtc/offer`), async (snap) => {
@@ -437,6 +488,8 @@ async function answerOffer(offer) {
           link.rttMs = link.rttMs === null ? rtt : Math.round(link.rttMs * 0.65 + rtt * 0.35);
         }
         renderStatus();
+      } else if (msg.k === 'hand_side' && (msg.side === 'left' || msg.side === 'right')) {
+        setHandSide(msg.side, false);
       }
     };
   };
@@ -516,6 +569,8 @@ els.openBeacon.addEventListener('click', async () => {
 
 els.connectBtn.addEventListener('click', connectFirebase);
 els.demoBtn.addEventListener('click', () => connectDemo(els.roomCode.value));
+els.handLeftBtn?.addEventListener('click', () => setHandSide('left', true));
+els.handRightBtn?.addEventListener('click', () => setHandSide('right', true));
 els.calStep1.addEventListener('click', () => sendCalibrationStep('pose1', 2000));
 els.calStep2.addEventListener('click', () => sendCalibrationStep('pose2', 2000));
 els.beaconCal1.addEventListener('click', () => sendCalibrationStep('pose1', 2000));
@@ -531,14 +586,20 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// Автоподстановка сохранённого конфига Firebase и URL-параметров (?demo=1&room=...)
+// Автоподстановка сохранённого конфига Firebase, выбранной руки и URL-параметров (?demo=1&room=...&hand=left)
 try {
   const saved = localStorage.getItem(SHARED_CFG_KEY) || localStorage.getItem(LOCAL_CFG_KEY) || '';
   if (saved) els.fbConfig.value = saved;
   else els.fbDetails.open = true;
+  const savedSide = localStorage.getItem(HAND_SIDE_KEY);
+  if (savedSide === 'left' || savedSide === 'right') sensorState.handSide = savedSide;
 } catch { /* ignore */ }
 
 const params = new URLSearchParams(window.location.search);
+if (params.get('hand') === 'left' || params.get('hand') === 'right') {
+  sensorState.handSide = params.get('hand');
+}
+renderHandSideUI();
 if (params.get('room')) els.roomCode.value = params.get('room').replace(/\D/g, '').slice(0, 6);
 if (params.get('demo') === '1') {
   connectDemo(params.get('room') || '111111');
@@ -547,6 +608,7 @@ if (params.get('demo') === '1') {
 // Тестовый интерфейс для headless E2E проверки связки двух вкладок
 window.__WRIST_TEST__ = {
   connectDemo,
+  setHandSide: (side) => setHandSide(side, true),
   setPose({ alpha = 0, beta = 90, gamma = 0, linMag = 0, rotRate = 0 } = {}) {
     sensorState.synthetic = true;
     sensorState.active = true;
@@ -572,6 +634,7 @@ window.__WRIST_TEST__ = {
   status: () => ({
     mode: link.mode,
     room: link.room,
+    handSide: sensorState.handSide,
     connected: link.connected,
     beaconVisible: !els.beaconScreen.hidden,
   }),

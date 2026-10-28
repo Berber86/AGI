@@ -15,7 +15,7 @@ const icon=id=>`<svg aria-hidden="true"><use href="#i-${id}"/></svg>`;
 let storage;try{storage=window.localStorage;}catch{storage={getItem(){return null;},setItem(){throw Error('storage unavailable');}};}
 let state=loadSave(storage),world,filter='all',drag=null,toastTimer,feedbackTimer,lastRevealPhase=null,lastTime=0,raf=0,paused=document.hidden,forcedItem=null;
 const VR_SETTINGS_KEY='white-night-vr-v1',WRIST_CAL_KEY='white-night-wrist-cal-v1',VR_FOCUS_SECONDS=10;
-function loadVrSettings(){try{const raw=storage.getItem(VR_SETTINGS_KEY),p=raw?JSON.parse(raw):{};return {mode:p.mode==='fusion'?'fusion':p.mode==='hand'?'hand':'gyro',quality:p.quality==='low'?'low':'high',leftHue:Number.isFinite(p.leftHue)?((p.leftHue%360)+360)%360:16,rightHue:Number.isFinite(p.rightHue)?((p.rightHue%360)+360)%360:338};}catch{return {mode:'gyro',quality:'high',leftHue:16,rightHue:338};}}
+function loadVrSettings(){try{const raw=storage.getItem(VR_SETTINGS_KEY),p=raw?JSON.parse(raw):{};return {mode:p.mode==='fusion'?'fusion':p.mode==='hand'?'hand':'gyro',handSide:p.handSide==='left'?'left':'right',quality:p.quality==='low'?'low':'high',leftHue:Number.isFinite(p.leftHue)?((p.leftHue%360)+360)%360:16,rightHue:Number.isFinite(p.rightHue)?((p.rightHue%360)+360)%360:338};}catch{return {mode:'gyro',handSide:'right',quality:'high',leftHue:16,rightHue:338};}}
 let vrSettings=loadVrSettings(),vrLook=null,vrBeaconTracker=null,wristFusion=null,wristLink=null,wristCalNote='',wristFbPrefilled=false,vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrPrepNote='',vrHoldTimer=0;
 const headShake=new HeadShakeDetector();
 function persistVrSettings(){try{storage.setItem(VR_SETTINGS_KEY,JSON.stringify(vrSettings));}catch{}}
@@ -121,15 +121,25 @@ function runWristCalibrationStep(step){
  if($('#vr-dialog')?.open)syncVrPrep();
  return res;
 }
+function setVrHandSide(side,{fromRemote=false}={}){
+ const clean=side==='left'?'left':'right';
+ vrSettings.handSide=clean;persistVrSettings();
+ if(wristFusion)wristFusion.setHandSide(clean);
+ world?.vrHand?.setHandSide?.(clean);
+ if(!fromRemote)wristLink?.sendHandSide(clean);
+ if($('#vr-dialog')?.open)syncVrPrep();
+}
 function ensureWrist(){
  if(!wristFusion){
-  wristFusion=new WristHandFusion();
+  wristFusion=new WristHandFusion({handSide:vrSettings.handSide});
   try{const raw=storage.getItem(WRIST_CAL_KEY);if(raw)wristFusion.importCalibration(JSON.parse(raw));}catch{}
+  wristFusion.setHandSide(vrSettings.handSide);
  }
  if(!wristLink){
   wristLink=new WristHostLink({
    onSensor:sample=>wristFusion.feedSensor(sample),
    onCalCommand:step=>runWristCalibrationStep(step),
+   onHandSide:side=>setVrHandSide(side,{fromRemote:true}),
    onStatus:()=>{if($('#vr-dialog')?.open)syncVrPrep();}
   });
  }
@@ -169,6 +179,7 @@ function syncVrPrep(){
   markerStatus.className=`vr-status-line ${vrPrepNote||marker.error?'warn':marker.calibrated?'good':''}`;
  }else if(vrSettings.mode==='hand'){
   ensureWrist();
+  $$('[data-hand-side]').forEach(b=>{const active=b.dataset.handSide===vrSettings.handSide;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
   if(!wristFbPrefilled){wristFbPrefilled=true;const saved=loadSavedFirebaseRaw();const fbEl=$('#vr-hand-fb');if(fbEl&&saved)fbEl.value=saved;else if($('#vr-hand-fb-details'))$('#vr-hand-fb-details').open=true;}
   const st=wristLink.status(),hasSignal=st.connected||!!wristFusion.lastSensor;
   $('#vr-hand-code').textContent=st.roomCode||'——';
@@ -262,8 +273,8 @@ function updateVrFrame(dt,now=performance.now()){
   vrBeaconTracker?.process(false,now);
   const beacon=vrBeaconTracker?.sample(now)||null;
   const overBin=world.handHitsBin();
-  const snap=wristFusion.update(dt,{beacon,phase:state.phase,revealReady:!!world.revealState?.ready,handOverBin:overBin,now});
-  world.updateVrHand(dt,{visible:true,pos:snap.pos,qArm:snap.qArm,reach:snap.reach,overBin,phase:state.phase,calmLowerProgress:snap.calmLowerProgress,beaconActive:snap.trackingSource==='gyro+beacon'});
+  const snap=wristFusion.update(dt,{beacon,headLook:world.headLook,phase:state.phase,revealReady:!!world.revealState?.ready,handOverBin:overBin,now});
+  world.updateVrHand(dt,{visible:true,handSide:snap.handSide,shoulderPos:snap.shoulderPos,elbowPos:snap.elbowPos,pos:snap.pos,vel:snap.vel,qArm:snap.qArm,reach:snap.reach,elbowBendDeg:snap.elbowBendDeg,overBin,phase:state.phase,calmLowerProgress:snap.calmLowerProgress,beaconActive:snap.trackingSource==='gyro+beacon'});
   if(state.phase==='search'){
    headShake.reset();vrGazeHit=overBin&&snap.reach>=.62;
    for(let i=0;i<snap.pokes&&state.phase==='search';i++)search();
@@ -310,6 +321,7 @@ function bind(){
  $$('.vr-pick').forEach(b=>b.addEventListener('click',()=>{const side=b.id==='vr-pick-left'?'left':'right';vrPrepNote='';vrPickSide=vrPickSide===side?null:side;syncVrPrep();}));
  $('#vr-camera').addEventListener('click',e=>{if(!vrPickSide)return;const look=ensureVrLook(),sample=look.tracker.sampleColor(e.clientX,e.clientY,e.currentTarget.getBoundingClientRect());if(!sample||sample.chroma<35)return;if(vrPickSide==='left')vrSettings.leftHue=Math.round(sample.hue);else vrSettings.rightHue=Math.round(sample.hue);look.setHues(vrSettings.leftHue,vrSettings.rightHue);if(look.tracker.calibrated)look.tracker.clearCalibration();persistVrSettings();vrPrepNote='Цвет обновлён. Покажите обе метки и снова зафиксируйте центр.';vrPickSide=null;look.tracker.process(true);syncVrPrep();});
  $('#vr-calibrate').addEventListener('click',()=>{const look=ensureVrLook();look.tracker.process(true);const result=look.tracker.calibrate();vrPrepNote=result.ok?'':result.message;syncVrPrep();});
+ $$('[data-hand-side]').forEach(b=>b.addEventListener('click',()=>setVrHandSide(b.dataset.handSide)));
  $('#vr-hand-room-btn').addEventListener('click',async()=>{ensureWrist();wristCalNote='';await wristLink.startFirebase($('#vr-hand-fb')?.value||'');syncVrPrep();});
  $('#vr-hand-demo-btn').addEventListener('click',()=>{ensureWrist();wristCalNote='';wristLink.startDemo('111111');syncVrPrep();});
  $('#vr-hand-cam-btn').addEventListener('click',async()=>{const tr=ensureBeaconTracker();if(tr.running)tr.stop();else await tr.start($('#vr-hand-camera'));syncVrPrep();});
@@ -344,6 +356,7 @@ async function start(){
    info:()=>vrInfoSnapshot(),
    open:()=>openVr(),
    setMode:mode=>{vrSettings.mode=mode==='fusion'?'fusion':mode==='hand'?'hand':'gyro';persistVrSettings();ensureVrLook().setMode(vrSettings.mode==='fusion'?'fusion':'gyro');syncVrPrep();return vrInfoSnapshot();},
+   setHandSide:side=>{setVrHandSide(side);return vrInfoSnapshot();},
    requestGyro:()=>ensureVrLook().requestGyro(),
    gyro:(yawDeg,pitchDeg,steps=10,dt=.03)=>setVrGyroAbsolute(yawDeg,pitchDeg,steps,dt),
    marker:(markers,now)=>ensureVrLook().tracker.inject(markers,now),

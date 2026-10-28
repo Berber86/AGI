@@ -319,10 +319,38 @@ try {
   gameState = await state(page);
   assert.equal(gameState.phase, 'search');
   assert.deepEqual(gameState.collection, ['watch']);
+  check('Calmly lowering the hand downward saves the find into the collection');
+
+  // Verify Left vs Right wrist choice syncs bidirectionally and mirrors 2-bone arm + glove anatomy
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setHandSide('left');
+    window.__WRIST_TEST__.setPose({ alpha: 0, beta: 128, gamma: 0, linMag: 0.1, rotRate: 0 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  simClock += 1500;
+  info = await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.45, t), simClock);
+  assert.equal(info.wrist.hand.handSide, 'left');
+  assert.equal(info.world.handSide, 'left');
+  assert.ok(info.world.handPosition[0] < -0.04, `left wrist x=${info.world.handPosition[0]}`);
+  assert.ok(info.wrist.hand.elbowPos.x < -0.08, `left elbow x=${info.wrist.hand.elbowPos.x}`);
+  assert.ok(info.wrist.hand.elbowBendDeg > 55, `elbowBendDeg=${info.wrist.hand.elbowBendDeg}`);
+  await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-hand-left.png` });
+
+  // Switch back to right hand from the VR host and verify wrist companion syncs too
+  info = await page.evaluate((t) => {
+    window.__GAME_TEST__.vr.setHandSide('right');
+    return window.__GAME_TEST__.vr.step(0.35, t + 500);
+  }, simClock);
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  const wristSynced = await wristPage.evaluate(() => window.__WRIST_TEST__.status());
+  assert.equal(wristSynced.handSide, 'right');
+  assert.equal(info.world.handSide, 'right');
+  assert.ok(info.world.handPosition[0] > 0.04, `right wrist x=${info.world.handPosition[0]}`);
+  check('Right/Left wrist choice syncs bidirectionally and mirrors 2-bone elbow & glove anatomy');
+
   await page.evaluate(() => window.__GAME_TEST__.vr.stop());
   await wristPage.close();
   await page.close();
-  check('Calmly lowering the hand downward saves the find into the collection');
 
   assert.deepEqual(errors, []);
   check('No page errors, console errors or failed HTTP responses');

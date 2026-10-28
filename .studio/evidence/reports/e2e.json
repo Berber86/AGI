@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 54.67070707070738,
+      "meanFrameMs": 43.570707070707144,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -62,6 +62,7 @@
       "vr": {
         "stereo": false,
         "handMode": false,
+        "handSide": "right",
         "handVisible": false,
         "handPosition": [
           0,
@@ -100,7 +101,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.56666666666615,
+      "meanFrameMs": 16.533333333332696,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -127,6 +128,7 @@
       "vr": {
         "stereo": false,
         "handMode": false,
+        "handSide": "right",
         "handVisible": false,
         "handPosition": [
           0,
@@ -463,7 +465,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6817144,
+    "totalBytes": 6831418,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -486,12 +488,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-C-a03qfp.js",
-        "bytes": 783979
+        "file": "assets/index-DaeJ5nbi.js",
+        "bytes": 794211
       },
       {
-        "file": "assets/index-DW6C2Wme.css",
-        "bytes": 35348
+        "file": "assets/index-DoXyVP2U.css",
+        "bytes": 35425
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -555,7 +557,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 18863
+        "bytes": 19272
       },
       {
         "file": "manifest.webmanifest",
@@ -571,11 +573,11 @@
       },
       {
         "file": "wrist/index.html",
-        "bytes": 9445
+        "bytes": 10105
       },
       {
         "file": "wrist/wrist.js",
-        "bytes": 20969
+        "bytes": 23865
       }
     ]
   },

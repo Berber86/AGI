@@ -86,9 +86,10 @@ function parseCandidateMeta(candStr) {
 }
 
 export class WristHostLink {
-  constructor({ onSensor, onCalCommand, onStatus } = {}) {
+  constructor({ onSensor, onCalCommand, onHandSide, onStatus } = {}) {
     this.onSensor = onSensor || (() => {});
     this.onCalCommand = onCalCommand || (() => {});
+    this.onHandSide = onHandSide || (() => {});
     this.onStatus = onStatus || (() => {});
 
     this.mode = 'off'; // 'off' | 'demo' | 'firebase'
@@ -152,6 +153,7 @@ export class WristHostLink {
         if (msg.k === 'hello') {
           this.connected = true;
           this.p2pOpen = true;
+          if (msg.side === 'left' || msg.side === 'right') this.onHandSide(msg.side);
           this.bc?.postMessage({ k: 'ack', room: this.roomCode, ts: Date.now() });
           this._emitStatus();
         } else if (msg.k === 'wrist') {
@@ -160,6 +162,8 @@ export class WristHostLink {
           this._handlePacket(msg, true);
         } else if (msg.k === 'cal') {
           this.onCalCommand(msg.step);
+        } else if (msg.k === 'hand_side' && (msg.side === 'left' || msg.side === 'right')) {
+          this.onHandSide(msg.side);
         }
       };
     }
@@ -235,6 +239,16 @@ export class WristHostLink {
           if (!cmd || !cmd.step) return;
           if (Date.now() - (cmd.ts || 0) < 6000) {
             this.onCalCommand(cmd.step);
+          }
+        })
+      );
+
+      // Выбор руки (левая / правая) с экрана браслета
+      this.unsubs.push(
+        onValue(ref(this.db, `${roomPath}/handSide`), (snap) => {
+          const hs = snap.val();
+          if (hs && (hs.side === 'left' || hs.side === 'right')) {
+            this.onHandSide(hs.side);
           }
         })
       );
@@ -432,6 +446,10 @@ export class WristHostLink {
       this.onCalCommand(msg.step);
       return;
     }
+    if (msg.k === 'hand_side' && (msg.side === 'left' || msg.side === 'right')) {
+      this.onHandSide(msg.side);
+      return;
+    }
     if (msg.k === 'wrist') {
       this.lastFastRxAt = now;
       this.p2pOpen = true;
@@ -445,6 +463,19 @@ export class WristHostLink {
       try {
         ch.send(JSON.stringify(obj));
       } catch { /* ignore */ }
+    }
+  }
+
+  sendHandSide(side) {
+    const clean = side === 'left' ? 'left' : 'right';
+    const payload = { k: 'hand_side', room: this.roomCode, side: clean, ts: Date.now() };
+    if (this.mode === 'demo' && this.bc) {
+      this.bc.postMessage(payload);
+    }
+    this._sendCtrl(payload);
+    if (this.mode === 'firebase' && this.db && this.fbMod && this.roomCode) {
+      const { ref, set } = this.fbMod;
+      set(ref(this.db, `wn_wrist_rooms/${this.roomCode}/hostHandSide`), payload).catch(() => {});
     }
   }
 

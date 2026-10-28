@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import { WristBeaconTracker } from '../src/vr/wristBeaconTracker.js';
 import {
   WristHandFusion,
+  solveTwoBoneArmIK,
+  UPPER_ARM_LEN,
+  FOREARM_LEN,
   w3cDeviceQuaternion,
   qMul,
   qAxisAngle,
   qRotVec,
 } from '../src/vr/wristHandFusion.js';
+import { createGlovedHand } from '../src/vr/handMesh.js';
 
 const DEG = Math.PI / 180;
 
@@ -214,4 +218,129 @@ test('Extended arm rummage produces 3 bin pokes, rotates find, Calm Lower keeps,
     }
   }
   assert.equal(keepDecision, 'keep');
+});
+
+test('solveTwoBoneArmIK preserves exact upper-arm & forearm bone lengths and bends elbow downward-outward', () => {
+  const shoulder = [0.21, -0.27, -0.08];
+  const pole = [0.44, -0.86, 0.22];
+
+  const poses = [
+    [0.19, -0.14, -0.64], // вытянутая вперёд
+    [0.15, -0.22, -0.35], // согнутая в локте у груди
+    [0.16,  0.22, -0.44], // высоко поднятая вверх
+    [0.22, -0.58, -0.22], // свободно опущенная вниз
+    [0.21, -0.10, -1.20], // дальше предела досягаемости (проверка мягкого клампа)
+  ];
+
+  for (const target of poses) {
+    const ik = solveTwoBoneArmIK(shoulder, target, UPPER_ARM_LEN, FOREARM_LEN, pole);
+    const d1 = Math.hypot(
+      ik.elbow.x - ik.shoulder.x,
+      ik.elbow.y - ik.shoulder.y,
+      ik.elbow.z - ik.shoulder.z
+    );
+    const d2 = Math.hypot(
+      ik.wrist.x - ik.elbow.x,
+      ik.wrist.y - ik.elbow.y,
+      ik.wrist.z - ik.elbow.z
+    );
+    assert.ok(Math.abs(d1 - UPPER_ARM_LEN) < 1e-4, `upper arm len=${d1}`);
+    assert.ok(Math.abs(d2 - FOREARM_LEN) < 1e-4, `forearm len=${d2}`);
+    assert.ok(ik.elbowBendDeg >= 0 && ik.elbowBendDeg <= 165);
+  }
+
+  // При сгибании руки к груди локоть опускается ниже линии плечо-запястье и угол сгиба > 70°
+  const bentIk = solveTwoBoneArmIK(shoulder, [0.15, -0.22, -0.35], UPPER_ARM_LEN, FOREARM_LEN, pole);
+  assert.ok(bentIk.elbowBendDeg > 70, `bent elbowBendDeg=${bentIk.elbowBendDeg}`);
+  assert.ok(bentIk.elbow.y < shoulder[1] - 0.08, `elbow drops below shoulder: ${bentIk.elbow.y}`);
+});
+
+test('Right vs Left handSide mirrors shoulder, elbow, wrist, and 3D glove anatomy with positive scale', () => {
+  const qStraight = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qBent = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qStraight);
+
+  const rightFusion = new WristHandFusion({ handSide: 'right' });
+  const leftFusion = new WristHandFusion({ handSide: 'left' });
+
+  for (const f of [rightFusion, leftFusion]) {
+    f.feedSensor({ q: qStraight, ts: 0 });
+    f.calibrateStretchPose();
+    f.feedSensor({ q: qBent, ts: 10 });
+    f.calibrateBendPose();
+  }
+
+  // Сгибаем обе руки к себе и сравниваем зеркальную симметрию по X
+  rightFusion.feedSensor({ q: qBent, ts: 100 });
+  leftFusion.feedSensor({ q: qBent, ts: 100 });
+  let rSnap, lSnap;
+  for (let i = 0; i < 25; i++) {
+    rSnap = rightFusion.update(1 / 60, { phase: 'search', now: 100 + i * 16 });
+    lSnap = leftFusion.update(1 / 60, { phase: 'search', now: 100 + i * 16 });
+  }
+
+  assert.equal(rSnap.handSide, 'right');
+  assert.equal(lSnap.handSide, 'left');
+  assert.ok(rSnap.shoulderPos.x > 0.18 && lSnap.shoulderPos.x < -0.18);
+  assert.ok(Math.abs(rSnap.shoulderPos.x + lSnap.shoulderPos.x) < 1e-3);
+  assert.ok(rSnap.elbowPos.x > 0 && lSnap.elbowPos.x < 0);
+  assert.ok(Math.abs(rSnap.elbowPos.x + lSnap.elbowPos.x) < 1e-2);
+  assert.ok(rSnap.pos.x > 0 && lSnap.pos.x < 0);
+  assert.ok(Math.abs(rSnap.pos.x + lSnap.pos.x) < 1e-2);
+  assert.ok(Math.abs(rSnap.pos.y - lSnap.pos.y) < 1e-2);
+  assert.ok(Math.abs(rSnap.pos.z - lSnap.pos.z) < 1e-2);
+
+  // Проверяем 3D-модель перчатки: положительные масштабы (det > 0) на обеих руках, без вывернутых нормалей
+  const hand = createGlovedHand('right');
+  hand.update(1 / 60, { visible: true, handSide: 'right', shoulderPos: rSnap.shoulderPos, elbowPos: rSnap.elbowPos, pos: rSnap.pos, vel: rSnap.vel, qArm: rSnap.qArm, elbowBendDeg: rSnap.elbowBendDeg });
+  assert.equal(hand.getHandSide(), 'right');
+  hand.group.traverse((obj) => {
+    assert.ok(obj.scale.x * obj.scale.y * obj.scale.z > 0, `positive det on right hand: ${obj.type}`);
+  });
+
+  hand.update(1 / 60, { visible: true, handSide: 'left', shoulderPos: lSnap.shoulderPos, elbowPos: lSnap.elbowPos, pos: lSnap.pos, vel: lSnap.vel, qArm: lSnap.qArm, elbowBendDeg: lSnap.elbowBendDeg });
+  assert.equal(hand.getHandSide(), 'left');
+  hand.group.traverse((obj) => {
+    assert.ok(obj.scale.x * obj.scale.y * obj.scale.z > 0, `positive det on left hand: ${obj.type}`);
+  });
+  hand.dispose();
+});
+
+test('Full vertical range (raise high up, lower relaxed down) + torso grounding when nodding head', () => {
+  const fusion = new WristHandFusion({ handSide: 'right' });
+  const qStraight = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qBent = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qStraight);
+  fusion.feedSensor({ q: qStraight, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qBent, ts: 10 });
+  fusion.calibrateBendPose();
+
+  // 1. Опускаем руку свободно вниз (-55°)
+  const qDown = qMul(qAxisAngle([1, 0, 0], -55 * DEG), qStraight);
+  fusion.feedSensor({ q: qDown, ts: 100 });
+  let downSnap;
+  for (let i = 0; i < 30; i++) downSnap = fusion.update(1 / 60, { phase: 'search', now: 100 + i * 16 });
+  assert.ok(downSnap.pos.y < -0.45, `lowered arm pos.y=${downSnap.pos.y}`);
+
+  // 2. Поднимаем руку высоко вверх (+82° — выше сгиба локтя, вытягивая к небу!)
+  const qHighUp = qMul(qAxisAngle([1, 0, 0], 82 * DEG), qStraight);
+  fusion.feedSensor({ q: qHighUp, ts: 700 });
+  let upSnap, peakVelY = 0;
+  for (let i = 0; i < 30; i++) {
+    upSnap = fusion.update(1 / 60, { phase: 'search', now: 700 + i * 16 });
+    peakVelY = Math.max(peakVelY, upSnap.vel.y);
+  }
+  assert.ok(upSnap.pos.y > 0.08, `raised high arm pos.y=${upSnap.pos.y}`);
+  assert.ok(peakVelY > 0.5, `spring physics generates upward velocity peakVelY=${peakVelY}`);
+
+  // 3. Привязка к торсу: рука физически неподвижна прямо перед грудью, но игрок поднимает взгляд к небу (+28°):
+  // в системе координат камеры рука должна естественно уйти вниз кадра (оставаясь у тела), а не лететь за носом!
+  fusion.feedSensor({ q: qStraight, ts: 1300 });
+  let levelHeadSnap, raisedHeadSnap;
+  for (let i = 0; i < 25; i++) {
+    levelHeadSnap = fusion.update(1 / 60, { headLook: { yaw: 0, pitch: 0 }, phase: 'search', now: 1300 + i * 16 });
+  }
+  for (let i = 0; i < 25; i++) {
+    raisedHeadSnap = fusion.update(1 / 60, { headLook: { yaw: 0, pitch: 28 * DEG }, phase: 'search', now: 1800 + i * 16 });
+  }
+  assert.ok(raisedHeadSnap.pos.y < levelHeadSnap.pos.y - 0.18, `stationary arm stays grounded on torso when head pitches up: level=${levelHeadSnap.pos.y}, lookUp=${raisedHeadSnap.pos.y}`);
 });

@@ -17,6 +17,7 @@
     "Extended arm rummaging opens the bin in 3 strokes without locking head gaze",
     "Twisting the wrist rotates the 3D find and a sharp wave throws/discards it",
     "Calmly lowering the hand downward saves the find into the collection",
+    "Right/Left wrist choice syncs bidirectionally and mirrors 2-bone elbow & glove anatomy",
     "No page errors, console errors or failed HTTP responses"
   ],
   "gaze": {
