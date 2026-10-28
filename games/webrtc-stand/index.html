@@ -152,8 +152,29 @@
 
     <div class="row">
       <button type="button" id="btn-auto-orbit" class="secondary" aria-pressed="false">🌀 Авто-круг 60 Гц: Выкл</button>
-      <button type="button" id="btn-gyro-toggle" class="secondary" aria-pressed="false">📱 Гироскоп руки: Выкл</button>
-      <button type="button" id="btn-gyro-center" class="teal hidden">🎯 Центрировать руку</button>
+      <button type="button" id="btn-gyro-toggle" class="secondary" aria-pressed="false">📱 Наклон руки (3D): Выкл</button>
+    </div>
+
+    <div id="gyro-controls" class="hidden" style="margin-top:8px">
+      <div class="field-row">
+        <label for="gyro-mode">Режим датчика:</label>
+        <select id="gyro-mode">
+          <option value="tilt">🕹 Наклон боком и вперёд (3D без компаса)</option>
+          <option value="wand">🔦 Указка 3D (поворот носа влево/вправо)</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <label for="gyro-span">Полный ход луча:</label>
+        <select id="gyro-span">
+          <option value="20">±20° (очень чутко)</option>
+          <option value="25" selected>±25° (оптимально)</option>
+          <option value="35">±35° (широкий наклон)</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btn-gyro-center" class="teal">🎯 Центрировать хват</button>
+        <button type="button" id="btn-gyro-invert" class="secondary" aria-pressed="false">↕ Инверсия верх/низ: Выкл</button>
+      </div>
     </div>
 
     <div class="joy-btns">

@@ -6,7 +6,11 @@ import {
   jitterOneWay,
   fmtBytes,
   clamp,
-  handGyroToPad,
+  deviceUpVector,
+  accelToUpVector,
+  upVectorToPad,
+  eulerZXYToQuat,
+  handWandQuatToPad,
 } from './config-parser.js';
 import { DemoBackend, connectFirebaseBackend } from './signaling.js';
 import { RtcDirectLink } from './rtc-link.js';
@@ -58,7 +62,11 @@ const els = {
   padHint: $('pad-hint'),
   btnAutoOrbit: $('btn-auto-orbit'),
   btnGyroToggle: $('btn-gyro-toggle'),
+  gyroControls: $('gyro-controls'),
+  gyroMode: $('gyro-mode'),
+  gyroSpan: $('gyro-span'),
   btnGyroCenter: $('btn-gyro-center'),
+  btnGyroInvert: $('btn-gyro-invert'),
   joyLeft: $('joy-left'),
   joyRight: $('joy-right'),
   hapticBanner: $('haptic-banner'),
@@ -110,8 +118,14 @@ const state = {
     pointerDown: false,
     autoOrbit: false,
     gyroEnabled: false,
-    gyroRaw: null,
-    gyroZero: null,
+    gyroMode: 'tilt',        // 'tilt' (3D без компаса) | 'wand' (3D кватернион)
+    gyroSpanDeg: 25,
+    gyroInvertY: false,
+    gyroUpVec: null,
+    gyroZeroUpVec: null,
+    gyroRawAngles: null,
+    gyroZeroQuat: null,
+    hasOrientationEvents: false,
     hapticReceived: 0,
     lastHapticVia: null,
   },
@@ -742,28 +756,95 @@ function setAutoOrbit(on) {
 
 els.btnAutoOrbit.addEventListener('click', () => setAutoOrbit(!state.joy.autoOrbit));
 
-// Гироскоп руки на втором телефоне
-function onDeviceOrientation(ev) {
-  if (typeof ev.alpha !== 'number' || typeof ev.beta !== 'number') return;
-  state.joy.gyroRaw = { alpha: ev.alpha, beta: ev.beta };
-  if (!state.joy.gyroZero) {
-    state.joy.gyroZero = { alpha: ev.alpha, beta: ev.beta };
+// 3D-датчики наклона руки (симметрично по обеим сторонам телефона, без вырождения Эйлера)
+function currentScreenAngle() {
+  try {
+    if (window.screen?.orientation && typeof window.screen.orientation.angle === 'number') {
+      return window.screen.orientation.angle;
+    }
+    if (typeof window.orientation === 'number') return window.orientation;
+  } catch { /* ignore */ }
+  return 0;
+}
+
+function applySensorReading() {
+  const j = state.joy;
+  if (!j.gyroEnabled || j.pointerDown || j.autoOrbit) return;
+
+  if (j.gyroMode === 'wand' && j.gyroRawAngles) {
+    if (!j.gyroZeroQuat) {
+      j.gyroZeroQuat = eulerZXYToQuat(j.gyroRawAngles.alpha, j.gyroRawAngles.beta, j.gyroRawAngles.gamma);
+    }
+    const res = handWandQuatToPad(
+      j.gyroRawAngles.alpha,
+      j.gyroRawAngles.beta,
+      j.gyroRawAngles.gamma,
+      j.gyroZeroQuat,
+      { spanDeg: j.gyroSpanDeg, invertY: j.gyroInvertY }
+    );
+    j.x = res.x;
+    j.y = res.y;
+    els.padHint.textContent =
+      `🔦 Указка 3D: вбок ${res.yawRightDeg >= 0 ? '+' : ''}${res.yawRightDeg}° · вверх/вниз ${res.pitchUpDeg >= 0 ? '+' : ''}${res.pitchUpDeg}°`;
+    updatePadThumb();
+    return;
   }
-  if (state.joy.gyroEnabled && !state.joy.pointerDown && !state.joy.autoOrbit) {
-    const pos = handGyroToPad(ev.alpha, ev.beta, state.joy.gyroZero);
-    state.joy.x = pos.x;
-    state.joy.y = pos.y;
+
+  if (j.gyroUpVec) {
+    if (!j.gyroZeroUpVec) j.gyroZeroUpVec = { ...j.gyroUpVec };
+    const res = upVectorToPad(j.gyroUpVec, j.gyroZeroUpVec, {
+      spanDeg: j.gyroSpanDeg,
+      invertY: j.gyroInvertY,
+    });
+    j.x = res.x;
+    j.y = res.y;
+    els.padHint.textContent =
+      `📐 Наклон 3D: короткая грань ${res.tiltRightDeg >= 0 ? '+' : ''}${res.tiltRightDeg}° · длинная ${res.tiltUpDeg >= 0 ? '+' : ''}${res.tiltUpDeg}°`;
     updatePadThumb();
   }
+}
+
+function onDeviceOrientation(ev) {
+  if (typeof ev.beta !== 'number' || typeof ev.gamma !== 'number') return;
+  state.joy.hasOrientationEvents = true;
+  state.joy.gyroRawAngles = {
+    alpha: typeof ev.alpha === 'number' ? ev.alpha : 0,
+    beta: ev.beta,
+    gamma: ev.gamma,
+  };
+  state.joy.gyroUpVec = deviceUpVector(ev.beta, ev.gamma, currentScreenAngle());
+  applySensorReading();
+}
+
+function onDeviceMotion(ev) {
+  // Резервный источник 3D-гравитации, если браузер не шлёт beta/gamma
+  if (state.joy.hasOrientationEvents) return;
+  const a = ev.accelerationIncludingGravity;
+  if (!a || typeof a.x !== 'number' || typeof a.y !== 'number' || typeof a.z !== 'number') return;
+  state.joy.gyroUpVec = accelToUpVector(a.x, a.y, a.z, currentScreenAngle());
+  applySensorReading();
+}
+
+function centerHandGrip() {
+  const j = state.joy;
+  j.gyroZeroUpVec = j.gyroUpVec ? { ...j.gyroUpVec } : null;
+  j.gyroZeroQuat = j.gyroRawAngles
+    ? eulerZXYToQuat(j.gyroRawAngles.alpha, j.gyroRawAngles.beta, j.gyroRawAngles.gamma)
+    : null;
+  j.x = 0;
+  j.y = 0;
+  updatePadThumb();
 }
 
 els.btnGyroToggle.addEventListener('click', async () => {
   if (state.joy.gyroEnabled) {
     state.joy.gyroEnabled = false;
     window.removeEventListener('deviceorientation', onDeviceOrientation);
+    window.removeEventListener('devicemotion', onDeviceMotion);
     els.btnGyroToggle.setAttribute('aria-pressed', 'false');
-    els.btnGyroToggle.textContent = '📱 Гироскоп руки: Выкл';
-    els.btnGyroCenter.classList.add('hidden');
+    els.btnGyroToggle.textContent = '📱 Наклон руки (3D): Выкл';
+    els.gyroControls.classList.add('hidden');
+    els.padHint.textContent = 'Водите пальцем по кругу — на Экране увидите разницу 60 Гц vs 6 Гц!';
     return;
   }
   try {
@@ -773,30 +854,51 @@ els.btnGyroToggle.addEventListener('click', async () => {
     ) {
       const perm = await DeviceOrientationEvent.requestPermission();
       if (perm !== 'granted') {
-        els.padHint.textContent = 'Доступ к гироскопу не выдан браузером — используйте тачпад пальцем.';
+        els.padHint.textContent = 'Доступ к датчикам не выдан браузером — используйте тачпад пальцем.';
         return;
       }
     }
-    state.joy.gyroZero = null;
+    if (
+      typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function'
+    ) {
+      try { await DeviceMotionEvent.requestPermission(); } catch { /* ignore */ }
+    }
+    state.joy.gyroZeroUpVec = null;
+    state.joy.gyroZeroQuat = null;
+    state.joy.hasOrientationEvents = false;
     state.joy.gyroEnabled = true;
     if (state.joy.autoOrbit) setAutoOrbit(false);
     window.addEventListener('deviceorientation', onDeviceOrientation);
+    window.addEventListener('devicemotion', onDeviceMotion);
     els.btnGyroToggle.setAttribute('aria-pressed', 'true');
-    els.btnGyroToggle.textContent = '📱 Гироскоп руки: Вкл';
-    els.btnGyroCenter.classList.remove('hidden');
-    els.padHint.textContent = 'Наклоняйте и поворачивайте телефон кистью как лазерную указку!';
+    els.btnGyroToggle.textContent = '📱 Наклон руки (3D): Вкл';
+    els.gyroControls.classList.remove('hidden');
+    els.padHint.textContent = 'Наклоняйте телефон в любую сторону — текущий хват взят за ноль!';
   } catch {
-    els.padHint.textContent = 'Гироскоп недоступен в этом браузере — водите пальцем по тачпаду.';
+    els.padHint.textContent = 'Датчики недоступны в этом браузере — водите пальцем по тачпаду.';
   }
 });
 
-els.btnGyroCenter.addEventListener('click', () => {
-  if (state.joy.gyroRaw) {
-    state.joy.gyroZero = { ...state.joy.gyroRaw };
-    state.joy.x = 0;
-    state.joy.y = 0;
-    updatePadThumb();
-  }
+els.btnGyroCenter.addEventListener('click', centerHandGrip);
+els.gyroMode.addEventListener('change', () => {
+  state.joy.gyroMode = els.gyroMode.value;
+  centerHandGrip();
+});
+els.gyroSpan.addEventListener('change', () => {
+  state.joy.gyroSpanDeg = Number(els.gyroSpan.value) || 25;
+  applySensorReading();
+});
+els.btnGyroInvert.addEventListener('click', () => {
+  state.joy.gyroInvertY = !state.joy.gyroInvertY;
+  els.btnGyroInvert.setAttribute('aria-pressed', String(state.joy.gyroInvertY));
+  els.btnGyroInvert.textContent = state.joy.gyroInvertY
+    ? '↕ Инверсия верх/низ: Вкл'
+    : '↕ Инверсия верх/низ: Выкл';
+  applySensorReading();
+});
+window.addEventListener('orientationchange', () => {
+  if (state.joy.gyroEnabled) setTimeout(centerHandGrip, 150);
 });
 
 function bindSteerBtn(el, side) {

@@ -186,6 +186,39 @@ const recovered = await waitUntil(async () => {
 record('после возврата прямая труба WebRTC поднимается обратно автоматически', recovered);
 await joy.evaluate(() => window.__WEBRTC_STAND__.setSteer(false, false));
 
+// 7б. Проверка 3D-наклона руки (симметричный отклик короткой стороны влево/вправо через beta/gamma без компаса)
+await joy.evaluate(() => {
+  // Headless Chromium отвечает requestPermission отказом даже для синтетики (см. fusionqa.mjs)
+  if (window.DeviceOrientationEvent) DeviceOrientationEvent.requestPermission = async () => 'granted';
+  if (window.DeviceMotionEvent) DeviceMotionEvent.requestPermission = async () => 'granted';
+  document.getElementById('btn-gyro-toggle').click();
+});
+await sleep(100);
+await joy.evaluate(() => {
+  const fire = (alpha, beta, gamma) => {
+    const ev = new Event('deviceorientation');
+    ev.alpha = alpha; ev.beta = beta; ev.gamma = gamma;
+    window.dispatchEvent(ev);
+  };
+  fire(120, 30, 15); // удобный начальный хват в ладони
+  fire(120, 30, 30); // наклон короткой стороны вправо на +15°
+});
+await sleep(120);
+const tiltRightSnap = await joy.evaluate(() => window.__WEBRTC_STAND__.snapshot().joy);
+await joy.evaluate(() => {
+  const ev = new Event('deviceorientation');
+  ev.alpha = 120; ev.beta = 30; ev.gamma = 0; // наклон короткой стороны влево на -15°
+  window.dispatchEvent(ev);
+});
+await sleep(120);
+const tiltLeftSnap = await joy.evaluate(() => window.__WEBRTC_STAND__.snapshot().joy);
+record(
+  '3D-наклон короткой стороны работает легко и симметрично в обе стороны',
+  tiltRightSnap.x > 0.45 && tiltLeftSnap.x < -0.45 && Math.abs(tiltRightSnap.x + tiltLeftSnap.x) < 0.05,
+  { rightX: tiltRightSnap.x, leftX: tiltLeftSnap.x }
+);
+await joy.evaluate(() => document.getElementById('btn-gyro-toggle').click());
+
 // 8. Проверка мобильных вьюпортов 360x800 и 412x915 (отсутствие горизонтального переполнения)
 for (const [w, h] of [[360, 800], [412, 915]]) {
   await host.setViewport({ width: w, height: h, isMobile: true, hasTouch: true });
