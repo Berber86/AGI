@@ -8,47 +8,74 @@
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="icon" href="./icon.svg" type="image/svg+xml" />
 <style>
-  :root { --neon:#38f5ff; --pink:#ff3df0; --bg:#05070f; --panel:#0b1122; --text:#dff6ff; }
+  :root { --neon:#38f5ff; --pink:#ff3df0; --bg:#05070f; --panel:#0b1122; --text:#dff6ff; --glow:0 0 14px rgba(56,245,255,0.45); }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
   #game-canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+
+  /* ---------- screen overlay effects (vignette, hit flash) ---------- */
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:3;
+    background:radial-gradient(circle at center, transparent 0%, #05070f 70%, #02040a 100%);
+    opacity:0.85; }
+  #hitFlash { position:fixed; inset:0; pointer-events:none; z-index:2; background:#ff4444;
+    opacity:0; transition:opacity 0.1s linear; }
+  /* ---------- FPS counter (debug overlay) ---------- */
+  #fps-counter { position:fixed; top:10px; left:10px; z-index:50; color:#38f5ff; font-family:'Courier New',monospace; font-size:11px; background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:4px; pointer-events:none; border:1px solid rgba(56,245,255,.3); }
+
   /* ---------- prep / result screen (ALL text lives here, never in VR) ---------- */
   #prep { position:fixed; inset:0; overflow-y:auto; padding:20px 16px 32px; background:radial-gradient(120% 100% at 50% 0%, #0d1734 0%, var(--bg) 60%); z-index:10; }
   #prep.hidden { display:none; }
   .wrap { max-width:560px; margin:0 auto; }
   h1 { font-size:30px; margin:6px 0 4px; letter-spacing:.5px; color:#fff; text-shadow:0 0 18px rgba(56,245,255,.65); }
   .sub { opacity:.85; line-height:1.45; margin:0 0 16px; }
-  .card { background:var(--panel); border:1px solid rgba(56,245,255,.25); border-radius:14px; padding:14px; margin:12px 0; }
+  .card { background:var(--panel); border:1px solid rgba(56,245,255,.25); border-radius:14px; padding:14px; margin:12px 0; box-shadow:var(--glow); }
   .card h2 { font-size:15px; margin:0 0 10px; text-transform:uppercase; letter-spacing:1px; color:var(--neon); }
-  label.opt { display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid rgba(255,255,255,.12); border-radius:10px; margin:8px 0; cursor:pointer; }
-  label.opt:has(input:checked) { border-color:var(--neon); background:rgba(56,245,255,.08); }
+  label.opt { display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid rgba(255,255,255,.12); border-radius:10px; margin:8px 0; cursor:pointer; transition:all .2s; }
+  label.opt:has(input:checked) { border-color:var(--neon); background:rgba(56,245,255,.08); box-shadow:0 0 10px rgba(56,245,255,.25); }
   label.opt input { margin-top:3px; accent-color:var(--neon); }
   label.opt b { display:block; }
   label.opt span { font-size:13px; opacity:.8; line-height:1.35; }
-  #cam-preview { width:100%; max-height:180px; object-fit:cover; border-radius:10px; background:#000; display:none; }
+  #cam-preview { width:100%; max-height:180px; object-fit:cover; border-radius:10px; background:#000; display:none; border:1px solid rgba(56,245,255,.3); box-shadow:var(--glow); }
   .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  button { font:inherit; font-weight:700; border-radius:12px; border:1px solid rgba(56,245,255,.5); background:#0e2a3d; color:#eafcff; padding:12px 18px; cursor:pointer; min-height:48px; }
-  button.primary { background:linear-gradient(180deg,#0e5a74,#083048); box-shadow:0 0 16px rgba(56,245,255,.35); font-size:18px; width:100%; }
+  button { font:inherit; font-weight:700; border-radius:12px; border:1px solid rgba(56,245,255,.5); background:#0e2a3d; color:#eafcff; padding:12px 18px; cursor:pointer; min-height:48px; transition:all .2s; }
+  button:not(:disabled):hover { background:#144a62; box-shadow:0 0 20px rgba(56,245,255,.5); transform:translateY(-1px); }
+  button.primary { background:linear-gradient(180deg,#0e5a74,#083048); box-shadow:0 0 16px rgba(56,245,255,.35); font-size:18px; width:100%; position:relative; overflow:hidden; }
+  button.primary::after { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent); transform:translateX(-100%); transition:transform .6s; }
+  button.primary:not(:disabled):hover::after { transform:translateX(100%); }
   button:disabled { opacity:.45; cursor:default; }
   #status { font-size:13px; opacity:.85; min-height:18px; line-height:1.4; }
-  .stat { display:flex; justify-content:space-between; font-size:15px; padding:3px 0; }
+  .stat { display:flex; justify-content:space-between; font-size:15px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .stat:last-child { border-bottom:none; }
+  .stat b { color:var(--neon); text-shadow:0 0 8px rgba(56,245,255,.5); }
   .swatches { display:flex; gap:14px; font-size:13px; }
-  .sw { width:22px; height:14px; border-radius:3px; display:inline-block; vertical-align:-2px; margin-right:6px; }
+  .sw { width:22px; height:14px; border-radius:3px; display:inline-block; vertical-align:-2px; margin-right:6px; box-shadow:0 0 6px currentColor; }
   /* ---------- flat-mode HUD (flat screen only; removed from DOM in VR) ---------- */
-  #hud { position:fixed; top:10px; left:12px; right:12px; display:flex; justify-content:space-between; pointer-events:none; z-index:5; font-weight:700; text-shadow:0 1px 6px #000; }
+  #hud { position:fixed; top:12px; left:12px; right:12px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; font-weight:700; text-shadow:0 1px 6px #000; gap:16px; }
   #hud.hidden { display:none; }
-  #cross { position:fixed; left:50%; top:50%; width:26px; height:26px; margin:-13px 0 0 -13px; z-index:4; pointer-events:none; opacity:.9; }
+  .hud-block { display:flex; flex-direction:column; gap:2px; }
+  #hud-score { font-size:20px; letter-spacing:1px; color:var(--neon); text-shadow:0 0 12px rgba(56,245,255,.7); }
+  #hud-streak { font-size:14px; color:var(--pink); text-shadow:0 0 8px rgba(255,61,240,.6); }
+  #hud-hull { font-size:17px; color:#fff; }
+  #hull-container { width:140px;height:9px;background:rgba(255,255,255,.12);border-radius:5px;margin-top:4px;overflow:hidden;border:1px solid rgba(255,255,255,.2); }
+  #hull-fill { height:100%;width:100%;background:linear-gradient(90deg,#38f5ff,#ff3df0);transition:width .15s,background .15s;box-shadow:0 0 10px var(--neon); }
+  /* ---------- crosshair with dwell ring ---------- */
+  #cross { position:fixed; left:50%; top:50%; width:40px; height:40px; margin:-20px 0 0 -20px; z-index:4; pointer-events:none; opacity:.9; }
   #cross.hidden { display:none; }
-  #cross::before,#cross::after { content:""; position:absolute; background:var(--neon); left:50%; top:50%; }
-  #cross::before { width:26px; height:2px; margin:-1px 0 0 -13px; }
-  #cross::after { width:2px; height:26px; margin:-13px 0 0 -1px; }
+  #cross-ring { position:absolute; inset:0; border:2px solid var(--neon); border-radius:50%; box-shadow:0 0 10px var(--neon); transform:scale(.85); opacity:.7; }
+  #cross-dot { position:absolute; left:50%; top:50%; width:6px; height:6px; margin:-3px 0 0 -3px; background:var(--neon); border-radius:50%; box-shadow:0 0 8px var(--neon); }
+  #cross-charge { position:absolute; inset:0; border:3px solid transparent; border-top-color:var(--pink); border-radius:50%; transform:scale(1.15); opacity:0; transition:opacity .15s; }
+  #cross.charging #cross-charge { opacity:1; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:scale(1.15) rotate(360deg); } }
 </style>
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
+<div id="fps-counter">FPS: --</div>
+<div id="vignette"></div>
+<div id="hitFlash"></div>
 
-<div id="hud" class="hidden"><div id="hud-score">Счёт: 0</div><div style="text-align:right"><div id="hud-hull">Корпус: 100</div><div style="width:130px;height:7px;background:rgba(255,255,255,.18);border-radius:4px;margin-top:4px;overflow:hidden"><div id="hull-fill" style="height:100%;width:100%;background:#38f5ff;transition:width .2s"></div></div></div></div>
-<div id="cross" class="hidden"></div>
+<div id="hud" class="hidden"><div class="hud-block"><div id="hud-score">Счёт: 0</div><div id="hud-streak"></div></div><div class="hud-block" style="text-align:right"><div id="hud-hull">Корпус: 100</div><div id="hull-container"><div id="hull-fill" style="height:100%;width:100%"></div></div></div></div>
+<div id="cross" class="hidden"><div id="cross-ring"></div><div id="cross-dot"></div><div id="cross-charge"></div></div>
 
 <main id="prep">
   <div class="wrap">
@@ -80,9 +107,10 @@
     </div>
 
     <div class="card">
-      <h2>Качество VR (вручную)</h2>
-      <label class="opt"><input type="radio" name="quality" value="high" checked /><div><b>Высокое</b><span>Полное разрешение глаз. Качество не меняется само во время игры.</span></div></label>
-      <label class="opt"><input type="radio" name="quality" value="light" /><div><b>Лёгкое</b><span>Сниженное разрешение глаз для слабых телефонов.</span></div></label>
+      <h2>Качество графики</h2>
+      <label class="opt"><input type="radio" name="quality" value="low" /><div><b>Низкое</b><span>Минимальное качество для слабых устройств.</span></div></label>
+      <label class="opt"><input type="radio" name="quality" value="medium" /><div><b>Среднее</b><span>Баланс качества и производительности.</span></div></label>
+      <label class="opt"><input type="radio" name="quality" value="high" checked /><div><b>Высокое</b><span>Полное качество со всеми эффектами.</span></div></label>
     </div>
 
     <button id="start" class="primary" type="button">▶ В бой</button>

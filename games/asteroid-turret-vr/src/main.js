@@ -5,6 +5,9 @@ import { MarkerTracker, FusionLook } from './look/markers.js';
 import { unlockAudio, playShot, playExplosion, audioInfo } from './audio.js';
 import { createEnvironment, createShip, createAsteroidAssets, setTextureAnisotropy } from './world.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { FxSystem } from './fx.js';
 
 // ---------------------------------------------------------------- state
@@ -17,7 +20,7 @@ const BEST_KEY = 'asteroid-turret-vr-best';
 
 let mode = 'flat'; // flat | gyro | fusion
 let quality = localStorage.getItem('asteroid-turret-vr-quality') || 'high';
-if (quality === 'auto') quality = 'high'; // saved auto migrates to high (guide §4a)
+if (!['low','medium','high'].includes(quality)) quality = 'high';
 let running = false;
 let vrActive = false;
 let game = createGame(1);
@@ -28,6 +31,87 @@ let gyroSeenAt = -Infinity;
 let flatPointer = null; // {x,y} normalized -1..1
 let hullShake = 0; // flat-screen only impact shake (never in VR: comfort)
 
+// ---------------------------------------------------------------- quality presets
+const QUALITY_PRESETS = {
+  low: {
+    label: 'Низкое',
+    dprCap: 1.0,
+    vrScale: 0.6,
+    bloomEnabled: false,
+    bloomStrength: 0.0,
+    bloomRadius: 0.3,
+    bloomThreshold: 0.95,
+    shadowsEnabled: false,
+    shadowMapSize: 512,
+    maxParticles: 240,
+    maxBeamTrails: 16,
+    maxSmoke: 8,
+    starCount1: 600,
+    starCount2: 160,
+    cometCount: 0,
+    shootingStarCount: 0,
+    engineTrailCount: 40,
+    asteroidDetail: 2,
+  },
+  medium: {
+    label: 'Среднее',
+    dprCap: 1.25,
+    vrScale: 0.85,
+    bloomEnabled: true,
+    bloomStrength: 0.7,
+    bloomRadius: 0.4,
+    bloomThreshold: 0.85,
+    shadowsEnabled: true,
+    shadowMapSize: 1024,
+    maxParticles: 480,
+    maxBeamTrails: 32,
+    maxSmoke: 20,
+    starCount1: 1000,
+    starCount2: 320,
+    cometCount: 2,
+    shootingStarCount: 3,
+    engineTrailCount: 80,
+    asteroidDetail: 3,
+  },
+  high: {
+    label: 'Высокое',
+    dprCap: 1.5,
+    vrScale: 1.0,
+    bloomEnabled: true,
+    bloomStrength: 1.1,
+    bloomRadius: 0.5,
+    bloomThreshold: 0.85,
+    shadowsEnabled: true,
+    shadowMapSize: 1024,
+    maxParticles: 720,
+    maxBeamTrails: 64,
+    maxSmoke: 40,
+    starCount1: 1500,
+    starCount2: 480,
+    cometCount: 4,
+    shootingStarCount: 6,
+    engineTrailCount: 120,
+    asteroidDetail: 4,
+  },
+};
+const Q = QUALITY_PRESETS[quality];
+
+// ---------------------------------------------------------------- FPS counter
+let fpsFrameCount = 0;
+let fpsLastTime = performance.now();
+let fpsValue = 0;
+const fpsEl = document.getElementById('fps-counter');
+function updateFps() {
+  fpsFrameCount++;
+  const now = performance.now();
+  if (now - fpsLastTime >= 1000) {
+    fpsValue = fpsFrameCount;
+    fpsFrameCount = 0;
+    fpsLastTime = now;
+    if (fpsEl) fpsEl.textContent = `FPS: ${fpsValue}`;
+  }
+}
+
 const tracker = new MarkerTracker();
 const fusion = new FusionLook();
 let camState = { active: false, worker: null, busy: false, stream: null, video: null, lastDet: null, procMs: null, workerActive: false, tier: 160 };
@@ -37,11 +121,27 @@ function rng() { rngState = (Math.imul(rngState, 1664525) + 1013904223) >>> 0; r
 
 // ---------------------------------------------------------------- three setup
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.dprCap));
+renderer.shadowMap.enabled = Q.shadowsEnabled;
+renderer.shadowMap.type = Q.shadowsEnabled ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.24;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 setTextureAnisotropy(Math.min(4, renderer.capabilities.getMaxAnisotropy()));
+
+// --- post-processing: bloom for neon glow (flat mode only; VR stereo renders directly) ---
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  Q.bloomStrength,
+  Q.bloomRadius,
+  Q.bloomThreshold
+);
+bloomPass.enabled = Q.bloomEnabled;
+composer.addPass(bloomPass);
+let useComposer = true && Q.bloomEnabled; // false in VR stereo or when bloom disabled
+
 const scene = new THREE.Scene();
 // Image-based lighting from a tiny procedural room: metal, glass canopy and
 // white armour pick up real reflections instead of flat specular streaks.
@@ -55,14 +155,14 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x04060f);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400);
 
-const environment = createEnvironment(scene);
-const ship = createShip();
+const environment = createEnvironment(scene, Q);
+const ship = createShip(Q);
 scene.add(camera);
 camera.add(ship.group);
-const fx = new FxSystem(scene);
+const fx = new FxSystem(scene, Q);
 
 scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x2a1c30, 1.25));
-const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); scene.add(sun); // warm key from the sun side
+const sun = new THREE.DirectionalLight(0xffd9a6, 2.6); sun.position.set(-14, 7, -6); sun.castShadow = Q.shadowsEnabled; sun.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize); sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 60; sun.shadow.camera.left = -20; sun.shadow.camera.right = 20; sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20; sun.shadow.bias = -0.0005; scene.add(sun); // warm key from the sun side
 const rim = new THREE.DirectionalLight(0xff3df0, 0.55); rim.position.set(-6, -2, 6); scene.add(rim);
 const fill = new THREE.DirectionalLight(0x8fb4ff, 0.55); fill.position.set(6, 3, 12); scene.add(fill); // camera-side fill so rocks read
 const hitFlash = new THREE.PointLight(0xff4444, 0, 9); hitFlash.position.set(0, 0, -1); camera.add(hitFlash);
@@ -110,7 +210,15 @@ function meshFor(a) {
   if (!m) {
     const group = new THREE.Group();
     const rock = new THREE.Mesh(rockAssets.geometryFor(a.id), rockAssets.makeMaterial());
-    rock.material.color.offsetHSL(((a.id * 37) % 10 - 5) * 0.004, 0, ((a.id * 53) % 10 - 5) * 0.012); // per-rock tint variety
+    rock.castShadow = true; rock.receiveShadow = true;
+    // Per-rock material variety: tint, roughness, metalness
+    const hueShift = ((a.id * 37) % 10 - 5) * 0.005;
+    rock.material.color.offsetHSL(hueShift, 0, ((a.id * 53) % 10 - 5) * 0.012);
+    rock.material.roughness = 0.88 + (a.id % 7) * 0.02;
+    rock.material.metalness = 0.03 + (a.id % 5) * 0.02;
+    // Rim heat glow: stronger when close, fades with distance
+    rock.material.emissive.setHex(0x1a0d06);
+    rock.material.emissiveIntensity = 1.4;
     const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x38f5ff, transparent: true, opacity: 0.22, side: THREE.DoubleSide }));
     const arc = makeArc(2.45, 0x38f5ff);
     const arc2 = makeArc(2.62, 0xff3df0); // counter-rotating outer arc
@@ -136,6 +244,8 @@ function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  composer.setSize(w, h);
+  bloomPass.size.set(w, h);
 }
 window.addEventListener('resize', resize); resize();
 
@@ -244,6 +354,17 @@ function setQualityInputs() {
 setQualityInputs();
 document.querySelectorAll('input[name="quality"]').forEach((i) => i.addEventListener('change', () => {
   quality = i.value; localStorage.setItem('asteroid-turret-vr-quality', quality);
+  // Apply new quality preset immediately (re-reads DPR, bloom, shadows etc.)
+  Object.assign(Q, QUALITY_PRESETS[quality]);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.dprCap));
+  renderer.shadowMap.enabled = Q.shadowsEnabled;
+  renderer.shadowMap.type = Q.shadowsEnabled ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+  bloomPass.enabled = Q.bloomEnabled;
+  bloomPass.strength = Q.bloomStrength;
+  bloomPass.radius = Q.bloomRadius;
+  bloomPass.threshold = Q.bloomThreshold;
+  sun.castShadow = Q.shadowsEnabled;
+  sun.shadow.mapSize.set(Q.shadowMapSize, Q.shadowMapSize);
 }));
 document.querySelectorAll('input[name="look"]').forEach((i) => i.addEventListener('change', () => {
   document.getElementById('fusion-block').style.display = i.value === 'fusion' && i.checked ? 'block' : 'none';
@@ -272,6 +393,7 @@ async function startGame() {
   } else vrActive = false;
   game = createGame(1); rngState = 987654321;
   look = { yawDeg: 0, pitchDeg: 0 }; gyroLook = { yawDeg: 0, pitchDeg: 0 };
+  fusion.reset();
   hullShake = 0;
   prepEl.classList.add('hidden');
   hudEl.classList.toggle('hidden', vrActive); // zero HUD inside glasses
@@ -303,9 +425,11 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && run
 // ---------------------------------------------------------------- main loop
 const clock = new THREE.Clock();
 function currentLook(nowSec) {
-  if (mode === 'gyro') return (nowSec - gyroSeenAt < 0.7) ? gyroLook : look; // stale gyro: hold
+  const gyro = (nowSec - gyroSeenAt < 0.7) ? gyroLook : null;
+  if (mode === 'gyro') {
+    return fusion.update(gyro, null, nowSec, 1 / 60);
+  }
   if (mode === 'fusion') {
-    const gyro = (nowSec - gyroSeenAt < 0.7) ? gyroLook : look;
     const cam = tracker.update(detectionsFromWorker(nowSec), nowSec);
     return fusion.update(gyro, cam, nowSec, 1 / 60);
   }
@@ -317,7 +441,7 @@ function renderEye(offsetX) {
   const w = window.innerWidth, h = window.innerHeight;
   const halfW = Math.floor(w / 2);
   const x = offsetX < 0 ? 0 : halfW;
-  const scale = quality === 'light' ? 0.7 : 1;
+  const scale = Q.vrScale;
   renderer.setViewport(x, 0, halfW * scale, h * scale);
   renderer.setScissor(x, 0, halfW * scale, h * scale);
   renderer.setScissorTest(true);
@@ -329,11 +453,12 @@ function renderEye(offsetX) {
 const _camPos = new THREE.Vector3();
 function frame() {
   requestAnimationFrame(frame);
+  updateFps();
   const dt = Math.min(0.05, clock.getDelta());
   const nowSec = performance.now() / 1000;
   if (mode === 'fusion' && running) pumpCameraFrame();
   environment.update(dt, nowSec);
-  ship.update(nowSec);
+  ship.update(nowSec, dt);
 
   if (running) {
     look = currentLook(nowSec);
@@ -343,18 +468,22 @@ function frame() {
     hullShake = Math.max(0, hullShake - dt * 2.2);
     const shakeAmp = (!vrActive && hullShake > 0) ? hullShake * 0.35 : 0;
     camera.position.set((Math.random() - 0.5) * shakeAmp * 0.1, (Math.random() - 0.5) * shakeAmp * 0.1, 0);
+    camera.rotation.order = 'YXZ';
     camera.rotation.set(0, 0, 0);
-    camera.rotateY((-look.yawDeg * Math.PI) / 180);
-    camera.rotateX((look.pitchDeg * Math.PI) / 180);
+    camera.rotation.y = (-look.yawDeg * Math.PI) / 180;
+    camera.rotation.x = (look.pitchDeg * Math.PI) / 180;
     if (shakeAmp > 0) camera.rotateZ((Math.random() - 0.5) * shakeAmp * 0.01);
     camera.updateMatrixWorld();
     const { state, events } = stepGame(game, dt, look, rng);
     game = state;
     for (const ev of events) {
-      if (ev.type === 'explosion') { fx.fireBeam(ship.muzzle, ev.x, ev.y, ev.z); fx.burst(ev.x, ev.y, ev.z, true); playShot(); playExplosion(); removeMesh(ev.id); }
+      if (ev.type === 'shot') { ship.fire(); playShot(); }
+      if (ev.type === 'explosion') { fx.fireBeam(ship.muzzle, ev.x, ev.y, ev.z); fx.burst(ev.x, ev.y, ev.z, true); playExplosion(); removeMesh(ev.id); }
       if (ev.type === 'hullHit') {
         fx.burst(ev.x, ev.y, ev.z, false); fx.stats.hullFlashes += 1;
         hitFlash.intensity = 14; hullShake = 1; playExplosion(); removeMesh(ev.id);
+        const hf = document.getElementById('hitFlash');
+        if (hf) { hf.style.opacity = '0.35'; setTimeout(() => { hf.style.opacity = '0'; }, 120); }
       }
     }
     // sync meshes
@@ -365,8 +494,14 @@ function frame() {
       const m = meshFor(a); const p = asteroidPos(a);
       m.group.position.set(p.x, p.y, p.z);
       m.rock.rotation.set(a.spin, a.spin * 0.7, a.spin * 0.3);
-      // proximity warning: the closer the rock, the hotter its rim glow
-      m.rock.material.emissive.setRGB(0.05 + Math.max(0, (16 - a.dist) / 16) * 0.22, 0.025, 0.015);
+      // proximity warning: the closer the rock, the hotter its rim glow (red-orange fade)
+      const heat = Math.max(0, (16 - a.dist) / 16);
+      const flicker = 1 + Math.sin(a.spin * 3 + nowSec * 6) * 0.15;
+      m.rock.material.emissive.setRGB(
+        0.05 + heat * 0.5 * flicker,
+        0.025 + heat * 0.18 * flicker,
+        0.015 + heat * 0.05 * flicker
+      );
       // dwell: faint full ring + bright arc that closes over 1.5 s +
       // a slower counter-rotating outer arc once charging is underway
       const frac = a.dwell / DWELL_SECONDS;
@@ -383,21 +518,60 @@ function frame() {
       const pulse = targeted ? 1 + Math.sin(nowSec * 10) * 0.03 : 1;
       m.rock.scale.setScalar(pulse);
     }
-    document.getElementById('hud-score').textContent = `Счёт: ${game.score}${game.streak >= 2 ? ` · серия ×${game.streak}` : ''}`;
+    document.getElementById('hud-score').textContent = `Счёт: ${game.score}`;
+    const streakEl = document.getElementById('hud-streak');
+    if (streakEl) streakEl.textContent = game.streak >= 2 ? `Серия ×${game.streak}` : '';
     document.getElementById('hud-hull').textContent = `Корпус: ${game.hull}`;
     const hullBar = document.getElementById('hull-fill');
     if (hullBar) { hullBar.style.width = game.hull + '%'; hullBar.style.background = game.hull > 50 ? '#38f5ff' : (game.hull > 25 ? '#ffb02e' : '#ff4444'); }
+
+    // Dynamic vignette tint based on hull condition (damage warning)
+    const vignette = document.getElementById('vignette');
+    if (vignette) {
+      const crit = game.hull < 25;
+      const warn = game.hull < 50;
+      if (crit) {
+        const pulse = 0.4 + 0.3 * Math.abs(Math.sin(nowSec * 4));
+        vignette.style.background = `radial-gradient(circle at center, transparent 0%, rgba(80,0,0,${pulse}) 60%, #02040a 100%)`;
+      } else if (warn) {
+        vignette.style.background = `radial-gradient(circle at center, transparent 0%, rgba(60,30,0,0.35) 60%, #02040a 100%)`;
+      } else {
+        vignette.style.background = 'radial-gradient(circle at center, transparent 0%, #05070f 70%, #02040a 100%)';
+      }
+    }
+
+    // Crosshair charging state (flat mode only)
+    const cross = document.getElementById('cross');
+    if (cross && !vrActive) {
+      const charging = game.gazeTargetId !== null;
+      cross.classList.toggle('charging', charging);
+      if (charging) {
+        const t = game.asteroids.find((a) => a.id === game.gazeTargetId);
+        if (t) {
+          const charge = t.dwell / DWELL_SECONDS;
+          const chargeEl = document.getElementById('cross-charge');
+          if (chargeEl) chargeEl.style.opacity = Math.min(1, 0.3 + charge * 0.7);
+        }
+      }
+    }
     if (game.status === 'lost') endRun('lost');
   }
   fx.update(dt, camera);
   hitFlash.intensity = Math.max(0, hitFlash.intensity - dt * 26);
+  const useBloom = !vrActive && Q.bloomEnabled;
   if (vrActive) {
     renderer.setScissorTest(true);
     renderEye(-0.032); renderEye(0.032);
     renderer.setScissorTest(false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
     camera.position.set(0, 0, 0);
+  } else if (useBloom) {
+    renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+    renderer.setScissorTest(false);
+    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    composer.render();
   } else {
+    // Direct render without post-processing (low quality mode)
     renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
     renderer.setScissorTest(false);
     camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
