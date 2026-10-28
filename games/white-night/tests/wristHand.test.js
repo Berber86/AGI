@@ -10,6 +10,7 @@ import {
   qMul,
   qAxisAngle,
   qRotVec,
+  qAngleRad,
 } from '../src/vr/wristHandFusion.js';
 import { createGlovedHand } from '../src/vr/handMesh.js';
 
@@ -448,3 +449,215 @@ test('WristBeaconTracker ignores room clutter (plants/posters) and rejects lone 
   assert.equal(resPair.status, 'pair');
   assert.ok(Math.abs(resPair.u - 0.68) < 0.03, `beacon locks onto wrist (0.68), ignoring plant at 0.10: u=${resPair.u}`);
 });
+
+test('SO(3) incremental itemQuat & itemRot stay 100% smooth across 90 deg gimbal-lock pole and full 360 deg spin', () => {
+  const fusion = new WristHandFusion('right');
+  const qPose1 = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qPose2 = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qPose1);
+  fusion.feedSensor({ q: qPose1, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qPose2, ts: 10 });
+  fusion.calibrateBendPose();
+
+  let now = 100;
+  fusion.feedSensor({ q: qPose1, ts: now });
+  fusion.update(1 / 60, { phase: 'search', now });
+  fusion.onPhaseChange('inspect', now);
+
+  let prevQuat = [0, 0, 0, 1];
+  let prevRot = { x: 0, y: 0, z: 0 };
+
+  // Проходим наклоном через «полюс Эйлера» 0° -> 132° с одновременным поворотом по Y:
+  // старый quatToEulerYXZ взрывался скачком ~150° между 88° и 92°!
+  for (let deg = 4; deg <= 132; deg += 4) {
+    now += 16;
+    const qStep = qMul(
+      qAxisAngle([0, 1, 0], (deg * 0.4) * DEG),
+      qMul(qAxisAngle([1, 0, 0], deg * DEG), qPose1)
+    );
+    fusion.feedSensor({ q: qStep, linMag: 0.2, rotRate: 45, ts: now });
+    const snap = fusion.update(1 / 60, { phase: 'inspect', revealReady: false, now });
+    const dQuatDeg = (qAngleRad(prevQuat, snap.itemQuat) * 180) / Math.PI;
+    const dRotJump = Math.hypot(
+      snap.itemRot.x - prevRot.x,
+      snap.itemRot.y - prevRot.y,
+      snap.itemRot.z - prevRot.z
+    );
+    assert.ok(dQuatDeg < 14, `smooth SO(3) step at ${deg} deg: dQuatDeg=${dQuatDeg}`);
+    assert.ok(dRotJump < 0.26, `no Euler branch-cut jump at ${deg} deg: dRotJump=${dRotJump}`);
+    prevQuat = snap.itemQuat;
+    prevRot = snap.itemRot;
+  }
+});
+
+test('WristBeaconTracker diagonal spanNorm is invariant to 90 deg roll on 16:9 cameras and Portrait->Landscape rotation', () => {
+  // 1) Камера 16:9 (1280x720, aspectY = 0.5625), сжатая в буфер 200x150:
+  //    одинаковое физическое расстояние 160px на матрице 1280x720:
+  //    - по горизонтали: du = 160 / 1280 = 0.125, dv = 0
+  //    - по вертикали (кисть повернулась на 90°): du = 0, dv = 160 / 720 = 0.2222
+  const trackerH = new WristBeaconTracker();
+  const horiz16x9 = makeDualBeaconRgba(
+    200,
+    150,
+    { u: 0.50 - 0.0625, v: 0.50, rad: 8 },
+    { u: 0.50 + 0.0625, v: 0.50, rad: 8 }
+  );
+  const resH = trackerH.analyzeRgba(horiz16x9, 200, 150, 1000, 720 / 1280);
+
+  const trackerV = new WristBeaconTracker();
+  const vert16x9 = makeDualBeaconRgba(
+    200,
+    150,
+    { u: 0.50, v: 0.50 - 80 / 720, rad: 8 },
+    { u: 0.50, v: 0.50 + 80 / 720, rad: 8 }
+  );
+  const resV = trackerV.analyzeRgba(vert16x9, 200, 150, 1000, 720 / 1280);
+
+  assert.equal(resH.status, 'pair');
+  assert.equal(resV.status, 'pair');
+  const relDiff16x9 = Math.abs(resH.spanNorm - resV.spanNorm) / resH.spanNorm;
+  assert.ok(relDiff16x9 < 0.04, `16:9 roll invariance: horiz=${resH.spanNorm}, vert=${resV.spanNorm}`);
+
+  // 2) Переворот телефона-очков из портретной калибровки (480x640) в ландшафтный VR (640x480):
+  //    физическая диагональ матрицы та же (800px), поэтому пара пятен длиной 80px сохраняет spanNorm!
+  const trackerPort = new WristBeaconTracker();
+  const portFrame = makeDualBeaconRgba(
+    200,
+    150,
+    { u: 0.50 - 40 / 480, v: 0.50, rad: 8 },
+    { u: 0.50 + 40 / 480, v: 0.50, rad: 8 }
+  );
+  const resPort = trackerPort.analyzeRgba(portFrame, 200, 150, 1000, 640 / 480);
+
+  const trackerLand = new WristBeaconTracker();
+  const landFrame = makeDualBeaconRgba(
+    200,
+    150,
+    { u: 0.50 - 40 / 640, v: 0.50, rad: 8 },
+    { u: 0.50 + 40 / 640, v: 0.50, rad: 8 }
+  );
+  const resLand = trackerLand.analyzeRgba(landFrame, 200, 150, 1000, 480 / 640);
+  const relDiffOrient = Math.abs(resPort.spanNorm - resLand.spanNorm) / resLand.spanNorm;
+  assert.ok(relDiffOrient < 0.04, `Portrait->Landscape span invariance: port=${resPort.spanNorm}, land=${resLand.spanNorm}`);
+});
+
+test('Step 1 & Step 2 calibration captures beacon span without poisoning VR optical center (u, v)', () => {
+  const fusion = new WristHandFusion('right');
+  const qPose1 = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qPose2 = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qPose1);
+
+  // Игрок держит телефон-очки в левой руке сбоку при калибровке: маяк попал на самый край кадра (u=0.14, v=0.86)
+  fusion.feedSensor({ q: qPose1, ts: 0 });
+  fusion.calibrateStretchPose(fusion.lastSensor, { fresh: true, status: 'pair', u: 0.14, v: 0.86, spanNorm: 0.10 });
+  fusion.feedSensor({ q: qPose2, ts: 20 });
+  fusion.calibrateBendPose(fusion.lastSensor, { fresh: true, status: 'pair', u: 0.16, v: 0.88, spanNorm: 0.23 });
+
+  assert.equal(fusion.beaconFar.span, 0.10);
+  assert.equal(fusion.beaconNear.span, 0.23);
+  assert.equal(fusion.beaconFar.u, 0.54, 'optical center u stays neutral for headset VR');
+  assert.equal(fusion.beaconFar.v, 0.54, 'optical center v stays neutral for headset VR');
+
+  // Когда очки надеты на голову и рука стоит ровно перед глазами (u=0.54, v=0.54),
+  // виртуальная кисть остаётся по центру перед игроком, а не улетает на полметра вправо!
+  let snap;
+  for (let i = 0; i < 20; i++) {
+    fusion.feedSensor({ q: qPose1, ts: 100 + i * 16 });
+    snap = fusion.update(1 / 60, {
+      beacon: { fresh: true, status: 'pair', u: 0.54, v: 0.54, spanNorm: 0.14 },
+      phase: 'search',
+      now: 100 + i * 16,
+    });
+  }
+  assert.ok(snap.pos.x > 0.04 && snap.pos.x < 0.26, `centered VR hand x=${snap.pos.x}`);
+});
+
+test('Low-bin (-25 deg) inspect entry does not auto-keep, and fast stationary shaft roll does not auto-discard', () => {
+  const fusion = new WristHandFusion('right');
+  const qStraight = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qBent = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qStraight);
+  fusion.feedSensor({ q: qStraight, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qBent, ts: 10 });
+  fusion.calibrateBendPose();
+
+  // 1) Игрок открыл низкий бак с рукой под углом -25° и замер, читая название находки:
+  //    предмет НЕ должен сам улетать в коллекцию без реального движения руки вниз!
+  let now = 200;
+  const qLowBin = qMul(qAxisAngle([1, 0, 0], -25 * DEG), qStraight);
+  fusion.feedSensor({ q: qLowBin, linMag: 0.2, rotRate: 4, ts: now });
+  fusion.update(1 / 60, { phase: 'search', now });
+  fusion.onPhaseChange('inspect', now);
+  now += 500;
+  for (let i = 0; i < 65; i++) {
+    now += 16;
+    fusion.feedSensor({ q: qLowBin, linMag: 0.2, rotRate: 4, ts: now });
+    const s = fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now });
+    assert.equal(s.decision, null, `holding still at entry angle -25 deg must not auto-keep (step ${i})`);
+  }
+
+  // 2) Игрок быстро переворачивает находку проворотом кисти вокруг оси предплечья (420 °/с, но ось на месте!):
+  //    это осмотр обратной стороны открытки, а НЕ взмах на выброс!
+  const qRollStep = qMul(qAxisAngle([0, 0, -1], 7 * DEG), qLowBin);
+  now += 16;
+  fusion.feedSensor({ q: qRollStep, linMag: 0.9, rotRate: 420, ts: now });
+  const rollSnap = fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now });
+  assert.equal(rollSnap.decision, null, 'pure longitudinal wrist roll must not trigger discard');
+
+  // 3) Теперь игрок поднимает руку к лицу (+15°) рассмотреть предмет, а затем спокойно опускает к -24° -> keep!
+  const qLiftInspect = qMul(qAxisAngle([1, 0, 0], 15 * DEG), qStraight);
+  now += 16;
+  fusion.feedSensor({ q: qLiftInspect, linMag: 0.5, rotRate: 30, ts: now });
+  fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now });
+
+  const qCalmDrop = qMul(qAxisAngle([1, 0, 0], -24 * DEG), qStraight);
+  let kept = null;
+  for (let i = 0; i < 50; i++) {
+    now += 16;
+    fusion.feedSensor({ q: qCalmDrop, linMag: 0.25, rotRate: 8, ts: now });
+    const s = fusion.update(1 / 60, { phase: 'inspect', revealReady: true, now });
+    if (s.decision) {
+      kept = s.decision;
+      break;
+    }
+  }
+  assert.equal(kept, 'keep', 'lowering after lifting to inspect triggers keep');
+});
+
+test('createGlovedHand stays non-singular (no NaN / zero quaternion) for straight-up and straight-down vertical arms', () => {
+  const hand = createGlovedHand('right');
+  const qFlex90Up = qAxisAngle([1, 0, 0], 90 * DEG);
+  const qFlex90Down = qAxisAngle([1, 0, 0], -90 * DEG);
+
+  const poses = [
+    // Предплечье строго вертикально вверх (cuffZ = (0, -1, 0)), кисть согнута на 90°
+    {
+      shoulderPos: { x: 0.21, y: -0.27, z: -0.08 },
+      elbowPos: { x: 0.21, y: -0.10, z: -0.25 },
+      pos: { x: 0.21, y: 0.21, z: -0.25 },
+      qArm: qFlex90Down,
+    },
+    // Предплечье строго вертикально вниз (cuffZ = (0, +1, 0)), кисть согнута на 90°
+    {
+      shoulderPos: { x: 0.21, y: -0.27, z: -0.08 },
+      elbowPos: { x: 0.21, y: -0.35, z: -0.25 },
+      pos: { x: 0.21, y: -0.66, z: -0.25 },
+      qArm: qFlex90Up,
+    },
+  ];
+
+  for (const p of poses) {
+    hand.update(1 / 60, { visible: true, handSide: 'right', ...p });
+    hand.group.updateMatrixWorld(true);
+    hand.group.traverse((obj) => {
+      for (const comp of obj.quaternion.toArray()) {
+        assert.ok(Number.isFinite(comp), `finite quaternion on ${obj.type}`);
+      }
+      const qLen = Math.hypot(...obj.quaternion.toArray());
+      assert.ok(Math.abs(qLen - 1) < 1e-3, `unit quaternion on ${obj.type}: len=${qLen}`);
+      for (const el of obj.matrixWorld.elements) {
+        assert.ok(Number.isFinite(el), `finite matrixWorld element on ${obj.type}`);
+      }
+    });
+  }
+});
+

@@ -144,25 +144,17 @@ async function acquireWakeLock() {
   } catch { /* ignore */ }
 }
 
-async function requestSensors() {
-  if (sensorState.synthetic) return true;
-  try {
-    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-      const res = await DeviceOrientationEvent.requestPermission();
-      if (res !== 'granted') {
-        els.sensorPill.textContent = 'Гироскоп запрещён';
-        return false;
-      }
-    }
-    if (typeof DeviceMotionEvent?.requestPermission === 'function') {
-      try { await DeviceMotionEvent.requestPermission(); } catch { /* ignore */ }
-    }
-  } catch { /* ignore */ }
+let sensorListenersBound = false;
+
+function bindSensorListenersOnce() {
+  if (sensorListenersBound) return;
+  sensorListenersBound = true;
 
   window.addEventListener('deviceorientation', (ev) => {
     if (sensorState.synthetic) return;
-    if (!Number.isFinite(ev.alpha) || !Number.isFinite(ev.beta) || !Number.isFinite(ev.gamma)) return;
-    sensorState.q = w3cDeviceQuaternion(ev.alpha, ev.beta, ev.gamma, readScreenAngleDeg());
+    if (!Number.isFinite(ev.beta) || !Number.isFinite(ev.gamma)) return;
+    const alpha = Number.isFinite(ev.alpha) ? ev.alpha : 0;
+    sensorState.q = w3cDeviceQuaternion(alpha, ev.beta, ev.gamma, readScreenAngleDeg());
     sensorState.active = true;
     sensorState.lastAt = performance.now();
   });
@@ -189,7 +181,27 @@ async function requestSensors() {
       sensorState.rotRate = +Math.hypot(rr.alpha || 0, rr.beta || 0, rr.gamma || 0).toFixed(1);
     }
   });
+}
 
+async function requestSensors() {
+  if (sensorState.synthetic) return true;
+  // ВАЖНО для iOS Safari: запускаем оба requestPermission() СИНХРОННО в первом микротаске
+  // клика (до любых сторонних await вроде wakeLock), иначе WebKit гасит жест пользователя!
+  try {
+    const orientPerm = typeof DeviceOrientationEvent?.requestPermission === 'function'
+      ? DeviceOrientationEvent.requestPermission()
+      : Promise.resolve('granted');
+    const motionPerm = typeof DeviceMotionEvent?.requestPermission === 'function'
+      ? DeviceMotionEvent.requestPermission().catch(() => 'granted')
+      : Promise.resolve('granted');
+    const [orientRes] = await Promise.all([orientPerm, motionPerm]);
+    if (orientRes !== 'granted') {
+      els.sensorPill.textContent = 'Гироскоп запрещён';
+      return false;
+    }
+  } catch { /* ignore */ }
+
+  bindSensorListenersOnce();
   els.sensorPill.textContent = 'Датчики активны';
   return true;
 }
@@ -371,8 +383,8 @@ function connectDemo(code) {
     };
     link.bc.postMessage({ k: 'hello', room: link.room, side: sensorState.handSide, ts: Date.now() });
   }
-  acquireWakeLock();
   requestSensors();
+  acquireWakeLock();
   startTransmitLoop();
   els.connMsg.textContent = `Демо-связь активна (код ${cleanCode}). Откройте Белую ночь в соседней вкладке.`;
   renderStatus();
@@ -396,8 +408,8 @@ async function connectFirebase() {
     localStorage.setItem(LOCAL_CFG_KEY, rawCfg);
   } catch { /* ignore */ }
 
-  await acquireWakeLock();
   await requestSensors();
+  await acquireWakeLock();
   stopLink();
   link.mode = 'firebase';
   link.room = code;

@@ -192,7 +192,7 @@ export class World {
  fitItem(){
   const bounds=this.item.userData.bounds;
   const box=new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max));
-  box.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(this.item.rotation));
+  box.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(this.item.quaternion));
   const size=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
   this.baseScale=this.vrStereo?((2*4.2*Math.tan(THREE.MathUtils.degToRad(31))*.56)/Math.max(.001,Math.max(size.x,size.y)*2)):fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth);
   this.item.scale.setScalar(this.baseScale*this.zoom);
@@ -220,7 +220,7 @@ export class World {
   setVrHandMode(on){this.vrHandMode=!!on;if(!on&&this.vrHand)this.vrHand.group.visible=false;if(on&&this.vrInspectLock)this.unlockInspectionView();this.dirty=true;}
   updateVrHand(dt,handState){if(!this.vrHand)return;const vis=!!(this.vrStereo&&this.vrHandMode&&handState?.visible);this.vrHand.update(dt,{...handState,visible:vis});if(vis)this.dirty=true;}
   handHitsBin(){if(!this.vrHand?.group?.visible)return this.gazeHitsBin();this.camera.updateMatrixWorld(true);this.vrHand.wristPivot.updateMatrixWorld(true);const tip=this.vrHand.wristPivot.localToWorld(new THREE.Vector3(0,0,-.15));const dir=tip.clone().sub(this.camera.position).normalize();this.raycaster.set(this.camera.position,dir);if(this.raycaster.intersectObject(this.bin,true).length>0)return true;const toBin=new THREE.Vector3(0,1.25,0).sub(this.camera.position).normalize();return dir.angleTo(toBin)<=.44;}
-  setHandItemRotation(rx=0,ry=0,rz=0){if(!this.item)return;const [bx,by,bz]=this.itemBaseRot||[0,0,0];this.targetX=THREE.MathUtils.clamp(bx+rx,-Math.PI,Math.PI);this.targetY=by+ry;this.targetZ=THREE.MathUtils.clamp(bz+rz,-Math.PI,Math.PI);this.pose='hand';this.dirty=true;}
+  setHandItemRotation(rx=0,ry=0,rz=0,itemQuat=null){if(!this.item)return;const [bx,by,bz]=this.itemBaseRot||[0,0,0];this.targetX=bx+rx;this.targetY=by+ry;this.targetZ=bz+rz;if(Array.isArray(itemQuat)&&itemQuat.length===4){const qd=new THREE.Quaternion(itemQuat[0],itemQuat[1],itemQuat[2],itemQuat[3]);this.targetItemQuat=qd.multiply(this.itemBaseQuat||new THREE.Quaternion());}else this.targetItemQuat=null;this.pose='hand';this.dirty=true;}
   launchDiscardToss(vel={x:4.5,y:2.4,z:-6.5}){if(!this.item||this.reduced)return;this.camera.updateMatrixWorld(true);this.item.updateMatrixWorld(true);const wp=new THREE.Vector3(),wq=new THREE.Quaternion(),ws=new THREE.Vector3();this.item.matrixWorld.decompose(wp,wq,ws);const clone=this.item.clone(true);clone.remove(this.silhouette);clone.matrixAutoUpdate=true;clone.position.copy(wp);clone.quaternion.copy(wq);clone.scale.copy(ws);this.tossGroup.clear();this.tossGroup.add(clone);const wv=new THREE.Vector3(vel.x??4.5,vel.y??2.4,vel.z??-6.5).applyQuaternion(this.camera.quaternion);this.tossState={mesh:clone,t:0,dur:.42,vx:wv.x,vy:wv.y,vz:wv.z};this.dirty=true;}
   setHeadLook(yaw=0,pitch=0){this.headLook={yaw:Number.isFinite(yaw)?yaw:0,pitch:Number.isFinite(pitch)?pitch:0};
    if(this.vrInspectLock&&!this.vrHandMode&&this.item&&this.headInspectBase&&this.headInspectRotation){const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.headInspectBase.yaw+Math.PI,Math.PI*2)-Math.PI;this.targetY=this.headInspectRotation.y+dyaw*1.5;this.targetX=THREE.MathUtils.clamp(this.headInspectRotation.x-(this.headLook.pitch-this.headInspectBase.pitch)*1.5,-Math.PI,Math.PI);this.pose='head';}
@@ -250,7 +250,7 @@ export class World {
   this.itemId=id;this.pose='front';this.item=this.getModel(id);this.itemAnchor.add(this.item);
   this.inspectLamp.intensity=PRESENTATION[id].lamp??17;this.itemRim.intensity=PRESENTATION[id].rim??18;
   this.updateItemLights();
-  this.item.rotation.set(...PRESENTATION[id].rotation);this.itemBaseRot=[...PRESENTATION[id].rotation];this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
+  this.item.rotation.set(...PRESENTATION[id].rotation);this.itemBaseRot=[...PRESENTATION[id].rotation];this.itemBaseQuat=this.item.quaternion.clone();this.targetItemQuat=null;this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
   this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemShadow.visible=true;
   const meshes=[];this.item.traverse(o=>{if(o.isMesh){o.castShadow=false;meshes.push(o);}});
   if(!this.reduced&&!review){
@@ -276,9 +276,9 @@ export class World {
   this.inspectLamp.position.set(this.itemAnchor.position.x+p[0],this.itemAnchor.position.y+p[1],p[2]);
   this.itemRim.position.set(this.itemAnchor.position.x+1.6,this.itemAnchor.position.y+.7,-3.8);
  }
- setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.pose=pose;this.dirty=true;}
+ setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.targetItemQuat=null;this.pose=pose;this.dirty=true;}
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
- rotate(dx,dy){this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
+ rotate(dx,dy){this.pose='free';this.targetItemQuat=null;this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
  setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
   this.sun.intensity=low?2.05:1.62;this.hemi.intensity=low?.82:1.12;this.scene.environmentIntensity=low?.07:.15;this.resize();}
  thumbnail(id){
@@ -315,7 +315,7 @@ export class World {
  }
  update(dt,rawDt=dt){this.time+=dt;if(this.kick>0){this.renderer.shadowMap.needsUpdate=true;this.dirty=true;}this.kick=Math.max(0,this.kick-dt*2.8);this.lid.rotation.x=-.045-(this.reduced?0:Math.sin(this.kick*Math.PI)*(this.kickAmp??.12));this.bin.rotation.z=this.reduced?0:Math.sin(this.kick*Math.PI*4)*this.kick*.009;
   if(this.tossState){const ts=this.tossState;ts.t+=dt;ts.mesh.position.x+=ts.vx*dt;ts.mesh.position.y+=ts.vy*dt;ts.mesh.position.z+=ts.vz*dt;ts.vy-=14*dt;ts.mesh.rotation.x+=dt*9;ts.mesh.rotation.z-=dt*7;ts.mesh.scale.multiplyScalar(Math.max(.82,1-dt*2.2));this.dirty=true;if(ts.t>=ts.dur){this.tossGroup.clear();this.tossState=null;}}
-  if(this.item){const old=this.item.rotation.clone();const k=this.reduced?1:1-Math.exp(-dt*12);this.item.rotation.y=THREE.MathUtils.lerp(this.item.rotation.y,this.targetY,k);this.item.rotation.x=THREE.MathUtils.lerp(this.item.rotation.x,this.targetX,k);this.item.rotation.z=THREE.MathUtils.lerp(this.item.rotation.z,this.targetZ,k);if(!old.equals(this.item.rotation))this.fitItem();this.item.position.y=this.reduced?0:Math.sin(this.time*1.5)*.008;this.reveal=this.reduced?1:Math.min(1,(this.reveal||0)+dt/REVEAL_SECONDS);this.applyReveal();}
+  if(this.item){const oldQ=this.item.quaternion.clone();const k=this.reduced?1:1-Math.exp(-dt*12);if(this.pose==='hand'&&this.targetItemQuat)this.item.quaternion.slerp(this.targetItemQuat,k);else{this.item.rotation.y=THREE.MathUtils.lerp(this.item.rotation.y,this.targetY,k);this.item.rotation.x=THREE.MathUtils.lerp(this.item.rotation.x,this.targetX,k);this.item.rotation.z=THREE.MathUtils.lerp(this.item.rotation.z,this.targetZ,k);}if(oldQ.angleTo(this.item.quaternion)>1e-4)this.fitItem();this.item.position.y=this.reduced?0:Math.sin(this.time*1.5)*.008;this.reveal=this.reduced?1:Math.min(1,(this.reveal||0)+dt/REVEAL_SECONDS);this.applyReveal();}
   if(this.vrStereo||this.dirty||(this.item&&!this.reduced)){if(this.vrStereo)this.renderStereo();else this.pipeline.render();this.dirty=false;if(rawDt>0){this.frames.push(rawDt*1000);if(this.frames.length>120)this.frames.shift();}this.adaptResolution();}
  }
  // Adaptive render scale: only the number of pixels changes. Materials, AO,

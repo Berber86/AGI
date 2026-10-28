@@ -15,7 +15,7 @@
     "All 18 real models load, can be kept, and reach completion",
     "Collection separates 12 keepsakes and 6 junk finds",
     "Repeated inspections reuse cached GPU resources without growth",
-    "Cached production subpath reload and 3D play work offline",
+    "Cached production subpath reload, /wrist/?room=... companion, and 3D play work offline",
     "Visibility handler pauses and resumes (synthetic visibility events)",
     "Reset confirmation can be cancelled; approved reset clears save",
     "412×915: search, inspect and settings touch paths",
@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 25.554545454544773,
+      "meanFrameMs": 18.310101010100468,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -101,7 +101,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.533333333333303,
+      "meanFrameMs": 208.1833333333337,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -465,7 +465,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6835248,
+    "totalBytes": 6837556,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -488,8 +488,8 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-2c_oPkHh.js",
-        "bytes": 797779
+        "file": "assets/index-Clpp_zNU.js",
+        "bytes": 799384
       },
       {
         "file": "assets/index-DoXyVP2U.css",
@@ -565,7 +565,7 @@
       },
       {
         "file": "sw.js",
-        "bytes": 1801
+        "bytes": 1904
       },
       {
         "file": "wrist/cover.svg",
@@ -577,7 +577,7 @@
       },
       {
         "file": "wrist/wrist.js",
-        "bytes": 24017
+        "bytes": 24617
       }
     ]
   },

@@ -275,7 +275,7 @@ function updateVrFrame(dt,now=performance.now()){
    for(let i=0;i<snap.pokes&&state.phase==='search';i++)search();
   }else if(state.phase==='inspect'){
    vrGazeHit=false;
-   world.setHandItemRotation(snap.itemRot.x,snap.itemRot.y,snap.itemRot.z);
+   world.setHandItemRotation(snap.itemRot.x,snap.itemRot.y,snap.itemRot.z,snap.itemQuat);
    if(snap.decision==='discard'){
     vrPendingSave=false;headShake.reset();world.launchDiscardToss(snap.throwVel);decide(false,{fromVr:true});wristFusion.onPhaseChange('search',now);
    }else if(snap.decision==='keep'||(world.revealState?.ready&&headShake.update(look.yaw,now))){

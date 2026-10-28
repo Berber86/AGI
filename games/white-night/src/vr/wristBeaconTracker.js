@@ -212,17 +212,21 @@ export class WristBeaconTracker {
     this.synthetic = false;
   }
 
-  analyzeRgba(data, w = ANALYZE_W, h = ANALYZE_H, now = performance.now()) {
+  analyzeRgba(data, w = ANALYZE_W, h = ANALYZE_H, now = performance.now(), videoAspectY = h / w) {
     const distal = detectLuminousSpot(data, w, h, this.distalHue);
     const proximal = detectLuminousSpot(data, w, h, this.proximalHue);
-    return this._commitSpots(distal, proximal, w, h, now);
+    return this._commitSpots(distal, proximal, w, h, now, videoAspectY);
   }
 
-  _commitSpots(distal, proximal, w, h, now) {
-    const aspectY = h / w;
+  _commitSpots(distal, proximal, w, h, now, videoAspectY = h / w) {
+    const aspectY = Number.isFinite(videoAspectY) && videoAspectY > 0.1 ? videoAspectY : (h / w);
+    // Диагональная нормировка (с эталоном 4:3 -> 1.25): расстояние между пятнами НЕ «дышит»
+    // при повороте кисти на 90° перед камерой 16:9 и НЕ сбивается при перевороте телефона
+    // из портретного окна калибровки (480x640) в ландшафтные VR-очки (640x480)!
+    const diagScale = 1.25 / Math.hypot(1, aspectY);
     if (distal.found && proximal.found) {
-      const dx = distal.u - proximal.u;
-      const dy = (distal.v - proximal.v) * aspectY;
+      const dx = (distal.u - proximal.u) * diagScale;
+      const dy = (distal.v - proximal.v) * aspectY * diagScale;
       const spanNorm = Math.hypot(dx, dy);
       const areaA = Math.max(1, distal.count || 1);
       const areaB = Math.max(1, proximal.count || 1);
@@ -284,9 +288,11 @@ export class WristBeaconTracker {
     const t0 = performance.now();
     this.lastProcessAt = now;
     try {
+      const vw = this.video.videoWidth || ANALYZE_W;
+      const vh = this.video.videoHeight || ANALYZE_H;
       this.ctx.drawImage(this.video, 0, 0, ANALYZE_W, ANALYZE_H);
       const frame = this.ctx.getImageData(0, 0, ANALYZE_W, ANALYZE_H);
-      this.analyzeRgba(frame.data, ANALYZE_W, ANALYZE_H, now);
+      this.analyzeRgba(frame.data, ANALYZE_W, ANALYZE_H, now, vh / vw);
     } catch {
       // Игнорируем единичный пропуск видеокадра
     }

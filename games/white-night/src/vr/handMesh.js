@@ -409,9 +409,12 @@ export function createGlovedHand(initialSide = 'right') {
   const segVec = new THREE.Vector3();
   const forearmForward = new THREE.Vector3();
   const wristUp = new THREE.Vector3();
+  const wristRight = new THREE.Vector3();
   const cuffX = new THREE.Vector3();
   const cuffY = new THREE.Vector3();
   const cuffZ = new THREE.Vector3();
+  const sleeveY = new THREE.Vector3();
+  const sleeveZ = new THREE.Vector3();
   const cuffBasisMat = new THREE.Matrix4();
   const upAxis = new THREE.Vector3(0, 1, 0);
 
@@ -490,10 +493,18 @@ export function createGlovedHand(initialSide = 'right') {
 
       wristUp.set(0, 1, 0).applyQuaternion(wristPivot.quaternion);
       cuffY.copy(wristUp).addScaledVector(cuffZ, -wristUp.dot(cuffZ));
-      if (cuffY.lengthSq() < 1e-5) cuffY.set(0, 1, 0);
-      cuffY.normalize();
-      cuffX.crossVectors(cuffY, cuffZ).normalize();
-      cuffY.crossVectors(cuffZ, cuffX).normalize();
+      if (cuffY.lengthSq() < 1e-4) {
+        // При 90° сгибе кисти wristUp параллелен cuffZ; ортогональный ему wristRight
+        // математически гарантированно перпендикулярен cuffZ (||r_perp||^2 >= 0.9999 в SO(3))
+        // даже при строго вертикальной руке (cuffZ = (0, ±1, 0)) и сохраняет супинацию!
+        wristRight.set(1, 0, 0).applyQuaternion(wristPivot.quaternion);
+        cuffX.copy(wristRight).addScaledVector(cuffZ, -wristRight.dot(cuffZ)).normalize();
+        cuffY.crossVectors(cuffZ, cuffX).normalize();
+      } else {
+        cuffY.normalize();
+        cuffX.crossVectors(cuffY, cuffZ).normalize();
+        cuffY.crossVectors(cuffZ, cuffX).normalize();
+      }
       cuffBasisMat.makeBasis(cuffX, cuffY, cuffZ);
 
       forearmCuffGroup.position.copy(vWrist);
@@ -504,8 +515,10 @@ export function createGlovedHand(initialSide = 'right') {
       segVec.copy(vElbow).sub(vCuffEnd);
       const sleeveLen = Math.max(0.06, segVec.length());
       forearmSleeve.position.copy(vCuffEnd).addScaledVector(segVec, 0.5);
-      // Сохраняем ту же ориентацию скручивания предплечья у овального сечения рукава
-      cuffBasisMat.makeBasis(cuffX, segVec.clone().normalize(), cuffX.clone().cross(segVec.clone().normalize()).normalize());
+      // Сохраняем ту же ориентацию скручивания предплечья у овального сечения рукава без GC-аллокаций
+      sleeveY.copy(segVec).normalize();
+      sleeveZ.crossVectors(cuffX, sleeveY).normalize();
+      cuffBasisMat.makeBasis(cuffX, sleeveY, sleeveZ);
       forearmSleeve.quaternion.setFromRotationMatrix(cuffBasisMat);
       forearmSleeve.scale.set(1.0, sleeveLen, 0.78);
 

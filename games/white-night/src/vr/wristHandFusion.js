@@ -281,6 +281,7 @@ export class WristHandFusion {
     // Входные сэмплы
     this.lastSensor = null;
     this.prevQuat = null;
+    this.prevFwd = null;
 
     // Состояние корпуса (торс мягко доворачивается за большими поворотами головы)
     this.torsoYaw = 0;
@@ -309,9 +310,12 @@ export class WristHandFusion {
     this.lastPokeAt = -1000;
     this.dwellAccumSec = 0;
 
-    // Состояние осмотра и выбора судьбы находки
+    // Состояние осмотра (кватернион на SO(3) без гимбал-лока!) и выбора судьбы находки
     this.inspectBaseQ = null;
+    this.inspectPrevQ = null;
+    this.inspectItemQ = [0, 0, 0, 1];
     this.inspectEnteredAt = 0;
+    this.maxInspectPitchRad = 0;
     this.itemRot = { x: 0, y: 0, z: 0 };
     this.calmLowerSec = 0;
     this.lastDecisionAt = -2000;
@@ -370,8 +374,22 @@ export class WristHandFusion {
     this.qRefInv = qNormalize(data.qRefInv);
     this.bendSpanRad = clamp(Number(data.bendSpanRad) || 52 * DEG, 15 * DEG, 125 * DEG);
     this.bendInwardYawRad = Number(data.bendInwardYawRad) || 0;
-    if (data.beaconFar) this.beaconFar = { ...this.beaconFar, ...data.beaconFar };
-    if (data.beaconNear) this.beaconNear = { ...this.beaconNear, ...data.beaconNear };
+    if (data.beaconFar) {
+      this.beaconFar = {
+        ...this.beaconFar,
+        ...data.beaconFar,
+        u: this._defaultBeaconU(),
+        v: 0.54,
+      };
+    }
+    if (data.beaconNear) {
+      this.beaconNear = {
+        ...this.beaconNear,
+        ...data.beaconNear,
+        u: clamp(this._defaultBeaconU() - this.sideSign * 0.03, 0.15, 0.85),
+        v: 0.64,
+      };
+    }
     this.calibratedStep = 2;
     this.yawTrimRad = 0;
     return true;
@@ -407,10 +425,13 @@ export class WristHandFusion {
     this.torsoYaw = 0;
 
     const defU = this._defaultBeaconU();
-    if (beacon && beacon.fresh && beacon.spanNorm > 0.015) {
+    // Во время калибровки телефон-очки ещё держат в другой руке (не на голове!),
+    // поэтому у маяка берём только оптический масштаб дистанции spanNorm, а центр (u, v)
+    // строго привязываем к нейтральной оптической оси будущих VR-очков на голове!
+    if (beacon && beacon.fresh && beacon.status !== 'none' && beacon.spanNorm > 0.015) {
       this.beaconFar = {
-        u: clamp(beacon.u, 0.12, 0.88),
-        v: clamp(beacon.v, 0.12, 0.88),
+        u: defU,
+        v: 0.54,
         span: clamp(beacon.spanNorm, 0.02, 0.42),
         captured: true,
       };
@@ -485,17 +506,18 @@ export class WristHandFusion {
     this.bendInwardYawRad = Math.atan2(bendFwd[0], Math.max(0.15, -bendFwd[2]));
     this.yawTrimRad = 0;
 
-    if (beacon && beacon.fresh && beacon.spanNorm > this.beaconFar.span * 1.12) {
+    const nearU = clamp(this._defaultBeaconU() - this.sideSign * 0.03, 0.15, 0.85);
+    if (beacon && beacon.fresh && beacon.status !== 'none' && beacon.spanNorm > this.beaconFar.span * 1.12) {
       this.beaconNear = {
-        u: clamp(beacon.u, 0.1, 0.9),
-        v: clamp(beacon.v, 0.1, 0.92),
+        u: nearU,
+        v: 0.64,
         span: clamp(beacon.spanNorm, this.beaconFar.span + 0.04, 0.58),
         captured: true,
       };
     } else {
       this.beaconNear = {
-        u: clamp(this.beaconFar.u - this.sideSign * 0.03, 0.15, 0.85),
-        v: clamp(this.beaconFar.v + 0.10, 0.2, 0.9),
+        u: nearU,
+        v: 0.64,
         span: clamp(this.beaconFar.span * 1.95, this.beaconFar.span + 0.07, 0.45),
         captured: false,
       };
@@ -532,14 +554,29 @@ export class WristHandFusion {
     }
   }
 
+  _currentTorsoQuat() {
+    if (this.lastSensor?.q && this.qStretch) {
+      const qYawTrim = qAxisAngle([0, 1, 0], this.yawTrimRad + this.torsoYaw);
+      return qNormalize(qMul(qYawTrim, qMul(this.qRefInv, qMul(this.lastSensor.q, this.qBasis))));
+    }
+    return [...this.qArmTorso];
+  }
+
   onPhaseChange(phase, now = performance.now()) {
     if (phase === 'inspect') {
-      this.inspectBaseQ = [...this.qArmTorso];
+      const qStart = this._currentTorsoQuat();
+      const fwdStart = qRotVec(qStart, [0, 0, -1]);
+      this.inspectBaseQ = [...qStart];
+      this.inspectPrevQ = [...qStart];
+      this.inspectItemQ = [0, 0, 0, 1];
       this.inspectEnteredAt = now;
+      this.maxInspectPitchRad = Math.asin(clamp(fwdStart[1], -1, 1));
       this.itemRot = { x: 0, y: 0, z: 0 };
       this.calmLowerSec = 0;
     } else {
       this.inspectBaseQ = null;
+      this.inspectPrevQ = null;
+      this.inspectItemQ = [0, 0, 0, 1];
       this.calmLowerSec = 0;
     }
     if (phase === 'search') {
@@ -615,6 +652,12 @@ export class WristHandFusion {
     //    - поднятие всей руки высоко вверх (высокий подъём предплечья > bendSpan + наружу/вверх)
     //    - плавное опускание руки вниз (pitch < 0° до -80° вдоль пальто)
     const fwd = qRotVec(this.qArmTorso, [0, 0, -1]);
+    let swingRateDeg = 0;
+    if (this.prevFwd) {
+      const cosSwing = clamp(vDot(this.prevFwd, fwd), -1, 1);
+      swingRateDeg = (Math.acos(cosSwing) / safeDt) * RAD;
+    }
+    this.prevFwd = [...fwd];
     const pitchUpRad = Math.asin(clamp(fwd[1], -1, 1));
     const yawRightRad = Math.atan2(fwd[0], Math.max(0.12, Math.hypot(fwd[2], fwd[1] * 0.35)));
     this.elevationDeg = +(pitchUpRad * RAD).toFixed(1);
@@ -807,20 +850,45 @@ export class WristHandFusion {
         this.dwellAccumSec = 0;
       }
     } else if (phase === 'inspect') {
-      if (!this.inspectBaseQ) {
+      if (!this.inspectBaseQ || !this.inspectPrevQ) {
         this.inspectBaseQ = [...this.qArmTorso];
+        this.inspectPrevQ = [...this.qArmTorso];
+        this.inspectItemQ = [0, 0, 0, 1];
         this.inspectEnteredAt = now;
+        this.maxInspectPitchRad = pitchUpRad;
+        this.itemRot = { x: 0, y: 0, z: 0 };
       }
-      // Дельта вращения в системе корпуса (а не в наклонённых осях согнутой кисти!):
-      // поворот руки влево крутит предмет влево (+yaw), наклон вверх наклоняет на себя (-pitch),
-      // супинация предплечья поворачивает предмет как ножку бокала в ту же сторону.
-      const qInspectDelta = qMul(this.qArmTorso, qConj(this.inspectBaseQ));
-      const eul = quatToEulerYXZ(qInspectDelta);
-      this.itemRot = {
-        x: clamp(-eul.pitch * 1.55, -Math.PI, Math.PI),
-        y: clamp(eul.yaw * 1.75 + eul.roll * 0.70, -Math.PI * 1.5, Math.PI * 1.5),
-        z: clamp(-eul.roll * 1.25, -Math.PI, Math.PI),
-      };
+      if (pitchUpRad > this.maxInspectPitchRad) {
+        this.maxInspectPitchRad = pitchUpRad;
+      }
+
+      // Инкрементальное геодезическое вращение на группе SO(3) в пространстве корпуса
+      // БЕЗ углов Эйлера и БЕЗ гимбал-лока: предмет можно наклонять за 90°, переворачивать
+      // вверх дном и крутить на 360°..720° в любую сторону без единого скачка осей!
+      let dqStep = qNormalize(qMul(this.qArmTorso, qConj(this.inspectPrevQ)));
+      this.inspectPrevQ = [...this.qArmTorso];
+      if (dqStep[3] < 0) dqStep = [-dqStep[0], -dqStep[1], -dqStep[2], -dqStep[3]];
+      const vLen = Math.hypot(dqStep[0], dqStep[1], dqStep[2]);
+      if (vLen > 1e-7) {
+        const stepAngle = 2 * Math.atan2(vLen, dqStep[3]);
+        const invV = stepAngle / vLen;
+        const dwx = dqStep[0] * invV;
+        const dwy = dqStep[1] * invV;
+        const dwz = dqStep[2] * invV;
+        const rx = dwx * 1.55;
+        const ry = dwy * 1.75 - dwz * 0.70;
+        const rz = dwz * 1.25;
+        const phiLen = Math.hypot(rx, ry, rz);
+        if (phiLen > 1e-8) {
+          const dqItem = qAxisAngle([rx, ry, rz], phiLen);
+          this.inspectItemQ = qNormalize(qMul(dqItem, this.inspectItemQ));
+        }
+        this.itemRot = {
+          x: this.itemRot.x + rx,
+          y: this.itemRot.y + ry,
+          z: this.itemRot.z + rz,
+        };
+      }
 
       const armedForDecision =
         revealReady &&
@@ -828,10 +896,12 @@ export class WristHandFusion {
         now - this.lastDecisionAt >= 900;
 
       if (armedForDecision) {
+        // Отличаем настоящий взмах рукой (ускорение ИЛИ быстрый пространственный мах оси предплечья)
+        // от быстрого проворота кисти вокруг своей продольной оси при переворачивании открытки/ключа!
         const sharpAccel = sensor.linMag >= 7.2;
-        const sharpWhip = rotRateDeg >= 255 && sensor.linMag >= 2.6;
-        const pureFastWhip = rotRateDeg >= 340;
-        if (sharpAccel || sharpWhip || pureFastWhip) {
+        const sharpWhip = rotRateDeg >= 245 && sensor.linMag >= 2.4;
+        const spatialWaveWhip = rotRateDeg >= 310 && swingRateDeg >= 195;
+        if (sharpAccel || sharpWhip || spatialWaveWhip) {
           decision = 'discard';
           this.lastDecisionAt = now;
           this.calmLowerSec = 0;
@@ -843,10 +913,17 @@ export class WristHandFusion {
             z: -6.8,
           };
         } else {
-          // Спокойное опускание руки вниз -> забрать находку в коллекцию (keep)
-          const handLowered = pitchUpRad <= -23 * DEG || ik.wrist.y <= -0.35;
+          // Спокойное опускание руки вниз -> забрать находку в коллекцию (keep).
+          // Если игрок открыл бак с уже опущенным предплечьем (~ -25°), требуем реальное
+          // дополнительное опускание хотя бы на 16° ниже пика осмотра (или глубоко вдоль пальто <= -38°),
+          // чтобы предмет не «проглатывался» сам, пока игрок держит руку неподвижно у края бака!
+          const pitchDropFromPeak = this.maxInspectPitchRad - pitchUpRad;
+          const intentionalDrop =
+            (pitchUpRad <= -21 * DEG && pitchDropFromPeak >= 16 * DEG) ||
+            pitchUpRad <= -38 * DEG ||
+            (ik.wrist.y <= -0.38 && pitchDropFromPeak >= 14 * DEG);
           const handCalm = sensor.linMag < 3.1 && rotRateDeg < 105;
-          if (handLowered && handCalm) {
+          if (intentionalDrop && handCalm) {
             this.calmLowerSec += safeDt;
             if (this.calmLowerSec >= 0.65) {
               decision = 'keep';
@@ -882,6 +959,7 @@ export class WristHandFusion {
       reach: +this.reach.toFixed(3),
       screenFacingCos: +this.screenFacingCos.toFixed(3),
       itemRot: { ...this.itemRot },
+      itemQuat: [...this.inspectItemQ],
       calmLowerProgress: +clamp(this.calmLowerSec / 0.65, 0, 1).toFixed(2),
       ...extra,
     };
