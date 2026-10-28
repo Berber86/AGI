@@ -44,6 +44,8 @@ Also check the approved orientation and one adverse aspect ratio.
 
 - Pause simulation and timers on `visibilitychange`.
 - Resume without time jumps, stuck pointers, or overlapping audio.
+- Request `navigator.wakeLock.request('screen')` for hands-off modes (VR headsets where nobody touches the screen inside goggles, and hand-tilt / gyro controllers where `deviceorientation` alone does not reset OS auto-lock timers). Because browsers automatically release Wake Lock when a tab goes hidden, re-acquire it on `visibilitychange` (when visible) and on user `pointerdown`.
+- Distinguish `window.blur` from `document.hidden` (`visibilitychange`): on `blur` (e.g. a mobile notification banner sliding down), clear active touch pointers and keyboard keys, but do **not** zero continuous orientation/tilt sensors unless `document.hidden` is actually `true`.
 - Save small progress/settings in `localStorage`; use IndexedDB for larger structured state.
 - Version save data and recover safely from incompatible/corrupt state.
 - Do not require an account for the default MVP.
