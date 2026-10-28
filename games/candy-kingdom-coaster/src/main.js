@@ -909,7 +909,23 @@ function vrSteer() {
   return THREE.MathUtils.clamp((vrSteerTarget() - game.lateral) * 0.55, -1, 1);
 }
 
+let screenWakeSentinel = null;
+async function ensureScreenWakeLock() {
+  try {
+    if (!navigator.wakeLock || document.hidden) return;
+    if (screenWakeSentinel && !screenWakeSentinel.released) return;
+    screenWakeSentinel = await navigator.wakeLock.request('screen');
+    screenWakeSentinel.addEventListener('release', () => { screenWakeSentinel = null; });
+  } catch { /* ignore */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && (game.vrRide || (remoteCtrl && remoteCtrl.room))) {
+    ensureScreenWakeLock();
+  }
+});
+
 function requestFullscreenLandscape() {
+  ensureScreenWakeLock();
   try {
     const root = document.documentElement;
     const req = root.requestFullscreen || root.webkitRequestFullscreen;
@@ -922,6 +938,7 @@ function requestFullscreenLandscape() {
 }
 
 function startVrRide() {
+  ensureScreenWakeLock();
   if (vrSettings.driverMode !== 'remote' && remoteCtrl) closeRemote();
   game.camOn = isMarkerLookMode();
   game.gestureOn = gestureInputEnabled();
@@ -1023,6 +1040,7 @@ async function setupRemote(kind) {
       try { localStorage.setItem('ckc_stand_cfg', el.vrCfg.value); } catch { /* ignore */ }
     }
     const code = await rc.createRoom();
+    ensureScreenWakeLock();
     publishRemoteState(); // джойстик видит экран сразу, ещё до старта поездки
     el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
   } catch (e) {

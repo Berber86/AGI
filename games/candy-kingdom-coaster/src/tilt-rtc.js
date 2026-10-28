@@ -194,6 +194,23 @@ function serializeCand(cand) {
   };
 }
 
+function isPrivateIp(addr) {
+  if (!addr || typeof addr !== 'string') return false;
+  const s = addr.trim().toLowerCase();
+  return (
+    s.endsWith('.local') ||
+    s === '127.0.0.1' ||
+    s === '::1' ||
+    s.startsWith('10.') ||
+    s.startsWith('192.168.') ||
+    s.startsWith('169.254.') ||
+    s.startsWith('fe80:') ||
+    s.startsWith('fd') ||
+    s.startsWith('fc') ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(s)
+  );
+}
+
 /**
  * Сигнальный адаптер поверх Firebase RTDB (rooms/{room}/webrtc/*).
  */
@@ -209,8 +226,13 @@ export function createFirebaseRtcSignaling(fb, db, room) {
         fb.remove(fb.ref(db, `${base}/joyCandidates`)).catch(() => {}),
       ]);
     },
-    async sendHello(joySid) {
-      await fb.set(fb.ref(db, `${base}/hello`), { joySid, ts: Date.now() });
+    async sendHello(joySid, meta = {}) {
+      await fb.set(fb.ref(db, `${base}/hello`), {
+        joySid,
+        hid: meta.hid || null,
+        iceMode: meta.iceMode || 'lan',
+        ts: Date.now(),
+      });
     },
     onHello(cb) {
       return fb.onValue(fb.ref(db, `${base}/hello`), (s) => {
@@ -218,8 +240,13 @@ export function createFirebaseRtcSignaling(fb, db, room) {
         if (v && v.joySid) cb(v);
       });
     },
-    async sendOffer(offer, joySid) {
-      await fb.set(fb.ref(db, `${base}/offer`), { ...serializeDesc(offer), joySid });
+    async sendOffer(offer, joySid, meta = {}) {
+      await fb.set(fb.ref(db, `${base}/offer`), {
+        ...serializeDesc(offer),
+        joySid,
+        hid: meta.hid || null,
+        iceMode: meta.iceMode || 'lan',
+      });
     },
     onOffer(cb) {
       return fb.onValue(fb.ref(db, `${base}/offer`), (s) => {
@@ -227,8 +254,12 @@ export function createFirebaseRtcSignaling(fb, db, room) {
         if (v && v.sdp && v.type === 'offer') cb(v);
       });
     },
-    async sendAnswer(answer, joySid) {
-      await fb.set(fb.ref(db, `${base}/answer`), { ...serializeDesc(answer), joySid });
+    async sendAnswer(answer, joySid, meta = {}) {
+      await fb.set(fb.ref(db, `${base}/answer`), {
+        ...serializeDesc(answer),
+        joySid,
+        hid: meta.hid || null,
+      });
     },
     onAnswer(cb) {
       return fb.onValue(fb.ref(db, `${base}/answer`), (s) => {
@@ -236,9 +267,13 @@ export function createFirebaseRtcSignaling(fb, db, room) {
         if (v && v.sdp && v.type === 'answer') cb(v);
       });
     },
-    async pushCandidate(role, cand, joySid) {
+    async pushCandidate(role, cand, joySid, meta = {}) {
       const sub = role === 'host' ? 'hostCandidates' : 'joyCandidates';
-      await fb.push(fb.ref(db, `${base}/${sub}`), { ...serializeCand(cand), joySid });
+      await fb.push(fb.ref(db, `${base}/${sub}`), {
+        ...serializeCand(cand),
+        joySid,
+        hid: meta.hid || null,
+      });
     },
     onCandidate(role, cb) {
       const sub = role === 'host' ? 'hostCandidates' : 'joyCandidates';
@@ -271,15 +306,21 @@ export function createBroadcastRtcSignaling(bc, room) {
   return {
     iceServers: [],
     async resetForOffer() {},
-    async sendHello(joySid) { post('hello', { joySid, ts: Date.now() }); },
+    async sendHello(joySid, meta = {}) {
+      post('hello', { joySid, hid: meta.hid || null, iceMode: meta.iceMode || 'lan', ts: Date.now() });
+    },
     onHello(cb) { handlers.hello.push(cb); return off('hello', cb); },
-    async sendOffer(offer, joySid) { post('offer', { ...serializeDesc(offer), joySid }); },
+    async sendOffer(offer, joySid, meta = {}) {
+      post('offer', { ...serializeDesc(offer), joySid, hid: meta.hid || null, iceMode: meta.iceMode || 'lan' });
+    },
     onOffer(cb) { handlers.offer.push(cb); return off('offer', cb); },
-    async sendAnswer(answer, joySid) { post('answer', { ...serializeDesc(answer), joySid }); },
+    async sendAnswer(answer, joySid, meta = {}) {
+      post('answer', { ...serializeDesc(answer), joySid, hid: meta.hid || null });
+    },
     onAnswer(cb) { handlers.answer.push(cb); return off('answer', cb); },
-    async pushCandidate(role, cand, joySid) {
+    async pushCandidate(role, cand, joySid, meta = {}) {
       const sub = role === 'host' ? 'hostCand' : 'joyCand';
-      post(sub, { ...serializeCand(cand), joySid });
+      post(sub, { ...serializeCand(cand), joySid, hid: meta.hid || null });
     },
     onCandidate(role, cb) {
       const sub = role === 'host' ? 'hostCand' : 'joyCand';
@@ -305,6 +346,7 @@ export class RtcHostPeer {
     this.fast = null;
     this.ctrl = null;
     this.activeJoySid = null;
+    this.activeHid = null;
     this.remoteDescReady = false;
     this.pendingCandidates = [];
     this.unsubs = [];
@@ -321,14 +363,23 @@ export class RtcHostPeer {
     );
   }
 
+  _pickIceServers(iceMode) {
+    if (Array.isArray(this.sig.iceServers) && this.sig.iceServers.length === 0) return [];
+    if (iceMode === 'lan') return [];
+    return this.sig.iceServers ?? GOOGLE_STUN_SERVERS;
+  }
+
   async _handleHello(hello) {
     const joySid = hello.joySid;
     if (!joySid) return;
+    const hid = hello.hid || null;
+    const iceMode = hello.iceMode || 'lan';
     this._closePeer();
     this.activeJoySid = joySid;
+    this.activeHid = hid;
     await this.sig.resetForOffer();
 
-    const pc = new RTCPeerConnection({ iceServers: this.sig.iceServers ?? GOOGLE_STUN_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: this._pickIceServers(iceMode) });
     this.pc = pc;
     this.remoteDescReady = false;
     this.pendingCandidates = [];
@@ -343,24 +394,29 @@ export class RtcHostPeer {
 
     pc.onicecandidate = (e) => {
       if (this.pc !== pc || !e.candidate) return;
-      this.sig.pushCandidate('host', e.candidate, joySid).catch(() => {});
+      this.sig.pushCandidate('host', e.candidate, joySid, { hid }).catch(() => {});
     };
     pc.onconnectionstatechange = () => {
       if (this.pc !== pc) return;
       const st = pc.connectionState;
-      if (st === 'failed' || st === 'closed' || st === 'disconnected') {
+      // Временный статус 'disconnected' НЕ должен убивать открытый DataChannel:
+      // на мобильном Wi-Fi это 1–3 с радиопомеха, после которой ICE часто оживает сам!
+      if (st === 'failed' || st === 'closed') {
         this._setOpen(false);
+      } else if (st === 'connected' && this.fast && this.fast.readyState === 'open') {
+        this._setOpen(true);
       }
     };
 
     const offer = await pc.createOffer();
     if (this.pc !== pc) return;
     await pc.setLocalDescription(offer);
-    await this.sig.sendOffer(pc.localDescription, joySid);
+    await this.sig.sendOffer(pc.localDescription, joySid, { hid, iceMode });
   }
 
   async _handleAnswer(ans) {
     if (!this.pc || (ans.joySid && ans.joySid !== this.activeJoySid)) return;
+    if (this.activeHid && ans.hid && ans.hid !== this.activeHid) return;
     if (this.pc.signalingState !== 'have-local-offer') return;
     await this.pc.setRemoteDescription({ type: 'answer', sdp: ans.sdp });
     this.remoteDescReady = true;
@@ -372,6 +428,7 @@ export class RtcHostPeer {
 
   async _handleCandidate(c) {
     if (!this.pc || (c.joySid && c.joySid !== this.activeJoySid)) return;
+    if (this.activeHid && c.hid && c.hid !== this.activeHid) return;
     const init = {
       candidate: c.candidate,
       sdpMid: c.sdpMid ?? null,
@@ -474,37 +531,110 @@ export class RtcJoyPeer {
     this.remoteDescReady = false;
     this.pendingCandidates = [];
     this.unsubs = [];
+    this.closed = false;
     this.open = false;
     this.rttMs = null;
+    this.routeKind = null;     // 'lan' | 'wan' | null
+    this.activeIceMode = 'lan';
+    this.preferLanOnly = false;
+    this.statusNote = '';
+    this.reconnectCount = 0;
     this.lastPongAt = -Infinity;
     this._pingTimer = null;
+    this._healTimer = null;
+    this._routeTimer = null;
     this._pingSeq = 0;
+    this._attempt = 0;
+    this.activeHid = null;
     this._lastOfferSdp = '';
+    this._lastAttemptAt = 0;
+    this._pauseAutoHealUntil = 0;
+  }
+
+  _pickIceServers(iceMode) {
+    if (Array.isArray(this.sig.iceServers) && this.sig.iceServers.length === 0) return [];
+    if (iceMode === 'lan') return [];
+    return this.sig.iceServers ?? GOOGLE_STUN_SERVERS;
   }
 
   async start() {
     if (typeof RTCPeerConnection === 'undefined') return;
+    this.closed = false;
     this.unsubs.push(
       this.sig.onOffer((off) => { this._handleOffer(off).catch(() => {}); }),
       this.sig.onCandidate('host', (c) => { this._handleCandidate(c).catch(() => {}); }),
     );
-    await this.reconnect();
+    this._startHealWatchdog();
+    await this.reconnect({ reason: 'initial', iceMode: 'lan' });
   }
 
-  async reconnect() {
-    if (typeof RTCPeerConnection === 'undefined') return;
-    this._lastOfferSdp = '';
+  setPreferLanOnly(v) {
+    this.preferLanOnly = !!v;
+    if (this.preferLanOnly && this.routeKind === 'wan') {
+      this.reconnect({ reason: 'lan-lock', iceMode: 'lan' }).catch(() => {});
+    } else if (!this.isOpen() && !this.closed) {
+      this.reconnect({ reason: 'mode-toggle', iceMode: this.preferLanOnly ? 'lan' : 'lan' }).catch(() => {});
+    }
+  }
+
+  onWake() {
+    if (this.closed) return;
+    const now = performance.now();
+    if (now < this._pauseAutoHealUntil) return;
+    if (!this.isOpen()) {
+      this.statusNote = 'после сна экрана — возвращаем прямой 60 Гц…';
+      this._notifyStatus();
+      this.reconnect({ reason: 'wake', iceMode: 'lan' }).catch(() => {});
+    } else if (this.fast && this.fast.readyState === 'open') {
+      // Мгновенный проверочный пинг сразу после разблокировки экрана
+      this._sendJson(this.fast, { k: 'ping', id: ++this._pingSeq, t0: now });
+    }
+  }
+
+  dropForTest(pauseAutoHealMs = 8000) {
+    this._pauseAutoHealUntil = performance.now() + pauseAutoHealMs;
+    this.statusNote = 'тестовый сброс P2P';
     this._closePeer();
-    await this.sig.sendHello(this.joySid).catch(() => {});
+  }
+
+  async reconnect(opts = {}) {
+    if (this.closed || typeof RTCPeerConnection === 'undefined') return;
+    const reason = opts.reason || 'manual';
+    if (reason === 'manual') {
+      this._pauseAutoHealUntil = 0;
+      this.statusNote = 'переподключаем прямой 60 Гц…';
+    }
+    this._attempt += 1;
+    if (reason !== 'initial') this.reconnectCount += 1;
+
+    // Нечётные попытки (включая самую первую) — чистый локальный Wi-Fi без STUN,
+    // чтобы включённый VPN не уводил трафик во внешний UDP-туннель.
+    // Если за 3.5 с локальный маршрут не открылся (телефоны в разных сетях) —
+    // чётная попытка автоматически пробует пробить маршрут с Google STUN.
+    const nextIce = this.preferLanOnly
+      ? 'lan'
+      : (opts.iceMode || (this._attempt % 2 === 1 ? 'lan' : 'stun'));
+
+    this.activeIceMode = nextIce;
+    this.activeHid = `${this.joySid}-${this._attempt}-${Math.random().toString(36).slice(2, 6)}`;
+    this._lastOfferSdp = '';
+    this._lastAttemptAt = performance.now();
+    this._closePeer();
+    this._notifyStatus();
+    await this.sig.sendHello(this.joySid, { hid: this.activeHid, iceMode: nextIce }).catch(() => {});
   }
 
   async _handleOffer(offer) {
+    if (this.closed) return;
     if (offer.joySid && offer.joySid !== this.joySid) return;
+    if (this.activeHid && offer.hid && offer.hid !== this.activeHid) return;
     if (offer.sdp === this._lastOfferSdp && this.pc) return;
     this._lastOfferSdp = offer.sdp;
     this._closePeer();
 
-    const pc = new RTCPeerConnection({ iceServers: this.sig.iceServers ?? GOOGLE_STUN_SERVERS });
+    const useIce = offer.iceMode || this.activeIceMode || 'lan';
+    const hid = offer.hid || this.activeHid;
+    const pc = new RTCPeerConnection({ iceServers: this._pickIceServers(useIce) });
     this.pc = pc;
     this.remoteDescReady = false;
     this.pendingCandidates = [];
@@ -523,14 +653,29 @@ export class RtcJoyPeer {
 
     pc.onicecandidate = (e) => {
       if (this.pc !== pc || !e.candidate) return;
-      this.sig.pushCandidate('joy', e.candidate, this.joySid).catch(() => {});
+      this.sig.pushCandidate('joy', e.candidate, this.joySid, { hid }).catch(() => {});
     };
 
     pc.onconnectionstatechange = () => {
       if (this.pc !== pc) return;
       const st = pc.connectionState;
-      if (st === 'failed' || st === 'closed' || st === 'disconnected') {
+      if (st === 'disconnected') {
+        // Временная радиозаминка Wi-Fi (1–4 с): НЕ закрываем канал и НЕ гасим пинги!
+        this.statusNote = 'заминка Wi-Fi — удерживаем канал…';
+        this._notifyStatus();
+      } else if (st === 'connected') {
+        this.statusNote = '';
+        if (this.fast && this.fast.readyState === 'open') {
+          this.lastPongAt = performance.now();
+          this._setOpen(true);
+        }
+        this._inspectRoute(pc).catch(() => {});
+      } else if (st === 'failed' || st === 'closed') {
+        this.statusNote = this.routeKind === 'wan'
+          ? 'VPN/интернет сбросил UDP — переподключаем…'
+          : 'связь P2P прервалась — авто-возврат…';
         this._setOpen(false);
+        this._scheduleQuickHeal(700);
       }
     };
 
@@ -544,11 +689,12 @@ export class RtcJoyPeer {
     const answer = await pc.createAnswer();
     if (this.pc !== pc) return;
     await pc.setLocalDescription(answer);
-    await this.sig.sendAnswer(pc.localDescription, this.joySid);
+    await this.sig.sendAnswer(pc.localDescription, this.joySid, { hid });
   }
 
   async _handleCandidate(c) {
-    if (!this.pc || (c.joySid && c.joySid !== this.joySid)) return;
+    if (this.closed || !this.pc || (c.joySid && c.joySid !== this.joySid)) return;
+    if (this.activeHid && c.hid && c.hid !== this.activeHid) return;
     const init = {
       candidate: c.candidate,
       sdpMid: c.sdpMid ?? null,
@@ -567,13 +713,23 @@ export class RtcJoyPeer {
       if (this.pc !== ownerPc) return;
       if (label === 'fast') {
         this.lastPongAt = performance.now();
+        this.statusNote = '';
         this._setOpen(true);
-        this._startPings();
+        this._startPings(ownerPc);
+        this._inspectRoute(ownerPc).catch(() => {});
+        clearInterval(this._routeTimer);
+        this._routeTimer = setInterval(() => {
+          if (this.pc === ownerPc && this.open) this._inspectRoute(ownerPc).catch(() => {});
+        }, 3000);
       }
     };
     ch.onclose = () => {
       if (this.pc !== ownerPc) return;
-      if (label === 'fast') this._setOpen(false);
+      if (label === 'fast') {
+        if (!this.statusNote) this.statusNote = 'канал P2P закрылся — авто-возврат…';
+        this._setOpen(false);
+        this._scheduleQuickHeal(800);
+      }
     };
     ch.onmessage = (ev) => {
       if (this.pc !== ownerPc) return;
@@ -585,30 +741,114 @@ export class RtcJoyPeer {
         const rtt = Math.max(1, Math.round(now - msg.t0));
         this.lastPongAt = now;
         this.rttMs = rtt;
+        this.statusNote = '';
+        // Если канал кратковременно замирал, но пинг снова прошёл — мгновенно возвращаем 60 Гц!
+        if (!this.open && this.fast && this.fast.readyState === 'open') {
+          this._setOpen(true);
+        }
         this._sendJson(this.ctrl, { k: 'pong-ack', rtt });
         if (this.cb.onRtt) this.cb.onRtt(rtt);
       } else if (msg.k === 'state' && msg.state && this.cb.onState) {
         this.lastPongAt = performance.now();
+        if (!this.open && this.fast && this.fast.readyState === 'open') {
+          this._setOpen(true);
+        }
         this.cb.onState(msg.state);
       }
     };
   }
 
-  _startPings() {
+  async _inspectRoute(ownerPc) {
+    if (!ownerPc || this.pc !== ownerPc || typeof ownerPc.getStats !== 'function') return;
+    const stats = await ownerPc.getStats();
+    let pair = null;
+    stats.forEach((r) => {
+      if (r.type === 'transport' && r.selectedCandidatePairId) {
+        pair = stats.get(r.selectedCandidatePairId) || pair;
+      }
+    });
+    if (!pair) {
+      stats.forEach((r) => {
+        if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded')) {
+          if (!pair || r.nominated) pair = r;
+        }
+      });
+    }
+    if (!pair) return;
+    const loc = stats.get(pair.localCandidateId);
+    const rem = stats.get(pair.remoteCandidateId);
+    const lt = loc?.candidateType || '';
+    const rt = rem?.candidateType || '';
+    const la = loc?.address || loc?.ip || '';
+    const ra = rem?.address || rem?.ip || '';
+    const rttMs = Number.isFinite(pair.currentRoundTripTime) ? pair.currentRoundTripTime * 1000 : this.rttMs;
+    const isLan =
+      this.activeIceMode === 'lan' ||
+      ((lt === 'host' || lt === 'prflx') && (rt === 'host' || rt === 'prflx') &&
+        ((lt === 'host' && rt === 'host') || isPrivateIp(la) || isPrivateIp(ra) || (rttMs !== null && rttMs < 20)));
+    const prev = this.routeKind;
+    this.routeKind = isLan ? 'lan' : 'wan';
+    if (prev !== this.routeKind) this._notifyStatus();
+  }
+
+  _startPings(ownerPc) {
     clearInterval(this._pingTimer);
     const fire = () => {
-      if (!this.open) return;
-      this._sendJson(this.fast, { k: 'ping', id: ++this._pingSeq, t0: performance.now() });
+      if (this.pc !== ownerPc || !this.fast || this.fast.readyState !== 'open') return;
+      const now = performance.now();
+      this._sendJson(this.fast, { k: 'ping', id: ++this._pingSeq, t0: now });
+      if (this.open && (now - this.lastPongAt) >= 8500) {
+        this.statusNote = 'нет отклика P2P — переводим на сервер и лечим канал…';
+        this._setOpen(false);
+      }
     };
     fire();
-    this._pingTimer = setInterval(fire, 1500);
+    this._pingTimer = setInterval(fire, 1000);
+  }
+
+  _scheduleQuickHeal(delayMs = 800) {
+    if (this.closed) return;
+    const now = performance.now();
+    if (now < this._pauseAutoHealUntil) return;
+    this._lastAttemptAt = Math.min(this._lastAttemptAt, now - 4000 + delayMs);
+  }
+
+  _startHealWatchdog() {
+    clearInterval(this._healTimer);
+    this._healTimer = setInterval(() => {
+      if (this.closed) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const now = performance.now();
+      if (now < this._pauseAutoHealUntil) return;
+
+      if (this.isOpen()) return;
+      if (this.open && (now - this.lastPongAt) >= 8500) {
+        this._setOpen(false);
+      }
+
+      const elapsed = now - this._lastAttemptAt;
+      // Для первой LAN-попытки даём 3.5 с, чтобы при разных сетях быстро попробовать STUN;
+      // для последующих попыток — мягкий интервал 4.8 с без спама в Firebase.
+      const waitMs = (this.activeIceMode === 'lan' && !this.preferLanOnly && this._attempt <= 2) ? 3500 : 4800;
+      if (elapsed >= waitMs) {
+        if (!this.statusNote) {
+          this.statusNote = this.activeIceMode === 'lan' && !this.preferLanOnly
+            ? 'пробуем резервный маршрут P2P…'
+            : 'авто-восстановление прямого канала 60 Гц…';
+        }
+        this.reconnect({ reason: 'auto' }).catch(() => {});
+      }
+    }, 1000);
+  }
+
+  _notifyStatus() {
+    if (this.cb.onOpenChange) this.cb.onOpenChange(this.isOpen());
   }
 
   _setOpen(v) {
-    if (this.open === v) return;
+    const prev = this.open;
     this.open = v;
-    if (!v) clearInterval(this._pingTimer);
-    if (this.cb.onOpenChange) this.cb.onOpenChange(v);
+    if (prev !== v && this.cb.onOpenChange) this.cb.onOpenChange(v);
   }
 
   _sendJson(ch, obj) {
@@ -626,7 +866,7 @@ export class RtcJoyPeer {
       this.open &&
       this.fast &&
       this.fast.readyState === 'open' &&
-      (performance.now() - this.lastPongAt) < 9000
+      (performance.now() - this.lastPongAt) < 8500
     );
   }
 
@@ -643,10 +883,19 @@ export class RtcJoyPeer {
   _closePeer() {
     this._setOpen(false);
     this.rttMs = null;
+    this.routeKind = null;
     clearInterval(this._pingTimer);
-    try { if (this.fast) this.fast.close(); } catch {}
-    try { if (this.ctrl) this.ctrl.close(); } catch {}
-    try { if (this.pc) this.pc.close(); } catch {}
+    clearInterval(this._routeTimer);
+    try { if (this.fast) { this.fast.onclose = null; this.fast.close(); } } catch {}
+    try { if (this.ctrl) { this.ctrl.onclose = null; this.ctrl.close(); } } catch {}
+    try {
+      if (this.pc) {
+        this.pc.onconnectionstatechange = null;
+        this.pc.onicecandidate = null;
+        this.pc.ondatachannel = null;
+        this.pc.close();
+      }
+    } catch {}
     this.fast = null;
     this.ctrl = null;
     this.pc = null;
@@ -655,6 +904,8 @@ export class RtcJoyPeer {
   }
 
   close() {
+    this.closed = true;
+    clearInterval(this._healTimer);
     for (const u of this.unsubs.splice(0)) {
       try { u(); } catch {}
     }

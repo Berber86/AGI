@@ -214,8 +214,8 @@ record('3D наклоны: слепая кнопка центрирует нов
   Math.abs(recentered.throttle - 0.3) < 0.02 && recentered.brake === 0 && recentered.steer === 0,
   recentered);
 
-// Проверка бесшовного резерва: роняем WebRTC и убеждаемся, что управление идёт через резерв, затем поднимаем P2P обратно
-await joy.evaluate(() => window.__JOY__.dropRtcForTest());
+// Проверка бесшовного резерва И автоматического самовосстановления P2P без нажатия кнопок:
+await joy.evaluate(() => window.__JOY__.dropRtcForTest(400));
 await sleep(180);
 await joy.evaluate(() => window.__JOY__.setDrive(0.75, 0.5, 0));
 await sleep(150);
@@ -223,7 +223,18 @@ const afterRtcDrop = await game.evaluate(() => window.__TEST__.remoteInfo());
 record('резервный канал: при падении WebRTC управление мгновенно продолжается без сбоя',
   afterRtcDrop.rtcOpen === false && afterRtcDrop.fresh === true && Math.abs(afterRtcDrop.steer - 0.75) < 0.02,
   afterRtcDrop);
-await joy.evaluate(() => window.__JOY__.reconnectRtc());
+
+await joy.bringToFront();
+let healed = null;
+for (let i = 0; i < 16; i++) {
+  await sleep(400);
+  healed = await game.evaluate(() => window.__TEST__.remoteInfo());
+  if (healed && healed.rtcOpen === true && healed.transport === 'webrtc') break;
+}
+await game.bringToFront();
+record('авто-лечение WebRTC: после обрыва прямой канал 60 Гц сам поднимается без нажатия кнопок',
+  !!(healed && healed.rtcOpen === true && healed.transport === 'webrtc'),
+  healed);
 
 // 3b. высокоуровневые команды: круг джойстик → игра → состояние на джойстике
 async function joyState(pred, tries = 60) {

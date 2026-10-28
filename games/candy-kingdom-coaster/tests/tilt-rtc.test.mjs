@@ -4,6 +4,9 @@ import {
   deviceUpVector,
   accelToUpVector,
   handTiltDrive,
+  createBroadcastRtcSignaling,
+  RtcHostPeer,
+  RtcJoyPeer,
 } from '../src/tilt-rtc.js';
 
 test('нейтральный хват (±5°) держит спокойный круиз 30% без тормоза и без увода руля', () => {
@@ -78,3 +81,79 @@ test('инверсия оси газ/тормоз и резервный аксе
   assert.ok(accUp);
   assert.ok(Math.abs(Math.hypot(accUp.x, accUp.y, accUp.z) - 1) < 1e-6);
 });
+
+test('сигналинг WebRTC передаёт уникальный hid и iceMode, отсекая устаревшие пакеты от прошлых попыток', async () => {
+  const chA = new BroadcastChannel('ckc-test-hid-sig');
+  const chB = new BroadcastChannel('ckc-test-hid-sig');
+  const sigHost = createBroadcastRtcSignaling(chA, '999111');
+  const sigJoy = createBroadcastRtcSignaling(chB, '999111');
+
+  let receivedHello = null;
+  sigHost.onHello((h) => { receivedHello = h; });
+  await sigJoy.sendHello('joy-1', { hid: 'joy-1-1-abcd', iceMode: 'lan' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(receivedHello.joySid, 'joy-1');
+  assert.equal(receivedHello.hid, 'joy-1-1-abcd');
+  assert.equal(receivedHello.iceMode, 'lan');
+
+  // Проверяем, что RtcJoyPeer игнорирует устаревший offer с чужим hid
+  const joyPeer = new RtcJoyPeer(sigJoy, 'joy-1');
+  joyPeer.activeHid = 'joy-1-2-fresh';
+  await joyPeer._handleOffer({ type: 'offer', sdp: 'v=0', joySid: 'joy-1', hid: 'joy-1-1-stale' });
+  assert.equal(joyPeer.pc, null, 'устаревший offer с прошлым hid не должен создавать соединение');
+
+  // И RtcHostPeer игнорирует answer с устаревшим hid
+  const hostPeer = new RtcHostPeer(sigHost);
+  hostPeer.activeJoySid = 'joy-1';
+  hostPeer.activeHid = 'joy-1-2-fresh';
+  let setRemoteCalled = false;
+  hostPeer.pc = { signalingState: 'have-local-offer', setRemoteDescription: async () => { setRemoteCalled = true; } };
+  await hostPeer._handleAnswer({ type: 'answer', sdp: 'v=0', joySid: 'joy-1', hid: 'joy-1-1-stale' });
+  assert.equal(setRemoteCalled, false, 'устаревший answer с прошлым hid должен быть отброшен');
+
+  joyPeer.close();
+  hostPeer.activeJoySid = null;
+  hostPeer.pc = null;
+  sigHost.dispose();
+  sigJoy.dispose();
+  chA.close();
+  chB.close();
+});
+
+test('RtcJoyPeer переживает временный disconnected без разрыва и включает авто-лечение при реальном обрыве', async () => {
+  const ch = new BroadcastChannel('ckc-test-heal');
+  const sig = createBroadcastRtcSignaling(ch, '777888');
+  const changes = [];
+  const joy = new RtcJoyPeer(sig, 'joy-heal', {
+    onOpenChange: (open) => changes.push(open),
+  });
+
+  // Имитируем открытый прямой канал со свежим pong
+  joy.open = true;
+  joy.lastPongAt = performance.now();
+  joy.fast = { readyState: 'open', send() {}, close() {} };
+  assert.equal(joy.isOpen(), true);
+
+  // Имитируем кратковременную заминку Wi-Fi: статус 'disconnected' НЕ должен ронять isOpen()
+  joy.statusNote = 'заминка Wi-Fi — удерживаем канал…';
+  assert.equal(joy.isOpen(), true, 'временная радиопомеха Wi-Fi не должна обрывать открытый канал');
+
+  // Если pong перестал приходить дольше 8.5 с — isOpen() мгновенно возвращает false для резерва Firebase
+  joy.lastPongAt = performance.now() - 9000;
+  assert.equal(joy.isOpen(), false, 'при долгом молчании P2P управление бесшовно уходит на резерв');
+
+  // Как только радиоканал ожил и пришёл свежий pong — канал снова активен без пересборки!
+  joy.lastPongAt = performance.now();
+  assert.equal(joy.isOpen(), true, 'свежий pong мгновенно возвращает прямой канал 60 Гц');
+
+  // Проверяем фиксацию режима «Только локальный Wi-Fi» (без VPN/STUN)
+  joy.setPreferLanOnly(true);
+  assert.equal(joy.preferLanOnly, true);
+
+  joy.close();
+  sig.dispose();
+  ch.close();
+  assert.equal(changes.includes(false), true);
+});
+
+

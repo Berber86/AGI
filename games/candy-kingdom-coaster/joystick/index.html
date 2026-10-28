@@ -83,8 +83,11 @@
     background: rgba(77, 240, 192, 0.15); border-color: rgba(77, 240, 192, 0.55); color: #7ff7d4;
   }
   .rtc-mini-btn {
-    padding: 4px 9px; font-size: 11.5px; border-radius: 8px;
+    padding: 4px 8px; font-size: 11px; border-radius: 8px;
     background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); color: #fff;
+  }
+  .rtc-mini-btn.on {
+    background: rgba(77, 240, 192, 0.3); border-color: #7ff7d4; color: #c7fff0;
   }
 
   /* 📱 Вкладка 3D-наклонов */
@@ -200,7 +203,10 @@
 
     <div id="rtc-pill" class="rtc-pill">
       <span id="rtc-pill-text">☁ Подключаем прямой канал 60 Гц…</span>
-      <button type="button" id="btn-rtc-retry" class="rtc-mini-btn">↻ P2P</button>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button type="button" id="btn-rtc-lan" class="rtc-mini-btn" title="Запретить обход через VPN/STUN — держать только прямой локальный Wi-Fi">Wi-Fi</button>
+        <button type="button" id="btn-rtc-retry" class="rtc-mini-btn">↻ P2P</button>
+      </div>
     </div>
 
     <div class="mode-switch" role="group" aria-label="Режим джойстика">
@@ -387,20 +393,40 @@ function parseFirebaseConfig(text) {
 const roomRef = (p) => state.f.ref(state.db, `rooms/${state.room}${p || ''}`);
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 
+let wakeSentinel = null;
+async function ensureWakeLock() {
+  try {
+    if (!navigator.wakeLock || document.hidden || !state.room) return;
+    if (wakeSentinel && !wakeSentinel.released) return;
+    wakeSentinel = await navigator.wakeLock.request('screen');
+    wakeSentinel.addEventListener('release', () => { wakeSentinel = null; });
+  } catch { /* ignore */ }
+}
+
 function updateRtcUi() {
   const open = !!(state.rtc && state.rtc.isOpen());
+  const note = state.rtc && state.rtc.statusNote ? state.rtc.statusNote : '';
+  const lanBtn = $('btn-rtc-lan');
+  if (lanBtn) lanBtn.classList.toggle('on', !!(state.rtc && state.rtc.preferLanOnly));
   if (open) {
     els.rtcPill.className = 'rtc-pill fast';
     const oneWay = state.rtc.rttMs !== null ? ` · ≈ ${Math.max(1, Math.round(state.rtc.rttMs / 2))} мс` : '';
-    els.rtcPillText.textContent = `⚡ Прямой WebRTC 60 Гц${oneWay} (0 записей в облако)`;
+    const routeLabel = state.rtc.routeKind === 'wan'
+      ? '⚡ WebRTC (через VPN/сеть) 60 Гц'
+      : '⚡ Прямой Wi-Fi 60 Гц';
+    els.rtcPillText.textContent = `${routeLabel}${oneWay} (0 записей в облако)`;
     els.joyStatus.textContent = '✓ Связь есть — прямой канал 60 Гц!';
     els.joyStatus.className = 'status ok';
   } else if (state.kind === 'demo') {
     els.rtcPill.className = 'rtc-pill';
-    els.rtcPillText.textContent = '◈ Демо-канал (поднимаем прямой WebRTC 60 Гц…)';
+    els.rtcPillText.textContent = note
+      ? `◈ Демо-канал (${note})`
+      : '◈ Демо-канал (поднимаем прямой WebRTC 60 Гц…)';
   } else {
     els.rtcPill.className = 'rtc-pill';
-    els.rtcPillText.textContent = '☁ Облако Firebase · раздайте Wi-Fi для прямых 60 Гц';
+    els.rtcPillText.textContent = note
+      ? `☁ Сервер Firebase · ${note}`
+      : '☁ Сервер Firebase · авто-поиск прямого Wi-Fi 60 Гц…';
   }
 }
 
@@ -715,7 +741,7 @@ async function join(code) {
   lastRtcSent = 0;
   driveDirty = true;
   driveForce = true;
-  try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
+  await ensureWakeLock();
   pushDrive(true);
   startLoops();
   state.rtc.start().catch(() => {});
@@ -744,8 +770,19 @@ $('btn-demo').addEventListener('click', () => {
 $('btn-join-go').addEventListener('click', () => join(els.joinCode.value.trim()));
 els.btnRtcRetry.addEventListener('click', () => {
   buzz(10);
-  if (state.rtc) state.rtc.reconnect();
+  ensureWakeLock();
+  if (state.rtc) state.rtc.reconnect({ reason: 'manual' });
+  updateRtcUi();
 });
+$('btn-rtc-lan').addEventListener('click', () => {
+  buzz(10);
+  ensureWakeLock();
+  if (state.rtc) {
+    state.rtc.setPreferLanOnly(!state.rtc.preferLanOnly);
+    updateRtcUi();
+  }
+});
+els.cardJoy.addEventListener('pointerdown', () => { ensureWakeLock(); }, { passive: true });
 $('btn-change-room').addEventListener('click', () => {
   releaseAll();
   if (state.rtc) { state.rtc.close(); state.rtc = null; }
@@ -971,6 +1008,17 @@ window.addEventListener('keyup', (e) => {
   syncKeyboard();
 });
 
+function releaseTouchAndKeys() {
+  const hadTouchOrKey = state.steerPointer !== null || state.throttlePointer !== null
+    || state.keyLeft || state.keyRight || state.keyUp;
+  state.steerPointer = null; state.throttlePointer = null;
+  state.keyLeft = false; state.keyRight = false; state.keyUp = false;
+  if (state.uiMode !== 'tilt' && hadTouchOrKey) {
+    state.steer = 0; state.throttle = 0; state.brake = 0; state.throttleY = 75;
+    pushDrive(true);
+  }
+}
+
 function releaseAll() {
   state.steerPointer = null; state.throttlePointer = null;
   state.keyLeft = false; state.keyRight = false; state.keyUp = false;
@@ -980,8 +1028,19 @@ function releaseAll() {
 window.addEventListener('pagehide', () => {
   if (state.rtc) { state.rtc.close(); state.rtc = null; }
 });
-window.addEventListener('blur', releaseAll);
-document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
+window.addEventListener('blur', releaseTouchAndKeys);
+window.addEventListener('online', () => {
+  if (state.rtc) state.rtc.onWake();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    releaseAll();
+  } else {
+    ensureWakeLock();
+    if (state.rtc) state.rtc.onWake();
+    updateRtcUi();
+  }
+});
 
 // ---------------------------------------------------------------- Команды
 let cmdSeq = 0;
@@ -1126,8 +1185,8 @@ window.__JOY__ = {
     applyUpVectorSample(deviceUpVector(beta, gamma, screenAngleDeg()));
   },
   centerTilt: () => centerTiltGrip(),
-  dropRtcForTest: () => { if (state.rtc) state.rtc._closePeer(); },
-  reconnectRtc: () => (state.rtc ? state.rtc.reconnect() : Promise.resolve()),
+  dropRtcForTest: (pauseMs = 8000) => { if (state.rtc) state.rtc.dropForTest(pauseMs); },
+  reconnectRtc: () => (state.rtc ? state.rtc.reconnect({ reason: 'manual' }) : Promise.resolve()),
   sendCmd,
   lastState: () => lastState,
   setMode,

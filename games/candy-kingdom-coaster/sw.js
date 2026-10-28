@@ -8,7 +8,7 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v57'; // v57: 3D hand-tilt controller + WebRTC 60 Hz P2P joystick transport
+const CACHE = 'ckc-v58'; // v57: 3D hand-tilt controller + WebRTC 60 Hz P2P joystick transport
 const MEDIA_CACHE = 'ckc-media-v1';
 const ML_CACHE = 'ckc-ml-mediapipe-1.1.1'; // lazy, persistent cache for WASM + 8.4 MB gesture model
 const SHELL = [

@@ -196,10 +196,16 @@ export class RtcDirectLink {
     pc.onconnectionstatechange = () => {
       if (pc !== this.pc) return;
       const st = pc.connectionState;
+      clearTimeout(this._discGraceTimer);
       if (st === 'failed') {
         this._markBlocked(new Error('ICE failed'));
       } else if (st === 'disconnected' && this.status === 'open') {
-        this._markBlocked(new Error('Связь прервалась'));
+        // Временная заминка радиоканала Wi-Fi (1–4 с): даём ICE 8 секунд ожить самому!
+        this._discGraceTimer = setTimeout(() => {
+          if (pc === this.pc && pc.connectionState === 'disconnected' && this.status === 'open') {
+            this._markBlocked(new Error('Долгая потеря радиоканала (>8 с)'));
+          }
+        }, 8000);
       }
     };
 
@@ -517,6 +523,7 @@ export class RtcDirectLink {
 
   _cleanupPeer() {
     this._clearConnectTimeout();
+    clearTimeout(this._discGraceTimer);
     clearInterval(this._routePollTimer);
     this._routePollTimer = null;
     if (this.fastDc) {
