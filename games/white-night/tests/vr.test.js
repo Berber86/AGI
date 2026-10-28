@@ -173,3 +173,20 @@ test('colour blob analysis finds the requested hue', () => {
   assert.equal(blob.found, true);
   assert.ok(Math.abs(blob.cx - 14.5) < 1);
 });
+
+test('DualMarkerTracker.sampleColor maps 9:16 portrait video inside 4:3 contain box to exact marker pixel', () => {
+  // Портретный поток камеры 720x1280 (videoAspect = 0.5625) внутри <video> 400x300 (4:3):
+  // реальная картинка занимает ширину 300 * 0.5625 = 168.75px по центру (поля слева/справа по 115.625px)!
+  const fakeVideo = { videoWidth: 720, videoHeight: 1280 };
+  const tracker = new DualMarkerTracker(fakeVideo);
+  tracker.inject([{ id: 'right', u: 0.5, v: 0.15, w: 30, h: 20, hue: 338 }], 1000);
+
+  const rect = { left: 100, top: 50, width: 400, height: 300 };
+  // Тап по чёрному полю слева от портретного видео (x = 120 -> внутри поля 115.6px) -> null
+  assert.equal(tracker.sampleColor(120, 95, rect), null);
+
+  // Тап точно в верхнюю метку (u=0.5 -> центр 100 + 200 = 300, v=0.15 -> 50 + 0.15 * 300 = 95)
+  const picked = tracker.sampleColor(300, 95, rect);
+  assert.ok(picked && Math.abs(picked.hue - 338) < 4, `picked hue=${picked?.hue}`);
+});
+

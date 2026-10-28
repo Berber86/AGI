@@ -349,8 +349,31 @@ export class DualMarkerTracker {
   sampleColor(clientX, clientY, rect) {
     if (!this.lastFrame || !rect || rect.width <= 0 || rect.height <= 0) return null;
     const { data, width, height } = this.lastFrame;
-    const x = clamp(Math.round(((clientX - rect.left) / rect.width) * (width - 1)), 0, width - 1);
-    const y = clamp(Math.round(((clientY - rect.top) / rect.height) * (height - 1)), 0, height - 1);
+    const vw = this.video?.videoWidth || width;
+    const vh = this.video?.videoHeight || height;
+    const videoAspect = vw / Math.max(1, vh);
+    const rectAspect = rect.width / rect.height;
+
+    // Точный учёт полей object-fit: contain для камер 9:16 и 16:9 внутри блока 4:3,
+    // чтобы касание пальцем попадало ровно в выбранный пиксель цветной метки!
+    let renderW = rect.width;
+    let renderH = rect.height;
+    let offX = 0;
+    let offY = 0;
+    if (videoAspect > rectAspect + 1e-3) {
+      renderH = rect.width / videoAspect;
+      offY = (rect.height - renderH) * 0.5;
+    } else if (videoAspect < rectAspect - 1e-3) {
+      renderW = rect.height * videoAspect;
+      offX = (rect.width - renderW) * 0.5;
+    }
+
+    const u = (clientX - rect.left - offX) / Math.max(1, renderW);
+    const v = (clientY - rect.top - offY) / Math.max(1, renderH);
+    if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+
+    const x = clamp(Math.round(u * (width - 1)), 0, width - 1);
+    const y = clamp(Math.round(v * (height - 1)), 0, height - 1);
     let best = null;
     for (let yy = Math.max(0, y - 4); yy <= Math.min(height - 1, y + 4); yy++) {
       for (let xx = Math.max(0, x - 4); xx <= Math.min(width - 1, x + 4); xx++) {

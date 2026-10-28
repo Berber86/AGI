@@ -709,4 +709,38 @@ test('WristHandFusion suppresses phantom bin pokes and phantom throws when wrist
   assert.equal(staleInspect.decision, null, 'stale pre-disconnect impulse must not discard find');
 });
 
+test('recenterOnSessionStart defers while player holds Cardboard goggles at forehead, then aligns cleanly when arm lowers', () => {
+  const fusion = new WristHandFusion('right');
+  const qPose1 = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qPose2 = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qPose1);
+  fusion.feedSensor({ q: qPose1, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qPose2, ts: 10 });
+  fusion.calibrateBendPose();
+
+  // В момент окончания 3-секундного отсчёта игрок повернулся в кресле на +50°,
+  // НО его рука задрана вверх к виску (+60° pitch, -75° yaw), поправляя ремешок очков!
+  const qHoldingHeadset = qMul(
+    qAxisAngle([0, 1, 0], -75 * DEG),
+    qMul(qAxisAngle([1, 0, 0], 60 * DEG), qPose1)
+  );
+  fusion.feedSensor({ q: qHoldingHeadset, linMag: 0.9, rotRate: 48, ts: 500 });
+  fusion.recenterOnSessionStart(510);
+
+  assert.equal(fusion.pendingSessionRecenter, true, 'defers recenter while hand is holding headset');
+  assert.equal(fusion.yawTrimRad, 0, 'does not lock bogus -75 deg forehead strap offset');
+
+  // Через секунду очки надеты, и игрок спокойно опускает руку вперёд перед собой в кресле (+50° от стола):
+  const qArmInChair = qMul(qAxisAngle([0, 1, 0], 50 * DEG), qPose1);
+  let snap;
+  for (let i = 0; i < 20; i++) {
+    const t = 1200 + i * 16;
+    fusion.feedSensor({ q: qArmInChair, linMag: 0.1, rotRate: 4, ts: t });
+    snap = fusion.update(1 / 60, { phase: 'search', headLook: { yaw: 0, pitch: 0 }, now: t });
+  }
+  assert.equal(fusion.pendingSessionRecenter, false, 'completed deferred recenter once arm lowered');
+  assert.ok(snap.pos.x > 0.04 && snap.pos.x < 0.25, `arm centered in front of chair: x=${snap.pos.x}`);
+});
+
+
 

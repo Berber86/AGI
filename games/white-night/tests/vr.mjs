@@ -349,6 +349,19 @@ try {
   check('Right/Left wrist choice syncs bidirectionally and mirrors 2-bone elbow & glove anatomy');
 
   await page.evaluate(() => window.__GAME_TEST__.vr.stop());
+  await page.evaluate(() => {
+    window.__GAME_TEST__.vr.open();
+    window.__GAME_TEST__.vr.setHandSide('left');
+  });
+  const reopened = await vr(page);
+  assert.equal(reopened.look.gyro.listening, true, 'Reopening VR dialog automatically resumes granted gyro listener');
+  const wristHref = await page.$eval('#vr-wrist-link', (el) => el.getAttribute('href'));
+  assert.ok(
+    wristHref.includes('room=777777') && wristHref.includes('hand=left') && wristHref.includes('demo=1'),
+    `dynamic wrist link href=${wristHref}`
+  );
+  await page.evaluate(() => window.__GAME_TEST__.vr.setHandSide('right'));
+  check('Reopening VR dialog auto-resumes granted gyro and updates companion link URL params');
   await wristPage.close();
   await page.close();
 

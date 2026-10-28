@@ -271,6 +271,8 @@ export class WristHandFusion {
     this.bendSpanRad = 52 * DEG;
     this.bendInwardYawRad = 0;
     this.yawTrimRad = 0;
+    this.pendingSessionRecenter = false;
+    this.pendingRecenterWindowSec = 0;
     this.calibratedStep = 0;
 
     // Оптическая шкала двухцветного маяка
@@ -539,17 +541,33 @@ export class WristHandFusion {
 
   /**
    * Мягкая синхронизация горизонтального азимута при входе в VR (после 3-секундного отсчёта):
-   * если игрок повернулся на кресле, надевая очки, и рука ушла > 22° вбок от нового взгляда,
-   * компенсируем этот поворот кресла, чтобы рука смотрела вперёд вместе с игроком.
+   * если в момент окончания отсчёта игрок ещё держит шлем руками у лица (рука задрана > 32° вверх
+   * или активно движется), откладываем выравнивание на пару секунд, пока он спокойно не опустит
+   * руку перед собой, чтобы НЕ записать ложный боковой угол от ремешка очков!
    */
   recenterOnSessionStart(now = performance.now()) {
     this.torsoYaw = 0;
+    this.pendingSessionRecenter = false;
+    this.pendingRecenterWindowSec = 0;
     if (!this.lastSensor?.q || !this.qStretch) return;
-    if (now - this.lastSensor.ts > 2000) return;
+    if (this.sensorSilentSec > 1.6 || now - this.lastSensor.ts > 2000) return;
+
     const qRaw = qNormalize(qMul(this.qRefInv, qMul(this.lastSensor.q, this.qBasis)));
     const fwd = qRotVec(qRaw, [0, 0, -1]);
+    const pitchRad = Math.asin(clamp(fwd[1], -1, 1));
+    const handAtHeadOrMoving =
+      pitchRad > 32 * DEG ||
+      this.lastSensor.rotRate > 38 ||
+      this.lastSensor.linMag > 1.3;
+
+    if (handAtHeadOrMoving) {
+      this.pendingSessionRecenter = true;
+      this.pendingRecenterWindowSec = 10;
+      return;
+    }
+
     const horizLen = Math.hypot(fwd[0], fwd[2]);
-    if (horizLen < 0.35) return; // рука почти вертикальна — азимут не трогаем
+    if (horizLen < 0.35) return;
     const azRad = Math.atan2(fwd[0], -fwd[2]);
     if (Math.abs(azRad) > 22 * DEG) {
       this.yawTrimRad = azRad;
@@ -633,8 +651,32 @@ export class WristHandFusion {
     // 1. 60 Гц ориентация предплечья и кисти в гравитационной системе корпуса:
     // Внимание на знак: headYaw > 0 — это физический поворот ВПРАВО (Ry(-headYaw) в OpenGL),
     // поэтому переход из мира в повернувшийся корпус требует умножения на Ry(+torsoYaw)!
+    const qRawArm = qNormalize(qMul(this.qRefInv, qMul(sensor.q, this.qBasis)));
+    if (this.pendingSessionRecenter) {
+      this.pendingRecenterWindowSec -= safeDt;
+      if (this.pendingRecenterWindowSec <= 0) {
+        this.pendingSessionRecenter = false;
+      } else {
+        const rawFwd = qRotVec(qRawArm, [0, 0, -1]);
+        const rawPitch = Math.asin(clamp(rawFwd[1], -1, 1));
+        const rawHoriz = Math.hypot(rawFwd[0], rawFwd[2]);
+        if (
+          rawPitch <= 28 * DEG &&
+          rawPitch >= -32 * DEG &&
+          rawHoriz >= 0.45 &&
+          sensor.rotRate <= 35 &&
+          sensor.linMag <= 1.2
+        ) {
+          const azRad = Math.atan2(rawFwd[0], -rawFwd[2]);
+          if (Math.abs(azRad) > 22 * DEG) {
+            this.yawTrimRad = azRad;
+          }
+          this.pendingSessionRecenter = false;
+        }
+      }
+    }
     const qYawTrim = qAxisAngle([0, 1, 0], this.yawTrimRad + this.torsoYaw);
-    this.qArmTorso = qNormalize(qMul(qYawTrim, qMul(this.qRefInv, qMul(sensor.q, this.qBasis))));
+    this.qArmTorso = qNormalize(qMul(qYawTrim, qRawArm));
     this.qArm = qNormalize(qMul(qTorsoToCam, this.qArmTorso));
 
     let rotRateDeg = sensor.rotRate;

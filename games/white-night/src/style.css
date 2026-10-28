@@ -173,7 +173,7 @@ select:focus-visible{outline:2px solid var(--accent);outline-offset:5px}
 .vr-step>div{flex:1;min-width:0}.vr-step strong{font-size:14px}.vr-step p{font-size:12px;line-height:1.65;color:#bdcdb5;margin:6px 0 0}
 .vr-action,.vr-pick{min-height:46px;border:1px solid #dce9b05c;border-radius:5px;padding:8px 13px;background:#354a3b;color:var(--cream);font-size:12px}
 .vr-action.ready{background:var(--accent);color:var(--ink);font-weight:700}.vr-action:disabled,.primary:disabled{opacity:.42;filter:saturate(.35)}
-#vr-camera,#vr-hand-camera{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#0a1511;border:1px solid #dce9b033;border-radius:7px}
+#vr-camera,#vr-hand-camera{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#0a1511;border:1px solid #dce9b033;border-radius:7px}
 #vr-hand-camera{margin-top:10px;max-height:170px}
 #vr-hand-camera[hidden]{display:none}
 #vr-camera.picking{outline:3px solid var(--accent);outline-offset:3px;cursor:crosshair}

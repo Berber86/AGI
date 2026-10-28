@@ -177,6 +177,8 @@ function syncVrPrep(){
   if(!wristFbPrefilled){wristFbPrefilled=true;const saved=loadSavedFirebaseRaw();const fbEl=$('#vr-hand-fb');if(fbEl&&saved)fbEl.value=saved;else if($('#vr-hand-fb-details'))$('#vr-hand-fb-details').open=true;}
   const st=wristLink.status(),hasSignal=st.connected||!!wristFusion.lastSensor;
   $('#vr-hand-code').textContent=st.roomCode||'——';
+  const wristLinkEl=$('#vr-wrist-link');
+  if(wristLinkEl){const q=new URLSearchParams();if(st.roomCode)q.set('room',st.roomCode);if(vrSettings.handSide==='left')q.set('hand','left');if(st.mode==='demo')q.set('demo','1');const qs=q.toString();wristLinkEl.href=qs?`./wrist/index.html?${qs}`:'./wrist/index.html';}
   const netEl=$('#vr-hand-net-status');
   netEl.textContent=st.error?st.error:st.p2pOpen?(st.routeKind==='demo'?`Демо-канал активен (${st.rxHz||60} Гц).`:`⚡ Прямой Wi-Fi 60 Гц подключён${st.rttMs?` · ${st.rttMs} мс`:''}.`):st.connected?'☁️ Браслет на связи через облако (поднимаю прямой канал 60 Гц…).':st.roomCode?`Код комнаты ${st.roomCode} создан — введите его на странице браслета.`:'Создайте 6-значный код и введите его на втором телефоне.';
   netEl.className=`vr-status-line ${st.error?'warn':hasSignal?'good':''}`;
@@ -198,7 +200,7 @@ function syncVrPrep(){
 }
 function openVr(){
  if(state.phase==='inspect'){notify('Сначала завершите осмотр находки.');return;}
- const dialog=$('#vr-dialog');if(dialog.open)return;ensureVrLook();syncVrPrep();dialog.showModal();
+ const dialog=$('#vr-dialog');if(dialog.open)return;const look=ensureVrLook();if(look.gyro.permission==='granted'&&!look.gyro.listening)look.gyro.start();syncVrPrep();dialog.showModal();
 }
 async function tryVrFullscreen(){
  try{
@@ -276,9 +278,11 @@ function updateVrFrame(dt,now=performance.now()){
   }else if(state.phase==='inspect'){
    vrGazeHit=false;
    world.setHandItemRotation(snap.itemRot.x,snap.itemRot.y,snap.itemRot.z,snap.itemQuat);
+   const relInspectYaw=world.handInspectHeadBase?Math.atan2(Math.sin(look.yaw-world.handInspectHeadBase.yaw),Math.cos(look.yaw-world.handInspectHeadBase.yaw)):look.yaw;
+   const handStillForShake=(wristFusion.lastSensor?.rotRate||0)<90&&(wristFusion.lastSensor?.linMag||0)<2.2;
    if(snap.decision==='discard'){
     vrPendingSave=false;headShake.reset();world.launchDiscardToss(snap.throwVel);decide(false,{fromVr:true});wristFusion.onPhaseChange('search',now);
-   }else if(snap.decision==='keep'||(world.revealState?.ready&&headShake.update(look.yaw,now))){
+   }else if(snap.decision==='keep'||(world.revealState?.ready&&handStillForShake&&headShake.update(relInspectYaw,now))){
     vrPendingSave=false;headShake.reset();decide(true,{fromVr:true});wristFusion.onPhaseChange('search',now);
    }
   }
