@@ -5,31 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Джойстик — Candy Kingdom Coaster</title>
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', 'Trebuchet MS', Arial, sans-serif;
     background: linear-gradient(160deg, #241031, #3d1650 55%, #5c1d4e);
-    color: #fdf3ff; min-height: 100vh; padding: 16px;
+    color: #fdf3ff; min-height: 100dvh; padding: 12px 14px;
+    user-select: none; -webkit-user-select: none;
   }
-  main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-  h1 { font-size: 22px; margin: 4px 0 0; }
-  .sub { opacity: .8; font-size: 13px; line-height: 1.45; margin: 0; }
-  .card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; padding: 14px 16px; }
-  .card h2 { margin: 0 0 10px; font-size: 16px; }
+  main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  h1 { font-size: 20px; margin: 2px 0 0; }
+  .sub { opacity: .82; font-size: 12.5px; line-height: 1.42; margin: 0; }
+  .card { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); border-radius: 18px; padding: 12px 14px; }
+  .card h2 { margin: 0 0 8px; font-size: 16px; }
   textarea, input[type="text"] {
     width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,.25);
-    background: rgba(0,0,0,.35); color: #fff; padding: 12px; font-size: 15px;
+    background: rgba(0,0,0,.35); color: #fff; padding: 11px 12px; font-size: 15px;
   }
-  textarea { min-height: 84px; font-family: monospace; font-size: 11px; }
+  textarea { min-height: 82px; font-family: monospace; font-size: 11px; }
   button {
-    border: 0; border-radius: 14px; padding: 13px 16px; font-size: 16px; font-weight: 800;
+    border: 0; border-radius: 13px; padding: 11px 14px; font-size: 15px; font-weight: 800;
     background: linear-gradient(180deg, #ff6aa8, #e8358c); color: #fff; cursor: pointer;
   }
   button.secondary { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); }
+  button:active { transform: scale(0.985); }
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
   .row > * { flex: 1; }
   .hidden { display: none !important; }
+
+  /* Сенсорные диски */
   .drive-controls { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 10px; }
   .touch-pad {
     --thumb-x: 50; --thumb-y: 50;
@@ -57,24 +61,115 @@
   .pad-hint { bottom: 17%; font-size: 11px; opacity: .82; font-weight: 700; }
   .pad-readout { min-height: 20px; margin: 9px 0 0; text-align: center; font-size: 13px; font-weight: 800; color: #ffd166; }
   .pad-readout small { color: #fdf3ff; opacity: .75; font-weight: 600; }
-  .mode-switch { display: flex; gap: 8px; margin-top: 10px; }
-  .mode-switch button { flex: 1; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); }
-  .mode-switch button[aria-pressed="true"] { background: linear-gradient(180deg, #ffd166, #f4b63f); color: #5c1d4e; }
+
+  /* Переключатель 3 режимов */
+  .mode-switch { display: flex; gap: 5px; margin-top: 8px; }
+  .mode-switch button {
+    flex: 1; min-width: 0; padding: 9px 4px; font-size: 12.5px; white-space: nowrap;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25);
+  }
+  .mode-switch button[aria-pressed="true"] {
+    background: linear-gradient(180deg, #ffd166, #f4b63f);
+    color: #5c1d4e; border-color: #ffd166;
+  }
+
+  /* Прямой канал WebRTC / Облако бейдж */
+  .rtc-pill {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 8px; padding: 6px 10px; border-radius: 11px; font-size: 12px; font-weight: 800;
+    background: rgba(255, 209, 102, 0.12); border: 1px solid rgba(255, 209, 102, 0.4); color: #ffd166;
+  }
+  .rtc-pill.fast {
+    background: rgba(77, 240, 192, 0.15); border-color: rgba(77, 240, 192, 0.55); color: #7ff7d4;
+  }
+  .rtc-mini-btn {
+    padding: 4px 9px; font-size: 11.5px; border-radius: 8px;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); color: #fff;
+  }
+
+  /* 📱 Вкладка 3D-наклонов */
+  .tilt-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .tilt-cockpit {
+    position: relative; height: 196px; border-radius: 18px; overflow: hidden;
+    border: 2px solid rgba(255,255,255,.25); background: rgba(14, 5, 24, 0.72);
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .tilt-zone {
+    flex: 1; display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; font-size: 11.5px; font-weight: 800; pointer-events: none;
+  }
+  .tilt-zone.gas {
+    background: linear-gradient(180deg, rgba(77, 240, 192, 0.25), rgba(77, 240, 192, 0.05));
+    color: #84f9d7; border-bottom: 1px dashed rgba(77, 240, 192, 0.35);
+  }
+  .tilt-zone.cruise {
+    flex: 0 0 42px; background: rgba(255, 209, 102, 0.13);
+    color: #ffd166; border-bottom: 1px dashed rgba(255, 115, 135, 0.4);
+  }
+  .tilt-zone.brake {
+    background: linear-gradient(0deg, rgba(255, 107, 122, 0.28), rgba(255, 107, 122, 0.05));
+    color: #ff95a3;
+  }
+  .tilt-vcenter {
+    position: absolute; top: 8%; bottom: 8%; left: 50%; width: 1.5px;
+    background: rgba(255,255,255,.22); pointer-events: none;
+  }
+  .tilt-puck {
+    position: absolute; left: 50%; top: 50%;
+    width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #fff, #ffd166 56%, #ff6aa8 100%);
+    box-shadow: 0 6px 20px rgba(255, 106, 168, 0.65), inset 0 2px 5px rgba(255,255,255,.8);
+    display: flex; align-items: center; justify-content: center; font-size: 21px;
+    pointer-events: none; transition: background 120ms ease;
+  }
+  .tilt-puck.gas {
+    background: radial-gradient(circle at 32% 28%, #f4fffb, #4df0c0 58%, #138a6b 100%);
+    box-shadow: 0 6px 20px rgba(77, 240, 192, 0.65);
+  }
+  .tilt-puck.brake {
+    background: radial-gradient(circle at 32% 28%, #fff3f5, #ff6b7a 58%, #a61b31 100%);
+    box-shadow: 0 6px 20px rgba(255, 107, 122, 0.7);
+  }
+  .tilt-hud-line {
+    display: flex; justify-content: space-between; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 800; color: #ffd166; font-variant-numeric: tabular-nums;
+  }
+  .tilt-tune-row { display: flex; gap: 5px; }
+  .tilt-tune-row button {
+    flex: 1; padding: 7px 5px; font-size: 11.5px; border-radius: 10px;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22);
+  }
+  .tilt-tune-row button.on {
+    background: rgba(77, 240, 192, 0.24); border-color: #7ff7d4; color: #7ff7d4;
+  }
+  .blind-center-btn {
+    width: 100%; min-height: 78px; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(77, 240, 192, 0.30), rgba(255, 106, 168, 0.30));
+    border: 2px solid #7ff7d4;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 10px 12px; color: #fff;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+  }
+  .blind-center-btn .big { font-size: 16px; font-weight: 900; letter-spacing: 0.3px; }
+  .blind-center-btn .small { font-size: 11.5px; font-weight: 600; opacity: 0.85; }
+
   .cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-  .cmd-btn { min-height: 74px; font-size: 17px; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.22); }
+  .cmd-btn { min-height: 70px; font-size: 16px; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.22); }
   .cmd-btn.on { background: #ffd166; color: #5c1d4e; border-color: #ffd166; }
   .cmd-btn.danger { border-color: rgba(255,120,140,.6); }
   .cmd-btn.armed { background: #c22e42; color: #fff; }
-  .status { font-size: 15px; font-weight: 800; text-align: center; }
+  .status { font-size: 14.5px; font-weight: 800; text-align: center; margin: 0; }
   .ok { color: #9be7b4; } .err { color: #ff9db1; font-size: 13px; white-space: pre-wrap; }
-  .warn { font-size: 12px; line-height: 1.5; color: #ffc9d6; }
+  .warn { font-size: 12px; line-height: 1.45; color: #ffc9d6; margin: 6px 0 0; }
 </style>
 </head>
 <body>
 <main>
-  <h1>🕹 Джойстик Candy Kingdom</h1>
-  <p class="sub">Этот телефон — управление. На главном телефоне откройте игру → «VR-поездка» →
-  «Вести с джойстика»: там появится код комнаты. Введите его здесь — и ведите заезд!</p>
+  <header id="intro-head">
+    <h1>🕹 Джойстик Candy Kingdom</h1>
+    <p class="sub">Этот телефон — руль и педаль в руке! На главном телефоне откройте игру → «VR-поездка» →
+    «Вести с джойстика»: введите 6 цифр кода и рулите наклонами или сенсорами.</p>
+  </header>
 
   <section class="card" id="card-config">
     <h2>1. Firebase (один раз на этом телефоне)</h2>
@@ -85,8 +180,7 @@
     </div>
     <p id="cfg-status" class="ok"></p>
     <p id="cfg-error" class="err"></p>
-    <p class="warn">Конфиг хранится только в этом браузере. Зачем Firebase и где его взять —
-    в инструкции стенда задержки (раздел рядом с игрой в каталоге).</p>
+    <p class="warn">Совет для минимальной задержки (3–8 мс): раздайте Wi-Fi с одного телефона на другой — после входа по коду пульт сам переключится на прямой канал WebRTC 60 Гц!</p>
   </section>
 
   <section class="card hidden" id="card-join">
@@ -99,11 +193,61 @@
   </section>
 
   <section class="card hidden" id="card-joy">
-    <p class="status" id="joy-status">Подключение…</p>
-    <div class="mode-switch" role="group" aria-label="Режим джойстика">
-      <button type="button" id="mode-steer" aria-pressed="true">🕹 Руль</button>
-      <button type="button" id="mode-cmd" aria-pressed="false">⚙️ Команды</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <p class="status" id="joy-status" style="text-align:left;font-size:13.5px">Подключение…</p>
+      <button type="button" id="btn-change-room" class="rtc-mini-btn" style="white-space:nowrap">Код — · Сменить</button>
     </div>
+
+    <div id="rtc-pill" class="rtc-pill">
+      <span id="rtc-pill-text">☁ Подключаем прямой канал 60 Гц…</span>
+      <button type="button" id="btn-rtc-retry" class="rtc-mini-btn">↻ P2P</button>
+    </div>
+
+    <div class="mode-switch" role="group" aria-label="Режим джойстика">
+      <button type="button" id="mode-tilt" aria-pressed="false">◈ Наклоны</button>
+      <button type="button" id="mode-steer" aria-pressed="true">◉ Сенсоры</button>
+      <button type="button" id="mode-cmd" aria-pressed="false">⚙ Команды</button>
+    </div>
+
+    <!-- Вкладка 1: 3D Наклоны телефона в ладони -->
+    <div id="view-tilt" class="tilt-wrap hidden">
+      <div id="tilt-cockpit" class="tilt-cockpit">
+        <div class="tilt-zone gas">
+          <span>▲ ОТ СЕБЯ — ГАЗ ДО 100%</span>
+          <span id="tilt-speed-badge">— км/ч</span>
+        </div>
+        <div class="tilt-zone cruise">
+          <span>● РОВНО (±5°) — ХОД 30%</span>
+          <span style="white-space:nowrap">◀ РУЛЬ ▶</span>
+        </div>
+        <div class="tilt-zone brake">
+          <span>▼ НА СЕБЯ — ТОРМОЗ ДО СТОПА</span>
+          <span id="tilt-brake-badge"></span>
+        </div>
+        <div class="tilt-vcenter"></div>
+        <div id="tilt-puck" class="tilt-puck">●</div>
+      </div>
+
+      <div id="tilt-readout" class="tilt-hud-line">
+        <span id="tilt-angles-txt">Хват: 0° бок · 0° вперёд</span>
+        <span id="tilt-drive-txt">Руль: прямо · ● Ход 30%</span>
+      </div>
+
+      <div class="tilt-tune-row">
+        <button type="button" class="span-btn" data-span="18">Острее ±18°</button>
+        <button type="button" class="span-btn on" data-span="24">Норма ±24°</button>
+        <button type="button" class="span-btn" data-span="32">Мягче ±32°</button>
+        <button type="button" id="btn-tilt-invert">↕ Инверс.</button>
+        <button type="button" id="btn-tilt-park">■ Стоп</button>
+      </div>
+
+      <button type="button" id="btn-tilt-center" class="blind-center-btn">
+        <span class="big">◎ ЦЕНТРИРОВАТЬ ХВАТ</span>
+        <span class="small">Нажмите вслепую в VR-очках — текущая поза руки станет нулём</span>
+      </button>
+    </div>
+
+    <!-- Вкладка 2: 👆 Классические два сенсора -->
     <div id="view-steer">
       <div class="drive-controls" aria-label="Управление машинкой">
         <div class="touch-pad steer-pad" id="pad-steer" role="slider" tabindex="0" aria-label="Руль: влево вправо" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
@@ -116,9 +260,11 @@
         </div>
       </div>
       <p class="pad-readout" id="drive-readout">Газ: 0% · машина стоит <small>— можно осматриваться</small></p>
-      <p class="sub" style="text-align:center; margin-top:10px" id="joy-net">Пинг: —</p>
-      <p class="sub" style="text-align:center">Левый сенсор — руль. Правый — газ: вверх максимум, центр 30%, нижняя четверть 0%. Отпустили правый сенсор — машина остановилась, осматриваться можно. Если связь оборвётся, автопилот подхватит поездку через 6 секунд.</p>
+      <p class="sub" style="text-align:center; margin-top:8px" id="joy-net">Пинг: —</p>
+      <p class="sub" style="text-align:center; margin-top:4px">Или нажмите вкладку <b>«◈ Наклоны»</b> выше, чтобы рулить и газовать наклонами телефона в руке вслепую!</p>
     </div>
+
+    <!-- Вкладка 3: ⚙️ Команды экрана VR -->
     <div id="view-cmd" class="hidden">
       <div class="cmd-grid">
         <button type="button" class="cmd-btn" id="cmd-restart">🔄 Начать заново</button>
@@ -138,13 +284,24 @@
 </main>
 
 <script type="module">
+import {
+  deviceUpVector,
+  accelToUpVector,
+  handTiltDrive,
+  RtcJoyPeer,
+  createFirebaseRtcSignaling,
+  createBroadcastRtcSignaling,
+} from '../src/tilt-rtc.js';
+
 const $ = (id) => document.getElementById(id);
 const els = {
   cfg: $('cfg'), cfgStatus: $('cfg-status'), cfgError: $('cfg-error'),
   cardConfig: $('card-config'), cardJoin: $('card-join'), cardJoy: $('card-joy'),
   joinCode: $('join-code'), joinStatus: $('join-status'), joyStatus: $('joy-status'), joyNet: $('joy-net'),
+  rtcPill: $('rtc-pill'), rtcPillText: $('rtc-pill-text'), btnRtcRetry: $('btn-rtc-retry'),
   padSteer: $('pad-steer'), padThrottle: $('pad-throttle'), driveReadout: $('drive-readout'),
-  modeSteer: $('mode-steer'), modeCmd: $('mode-cmd'), viewSteer: $('view-steer'), viewCmd: $('view-cmd'),
+  modeTilt: $('mode-tilt'), modeSteer: $('mode-steer'), modeCmd: $('mode-cmd'),
+  viewTilt: $('view-tilt'), viewSteer: $('view-steer'), viewCmd: $('view-cmd'),
   cmdState: $('cmd-state'),
   cmd: {
     restart: $('cmd-restart'), pause: $('cmd-pause'), auto: $('cmd-auto'), look: $('cmd-look'),
@@ -154,21 +311,47 @@ const els = {
 };
 const qs = new URLSearchParams(location.search);
 const DEMO_CHANNEL = 'ckc-joystick-stand';
-// Firebase is a remote database, not a 60 Hz input bus. Keep the latest
-// analog value locally and send a small, coalesced packet at a sane rate.
-const DRIVE_SEND_MS = 160;
-const DRIVE_HEARTBEAT_MS = 1500;
+const DRIVE_SEND_MS = 160;        // 6.25 Гц при резерве через Firebase (без очереди в облаке)
+const DRIVE_HEARTBEAT_MS = 1500;  // облачный heartbeat, пока WebRTC закрыт
+const RTC_SEND_MS = 18;           // ~55–60 Гц при открытом прямом WebRTC DataChannel
+const RTC_HEARTBEAT_MS = 1500;    // P2P keepalive раз в 1.5 с (0 записей в БД Firebase)
 const PING_INTERVAL_MS = 5000;
 const DRIVE_SESSION = (globalThis.crypto && globalThis.crypto.randomUUID)
   ? globalThis.crypto.randomUUID()
   : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const state = {
-  kind: null, room: null, steer: 0, throttle: 0, throttleY: 75,
+  kind: null, room: null,
+  steer: 0, throttle: 0, brake: 0, throttleY: 75,
   steerPointer: null, throttlePointer: null,
   keyLeft: false, keyRight: false, keyUp: false,
   seq: 0, db: null, f: null, rtt: [], pending: null, pingSeq: 0, ch: null,
+  rtc: null, uiMode: 'steer',
 };
+
+// Состояние 3D-наклонов ладони
+let tiltActive = false;
+let tiltParked = false;
+let tiltPermissionGranted = false;
+let tiltListenersBound = false;
+let tiltSpanDeg = 24;
+let tiltInvertPitch = false;
+let lastOrientAt = 0;
+let currentUpVec = { x: 0, y: 0, z: 1 };
+let zeroUpVec = null;
+let lastTiltZone = 'cruise';
+let lastTiltMetrics = { tiltRightDeg: 0, tiltForwardDeg: 0, zone: 'cruise' };
+
+function buzz(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch { /* ignore */ }
+}
+
+function screenAngleDeg() {
+  if (screen.orientation && Number.isFinite(screen.orientation.angle)) {
+    return screen.orientation.angle;
+  }
+  return typeof window.orientation === 'number' ? window.orientation : 0;
+}
 
 function parseFirebaseConfig(text) {
   const a = text.indexOf('{'), b = text.lastIndexOf('}');
@@ -204,49 +387,141 @@ function parseFirebaseConfig(text) {
 const roomRef = (p) => state.f.ref(state.db, `rooms/${state.room}${p || ''}`);
 const median = (a) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : null; };
 
-// ВАЖНО (INP): обработчики нажатий не должны трогать сеть синхронно —
-// запись в Firebase внутри pointerdown блокировала UI на слабых телефонах
-// (Chrome показывал «Event handlers blocked UI updates» на сотни мс).
-// Поэтому обработчик только меняет визуал, а отправка уезжает в отдельный
-// тик после отрисовки. Firebase не является 60 Hz транспортом: более частые
-// set() создают очередь сетевых событий и могут отнимать кадры у игры на
-// слабом телефоне. Для спокойной экспериментальной игры отправляем
-// последний пакет не чаще 6,25 раз/с, а при неизменном управлении —
-// heartbeat только раз в 1,5 секунды.
+function updateRtcUi() {
+  const open = !!(state.rtc && state.rtc.isOpen());
+  if (open) {
+    els.rtcPill.className = 'rtc-pill fast';
+    const oneWay = state.rtc.rttMs !== null ? ` · ≈ ${Math.max(1, Math.round(state.rtc.rttMs / 2))} мс` : '';
+    els.rtcPillText.textContent = `⚡ Прямой WebRTC 60 Гц${oneWay} (0 записей в облако)`;
+    els.joyStatus.textContent = '✓ Связь есть — прямой канал 60 Гц!';
+    els.joyStatus.className = 'status ok';
+  } else if (state.kind === 'demo') {
+    els.rtcPill.className = 'rtc-pill';
+    els.rtcPillText.textContent = '◈ Демо-канал (поднимаем прямой WebRTC 60 Гц…)';
+  } else {
+    els.rtcPill.className = 'rtc-pill';
+    els.rtcPillText.textContent = '☁ Облако Firebase · раздайте Wi-Fi для прямых 60 Гц';
+  }
+}
+
+// Двухконтурная отправка:
+// - При открытом WebRTC шлём быстрые пакеты (~55–60 Гц, 0 записей в Firebase).
+// - Если WebRTC ещё не поднялся или оборвался — прозрачный коалесцированный резерв (160 мс = 6.25 Гц).
 let driveDirty = false;
 let driveForce = false;
 let driveTimer = null;
 let lastDriveSent = 0;
 let lastDrivePacket = null;
 let driveSentCount = 0;
+
+let rtcDirty = false;
+let rtcForce = false;
+let rtcTimer = null;
+let lastRtcSent = 0;
+let lastRtcPacket = null;
+let rtcSentCount = 0;
+
 function scheduleDriveSend() {
+  if (!state.room) return;
+  if (state.rtc && state.rtc.isOpen()) {
+    rtcDirty = true;
+    if (driveForce) rtcForce = true;
+    driveForce = false;
+    driveDirty = false;
+    const waitRtc = rtcForce ? 0 : Math.max(0, RTC_SEND_MS - (performance.now() - lastRtcSent));
+    if (waitRtc === 0) {
+      if (rtcTimer && rtcTimer !== 'micro') clearTimeout(rtcTimer);
+      if (rtcTimer === 'micro') return;
+      rtcTimer = 'micro';
+      queueMicrotask(() => {
+        if (rtcTimer === 'micro') rtcTimer = null;
+        flushRtcDrive();
+      });
+      return;
+    }
+    if (rtcTimer) return;
+    rtcTimer = setTimeout(flushRtcDrive, waitRtc);
+    return;
+  }
+  const wait = driveForce ? 0 : Math.max(0, DRIVE_SEND_MS - (performance.now() - lastDriveSent));
+  if (wait === 0) {
+    if (driveTimer && driveTimer !== 'micro') clearTimeout(driveTimer);
+    if (driveTimer === 'micro') return;
+    driveTimer = 'micro';
+    queueMicrotask(() => {
+      if (driveTimer === 'micro') driveTimer = null;
+      flushCloudDrive();
+    });
+    return;
+  }
   if (driveTimer) return;
-  const wait = Math.max(0, DRIVE_SEND_MS - (performance.now() - lastDriveSent));
-  driveTimer = setTimeout(flushDrive, wait);
+  driveTimer = setTimeout(flushCloudDrive, wait);
 }
-function flushDrive() {
+
+function flushRtcDrive() {
+  rtcTimer = null;
+  if (!rtcDirty || !state.room) return;
+  if (!(state.rtc && state.rtc.isOpen())) {
+    // WebRTC закрылся на лету — мгновенно отдаём пакет в облачный резерв!
+    driveDirty = true;
+    driveForce = true;
+    rtcDirty = false;
+    rtcForce = false;
+    scheduleDriveSend();
+    return;
+  }
+  const packet = {
+    steer: +state.steer.toFixed(3),
+    throttle: +state.throttle.toFixed(3),
+    brake: +state.brake.toFixed(3),
+  };
+  const changed = !lastRtcPacket
+    || packet.steer !== lastRtcPacket.steer
+    || packet.throttle !== lastRtcPacket.throttle
+    || packet.brake !== lastRtcPacket.brake;
+  const send = rtcForce || changed;
+  rtcDirty = false;
+  rtcForce = false;
+  if (!send) return;
+  const wire = { ...packet, sid: DRIVE_SESSION, seq: ++state.seq, sts: Date.now() };
+  if (!state.rtc.sendInput(wire)) {
+    driveDirty = true;
+    driveForce = true;
+    scheduleDriveSend();
+    return;
+  }
+  if (changed) lastRtcSent = performance.now();
+  lastRtcPacket = packet;
+  rtcSentCount++;
+}
+
+function flushCloudDrive() {
   driveTimer = null;
   if (!driveDirty || !state.room) return;
-  const packet = { steer: +state.steer.toFixed(3), throttle: +state.throttle.toFixed(3) };
+  const packet = {
+    steer: +state.steer.toFixed(3),
+    throttle: +state.throttle.toFixed(3),
+    brake: +state.brake.toFixed(3),
+  };
   const changed = !lastDrivePacket
     || packet.steer !== lastDrivePacket.steer
-    || packet.throttle !== lastDrivePacket.throttle;
+    || packet.throttle !== lastDrivePacket.throttle
+    || packet.brake !== lastDrivePacket.brake;
   const send = driveForce || changed;
   driveDirty = false;
   driveForce = false;
   if (!send) return;
-  lastDriveSent = performance.now();
+  if (changed) lastDriveSent = performance.now();
   lastDrivePacket = packet;
   const wire = { ...packet, sid: DRIVE_SESSION, seq: ++state.seq, sts: Date.now() };
   driveSentCount++;
   if (state.kind === 'demo') {
     state.ch.postMessage({ kind: 'input', room: state.room, state: wire });
   } else {
-    // Client time plus the server offset on the game phone is enough for the
-    // lag estimate and avoids a serverTimestamp transform on every input.
     state.f.set(roomRef('/input'), wire).catch(() => {});
   }
 }
+
 function updatePadVisuals() {
   const sx = 50 + state.steer * 42;
   els.padSteer.style.setProperty('--thumb-x', sx.toFixed(1));
@@ -258,13 +533,55 @@ function updatePadVisuals() {
   els.padThrottle.classList.toggle('is-active', state.throttlePointer !== null);
   els.padThrottle.setAttribute('aria-valuenow', String(Math.round(state.throttle * 100)));
   const pct = Math.round(state.throttle * 100);
-  els.driveReadout.innerHTML = pct === 0
-    ? 'Газ: 0% · машина стоит <small>— можно осматриваться</small>'
-    : `Газ: ${pct}% · руль ${Math.round(state.steer * 100)}%`;
+  els.driveReadout.innerHTML = state.brake > 0.01
+    ? `🛑 Тормоз: ${Math.round(state.brake * 100)}% · руль ${Math.round(state.steer * 100)}%`
+    : pct === 0
+      ? 'Газ: 0% · машина стоит <small>— можно осматриваться</small>'
+      : `Газ: ${pct}% · руль ${Math.round(state.steer * 100)}%`;
 }
-function pushDrive() {
+
+function paintTiltUi() {
+  const puck = $('tilt-puck');
+  const cockpit = $('tilt-cockpit');
+  const cw = cockpit.clientWidth || 260;
+  const ch = cockpit.clientHeight || 180;
+  const maxX = Math.max(24, cw * 0.40);
+  const maxY = Math.max(24, ch * 0.36);
+
+  const normY = state.brake > 0.01
+    ? (0.32 + state.brake * 0.68)
+    : state.throttle >= 0.30
+      ? -((state.throttle - 0.30) / 0.70)
+      : ((0.30 - state.throttle) / 0.30) * 0.32;
+
+  puck.style.transform = `translate(${(state.steer * maxX).toFixed(1)}px, ${(normY * maxY).toFixed(1)}px)`;
+  puck.classList.toggle('gas', state.brake <= 0.01 && state.throttle > 0.34);
+  puck.classList.toggle('brake', state.brake > 0.01);
+  puck.textContent = tiltParked ? '■' : (state.brake > 0.01 ? '▼' : (state.throttle > 0.35 ? '▲' : '●'));
+
+  const rDeg = Math.round(lastTiltMetrics.tiltRightDeg || 0);
+  const fDeg = Math.round(lastTiltMetrics.tiltForwardDeg || 0);
+  $('tilt-angles-txt').textContent = `Наклон: ${rDeg > 0 ? '+' : ''}${rDeg}° бок · ${fDeg > 0 ? '+' : ''}${fDeg}° вперёд`;
+
+  const steerTxt = Math.abs(state.steer) < 0.04
+    ? 'прямо'
+    : `${state.steer < 0 ? '◀ ' : '▶ '}${Math.round(Math.abs(state.steer) * 100)}%`;
+  const pedalTxt = tiltParked
+    ? '■ Стоп'
+    : state.brake > 0.01
+      ? `▼ Тормоз ${Math.round(state.brake * 100)}%`
+      : (Math.abs(state.throttle - 0.30) <= 0.02
+        ? '● Ход 30%'
+        : `▲ Газ ${Math.round(state.throttle * 100)}%`);
+  $('tilt-drive-txt').textContent = `Руль: ${steerTxt} · ${pedalTxt}`;
+  $('tilt-brake-badge').textContent = state.brake > 0.01 ? `${Math.round(state.brake * 100)}%` : '';
+}
+
+function pushDrive(force = false) {
   updatePadVisuals();
+  paintTiltUi();
   driveDirty = true;
+  if (force) driveForce = true;
   scheduleDriveSend();
 }
 
@@ -278,19 +595,31 @@ async function bootFirebase(config) {
   state.kind = 'firebase';
 }
 
+let loopsStarted = false;
 function startLoops() {
-  setInterval(() => { // heartbeat: экран видит живость, даже когда руль отпущен
-    if (state.room && !document.hidden) pushDriveKeepVisual();
+  if (loopsStarted) return;
+  loopsStarted = true;
+  setInterval(() => { // быстрый P2P keepalive (0 записей в облако!)
+    if (state.room && !document.hidden && state.rtc && state.rtc.isOpen()) {
+      rtcDirty = true;
+      rtcForce = true;
+      scheduleDriveSend();
+    }
+  }, RTC_HEARTBEAT_MS);
+  setInterval(() => { // резервный облачный heartbeat раз в 1.5 с, только если P2P закрыт
+    if (state.room && !document.hidden && !(state.rtc && state.rtc.isOpen())) {
+      pushDriveKeepVisual();
+    }
   }, DRIVE_HEARTBEAT_MS);
   setInterval(() => {
-    if (!state.room || document.hidden || state.pending) return;
+    if (!state.room || document.hidden || state.pending || (state.rtc && state.rtc.isOpen())) return;
     const id = ++state.pingSeq;
     state.pending = { id, t0: performance.now() };
     if (state.kind === 'demo') state.ch.postMessage({ kind: 'ping', room: state.room, id });
     else state.f.set(roomRef('/ping'), { id }).catch(() => {});
   }, PING_INTERVAL_MS);
 }
-function pushDriveKeepVisual() { // heartbeat: освежить состояние раз в 1,5 секунды
+function pushDriveKeepVisual() {
   driveDirty = true;
   driveForce = true;
   scheduleDriveSend();
@@ -303,14 +632,39 @@ function onPong(id) {
   state.rtt.push(rtt);
   if (state.rtt.length > 30) state.rtt.shift();
   const med = median(state.rtt);
-  els.joyNet.textContent = `Пинг в одну сторону ≈ ${med === null ? '—' : Math.round(med / 2) + ' мс'} · замеров: ${state.rtt.length}`;
-  els.joyStatus.textContent = '✅ Связь есть — вы ведёте машинку!';
-  els.joyStatus.className = 'status ok';
+  if (!(state.rtc && state.rtc.isOpen())) {
+    els.joyNet.textContent = `Пинг в одну сторону ≈ ${med === null ? '—' : Math.round(med / 2) + ' мс'} · замеров: ${state.rtt.length}`;
+    els.joyStatus.textContent = '✅ Связь есть — вы ведёте машинку!';
+    els.joyStatus.className = 'status ok';
+  }
 }
 
 async function join(code) {
   if (!/^\d{6}$/.test(code)) { els.joinStatus.textContent = 'Код — ровно 6 цифр, как на экране'; return; }
+  if (state.rtc) { state.rtc.close(); state.rtc = null; }
   state.room = code;
+
+  const rtcCallbacks = {
+    onOpenChange: (open) => {
+      updateRtcUi();
+      if (open) {
+        rtcDirty = true; rtcForce = true;
+        flushRtcDrive();
+      } else {
+        // Мгновенный бесшовный откат на Firebase / Demo при обрыве WebRTC!
+        driveDirty = true; driveForce = true;
+        flushCloudDrive();
+      }
+    },
+    onRtt: (rtt) => {
+      state.rtt.push(rtt);
+      if (state.rtt.length > 30) state.rtt.shift();
+      updateRtcUi();
+      els.joyNet.textContent = `⚡ Прямой WebRTC · в одну сторону ≈ ${Math.max(1, Math.round(rtt / 2))} мс`;
+    },
+    onState: (st) => renderCmdState(st),
+  };
+
   if (state.kind === 'firebase') {
     state.f.onValue(roomRef('/pong'), (s) => { const v = s.val(); if (v) onPong(v.id); });
     state.f.onValue(roomRef('/state'), (s) => { const v = s.val(); if (v) renderCmdState(v); });
@@ -320,8 +674,10 @@ async function join(code) {
       if (s.val()) {
         metaSeen = true;
         if (hintTimer) { clearTimeout(hintTimer); hintTimer = null; }
-        els.joyStatus.textContent = '✅ Комната найдена!';
-        els.joyStatus.className = 'status ok';
+        if (!(state.rtc && state.rtc.isOpen())) {
+          els.joyStatus.textContent = '✅ Комната найдена!';
+          els.joyStatus.className = 'status ok';
+        }
         return;
       }
       els.joyStatus.textContent = '⏳ Ждём, пока экран создаст комнату…';
@@ -329,28 +685,40 @@ async function join(code) {
         hintTimer = setTimeout(() => {
           hintTimer = null;
           if (metaSeen) return;
-          els.joyStatus.textContent = 'Комната не найдена. Проверьте: 1) на главном телефоне в подготовке VR выбран «🕹 Джойстик» и комната создана; 2) код совпадает цифра в цифру; 3) конфиг Firebase на ОБОИХ телефонах одинаковый (один проект, один databaseURL). Продолжаю ждать…';
+          els.joyStatus.textContent = 'Комната не найдена. Проверьте: 1) на главном телефоне в подготовке VR выбран «🕹 Джойстик» и комната создана; 2) код совпадает цифра в цифру; 3) конфиг Firebase на ОБОИХ телефонах одинаковый. Продолжаю ждать…';
           els.joyStatus.className = 'status warn';
         }, 8000);
       }
     });
+    state.rtc = new RtcJoyPeer(createFirebaseRtcSignaling(state.f, state.db, code), DRIVE_SESSION, rtcCallbacks);
   } else {
-    state.ch.onmessage = (e) => {
+    state.ch.addEventListener('message', (e) => {
       const m = e.data;
       if (!m || m.room !== state.room) return;
       if (m.kind === 'pong') onPong(m.id);
       if (m.kind === 'state') renderCmdState(m.state);
-    };
+    });
     els.joyStatus.textContent = 'Демо-режим: руль работает в этой паре вкладок';
+    state.rtc = new RtcJoyPeer(createBroadcastRtcSignaling(state.ch, code), DRIVE_SESSION, rtcCallbacks);
   }
+
+  $('intro-head').classList.add('hidden');
+  els.cardConfig.classList.add('hidden');
+  els.cardJoin.classList.add('hidden');
   els.cardJoy.classList.remove('hidden');
+  $('btn-change-room').textContent = `Комната ${code} · Сменить`;
+  window.scrollTo(0, 0);
+  updateRtcUi();
   lastDrivePacket = null;
   lastDriveSent = 0;
+  lastRtcPacket = null;
+  lastRtcSent = 0;
   driveDirty = true;
   driveForce = true;
   try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch { /* ignore */ }
-  pushDrive();
+  pushDrive(true);
   startLoops();
+  state.rtc.start().catch(() => {});
   els.joinStatus.textContent = `Комната ${code}`;
 }
 
@@ -366,6 +734,7 @@ $('btn-cfg').addEventListener('click', async () => {
   }
 });
 $('btn-demo').addEventListener('click', () => {
+  if (state.ch) { try { state.ch.close(); } catch { /* ignore */ } }
   state.kind = 'demo';
   state.ch = new BroadcastChannel(DEMO_CHANNEL);
   els.cfgError.textContent = '';
@@ -373,10 +742,148 @@ $('btn-demo').addEventListener('click', () => {
   els.cardJoin.classList.remove('hidden');
 });
 $('btn-join-go').addEventListener('click', () => join(els.joinCode.value.trim()));
+els.btnRtcRetry.addEventListener('click', () => {
+  buzz(10);
+  if (state.rtc) state.rtc.reconnect();
+});
+$('btn-change-room').addEventListener('click', () => {
+  releaseAll();
+  if (state.rtc) { state.rtc.close(); state.rtc = null; }
+  state.room = null;
+  $('intro-head').classList.remove('hidden');
+  els.cardConfig.classList.remove('hidden');
+  els.cardJoin.classList.remove('hidden');
+  els.cardJoy.classList.add('hidden');
+});
 
+// ---------------------------------------------------------------- 3D наклоны ладони
+function applyUpVectorSample(u) {
+  currentUpVec = u;
+  if (!zeroUpVec) zeroUpVec = { ...u };
+  if (state.uiMode !== 'tilt' || !tiltActive) return;
+
+  if (tiltParked) {
+    state.steer = 0;
+    state.throttle = 0;
+    state.brake = 0;
+    pushDrive(false);
+    return;
+  }
+
+  const d = handTiltDrive(u, zeroUpVec, {
+    spanDeg: tiltSpanDeg,
+    invertPitch: tiltInvertPitch,
+  });
+  lastTiltMetrics = d;
+  state.steer = d.steer;
+  state.throttle = d.throttle;
+  state.brake = d.brake;
+
+  if (d.zone === 'brake' && lastTiltZone !== 'brake') {
+    buzz(14); // тактильный щелчок при переходе в тормоз
+  }
+  lastTiltZone = d.zone;
+  pushDrive(false);
+}
+
+function onDeviceOrientation(ev) {
+  if (ev.beta === null || ev.gamma === null) return;
+  lastOrientAt = performance.now();
+  applyUpVectorSample(deviceUpVector(ev.beta, ev.gamma, screenAngleDeg()));
+}
+
+function onDeviceMotion(ev) {
+  if (performance.now() - lastOrientAt < 350) return;
+  const ag = ev.accelerationIncludingGravity;
+  if (!ag) return;
+  const u = accelToUpVector(ag.x, ag.y, ag.z, screenAngleDeg());
+  if (u) applyUpVectorSample(u);
+}
+
+async function activateTiltSensors() {
+  try {
+    if (!tiltPermissionGranted) {
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res !== 'granted') return false;
+      }
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        await DeviceMotionEvent.requestPermission().catch(() => {});
+      }
+      tiltPermissionGranted = true;
+    }
+  } catch {
+    return false;
+  }
+
+  if (!tiltListenersBound) {
+    window.addEventListener('deviceorientation', onDeviceOrientation);
+    window.addEventListener('devicemotion', onDeviceMotion);
+    tiltListenersBound = true;
+  }
+  tiltActive = true;
+  zeroUpVec = currentUpVec ? { ...currentUpVec } : null;
+  if (!tiltParked) {
+    state.steer = 0;
+    state.throttle = 0.30;
+    state.brake = 0;
+    lastTiltZone = 'cruise';
+    lastTiltMetrics = { tiltRightDeg: 0, tiltForwardDeg: 0, zone: 'cruise' };
+  }
+  buzz([14, 24, 14]);
+  pushDrive(true);
+  return true;
+}
+
+function centerTiltGrip() {
+  tiltParked = false;
+  $('btn-tilt-park').classList.remove('on');
+  if (!tiltActive) {
+    activateTiltSensors();
+    return;
+  }
+  zeroUpVec = currentUpVec ? { ...currentUpVec } : null;
+  state.steer = 0;
+  state.throttle = 0.30;
+  state.brake = 0;
+  lastTiltZone = 'cruise';
+  lastTiltMetrics = { tiltRightDeg: 0, tiltForwardDeg: 0, zone: 'cruise' };
+  buzz([18, 28, 18]);
+  pushDrive(true);
+}
+
+$('btn-tilt-center').addEventListener('click', centerTiltGrip);
+$('btn-tilt-invert').addEventListener('click', () => {
+  tiltInvertPitch = !tiltInvertPitch;
+  $('btn-tilt-invert').classList.toggle('on', tiltInvertPitch);
+  buzz(10);
+  if (tiltActive && currentUpVec) applyUpVectorSample(currentUpVec);
+});
+$('btn-tilt-park').addEventListener('click', () => {
+  tiltParked = !tiltParked;
+  $('btn-tilt-park').classList.toggle('on', tiltParked);
+  buzz(14);
+  if (tiltParked) {
+    state.steer = 0; state.throttle = 0; state.brake = 0;
+    pushDrive(true);
+  } else if (currentUpVec) {
+    applyUpVectorSample(currentUpVec);
+  }
+});
+for (const btn of document.querySelectorAll('.span-btn')) {
+  btn.addEventListener('click', () => {
+    tiltSpanDeg = Number(btn.dataset.span) || 24;
+    for (const b of document.querySelectorAll('.span-btn')) b.classList.toggle('on', b === btn);
+    buzz(8);
+    if (tiltActive && currentUpVec) applyUpVectorSample(currentUpVec);
+  });
+}
+
+// ---------------------------------------------------------------- Сенсорные диски
 const clamp01 = (v) => Math.min(1, Math.max(0, v));
 const clamp11 = (v) => Math.min(1, Math.max(-1, v));
 function setPadValue(axis, e) {
+  state.brake = 0;
   const pad = axis === 'steer' ? els.padSteer : els.padThrottle;
   const r = pad.getBoundingClientRect();
   const x = clamp01((e.clientX - r.left) / r.width);
@@ -385,8 +892,7 @@ function setPadValue(axis, e) {
     state.steer = clamp11((x - 0.5) * 2);
   } else {
     state.throttleY = y * 100;
-    // Absolute sensor position: upper quarter = full gas, centre = 30%,
-    // lower quarter = 0%. The two middle quarters interpolate smoothly.
+    // Верхняя четверть = 100% газа, середина = 30%, нижняя четверть = 0% (полный стоп).
     if (y <= 0.25) state.throttle = 1;
     else if (y < 0.5) state.throttle = 0.3 + (0.5 - y) * 2.8;
     else if (y < 0.75) state.throttle = 0.3 * (0.75 - y) / 0.25;
@@ -399,12 +905,13 @@ function releasePad(axis, pointerId) {
   const key = axis === 'steer' ? 'steerPointer' : 'throttlePointer';
   if (state[key] !== pointerId) return;
   state[key] = null;
+  state.brake = 0;
   if (axis === 'steer') state.steer = (state.keyRight ? 1 : 0) - (state.keyLeft ? 1 : 0);
   else {
     state.throttle = state.keyUp ? 1 : 0;
     state.throttleY = state.keyUp ? 8 : 75;
   }
-  pushDrive();
+  pushDrive(true);
 }
 function bindPad(el, axis) {
   const key = axis === 'steer' ? 'steerPointer' : 'throttlePointer';
@@ -413,7 +920,7 @@ function bindPad(el, axis) {
     if (state[key] !== null) return;
     state[key] = e.pointerId;
     try { el.setPointerCapture(e.pointerId); } catch { /* older browsers */ }
-    try { navigator.vibrate && navigator.vibrate(8); } catch { /* ignore */ }
+    buzz(8);
     setPadValue(axis, e);
   };
   const move = (e) => {
@@ -436,7 +943,9 @@ function bindPad(el, axis) {
 }
 bindPad(els.padSteer, 'steer');
 bindPad(els.padThrottle, 'throttle');
+
 function syncKeyboard() {
+  state.brake = 0;
   if (state.steerPointer === null) state.steer = (state.keyRight ? 1 : 0) - (state.keyLeft ? 1 : 0);
   if (state.throttlePointer === null) {
     state.throttle = state.keyUp ? 1 : 0;
@@ -461,28 +970,34 @@ window.addEventListener('keyup', (e) => {
   if (e.key === 'ArrowUp') state.keyUp = false;
   syncKeyboard();
 });
+
 function releaseAll() {
   state.steerPointer = null; state.throttlePointer = null;
   state.keyLeft = false; state.keyRight = false; state.keyUp = false;
-  state.steer = 0; state.throttle = 0; state.throttleY = 75;
-  pushDrive();
+  state.steer = 0; state.throttle = 0; state.brake = 0; state.throttleY = 75;
+  pushDrive(true);
 }
+window.addEventListener('pagehide', () => {
+  if (state.rtc) { state.rtc.close(); state.rtc = null; }
+});
 window.addEventListener('blur', releaseAll);
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
-// ---------------------------------------------------------------- commands
+// ---------------------------------------------------------------- Команды
 let cmdSeq = 0;
 let lastState = null;
 let menuArmTimer = null;
 function sendCmd(name) {
-  try { navigator.vibrate && navigator.vibrate(12); } catch { /* ignore */ }
+  buzz(12);
   const seq = ++cmdSeq;
   if (!state.room) return;
-  setTimeout(() => { // сеть после отрисовки нажатия (INP)
+  queueMicrotask(() => { // сеть после синхронного обновления UI, без задержки фоновых setTimeout
+    if (state.rtc && state.rtc.sendCmd(name, seq)) return;
     if (state.kind === 'demo') state.ch.postMessage({ kind: 'cmd', room: state.room, name, seq });
     else state.f.set(roomRef('/cmd'), { name, seq, sts: state.f.serverTimestamp() }).catch(() => {});
-  }, 0);
+  });
 }
+
 function renderCmdState(st) {
   if (!st) return;
   lastState = st;
@@ -505,21 +1020,47 @@ function renderCmdState(st) {
         : '📷 Камера: метка потеряна'))
     : '📷 Камера: выкл';
   els.cmd.cam.classList.toggle('on', !!(st.cam && st.cam.on && st.cam.found));
-  const speed = Number.isFinite(+st.speedKmh) ? `${st.speedKmh} км/ч` : 'скорость —';
+  const speed = Number.isFinite(+st.speedKmh) ? `${Math.round(+st.speedKmh)} км/ч` : 'скорость —';
+  if (Number.isFinite(+st.speedKmh)) {
+    $('tilt-speed-badge').textContent = `${Math.round(+st.speedKmh)} км/ч`;
+  }
   els.cmdState.textContent =
     `${st.paused ? '⏸ Пауза' : st.racing ? '🏎 Идёт заезд' : '🏁 Не в заезде'} · ${speed} · ↔ камеры ${st.cm} см · ` +
     `взгляд ${lookLabel} · авторуление ${st.auto ? 'вкл' : 'выкл'}` +
     (st.cam && st.cam.fusion ? ` · 🧭 ${st.cam.fusion} · гироскоп ${st.cam.gyro ? 'есть' : 'нет сигнала'}` : '') +
     (st.cam ? ` · 📷 ${!st.cam.on ? 'выкл' : st.cam.dual ? (st.cam.found ? `${st.cam.visible}/2 видны` : 'обе потеряны') : (st.cam.found ? 'метка видна' : 'метка потеряна')}` : '');
 }
-function setMode(cmd) {
-  els.modeSteer.setAttribute('aria-pressed', String(!cmd));
-  els.modeCmd.setAttribute('aria-pressed', String(cmd));
-  els.viewSteer.classList.toggle('hidden', cmd);
-  els.viewCmd.classList.toggle('hidden', !cmd);
+
+function setMode(m) {
+  // Совместимость со старыми вызовами setMode(true / false) и новыми вкладками ('tilt' | 'steer' | 'cmd')
+  const next = (m === true || m === 'cmd') ? 'cmd' : (m === 'tilt' ? 'tilt' : 'steer');
+  state.uiMode = next;
+  els.modeTilt.setAttribute('aria-pressed', String(next === 'tilt'));
+  els.modeSteer.setAttribute('aria-pressed', String(next === 'steer'));
+  els.modeCmd.setAttribute('aria-pressed', String(next === 'cmd'));
+  els.viewTilt.classList.toggle('hidden', next !== 'tilt');
+  els.viewSteer.classList.toggle('hidden', next !== 'steer');
+  els.viewCmd.classList.toggle('hidden', next !== 'cmd');
+
+  if (next === 'tilt') {
+    tiltParked = false;
+    $('btn-tilt-park').classList.remove('on');
+    activateTiltSensors();
+  } else if (tiltActive) {
+    tiltActive = false;
+    state.steer = 0;
+    state.throttle = 0;
+    state.brake = 0;
+    state.throttleY = 75;
+    pushDrive(true);
+  } else if (next === 'steer') {
+    pushDrive(true);
+  }
 }
-els.modeSteer.addEventListener('click', () => setMode(false));
-els.modeCmd.addEventListener('click', () => setMode(true));
+
+els.modeTilt.addEventListener('click', () => setMode('tilt'));
+els.modeSteer.addEventListener('click', () => setMode('steer'));
+els.modeCmd.addEventListener('click', () => setMode('cmd'));
 els.cmd.restart.addEventListener('click', () => sendCmd('restart'));
 els.cmd.pause.addEventListener('click', () => sendCmd('pauseToggle'));
 els.cmd.auto.addEventListener('click', () => sendCmd('autoToggle'));
@@ -553,18 +1094,40 @@ if (qs.get('code')) els.joinCode.value = qs.get('code');
 
 // QA hooks
 window.__JOY__ = {
-  state: () => ({ kind: state.kind, room: state.room, steer: state.steer, throttle: state.throttle, samples: state.rtt.length, driveSent: driveSentCount }),
+  state: () => ({
+    kind: state.kind,
+    transport: state.rtc && state.rtc.isOpen() ? 'webrtc' : state.kind,
+    rtcOpen: !!(state.rtc && state.rtc.isOpen()),
+    rtcSent: rtcSentCount,
+    room: state.room,
+    mode: state.uiMode,
+    steer: state.steer,
+    throttle: state.throttle,
+    brake: state.brake,
+    tiltActive,
+    tiltZone: lastTiltMetrics.zone,
+    tiltRightDeg: lastTiltMetrics.tiltRightDeg,
+    tiltForwardDeg: lastTiltMetrics.tiltForwardDeg,
+    samples: state.rtt.length,
+    driveSent: driveSentCount,
+  }),
   demo: () => $('btn-demo').click(),
   join: (code) => join(String(code)),
-  setDrive: (steer, throttle) => {
+  setDrive: (steer, throttle, brake = 0) => {
     state.steerPointer = null; state.throttlePointer = null;
-    state.steer = clamp11(+steer || 0); state.throttle = clamp01(+throttle || 0);
+    state.steer = clamp11(+steer || 0);
+    state.throttle = clamp01(+throttle || 0);
+    state.brake = clamp01(+brake || 0);
     state.throttleY = state.throttle > 0 ? (state.throttle >= 0.3 ? 50 - (state.throttle - 0.3) / 0.7 * 25 : 75 - state.throttle / 0.3 * 25) : 75;
-    pushDrive();
+    pushDrive(state.throttle === 0 || state.brake > 0);
   },
-  // Backwards-compatible QA helper: old left/right input means steering only,
-  // with no gas (the new real UI uses setDrive / the two sensors).
-  setSteer: (l, r) => { state.steer = (r ? 1 : 0) - (l ? 1 : 0); state.throttle = 0; pushDrive(); },
+  setSteer: (l, r) => { state.steer = (r ? 1 : 0) - (l ? 1 : 0); state.throttle = 0; state.brake = 0; pushDrive(); },
+  setTilt: ({ beta = 0, gamma = 0 }) => {
+    applyUpVectorSample(deviceUpVector(beta, gamma, screenAngleDeg()));
+  },
+  centerTilt: () => centerTiltGrip(),
+  dropRtcForTest: () => { if (state.rtc) state.rtc._closePeer(); },
+  reconnectRtc: () => (state.rtc ? state.rtc.reconnect() : Promise.resolve()),
   sendCmd,
   lastState: () => lastState,
   setMode,
