@@ -134,6 +134,21 @@ class GameCatalogTests(unittest.TestCase):
         links = [a.get('href') for t, a in tags if t == 'a']
         self.assertIn('./games/candy-kingdom-coaster/index.html', links)
 
+    def test_webrtc_stand_card_links_and_local_modules_exist(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a['href'] for t, a in tags if t == 'a' and 'webrtc-stand' in a.get('href', '')]
+        self.assertEqual(links, ['./games/webrtc-stand/index.html'] * 2)
+        for link in links:
+            self.assertTrue((ROOT / link).is_file())
+        images = [a for t, a in tags if t == 'img' and 'webrtc-stand' in a.get('src', '')]
+        self.assertEqual(len(images), 1)
+        self.assertTrue((ROOT / images[0]['src']).is_file())
+        self.assertTrue(images[0].get('alt'))
+
+        stand_dir = ROOT / 'games/webrtc-stand'
+        for rel in ('README.md', 'styles.css', 'src/app.js', 'src/rtc-link.js', 'src/signaling.js', 'src/config-parser.js'):
+            self.assertTrue((stand_dir / rel).is_file(), rel)
+
 
 if __name__ == '__main__':
     unittest.main()

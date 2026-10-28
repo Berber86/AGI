@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1b0d2c">
+  <title>Стенд: Firebase против WebRTC</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<main>
+  <div class="top-bar">
+    <a class="back-link" href="../../index.html">← На витрину игр</a>
+    <span style="font-size:12px; opacity:0.75">Лабораторный стенд 1А · P2P + VPN</span>
+  </div>
+
+  <header>
+    <h1>⚡ Стенд: Firebase против WebRTC</h1>
+    <p class="sub">
+      Проверяем идею 1А на двух телефонах: Firebase только <b>1 секунду знакомит</b> устройства по 6-значному коду,
+      а дальше открывается прямая UDP-труба <b>WebRTC (60 Гц)</b>. Облачный канал Firebase работает рядом для честного сравнения цифр, плавности луча и авто-фолбэка при обрыве.
+    </p>
+  </header>
+
+  <!-- 1. Подключение -->
+  <section class="card" id="card-config">
+    <h2>1. Почтовый ящик для знакомства (Firebase или Демо)</h2>
+    <textarea id="cfg" placeholder='Вставьте firebaseConfig из консоли Firebase:
+{
+  "apiKey": "…",
+  "databaseURL": "https://ВАШ-ПРОЕКТ-default-rtdb.europe-west1.firebasedatabase.app",
+  "projectId": "…"
+}'></textarea>
+    <p id="cfg-saved-hint" class="ok hidden">✨ Подхвачен сохранённый конфиг Firebase из прошлого стенда!</p>
+
+    <div class="field-row">
+      <label for="ice-mode">Поиск маршрута WebRTC:</label>
+      <select id="ice-mode">
+        <option value="stun">🌐 Обычный: домашний Wi-Fi + Google STUN</option>
+        <option value="lan">🏠 Только домашний Wi-Fi (без внешнего STUN)</option>
+      </select>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button type="button" id="btn-cfg">Подключить Firebase</button>
+      <button type="button" id="btn-demo" class="secondary">Демо в 2 вкладках (без Firebase)</button>
+    </div>
+
+    <div id="demo-controls" class="hidden" style="margin-top:10px">
+      <div class="field-row">
+        <label for="demo-delay">Имитация задержки облака в демо:</label>
+        <select id="demo-delay">
+          <option value="140">140 мс в одну сторону (как с VPN)</option>
+          <option value="45">45 мс (быстрое облако без VPN)</option>
+          <option value="0">0 мс (без искусственной задержки)</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btn-open-tab" class="teal">🗗 Открыть вторую вкладку рядом</button>
+      </div>
+    </div>
+
+    <p id="cfg-status" class="ok"></p>
+    <p id="cfg-error" class="err"></p>
+    <p class="warn">
+      ⚠️ Как и в прошлом стенде, для быстрого замера база работает в тестовом режиме по коду комнаты — не публикуйте свой рабочий конфиг в открытый доступ.
+    </p>
+  </section>
+
+  <!-- 2. Выбор роли -->
+  <section class="card hidden" id="card-role">
+    <h2>2. Кто этот телефон?</h2>
+    <div class="row">
+      <button type="button" id="btn-host">📺 Экран (создать комнату)</button>
+      <button type="button" id="btn-join" class="secondary">🕹 Джойстик / Указка (ввести код)</button>
+    </div>
+  </section>
+
+  <!-- 3А. Роль: Экран -->
+  <section class="card hidden" id="card-host">
+    <h2>📺 Экран — живая арена двух каналов</h2>
+    <div class="code-box" id="room-code">------</div>
+    <p class="sub" style="text-align:center">Введите эти 6 цифр на втором телефоне (или во второй вкладке)</p>
+
+    <div class="pills">
+      <span class="pill" id="pill-rtc">⚡ WebRTC: ждём пульт…</span>
+      <span class="pill" id="pill-fb">☁️ Облако: ждём пульт…</span>
+      <span class="pill" id="pill-active">Рулит: ожидание</span>
+    </div>
+
+    <div class="field-row">
+      <label for="drive-mode">Кто ведёт активный прицел и мишень:</label>
+      <select id="drive-mode">
+        <option value="auto">🛡 Авто: WebRTC → при обрыве Firebase</option>
+        <option value="rtc">⚡ Только WebRTC</option>
+        <option value="fb">☁️ Только Firebase Облако</option>
+      </select>
+    </div>
+
+    <div class="arena-wrap">
+      <canvas id="arena-canvas" width="480" height="360" aria-label="Арена сравнения плавности луча WebRTC и Firebase"></canvas>
+    </div>
+
+    <div class="arena-legend">
+      <span><i class="dot rtc"></i><b>WebRTC (60 Гц, UDP)</b> — плавный луч</span>
+      <span><i class="dot fb"></i><b>Firebase (~6 Гц)</b> — ступеньками</span>
+      <span><i class="dot tgt"></i><b>Мишень 🎯</b> — касание бьёт вибро в пульт!</span>
+    </div>
+
+    <div class="steer-view">
+      <div class="steer-arrow" id="view-left">◀</div>
+      <div class="steer-arrow" id="view-right">▶</div>
+    </div>
+
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="btn-host-haptic" class="teal">📳 Послать вибро на пульт</button>
+      <button type="button" id="btn-target-move" class="secondary" aria-pressed="true">🎯 Движение мишени: Вкл</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" id="btn-host-drop" class="amber" aria-pressed="false">🧪 Сымитировать обрыв WebRTC</button>
+      <button type="button" id="btn-host-reconnect" class="secondary">🔄 Пересобрать WebRTC</button>
+    </div>
+  </section>
+
+  <!-- 3Б. Вход для Джойстика -->
+  <section class="card hidden" id="card-join">
+    <h2>🕹 Джойстик — вход по коду комнаты</h2>
+    <div class="row">
+      <input type="text" id="join-code" inputmode="numeric" maxlength="6" placeholder="Код комнаты, 6 цифр" style="flex:2">
+      <button type="button" id="btn-join-go">Войти</button>
+    </div>
+    <div class="row hidden" id="discovered-wrap" style="margin-top:8px">
+      <button type="button" id="btn-join-discovered" class="teal">✨ Войти в открытую комнату ------</button>
+    </div>
+    <p class="sub" id="join-status" style="margin-top:8px"></p>
+  </section>
+
+  <!-- 3В. Панель управления Джойстика / Указки -->
+  <section class="card hidden" id="card-joy">
+    <h2>🕹 Пульт-указка (60 Гц + кнопки + гироскоп)</h2>
+    <div class="pills">
+      <span class="pill" id="joy-pill-rtc">⚡ WebRTC: подключение…</span>
+      <span class="pill" id="joy-pill-fb">☁️ Облако: подключено</span>
+    </div>
+
+    <div class="touchpad" id="touchpad">
+      <div class="touchpad-cross-h"></div>
+      <div class="touchpad-cross-v"></div>
+      <div class="touchpad-thumb" id="pad-thumb"></div>
+      <div class="touchpad-hint" id="pad-hint">Водите пальцем по кругу — на Экране увидите разницу 60 Гц vs 6 Гц!</div>
+    </div>
+
+    <div class="row">
+      <button type="button" id="btn-auto-orbit" class="secondary" aria-pressed="false">🌀 Авто-круг 60 Гц: Выкл</button>
+      <button type="button" id="btn-gyro-toggle" class="secondary" aria-pressed="false">📱 Гироскоп руки: Выкл</button>
+      <button type="button" id="btn-gyro-center" class="teal hidden">🎯 Центрировать руку</button>
+    </div>
+
+    <div class="joy-btns">
+      <button type="button" class="joy-btn" id="joy-left" aria-pressed="false">◀</button>
+      <button type="button" class="joy-btn" id="joy-right" aria-pressed="false">▶</button>
+    </div>
+
+    <div class="haptic-banner" id="haptic-banner">
+      📳 Виброотклик от Экрана: пока 0 (наведите луч на мишень 🎯 или нажмите кнопку вибро на Экране)
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <button type="button" id="btn-joy-drop" class="amber" aria-pressed="false">🧪 Сымитировать обрыв WebRTC</button>
+      <button type="button" id="btn-joy-reconnect" class="secondary">🔄 Пересобрать WebRTC</button>
+    </div>
+  </section>
+
+  <!-- 4. Сравнение цифр бок о бок + диагностика VPN -->
+  <section class="card" id="card-compare">
+    <h2>📊 Бок о бок: прямой WebRTC против Firebase</h2>
+
+    <div class="route-box">
+      <div class="route-badge" id="route-badge">🧭 Маршрут WebRTC: ещё не запущен</div>
+      <div class="sub" id="route-detail">Создайте комнату на одном устройстве и войдите со второго, чтобы увидеть реальный путь пакетов.</div>
+    </div>
+
+    <table class="cmp-table" aria-label="Сравнение показателей WebRTC и Firebase">
+      <thead>
+        <tr>
+          <th>Показатель</th>
+          <th class="col-rtc">⚡ WebRTC</th>
+          <th class="col-fb">☁️ Firebase</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Состояние канала</td>
+          <td class="col-rtc" id="cmp-rtc-state">—</td>
+          <td class="col-fb" id="cmp-fb-state">—</td>
+        </tr>
+        <tr>
+          <td>В одну сторону (медиана)</td>
+          <td class="col-rtc" id="cmp-rtc-med">—</td>
+          <td class="col-fb" id="cmp-fb-med">—</td>
+        </tr>
+        <tr>
+          <td>Плохой случай (p95)</td>
+          <td class="col-rtc" id="cmp-rtc-p95">—</td>
+          <td class="col-fb" id="cmp-fb-p95">—</td>
+        </tr>
+        <tr>
+          <td>Джиттер (разброс пинга)</td>
+          <td class="col-rtc" id="cmp-rtc-jit">—</td>
+          <td class="col-fb" id="cmp-fb-jit">—</td>
+        </tr>
+        <tr>
+          <td>Частота потока указки</td>
+          <td class="col-rtc" id="cmp-rtc-hz">0 Гц</td>
+          <td class="col-fb" id="cmp-fb-hz">0 Гц</td>
+        </tr>
+        <tr>
+          <td>Пакетов отправлено</td>
+          <td class="col-rtc" id="cmp-rtc-pkts">0</td>
+          <td class="col-fb" id="cmp-fb-pkts">0</td>
+        </tr>
+        <tr>
+          <td>Исходящий трафик ≈</td>
+          <td class="col-rtc" id="cmp-rtc-bytes">0 Б</td>
+          <td class="col-fb" id="cmp-fb-bytes">0 Б</td>
+        </tr>
+        <tr>
+          <td><b>Записей в БД Firebase</b></td>
+          <td class="col-rtc" id="cmp-rtc-dbw" title="Только одноразовое знакомство при входе">0 (только старт)</td>
+          <td class="col-fb" id="cmp-fb-dbw" title="Каждое облачное сообщение пишет в базу">0 (растёт)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="verdict idle" id="verdict">
+      Соберите хотя бы 3 замера после входа в комнату — здесь появится понятный инженерный вывод.
+    </div>
+
+    <details class="tips">
+      <summary>💡 Шпаргалка для домашнего Wi-Fi + VPN (если WebRTC не пробился сразу)</summary>
+      <ul>
+        <li><b>Почему VPN может мешать:</b> многие VPN заворачивают в зашифрованный туннель вообще весь трафик телефона, пряча домашнюю сеть <code>192.168.x.x</code> — тогда телефоны на одном диване не видят друг друга напрямую.</li>
+        <li><b>Решение №1 (лучшее для дома):</b> включите в настройках вашего VPN пункт <b>«Разрешить доступ к локальной сети»</b> (<i>Allow LAN / Bypass LAN</i>) на обоих телефонах и нажмите «🔄 Пересобрать WebRTC».</li>
+        <li><b>Решение №2 (железобетонное в поле):</b> включите на одном телефоне <b>точку доступа Wi-Fi (Hotspot)</b> и подключите к ней второй телефон — прямой маршрут срабатывает почти мгновенно.</li>
+        <li><b>Решение №3 (ничего не трогать):</b> оставьте в игре режим <b>«🛡 Авто: WebRTC → Firebase»</b> — там, где сеть пускает P2P, включится 60 Гц и 5 мс, а под жёстким VPN игра не упадёт и продолжит ехать по Firebase!</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- 5. Живая шкала 5 шагов знакомства -->
+  <section class="card" id="card-steps">
+    <h2>🔍 Что делают телефоны под капотом (5 шагов WebRTC)</h2>
+    <ul class="steps-list" id="steps-list"></ul>
+  </section>
+</main>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
