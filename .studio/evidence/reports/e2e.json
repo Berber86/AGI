@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 26.730303030302508,
+      "meanFrameMs": 54.67070707070738,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -61,11 +61,19 @@
       },
       "vr": {
         "stereo": false,
+        "handMode": false,
+        "handVisible": false,
+        "handPosition": [
+          0,
+          0,
+          0
+        ],
         "inspectLock": false,
         "yawDeg": 0,
         "pitchDeg": 0,
         "targetX": 5.73,
         "targetY": -16.04,
+        "targetZ": 0,
         "stage": {
           "x": 20,
           "y": 244,
@@ -92,7 +100,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.56666666666676,
+      "meanFrameMs": 16.56666666666615,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -118,11 +126,19 @@
       },
       "vr": {
         "stereo": false,
+        "handMode": false,
+        "handVisible": false,
+        "handPosition": [
+          0,
+          0,
+          0
+        ],
         "inspectLock": false,
         "yawDeg": 0,
         "pitchDeg": 0,
         "targetX": 6.88,
         "targetY": -13.18,
+        "targetZ": -4.01,
         "stage": {
           "x": 20,
           "y": 244,
@@ -447,7 +463,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6741154,
+    "totalBytes": 6817144,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -470,12 +486,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-Bvm5UjYO.css",
-        "bytes": 34483
+        "file": "assets/index-C-a03qfp.js",
+        "bytes": 783979
       },
       {
-        "file": "assets/index-btSJDnep.js",
-        "bytes": 744937
+        "file": "assets/index-DW6C2Wme.css",
+        "bytes": 35348
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -539,7 +555,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 16155
+        "bytes": 18863
       },
       {
         "file": "manifest.webmanifest",
@@ -547,7 +563,19 @@
       },
       {
         "file": "sw.js",
-        "bytes": 1741
+        "bytes": 1801
+      },
+      {
+        "file": "wrist/cover.svg",
+        "bytes": 2901
+      },
+      {
+        "file": "wrist/index.html",
+        "bytes": 9445
+      },
+      {
+        "file": "wrist/wrist.js",
+        "bytes": 20969
       }
     ]
   },

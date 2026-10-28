@@ -96,6 +96,7 @@ try {
     window.__whiteNightVrGyroTimer = setInterval(send, 100);
   });
   await page.waitForFunction(() => !document.querySelector('#vr-start').disabled, { timeout: 5000 });
+  await page.evaluate(() => clearInterval(window.__whiteNightVrGyroTimer));
   check('Fresh gyro samples plus calibrated markers enable the real VR start button');
 
   await page.evaluate(() => window.__GAME_TEST__.vr.start());
@@ -186,6 +187,143 @@ try {
   await page.evaluate(() => window.__GAME_TEST__.vr.stop());
   check('Portrait uses the single-eye fallback and landscape restores stereo');
 
+  // --- Full 2-tab Wrist-Hand (60 Hz sensor + dual-color beacon) E2E check ---
+  const wristPage = await browser.newPage();
+  wristPage.on('pageerror', (e) => errors.push(`wrist pageerror: ${e.message}`));
+  wristPage.on('console', (m) => { if (m.type() === 'error') errors.push(`wrist console: ${m.text()}`); });
+  await wristPage.setViewport({ width: 390, height: 780, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+  const wristUrl = `http://127.0.0.1:${server.address().port}${prefix}wrist/index.html?demo=1&room=777777`;
+
+  await page.evaluate(() => {
+    window.__GAME_TEST__.reset();
+    window.__GAME_TEST__.forceNext('cup');
+    window.__GAME_TEST__.vr.setMode('hand');
+    window.__GAME_TEST__.vr.wristDemo('777777');
+  });
+  await wristPage.goto(wristUrl, { waitUntil: 'networkidle0' });
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: 0, beta: 90, gamma: 0, linMag: 0, rotRate: 0 });
+    window.__WRIST_TEST__.openBeacon();
+  });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+
+  const wristUi = await wristPage.evaluate(() => window.__WRIST_TEST__.status());
+  assert.equal(wristUi.connected, true);
+  assert.equal(wristUi.beaconVisible, true);
+  await wristPage.screenshot({ path: `${evidence}/screenshots/white-night-wrist-beacon.png` });
+
+  // 2-gesture calibration: 1) straight arm forward -> 2) bend elbow up 50 deg
+  let cal1 = await page.evaluate(() => {
+    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.49, v: 0.54 }, proximal: { u: 0.59, v: 0.54 } });
+    return window.__GAME_TEST__.vr.wristCalibrateStretch();
+  });
+  assert.equal(cal1.ok, true);
+
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: 0, beta: 140, gamma: 0, linMag: 0, rotRate: 0 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  let cal2 = await page.evaluate(() => {
+    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.42, v: 0.62 }, proximal: { u: 0.66, v: 0.62 } });
+    return window.__GAME_TEST__.vr.wristCalibrateBend();
+  });
+  assert.equal(cal2.ok, true);
+  check('Wrist-hand companion connects at 60 Hz and completes 2-gesture calibration');
+
+  // Enter stereo VR in hand mode: verify 3D gloved hand is visible and zero DOM HUD exists
+  let simClock = 10000;
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: 0, beta: 90, gamma: 0, linMag: 0.2, rotRate: 0 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await page.evaluate(({ gaze }) => {
+    window.__GAME_TEST__.vr.gyro(gaze.yaw, gaze.pitch, 5, 0.02);
+    return window.__GAME_TEST__.vr.start();
+  }, { gaze });
+  info = await page.evaluate((t) => {
+    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.49, v: 0.54 }, proximal: { u: 0.59, v: 0.54 } }, t);
+    return window.__GAME_TEST__.vr.step(0.35, t);
+  }, simClock);
+  simClock += 400;
+  assert.equal(info.world.handMode, true);
+  assert.equal(info.world.handVisible, true);
+  assert.ok(info.wrist.hand.reach > 0.75);
+  assert.equal(await page.$('#vr-overlay'), null);
+  await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-hand-search.png` });
+  check('Stereo VR hand mode renders the diegetic 3D gloved hand with zero DOM HUD');
+
+  // Rummage 3 strokes in the bin -> reveals 'cup'
+  for (const yawSweep of [12, -12, 12]) {
+    await wristPage.evaluate((a) => {
+      window.__WRIST_TEST__.setPose({ alpha: a, beta: 90, gamma: 0, linMag: 1.8, rotRate: 75 });
+    }, yawSweep);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.35, t), simClock);
+    simClock += 400;
+  }
+  gameState = await state(page);
+  assert.equal(gameState.phase, 'inspect');
+  assert.equal(gameState.current, 'cup');
+  await page.evaluate(() => window.__GAME_TEST__.settle());
+  info = await vr(page);
+  assert.equal(info.world.inspectLock, false, 'Head remains unlocked during hand inspection');
+  check('Extended arm rummaging opens the bin in 3 strokes without locking head gaze');
+
+  // Rotate wrist -> rotates the 3D find; then sharp wave -> discards find
+  const beforeHandRot = info.world.targetY;
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: 36, beta: 75, gamma: 15, linMag: 0.3, rotRate: 25 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  simClock = await page.evaluate(() => performance.now() + 500);
+  info = await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.55, t), simClock);
+  simClock += 650;
+  assert.ok(Math.abs(info.world.targetY - beforeHandRot) > 20);
+  await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-hand-inspect.png` });
+
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: -45, beta: 85, gamma: 0, linMag: 9.8, rotRate: 320 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.15, t), simClock);
+  simClock += 1200;
+  gameState = await state(page);
+  assert.equal(gameState.phase, 'search');
+  assert.equal(gameState.collection.length, 0);
+  check('Twisting the wrist rotates the 3D find and a sharp wave throws/discards it');
+
+  // Rummage a second find ('watch') and calmly lower the hand downward -> keeps in collection
+  await page.evaluate(() => window.__GAME_TEST__.forceNext('watch'));
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: 0, beta: 90, gamma: 0, linMag: 0.2, rotRate: 0 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.25, t), simClock);
+  simClock += 350;
+  for (const yawSweep of [12, -12, 12]) {
+    await wristPage.evaluate((a) => {
+      window.__WRIST_TEST__.setPose({ alpha: a, beta: 90, gamma: 0, linMag: 1.8, rotRate: 75 });
+    }, yawSweep);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.35, t), simClock);
+    simClock += 400;
+  }
+  assert.equal((await state(page)).phase, 'inspect');
+  await page.evaluate(() => window.__GAME_TEST__.settle());
+  simClock = Math.max(simClock, await page.evaluate(() => performance.now() + 600));
+  await wristPage.evaluate(() => {
+    window.__WRIST_TEST__.setPose({ alpha: 0, beta: 54, gamma: 0, linMag: 0.2, rotRate: 6 });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await page.evaluate((t) => window.__GAME_TEST__.vr.step(1.3, t), simClock);
+  gameState = await state(page);
+  assert.equal(gameState.phase, 'search');
+  assert.deepEqual(gameState.collection, ['watch']);
+  await page.evaluate(() => window.__GAME_TEST__.vr.stop());
+  await wristPage.close();
+  await page.close();
+  check('Calmly lowering the hand downward saves the find into the collection');
+
   assert.deepEqual(errors, []);
   check('No page errors, console errors or failed HTTP responses');
   report = { passed: true, checks, gaze, limitations: ['Synthetic gyro/marker inputs and SwiftShader do not certify physical axis signs, the real rear camera, or phone FPS.'] };
@@ -194,6 +332,9 @@ try {
   throw error;
 } finally {
   fs.writeFileSync(`${evidence}/reports/white-night-vr.json`, JSON.stringify(report, null, 2));
-  await browser.close();
+  try { await Promise.race([browser.close(), new Promise((r) => setTimeout(r, 3000))]); } catch {}
+  try { browser.process()?.kill('SIGKILL'); } catch {}
+  server.closeAllConnections?.();
   await new Promise((resolve) => server.close(resolve));
+  process.exit(report?.passed ? 0 : 1);
 }

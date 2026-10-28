@@ -21,14 +21,31 @@ class Tags(HTMLParser):
 class GameCatalogTests(unittest.TestCase):
     def test_white_night_card_links_to_published_game(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
-        links = [a['href'] for t, a in tags if t == 'a' and 'white-night' in a.get('href', '')]
+        links = [a['href'] for t, a in tags if t == 'a' and a.get('href') == './games/white-night/play/index.html']
         self.assertEqual(links, ['./games/white-night/play/index.html'] * 2)
         for link in links:
             self.assertTrue((ROOT / link).is_file())
-        images = [a for t, a in tags if t == 'img' and 'white-night' in a.get('src', '')]
+        images = [a for t, a in tags if t == 'img' and a.get('src') == './games/white-night/cover.webp']
         self.assertEqual(len(images), 1)
         self.assertTrue((ROOT / images[0]['src']).is_file())
         self.assertTrue(images[0].get('alt'))
+
+    def test_white_night_wrist_companion_is_published_and_haptic_free(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        wrist_links = [a['href'] for t, a in tags if t == 'a' and a.get('href') == './games/white-night/play/wrist/index.html']
+        self.assertEqual(wrist_links, ['./games/white-night/play/wrist/index.html'] * 2)
+        base = ROOT / 'games/white-night/play'
+        for rel in ('wrist/index.html', 'wrist/wrist.js', 'wrist/cover.svg'):
+            self.assertTrue((base / rel).is_file(), rel)
+        sw = (base / 'sw.js').read_text()
+        self.assertIn('./wrist/index.html', sw)
+        self.assertIn('./wrist/wrist.js', sw)
+        for js_file in (
+            ROOT / 'games/white-night/public/wrist/wrist.js',
+            ROOT / 'games/white-night/src/vr/wristLink.js',
+            ROOT / 'games/white-night/src/vr/wristHandFusion.js',
+        ):
+            self.assertNotIn('vibrate', js_file.read_text(), str(js_file))
 
     def test_published_html_has_local_bundled_assets(self):
         base = ROOT / 'games/white-night/play'
