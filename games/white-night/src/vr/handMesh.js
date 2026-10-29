@@ -903,20 +903,46 @@ function buildRightLapelGeometry() {
 
 /** Клапан бокового кармана пальто: слегка «пузащая» лента с острым нижним углом. */
 function buildPocketFlapGeometry(side = 1) {
-  // Клапан кармана: концы ОБЯЗАНЫ оставаться внутри силуэта пальто (на y≈-0.65
-  // полуширина сукна ~0.198), иначе внешний край клапана висит перед краем полы
-  // и с фронта читается как «игла», торчащая в сторону кисти.
-  // Ширина клапана откладывается ПО Z, а у бокового шва сукно уходит вглубь на
-  // десятки миллиметров — поэтому дальний конец клапана обязан быть узким и
-  // оканчиваться ДО того, как поверхность становится крутой: иначе его «задник»
-  // отрывается от сукна и торчит плавником рядом с кистью.
-  const geo = buildSurfaceRibbonGeometry([
-    { x: 0.0960, y: -0.6370, hw: 0.0056 },
-    { x: 0.1170, y: -0.6425, hw: 0.0124 },
-    { x: 0.1360, y: -0.6472, hw: 0.0122 },
-    { x: 0.1470, y: -0.6500, hw: 0.0034 },
-  ], { gap: 0.0014, halfT: 0.0030, steps: 18, radialSegs: 12, billow: 0.0011 });
-  return side > 0 ? geo : mirrorGeoX(geo);
+  // Клапан кармана — лента, прошитая ПО ПОВЕРХНОСТИ сукна: сечение каждого витка
+  // разворачивается по локальной нормали пальто. Прежняя сборка через
+  // buildSurfaceRibbonGeometry откладывала ширину вдоль мировой оси z; там, где у
+  // бокового шва пол уходит вглубь на сантиметры, «задник» клапана отрывался от
+  // полы и в обзоре кисти читался как плавник рядом с запястьем.
+  const steps = 18;
+  const depth = 0.0298;
+  const halfT = 0.0026;
+  const gap = 0.0016;
+  const eps = 0.0060;
+  const rings = [];
+  for (let s = 0; s <= steps; s++) {
+    const u = s / steps;
+    const x = 0.0890 + u * 0.0570;
+    const yTop = -0.6344 - u * 0.0072;
+    const yc = yTop - depth * 0.5;
+    const dzdx = (coatFrontZ(yc, x + eps) - coatFrontZ(yc, x - eps)) / (2 * eps);
+    const dzdy = (coatFrontZ(yc + eps, x) - coatFrontZ(yc - eps, x)) / (2 * eps);
+    let nx = -dzdx, ny = -dzdy, nz = 1;
+    const nl = Math.hypot(nx, ny, nz);
+    nx /= nl; ny /= nl; nz /= nl;
+    let tx = 1, ty = -0.0072 / 0.0570, tz = dzdx;
+    const tl = Math.hypot(tx, ty, tz);
+    tx /= tl; ty /= tl; tz /= tl;
+    let wx = ny * tz - nz * ty, wy = nz * tx - nx * tz, wz = nx * ty - ny * tx;
+    const wl = Math.hypot(wx, wy, wz) || 1;
+    wx /= wl; wy /= wl; wz /= wl;
+    if (wy > 0) { wx = -wx; wy = -wy; wz = -wz; } // «вниз» = свободный край
+    const px = x, py = yc, pz = coatFrontZ(yc, x) + gap + halfT;
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const along = Math.sign(c) * Math.pow(Math.abs(c), 0.34) * (depth * 0.5);
+      const stand = Math.pow(Math.max(0, along) / (depth * 0.5), 2) * 0.0011;
+      const thick = Math.sign(sn) * Math.pow(Math.abs(sn), 0.34) * (halfT + stand);
+      return [px + wx * along + nx * thick, py + wy * along + ny * thick, pz + wz * along + nz * thick];
+    });
+  }
+  return side > 0 ? buildLoftedTube(rings, 12, { capStart: true, capEnd: true })
+    : mirrorGeoX(buildLoftedTube(rings, 12, { capStart: true, capEnd: true }));
 }
 
 
