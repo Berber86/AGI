@@ -227,8 +227,10 @@ async function startVrSession(){
  if(isHand){ensureWrist();const now=performance.now();wristFusion.recenterOnSessionStart(now);wristFusion.onPhaseChange('search',now);}
  vrActive=true;vrFocus=state.taps*(VR_FOCUS_SECONDS/3);vrGazeHit=false;vrPendingSave=false;headShake.reset();
  document.body.classList.add('vr-active');
- world.setVrHandMode(isHand);
- vrStereo=false;syncVrStereoMode(true);world.setHeadLook(0,0);world.resize();
+ world.setVrBodyActive(true);world.setVrHandMode(isHand);
+ vrStereo=false;syncVrStereoMode(true);world.setHeadLook(0,0);
+ world.updateVrHand(0,{visible:true,handSide:vrSettings.handSide,headLook:world.headLook,phase:state.phase});
+ world.resize();
  return true;
 }
 async function beginVrCountdown(){
@@ -252,7 +254,7 @@ function stopVr(reason='exit'){
  if(!vrActive)return false;
  if(vrPendingSave)finishVrFind('exit');
  vrActive=false;vrCountdownToken++;vrCountingDown=false;$('#vr-countdown').hidden=true;
- vrLook?.stop();vrBeaconTracker?.stop();world.setVrHandMode(false);world.setVrStereo(false);world.setHeadLook(0,0);vrStereo=false;vrFocus=0;vrGazeHit=false;headShake.reset();
+ vrLook?.stop();vrBeaconTracker?.stop();world.setVrBodyActive(false);world.setVrHandMode(false);world.setVrStereo(false);world.setHeadLook(0,0);vrStereo=false;vrFocus=0;vrGazeHit=false;headShake.reset();
  document.body.classList.remove('vr-active','vr-single');
  if(world.low!==vrRestoreLow)world.setQuality(vrRestoreLow);
  try{screen.orientation?.unlock();}catch{}
@@ -272,7 +274,7 @@ function updateVrFrame(dt,now=performance.now()){
   const beacon=vrBeaconTracker?.sample(now)||null;
   const overBin=world.handHitsBin();
   const snap=wristFusion.update(dt,{beacon,headLook:world.headLook,phase:state.phase,revealReady:!!world.revealState?.ready,handOverBin:overBin,now});
-  world.updateVrHand(dt,{visible:true,handSide:snap.handSide,shoulderPos:snap.shoulderPos,elbowPos:snap.elbowPos,pos:snap.pos,vel:snap.vel,qArm:snap.qArm,reach:snap.reach,elbowBendDeg:snap.elbowBendDeg,overBin,phase:state.phase,calmLowerProgress:snap.calmLowerProgress,beaconActive:snap.trackingSource==='gyro+beacon'});
+  world.updateVrHand(dt,{visible:true,handTracked:snap.trackingSource!=='idle',handSide:snap.handSide,headLook:world.headLook,torsoYaw:snap.torsoYaw,shoulderPos:snap.shoulderPos,elbowPos:snap.elbowPos,pos:snap.pos,vel:snap.vel,qArm:snap.qArm,reach:snap.reach,elbowBendDeg:snap.elbowBendDeg,overBin,phase:state.phase,calmLowerProgress:snap.calmLowerProgress,beaconActive:snap.trackingSource==='gyro+beacon'});
   if(state.phase==='search'){
    headShake.reset();vrGazeHit=overBin&&snap.reach>=.62;
    for(let i=0;i<snap.pokes&&state.phase==='search';i++)search();
@@ -289,6 +291,8 @@ function updateVrFrame(dt,now=performance.now()){
   }
   return;
  }
+ const bodyHeadLook=world.vrInspectLock&&world.headInspectBase?world.headInspectBase:world.headLook;
+ world.updateVrHand(dt,{visible:true,handSide:vrSettings.handSide,headLook:bodyHeadLook,phase:state.phase});
  if(state.phase==='search'){
   headShake.reset();vrGazeHit=world.gazeHitsBin();
   if(vrGazeHit){

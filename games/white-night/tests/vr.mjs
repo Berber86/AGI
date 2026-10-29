@@ -104,9 +104,25 @@ try {
   assert.equal(info.active, true);
   assert.equal(info.stereo, true);
   assert.equal(info.world.stereo, true);
+  assert.equal(info.world.bodyActive, true);
+  assert.equal(info.world.handVisible, true);
+  assert.equal(info.world.handMode, false);
+  assert.equal(info.world.body?.beaconBandVisible, false);
   assert.equal(await page.evaluate(() => !document.querySelector('#vr-overlay') && !document.querySelector('#vr-exit') && !document.querySelector('.vr-reticle')), true);
   await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-stereo-search.png` });
-  check('Landscape VR is pure stereo 3D with no HUD, reticle, captions or exit button');
+
+  // Look downward (-54 deg) in Fusion/Gyro VR: verify Petersburg coat, calm gloved hands, trousers & boots render cleanly
+  info = await page.evaluate(() => {
+    window.__GAME_TEST__.vr.gyro(0, -54, 14, 0.03);
+    return window.__GAME_TEST__.vr.step(0.05);
+  });
+  assert.ok(info.world.pitchDeg < -50, `downward pitch in VR reaches boots: pitchDeg=${info.world.pitchDeg}`);
+  await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-body-down-fusion.png` });
+  await page.evaluate(() => {
+    window.__GAME_TEST__.vr.gyro(0, 0, 14, 0.03);
+    return window.__GAME_TEST__.vr.step(0.05);
+  });
+  check('Landscape VR is pure stereo 3D with full Petersburg 3D body on downward gaze and zero HUD');
 
   const gaze = await findGaze(page);
   await focusFor(page, gaze, 3.4);
@@ -245,12 +261,27 @@ try {
     return window.__GAME_TEST__.vr.step(0.35, t);
   }, simClock);
   simClock += 400;
+  assert.equal(info.world.bodyActive, true);
   assert.equal(info.world.handMode, true);
   assert.equal(info.world.handVisible, true);
+  assert.equal(info.world.body?.beaconBandVisible, true);
   assert.ok(info.wrist.hand.reach > 0.75);
   assert.equal(await page.$('#vr-overlay'), null);
   await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-hand-search.png` });
-  check('Stereo VR hand mode renders the diegetic 3D gloved hand with zero DOM HUD');
+
+  // Glance downward (-46 deg) in Hand VR to verify active gloved hand + beacon band AND calm passive arm + coat + boots
+  await page.evaluate(({ gaze, t }) => {
+    window.__GAME_TEST__.vr.gyro(gaze.yaw, -46, 12, 0.03);
+    return window.__GAME_TEST__.vr.step(0.08, t);
+  }, { gaze, t: simClock });
+  simClock += 200;
+  await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-body-down-hand.png` });
+  await page.evaluate(({ gaze, t }) => {
+    window.__GAME_TEST__.vr.gyro(gaze.yaw, gaze.pitch, 12, 0.03);
+    return window.__GAME_TEST__.vr.step(0.08, t);
+  }, { gaze, t: simClock });
+  simClock += 200;
+  check('Stereo VR hand mode renders the diegetic 3D Petersburg avatar & gloved hand with zero DOM HUD');
 
   // Rummage 3 strokes in the bin -> reveals 'cup'
   for (const yawSweep of [12, -12, 12]) {
@@ -349,6 +380,9 @@ try {
   check('Right/Left wrist choice syncs bidirectionally and mirrors 2-bone elbow & glove anatomy');
 
   await page.evaluate(() => window.__GAME_TEST__.vr.stop());
+  const stoppedInfo = await vr(page);
+  assert.equal(stoppedInfo.world.bodyActive, false, '3D VR body hidden cleanly in flat 2D mode');
+  assert.equal(stoppedInfo.world.handVisible, false, '3D VR hand hidden cleanly in flat 2D mode');
   await page.evaluate(() => {
     window.__GAME_TEST__.vr.open();
     window.__GAME_TEST__.vr.setHandSide('left');

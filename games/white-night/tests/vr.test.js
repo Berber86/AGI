@@ -190,3 +190,18 @@ test('DualMarkerTracker.sampleColor maps 9:16 portrait video inside 4:3 contain 
   assert.ok(picked && Math.abs(picked.hue - 338) < 4, `picked hue=${picked?.hue}`);
 });
 
+test('FusionLook allows downward gaze past -55 deg (up to -68 deg) so VR players can inspect coat, trousers and boots', () => {
+  const fusion = new FusionLook();
+  fusion.update(1 / 60, { yaw: 0, pitch: 0 }, lost);
+  for (let i = 1; i <= 30; i++) {
+    fusion.update(1 / 60, { yaw: 0, pitch: (-58 * i / 30) * DEG }, lost);
+  }
+  assert.ok(Math.abs(fusion.pitch / DEG + 58) < 0.5, `downward pitch preserved at -58 deg: ${fusion.pitch / DEG}`);
+
+  for (let i = 1; i <= 30; i++) {
+    fusion.update(1 / 60, { yaw: 0, pitch: (-58 - 24 * i / 30) * DEG }, lost);
+  }
+  assert.ok(Math.abs(fusion.pitch / DEG + 68) < 0.5, `clamped cleanly at -68 deg: ${fusion.pitch / DEG}`);
+});
+
+

@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 25.384848484848103,
+      "meanFrameMs": 24.885858585859438,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -61,6 +61,14 @@
       },
       "vr": {
         "stereo": false,
+        "bodyActive": false,
+        "body": {
+          "visible": false,
+          "torsoVisible": true,
+          "passiveArmSide": "left",
+          "activeArmSide": "right",
+          "beaconBandVisible": true
+        },
         "handMode": false,
         "handSide": "right",
         "handVisible": false,
@@ -101,7 +109,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.533333333333,
+      "meanFrameMs": 16.53333333333391,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -127,6 +135,14 @@
       },
       "vr": {
         "stereo": false,
+        "bodyActive": false,
+        "body": {
+          "visible": false,
+          "torsoVisible": true,
+          "passiveArmSide": "left",
+          "activeArmSide": "right",
+          "beaconBandVisible": true
+        },
         "handMode": false,
         "handSide": "right",
         "handVisible": false,
@@ -465,7 +481,7 @@
     }
   ],
   "build": {
-    "totalBytes": 6845928,
+    "totalBytes": 6862463,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -488,12 +504,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-C7btA3m-.js",
-        "bytes": 804551
-      },
-      {
         "file": "assets/index-CrmcHT0K.css",
         "bytes": 35427
+      },
+      {
+        "file": "assets/index-DgRHLmZk.js",
+        "bytes": 821086
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",

@@ -792,6 +792,108 @@ test('Neck-only head turn (+45 deg) keeps outstretched arm steady in world space
   assert.ok(Math.abs(worldFwd[0]) < 0.03 && worldFwd[2] < -0.99, `world arm stays aimed at bin: ${JSON.stringify(worldFwd)}`);
 });
 
+test('Full 3D Petersburg body (coat, scarf, trousers, boots, dual gloves) stays below forward horizon and grounds cleanly on downward gaze across all VR modes', () => {
+  const avatar = createGlovedHand('right');
+
+  // 1) Режим Гироскоп / 2 метки (handMode = false) при взгляде строго вперёд (pitch = 0):
+  //    ремешок-маяк скрыт, обе руки симметрично лежат у карманов пальто,
+  //    а всё пальто и ноги находятся ниже переднего поля зрения!
+  avatar.update(1 / 60, {
+    visible: true,
+    handMode: false,
+    handSide: 'right',
+    headLook: { yaw: 0, pitch: 0 },
+  });
+  avatar.group.updateMatrixWorld(true);
+
+  const infoCalm = avatar.getBodyInfo();
+  assert.equal(infoCalm.visible, true);
+  assert.equal(infoCalm.torsoVisible, true);
+  assert.equal(infoCalm.beaconBandVisible, false, 'beacon strap hidden in gyro/fusion VR');
+  assert.equal(infoCalm.activeArmSide, 'right');
+  assert.equal(infoCalm.passiveArmSide, 'left');
+  assert.equal(avatar.torsoGroup.children.length, 7, 'coat body, lapels/trim, scarf, trousers, boot leather, boot soles, buttons/eyelets batched into 7 meshes');
+
+  // Обе отдыхающие кисти симметричны по X у карманов пальто
+  const rWristCalm = avatar.wristPivot.position.clone();
+  const lWristCalm = avatar.passiveWristPivot.position.clone();
+  assert.ok(Math.abs(rWristCalm.x + lWristCalm.x) < 1e-3, `symmetric resting wrists: R=${rWristCalm.x}, L=${lWristCalm.x}`);
+  assert.ok(Math.abs(rWristCalm.y - lWristCalm.y) < 1e-3);
+
+  // Проверяем положительный детерминант масштаба и конечные нормали на каждом объекте аватара,
+  // а также что при pitch=0 ни одна вершина пальто/шарфа/ног не залезает в центр экрана (выше -29°)!
+  let meshCount = 0;
+  let minBootY = Infinity;
+  avatar.group.traverse((obj) => {
+    const det = obj.scale.x * obj.scale.y * obj.scale.z;
+    assert.ok(det > 0, `positive scale determinant on ${obj.type}: det=${det}`);
+    if (obj.isMesh) {
+      meshCount++;
+      const posAttr = obj.geometry.getAttribute('position');
+      const normAttr = obj.geometry.getAttribute('normal');
+      assert.ok(posAttr && posAttr.count > 0 && normAttr && normAttr.count === posAttr.count);
+      for (let i = 0; i < normAttr.count; i += 17) {
+        const nx = normAttr.getX(i), ny = normAttr.getY(i), nz = normAttr.getZ(i);
+        assert.ok(Number.isFinite(nx) && Number.isFinite(ny) && Number.isFinite(nz));
+      }
+    }
+  });
+  assert.ok(meshCount >= 40, `rich articulated 3D avatar mesh count=${meshCount}`);
+
+  for (const child of avatar.torsoGroup.children) {
+    const posAttr = child.geometry.getAttribute('position');
+    for (let i = 0; i < posAttr.count; i++) {
+      const y = posAttr.getY(i);
+      const z = posAttr.getZ(i);
+      if (y < minBootY) minBootY = y;
+      if (z < -0.05) {
+        const elevDeg = Math.atan2(y, -z) / DEG;
+        assert.ok(elevDeg < -29, `torso/scarf vertex stays below forward horizon at pitch=0: elev=${elevDeg.toFixed(1)} deg`);
+      }
+    }
+  }
+  assert.ok(minBootY < -1.52 && minBootY > -1.65, `boots reach realistic ground height: minBootY=${minBootY.toFixed(3)}m`);
+
+  // 2) Игрок наклоняет голову вниз на -55°: ботинки, стоящие на полу в мире (0, -1.56, -0.35),
+  //    поворачиваются через bodyRoot точно в центр взгляда камеры (-Z)!
+  avatar.update(1 / 60, {
+    visible: true,
+    handMode: false,
+    handSide: 'right',
+    headLook: { yaw: 0, pitch: -55 * DEG },
+  });
+  avatar.group.updateMatrixWorld(true);
+  // Вектор мыска ботинка (0.12, -1.55, -0.75) после поворота bodyRoot на Rx(+55°):
+  // zCam = -1.55 * sin(55°) - 0.75 * cos(55°) ≈ -1.70, yCam ≈ -0.27 (точно в поле зрения!)
+  const bootToeInCam = avatar.bodyRoot.localToWorld(avatar.wristPivot.position.clone().set(0.12, -1.55, -0.75));
+  assert.ok(bootToeInCam.z < -1.50 && Math.abs(bootToeInCam.y) < 0.45, `boots enter downward gaze cone cleanly: ${JSON.stringify(bootToeInCam)}`);
+
+  // 3) Режим Рука-браслет (handMode = true, handSide = 'left'):
+  //    ведущая левая рука носит ремешок-маяк и тянется вперёд, а правая спокойно остаётся у кармана!
+  avatar.update(1 / 60, {
+    visible: true,
+    handMode: true,
+    handTracked: true,
+    handSide: 'left',
+    headLook: { yaw: 0, pitch: -15 * DEG },
+    torsoYaw: 0,
+    shoulderPos: { x: -0.21, y: -0.24, z: -0.14 },
+    elbowPos: { x: -0.22, y: -0.28, z: -0.36 },
+    pos: { x: -0.14, y: -0.12, z: -0.58 },
+    qArm: [0, 0, 0, 1],
+    reach: 0.85,
+  });
+  const infoHand = avatar.getBodyInfo();
+  assert.equal(infoHand.beaconBandVisible, true, 'beacon strap visible on active wrist in hand mode');
+  assert.equal(infoHand.activeArmSide, 'left');
+  assert.equal(infoHand.passiveArmSide, 'right');
+  assert.ok(avatar.passiveWristPivot.position.x > 0.15, 'passive right arm stays calmly at right coat pocket');
+  assert.ok(avatar.wristPivot.position.z < -0.50, 'active left arm reaches forward toward bin');
+
+  avatar.dispose();
+});
+
+
 
 
 

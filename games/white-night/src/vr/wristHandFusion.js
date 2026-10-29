@@ -1019,6 +1019,7 @@ export class WristHandFusion {
       handSide: this.handSide,
       calibratedStep: this.calibratedStep,
       trackingSource: this.trackingSource,
+      torsoYaw: +this.torsoYaw.toFixed(4),
       qArm: [...this.qArm],
       shoulderPos: { ...this.shoulderPos },
       elbowPos: { ...this.elbowPos },
