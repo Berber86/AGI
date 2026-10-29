@@ -2,10 +2,13 @@
 //   1. Скульптурные замшевые перчатки (анатомический свод пясти, 4 рельефные костяшки,
 //      сухожилия тыла, ладонная чаша со складкой сгиба, манжетный разрез с латунной кнопкой,
 //      три изогнутых рантовых шва, фаланги с кожными заломами у суставов).
-//   2. Скроенные рукава петербургского пальто с естественным провисанием сукна,
-//      локтевыми складками, хлястиком-патой на пуговице и вязаным ветрозащитным манжетом.
-//   3. Двубортное осеннее петербургское пальто (приталенный силуэт с расходящимися полами,
-//      острые лацканы, отложной воротник, тёплый вязаный шарф, 6 пуговиц и карманы с клапанами).
+//   2. Втачные рукава пальто: окат-«раструб» в пройме (никаких шаров на месте плеч!),
+//      локтевой сгиб ткани с локтевым отростком, обшлаг с хлястиком-патой на роговой
+//      пуговице и вязаный ветрозащитный манжет.
+//   3. Двубортное осеннее пальто по ЕДИНОМУ чертёжному профилю (COAT_PROFILE): широкое
+//      почти плоское плечо, приталивание, расходящиеся полы с V-разрезом, острые лацканы,
+//      отложной воротник-стойка, 6 пуговиц на нормалях сукна, карманы с клапанами,
+//      брюки с бедром/коленом/икрой и вязаный шарф-стойка с жгутами и бахромой.
 //   4. Спокойная вторая (свободная) рука в перчатке у кармана пальто (а в режимах «Гироскоп»
 //      и «2 метки» — обе спокойно опущенные у карманов руки без электронного ремешка).
 //   5. Скульптурные брюки со стрелками, коленными заломами и отворотами + шнурованные
@@ -377,78 +380,324 @@ function buildSculptedPhalanxGeometry(rProx, rDist, len) {
 }
 
 /**
- * Скроенный суконный рукав пальто вдоль оси Y (от 0 до 1):
- * лёгкое провисание плотной ткани под действием гравитации и рантовый шов.
+ * Лента плотной ткани, раскроенная СТРОГО по поверхности пальто: путь задан в плоскости
+ * (x, y), а z каждой точки снимается с чертёжного профиля coatFrontZ. Ширина ленты
+ * идёт поперёк груди, толщина — вдоль нормали к сукну, поэтому лацкан, клапан кармана
+ * или висящий конец шарфа никогда не «всплывают» и не врезаются в корпус.
+ * ctrl: [{ x, y, hw }] — контрольные точки портновского чертежа (hw — полуширина ленты).
  */
-function buildTailoredSleeveGeometry(rBottom, rTop) {
+function buildSurfaceRibbonGeometry(ctrl, {
+  gap = 0.0075,
+  halfT = 0.0058,
+  steps = 26,
+  radialSegs = 12,
+  widthPow = 0.55,
+  thickPow = 1.55,
+  ribCount = 0,
+  ribAmp = 0.16,
+  billow = 0,
+  capStart = true,
+  capEnd = true,
+} = {}) {
+  const planar = new THREE.CatmullRomCurve3(
+    ctrl.map((p) => new THREE.Vector3(p.x, p.y, 0)), false, 'catmullrom', 0.5
+  );
+  const n = ctrl.length;
+  const halfWAt = (u) => {
+    const g = u * (n - 1);
+    const i = Math.min(n - 2, Math.max(0, Math.floor(g)));
+    return THREE.MathUtils.lerp(ctrl[i].hw ?? 1, ctrl[i + 1].hw ?? 1, THREE.MathUtils.clamp(g - i, 0, 1));
+  };
   const rings = [];
-  const steps = 8;
   for (let s = 0; s <= steps; s++) {
-    const t = s / steps; // 0 внизу (ближе к кисти/локтю), 1 вверху (ближе к локтю/плечу)
+    const u = s / steps;
+    const pt = planar.getPointAt(u);
+    const halfW = halfWAt(u);
+    const bell = billow * Math.sin(u * Math.PI);
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const cord = ribCount > 0 ? 1 + ribAmp * Math.cos(theta * ribCount) : 1;
+      const xw = pt.x + Math.sign(c) * Math.pow(Math.abs(c), widthPow) * halfW * cord;
+      const surfZ = coatFrontZ(pt.y, xw);
+      const off = gap + bell + Math.sign(sn) * Math.pow(Math.abs(sn), thickPow) * halfT * cord;
+      return [xw, pt.y, surfZ - off];
+    });
+  }
+  return buildLoftedTube(rings, radialSegs, { capStart, capEnd });
+}
+
+/** Матрица-постановка детали на поверхность пальто: её локальная +Y совпадает с нормалью сукна. */
+function coatSurfaceMatrix(x, y, gap = 0.0) {
+  const h = 0.0022;
+  const f = (xx, yy) => coatFrontZ(yy, xx);
+  const fx = (f(x + h, y) - f(x - h, y)) / (2 * h);
+  const fy = (f(x, y + h) - f(x, y - h)) / (2 * h);
+  const normal = new THREE.Vector3(fx, fy, -1).normalize();
+  const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+  return new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, f(x, y) - gap),
+    quat,
+    new THREE.Vector3(1, 1, 1)
+  );
+}
+
+/**
+ * Скроенный суконный рукав пальто вдоль оси Y (от 0 до 1): широкий, почти цилиндрический
+ * рукав-«труба» осеннего пальто с провисанием плотной ткани, локтевой посадкой и наружным швом.
+ */
+function buildTailoredSleeveGeometry(rBottom, rTop, { gather = 0.0032, oval = 0.86 } = {}) {
+  const rings = [];
+  const steps = 10;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps; // 0 — ниже по руке (локти/кисть), 1 — выше (плечо)
     const baseR = THREE.MathUtils.lerp(rBottom, rTop, t);
-    const clothEase = Math.sin(t * Math.PI) * 0.0032;
+    const clothEase = Math.sin(t * Math.PI) * gather;
+    const drape = (1 - t) * 0.0016;
     const y = t - 0.5;
     rings.push((theta) => {
       const cx = Math.cos(theta);
       const cz = Math.sin(theta);
-      // Овальное портновское сечение рукава + шов снаружи
-      const seam = Math.exp(-Math.pow((theta - 0) / 0.16, 2)) * 0.0014;
-      const rx = (baseR + clothEase + seam) * 0.97;
-      const rz = (baseR + clothEase * 1.35) * 0.84;
-      const drapeZ = cz < 0 ? cz * clothEase * 0.8 : 0;
+      // Портновское сечение рукава: овальное (уже вбок, больше вперёд-назад) + шов снаружи
+      const seam = Math.exp(-Math.pow((theta - 0) / 0.17, 2)) * 0.0015 +
+        Math.exp(-Math.pow(Math.abs(theta - Math.PI) / 0.17, 2)) * 0.0012;
+      const rx = (baseR + clothEase + seam) * oval;
+      const rz = baseR + clothEase * 1.30 + drape;
+      const drapeZ = cz < 0 ? cz * clothEase * 0.7 : 0;
       return [cx * rx, y, cz * rz + drapeZ];
     });
   }
-  return buildLoftedTube(rings, 16);
+  return buildLoftedTube(rings, 18);
 }
+
+/**
+ * Втачная головка рукава (окат) пальто — честная портновская замена «шару на месте плеча»:
+ * короткий конус, чьё широкое основание продолжает плоское плечо корпуса, с посадочными
+ * сборками по окату и выпуклым рантовым швом проймы. Строится вдоль локальной +Y (плечо наружу).
+ */
+function buildSleeveHeadGeometry(rSleeve) {
+  const rings = [];
+  const steps = 12;
+  const yTop = 0.0065;
+  const yEnd = -0.0755;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps; // 0 — в пройме (под плечом корпуса), 1 — переход в рукав
+    const y = THREE.MathUtils.lerp(yTop, yEnd, t);
+    const flare = Math.pow(Math.max(0, 1 - t * 1.02), 1.55);
+    const gather = Math.exp(-Math.pow((t - 0.20) / 0.24, 2));
+    const seamRidge = Math.exp(-Math.pow((t - 0.40) / 0.085, 2)) * 0.0052;
+    const rad = rSleeve * (1 + flare * 0.085) + seamRidge;
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const pucker = gather * Math.sin(theta * 5 + 0.55) * 0.0026;
+      return [c * (rad + pucker) * 0.885, y, sn * (rad + pucker) * 1.0];
+    });
+  }
+  return buildLoftedTube(rings, 26, { capStart: true, capEnd: false });
+}
+
+/**
+ * Локтевой узел рукава: сгиб плотной ткани с выступающим локтевым отростком —
+ * сплюснутый вдоль оси руки мыс с острым тыльным гребнем, а не «шар-петля».
+ */
+function buildElbowHingeGeometry(r) {
+  const rings = [];
+  const steps = 10;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps; // 0 — со стороны плеча, 1 — со стороны предплечья
+    const bulge = 1 + 0.052 * Math.sin(Math.pow(t, 0.82) * Math.PI);
+    const rad = r * bulge;
+    const y = THREE.MathUtils.lerp(0.036, -0.036, t);
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const olecranon = sn > 0 ? Math.pow(sn, 2.4) * 0.0090 * Math.sin(t * Math.PI) : 0;
+      const inner = sn < 0 ? Math.pow(-sn, 2.0) * 0.0042 : 0;
+      return [c * rad * 0.885, y, sn * (rad + olecranon) - inner];
+    });
+  }
+  return buildLoftedTube(rings, 20, { capStart: true, capEnd: true });
+}
+
+/**
+ * Скульптурный сегмент большого пальца замшевой перчатки: сплюснутая каплевидная призма
+ * с плоской ногтевой пластиной, пухлой подушечкой, тыльным швом-ребром и ЗАКРУГЛЁННЫМ
+ * ногтем на конце. Естественный изгиб пальца «зашит» в геометрию, поэтому палец
+ * не выглядит ни палкой, ни нанизанными шариками.
+ */
+function buildThumbSegmentGeometry({ rBase, rTip, len, curl = 0.16, roundTip = true, swell = 0.10, noseAt = 0.85 }) {
+  const rings = [];
+  const steps = 14;
+  const tNose = noseAt;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const nose = t > tNose
+      ? Math.sqrt(Math.max(0.05, 1 - Math.pow((t - tNose) / (1 - tNose), 1.55)))
+      : 1;
+    const rad = THREE.MathUtils.lerp(rBase, rTip, Math.pow(t, 0.88)) * (roundTip ? nose : 1);
+    const jointSwell = Math.exp(-Math.pow((t - 0.04) / 0.20, 2)) * swell;
+    const wrinkle = Math.exp(-Math.pow((t - 0.30) / 0.085, 2)) * 0.075 +
+      Math.exp(-Math.pow((t - 0.44) / 0.075, 2)) * 0.045;
+    const bell = Math.sin(Math.PI * THREE.MathUtils.clamp(t * 1.04, 0, 1));
+    const z = -t * len;
+    const y = -curl * len * Math.pow(t, 2);
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const dorsal = sn >= 0;
+      const rx = rad * (1.14 + jointSwell * 0.55);
+      const ry = rad * (dorsal ? 0.70 + wrinkle : 0.95);
+      const seam = dorsal ? 0.0011 * bell * Math.exp(-Math.pow(c / 0.52, 2)) : 0;
+      const pad = dorsal ? 0 : Math.pow(-sn, 1.15) * rad * 0.14 * bell;
+      return [c * rx, y + sn * ry + seam - pad * 0.6, z];
+    });
+  }
+  return buildLoftedTube(rings, 16, { capStart: false, capEnd: !!roundTip });
+}
+
+/**
+ * Мышца тенара (основание большого пальца): мягкий мускульный объём, в который
+ * «врастает» палец — именно он закрывает межпальцевую щель при отведённом пальце.
+ */
+function buildThenarGeometry(side = 1) {
+  const rings = [];
+  const steps = 10;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps; // 0 — у запястья, 1 — у основания пальца
+    const rad = 0.0138 + Math.sin(t * Math.PI) * 0.0062 - t * 0.0022;
+    const x = -side * THREE.MathUtils.lerp(0.0295, 0.0425, Math.pow(t, 0.86));
+    const y = -0.0075 + Math.sin(t * Math.PI) * 0.0035;
+    const z = THREE.MathUtils.lerp(0.0035, -0.0430, t);
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const toPalm = sn < 0 ? 1.20 : 0.72;
+      return [x - side * c * rad * 0.78, y + sn * rad * toPalm, z + c * rad * 0.30];
+    });
+  }
+  return buildLoftedTube(rings, 14, { capStart: true, capEnd: true });
+}
+
 
 // ============================================================================
 // 2. СКУЛЬПТУРНОЕ ТУЛОВИЩЕ В ПЕТЕРБУРГСКОМ ПАЛЬТО, БРЮКИ И КОЖАНЫЕ БОТИНКИ
 // ============================================================================
 
-function buildOvercoatBodyGeometry() {
-  // Кольца пальто сверху вниз (в системе корпуса, где глаза в [0, 0, 0]).
-  // Ключевой закон оптики от первого лица: отношение |z_front / y| монотонно растёт сверху вниз
-  // (имитируя естественный вынос глаз вперёд относительно шейного позвонка C7 при наклоне головы),
-  // благодаря чему внешняя лицевая сторона воротника, лацканов, пуговиц, брюк и ботинок
-  // открыта взгляду без самоперекрытия и без заглядывания внутрь полой горловины!
-  const profile = [
-    { y: -0.280, hw: 0.078, hd: 0.052, cz: 0.048, split: 0.00 },
-    { y: -0.310, hw: 0.212, hd: 0.074, cz: 0.006, split: 0.00 },
-    { y: -0.390, hw: 0.214, hd: 0.092, cz: -0.032, split: 0.00 },
-    { y: -0.490, hw: 0.198, hd: 0.104, cz: -0.068, split: 0.00 },
-    { y: -0.600, hw: 0.190, hd: 0.110, cz: -0.098, split: 0.00 },
-    { y: -0.710, hw: 0.194, hd: 0.114, cz: -0.122, split: 0.035 },
-    { y: -0.810, hw: 0.200, hd: 0.116, cz: -0.142, split: 0.075 },
-    { y: -0.895, hw: 0.206, hd: 0.118, cz: -0.156, split: 0.115 },
-  ];
+// Профиль петербургского пальто — ЕДИНЫЙ источник геометрии всего туловища:
+// воротник, лацканы, шарф, пуговицы и клапаны карманов вычисляются из этих колец,
+// поэтому ни одна накладная деталь не «всплывает» над сукном и не тонет в нём.
+// Ключевой закон оптики от первого лица: |z_front / y| монотонно растёт сверху вниз,
+// благодаря чему наружная лицевая сторона корпуса открыта взгляду без самоперекрытия.
+const COAT_PROFILE = [
+  { y: -0.258, hw: 0.0690, hd: 0.0458, cz: 0.0520, split: 0.000 },
+  { y: -0.272, hw: 0.1010, hd: 0.0540, cz: 0.0332, split: 0.000 },
+  { y: -0.284, hw: 0.1660, hd: 0.0638, cz: 0.0122, split: 0.000 },
+  { y: -0.296, hw: 0.2318, hd: 0.0758, cz: -0.0062, split: 0.000 },
+  { y: -0.312, hw: 0.2352, hd: 0.0828, cz: -0.0205, split: 0.000 },
+  { y: -0.344, hw: 0.2132, hd: 0.0902, cz: -0.0332, split: 0.000 },
+  { y: -0.400, hw: 0.2014, hd: 0.0976, cz: -0.0492, split: 0.000 },
+  { y: -0.460, hw: 0.1950, hd: 0.1032, cz: -0.0628, split: 0.000 },
+  { y: -0.530, hw: 0.1906, hd: 0.1062, cz: -0.0788, split: 0.000 },
+  { y: -0.600, hw: 0.1892, hd: 0.1098, cz: -0.0958, split: 0.000 },
+  { y: -0.710, hw: 0.1940, hd: 0.1140, cz: -0.1220, split: 0.035 },
+  { y: -0.810, hw: 0.2000, hd: 0.1160, cz: -0.1420, split: 0.075 },
+  { y: -0.895, hw: 0.2060, hd: 0.1180, cz: -0.1560, split: 0.115 },
+];
 
+const COAT_SHOULDER_Y = -0.296;   // линия плеча (акромион)
+const catmullRom = (p0, p1, p2, p3, t) => {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3);
+};
+
+/** Сглаженное сечение пальто на высоте y (сплайн по кольцам портновского чертежа). */
+function coatAt(y) {
+  const P = COAT_PROFILE;
+  const n = P.length;
+  let i = 0;
+  while (i < n - 2 && y < P[i + 1].y) i++;
+  const a = P[Math.max(0, i - 1)];
+  const b = P[i];
+  const c = P[i + 1];
+  const d = P[Math.min(n - 1, i + 2)];
+  const span = c.y - b.y;
+  const t = span !== 0 ? THREE.MathUtils.clamp((y - b.y) / span, 0, 1) : 0;
+  return {
+    hw: Math.max(0.05, catmullRom(a.hw, b.hw, c.hw, d.hw, t)),
+    hd: Math.max(0.03, catmullRom(a.hd, b.hd, c.hd, d.hd, t)),
+    cz: catmullRom(a.cz, b.cz, c.cz, d.cz, t),
+    split: Math.max(0, catmullRom(a.split, b.split, c.split, d.split, t)),
+  };
+}
+
+/** Плоское приподнятое плечо пальто: подъём и расчёт ширины у дельты (вместо шаров!). */
+function coatShoulderLift(y) {
+  return Math.exp(-Math.pow((y - COAT_SHOULDER_Y) / 0.042, 2));
+}
+
+/**
+ * Координата z наружной (грудной) поверхности пальто в точке (y, x) — степень
+ * суперэллипса 0.84/0.86 точно повторяет ring-функцию корпуса, поэтому деталь,
+ * поставленная на coatFrontZ(y, x) - зазор, лежит на сукне как пришитая.
+ */
+function coatFrontZ(y, x = 0) {
+  const p = coatAt(y);
+  const lift = coatShoulderLift(y);
+  const ax = Math.min(0.999, Math.abs(x) / p.hw);
+  const sideW = Math.pow(ax, 1.25);
+  let z = p.cz - p.hd * Math.pow(Math.max(0, 1 - Math.pow(ax, 2 / 0.84)), 0.43);
+  z += lift * (0.0028 * sideW + 0.0018 * Math.exp(-Math.pow((1 - ax) / 0.30, 2)));
+  const skirtFactor = THREE.MathUtils.clamp((-y - 0.60) / 0.28, 0, 1);
+  if (skirtFactor < 0.35 && x > -0.052 && x < 0.084) z -= 0.0055;
+  if (p.split > 0.001 && Math.abs(x) < p.split) {
+    z += (1 - Math.abs(x) / p.split) * p.split * 0.72;
+  }
+  return z;
+}
+
+/**
+ * Корпус двубортного осеннего пальто: широкая почти ПЛОСКАЯ линия плеча (уклон всего
+ * ~14°, как у честного втачного рукава на подплечнике), приподнятый валик оката,
+ * короткая кокетка спинки, приталивание и расходящиеся полы с V-разрезом на запаху.
+ */
+function buildOvercoatBodyGeometry() {
   const rings = [];
-  const totalSteps = 18;
+  const yTop = COAT_PROFILE[0].y;
+  const yBottom = COAT_PROFILE[COAT_PROFILE.length - 1].y;
+  const totalSteps = 34;
   for (let s = 0; s <= totalSteps; s++) {
-    const gt = (s / totalSteps) * (profile.length - 1);
-    const i0 = Math.min(profile.length - 2, Math.floor(gt));
-    const f = gt - i0;
-    const p0 = profile[i0];
-    const p1 = profile[i0 + 1];
-    const y = THREE.MathUtils.lerp(p0.y, p1.y, f);
-    const hw = THREE.MathUtils.lerp(p0.hw, p1.hw, f);
-    const hd = THREE.MathUtils.lerp(p0.hd, p1.hd, f);
-    const cz = THREE.MathUtils.lerp(p0.cz, p1.cz, f);
-    const split = THREE.MathUtils.lerp(p0.split, p1.split, f);
+    const u = s / totalSteps;
+    const eased = u < 0.26 ? u * 0.5769 : 0.15 + (u - 0.26) * 1.2192;
+    const y = THREE.MathUtils.lerp(yTop, yBottom, THREE.MathUtils.clamp(eased, 0, 1));
+    const { hw, hd, cz, split } = coatAt(y);
+    const lift = coatShoulderLift(y);
+    const yokeBand = Math.exp(-Math.pow((y + 0.344) / 0.024, 2));
     const skirtFactor = THREE.MathUtils.clamp((-y - 0.60) / 0.28, 0, 1);
 
     rings.push((theta) => {
       // theta = 0 справа (+X), PI/2 сзади (+Z), PI слева (-X), 3PI/2 спереди (-Z)
       const cx = Math.cos(theta);
       const sz = Math.sin(theta);
+      const ax = Math.min(1, Math.abs(cx));
       const sx = Math.sign(cx) * Math.pow(Math.abs(cx), 0.84);
       const sza = Math.sign(sz) * Math.pow(Math.abs(sz), 0.86);
-
-      // Мягкие вертикальные фалды сукна на полах пальто
+      const sideW = Math.pow(ax, 1.25);
       const pleat = skirtFactor * Math.sin(theta * 6) * 0.0055;
       let x = sx * (hw + pleat);
       let z = cz + sza * (hd + pleat * 0.8);
+
+      // 1) Плоское широкое плечо пальто + 2) валик втачного оката у проймы
+      const yy = y + lift * sideW * 0.0048;
+      x += Math.sign(cx || 1) * lift * (sideW * 0.0028);
+      z += lift * 0.0028 * sideW;
+      const roll = Math.exp(-Math.pow((1 - ax) / 0.30, 2)) * lift;
+      x += Math.sign(cx || 1) * roll * 0.0022;
+      z += Math.sign(sz || 1) * roll * 0.0018;
+
+      // 3) Кокетка спинки: короткий горизонтальный шов-перекат под плечами
+      if (sz > 0.45) z += yokeBand * (0.4 + 0.6 * sz) * 0.0042;
 
       // Двубортный запах на груди (правая пола чуть поверх левой спереди sz < -0.55)
       if (sz < -0.55 && skirtFactor < 0.35) {
@@ -462,75 +711,223 @@ function buildOvercoatBodyGeometry() {
         z += indent;
       }
 
-      return [x, y, z];
+      return [x, yy, z];
     });
   }
   // Верх горловины и низ пальто герметично закрыты (capStart/capEnd), исключая просвет сквозь торс!
-  return buildLoftedTube(rings, 30, { capStart: true, capEnd: true });
+  return buildLoftedTube(rings, 36, { capStart: true, capEnd: true });
 }
 
+
+/**
+ * Отложной воротник пальто: широкая плоская «воронка» вокруг шеи (тыл и бока),
+ * приподнятая над линией плеча и переходящая спереди в лацканы (никакого «бублика-трубы»).
+ */
+function buildCollarBandGeometry() {
+  const rings = [];
+  const steps = 30;
+  const rx = 0.0792;
+  const rz = 0.0598;
+  const cz = 0.0128;
+  for (let s = 0; s <= steps; s++) {
+    const u = s / steps;
+    const phi = -1.70 + u * 3.40; // 0 — центр спинки, ±1.70 — у конца лацкана
+    const frontness = Math.pow(Math.abs(phi) / 1.70, 1.35);
+    const px = Math.sin(phi) * rx * (1 + frontness * 0.055);
+    const pz = cz + Math.cos(phi) * rz;
+    const yBase = -0.3010 + frontness * 0.0042;
+    const yTopEdge = -0.2398 - frontness * 0.0180;
+    const lean = 0.0122 - frontness * 0.0102; // откинутый назад верх воротника
+    const height = (yTopEdge - yBase) * 0.5;
+    const midY = (yTopEdge + yBase) * 0.5;
+    const thick = 0.0072 + (1 - Math.abs(Math.sin(phi))) * 0.0016;
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const radial = Math.sign(c) * Math.pow(Math.abs(c), 0.72) * thick;
+      const vert = Math.sign(sn) * Math.pow(Math.abs(sn), 0.80) * height;
+      const ex = Math.sin(phi);
+      const ez = Math.cos(phi);
+      return [px + ex * radial, midY + vert, pz + ez * radial + lean * (vert / height) * 0.6];
+    });
+  }
+  return buildLoftedTube(rings, 14, { capStart: true, capEnd: true });
+}
+
+/**
+ * Острый лацкан пальто (правая сторона, x > 0; левая строится зеркалом) — лента сукна,
+ * раскроенная точно по груди: широкий раскат у плеча, фирменная «лесенка» выреза
+ * и узкий острый кончик у верхней пуговицы.
+ */
 function buildRightLapelGeometry() {
-  // Скульптурный острый лацкан пальто (правая сторона, x > 0; левая строится через mirrorGeoX),
-  // лежащий строго поверх наклонной передней поверхности груди пальто!
-  const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.054, -0.298, -0.052),
-    new THREE.Vector3(0.102, -0.340, -0.098),
-    new THREE.Vector3(0.116, -0.410, -0.136),
-    new THREE.Vector3(0.086, -0.495, -0.172),
-    new THREE.Vector3(0.038, -0.580, -0.202),
-  ]);
-  const pts = curve.getPoints(14);
-  const rings = pts.map((pt, idx) => {
-    const t = idx / (pts.length - 1);
-    const width = 0.018 + Math.sin(t * Math.PI * 0.88) * 0.024;
-    const thick = 0.0070;
-    return (theta) => {
-      const u = Math.cos(theta);
-      const v = Math.sin(theta);
-      return [
-        pt.x + u * width,
-        pt.y + v * thick * 0.55,
-        pt.z - Math.abs(u) * 0.003 - 0.005 + v * thick,
-      ];
+  return buildSurfaceRibbonGeometry([
+    { x: 0.0555, y: -0.2765, hw: 0.0135 },
+    { x: 0.0885, y: -0.3030, hw: 0.0305 },
+    { x: 0.1115, y: -0.3400, hw: 0.0370 },
+    { x: 0.1175, y: -0.3880, hw: 0.0352 },
+    { x: 0.1055, y: -0.4360, hw: 0.0305 },
+    { x: 0.0892, y: -0.4520, hw: 0.0228 },
+    { x: 0.0712, y: -0.4740, hw: 0.0158 },
+    { x: 0.0556, y: -0.4885, hw: 0.0072 },
+  ], { gap: 0.0068, halfT: 0.0062, steps: 30, radialSegs: 14, billow: 0.0022 });
+}
+
+/** Клапан бокового кармана пальто: слегка «пузащая» лента с острым нижним углом. */
+function buildPocketFlapGeometry(side = 1) {
+  const geo = buildSurfaceRibbonGeometry([
+    { x: 0.1060, y: -0.6390, hw: 0.0092 },
+    { x: 0.1420, y: -0.6460, hw: 0.0158 },
+    { x: 0.1760, y: -0.6520, hw: 0.0162 },
+    { x: 0.1970, y: -0.6580, hw: 0.0105 },
+  ], { gap: 0.0058, halfT: 0.0052, steps: 18, radialSegs: 12, billow: 0.0026 });
+  return side > 0 ? geo : mirrorGeoX(geo);
+}
+
+
+/**
+ * Вязаный шарф-мешок (muffler) в ДВА оборота вокруг шеи — ровно то, что видно
+ * из-под подбородка при взгляде вниз в VR: плотный рубчик, нахлёст второго оборота,
+ * заправленный конец и один свободно висящий конец, лежащий строго по сукну пальто.
+ */
+function buildMufflerWrapGeometry({ cy, rx, rz, cz, band, ribs, phase, droop, squashTop = 0.92 }) {
+  const rings = [];
+  const steps = 44;
+  for (let s = 0; s <= steps; s++) {
+    const u = s / steps;
+    const phi = u * Math.PI * 2; // 0 — строго спереди (-Z)
+    const front = Math.max(0, Math.cos(phi));
+    const pathX = Math.sin(phi) * rx;
+    const pathZ = cz - Math.cos(phi) * rz - droop * front * 0.55;
+    const pathY = cy - droop * front;
+    const rib = 1 + 0.052 * Math.cos(phi * ribs + phase);
+    const underChin = Math.exp(-Math.pow((phi - 0) / 0.55, 2)) + Math.exp(-Math.pow((phi - Math.PI * 2) / 0.55, 2));
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const rr = band * rib;
+      const out = Math.sign(c) * Math.pow(Math.abs(c), 0.88) * rr * 1.10;
+      const up = sn >= 0
+        ? sn * rr * (squashTop - 0.10 * front + 0.05 * underChin)
+        : sn * rr * 0.70;
+      const ex = Math.sin(phi);
+      const ez = -Math.cos(phi);
+      return [pathX + ex * out, pathY + up, pathZ + ez * out];
+    });
+  }
+  return buildLoftedTube(rings, 18, { capStart: false, capEnd: false });
+}
+
+/**
+ * Вязаная стойка шарфа: плотная ТРУБА в рубчик вокруг шеи (её верхний край с подворотом —
+ * ровно то, что видно в нижней каёмке кадра, когда опускаешь голову) и один свободный конец,
+ * спущенный по грудине в V-вырез лацканов. Шарф намеренно ужат ДО внутри ворота пальто:
+ * он не надувается «бубликом» над плечами и не перекрывает лацканы с пуговицами.
+ */
+
+/**
+ * Тесьма вязаного полотна: несколько отдельных жгутов (именно так резинка читается
+ * в крупном плане VR), каждый — своя круглая «трубка», идущая точно по сукну пальто.
+ */
+function buildCordedBandGeometry(ctrl, {
+  gap = 0.0056,
+  cords = 5,
+  cordR = 0.0058,
+  spread = 0.0258,
+  steps = 26,
+  radialSegs = 10,
+  billow = 0.0022,
+} = {}) {
+  const parts = [];
+  for (let k = 0; k < cords; k++) {
+    const off = cords === 1 ? 0 : (k / (cords - 1) - 0.5) * 2 * spread;
+    const shifted = ctrl.map((c) => ({ x: c.x + off, y: c.y, hw: cordR }));
+    parts.push(buildSurfaceRibbonGeometry(shifted, {
+      gap, halfT: cordR, steps, radialSegs, widthPow: 1.0, thickPow: 1.0, billow,
+    }));
+  }
+  return mergeGeos(parts);
+}
+
+function buildMufflerCollarGeometry() {
+  const parts = [];
+  const steps = 48;
+  const rx = 0.0730;
+  const rz = 0.0624;
+  const cz = 0.0124;
+  const profile = (phi) => {
+    const front = Math.max(0, Math.cos(phi));
+    const rib = 1 + 0.010 * Math.cos(phi * 12);
+    return {
+      px: Math.sin(phi) * rx * rib,
+      pz: cz - Math.cos(phi) * rz * rib,
+      front,
+      yBot: -0.3072 - front * 0.0034,
+      yTop: -0.2422 - front * 0.0052,
     };
-  });
-  return buildLoftedTube(rings, 12, { capStart: true, capEnd: true });
+  };
+
+  // 1) Само полотно стойки: сплюснутая «складка» ткани (толщина 7 мм, высота 6.5 см),
+  //    с лёгким клёшем наружу к верхнему краю и продольными жгутами вязки.
+  const bodyRings = [];
+  const hemRings = [];
+  for (let s = 0; s <= steps; s++) {
+    const phi = (s / steps) * Math.PI * 2;
+    const pr = profile(phi);
+    const ex = Math.sin(phi);
+    const ez = -Math.cos(phi);
+    bodyRings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const flare = 1 + 0.075 * Math.max(0, sn);
+      const thick = 0.0076 * (1 + 0.20 * pr.front) * flare;
+      const midY = (pr.yBot + pr.yTop) * 0.5;
+      const halfH = (pr.yTop - pr.yBot) * 0.5;
+      const cord = 1 + 0.030 * Math.sin(theta * 10);
+      const out = Math.sign(c) * Math.pow(Math.abs(c), 0.70) * thick * cord;
+      const vert = Math.sign(sn) * Math.pow(Math.abs(sn), 0.66) * halfH;
+      return [pr.px + ex * out, midY + vert, pr.pz + ez * out];
+    });
+    // 2) Верхний подворот: круглый кант по эллипсу — читается как подогнутая резинка
+    hemRings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const r = 0.0052;
+      return [pr.px + ex * (r * c + 0.0022), pr.yTop + sn * r * 0.86, pr.pz + ez * (r * c + 0.0022)];
+    });
+  }
+  parts.push(buildLoftedTube(bodyRings, 20, { capStart: false, capEnd: false }));
+  parts.push(buildLoftedTube(hemRings, 12, { capStart: false, capEnd: false }));
+
+  // 3) Свободный конец: тесьма из пяти жгутов вязки, лежащая точно по сукну груди
+  const tailCtrl = [
+    { x: -0.0452, y: -0.2860 },
+    { x: -0.0492, y: -0.3260 },
+    { x: -0.0518, y: -0.3680 },
+    { x: -0.0528, y: -0.4100 },
+    { x: -0.0522, y: -0.4460 },
+    { x: -0.0502, y: -0.4705 },
+  ];
+  parts.push(buildCordedBandGeometry(tailCtrl, { gap: 0.0054, cords: 5, cordR: 0.0061, spread: 0.0212, steps: 30, radialSegs: 11, billow: 0.0020 }));
+
+  // 4) Бахрома: каждый жгут оканчивается своей нитью — мгновенно «читается» как шарф
+  const hemY = -0.4705;
+  for (let f = 0; f < 5; f++) {
+    const fx = -0.0502 + (f - 2) * 0.0106;
+    const hemZ = coatFrontZ(hemY, fx) - 0.0070;
+    const sway = (f - 2) * 0.0022;
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(fx, hemY - 0.0015, hemZ + 0.0018),
+      new THREE.Vector3(fx + sway * 0.4, hemY - 0.0092, hemZ + 0.0036),
+      new THREE.Vector3(fx + sway, hemY - 0.0168, hemZ + 0.0054),
+    ]);
+    parts.push(new THREE.TubeGeometry(curve, 5, 0.00162, 6, false));
+  }
+
+  return mergeGeos(parts);
 }
 
 function buildScarfGeometry() {
-  const parts = [];
-  // Изящный вязаный шарф-кашне в V-вырезе воротника (горловина пальто уже закрыта сукном capStart!)
-  const neckLoop = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.042, -0.398, -0.132),
-    new THREE.Vector3(-0.070, -0.330, -0.088),
-    new THREE.Vector3(-0.058, -0.292, -0.030),
-    new THREE.Vector3(0.000, -0.284, 0.008),
-    new THREE.Vector3(0.058, -0.292, -0.030),
-    new THREE.Vector3(0.070, -0.330, -0.088),
-    new THREE.Vector3(0.040, -0.404, -0.136),
-  ]);
-  parts.push(new THREE.TubeGeometry(neckLoop, 28, 0.014, 12, false));
-
-  // Перекрещённые плоские концы вязаного шарфа в V-вырезе между лацканами
-  const tailOver = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.036, -0.352, -0.106),
-    new THREE.Vector3(0.005, -0.425, -0.146),
-    new THREE.Vector3(-0.015, -0.495, -0.176),
-  ]);
-  const tailGeo = new THREE.TubeGeometry(tailOver, 14, 0.020, 12, false);
-  tailGeo.scale(1.24, 1.0, 0.40);
-  parts.push(tailGeo);
-
-  const tailUnder = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.036, -0.356, -0.102),
-    new THREE.Vector3(0.010, -0.432, -0.142),
-    new THREE.Vector3(0.020, -0.500, -0.172),
-  ]);
-  const tailUnderGeo = new THREE.TubeGeometry(tailUnder, 12, 0.018, 12, false);
-  tailUnderGeo.scale(1.18, 1.0, 0.38);
-  parts.push(tailUnderGeo);
-
-  return mergeGeos(parts);
+  return buildMufflerCollarGeometry();
 }
 
 function buildRightTrouserLegGeometry(zStanceOffset = 0.012, outAngleRad = -7.5 * DEG) {
@@ -545,8 +942,12 @@ function buildRightTrouserLegGeometry(zStanceOffset = 0.012, outAngleRad = -7.5 
     const cxCenter = THREE.MathUtils.lerp(0.104, 0.128, t);
     const czCenter = THREE.MathUtils.lerp(-0.225, -0.565, t) - kneeFlex + zStanceOffset;
     const isCuff = t > 0.88;
-    const baseRx = THREE.MathUtils.lerp(0.076, 0.056, t) + (isCuff ? 0.0058 : 0);
-    const baseRz = THREE.MathUtils.lerp(0.082, 0.064, t) + (isCuff ? 0.0062 : 0);
+    // Портновский объём: бедро → колено → икра → лёгкий клёш у отворота
+    const thigh = 1 + 0.098 * Math.exp(-Math.pow((t - 0.04) / 0.19, 2));
+    const knee = 1 + 0.072 * Math.exp(-Math.pow((t - 0.47) / 0.15, 2));
+    const calf = 1 + 0.086 * Math.exp(-Math.pow((t - 0.73) / 0.15, 2));
+    const baseRx = (THREE.MathUtils.lerp(0.0755, 0.0555, t) + (isCuff ? 0.0058 : 0)) * thigh * knee * calf;
+    const baseRz = (THREE.MathUtils.lerp(0.0815, 0.0635, t) + (isCuff ? 0.0062 : 0)) * thigh * knee * (1 + (calf - 1) * 1.35);
     const kneeCrease = Math.exp(-Math.pow((t - 0.52) / 0.09, 2));
     const ankleGather = Math.exp(-Math.pow((t - 0.85) / 0.06, 2));
 
@@ -694,51 +1095,38 @@ function buildAvatarBodyGroup(mats) {
   // Пальто + выделенные более светлым суконным кантом воротник, лацканы и клапаны боковых карманов
   const coatBodyGeo = buildOvercoatBodyGeometry();
 
-  const backCollarCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.086, -0.304, -0.062),
-    new THREE.Vector3(-0.068, -0.282, 0.002),
-    new THREE.Vector3(0.000, -0.276, 0.046),
-    new THREE.Vector3(0.068, -0.282, 0.002),
-    new THREE.Vector3(0.086, -0.304, -0.062),
-  ]);
-  const collarTube = new THREE.TubeGeometry(backCollarCurve, 22, 0.016, 10, false);
-  collarTube.scale(1.0, 1.30, 0.74);
-  coatTrimParts.push(collarTube);
+  // Отложной воротник: плоская «воронка» вокруг шеи (тыл и бока), а не трубка-бублик
+  coatTrimParts.push(buildCollarBandGeometry());
 
+  // Острые лацканы, раскроенные точно по чертежу груди (левый — зеркалом, det > 0)
   const rightLapel = buildRightLapelGeometry();
   const leftLapel = mirrorGeoX(rightLapel);
   coatTrimParts.push(rightLapel, leftLapel);
 
-  // Два косых прорезных кармана с клапанами по бокам пальто (рядом со спокойными руками)
+  // Два косых прорезных кармана с клапанами, огибающими корпус (рядом со спокойными руками)
   for (const sx of [-1, 1]) {
-    const flap = new THREE.BoxGeometry(0.094, 0.030, 0.013, 2, 1, 1);
-    const mFlap = new THREE.Matrix4()
-      .makeTranslation(sx * 0.152, -0.655, -0.208)
-      .multiply(new THREE.Matrix4().makeRotationY(-sx * 0.48))
-      .multiply(new THREE.Matrix4().makeRotationX(-0.32))
-      .multiply(new THREE.Matrix4().makeRotationZ(-sx * 0.14));
-    coatTrimParts.push(transformGeo(flap, mFlap));
+    coatTrimParts.push(buildPocketFlapGeometry(sx));
   }
 
-  // 6 двубортных пуговиц с бортиком на наклонной передней поверхности груди пальто
-  const buttonRows = [
-    { y: -0.495, z: -0.178 },
-    { y: -0.590, z: -0.214 },
-    { y: -0.685, z: -0.242 },
-  ];
-  for (const { y: rowY, z: zBtn } of buttonRows) {
+  // 6 двубортных пуговиц: каждая поставлена НА поверхность сукна по её нормали,
+  // поэтому не «парит» над грудью и не тонет в ней при любом наклоне головы.
+  for (const rowY of [-0.496, -0.590, -0.684]) {
     for (const sx of [-1, 1]) {
-      const btn = new THREE.CylinderGeometry(0.0125, 0.0125, 0.006, 12);
-      const rim = new THREE.TorusGeometry(0.0115, 0.0022, 6, 12);
-      const mBtn = new THREE.Matrix4()
-        .makeTranslation(sx * 0.058, rowY, zBtn)
-        .multiply(new THREE.Matrix4().makeRotationX(Math.PI * 0.5 - 0.34))
-        .multiply(new THREE.Matrix4().makeRotationZ(sx * 0.08));
-      const mRim = new THREE.Matrix4()
-        .makeTranslation(sx * 0.058, rowY + 0.001, zBtn - 0.0025)
-        .multiply(new THREE.Matrix4().makeRotationX(-0.34))
-        .multiply(new THREE.Matrix4().makeRotationY(sx * 0.08));
-      buttonAndEyeletParts.push(transformGeo(btn, mBtn), transformGeo(rim, mRim));
+      const mBase = coatSurfaceMatrix(sx * 0.058, rowY, 0.0016);
+      const btn = new THREE.CylinderGeometry(0.0122, 0.0128, 0.0062, 14);
+      buttonAndEyeletParts.push(transformGeo(btn, mBase));
+      const rim = new THREE.TorusGeometry(0.0112, 0.0021, 6, 14);
+      const mRim = mBase.clone().multiply(new THREE.Matrix4().makeRotationX(Math.PI * 0.5));
+      const mRim2 = mRim.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.0026, 0));
+      buttonAndEyeletParts.push(transformGeo(rim, mRim2));
+      // Два нитяных ушка в дырочке роговой пуговицы
+      for (const dx of [-0.0042, 0.0042]) {
+        const stitch = new THREE.CylinderGeometry(0.0012, 0.0012, 0.0042, 6);
+        const mStitch = mRim.clone().multiply(
+          new THREE.Matrix4().makeTranslation(dx, 0.0034, 0).multiply(new THREE.Matrix4().makeRotationX(Math.PI * 0.5))
+        );
+        buttonAndEyeletParts.push(transformGeo(stitch, mStitch));
+      }
     }
   }
 
@@ -790,16 +1178,15 @@ function buildAvatarBodyGroup(mats) {
 function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSide = 'right' } = {}) {
   const armRoot = new THREE.Group();
 
-  const shoulderCap = new THREE.Mesh(sharedGeos.shoulderSphereGeo, mats.sleeveMat);
-  armRoot.add(shoulderCap);
+  // Втачной окат рукава пальто (никаких шаров на месте плеча!)
+  const sleeveHead = new THREE.Mesh(sharedGeos.sleeveHeadGeo, mats.sleeveMat);
+  armRoot.add(sleeveHead);
 
   const upperArmSleeve = new THREE.Mesh(sharedGeos.upperSleeveGeo, mats.sleeveMat);
   armRoot.add(upperArmSleeve);
 
   const elbowJointGroup = new THREE.Group();
-  const elbowSphere = new THREE.Mesh(sharedGeos.elbowSphereGeo, mats.sleeveMat);
-  elbowSphere.scale.set(0.97, 1.02, 1.04);
-  elbowJointGroup.add(elbowSphere);
+  elbowJointGroup.add(new THREE.Mesh(sharedGeos.elbowHingeGeo, mats.sleeveMat));
   // 2 мягкие портновские складки на сгибе локтя
   const elbowCrease1 = new THREE.Mesh(sharedGeos.elbowCreaseGeo, mats.sleeveFoldMat);
   elbowCrease1.rotation.x = Math.PI * 0.44;
@@ -826,9 +1213,11 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
   // Хлястик-пата рукава пальто с роговой пуговицей (придаёт живой портновский силуэт!)
   const cuffTabGroup = new THREE.Group();
   const cuffTab = new THREE.Mesh(sharedGeos.cuffTabGeo, mats.sleeveFoldMat);
+  cuffTab.scale.set(1.0, 0.80, 1.0);
   const cuffBtn = new THREE.Mesh(sharedGeos.cuffBtnGeo, mats.hornButtonMat);
+  cuffBtn.scale.set(1.0, 1.0, 0.86);
   cuffBtn.rotation.z = Math.PI * 0.5;
-  cuffBtn.position.set(0.0035, 0, -0.008);
+  cuffBtn.position.set(0.0486, 0.0000, 0);
   cuffTabGroup.add(cuffTab, cuffBtn);
   forearmCuffGroup.add(cuffTabGroup);
 
@@ -874,7 +1263,7 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
   wristPivot.add(inertiaPivot);
 
   const handBody = new THREE.Group();
-  handBody.scale.setScalar(1.16);
+  handBody.scale.setScalar(1.10);
   inertiaPivot.add(handBody);
 
   const wristBridge = new THREE.Mesh(sharedGeos.wristBridgeGeo, mats.gloveMat);
@@ -891,8 +1280,8 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
   palmPad.position.set(0, -0.010, -0.049);
   handBody.add(palmPad);
 
-  const thenarPad = new THREE.Mesh(sharedGeos.thenarGeo, mats.palmInnerMat);
-  thenarPad.scale.set(0.86, 0.65, 1.40);
+  // Мышца тенара: отдельная скульптурная масса, в которую врастает большой палец
+  const thenarPad = new THREE.Mesh(sharedGeos.thenarRightGeo, mats.palmInnerMat);
   handBody.add(thenarPad);
 
   const hypothenarPad = new THREE.Mesh(sharedGeos.hypothenarGeo, mats.palmInnerMat);
@@ -904,7 +1293,7 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
   handBody.add(wristSnapBtn);
 
   // Три изогнутых рантовых шва («стрелки») по своду тыльной стороны перчатки
-  const dorsalStitches = [-1, 0, 1].map((idx) => {
+  const dorsalStitches = [-1, 1].map((idx) => {
     const st = new THREE.Mesh(sharedGeos.stitchArchGeo, mats.seamMat);
     handBody.add(st);
     return { mesh: st, idx };
@@ -939,28 +1328,24 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     return { spec: tpl.spec, mcp, pip, dip };
   });
 
-  // Трёхсуставный противопоставляемый большой палец
-  const thumbCmc = new THREE.Group();
-  thumbCmc.add(new THREE.Mesh(sharedGeos.thumbCmcBallGeo, mats.gloveMat));
-  thumbCmc.add(new THREE.Mesh(sharedGeos.thumbMetaGeo, mats.gloveMat));
+  // Большой палец перчатки: КОРОТКИЙ (0.72 длины указательного) двусуставный палец,
+  // врастающий основанием в тенар. Сегменты перекрываются (устья спрятаны внутри
+  // предыдущего), поэтому суставы читаются как единая скульптурная масса, а не как
+  // нанизанные на ось шарики; естественный подгиб «зашит» в саму геометрию фаланг.
+  const thumbMeta = new THREE.Group();
+  thumbMeta.add(new THREE.Mesh(sharedGeos.thumbMetaGeo, mats.gloveMat));
 
-  const thumbMcp = new THREE.Group();
-  thumbMcp.position.set(0, 0, -0.032);
-  thumbMcp.add(new THREE.Mesh(sharedGeos.thumbMcpBallGeo, mats.gloveMat));
-  thumbMcp.add(new THREE.Mesh(sharedGeos.thumbProxGeo, mats.gloveMat));
+  const thumbProx = new THREE.Group();
+  thumbProx.position.set(0, 0.0004, -0.0248);
+  thumbProx.add(new THREE.Mesh(sharedGeos.thumbProxGeo, mats.gloveMat));
 
-  const thumbIp = new THREE.Group();
-  thumbIp.position.set(0, 0, -0.026);
-  thumbIp.add(new THREE.Mesh(sharedGeos.thumbIpBallGeo, mats.gloveMat));
-  thumbIp.add(new THREE.Mesh(sharedGeos.thumbDistGeo, mats.gloveMat));
-  const thumbTip = new THREE.Mesh(sharedGeos.thumbTipGeo, mats.seamMat);
-  thumbTip.scale.set(1.0, 0.84, 1.14);
-  thumbTip.position.set(0, -0.0005, -0.020);
-  thumbIp.add(thumbTip);
+  const thumbDist = new THREE.Group();
+  thumbDist.position.set(0, 0.0004, -0.0216);
+  thumbDist.add(new THREE.Mesh(sharedGeos.thumbDistGeo, mats.gloveMat));
 
-  thumbMcp.add(thumbIp);
-  thumbCmc.add(thumbMcp);
-  handBody.add(thumbCmc);
+  thumbProx.add(thumbDist);
+  thumbMeta.add(thumbProx);
+  handBody.add(thumbMeta);
 
   let armSide = null;
   function setSide(side) {
@@ -970,27 +1355,25 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     const s = clean === 'left' ? -1 : 1;
 
     palmMesh.geometry = clean === 'left' ? sharedGeos.palmLeftGeo : sharedGeos.palmRightGeo;
+    thenarPad.geometry = clean === 'left' ? sharedGeos.thenarLeftGeo : sharedGeos.thenarRightGeo;
     handBody.rotation.set(0.05, s * 0.06, s * 0.24);
 
-    thenarPad.position.set(-s * 0.024, -0.011, -0.032);
-    thenarPad.rotation.y = s * 0.28;
     hypothenarPad.position.set(s * 0.027, -0.010, -0.043);
 
     for (const { mesh: st, idx } of dorsalStitches) {
-      const archY = idx === 0 ? 0.0018 : 0.0004;
-      st.position.set(s * idx * 0.0155, archY, 0);
-      st.rotation.y = -s * idx * 0.055;
+      st.position.set(s * idx * 0.0118, 0.0012, -0.004);
+      st.rotation.y = -s * idx * 0.075;
     }
 
     for (const f of fingers) {
       f.mcp.position.set(s * f.spec.baseX, f.spec.yOff, f.spec.zOff);
     }
 
-    thumbCmc.position.set(-s * 0.039, -0.005, -0.028);
-    thumbCmc.rotation.set(0.08, s * 0.58, -s * 0.24);
+    thumbMeta.position.set(-s * 0.0308, -0.0088, -0.0198);
+    thumbMeta.rotation.set(0.05, s * 0.70, -s * 0.34);
 
-    cuffTabGroup.position.set(s * 0.038, 0.002, 0.032);
-    cuffTabGroup.rotation.y = s > 0 ? 0 : Math.PI;
+    cuffTabGroup.position.set(0, -0.0016, 0.0295);
+    cuffTabGroup.rotation.set(0, 0, s > 0 ? -0.34 : Math.PI + 0.34);
 
     if (miniWristband && rivet) {
       miniWristband.position.set(-s * 0.005, 0.029, 0.012);
@@ -1013,11 +1396,12 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
       f.mcp.rotation.y = -s * f.spec.splay * splayAmt;
     }
 
-    const tc = THREE.MathUtils.clamp(curlAmt * 0.85 + inertiaFlex * 0.5, 0.02, 1.15);
-    thumbCmc.rotation.x = 0.08 - tc * 0.28;
-    thumbCmc.rotation.y = s * (0.58 - tc * 0.24);
-    thumbMcp.rotation.x = -tc * 0.44;
-    thumbIp.rotation.x = -tc * 0.52;
+    const tc = THREE.MathUtils.clamp(curlAmt * 0.70 + inertiaFlex * 0.45, 0.02, 1.0);
+    // Мягкая естественная дина: палец лишь немного обнимает ладонь, без «крюка»
+    thumbMeta.rotation.x = 0.05 - tc * 0.15;
+    thumbMeta.rotation.y = s * (0.70 - tc * 0.13);
+    thumbProx.rotation.x = -0.06 - tc * 0.22;
+    thumbDist.rotation.x = -0.035 - tc * 0.235;
   }
 
   // Рабочие векторы для безсингулярной сборки предплечья и рукава
@@ -1039,13 +1423,14 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     wristPivot.quaternion.set(qArm[0], qArm[1], qArm[2], qArm[3]);
     inertiaPivot.rotation.set(lagPitch, lagYaw, 0);
 
-    // 1) Плечевой сегмент рукава (от локтя к плечу)
-    shoulderCap.position.copy(vShoulder);
+    // 1) Плечевой сегмент рукава (от локтя к плечу) + втачной окат в пройме
     segVec.copy(vShoulder).sub(vElbow);
     const upperLen = Math.max(0.08, segVec.length());
     upperArmSleeve.position.copy(vElbow).addScaledVector(segVec, 0.5);
     upperArmSleeve.scale.set(1.0, upperLen, 1.0);
     upperArmSleeve.quaternion.setFromUnitVectors(upAxis, segVec.normalize());
+    sleeveHead.quaternion.copy(upperArmSleeve.quaternion);
+    sleeveHead.position.copy(vShoulder);
 
     // 2) Локтевой сустав со складками
     elbowJointGroup.position.copy(vElbow);
@@ -1124,7 +1509,7 @@ export function createGlovedHand(initialSide = 'right') {
       bumpScale: 0.0022,
     }),
     palmInnerMat: new THREE.MeshStandardMaterial({
-      color: 0x624c39,
+      color: 0x866e57,
       emissive: 0x160f09,
       emissiveIntensity: 0.40,
       roughness: 0.84,
@@ -1234,16 +1619,16 @@ export function createGlovedHand(initialSide = 'right') {
 
   // Общие скульптурные геометрии для обеих рук (ноль дублирования памяти!)
   const stitchCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0.0156, -0.020),
-    new THREE.Vector3(0, 0.0176, -0.050),
-    new THREE.Vector3(0, 0.0152, -0.078),
+    new THREE.Vector3(0, 0.0166, -0.020),
+    new THREE.Vector3(0, 0.0202, -0.050),
+    new THREE.Vector3(0, 0.0186, -0.079),
   ]);
 
   const baseFingerSpecs = [
-    { baseX: -0.031, yOff: 0.0015, zOff: -0.093, l1: 0.035, l2: 0.023, l3: 0.016, w: 0.0190, splay: -0.058 },
-    { baseX: -0.010, yOff: 0.0035, zOff: -0.098, l1: 0.039, l2: 0.026, l3: 0.017, w: 0.0198, splay: -0.012 },
-    { baseX: 0.011, yOff: 0.0020, zOff: -0.095, l1: 0.036, l2: 0.024, l3: 0.016, w: 0.0188, splay: 0.028 },
-    { baseX: 0.030, yOff: -0.0020, zOff: -0.087, l1: 0.029, l2: 0.019, l3: 0.015, w: 0.0168, splay: 0.075 },
+    { baseX: -0.0328, yOff: 0.0015, zOff: -0.0942, l1: 0.0368, l2: 0.0238, l3: 0.0158, w: 0.0186, splay: -0.062 },
+    { baseX: -0.0109, yOff: 0.0035, zOff: -0.0994, l1: 0.0408, l2: 0.0262, l3: 0.0168, w: 0.0192, splay: -0.014 },
+    { baseX: 0.0119, yOff: 0.0020, zOff: -0.0964, l1: 0.0378, l2: 0.0246, l3: 0.0158, w: 0.0184, splay: 0.030 },
+    { baseX: 0.0318, yOff: -0.0020, zOff: -0.0882, l1: 0.0306, l2: 0.0196, l3: 0.0148, w: 0.0164, splay: 0.079 },
   ];
 
   const fingerTemplates = baseFingerSpecs.map((spec) => ({
@@ -1258,16 +1643,16 @@ export function createGlovedHand(initialSide = 'right') {
   }));
 
   const sharedGeos = {
-    shoulderSphereGeo: new THREE.SphereGeometry(0.057, 12, 9),
-    upperSleeveGeo: buildTailoredSleeveGeometry(0.047, 0.056),
-    elbowSphereGeo: new THREE.SphereGeometry(0.047, 12, 10),
-    elbowCreaseGeo: new THREE.TorusGeometry(0.042, 0.0052, 6, 14),
-    foreSleeveGeo: buildTailoredSleeveGeometry(0.040, 0.047),
-    coatCuffHemGeo: new THREE.CylinderGeometry(0.041, 0.0425, 0.028, 16),
-    cuffTabGeo: new THREE.BoxGeometry(0.005, 0.014, 0.032),
+    sleeveHeadGeo: buildSleeveHeadGeometry(0.0505),
+    upperSleeveGeo: buildTailoredSleeveGeometry(0.0478, 0.0505, { gather: 0.0042, oval: 0.885 }),
+    elbowHingeGeo: buildElbowHingeGeometry(0.0476),
+    elbowCreaseGeo: new THREE.TorusGeometry(0.0415, 0.0050, 6, 15),
+    foreSleeveGeo: buildTailoredSleeveGeometry(0.0438, 0.0486, { gather: 0.0030, oval: 0.90 }),
+    coatCuffHemGeo: new THREE.CylinderGeometry(0.0452, 0.0470, 0.031, 18),
+    cuffTabGeo: new THREE.TorusGeometry(0.0468, 0.0044, 6, 16, Math.PI * 0.62),
     cuffBtnGeo: new THREE.CylinderGeometry(0.0055, 0.0055, 0.003, 9),
-    knitCuffGeo: new THREE.CylinderGeometry(0.0355, 0.0375, 0.030, 14),
-    strapGeo: new THREE.CylinderGeometry(0.0368, 0.0375, 0.018, 14),
+    knitCuffGeo: new THREE.CylinderGeometry(0.0372, 0.0392, 0.032, 16),
+    strapGeo: new THREE.CylinderGeometry(0.0386, 0.0394, 0.018, 16),
     miniScreenGeo: new THREE.BoxGeometry(0.031, 0.0045, 0.017),
     ledDotGeo: new THREE.SphereGeometry(0.0022, 6, 5),
     rivetGeo: new THREE.SphereGeometry(0.0056, 8, 6),
@@ -1275,18 +1660,15 @@ export function createGlovedHand(initialSide = 'right') {
     palmRightGeo: buildSculptedPalmGeometry(1),
     palmLeftGeo: buildSculptedPalmGeometry(-1),
     palmPadGeo: new THREE.SphereGeometry(0.038, 12, 10),
-    thenarGeo: new THREE.SphereGeometry(0.021, 10, 8),
+    thenarRightGeo: buildThenarGeometry(1),
+    thenarLeftGeo: buildThenarGeometry(-1),
     hypothenarGeo: new THREE.SphereGeometry(0.016, 8, 7),
     wristSnapGeo: new THREE.CylinderGeometry(0.0042, 0.0042, 0.0025, 9),
-    stitchArchGeo: new THREE.TubeGeometry(stitchCurve, 10, 0.0017, 6, false),
+    stitchArchGeo: new THREE.TubeGeometry(stitchCurve, 12, 0.0011, 6, false),
     fingerTemplates,
-    thumbCmcBallGeo: new THREE.SphereGeometry(0.0155, 8, 7),
-    thumbMetaGeo: buildSculptedPhalanxGeometry(0.0150, 0.0122, 0.032),
-    thumbMcpBallGeo: new THREE.SphereGeometry(0.0122, 8, 6),
-    thumbProxGeo: buildSculptedPhalanxGeometry(0.0120, 0.0102, 0.026),
-    thumbIpBallGeo: new THREE.SphereGeometry(0.0102, 8, 6),
-    thumbDistGeo: buildSculptedPhalanxGeometry(0.0100, 0.0084, 0.020),
-    thumbTipGeo: new THREE.SphereGeometry(0.0086, 8, 6),
+    thumbMetaGeo: buildThumbSegmentGeometry({ rBase: 0.0138, rTip: 0.0124, len: 0.0312, curl: 0.060, swell: 0.04, noseAt: 0.97 }),
+    thumbProxGeo: buildThumbSegmentGeometry({ rBase: 0.0126, rTip: 0.0110, len: 0.0266, curl: 0.105, swell: 0.06, noseAt: 0.95 }),
+    thumbDistGeo: buildThumbSegmentGeometry({ rBase: 0.0114, rTip: 0.0092, len: 0.0226, curl: 0.130, swell: 0.05 }),
   };
 
   // 1) Группа корпуса и ног в гравитационной системе торса (поворачивается qTorsoToCam)
@@ -1334,18 +1716,18 @@ export function createGlovedHand(initialSide = 'right') {
   const pSh = new THREE.Vector3();
   const pEl = new THREE.Vector3();
   const pWr = new THREE.Vector3();
-  const qRestRight = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.56, 0.30, -0.44, 'YXZ')).toArray();
-  const qRestLeft = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.56, -0.30, 0.44, 'YXZ')).toArray();
+  const qRestRight = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.86, 0.22, -0.36, 'YXZ')).toArray();
+  const qRestLeft = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.86, -0.22, 0.36, 'YXZ')).toArray();
 
   function poseRestingArmInTorso(arm, sideStr) {
     const s = sideStr === 'left' ? -1 : 1;
-    pSh.set(s * 0.212, -0.295, -0.065);
-    pEl.set(s * 0.268, -0.495, -0.165);
-    pWr.set(s * 0.205, -0.600, -0.355);
+    pSh.set(s * 0.196, -0.290, -0.042);
+    pEl.set(s * 0.2335, -0.4945, -0.1170);
+    pWr.set(s * 0.1915, -0.6310, -0.2560);
     const qRest = s > 0 ? qRestRight : qRestLeft;
     arm.setSide(sideStr);
-    arm.applyJoints(pSh, pEl, pWr, qRest, 52, 0, 0);
-    arm.setFingerPose(0.54, 0.28, 0, 0, 0);
+    arm.applyJoints(pSh, pEl, pWr, qRest, 46, 0, 0);
+    arm.setFingerPose(0.50, 0.26, 0, 0, 0);
   }
 
   applyHandSide(initialSide);
@@ -1439,13 +1821,13 @@ export function createGlovedHand(initialSide = 'right') {
       }
 
       if (!handMode || !handTracked) {
-        vShoulder.set(s * 0.212, -0.295, -0.065).applyQuaternion(qTorsoToCam);
-        vElbow.set(s * 0.268, -0.495, -0.165).applyQuaternion(qTorsoToCam);
-        vWrist.set(s * 0.205, -0.600, -0.355).applyQuaternion(qTorsoToCam);
+        vShoulder.set(s * 0.196, -0.290, -0.042).applyQuaternion(qTorsoToCam);
+        vElbow.set(s * 0.2335, -0.4945, -0.1170).applyQuaternion(qTorsoToCam);
+        vWrist.set(s * 0.1915, -0.6310, -0.2560).applyQuaternion(qTorsoToCam);
         const qRestArr = s > 0 ? qRestRight : qRestLeft;
         qRestCam.set(qRestArr[0], qRestArr[1], qRestArr[2], qRestArr[3]).premultiply(qTorsoToCam);
-        activeArm.applyJoints(vShoulder, vElbow, vWrist, qRestCam.toArray(), 52, 0, 0);
-        activeArm.setFingerPose(0.54, 0.28, 0, 0, 0);
+        activeArm.applyJoints(vShoulder, vElbow, vWrist, qRestCam.toArray(), 46, 0, 0);
+        activeArm.setFingerPose(0.50, 0.26, 0, 0, 0);
         return;
       }
 
@@ -1453,7 +1835,7 @@ export function createGlovedHand(initialSide = 'right') {
       if (shoulderPos) {
         vShoulder.set(shoulderPos.x, shoulderPos.y, shoulderPos.z);
       } else {
-        vShoulder.set(s * 0.21, -0.27, -0.08);
+        vShoulder.set(s * 0.196, -0.290, -0.042);
       }
       if (elbowPos) {
         vElbow.set(elbowPos.x, elbowPos.y + breathY * 0.5, elbowPos.z);

@@ -15,6 +15,7 @@
     "test:desktop": "node tests/desktop.mjs",
     "export:static": "npm run build && node scripts/export-static.mjs",
     "test:catalog": "node tests/catalog.mjs",
+    "preview:body": "node tests/body-shots.mjs",
     "test:art": "node tests/art-review.mjs",
     "materials": "node scripts/material-maps.mjs",
     "test:visual": "node tests/visual.mjs",
