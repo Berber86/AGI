@@ -1,8 +1,18 @@
 // Телефон-джойстик для VR-поездки: второй телефон передаёт аналоговые
-// значения руля и газа через Firebase Realtime Database, экран — хозяин игры.
-// Замеры стенда (../joystick-stand): медиана 148 мс в одну сторону при пороге
-// 300 мс — Firebase достаточно, WebRTC не нужен (JOYSTICK_BRAINSTORM.md).
-// Если джойстик молчит дольше FRESH_MS (6 секунд), main.js мягко возвращает автопилота.
+// значения руля, газа и тормоза на экран в очках.
+// Двухконтурный транспорт по одному 6-значному коду комнаты:
+//   1) Прямой WebRTC DataChannel (60 Гц, ~3–8 мс, 0 записей в БД во время езды),
+//      который поднимается автоматически после входа по 6-значному коду.
+//   2) Автоматический прозрачный резерв через Firebase Realtime Database (6.25 Гц),
+//      если прямой P2P заблокирован VPN или сотовым оператором.
+// Если джойстик молчит дольше REMOTE_FRESH_MS (6 секунд), main.js мягко возвращает автопилота.
+
+import {
+  RtcHostPeer,
+  createFirebaseRtcSignaling,
+  createBroadcastRtcSignaling,
+} from './tilt-rtc.js';
+
 export const REMOTE_FRESH_MS = 6000;
 const DEMO_CHANNEL = 'ckc-joystick-stand';
 
@@ -46,21 +56,28 @@ export class RemoteControl {
   constructor() {
     this.kind = null;        // 'firebase' | 'demo'
     this.room = null;
-    // Continuous controls from the second phone. steer is -1..1
-    // (left..right), throttle is 0..1 (released..full gas).
-    this.driveState = { steer: 0, throttle: 0 };
+    // Continuous controls from the second phone:
+    // steer ∈ [-1..1], throttle ∈ [0..1], brake ∈ [0..1].
+    this.driveState = { steer: 0, throttle: 0, brake: 0 };
     this.connected = false;
     this.lastInputAt = 0;
     this.lastLag = null;
+    this.rtcPackets = 0;
+    this.cloudPackets = 0;
+    this._rtc = null;
+    this._rtcOpen = false;
+    this._lastStatePayload = null;
     this._unsubs = [];
     this._timeOffset = 0;
     this._db = null;
     this._f = null;
     this._ch = null;
     this.onCommand = null;   // (name) => void — высокоуровневые команды джойстика
+    this.onStatus = null;    // (info) => void — опциональное уведомление UI подготовки
     this._lastCmdSeq = 0;
     this._lastInputSeq = 0;
     this._inputSession = null;
+    this._lastPing = null;
   }
 
   async connectFirebase(config) {
@@ -74,30 +91,82 @@ export class RemoteControl {
   }
 
   useDemo() {
+    if (this._ch) { try { this._ch.close(); } catch { /* ignore */ } }
     this.kind = 'demo';
     this._ch = new BroadcastChannel(DEMO_CHANNEL);
   }
 
   get _roomPath() { return `rooms/${this.room}`; }
 
+  _clearRoomOnly() {
+    if (this._rtc) {
+      this._rtc.close();
+      this._rtc = null;
+    }
+    this._rtcOpen = false;
+    for (const u of this._unsubs) { try { u(); } catch { /* ignore */ } }
+    this._unsubs = [];
+  }
+
   async createRoom() {
     if (!this.kind) throw new Error('Сначала подключите Firebase или демо-режим');
+    this._clearRoomOnly();
     this.room = newCode();
+    this.connected = false;
+    this.driveState = { steer: 0, throttle: 0, brake: 0 };
+    this.lastInputAt = 0;
+    this.lastLag = null;
+    this.rtcPackets = 0;
+    this.cloudPackets = 0;
+    this._lastCmdSeq = 0;
+    this._lastInputSeq = 0;
+    this._inputSession = null;
+    this._lastPing = null;
+
+    const rtcCallbacks = {
+      onOpenChange: (open) => {
+        this._rtcOpen = open;
+        if (this.onStatus) this.onStatus(this.info());
+      },
+      onCtrlOpen: () => {
+        if (this._lastStatePayload && this._rtc) {
+          this._rtc.sendState(this._lastStatePayload);
+        }
+      },
+      onRtt: (rtt) => {
+        this.lastLag = Math.max(1, rtt / 2);
+        if (this.onStatus) this.onStatus(this.info());
+      },
+      onInput: (state, lag) => {
+        this._accept(state, lag, 'webrtc');
+      },
+      onAlive: () => {
+        if (this.connected) this.lastInputAt = performance.now();
+      },
+      onCmd: (name, seq) => {
+        this._acceptCmd(name, seq);
+      },
+    };
+
     if (this.kind === 'demo') {
-      this._ch.onmessage = (e) => {
+      const handler = (e) => {
         const m = e.data;
         if (!m || m.room !== this.room) return;
-        if (m.kind === 'input' && m.state) this._accept(m.state, null);
-        if (m.kind === 'ping') this._ch.postMessage({ kind: 'pong', room: this.room, id: m.id });
-        if (m.kind === 'cmd' && m.name && m.seq !== this._lastCmdSeq) {
-          this._lastCmdSeq = m.seq;
+        if (m.kind === 'input' && m.state) this._accept(m.state, null, 'demo');
+        if (m.kind === 'ping') {
           this.connected = true;
-          if (this.onCommand) this.onCommand(m.name);
+          this._ch.postMessage({ kind: 'pong', room: this.room, id: m.id });
         }
-        if (m.kind === 'input' || m.kind === 'ping') this.connected = true;
+        if (m.kind === 'cmd' && m.name) this._acceptCmd(m.name, m.seq);
       };
+      this._ch.addEventListener('message', handler);
+      this._unsubs.push(() => this._ch && this._ch.removeEventListener('message', handler));
+
+      this._rtc = new RtcHostPeer(createBroadcastRtcSignaling(this._ch, this.room), rtcCallbacks);
+      this._rtc.start();
       return this.room;
     }
+
     const f = this._f, db = this._db;
     const ref = (p) => f.ref(db, p);
     await f.set(ref(`${this._roomPath}/meta`), { game: 'ckc-vr', created: f.serverTimestamp() });
@@ -108,14 +177,12 @@ export class RemoteControl {
         const v = s.val();
         if (!v) return;
         const lag = typeof v.sts === 'number' ? Math.max(0, Date.now() + this._timeOffset - v.sts) : null;
-        this._accept(v, lag);
+        this._accept(v, lag, 'firebase');
       }),
       f.onValue(ref(`${this._roomPath}/cmd`), (s) => {
         const v = s.val();
-        if (!v || !v.name || v.seq === this._lastCmdSeq) return;
-        this._lastCmdSeq = v.seq;
-        this.connected = true;
-        if (this.onCommand) this.onCommand(v.name);
+        if (!v || !v.name) return;
+        this._acceptCmd(v.name, v.seq);
       }),
       f.onValue(ref(`${this._roomPath}/ping`), (s) => {
         const v = s.val();
@@ -125,46 +192,68 @@ export class RemoteControl {
         f.set(ref(`${this._roomPath}/pong`), { id: v.id }).catch(() => {});
       }),
     );
+
+    this._rtc = new RtcHostPeer(createFirebaseRtcSignaling(f, db, this.room), rtcCallbacks);
+    this._rtc.start();
     return this.room;
   }
 
-  _accept(st, lag) {
-    // Firebase can deliver a queued snapshot after a newer one when a VPN
-    // briefly recovers. Ignore stale packets so an old value cannot make the
-    // game oscillate behind the actual joystick position.
+  _acceptCmd(name, seq) {
+    if (!name || seq === this._lastCmdSeq) return;
+    if (Number.isFinite(seq)) this._lastCmdSeq = seq;
+    this.connected = true;
+    this.lastInputAt = performance.now();
+    if (this.onCommand) this.onCommand(name);
+  }
+
+  _accept(st, lag, source = 'cloud') {
+    // Firebase can deliver a queued snapshot after a newer one (or after a faster
+    // WebRTC packet). Ignore stale packets by monotonic (sid, seq).
     const sid = typeof st?.sid === 'string' ? st.sid : null;
     if (sid && sid !== this._inputSession) {
       this._inputSession = sid;
       this._lastInputSeq = 0;
     }
-    // Once a current session is known, a cached pre-session tab must not be
-    // allowed to overwrite it with an old protocol packet.
     if (!sid && this._inputSession) return;
     if (sid && Number.isFinite(Number(st?.seq))) {
       const seq = Number(st.seq);
       if (seq <= this._lastInputSeq) return;
       this._lastInputSeq = seq;
     }
-    // Keep accepting the old l/r shape for one cached/older joystick tab;
-    // the new page sends the analog values directly.
     const oldSteer = (st && st.r ? 1 : 0) - (st && st.l ? 1 : 0);
     this.driveState = {
       steer: clamp(Number.isFinite(+st?.steer) ? +st.steer : oldSteer, -1, 1),
       throttle: clamp(Number.isFinite(+st?.throttle) ? +st.throttle : 0, 0, 1),
+      brake: clamp(Number.isFinite(+st?.brake) ? +st.brake : 0, 0, 1),
     };
     this.lastInputAt = performance.now();
     if (typeof lag === 'number') this.lastLag = lag;
+    if (source === 'webrtc') this.rtcPackets += 1;
+    else this.cloudPackets += 1;
     this.connected = true;
   }
 
   // Состояние игры для экрана команд джойстика (пауза/авто/взгляд/базис/звук).
   publishState(obj) {
     if (!this.room) return;
-    if (this.kind === 'demo') {
-      if (this._ch) this._ch.postMessage({ kind: 'state', room: this.room, state: obj });
-    } else if (this.kind === 'firebase') {
-      this._f.set(this._f.ref(this._db, `${this._roomPath}/state`), obj).catch(() => {});
+    const payload = { ...obj, rtcOpen: this._rtcOpen };
+    this._lastStatePayload = payload;
+    if (this._rtc) {
+      this._rtc.sendState(payload);
     }
+    if (this.kind === 'demo') {
+      if (this._ch) this._ch.postMessage({ kind: 'state', room: this.room, state: payload });
+    } else if (this.kind === 'firebase') {
+      this._f.set(this._f.ref(this._db, `${this._roomPath}/state`), payload).catch(() => {});
+    }
+  }
+
+  // Частое обновление спидометра только через открытый P2P WebRTC (0 записей в Firebase).
+  publishFastHud(obj) {
+    if (!this._rtc || !this._rtcOpen) return;
+    const merged = { ...(this._lastStatePayload || {}), ...obj, rtcOpen: true };
+    this._lastStatePayload = merged;
+    this._rtc.sendState(merged);
   }
 
   steer() {
@@ -175,28 +264,41 @@ export class RemoteControl {
     return this.driveState.throttle;
   }
 
+  brake() {
+    return this.driveState.brake;
+  }
+
   fresh(now = performance.now()) {
     return !!this.room && this.connected && (now - this.lastInputAt) <= REMOTE_FRESH_MS;
   }
 
   info() {
     return {
-      kind: this.kind, room: this.room, connected: this.connected,
-      fresh: this.fresh(), steer: +this.steer().toFixed(3), throttle: +this.throttle().toFixed(3),
+      kind: this.kind,
+      transport: this._rtcOpen ? 'webrtc' : this.kind,
+      rtcOpen: this._rtcOpen,
+      room: this.room,
+      connected: this.connected,
+      fresh: this.fresh(),
+      steer: +this.steer().toFixed(3),
+      throttle: +this.throttle().toFixed(3),
+      brake: +this.brake().toFixed(3),
+      rtcPackets: this.rtcPackets,
+      cloudPackets: this.cloudPackets,
+      ageMs: this.connected ? Math.round(performance.now() - this.lastInputAt) : null,
       lastLagMs: this.lastLag === null ? null : Math.round(this.lastLag),
     };
   }
 
   close() {
-    for (const u of this._unsubs) { try { u(); } catch { /* ignore */ } }
-    this._unsubs = [];
+    this._clearRoomOnly();
     if (this.kind === 'firebase' && this._db && this.room) {
       try { this._f.remove(this._f.ref(this._db, this._roomPath)); } catch { /* ignore */ }
     }
     if (this._ch) { try { this._ch.close(); } catch { /* ignore */ } this._ch = null; }
     this.room = null;
     this.connected = false;
-    this.driveState = { steer: 0, throttle: 0 };
+    this.driveState = { steer: 0, throttle: 0, brake: 0 };
     this._lastInputSeq = 0;
     this._inputSession = null;
   }

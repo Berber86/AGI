@@ -71,20 +71,57 @@
   <dialog id="settings-dialog" class="small-dialog"><div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ</span><h2>Без спешки.</h2></div><button class="icon-button" data-close="settings-dialog" aria-label="Закрыть настройки"><svg><use href="#i-close"/></svg></button></div><div class="instructions"><div><b>01</b><p>Нажмите на бак три раза.<small>Или используйте кнопку внизу экрана.</small></p></div><div><b>02</b><p>Рассмотрите находку.<small>Тяните пальцем или мышью, чтобы вращать.</small></p></div><div><b>03</b><p>Выбросите или сохраните.<small>Крестик — оставить. Галочка — забрать себе.</small></p></div></div><label class="quality-setting"><span>Облегчённая графика<small>Меньше нагрузки: без контактного затенения и теней</small></span><input type="checkbox" id="low-quality" role="switch"></label><label class="quality-setting vr-quality-setting"><span>Качество VR<small>Выбирается вручную; игра сама качество не меняет</small></span><select id="vr-quality" aria-label="Качество VR"><option value="high">Высокое</option><option value="low">Лёгкое</option></select></label><p class="settings-note">12 вещей с историей и 6 видов хлама. Без таймера, проигрыша и звука. Прогресс хранится только в этом браузере.</p><button id="reset-button" class="text-button">Начать коллекцию заново</button><div id="reset-confirm" hidden><p>Удалить все сохранённые находки?</p><div class="reset-actions"><button id="reset-cancel">Нет, оставить</button><button id="reset-yes">Да, начать заново</button></div></div></dialog>
   <dialog id="vr-dialog" class="vr-dialog">
     <div class="dialog-header"><div><span class="eyebrow">БЕЛАЯ НОЧЬ · VR</span><h2>Двор в очках<span>.</span></h2></div><button class="icon-button" data-close="vr-dialog" aria-label="Закрыть подготовку VR"><svg><use href="#i-close"/></svg></button></div>
-    <p class="vr-intro">Выберите, чем вести взгляд. Гироскоп работает сразу, но со временем может уезжать вбок. Две цветные метки дополнительно удерживают настоящий центр.</p>
-    <div class="vr-mode-tabs" role="group" aria-label="Источник взгляда"><button id="vr-mode-gyro" data-vr-mode="gyro" class="active" aria-pressed="true">Гироскоп</button><button id="vr-mode-fusion" data-vr-mode="fusion" aria-pressed="false">Гироскоп + 2 метки</button></div>
-    <div class="vr-step"><b>1</b><div><strong>Разрешите гироскоп</strong><p id="vr-gyro-status">Нажмите кнопку и подтвердите доступ к ориентации телефона.</p></div><button id="vr-gyro-btn" class="vr-action">Разрешить</button></div>
+    <p class="vr-intro">Выберите режим: гироскоп сразу ведёт взгляд, две метки удерживают центр, а «Рука-браслет» добавляет в игру живую 3D-руку со второго телефона на запястье.</p>
+    <div class="vr-mode-tabs" role="group" aria-label="Источник взгляда"><button id="vr-mode-gyro" data-vr-mode="gyro" class="active" aria-pressed="true">Гироскоп</button><button id="vr-mode-fusion" data-vr-mode="fusion" aria-pressed="false">Гироскоп + 2 метки</button><button id="vr-mode-hand" data-vr-mode="hand" aria-pressed="false">Рука-браслет</button></div>
+    <div class="vr-step"><b>1</b><div><strong>Разрешите гироскоп очков</strong><p id="vr-gyro-status">Нажмите кнопку и подтвердите доступ к ориентации телефона.</p></div><button id="vr-gyro-btn" class="vr-action">Разрешить</button></div>
     <div id="vr-fusion-panel" hidden>
       <div class="vr-step"><b>2</b><div><strong>Поставьте две метки</strong><p>По ходу вашего взгляда: оранжевую слева, малиновую справа. Сядьте там, откуда будете играть, и смотрите между ними.</p></div></div>
       <video id="vr-camera" playsinline muted aria-label="Предпросмотр задней камеры для меток"></video>
       <div class="vr-marker-actions"><button id="vr-start-camera" class="vr-action">Включить камеру</button><button id="vr-pick-left" class="vr-pick"><i id="vr-swatch-left"></i>Цвет левой</button><button id="vr-pick-right" class="vr-pick"><i id="vr-swatch-right"></i>Цвет правой</button><button id="vr-calibrate" class="vr-action" disabled>Это центр</button></div>
       <p id="vr-marker-status" class="vr-status-line">Камера пока выключена. Если цвета не совпадают: выберите сторону и коснитесь метки на предпросмотре.</p>
     </div>
-    <div class="vr-how"><div><b>10 сек</b><span>Смотрите прямо на бак десять секунд — находка появится сама.</span></div><div><b>Голова</b><span>Двор остановится, а повороты и кивки будут вращать вещь.</span></div><div><b>«Нет» ×2</b><span>Дважды мотните головой из стороны в сторону. Вещь уже сохранена, начнётся поиск следующей.</span></div></div>
+    <div id="vr-hand-panel" hidden>
+      <div class="vr-step">
+        <b>2</b>
+        <div>
+          <strong>Выберите руку и подключите телефон-браслет (60 Гц)</strong>
+          <p>Укажите, на какое запястье надет браслет <em>экраном наружу</em>, и откройте на нём <a id="vr-wrist-link" href="./wrist/index.html" target="_blank" rel="noopener" class="vr-inline-link">страницу браслета</a>:</p>
+          <div class="vr-mode-tabs vr-hand-side-tabs" role="group" aria-label="На какой руке браслет">
+            <button type="button" id="vr-hand-side-left" data-hand-side="left">Левая рука</button>
+            <button type="button" id="vr-hand-side-right" data-hand-side="right" class="active">Правая рука</button>
+          </div>
+          <details class="vr-fb-details" id="vr-hand-fb-details">
+            <summary>Настройки Firebase (подхватываются автоматически)</summary>
+            <textarea id="vr-hand-fb" rows="2" placeholder="firebaseConfig или URL Realtime Database"></textarea>
+          </details>
+          <div class="vr-hand-connect-row">
+            <button type="button" id="vr-hand-room-btn" class="vr-action">Создать код (Wi-Fi / P2P)</button>
+            <button type="button" id="vr-hand-demo-btn" class="vr-action">Демо (2 вкладки)</button>
+            <span id="vr-hand-code" class="vr-room-badge" aria-live="polite">——</span>
+          </div>
+          <p id="vr-hand-net-status" class="vr-status-line">Создайте 6-значный код и введите его на втором телефоне.</p>
+        </div>
+      </div>
+      <div class="vr-step">
+        <b>3</b>
+        <div>
+          <strong>Маяк дальности и калибровка в 2 жеста</strong>
+          <p>Гироскоп 60 Гц ведёт кисть мгновенно, а камера очков ловит двухцветный экран-маяк для точной дистанции. Калибровку можно нажать здесь или прямо на браслете:</p>
+          <video id="vr-hand-camera" playsinline muted hidden aria-label="Предпросмотр камеры для маяка на запястье"></video>
+          <div class="vr-marker-actions">
+            <button type="button" id="vr-hand-cam-btn" class="vr-action">Камера маяка (опц.)</button>
+            <button type="button" id="vr-hand-cal1" class="vr-action" disabled>Жест 1: Прямая рука</button>
+            <button type="button" id="vr-hand-cal2" class="vr-action" disabled>Жест 2: Согнуть локоть</button>
+          </div>
+          <p id="vr-hand-cal-status" class="vr-status-line">Сначала подключите браслет.</p>
+        </div>
+      </div>
+    </div>
+    <div class="vr-how" id="vr-how-cards"><div><b>10 сек</b><span>Смотрите прямо на бак десять секунд — находка появится сама.</span></div><div><b>Голова</b><span>Двор остановится, а повороты и кивки будут вращать вещь.</span></div><div><b>«Нет» ×2</b><span>Дважды мотните головой из стороны в сторону. Вещь уже сохранена, начнётся поиск следующей.</span></div></div>
     <p id="vr-status" class="vr-status-line" role="status">Сначала подготовьте выбранный источник взгляда.</p>
     <button id="vr-start" class="primary" disabled>Надеть очки · старт через 3 секунды</button>
     <div id="vr-countdown" hidden aria-live="polite">3</div>
-    <p class="vr-note">В VR каждая находка сохраняется автоматически. Кнопок «забрать» и «выбросить» в очках нет. В очках нет ни прицела, ни надписей — только двор. Для выхода выйдите из полноэкранного режима (Esc или системный жест «назад») либо, сняв очки, удерживайте палец на экране секунду.</p>
+    <p class="vr-note" id="vr-note-text">В VR каждая находка сохраняется автоматически. Кнопок «забрать» и «выбросить» в очках нет. В очках нет ни прицела, ни надписей — только двор. Для выхода выйдите из полноэкранного режима (Esc или системный жест «назад») либо, сняв очки, удерживайте палец на экране секунду.</p>
   </dialog>
   <dialog id="complete-dialog" class="small-dialog completion"><div class="completion-icon"><svg><use href="#i-spark"/></svg></div><span class="eyebrow">18 ИЗ 18 · КОЛЛЕКЦИЯ СОБРАНА</span><h2>Ничего<br>не потеряно.</h2><div id="completion-preview" class="completion-preview" aria-label="Последние сохранённые находки"></div><p>У всех этих вещей появилось продолжение.<br>И у этой белой ночи — тоже.</p><button id="continue-button" class="primary">Ещё немного погулять <svg><use href="#i-arrow"/></svg></button><button id="view-complete" class="text-button">Посмотреть коллекцию</button></dialog>
   <script type="module" src="./src/main.js"></script>

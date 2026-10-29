@@ -140,15 +140,34 @@
       </a>
       <div class="body">
         <h2>Белая ночь — Бюро находок</h2>
-        <p>Атмосферная 3D-игра про поиск находок в петербургском дворе-колодце с аркой, воротами и звёздным небом. Три касания бака — и перед вами объёмная вещь: покрутите её, выбросьте или заберите в коллекцию. Потяните двор вверх, чтобы поднять голову к луне. Найдите 12 вещей с историей и 6 видов хлама. Без спешки, звука и проигрыша.</p>
+        <p>Атмосферная 3D-игра про поиск находок в петербургском дворе-колодце с аркой, воротами и звёздным небом. Три касания бака — и перед вами объёмная вещь: покрутите её, выбросьте или заберите в коллекцию. В VR-режиме «Рука-браслет» второй телефон на запястье (60 Гц гироскоп WebRTC + двухцветный маяк) превращается в живую 3D-руку в перчатке.</p>
         <div class="tags">
           <span class="tag">Three.js</span>
           <span class="tag">18 находок</span>
-          <span class="tag">Тач и мышь</span>
+          <span class="tag">VR · Рука-браслет 60 Гц</span>
           <span class="tag">Сохранение коллекции</span>
           <span class="tag">PWA · offline после загрузки</span>
         </div>
         <a class="play" href="./games/white-night/play/index.html">▶ Играть</a>
+      </div>
+    </article>
+    <article class="card" data-game="white-night-wrist">
+      <a href="./games/white-night/play/wrist/index.html" aria-label="Браслет руки для Белой ночи">
+        <img class="thumb"
+             src="./games/white-night/play/wrist/cover.svg"
+             alt="Браслет на запястье с двухцветным маяком и 3D-перчаткой для Белой ночи"
+             loading="lazy">
+      </a>
+      <div class="body">
+        <h2>Браслет руки для «Белой ночи» 🧤</h2>
+        <p>Страница для второго телефона на запястье (экраном наружу к VR-очкам): передаёт 60 Гц гироскоп и акселерометр по прямому каналу WebRTC, калибрует любое крепление ремешка в 2 жеста и зажигает двухцветный экран-маяк дальности без вибрации и звуков.</p>
+        <div class="tags">
+          <span class="tag">VR · 2 телефона</span>
+          <span class="tag">WebRTC 60 Гц</span>
+          <span class="tag">Двухцветный маяк</span>
+          <span class="tag">Калибровка в 2 жеста</span>
+        </div>
+        <a class="play" href="./games/white-night/play/wrist/index.html">▶ Открыть браслет</a>
       </div>
     </article>
     <article class="card" data-game="pelagic-eye">
@@ -210,6 +229,26 @@
         </div>
         <a class="play" href="./games/asteroid-turret-vr/play/index.html">▶ Играть</a>
 
+      </div>
+    </article>
+    <article class="card" data-game="webrtc-stand">
+      <a href="./games/webrtc-stand/index.html" aria-label="Стенд Firebase против WebRTC">
+        <img class="thumb"
+             src="./games/webrtc-stand/cover.svg"
+             alt="Стенд сравнения прямого канала WebRTC 60 Гц и облачного канала Firebase между двумя телефонами"
+             loading="lazy">
+      </a>
+      <div class="body">
+        <h2>Стенд: Firebase vs WebRTC ⚡</h2>
+        <p>Лабораторный стенд для двух телефонов (включая работу с VPN): Firebase только 1 секунду знакомит устройства по 6-значному коду, после чего поднимается прямая UDP-труба WebRTC (60 Гц). Показывает маршрут пакетов, пинг обоих каналов бок о бок, два живых прицела 60 Гц против ~6 Гц, гироскоп руки, виброотклик и бесшовный фолбэк при обрыве.</p>
+        <div class="tags">
+          <span class="tag">WebRTC P2P · UDP</span>
+          <span class="tag">Firebase Signaling</span>
+          <span class="tag">60 Гц указка + гироскоп</span>
+          <span class="tag">Диагностика VPN</span>
+          <span class="tag">Авто-фолбэк</span>
+        </div>
+        <a class="play" href="./games/webrtc-stand/index.html">▶ Открыть стенд</a>
       </div>
     </article>
     <article class="card" data-game="joystick-stand">

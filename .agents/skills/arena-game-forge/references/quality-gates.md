@@ -93,7 +93,7 @@ At 360×800 and 412×915:
 - capture initial, active play, win/lose, and menu/pause states as relevant;
 - interact using pointer/touch emulation, not only keyboard;
 - check hit targets and overlays;
-- confirm no page scroll fights the game;
+- confirm no page scroll fights the game (on dedicated mobile controller/HUD views, collapse setup/login cards once active and assert `scrollHeight <= clientHeight` even on compact `360×640` / `360×800` screens so blind-use buttons never fall below the fold);
 - confirm controls release correctly after visibility/focus changes;
 - inspect browser console and failed requests.
 

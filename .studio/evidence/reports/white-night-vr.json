@@ -4,7 +4,7 @@
     "VR preparation opens in gyro mode with the fusion tools hidden",
     "Fusion preparation accepts a proven pair and persists the selected mode",
     "Fresh gyro samples plus calibrated markers enable the real VR start button",
-    "Landscape VR is pure stereo 3D with no HUD, reticle, captions or exit button",
+    "Landscape VR is pure stereo 3D with full Petersburg 3D body on downward gaze and zero HUD",
     "Gaze focus earns the first of three searches and decays only to that earned segment",
     "Ten seconds of bin focus reveals a find and locks the courtyard",
     "Head turns and nods rotate only the find while the locked camera stays still",
@@ -12,6 +12,13 @@
     "Leaving VR during inspection still auto-saves the current find",
     "The 18th VR find defers the normal completion dialog until after exit",
     "Portrait uses the single-eye fallback and landscape restores stereo",
+    "Wrist-hand companion connects at 60 Hz and completes 2-gesture calibration",
+    "Stereo VR hand mode renders the diegetic 3D Petersburg avatar & gloved hand with zero DOM HUD",
+    "Extended arm rummaging opens the bin in 3 strokes without locking head gaze",
+    "Twisting the wrist rotates the 3D find and a sharp wave throws/discards it",
+    "Calmly lowering the hand downward saves the find into the collection",
+    "Right/Left wrist choice syncs bidirectionally and mirrors 2-bone elbow & glove anatomy",
+    "Reopening VR dialog, reloading wrist tab (seq=1), and companion link URL params all stay synced",
     "No page errors, console errors or failed HTTP responses"
   ],
   "gaze": {

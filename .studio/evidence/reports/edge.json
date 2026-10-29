@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checks": [
+    "Corrupt, hostile and foreign saves degrade to a clean state",
+    "Boots and plays with localStorage entirely unavailable",
+    "320×240 … 1440×300: no NaN, no collapsed stage, no horizontal overflow",
+    "Tap bursts and repeated keep keep the state machine honest",
+    "Escape during the reveal discards instead of quietly keeping",
+    "Reviewing a keepsake neither consumes nor inflates search progress",
+    "Quality switch and the adaptive resolution governor agree on one pixel ratio",
+    "Bin callout stays on screen and keeps pointing at a visible bin",
+    "WebGL context loss shows a notice and a restore brings the yard back",
+    "Plain production page (no test hooks): search → keep → archive works",
+    "No page errors, console errors or failed responses"
+  ],
+  "errors": []
+}

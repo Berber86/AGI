@@ -94,7 +94,10 @@ record('коалесценция: 40 частых движений дают не
 await game.evaluate(() => window.__TEST__.vrStart('look', 30));
 const started = await game.evaluate(() => { const g = window.__TEST__.gameInfo(); return g.vrRide && g.driverMode === 'remote'; });
 record('VR едет в режиме джойстика', !!started, started);
-await game.evaluate(() => window.__TEST__.step(1 / 60, 30, false));
+await game.evaluate(() => {
+  window.__TEST__.step(1 / 60, 2, true);
+  window.__TEST__.step(1 / 60, 28, false);
+});
 await sleep(400);
 await joy.evaluate(() => window.__JOY__.setDrive(1, 0)); // вправо, без газа
 await sleep(300);
@@ -134,6 +137,104 @@ await sleep(200);
 await game.evaluate(() => window.__TEST__.step(1 / 60, 150, false));
 const lat2 = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
 record('аналоговый руль влево уводит машинку', lat2 < lat1 - 0.8, { lat1, lat2 });
+
+// 3c. Прямой WebRTC 60 Гц + 3D-управление наклонами ладони (круиз 30% / газ / тормоз)
+let rtcReady = false;
+for (let i = 0; i < 25 && !rtcReady; i++) {
+  const inf = await game.evaluate(() => window.__TEST__.remoteInfo());
+  if (inf && inf.rtcOpen === true && inf.transport === 'webrtc') rtcReady = true;
+  else await sleep(150);
+}
+const rtcInfo = await game.evaluate(() => window.__TEST__.remoteInfo());
+record('WebRTC 60 Гц: прямой P2P-канал автоматически поднялся по коду комнаты', rtcReady, rtcInfo);
+
+// Возвращаем машинку на центр дороги перед проверкой 3D-наклонов
+await game.evaluate(() => window.__TEST__.setProgress(0.15, 0, false));
+await joy.evaluate(async () => {
+  if (typeof DeviceOrientationEvent !== 'undefined') {
+    DeviceOrientationEvent.requestPermission = async () => 'granted';
+  }
+  if (typeof DeviceMotionEvent !== 'undefined') {
+    DeviceMotionEvent.requestPermission = async () => 'granted';
+  }
+  window.__JOY__.setTilt({ beta: 35, gamma: 0 });
+  document.getElementById('mode-tilt').click();
+  await new Promise((r) => setTimeout(r, 80));
+  window.__JOY__.setTilt({ beta: 35, gamma: 0 });
+});
+await sleep(120);
+const tiltCruise = await game.evaluate(() => {
+  window.__TEST__.step(1 / 60, 140, false);
+  return { game: window.__TEST__.gameInfo(), remote: window.__TEST__.remoteInfo() };
+});
+record('3D наклоны: нейтральный хват (±5°) держит спокойный круиз ~30%',
+  Math.abs(tiltCruise.remote.throttle - 0.3) < 0.02 && tiltCruise.remote.brake === 0 && tiltCruise.game.speedKmh > 18 && tiltCruise.game.speedKmh < 28,
+  tiltCruise);
+
+await joy.evaluate(() => window.__JOY__.setTilt({ beta: 8, gamma: 0 })); // наклон от себя = полный газ
+await sleep(100);
+const tiltGas = await game.evaluate(() => {
+  window.__TEST__.step(1 / 60, 80, false);
+  return { game: window.__TEST__.gameInfo(), remote: window.__TEST__.remoteInfo() };
+});
+record('3D наклоны: наклон от себя разгоняет машинку до полного газа',
+  tiltGas.remote.throttle > 0.95 && tiltGas.game.speedKmh > 65,
+  tiltGas);
+
+// Боковой наклон вправо и влево из полувертикального хвата (beta=35°)
+await joy.evaluate(() => window.__JOY__.setTilt({ beta: 35, gamma: 22 }));
+await sleep(80);
+const tLat0 = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
+await game.evaluate(() => window.__TEST__.step(1 / 60, 90, false));
+const tLatR = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
+await joy.evaluate(() => window.__JOY__.setTilt({ beta: 35, gamma: -22 }));
+await sleep(80);
+await game.evaluate(() => window.__TEST__.step(1 / 60, 120, false));
+const tLatL = await game.evaluate(() => window.__TEST__.gameInfo().lateral);
+record('3D наклоны: боковой наклон рулит вправо и влево симметрично',
+  tLatR > tLat0 + 0.5 && tLatL < tLatR - 0.8,
+  { tLat0, tLatR, tLatL });
+
+// Наклон на себя (beta 35° -> 58°) = активный тормоз до полной остановки (0 км/ч)
+await joy.evaluate(() => window.__JOY__.setTilt({ beta: 58, gamma: 0 }));
+await sleep(100);
+const tiltBrake = await game.evaluate(() => {
+  window.__TEST__.step(1 / 60, 90, false);
+  return { game: window.__TEST__.gameInfo(), remote: window.__TEST__.remoteInfo() };
+});
+record('3D наклоны: наклон на себя включает активный тормоз до полной остановки',
+  tiltBrake.remote.brake > 0.7 && tiltBrake.remote.throttle === 0 && tiltBrake.game.speedKmh < 1.5,
+  tiltBrake);
+
+// Слепая кнопка «ЦЕНТРИРОВАТЬ ХВАТ» делает новую позу (beta=58°) новым нулём (круиз 30%)
+await joy.evaluate(() => document.getElementById('btn-tilt-center').click());
+await sleep(100);
+const recentered = await game.evaluate(() => window.__TEST__.remoteInfo());
+record('3D наклоны: слепая кнопка центрирует новый хват обратно в 30% круиз',
+  Math.abs(recentered.throttle - 0.3) < 0.02 && recentered.brake === 0 && recentered.steer === 0,
+  recentered);
+
+// Проверка бесшовного резерва И автоматического самовосстановления P2P без нажатия кнопок:
+await joy.evaluate(() => window.__JOY__.dropRtcForTest(400));
+await sleep(180);
+await joy.evaluate(() => window.__JOY__.setDrive(0.75, 0.5, 0));
+await sleep(150);
+const afterRtcDrop = await game.evaluate(() => window.__TEST__.remoteInfo());
+record('резервный канал: при падении WebRTC управление мгновенно продолжается без сбоя',
+  afterRtcDrop.rtcOpen === false && afterRtcDrop.fresh === true && Math.abs(afterRtcDrop.steer - 0.75) < 0.02,
+  afterRtcDrop);
+
+await joy.bringToFront();
+let healed = null;
+for (let i = 0; i < 16; i++) {
+  await sleep(400);
+  healed = await game.evaluate(() => window.__TEST__.remoteInfo());
+  if (healed && healed.rtcOpen === true && healed.transport === 'webrtc') break;
+}
+await game.bringToFront();
+record('авто-лечение WebRTC: после обрыва прямой канал 60 Гц сам поднимается без нажатия кнопок',
+  !!(healed && healed.rtcOpen === true && healed.transport === 'webrtc'),
+  healed);
 
 // 3b. высокоуровневые команды: круг джойстик → игра → состояние на джойстике
 async function joyState(pred, tries = 60) {

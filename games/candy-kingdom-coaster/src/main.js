@@ -529,7 +529,12 @@ function vrEffectiveThrottle() {
   return remoteDriveActive() ? remoteCtrl.throttle() : null;
 }
 
+function vrEffectiveBrake() {
+  return remoteDriveActive() ? remoteCtrl.brake() : 0;
+}
+
 let lastRemoteState = null;
+let lastFastHudAt = 0;
 function publishRemoteState() {
   lastRemoteState = {
     paused: game.state === 'paused', racing: game.state === 'racing',
@@ -537,7 +542,9 @@ function publishRemoteState() {
     muted: SFX.isMuted(), driver: game.vrRide ? game.driverMode : vrSettings.driverMode,
     speedKmh: +((game.speed || 0) * 3.6).toFixed(1),
     throttle: game.driverMode === 'gesture' ? gestureThrottle() : (remoteCtrl ? +remoteCtrl.throttle().toFixed(2) : 0),
+    brake: remoteCtrl ? +remoteCtrl.brake().toFixed(2) : 0,
     steer: remoteCtrl ? +remoteCtrl.steer().toFixed(2) : 0,
+    transport: remoteCtrl ? remoteCtrl.info().transport : 'off',
     cam: {
       on: isMarkerLookMode() && !!game.camOn,
       found: !!(camTracker && camTracker.fresh(1200)),
@@ -902,7 +909,23 @@ function vrSteer() {
   return THREE.MathUtils.clamp((vrSteerTarget() - game.lateral) * 0.55, -1, 1);
 }
 
+let screenWakeSentinel = null;
+async function ensureScreenWakeLock() {
+  try {
+    if (!navigator.wakeLock || document.hidden) return;
+    if (screenWakeSentinel && !screenWakeSentinel.released) return;
+    screenWakeSentinel = await navigator.wakeLock.request('screen');
+    screenWakeSentinel.addEventListener('release', () => { screenWakeSentinel = null; });
+  } catch { /* ignore */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && (game.vrRide || (remoteCtrl && remoteCtrl.room))) {
+    ensureScreenWakeLock();
+  }
+});
+
 function requestFullscreenLandscape() {
+  ensureScreenWakeLock();
   try {
     const root = document.documentElement;
     const req = root.requestFullscreen || root.webkitRequestFullscreen;
@@ -915,6 +938,7 @@ function requestFullscreenLandscape() {
 }
 
 function startVrRide() {
+  ensureScreenWakeLock();
   if (vrSettings.driverMode !== 'remote' && remoteCtrl) closeRemote();
   game.camOn = isMarkerLookMode();
   game.gestureOn = gestureInputEnabled();
@@ -999,8 +1023,11 @@ function updateRemoteUi() {
   }
   el.vrRoomCode.textContent = info.room;
   el.vrRoomCode.classList.remove('hidden');
+  const linkBadge = info.rtcOpen
+    ? '⚡ WebRTC 60 Гц'
+    : (info.kind === 'firebase' ? '☁️ Firebase' : 'Демо');
   el.vrRoomStatus.textContent = info.connected
-    ? `🕹 Джойстик на связи${info.lastLagMs !== null ? ` · задержка ≈ ${info.lastLagMs} мс` : ''} — он ведёт машинку`
+    ? `🕹 Джойстик на связи (${linkBadge}${info.lastLagMs !== null ? ` · ≈ ${info.lastLagMs} мс` : ''}) — он ведёт машинку`
     : `Код комнаты ${info.room} — ждём джойстик на втором телефоне…`;
 }
 async function setupRemote(kind) {
@@ -1013,6 +1040,7 @@ async function setupRemote(kind) {
       try { localStorage.setItem('ckc_stand_cfg', el.vrCfg.value); } catch { /* ignore */ }
     }
     const code = await rc.createRoom();
+    ensureScreenWakeLock();
     publishRemoteState(); // джойстик видит экран сразу, ещё до старта поездки
     el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
   } catch (e) {
@@ -1553,16 +1581,36 @@ function updateGameplay(dt) {
   // Its vertical sensor maps directly to 0..maxSpeed; released/no gas is
   // deliberately a full stop so the player can stay still and look around.
   const remoteThrottle = vrEffectiveThrottle();
+  const remoteBrake = vrEffectiveBrake();
   const manualThrottle = remoteThrottle !== null;
+  if (remoteBrake > 0.35 && game.boostActive) {
+    game.boostActive = false;
+    game.boostT = 0;
+    MUSIC.setMode('race');
+  }
   const offRoad = Math.abs(game.lateral) > TUNING.roadHalfWidth + 1.0;
   const remoteTarget = manualThrottle
-    ? (game.boostActive && remoteThrottle > 0.02 ? TUNING.boostSpeed : remoteThrottle * TUNING.maxSpeed) * (offRoad ? TUNING.offRoadSlow : 1)
+    ? (remoteBrake > 0.01 ? 0 : (game.boostActive && remoteThrottle > 0.02 ? TUNING.boostSpeed : remoteThrottle * TUNING.maxSpeed) * (offRoad ? TUNING.offRoadSlow : 1))
     : null;
   const target = game.freeze ? 0 : manualThrottle
     ? remoteTarget
     : (game.boostActive ? TUNING.boostSpeed : (offRoad ? TUNING.cruiseSpeed * TUNING.offRoadSlow : game.boostCharges >= 4 ? TUNING.maxSpeed : TUNING.cruiseSpeed));
-  const speedResponse = manualThrottle ? (remoteThrottle <= 0.001 ? 7.5 : 3.2) : (game.boostActive ? 1.6 : 0.9);
-  game.speed = THREE.MathUtils.lerp(game.speed, target, dt * speedResponse);
+  const speedResponse = manualThrottle
+    ? (remoteBrake > 0.01 ? 7.5 + remoteBrake * 11.5 : (remoteThrottle <= 0.001 ? 7.5 : 3.2))
+    : (game.boostActive ? 1.6 : 0.9);
+  game.speed = THREE.MathUtils.lerp(game.speed, target, Math.min(1, dt * speedResponse));
+  if (manualThrottle && target === 0 && game.speed < 0.06) game.speed = 0;
+
+  const pNow = performance.now();
+  if (remoteCtrl && remoteCtrl.room && pNow - lastFastHudAt > 220) {
+    lastFastHudAt = pNow;
+    remoteCtrl.publishFastHud({
+      speedKmh: +((game.speed || 0) * 3.6).toFixed(1),
+      throttle: manualThrottle ? +remoteThrottle.toFixed(2) : 0,
+      brake: +remoteBrake.toFixed(2),
+      steer: +remoteCtrl.steer().toFixed(2),
+    });
+  }
 
   if (racing) {
     game.timeS += dt;

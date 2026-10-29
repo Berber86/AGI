@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="640" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f1823"/>
+      <stop offset="55%" stop-color="#182534"/>
+      <stop offset="100%" stop-color="#0c121a"/>
+    </linearGradient>
+    <radialGradient id="gGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#00ff66" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#00ff66" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#00ff66" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#ff00aa" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#ff00aa" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ff00aa" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg)"/>
+  <!-- Мягкие лучи камеры от VR-очков к запястью -->
+  <path d="M58 180 L282 108 L442 218 Z" fill="#9bc2ef" fill-opacity="0.06"/>
+  <path d="M58 180 L282 108 M58 180 L442 218" stroke="#9bc2ef" stroke-opacity="0.22" stroke-dasharray="5 6"/>
+
+  <!-- Рукав и перчатка -->
+  <path d="M470 280 L640 330 L640 220 L488 182 Z" fill="#18212b" stroke="#2d3b49" stroke-width="2"/>
+  <path d="M236 122 C205 110 186 124 196 142 L232 162 L180 156 C164 156 160 176 178 182 L228 192 L188 196 C174 198 175 216 192 218 L244 222 L288 238 L322 162 Z" fill="#2c3947" stroke="#455669" stroke-width="2"/>
+
+  <!-- Ремешок на запястье -->
+  <rect x="336" y="132" width="44" height="148" rx="12" transform="rotate(-14 358 206)" fill="#3b2f28" stroke="#634f42" stroke-width="2"/>
+
+  <!-- Смартфон на запястье (чисто-чёрный OLED экран с двухцветным маяком) -->
+  <g transform="rotate(-14 366 196)">
+    <rect x="278" y="146" width="184" height="98" rx="18" fill="#05070a" stroke="#5d7085" stroke-width="2.5"/>
+    <circle cx="322" cy="195" r="44" fill="url(#gGlow)"/>
+    <circle cx="322" cy="195" r="24" fill="#00ff66"/>
+    <circle cx="416" cy="195" r="44" fill="url(#mGlow)"/>
+    <circle cx="416" cy="195" r="24" fill="#ff00aa"/>
+  </g>
+
+  <!-- Силуэт VR-очков слева -->
+  <rect x="26" y="144" width="52" height="72" rx="14" fill="#1d2b38" stroke="#c9a66b" stroke-width="2"/>
+  <circle cx="52" cy="180" r="10" fill="#0c131b" stroke="#8fb6e8" stroke-width="2"/>
+
+  <!-- Подпись -->
+  <text x="36" y="54" fill="#dce6f2" font-family="Georgia, serif" font-size="26" font-weight="bold">Белая ночь · Рука-браслет</text>
+  <text x="36" y="82" fill="#9fb2c7" font-family="system-ui, sans-serif" font-size="15">60 Гц гироскоп WebRTC + двухцветный маяк дальности</text>
+</svg>

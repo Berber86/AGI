@@ -15,7 +15,7 @@
     "All 18 real models load, can be kept, and reach completion",
     "Collection separates 12 keepsakes and 6 junk finds",
     "Repeated inspections reuse cached GPU resources without growth",
-    "Cached production subpath reload and 3D play work offline",
+    "Cached production subpath reload, /wrist/?room=... companion, and 3D play work offline",
     "Visibility handler pauses and resumes (synthetic visibility events)",
     "Reset confirmation can be cancelled; approved reset clears save",
     "412×915: search, inspect and settings touch paths",
@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 26.730303030302508,
+      "meanFrameMs": 26.373958333333388,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -52,7 +52,7 @@
         "pitchDeg": 0
       },
       "perf": {
-        "samples": 99,
+        "samples": 96,
         "meanMs": 0,
         "fps": 0,
         "dpr": 1,
@@ -61,11 +61,28 @@
       },
       "vr": {
         "stereo": false,
+        "bodyActive": false,
+        "body": {
+          "visible": false,
+          "torsoVisible": true,
+          "passiveArmSide": "left",
+          "activeArmSide": "right",
+          "beaconBandVisible": true
+        },
+        "handMode": false,
+        "handSide": "right",
+        "handVisible": false,
+        "handPosition": [
+          0,
+          0,
+          0
+        ],
         "inspectLock": false,
         "yawDeg": 0,
         "pitchDeg": 0,
         "targetX": 5.73,
         "targetY": -16.04,
+        "targetZ": 0,
         "stage": {
           "x": 20,
           "y": 244,
@@ -92,7 +109,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.56666666666676,
+      "meanFrameMs": 16.550000000000182,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -118,11 +135,28 @@
       },
       "vr": {
         "stereo": false,
+        "bodyActive": false,
+        "body": {
+          "visible": false,
+          "torsoVisible": true,
+          "passiveArmSide": "left",
+          "activeArmSide": "right",
+          "beaconBandVisible": true
+        },
+        "handMode": false,
+        "handSide": "right",
+        "handVisible": false,
+        "handPosition": [
+          0,
+          0,
+          0
+        ],
         "inspectLock": false,
         "yawDeg": 0,
         "pitchDeg": 0,
         "targetX": 6.88,
         "targetY": -13.18,
+        "targetZ": -4.01,
         "stage": {
           "x": 20,
           "y": 244,
@@ -436,18 +470,18 @@
         "min": [
           -0.8370629572624678,
           -1.05,
-          -0.15360902802827245
+          -0.16732237895963464
         ],
         "max": [
           0.8370629572624678,
           1.05,
-          0.15360902802827245
+          0.16732237895963464
         ]
       }
     }
   ],
   "build": {
-    "totalBytes": 6741154,
+    "totalBytes": 6878589,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -470,12 +504,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-Bvm5UjYO.css",
-        "bytes": 34483
+        "file": "assets/index-DgIdZMy3.css",
+        "bytes": 35451
       },
       {
-        "file": "assets/index-btSJDnep.js",
-        "bytes": 744937
+        "file": "assets/index-DvFgjb-s.js",
+        "bytes": 836859
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -539,7 +573,7 @@
       },
       {
         "file": "index.html",
-        "bytes": 16155
+        "bytes": 19291
       },
       {
         "file": "manifest.webmanifest",
@@ -547,7 +581,19 @@
       },
       {
         "file": "sw.js",
-        "bytes": 1741
+        "bytes": 1904
+      },
+      {
+        "file": "wrist/cover.svg",
+        "bytes": 2901
+      },
+      {
+        "file": "wrist/index.html",
+        "bytes": 10215
+      },
+      {
+        "file": "wrist/wrist.js",
+        "bytes": 28130
       }
     ]
   },

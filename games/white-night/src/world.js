@@ -9,7 +9,8 @@ import { materials as M, canvasTexture, textTexture, pbrMaps, seeded, distress }
 import { RenderPipeline } from './rendering.js';
 import { addFacadeDetails, addWindowDetails, addWindowLife, addCourtyardDetails, addBinDetails, addGateFacade, addRoofBand, LIT } from './scenery.js';
 import { createNightSky } from './sky.js';
-import { box, cyl, ball, torus, mesh, createItem, detailScale } from './models.js';
+import { box, cyl, torus, mesh, createItem, detailScale } from './models.js';
+import { createGlovedHand } from './vr/handMesh.js';
 const rand=seeded(137);
 function batch(group){
   group.updateWorldMatrix(true,true);
@@ -44,7 +45,7 @@ export class World {
   this.sky=createNightSky();this.scene.add(this.sky.group);
   this.camera=new THREE.PerspectiveCamera(46,1,.1,70);this.scene.add(this.camera);
    this.eyeL=new THREE.PerspectiveCamera(62,1,.1,70);this.eyeR=new THREE.PerspectiveCamera(62,1,.1,70);this.vrStereo=false;this.vrInspectLock=false;this.baseCameraPosition=new THREE.Vector3();this.baseCameraQuaternion=new THREE.Quaternion();this.lockedCameraQuaternion=new THREE.Quaternion();this.headLook={yaw:0,pitch:0};this.headInspectBase=null;this.headInspectRotation=null;this.normalStage=null;
-  const pmrem=new THREE.PMREMGenerator(this.renderer);const room=new RoomEnvironment();this.envTarget=pmrem.fromScene(room,.03);this.scene.environment=this.envTarget.texture;this.scene.environmentIntensity=.15;room.dispose();pmrem.dispose();
+  this.buildEnvironment();
   // White night: a cold moon from high above, a weak cool bounce, and warm sodium
   // spill from the street. The light count is unchanged on purpose - a point light
   // costs every lit fragment, so warmth comes from emissive surfaces instead.
@@ -63,15 +64,49 @@ export class World {
   this.inspectionVeil.position.z=-6;this.inspectionVeil.visible=false;this.inspectionVeil.renderOrder=-10;this.camera.add(this.inspectionVeil);
   this.silhouette=new THREE.Group();this.silhouetteMat=new THREE.MeshBasicMaterial({color:0x101d2b,transparent:true,opacity:1,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   this.itemAnchor=new THREE.Group();this.camera.add(this.itemAnchor);this.itemAnchor.position.set(0,0,-4.2);
+  this.vrHand=createGlovedHand();this.camera.add(this.vrHand.group);this.vrBodyActive=false;this.vrHandMode=false;this.handInspectHeadBase=null;this.itemBaseRot=[0,0,0];this.tossGroup=new THREE.Group();this.scene.add(this.tossGroup);this.tossState=null;
   const shadowTex=canvasTexture((c,s2)=>{const g=c.createRadialGradient(s2/2,s2/2,0,s2/2,s2/2,s2/2);g.addColorStop(0,'rgba(3,7,11,.62)');g.addColorStop(.55,'rgba(3,7,11,.34)');g.addColorStop(1,'rgba(3,7,11,0)');c.fillStyle=g;c.fillRect(0,0,s2,s2);},128);
   this.itemShadow=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({map:shadowTex,transparent:true,depthWrite:false,toneMapped:false}));
   this.itemShadow.renderOrder=-5;this.itemShadow.visible=false;this.itemAnchor.add(this.itemShadow);this.inspectLamp=new THREE.PointLight(0xfff4e7,17,9,2);this.inspectLamp.position.set(-1.5,2,-1.8);this.camera.add(this.inspectLamp);this.inspectLamp.visible=false;
   this.itemRim=new THREE.PointLight(0xc5e3ff,18,8,2);this.itemRim.position.set(1.6,.7,-3.8);this.camera.add(this.itemRim);this.itemRim.visible=false;
   this.pipeline=new RenderPipeline(this.renderer,this.scene,this.camera,{samples:matchMedia('(pointer: coarse)').matches?2:4});this.thumbnailOutput=new OutputPass();
+  this.vw=0;this.vh=0;this.stage=null;
+  // Холст — единственный источник правды о размере: за его изменениями следит
+  // ResizeObserver, а window.resize остаётся запасным путём (force=true).
+  this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(this.renderer.domElement);
   this.modelCache=new Map();this.thumbCache=new Map();this.item=null;this.zoom=1;this.targetX=.08;this.targetY=-.2;this.inspect=false;this.time=0;this.kick=0;this.pointer=new THREE.Vector2();this.raycaster=new THREE.Raycaster();this.frames=[];this.low=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   this.motionQuery=matchMedia('(prefers-reduced-motion: reduce)');
   this.motionQuery.addEventListener('change',e=>{this.reduced=e.matches;if(e.matches){this.finishReveal();this.kick=0;}this.dirty=true;});
   this.resize();
+ }
+ // Комнатный IBL печётся один раз и живёт в render target — то есть в памяти GPU.
+ // После потери WebGL-контекста этот таргет пуст, поэтому запекание вынесено
+ // в метод: его можно повторить при восстановлении.
+ buildEnvironment(){
+   const pmrem=new THREE.PMREMGenerator(this.renderer);const room=new RoomEnvironment();
+   this.envTarget?.dispose();
+   this.envTarget=pmrem.fromScene(room,.03);
+   this.scene.environment=this.envTarget.texture;
+   this.scene.environmentIntensity=this.low?.07:.15;
+   room.dispose();pmrem.dispose();
+ }
+ // Буферы, текстуры и карта теней принадлежали старому контексту: three зальёт
+ // их заново только если пометить ресурсы устаревшими. Вызывается из main.js
+ // на событие webglcontextrestored — иначе двор остаётся мёртвым до F5.
+ restoreGLContext(){
+   this.scene.traverse(o=>{
+     const mats=Array.isArray(o.material)?o.material:(o.material?[o.material]:[]);
+     for(const m of mats){
+       for(const key of ['map','normalMap','roughnessMap','bumpMap','alphaMap','emissiveMap','aoMap','metalnessMap']){
+         const tex=m[key];if(tex&&tex.isTexture)tex.needsUpdate=true;
+       }
+       m.needsUpdate=true;
+     }
+   });
+   this.buildEnvironment();
+   this.renderer.shadowMap.needsUpdate=true;
+   this.frames.length=0;this.perf.samples=0;
+   this.resize();this.dirty=true;
  }
  buildCourtyard(){
   const groundMat=new THREE.MeshStandardMaterial({...pbrMaps('courtyard-stone',[18,18]),normalScale:new THREE.Vector2(1.2,1.2),roughness:.7,metalness:.13,color:0x9aa0a2});mesh(new THREE.PlaneGeometry(38,38),groundMat,this.static,[0,-.03,0],[-Math.PI/2,0,0]);
@@ -167,8 +202,23 @@ export class World {
  lookInfo(){const d=THREE.MathUtils.radToDeg;return {yawDeg:+d(this.headLook.yaw).toFixed(1),pitchDeg:+d(this.headLook.pitch).toFixed(1)};}
  setView(view){this.viewOverride=view||null;this.resize();return {fov:this.camera.fov,position:this.camera.position.toArray(),quaternion:this.camera.quaternion.toArray()};}
  resize(){
-  this.dirty=true;const w=innerWidth,h=innerHeight;
-  this.renderer.setSize(w,h);this.camera.aspect=w/h;
+  this.dirty=true;
+  // Размер берём из самого холста, а не из окна: 100dvh, клавиатура на iOS и
+  // поворот экрана успевают перестроить макет раньше, чем прилетает
+  // window.resize — двор и подписи разъезжаются с кнопками.
+  // Холст растягивается CSS'ом (width/height:100%), а not updateStyle значит,
+  // что три не пишет ему inline-размеры: тогда box холста — это действительно
+  // макет, и ResizeObserver на нём ловит перестройку.
+  const box=this.renderer.domElement.getBoundingClientRect();
+  const w=Math.max(1,Math.round(box.width||innerWidth)),h=Math.max(1,Math.round(box.height||innerHeight));
+  // this.stage обязан быть посчитан хотя бы один раз: без него подгонка предмета
+  // читает rect.x у undefined. Поэтому «ничего не изменилось» только когда
+  // размер и правда тот же И стадж уже существует.
+  // Никакого «если размер тот же — ничего не делаем»: resize() пересобирает не
+  // только холст, но и стадию осмотра (в стерео это другой прямоугольник) и базовую
+  // позу камеры, а их надо пересчитать и когда изменился только режим.
+  this.vw=w;this.vh=h;
+  this.renderer.setSize(w,h,false);this.camera.aspect=w/h;
   const portrait=w/h<.8;this.camera.fov=portrait?52:43;
   // The portrait frame is narrow, so the search view steps back far enough to show
   // the yard (well, lamps, arch) instead of a close-up of one bin. The inspection
@@ -182,7 +232,7 @@ export class World {
   this.stage=inspectionRect(w,h,parseFloat(styles.getPropertyValue('--safe-top'))||0,parseFloat(styles.getPropertyValue('--safe-bottom'))||0);this.normalStage={...this.stage};if(this.vrStereo){const side=Math.min(w/2,h)*.72;this.stage={x:(w/2-side)/2,y:(h-side)/2,width:side,height:side};}
   const perPixel=2*4.2*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))/h;
   if(this.vrStereo)this.itemAnchor.position.set(0,0,-4.2);else this.itemAnchor.position.set((this.stage.x+this.stage.width/2-w/2)*perPixel,(h/2-this.stage.y-this.stage.height/2)*perPixel,-4.2);
-  this.inspectionVeil.scale.set(2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2))*w/h,2*6*Math.tan(THREE.MathUtils.degToRad(this.camera.fov/2)),1);
+  const veilFov=this.vrStereo?62:this.camera.fov;this.inspectionVeil.scale.set(2*6*Math.tan(THREE.MathUtils.degToRad(veilFov/2))*w/h,2*6*Math.tan(THREE.MathUtils.degToRad(veilFov/2)),1);
   document.querySelector('#app').style.setProperty('--stage-bottom',`${this.stage.y+this.stage.height}px`);
   this.updateItemLights();if(this.item)this.fitItem();
   this.pipeline?.resize(w,h,this.renderer.getPixelRatio());
@@ -190,9 +240,9 @@ export class World {
  fitItem(){
   const bounds=this.item.userData.bounds;
   const box=new THREE.Box3(new THREE.Vector3(...bounds.min),new THREE.Vector3(...bounds.max));
-  box.applyMatrix4(new THREE.Matrix4().makeRotationFromEuler(this.item.rotation));
+  box.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(this.item.quaternion));
   const size=box.getSize(new THREE.Vector3()).multiplyScalar(.5);
-  this.baseScale=this.vrStereo?((2*4.2*Math.tan(THREE.MathUtils.degToRad(31))*.56)/Math.max(.001,Math.max(size.x,size.y)*2)):fitScale(size,this.stage,innerHeight,this.camera.fov,4.2,innerWidth);
+  this.baseScale=this.vrStereo?((2*4.2*Math.tan(THREE.MathUtils.degToRad(31))*.56)/Math.max(.001,Math.max(size.x,size.y)*2)):fitScale(size,this.stage,this.vh,this.camera.fov,4.2,this.vw);
   this.item.scale.setScalar(this.baseScale*this.zoom);
   const s=this.baseScale*this.zoom;
   this.itemShadow.scale.set(Math.max(size.x*s*2.5,.3),Math.max(size.x*s*.85,.16),1);
@@ -203,7 +253,7 @@ export class World {
   this.scene.updateMatrixWorld(true);
   const b=this.item.userData.bounds,bounds=new THREE.Box3(new THREE.Vector3(...b.min),new THREE.Vector3(...b.max)),points=[];
   for(const x of [bounds.min.x,bounds.max.x])for(const y of [bounds.min.y,bounds.max.y])for(const z of [bounds.min.z,bounds.max.z]){
-   const p=new THREE.Vector3(x,y,z).applyMatrix4(this.item.matrixWorld).project(this.camera);points.push({x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2});
+   const p=new THREE.Vector3(x,y,z).applyMatrix4(this.item.matrixWorld).project(this.camera);points.push({x:(p.x+1)*this.vw/2,y:(1-p.y)*this.vh/2});
   }
   return {left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),top:Math.min(...points.map(p=>p.y)),bottom:Math.max(...points.map(p=>p.y)),stage:this.stage};
  }
@@ -214,36 +264,61 @@ export class World {
    else{this.camera.quaternion.copy(this.baseCameraQuaternion);this.camera.rotateY(-this.headLook.yaw);this.camera.rotateX(this.headLook.pitch);}
    this.camera.updateMatrixWorld(true);
   }
-  setVrStereo(on){this.vrStereo=!!on;this.static.visible=true;if(!on){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;}this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,innerWidth,innerHeight);this.applyCameraPose();this.resize();this.dirty=true;}
+  setVrStereo(on){this.vrStereo=!!on;this.static.visible=true;if(!on){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;if(!this.vrBodyActive&&this.vrHand)this.vrHand.group.visible=false;}this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,this.vw||innerWidth,this.vh||innerHeight);this.applyCameraPose();this.resize();if(this.item)this.applyReveal();this.dirty=true;}
+  setVrBodyActive(on){this.vrBodyActive=!!on;if(!on&&this.vrHand)this.vrHand.group.visible=false;this.dirty=true;}
+  setVrHandMode(on){this.vrHandMode=!!on;if(!on){if(!this.vrBodyActive&&this.vrHand)this.vrHand.group.visible=false;if(this.pose==='hand'&&this.item){this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;this.targetItemQuat=null;this.pose='free';}}if(on&&this.vrInspectLock)this.unlockInspectionView();this.dirty=true;}
+  updateVrHand(dt,handState){if(!this.vrHand)return;const vis=!!(this.vrBodyActive&&handState?.visible);this.vrHand.update(dt,{...handState,handMode:this.vrHandMode,visible:vis});if(vis)this.dirty=true;}
+  handHitsBin(){if(!this.vrHandMode||!this.vrHand?.group?.visible)return this.gazeHitsBin();this.camera.updateMatrixWorld(true);this.vrHand.wristPivot.updateMatrixWorld(true);const tip=this.vrHand.wristPivot.localToWorld(new THREE.Vector3(0,0,-.15));const dir=tip.clone().sub(this.camera.position).normalize();this.raycaster.set(this.camera.position,dir);if(this.raycaster.intersectObject(this.bin,true).length>0)return true;const toBin=new THREE.Vector3(0,1.25,0).sub(this.camera.position).normalize();return dir.angleTo(toBin)<=.44;}
+  setHandItemRotation(rx=0,ry=0,rz=0,itemQuat=null){if(!this.item)return;const [bx,by,bz]=this.itemBaseRot||[0,0,0];this.targetX=bx+rx;this.targetY=by+ry;this.targetZ=bz+rz;if(Array.isArray(itemQuat)&&itemQuat.length===4){const qd=new THREE.Quaternion(itemQuat[0],itemQuat[1],itemQuat[2],itemQuat[3]);this.targetItemQuat=qd.multiply(this.itemBaseQuat||new THREE.Quaternion());}else this.targetItemQuat=null;this.pose='hand';this.dirty=true;}
+  launchDiscardToss(vel={x:4.5,y:2.4,z:-6.5}){if(!this.item||this.reduced)return;this.camera.updateMatrixWorld(true);this.item.updateMatrixWorld(true);const wp=new THREE.Vector3(),wq=new THREE.Quaternion(),ws=new THREE.Vector3();this.item.matrixWorld.decompose(wp,wq,ws);const clone=this.item.clone(true);clone.remove(this.silhouette);clone.matrixAutoUpdate=true;clone.position.copy(wp);clone.quaternion.copy(wq);clone.scale.copy(ws);this.tossGroup.clear();this.tossGroup.add(clone);const wv=new THREE.Vector3(vel.x??4.5,vel.y??2.4,vel.z??-6.5).applyQuaternion(this.camera.quaternion);this.tossState={mesh:clone,t:0,dur:.42,vx:wv.x,vy:wv.y,vz:wv.z};this.dirty=true;}
   setHeadLook(yaw=0,pitch=0){this.headLook={yaw:Number.isFinite(yaw)?yaw:0,pitch:Number.isFinite(pitch)?pitch:0};
-   if(this.vrInspectLock&&this.item&&this.headInspectBase&&this.headInspectRotation){const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.headInspectBase.yaw+Math.PI,Math.PI*2)-Math.PI;this.targetY=this.headInspectRotation.y+dyaw*1.5;this.targetX=THREE.MathUtils.clamp(this.headInspectRotation.x-(this.headLook.pitch-this.headInspectBase.pitch)*1.5,-Math.PI,Math.PI);this.pose='head';}
-   else this.applyCameraPose();this.dirty=true;return this.vrInfo();}
-  lockInspectionView(){this.lockedCameraQuaternion.copy(this.camera.quaternion);this.vrInspectLock=true;this.headInspectBase={...this.headLook};this.headInspectRotation={x:this.targetX,y:this.targetY,z:this.targetZ};this.applyCameraPose();this.dirty=true;return this.vrInfo();}
+   if(this.vrInspectLock&&!this.vrHandMode&&this.item&&this.headInspectBase&&this.headInspectRotation){const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.headInspectBase.yaw+Math.PI,Math.PI*2)-Math.PI;this.targetY=this.headInspectRotation.y+dyaw*1.5;this.targetX=THREE.MathUtils.clamp(this.headInspectRotation.x-(this.headLook.pitch-this.headInspectBase.pitch)*1.5,-Math.PI,Math.PI);this.pose='head';}
+   else{
+    this.applyCameraPose();
+    if(this.vrStereo&&this.vrHandMode&&this.inspect&&this.handInspectHeadBase){
+     const dyaw=THREE.MathUtils.euclideanModulo(this.headLook.yaw-this.handInspectHeadBase.yaw+Math.PI,Math.PI*2)-Math.PI;
+     const dpitch=this.headLook.pitch-this.handInspectHeadBase.pitch;
+     this.itemAnchor.position.set(THREE.MathUtils.clamp(-dyaw*2.4,-.95,.95),THREE.MathUtils.clamp(-dpitch*2.4,-.70,.70),-4.2);
+     this.updateItemLights();
+    }
+   }
+   this.dirty=true;return this.vrInfo();}
+  lockInspectionView(){if(this.vrHandMode)return this.vrInfo();this.lockedCameraQuaternion.copy(this.camera.quaternion);this.vrInspectLock=true;this.headInspectBase={...this.headLook};this.headInspectRotation={x:this.targetX,y:this.targetY,z:this.targetZ};this.applyCameraPose();this.dirty=true;return this.vrInfo();}
   unlockInspectionView(){this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();this.dirty=true;return this.vrInfo();}
-  syncEyeCameras(w=innerWidth,h=innerHeight){const aspect=Math.max(.1,(w/2)/Math.max(1,h));for(const [eye,side] of [[this.eyeL,-1],[this.eyeR,1]]){eye.aspect=aspect;eye.fov=62;eye.updateProjectionMatrix();eye.position.copy(this.camera.position);eye.quaternion.copy(this.camera.quaternion);eye.position.add(new THREE.Vector3(side*.032,0,0).applyQuaternion(this.camera.quaternion));eye.updateMatrixWorld(true);}}
-  renderStereo(){const w=innerWidth,h=innerHeight,half=Math.floor(w/2);this.syncEyeCameras(w,h);this.renderer.setScissorTest(true);this.renderer.setViewport(0,0,half,h);this.renderer.setScissor(0,0,half,h);this.renderer.render(this.scene,this.eyeL);this.renderer.setViewport(half,0,w-half,h);this.renderer.setScissor(half,0,w-half,h);this.renderer.render(this.scene,this.eyeR);this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,w,h);}
+  syncEyeCameras(w=this.vw,h=this.vh){const aspect=Math.max(.1,(w/2)/Math.max(1,h));for(const [eye,side] of [[this.eyeL,-1],[this.eyeR,1]]){eye.aspect=aspect;eye.fov=62;eye.updateProjectionMatrix();eye.position.copy(this.camera.position);eye.quaternion.copy(this.camera.quaternion);eye.position.add(new THREE.Vector3(side*.032,0,0).applyQuaternion(this.camera.quaternion));eye.updateMatrixWorld(true);}}
+  renderStereo(){const w=this.vw,h=this.vh,half=Math.floor(w/2);this.syncEyeCameras(w,h);this.renderer.setScissorTest(true);this.renderer.setViewport(0,0,half,h);this.renderer.setScissor(0,0,half,h);this.renderer.render(this.scene,this.eyeL);this.renderer.setViewport(half,0,w-half,h);this.renderer.setScissor(half,0,w-half,h);this.renderer.render(this.scene,this.eyeR);this.renderer.setScissorTest(false);this.renderer.setViewport(0,0,w,h);}
   gazeHitsBin(){this.camera.updateMatrixWorld(true);this.pointer.set(0,0);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;}
-  vrInfo(){const d=THREE.MathUtils.radToDeg;return {stereo:!!this.vrStereo,inspectLock:!!this.vrInspectLock,yawDeg:+d(this.headLook.yaw).toFixed(2),pitchDeg:+d(this.headLook.pitch).toFixed(2),targetX:+d(this.targetX||0).toFixed(2),targetY:+d(this.targetY||0).toFixed(2),stage:this.stage,cameraQuaternion:this.camera.quaternion.toArray().map(v=>+v.toFixed(5))};}
-  hitBin(x,y){this.pointer.set(x/innerWidth*2-1,-y/innerHeight*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;}
- binScreen(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(0,1.2,0).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
+  vrInfo(){const d=THREE.MathUtils.radToDeg;return {stereo:!!this.vrStereo,bodyActive:!!this.vrBodyActive,body:this.vrHand?.getBodyInfo?.()||null,handMode:!!this.vrHandMode,handSide:this.vrHand?.getHandSide?.()||'right',handVisible:!!this.vrHand?.group?.visible,handPosition:this.vrHand?.wristPivot?.position?.toArray().map(v=>+v.toFixed(3))||null,inspectLock:!!this.vrInspectLock,yawDeg:+d(this.headLook.yaw).toFixed(2),pitchDeg:+d(this.headLook.pitch).toFixed(2),targetX:+d(this.targetX||0).toFixed(2),targetY:+d(this.targetY||0).toFixed(2),targetZ:+d(this.targetZ||0).toFixed(2),stage:this.stage,cameraQuaternion:this.camera.quaternion.toArray().map(v=>+v.toFixed(5))};}
+  hitBin(x,y){
+  // Пирамида видимости продолжается за краем кадра: raycaster ловил бак, которого
+  // на экране нет, и тап «в пустоту» у границы начинал поиск.
+  const nx=x/this.vw*2-1,ny=-y/this.vh*2+1;
+  if(!(nx>=-1&&nx<=1&&ny>=-1&&ny<=1))return false;
+  this.pointer.set(nx,ny);this.raycaster.setFromCamera(this.pointer,this.camera);return this.raycaster.intersectObject(this.bin,true).length>0;
+ }
+ binScreen(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(0,1.2,0).project(this.camera);return {x:(p.x+1)*this.vw/2,y:(1-p.y)*this.vh/2};}
  // The left edge of the bin, used to anchor the callout to the bin itself.
- binEdge(){this.camera.updateMatrixWorld(true);const p=new THREE.Vector3(-1.26,1.12,.22).project(this.camera);return {x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}
+ // project() зеркалит точку, которая оказалась ЗА камерой, — без проверки глубины
+ // выноска указывала на пустую стену, стоило отвернуть взгляд в край пирамиды.
+ binEdge(){this.camera.updateMatrixWorld(true);const world=new THREE.Vector3(-1.26,1.12,.22);
+  const p=world.clone().project(this.camera);world.applyMatrix4(this.camera.matrixWorldInverse);
+  return {x:(p.x+1)*this.vw/2,y:(1-p.y)*this.vh/2,onScreen:world.z<-0.05&&p.x>=-1&&p.x<=1&&p.y>=-1&&p.y<=1};}
  getModel(id){if(!this.modelCache.has(id))this.modelCache.set(id,createItem(id));return this.modelCache.get(id);}
  show(id,{review=false}={}){
-  this.dirty=true;this.testRevealHold=false;this.zoom=1;this.headLook={yaw:0,pitch:0};this.applyCameraPose();if(this.item){this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();
+  this.dirty=true;this.testRevealHold=false;this.zoom=1;if(!this.vrStereo)this.headLook={yaw:0,pitch:0};this.handInspectHeadBase={...this.headLook};if(this.vrStereo)this.itemAnchor.position.set(0,0,-4.2);this.applyCameraPose();if(this.item){this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();
   this.itemId=id;this.pose='front';this.item=this.getModel(id);this.itemAnchor.add(this.item);
   this.inspectLamp.intensity=PRESENTATION[id].lamp??17;this.itemRim.intensity=PRESENTATION[id].rim??18;
   this.updateItemLights();
-  this.item.rotation.set(...PRESENTATION[id].rotation);this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
+  this.item.rotation.set(...PRESENTATION[id].rotation);this.itemBaseRot=[...PRESENTATION[id].rotation];this.itemBaseQuat=this.item.quaternion.clone();this.targetItemQuat=null;this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;
   this.fitItem();this.inspect=true;this.inspectionVeil.visible=true;this.inspectLamp.visible=true;this.itemRim.visible=true;this.itemShadow.visible=true;
   const meshes=[];this.item.traverse(o=>{if(o.isMesh){o.castShadow=false;meshes.push(o);}});
   if(!this.reduced&&!review){
     this.item.updateMatrixWorld(true);const inverseRoot=this.item.matrixWorld.clone().invert();
     for(const o of meshes){const m=new THREE.Mesh(o.geometry,this.silhouetteMat);m.matrix.multiplyMatrices(inverseRoot,o.matrixWorld);m.matrixAutoUpdate=false;m.renderOrder=10;this.silhouette.add(m);}this.item.add(this.silhouette);
   }
-  this.reveal=this.reduced||review?1:0;this.applyReveal();if(this.vrStereo)this.lockInspectionView();
+  this.reveal=this.reduced||review?1:0;this.applyReveal();if(this.vrStereo&&!this.vrHandMode)this.lockInspectionView();
  }
- hide(){this.testRevealHold=false;this.dirty=true;this.static.visible=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();}
+ hide(){this.testRevealHold=false;this.dirty=true;this.static.visible=true;if(this.item){this.item.visible=true;this.item.remove(this.silhouette);this.itemAnchor.remove(this.item);}this.silhouette.clear();this.reveal=1;this.item=null;this.inspect=false;this.handInspectHeadBase=null;if(this.vrStereo)this.itemAnchor.position.set(0,0,-4.2);this.inspectionVeil.visible=false;this.inspectLamp.visible=false;this.itemRim.visible=false;this.itemShadow.visible=false;this.vrInspectLock=false;this.headInspectBase=null;this.headInspectRotation=null;this.applyCameraPose();}
  finishReveal(){this.testRevealHold=false;this.reveal=1;this.applyReveal();this.dirty=true;}
  applyReveal(){
   this.revealState=revealFrame(this.reveal,this.reduced);
@@ -260,10 +335,19 @@ export class World {
   this.inspectLamp.position.set(this.itemAnchor.position.x+p[0],this.itemAnchor.position.y+p[1],p[2]);
   this.itemRim.position.set(this.itemAnchor.position.x+1.6,this.itemAnchor.position.y+.7,-3.8);
  }
- setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.pose=pose;this.dirty=true;}
+ setPose(pose){if(!this.item||!this.revealState.ready)return;[this.targetX,this.targetY,this.targetZ]=inspectionPose(this.itemId,pose);this.targetItemQuat=null;this.pose=pose;this.dirty=true;}
  setZoom(delta){this.zoom=THREE.MathUtils.clamp(Math.round((this.zoom+delta)*100)/100,ZOOM.min,ZOOM.max);this.dirty=true;return this.zoom;}
- rotate(dx,dy){this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
- setQuality(low){this.low=low;this.pipeline.low=low;this.renderer.setPixelRatio(Math.min(devicePixelRatio,low?1:1.5));this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
+ rotate(dx,dy){if(this.targetItemQuat&&this.item){this.targetX=this.item.rotation.x;this.targetY=this.item.rotation.y;this.targetZ=this.item.rotation.z;this.targetItemQuat=null;}this.pose='free';this.dirty=true;this.targetY+=dx*.011;this.targetX=THREE.MathUtils.clamp(this.targetX+dy*.01,-Math.PI,Math.PI);}
+ setQuality(low){this.low=low;this.pipeline.low=low;
+  // Адаптивный масштаб живёт в this.pixelRatio: переключатель качества обязан менять
+  // ЕГО, а не трогать renderer «сбоку» — иначе на следующем кадре governor вернёт
+  // старый множитель и разрешение подпрыгнет. Потолок — собственный DPR устройства:
+  // ставить 1.5 на экране с dpr 1 значит в 2,25 раза надуть буфер. Тайминги другой
+  // конфигурации больше не годятся, поэтому историю кадров копит заново.
+  this.pixelRatio=Math.round(Math.min(devicePixelRatio||1,this.maxPixelRatio,low?1:1.5)*100)/100;
+  this.renderer.setPixelRatio(this.pixelRatio);this.perf.dpr=this.pixelRatio;
+  this.frames.length=0;this.perf.samples=0;
+  this.renderer.shadowMap.enabled=!low;this.renderer.shadowMap.needsUpdate=true;
   this.sun.intensity=low?2.05:1.62;this.hemi.intensity=low?.82:1.12;this.scene.environmentIntensity=low?.07:.15;this.resize();}
  thumbnail(id){
   if(this.thumbCache.has(id))return this.thumbCache.get(id);
@@ -298,7 +382,8 @@ export class World {
   return url;
  }
  update(dt,rawDt=dt){this.time+=dt;if(this.kick>0){this.renderer.shadowMap.needsUpdate=true;this.dirty=true;}this.kick=Math.max(0,this.kick-dt*2.8);this.lid.rotation.x=-.045-(this.reduced?0:Math.sin(this.kick*Math.PI)*(this.kickAmp??.12));this.bin.rotation.z=this.reduced?0:Math.sin(this.kick*Math.PI*4)*this.kick*.009;
-  if(this.item){const old=this.item.rotation.clone();const k=this.reduced?1:1-Math.exp(-dt*12);this.item.rotation.y=THREE.MathUtils.lerp(this.item.rotation.y,this.targetY,k);this.item.rotation.x=THREE.MathUtils.lerp(this.item.rotation.x,this.targetX,k);this.item.rotation.z=THREE.MathUtils.lerp(this.item.rotation.z,this.targetZ,k);if(!old.equals(this.item.rotation))this.fitItem();this.item.position.y=this.reduced?0:Math.sin(this.time*1.5)*.008;this.reveal=this.reduced?1:Math.min(1,(this.reveal||0)+dt/REVEAL_SECONDS);this.applyReveal();}
+  if(this.tossState){const ts=this.tossState;ts.t+=dt;ts.mesh.position.x+=ts.vx*dt;ts.mesh.position.y+=ts.vy*dt;ts.mesh.position.z+=ts.vz*dt;ts.vy-=14*dt;ts.mesh.rotation.x+=dt*9;ts.mesh.rotation.z-=dt*7;ts.mesh.scale.multiplyScalar(Math.max(.82,1-dt*2.2));this.dirty=true;if(ts.t>=ts.dur){this.tossGroup.clear();this.tossState=null;}}
+  if(this.item){const oldQ=this.item.quaternion.clone();const k=this.reduced?1:1-Math.exp(-dt*12);if(this.pose==='hand'&&this.targetItemQuat)this.item.quaternion.slerp(this.targetItemQuat,k);else{this.item.rotation.y=THREE.MathUtils.lerp(this.item.rotation.y,this.targetY,k);this.item.rotation.x=THREE.MathUtils.lerp(this.item.rotation.x,this.targetX,k);this.item.rotation.z=THREE.MathUtils.lerp(this.item.rotation.z,this.targetZ,k);}if(oldQ.angleTo(this.item.quaternion)>1e-4)this.fitItem();this.item.position.y=this.reduced?0:Math.sin(this.time*1.5)*.008;this.reveal=this.reduced?1:Math.min(1,(this.reveal||0)+dt/REVEAL_SECONDS);this.applyReveal();}
   if(this.vrStereo||this.dirty||(this.item&&!this.reduced)){if(this.vrStereo)this.renderStereo();else this.pipeline.render();this.dirty=false;if(rawDt>0){this.frames.push(rawDt*1000);if(this.frames.length>120)this.frames.shift();}this.adaptResolution();}
  }
  // Adaptive render scale: only the number of pixels changes. Materials, AO,
@@ -314,7 +399,7 @@ export class World {
   else if(mean<13.4&&this.pixelRatio<this.maxPixelRatio){next=Math.min(this.maxPixelRatio,this.pixelRatio+.15);this.perf.raises++;}
   if(next===this.pixelRatio)return;
   this.pixelRatio=Math.round(next*100)/100;this.perf.dpr=this.pixelRatio;
-  this.renderer.setPixelRatio(this.pixelRatio);this.pipeline.resize(innerWidth,innerHeight,this.pixelRatio);
+  this.renderer.setPixelRatio(this.pixelRatio);this.pipeline.resize(this.vw,this.vh,this.pixelRatio);
   this.frames.length=0;this.dirty=true;
  }
  metrics(){return {drawCalls:this.renderer.info.render.calls,triangles:this.renderer.info.render.triangles,geometries:this.renderer.info.memory.geometries,textures:this.renderer.info.memory.textures,models:this.modelCache.size,postprocessing:!this.low,zoom:this.zoom,pose:this.pose,inspectionBounds:this.inspectionBounds(),modelDetails:this.item?.userData||null,meanFrameMs:this.frames.length?this.frames.reduce((a,b)=>a+b,0)/this.frames.length:0,renderer:this.renderer.getContext().getParameter(this.renderer.getContext().RENDERER),reveal:this.revealState||revealFrame(1),quality:this.low?'low':'high',look:this.lookInfo(),perf:{...this.perf},vr:this.vrInfo()};}

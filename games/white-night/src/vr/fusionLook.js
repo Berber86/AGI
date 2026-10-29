@@ -31,7 +31,7 @@ export const FUSION_CAMERA_PITCH_RATE = 0.8;
 export const FUSION_HELD_MATCH = 12 * DEG;
 
 export class FusionLook {
-  constructor({ yawLimitDeg = 80, pitchMinDeg = -35, pitchMaxDeg = 35 } = {}) {
+  constructor({ yawLimitDeg = 80, pitchMinDeg = -68, pitchMaxDeg = 62 } = {}) {
     this.yawLimit = Math.abs(yawLimitDeg) * DEG;
     this.pitchMin = Math.min(pitchMinDeg, pitchMaxDeg) * DEG;
     this.pitchMax = Math.max(pitchMinDeg, pitchMaxDeg) * DEG;
