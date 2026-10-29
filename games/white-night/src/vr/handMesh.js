@@ -274,109 +274,235 @@ function buildLoftedTube(rings, radialSegs = 24, { capStart = false, capEnd = fa
 // 1. СКУЛЬПТУРНАЯ АНАТОМИЯ КИСТИ В ЗАМШЕВОЙ ПЕРЧАТКЕ И РУКАВА ПАЛЬТО
 // ============================================================================
 
-/**
- * Сводчатая пясть с 4 рельефными костяшками (MCP), сухожилиями тыла,
- * вогнутой ладонной чашей, поперечной линией сгиба ладони и разрезом у запястья.
- * Строится для стороны side (+1 = правая, -1 = левая) с честным порядком вершин!
- */
-function buildSculptedPalmGeometry(side = 1) {
-  const base = new THREE.SphereGeometry(1, 26, 20);
-  const pos = base.attributes.position;
-  const knuckleXs = [-0.031, -0.010, 0.011, 0.030];
-
-  for (let i = 0; i < pos.count; i++) {
-    const nx = pos.getX(i);
-    const ny = pos.getY(i);
-    const nz = pos.getZ(i);
-
-    const sx = Math.sign(nx) * Math.pow(Math.abs(nx), 0.75);
-    const sy = Math.sign(ny) * Math.pow(Math.abs(ny), 0.83);
-    const sz = Math.sign(nz) * Math.pow(Math.abs(nz), 0.78);
-
-    // u = 0 у запястья (z ~ +0.004), u = 1 у костяшек пальцев (z ~ -0.100)
-    const u = THREE.MathUtils.clamp((-sz + 1) * 0.5, 0, 1);
-    // Естественная асимметрия ладони: со стороны мизинца (sx > 0 для правой) контур чуть скошен к запястью
-    const ulnarTaper = nx > 0 ? Math.pow(nx, 2) * (1 - u) * 0.0035 : 0;
-    const halfW = 0.0345 + u * 0.0115 - Math.pow(u - 0.83, 2) * 0.0085 - ulnarTaper;
-    const halfH = 0.0158 - u * 0.0030;
-
-    let x = sx * halfW;
-    let y = sy * halfH;
-    let z = -0.049 + sz * 0.0525;
-
-    // Мизинцевый край костяшек анатомически чуть ближе к запястью (косая дуга пясти)
-    if (u > 0.55 && x > 0.005) {
-      z += (x / 0.044) * (u - 0.55) * 0.012;
-    }
-
-    // Поперечный тыльный свод пясти
-    y += (1 - nx * nx) * 0.0048;
-
-    if (ny > 0.05) {
-      // Рельеф 4 костяшек пясти (MCP) и тонких сухожилий разгибателей на тыле перчатки
-      let knuckleBump = 0;
-      let tendonBump = 0;
-      for (let k = 0; k < 4; k++) {
-        const kx = knuckleXs[k];
-        const kz = -0.088 + (k === 3 ? 0.006 : k === 1 ? -0.003 : 0);
-        const d2 = Math.pow((x - kx) / 0.0105, 2) + Math.pow((z - kz) / 0.013, 2);
-        knuckleBump += Math.exp(-d2) * (k === 1 ? 0.0032 : 0.0026);
-
-        if (z > -0.086 && z < -0.014) {
-          const tx = kx * (0.45 + 0.55 * ((-z - 0.014) / 0.072));
-          const td2 = Math.pow((x - tx) / 0.0046, 2);
-          tendonBump += Math.exp(-td2) * 0.00095 * Math.sin(THREE.MathUtils.clamp((-z - 0.012) / 0.074, 0, 1) * Math.PI);
-        }
-      }
-      y += (knuckleBump + tendonBump) * ny;
-    } else if (ny < -0.05) {
-      // Вогнутая ладонная чаша + косая поперечная складка сгиба ладони + V-разрез у запястья
-      const cup = (1 - nx * nx) * Math.sin(u * Math.PI) * 0.0032;
-      const creaseLine = z + 0.062 - x * 0.18;
-      const crease = Math.exp(-Math.pow(creaseLine / 0.0045, 2)) * (1 - nx * nx * 0.6) * 0.0016;
-      const wristVent = u < 0.22 ? Math.exp(-Math.pow(x / 0.0065, 2)) * (0.22 - u) * 0.010 : 0;
-      y += cup + crease + wristVent;
-    }
-
-    pos.setXYZ(i, x, y, z);
-  }
-
-  if (side < 0) {
-    const mirrored = mirrorGeoX(base);
-    base.dispose();
-    return mirrored;
-  }
-  base.computeVertexNormals();
-  return base;
+/** Одиночная «складка кожи» (залом): канавка с приподнятыми краями. */
+function foldWavelet(t, center, width) {
+  const d = (t - center) / width;
+  return (1 - 2 * d * d) * Math.exp(-d * d);
 }
 
 /**
- * Скульптурная фаланга пальца в перчатке: мягкая подушечка снизу, слегка гранёный
- * костный профиль сверху, плавное сужение и кожные заломы на сгибе сустава.
+ * Фаланга замшевой перчатки — не «гладкая сосиска», а честная портновская деталь:
+ *   1) мыщелки сустава у основания (палец у сустава шире и чуть толще);
+ *   2) приподнятые складки кожи на ладонной стороне сгиба (у перчатки залом —
+ *      это ВАЛИК: канавка на таком масштабе читается пробитой дырой);
+ *   3) морщинка на тыле над суставом;
+ *   4) вшитая строчка по тыльной середине — геометрические стежки, без доп. вызовов;
+ *   5) ногтевая пластина на дальней фаланге (сплющенная площадка с рамкой-валиком);
+ *   6) подушечка кончика и естественный подгиб, «зашитый» в ось.
  */
-function buildSculptedPhalanxGeometry(rProx, rDist, len) {
+function buildSculptedPhalanxGeometry(rProx, rDist, len, {
+  atJoint = true,
+  stitches = true,
+  nail = false,
+  curl = 0.16,
+  pleats = 2,
+  steps = 26,
+} = {}) {
   const rings = [];
-  const steps = 7;
+  const stitchPitch = 0.0026;
   for (let s = 0; s <= steps; s++) {
-    const t = s / steps; // 0 у основания сустава (z=0), 1 у дальнего конца (z=-len)
-    const waist = 1 - Math.sin(t * Math.PI) * 0.055;
-    // Два тонких кожных залома перчатки сразу за суставом (t ~ 0.14 и t ~ 0.26)
-    const fold =
-      Math.exp(-Math.pow((t - 0.14) / 0.045, 2)) * 0.045 +
-      Math.exp(-Math.pow((t - 0.27) / 0.045, 2)) * 0.030;
-    const rad = THREE.MathUtils.lerp(rProx, rDist, t) * waist;
+    const t = s / steps; // 0 — у сустава, 1 — к концу фаланги
+    const taper = Math.pow(t, 0.92);
+    const rad = THREE.MathUtils.lerp(rProx, rDist, taper);
+    const condyle = atJoint ? Math.exp(-Math.pow(t / 0.135, 2)) : 0;
+    const midWaist = 1 - 0.022 * Math.exp(-Math.pow((t - 0.55) / 0.32, 2));
+    const tipT = 0.89;
+    const nose = t > tipT ? Math.sqrt(Math.max(0.06, 1 - Math.pow((t - tipT) / (1 - tipT), 1.9))) : 1;
     const z = -t * len;
+    const y = -curl * len * Math.pow(t, 2);
+    const halfW = rad * (1.155 + condyle * 0.135) * midWaist * nose;
+    const halfTop = rad * (0.80 + condyle * 0.10) * midWaist * nose;
+    const halfBot = rad * (0.95 + condyle * 0.05) * midWaist * nose;
+    const dorsalWrinkle = atJoint ? foldWavelet(t, 0.155, 0.075) * 0.34 : 0;
+    const nailBand = nail ? Math.exp(-Math.pow((t - 0.775) / 0.165, 2)) : 0;
+
     rings.push((theta) => {
-      const cx = Math.cos(theta);
-      const sy = Math.sin(theta);
-      // Тыльная сторона (sy > 0) чуть более сводчатая и с заломами, ладонная (sy < 0) — пухлая подушечка
-      const rx = rad * (1.03 + (sy < 0 ? 0.03 : 0));
-      let ry = rad * (sy >= 0 ? 0.90 + fold : 0.96);
-      const padBulge = sy < 0 ? Math.sin(t * Math.PI) * rad * 0.09 * (-sy) : 0;
-      return [cx * rx, sy * ry - padBulge, z];
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const ac = Math.abs(c);
+      let x = Math.sign(c) * Math.pow(ac, 0.80) * halfW;
+      let yy;
+      if (sn >= 0) {
+        const flat = 1 - 0.22 * nailBand * Math.exp(-Math.pow(x / (halfW * 0.46), 2));
+        const ridge = nail
+          ? 0.0010 * Math.exp(-Math.pow((Math.abs(x) - halfW * 0.50) / 0.0030, 2)) * nailBand
+            + 0.0009 * Math.exp(-Math.pow((t - 0.935) / 0.045, 2)) * Math.exp(-Math.pow(x / (halfW * 0.42), 2))
+          : 0;
+        const st = stitches
+          ? 0.00072 * (Math.sin((t * len) / stitchPitch * Math.PI * 2) > 0.05 ? 1 : 0)
+            * Math.exp(-Math.pow(x / 0.0021, 2))
+          : 0;
+        yy = sn * halfTop * flat + ridge + st + dorsalWrinkle * rad * 0.075 * Math.exp(-Math.pow(x / (halfW * 0.50), 2));
+      } else {
+        const tipPad = nail ? Math.exp(-Math.pow((t - 0.80) / 0.22, 2)) * 0.30 : 0;
+        const pad = 1 + (0.10 * Math.sin(Math.PI * Math.min(1, t * 1.12)) + tipPad) * (1 - ac * 0.35);
+        const pleat = Math.exp(-Math.pow((t - 0.098) / 0.050, 2))
+          + (pleats > 1 ? Math.exp(-Math.pow((t - 0.208) / 0.042, 2)) * 0.72 : 0);
+        yy = sn * halfBot * pad + pleat * rad * 0.175 * Math.exp(-Math.pow(x / (halfW * 0.62), 2));
+      }
+      return [x, y + yy, z];
     });
   }
-  return buildLoftedTube(rings, 12);
+  return buildLoftedTube(rings, 26, { capStart: false, capEnd: true });
+}
+
+/**
+ * Сустав-«линза» (MCP/PIP/DIP): двояковыпуклый disc шире фаланги, поэтому палец
+ * читается цепью суставов, а не конусом. hood — приподнятый тыльный капюшон
+ * (разгибательный аппарат): именно он даёт линию костяшек на тыле кисти.
+ */
+function buildGloveJointGeometry(r, halfLen = 0.0088, wide = 1.10, tall = 0.94, hood = 0) {
+  const rings = [];
+  const steps = 9;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const z = THREE.MathUtils.lerp(halfLen, -halfLen, t);
+    const lens = Math.sqrt(Math.max(0.02, 1 - Math.pow((t - 0.5) / 0.5, 2)));
+    const rad = r * (0.965 + 0.075 * lens);
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const condyle = 1 + 0.055 * Math.exp(-Math.pow((Math.abs(c) - 0.86) / 0.26, 2)) * lens;
+      const ext = sn > 0 ? 1 + (0.09 + hood) * lens : 1;
+      return [Math.sign(c) * Math.pow(Math.abs(c), 0.86) * rad * wide * condyle,
+        Math.sign(sn) * Math.pow(Math.abs(sn), 0.88) * rad * tall * ext, z];
+    });
+  }
+  return buildLoftedTube(rings, 20, { capStart: true, capEnd: true });
+}
+
+/**
+ * Кисть в замшевой перчатке — ЛЮФТ по анатомическому чертежу (а не «раздутая сфера»):
+ * узкое запястье → клин пясти → широкое поле костяшек, тыльный свод, ладонная чаша,
+ * валики тенара/гипотенара, продольный шов и СКРУСНАЯ линия перегиба: край пясти
+ * скошен, поэтому пальцы врастают в кожу, как у живой кисти. (side: +1 правая.)
+ */
+function buildSculptedPalmGeometry(side = 1) {
+  const zWrist = 0.0075;
+  const zKnuckles = -0.1056;
+  const rings = [];
+  const steps = 32;
+  const knuckleXs = [-0.0318, -0.0106, 0.0116, 0.0324];
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const z = THREE.MathUtils.lerp(zWrist, zKnuckles, t);
+    let hw = 0.0262 + 0.0210 * Math.pow(t, 0.70);
+    hw -= 0.0062 * Math.exp(-Math.pow((t - 1.0) / 0.080, 2)); // край вровень с крайними пальцами
+    const top = 0.0130 - 0.0058 * Math.pow(t, 1.2);
+    const bot = 0.0106 - 0.0026 * t;
+    const arc = -0.0038 * Math.sin(t * Math.PI); // дуга пясти (ладонь «обнимает» цилиндр)
+    const wristGather = Math.exp(-Math.pow(t / 0.10, 2));
+    const rise = THREE.MathUtils.smoothstep(t, 0.64, 1.0);
+    const webMask = THREE.MathUtils.smoothstep(t, 0.80, 1.0);
+
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const ac = Math.abs(c);
+      const x = Math.sign(c) * Math.pow(ac, 0.80) * hw * (1 + wristGather * 0.02);
+      let between = 0;
+      for (let k = 0; k < 3; k++) {
+        between += Math.exp(-Math.pow((x - side * (knuckleXs[k] + knuckleXs[k + 1]) * 0.5) / 0.0064, 2));
+      }
+      // у основания каждого пальца кожа ОТХОДИТ назад (палец врастает в неё),
+      // а между пальцами остаётся мягкой перемычкой; ладонная сторона обрывается
+      // раньше тыльной — как у живой кисти. Никаких острых «клыков».
+      const edge = 1 - Math.min(1, between);
+      const zz = z + webMask * (0.0016 * edge + 0.0118 * Math.max(0, -sn));
+      let y = arc;
+      if (sn >= 0) {
+        // ТЫЛ: плавный поперечный свод + общий подъём к линии костяшек + продольный
+        // шов. Головки пясти даёт не пясть, а суставные «капюшоны» (см. линзу MCP):
+        // на шаге люфта 3,4 мм точечные бугорки превращаются в кратеры.
+        const dome = 1 + 0.16 * (1 - ac * ac);
+        const seam = 0.0012 * Math.exp(-Math.pow(x / 0.0046, 2))
+          * THREE.MathUtils.smoothstep(t, 0.06, 0.20) * (1 - 0.35 * THREE.MathUtils.smoothstep(t, 0.86, 1.0));
+        y += sn * (top + 0.0026 * rise) * dome + seam;
+      } else {
+        // ЛАДОНЬ: пологая чаша, валики тенара/гипотенара, поперечная складка
+        const hollow = 1 - 0.30 * (1 - ac * ac) * THREE.MathUtils.smoothstep(t, 0.25, 0.85);
+        const thenar = Math.exp(-Math.pow((x + side * 0.0330) / 0.0140, 2)) * 0.0034 * (1 - t * 0.45);
+        const hypo = Math.exp(-Math.pow((x - side * 0.0335) / 0.0120, 2)) * 0.0026 * (1 - t * 0.30);
+        const crease = Math.exp(-Math.pow((t - 0.62) / 0.085, 2)) * 0.0012;
+        y += sn * bot * hollow - thenar - hypo + crease * (1 - ac);
+      }
+      return [x, y, zz];
+    });
+  }
+  return buildLoftedTube(rings, 44, { capStart: true, capEnd: true });
+}
+
+/**
+ * Раструб перчатки у запястья — ПЛОСКИЙ овал (вбок шире, вперёд-назад выше), а не
+ * круг: круглые кольца манжеты протыкают овальное сукно рукава и рвут силуэт.
+ * Конец у кисти ОБНИМАЕТ запястье (иначе между кожей и манжетой видна щель).
+ */
+function buildGloveWristGeometry({ rxHand, ryHand, rxCuff, ryCuff, zCuff = 0.0356, zHand = -0.0058 }) {
+  const rings = [];
+  const steps = 16;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps; // 0 — со стороны рукава, 1 — со стороны кисти
+    const k = Math.pow(t, 0.70);
+    const rx = THREE.MathUtils.lerp(rxCuff, rxHand, k);
+    const ry = THREE.MathUtils.lerp(ryCuff, ryHand, k);
+    const z = THREE.MathUtils.lerp(zCuff, zHand, t);
+    const gather = Math.exp(-Math.pow(t / 0.44, 2));
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      const puck = gather * Math.sin(theta * 3 - 0.4) * 0.0012;
+      return [Math.sign(c) * Math.pow(Math.abs(c), 0.86) * (rx + puck),
+        Math.sign(sn) * Math.pow(Math.abs(sn), 0.88) * (ry + puck * 0.62), z];
+    });
+  }
+  return buildLoftedTube(rings, 24, { capStart: true, capEnd: true });
+}
+
+/**
+ * Шея. Нужна обязательно: без неё высокий воротник и шарф сверху выглядят
+ * как полое кольцо, в которое видно пустоту (головы-то нет — это камера).
+ * Нижним краем колонна шире горловины, поэтому щели нет, а верх закрыт
+ * округлым сводом (тень подбородка), который намеренно НИЖЕ среза ворота:
+ * из первых лиц видно мягкую тень внутри шарфа, а не «лысую голову».
+ */
+function buildNeckGeometry() {
+  const rings = [];
+  const yShaftTop = -0.2530;
+  const yBot = -0.3240;
+  const yApex = -0.2442;
+  const steps = 9;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps; // 0 — низ (в ворота), 1 — верх шахты
+    const y = THREE.MathUtils.lerp(yBot, yShaftTop, t);
+    const rx = THREE.MathUtils.lerp(0.0684, 0.0588, t);
+    const rz = THREE.MathUtils.lerp(0.0566, 0.0494, t);
+    const zc = 0.0090 * Math.pow(1 - t, 2); // лёгкий наклон к подбородку
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      // два мягких жёлоба грудино-ключично-сосцевидных мышц, тыл плоский
+      const groove = Math.exp(-Math.pow((Math.abs(c) - 0.60) / 0.24, 2)) * (sn < 0 ? 0.0044 : 0);
+      const backFlat = sn > 0 ? 0.94 : 1.0;
+      return [Math.sign(c) * Math.pow(Math.abs(c), 0.86) * (rx - groove * 0.30), y,
+        zc + Math.sign(sn) * Math.pow(Math.abs(sn), 0.92) * (rz * backFlat - groove)];
+    });
+  }
+  // округлый свод сверху: кольца схлопываются, y идёт дугой
+  const domeSegs = 4;
+  for (let d = 1; d <= domeSegs; d++) {
+    const a = (d / domeSegs) * (Math.PI * 0.5);
+    const shrink = Math.cos(a);
+    const y = yShaftTop + (yApex - yShaftTop) * Math.sin(a);
+    const rx = 0.0588 * shrink + 0.0016;
+    const rz = 0.0494 * shrink + 0.0016;
+    rings.push((theta) => {
+      const c = Math.cos(theta);
+      const sn = Math.sin(theta);
+      return [Math.sign(c) * Math.pow(Math.abs(c), 0.86) * rx, y,
+        Math.sign(sn) * Math.pow(Math.abs(sn), 0.92) * rz];
+    });
+  }
+  return buildLoftedTube(rings, 24, { capStart: true, capEnd: true });
 }
 
 /**
@@ -526,7 +652,7 @@ function buildElbowHingeGeometry(r) {
  * ногтем на конце. Естественный изгиб пальца «зашит» в геометрию, поэтому палец
  * не выглядит ни палкой, ни нанизанными шариками.
  */
-function buildThumbSegmentGeometry({ rBase, rTip, len, curl = 0.16, roundTip = true, swell = 0.10, noseAt = 0.85 }) {
+function buildThumbSegmentGeometry({ rBase, rTip, len, curl = 0.16, roundTip = true, swell = 0.10, noseAt = 0.85, nail = false }) {
   const rings = [];
   const steps = 14;
   const tNose = noseAt;
@@ -546,8 +672,11 @@ function buildThumbSegmentGeometry({ rBase, rTip, len, curl = 0.16, roundTip = t
       const c = Math.cos(theta);
       const sn = Math.sin(theta);
       const dorsal = sn >= 0;
-      const rx = rad * (1.14 + jointSwell * 0.55);
-      const ry = rad * (dorsal ? 0.70 + wrinkle : 0.95);
+      // ногтевая пластина: площадка уплощена, рамка — валиком
+      const nb = nail ? Math.exp(-Math.pow((t - 0.80) / 0.16, 2)) : 0;
+      const rx = rad * (1.14 + jointSwell * 0.55) * (1 + 0.05 * nb);
+      const ry = rad * (dorsal ? (0.70 + wrinkle) * (1 - 0.20 * nb * Math.exp(-Math.pow(c / 0.56, 2)))
+        + 0.10 * nb * Math.exp(-Math.pow((Math.abs(c) - 0.66) / 0.15, 2)) : 0.95);
       const seam = dorsal ? 0.0011 * bell * Math.exp(-Math.pow(c / 0.52, 2)) : 0;
       const pad = dorsal ? 0 : Math.pow(-sn, 1.15) * rad * 0.14 * bell;
       return [c * rx, y + sn * ry + seam - pad * 0.6, z];
@@ -774,12 +903,19 @@ function buildRightLapelGeometry() {
 
 /** Клапан бокового кармана пальто: слегка «пузащая» лента с острым нижним углом. */
 function buildPocketFlapGeometry(side = 1) {
+  // Клапан кармана: концы ОБЯЗАНЫ оставаться внутри силуэта пальто (на y≈-0.65
+  // полуширина сукна ~0.198), иначе внешний край клапана висит перед краем полы
+  // и с фронта читается как «игла», торчащая в сторону кисти.
+  // Ширина клапана откладывается ПО Z, а у бокового шва сукно уходит вглубь на
+  // десятки миллиметров — поэтому дальний конец клапана обязан быть узким и
+  // оканчиваться ДО того, как поверхность становится крутой: иначе его «задник»
+  // отрывается от сукна и торчит плавником рядом с кистью.
   const geo = buildSurfaceRibbonGeometry([
-    { x: 0.1060, y: -0.6390, hw: 0.0092 },
-    { x: 0.1420, y: -0.6460, hw: 0.0158 },
-    { x: 0.1760, y: -0.6520, hw: 0.0162 },
-    { x: 0.1970, y: -0.6580, hw: 0.0105 },
-  ], { gap: 0.0058, halfT: 0.0052, steps: 18, radialSegs: 12, billow: 0.0026 });
+    { x: 0.0960, y: -0.6370, hw: 0.0056 },
+    { x: 0.1170, y: -0.6425, hw: 0.0124 },
+    { x: 0.1360, y: -0.6472, hw: 0.0122 },
+    { x: 0.1470, y: -0.6500, hw: 0.0034 },
+  ], { gap: 0.0014, halfT: 0.0030, steps: 18, radialSegs: 12, billow: 0.0011 });
   return side > 0 ? geo : mirrorGeoX(geo);
 }
 
@@ -1157,6 +1293,10 @@ function buildAvatarBodyGroup(mats) {
 
   const coatMesh = new THREE.Mesh(coatBodyGeo, mats.sleeveMat);
   const coatTrimMesh = new THREE.Mesh(coatTrimGeo, mats.sleeveFoldMat);
+  // Шея — отдельная деталь (не входит в 7 батчей торса): без неё шарф сверху
+  // читается как полое кольцо, в которое видно пустоту.
+  const neckGeo = buildNeckGeometry();
+  const neckMesh = new THREE.Mesh(neckGeo, mats.neckMat);
   const scarfMesh = new THREE.Mesh(scarfGeo, mats.scarfMat);
   const trousersMesh = new THREE.Mesh(trousersGeo, mats.trouserMat);
   const bootsLeatherMesh = new THREE.Mesh(bootsLeatherGeo, mats.bootLeatherMat);
@@ -1167,7 +1307,8 @@ function buildAvatarBodyGroup(mats) {
 
   return {
     bodyGroup,
-    geos: [coatBodyGeo, coatTrimGeo, scarfGeo, trousersGeo, bootsLeatherGeo, bootsSoleGeo, buttonsGeo],
+    neckMesh,
+    geos: [coatBodyGeo, coatTrimGeo, scarfGeo, neckGeo, trousersGeo, bootsLeatherGeo, bootsSoleGeo, buttonsGeo],
   };
 }
 
@@ -1188,43 +1329,49 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
   const elbowJointGroup = new THREE.Group();
   elbowJointGroup.add(new THREE.Mesh(sharedGeos.elbowHingeGeo, mats.sleeveMat));
   // 2 мягкие портновские складки на сгибе локтя
+  // 2 мягкие портновские складки на сгибе локтя — строго перпендикулярно оси
+  // рукава: наклонённое кольцо неизбежно выкалывает «лезвие» с одной стороны
   const elbowCrease1 = new THREE.Mesh(sharedGeos.elbowCreaseGeo, mats.sleeveFoldMat);
-  elbowCrease1.rotation.x = Math.PI * 0.44;
-  elbowCrease1.position.set(0, 0.010, -0.003);
+  elbowCrease1.rotation.x = Math.PI * 0.5;
+  elbowCrease1.position.set(0, 0.0104, -0.0012);
   const elbowCrease2 = new THREE.Mesh(sharedGeos.elbowCreaseGeo, mats.sleeveFoldMat);
-  elbowCrease2.rotation.x = Math.PI * 0.48;
-  elbowCrease2.position.set(0, -0.010, -0.002);
+  elbowCrease2.rotation.x = Math.PI * 0.5;
+  elbowCrease2.position.set(0, -0.0104, -0.0008);
   elbowJointGroup.add(elbowCrease1, elbowCrease2);
   armRoot.add(elbowJointGroup);
 
-  const forearmSleeve = new THREE.Mesh(sharedGeos.foreSleeveGeo, mats.sleeveMat);
+  // Внутренняя сторона раструба обязана быть «тканью», а не пустотой: иначе
+  // в щель между перчаткой и рукавом видно черноту
+  const forearmSleeve = new THREE.Mesh(sharedGeos.foreSleeveGeo, mats.foreSleeveMat);
   armRoot.add(forearmSleeve);
 
   // Скроенный обшлаг пальто с хлястиком-патой и пуговицей + вязаная манжета
   const forearmCuffGroup = new THREE.Group();
   armRoot.add(forearmCuffGroup);
 
-  const coatCuffHem = new THREE.Mesh(sharedGeos.coatCuffHemGeo, mats.sleeveFoldMat);
+  const coatCuffHem = new THREE.Mesh(sharedGeos.coatCuffHemGeo, mats.sleeveFoldInnerMat);
   coatCuffHem.rotation.x = Math.PI * 0.5;
-  coatCuffHem.scale.set(1.0, 1.0, 0.80);
-  coatCuffHem.position.set(0, 0, 0.031);
+  coatCuffHem.scale.set(0.92, 1.0, 1.08);
+  coatCuffHem.position.set(0, 0.0004, 0.0306);
   forearmCuffGroup.add(coatCuffHem);
 
   // Хлястик-пата рукава пальто с роговой пуговицей (придаёт живой портновский силуэт!)
   const cuffTabGroup = new THREE.Group();
   const cuffTab = new THREE.Mesh(sharedGeos.cuffTabGeo, mats.sleeveFoldMat);
-  cuffTab.scale.set(1.0, 0.80, 1.0);
+  // ремень лежит ПОВЕРХ отвернутого обшлага, а его эллипс повторяет сечение
+  // рукава: иначе свободный конец дуги торчит «лезвием» там, где рукав уже
+  cuffTab.scale.set(0.862, 1.0, 1.0);
   const cuffBtn = new THREE.Mesh(sharedGeos.cuffBtnGeo, mats.hornButtonMat);
   cuffBtn.scale.set(1.0, 1.0, 0.86);
   cuffBtn.rotation.z = Math.PI * 0.5;
-  cuffBtn.position.set(0.0486, 0.0000, 0);
+  cuffBtn.position.set(0.0466, 0.0022, 0);
   cuffTabGroup.add(cuffTab, cuffBtn);
   forearmCuffGroup.add(cuffTabGroup);
 
   const knitCuff = new THREE.Mesh(sharedGeos.knitCuffGeo, mats.cuffKnitMat);
   knitCuff.rotation.x = Math.PI * 0.5;
-  knitCuff.scale.set(1.0, 1.0, 0.75);
-  knitCuff.position.set(0, 0, 0.013);
+  knitCuff.scale.set(0.94, 1.0, 1.06);
+  knitCuff.position.set(0, 0.0004, 0.0172);
   forearmCuffGroup.add(knitCuff);
 
   // Ремешок с двухцветным маячком (показывается ТОЛЬКО на рабочей руке в режиме «Рука-браслет»!)
@@ -1235,8 +1382,8 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     beaconBandGroup = new THREE.Group();
     const strap = new THREE.Mesh(sharedGeos.strapGeo, mats.strapMat);
     strap.rotation.x = Math.PI * 0.5;
-    strap.scale.set(1.02, 1.0, 0.76);
-    strap.position.set(0, 0, 0.012);
+    strap.scale.set(0.92, 1.0, 1.08);
+    strap.position.set(0, 0.0004, 0.0040);
     beaconBandGroup.add(strap);
 
     miniWristband = new THREE.Group();
@@ -1250,7 +1397,7 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     miniWristband.add(dotM);
     beaconBandGroup.add(miniWristband);
 
-    rivet = new THREE.Mesh(sharedGeos.rivetGeo, mats.pipBrassMat);
+    rivet = new THREE.Mesh(sharedGeos.rivetGeo, mats.hornButtonMat);
     beaconBandGroup.add(rivet);
     forearmCuffGroup.add(beaconBandGroup);
   }
@@ -1263,48 +1410,35 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
   wristPivot.add(inertiaPivot);
 
   const handBody = new THREE.Group();
-  handBody.scale.setScalar(1.10);
+  handBody.scale.setScalar(1.0);
   inertiaPivot.add(handBody);
 
-  const wristBridge = new THREE.Mesh(sharedGeos.wristBridgeGeo, mats.gloveMat);
-  wristBridge.scale.set(1.05, 0.68, 0.96);
-  wristBridge.position.set(0, 0, 0.002);
-  handBody.add(wristBridge);
+  // Запястье: мягкий раструб перчатки со сборками ткани (вместо «шара-перехода»)
+  const wristCuff = new THREE.Mesh(sharedGeos.wristBridgeGeo, mats.gloveMat);
+  handBody.add(wristCuff);
+  // Обшивной кант устья перчатки — тот самый «сшитый вручную» край
+  const gloveBinding = new THREE.Mesh(sharedGeos.gloveBindingGeo, mats.seamMat);
+  gloveBinding.scale.set(1.0, 0.62, 1.0);
+  gloveBinding.position.set(0, 0, 0.0352);
+  handBody.add(gloveBinding);
 
   const palmMesh = new THREE.Mesh(sharedGeos.palmRightGeo, mats.gloveMat);
   handBody.add(palmMesh);
-
-  // Ладонная кожаная накладка + тенар + гипотенар + латунная кнопка застёжки перчатки у запястья
-  const palmPad = new THREE.Mesh(sharedGeos.palmPadGeo, mats.palmInnerMat);
-  palmPad.scale.set(1.02, 0.24, 1.12);
-  palmPad.position.set(0, -0.010, -0.049);
-  handBody.add(palmPad);
 
   // Мышца тенара: отдельная скульптурная масса, в которую врастает большой палец
   const thenarPad = new THREE.Mesh(sharedGeos.thenarRightGeo, mats.palmInnerMat);
   handBody.add(thenarPad);
 
-  const hypothenarPad = new THREE.Mesh(sharedGeos.hypothenarGeo, mats.palmInnerMat);
-  hypothenarPad.scale.set(0.72, 0.56, 1.46);
-  handBody.add(hypothenarPad);
-
-  const wristSnapBtn = new THREE.Mesh(sharedGeos.wristSnapGeo, mats.pipBrassMat);
-  wristSnapBtn.position.set(0, -0.0135, -0.006);
+  // Кнопка-застёжка раструба — с локтевой стороны манжеты (как у вождюльских
+  // перчаток), а не на ладони; рог, а не латунь: латунь без env-карты «светится».
+  const wristSnapBtn = new THREE.Mesh(sharedGeos.wristSnapGeo, mats.hornButtonMat);
+  wristSnapBtn.rotation.z = Math.PI * 0.5;
   handBody.add(wristSnapBtn);
-
-  // Три изогнутых рантовых шва («стрелки») по своду тыльной стороны перчатки
-  const dorsalStitches = [-1, 1].map((idx) => {
-    const st = new THREE.Mesh(sharedGeos.stitchArchGeo, mats.seamMat);
-    handBody.add(st);
-    return { mesh: st, idx };
-  });
 
   // Четыре скульптурных трёхфаланговых пальца с кожными заломами у суставов
   const fingers = sharedGeos.fingerTemplates.map((tpl) => {
     const mcp = new THREE.Group();
-    const knuckleBall = new THREE.Mesh(tpl.knuckleGeo, mats.gloveMat);
-    knuckleBall.scale.set(1.05, 0.88, 1.05);
-    mcp.add(knuckleBall);
+    mcp.add(new THREE.Mesh(tpl.knuckleGeo, mats.gloveMat));
     mcp.add(new THREE.Mesh(tpl.p1Geo, mats.gloveMat));
 
     const pip = new THREE.Group();
@@ -1316,11 +1450,6 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     dip.position.set(0, 0, -tpl.spec.l2);
     dip.add(new THREE.Mesh(tpl.dipGeo, mats.gloveMat));
     dip.add(new THREE.Mesh(tpl.p3Geo, mats.gloveMat));
-
-    const tip = new THREE.Mesh(tpl.tipGeo, mats.seamMat);
-    tip.scale.set(1.0, 0.84, 1.14);
-    tip.position.set(0, -0.0005, -tpl.spec.l3);
-    dip.add(tip);
 
     pip.add(dip);
     mcp.add(pip);
@@ -1358,12 +1487,7 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     thenarPad.geometry = clean === 'left' ? sharedGeos.thenarLeftGeo : sharedGeos.thenarRightGeo;
     handBody.rotation.set(0.05, s * 0.06, s * 0.24);
 
-    hypothenarPad.position.set(s * 0.027, -0.010, -0.043);
-
-    for (const { mesh: st, idx } of dorsalStitches) {
-      st.position.set(s * idx * 0.0118, 0.0012, -0.004);
-      st.rotation.y = -s * idx * 0.075;
-    }
+    wristSnapBtn.position.set(s * 0.0302, 0.0022, 0.0268);
 
     for (const f of fingers) {
       f.mcp.position.set(s * f.spec.baseX, f.spec.yOff, f.spec.zOff);
@@ -1372,13 +1496,14 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     thumbMeta.position.set(-s * 0.0308, -0.0088, -0.0198);
     thumbMeta.rotation.set(0.05, s * 0.70, -s * 0.34);
 
-    cuffTabGroup.position.set(0, -0.0016, 0.0295);
+    cuffTabGroup.position.set(0, 0.0004, 0.0306);
     cuffTabGroup.rotation.set(0, 0, s > 0 ? -0.34 : Math.PI + 0.34);
 
     if (miniWristband && rivet) {
-      miniWristband.position.set(-s * 0.005, 0.029, 0.012);
+      miniWristband.position.set(-s * 0.005, 0.0527, 0.0040);
       miniWristband.rotation.z = s * 0.12;
-      rivet.position.set(s * 0.027, 0.021, 0.012);
+      rivet.position.set(s * 0.0300, 0.0365, 0.0040);
+      rivet.rotation.z = -s * 0.712;
     }
   }
 
@@ -1436,8 +1561,8 @@ function createArticulatedArm(mats, sharedGeos, { withBeacon = false, initialSid
     elbowJointGroup.position.copy(vElbow);
     elbowJointGroup.quaternion.copy(upperArmSleeve.quaternion);
     const creaseScale = 0.92 + THREE.MathUtils.clamp(elbowBendDeg / 120, 0, 1) * 0.16;
-    elbowCrease1.scale.setScalar(creaseScale);
-    elbowCrease2.scale.setScalar(creaseScale * 0.97);
+    elbowCrease1.scale.set(0.885 * creaseScale, creaseScale, creaseScale);
+    elbowCrease2.scale.set(0.885 * creaseScale * 0.97, creaseScale * 0.97, creaseScale * 0.97);
 
     // 3) Предплечье и обшлаг (невырожденный базис в SO(3) на любых вертикальных углах!)
     forearmForward.copy(vWrist).sub(vElbow);
@@ -1542,6 +1667,24 @@ export function createGlovedHand(initialSide = 'right') {
       bumpMap: tex.woolBump,
       bumpScale: 0.0042,
     }),
+    // та же суконная ткань, но двусторонняя — внутренность раструба рукава
+    foreSleeveMat: new THREE.MeshStandardMaterial({
+      color: 0x223041,
+      emissive: 0x080e16,
+      emissiveIntensity: 0.44,
+      roughness: 0.92,
+      metalness: 0.03,
+      bumpMap: tex.woolBump,
+      bumpScale: 0.0042,
+      side: THREE.DoubleSide,
+    }),
+    neckMat: new THREE.MeshStandardMaterial({
+      color: 0x8d6a4f,
+      emissive: 0x1a0f07,
+      emissiveIntensity: 0.22,
+      roughness: 0.72,
+      metalness: 0.0,
+    }),
     sleeveFoldMat: new THREE.MeshStandardMaterial({
       color: 0x314358,
       emissive: 0x0c141f,
@@ -1550,6 +1693,17 @@ export function createGlovedHand(initialSide = 'right') {
       metalness: 0.07,
       bumpMap: tex.woolBump,
       bumpScale: 0.0038,
+    }),
+    // внутренний край обшлага — тоже ткань, иначе в раструбе зияет чёрная дыра
+    sleeveFoldInnerMat: new THREE.MeshStandardMaterial({
+      color: 0x314358,
+      emissive: 0x0c141f,
+      emissiveIntensity: 0.45,
+      roughness: 0.88,
+      metalness: 0.04,
+      bumpMap: tex.woolBump,
+      bumpScale: 0.0038,
+      side: THREE.DoubleSide,
     }),
     scarfMat: new THREE.MeshStandardMaterial({
       color: 0x6d3336,
@@ -1618,12 +1772,6 @@ export function createGlovedHand(initialSide = 'right') {
   };
 
   // Общие скульптурные геометрии для обеих рук (ноль дублирования памяти!)
-  const stitchCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0.0166, -0.020),
-    new THREE.Vector3(0, 0.0202, -0.050),
-    new THREE.Vector3(0, 0.0186, -0.079),
-  ]);
-
   const baseFingerSpecs = [
     { baseX: -0.0328, yOff: 0.0015, zOff: -0.0942, l1: 0.0368, l2: 0.0238, l3: 0.0158, w: 0.0186, splay: -0.062 },
     { baseX: -0.0109, yOff: 0.0035, zOff: -0.0994, l1: 0.0408, l2: 0.0262, l3: 0.0168, w: 0.0192, splay: -0.014 },
@@ -1631,44 +1779,46 @@ export function createGlovedHand(initialSide = 'right') {
     { baseX: 0.0318, yOff: -0.0020, zOff: -0.0882, l1: 0.0306, l2: 0.0196, l3: 0.0148, w: 0.0164, splay: 0.079 },
   ];
 
+  // 3 фаланги + 3 сустава-линзы на палец: MCP (самый широкий, с разгибательным
+  // капюшоном), PIP и DIP. Дальняя фаланга несёт ногтевую пластину и подушечку,
+  // у ближней и средней — кожные залоги и вшитые стежки у сустава.
   const fingerTemplates = baseFingerSpecs.map((spec) => ({
     spec,
-    knuckleGeo: new THREE.SphereGeometry(spec.w * 0.52, 9, 7),
-    p1Geo: buildSculptedPhalanxGeometry(spec.w * 0.52, spec.w * 0.45, spec.l1),
-    pipGeo: new THREE.SphereGeometry(spec.w * 0.45, 8, 6),
-    p2Geo: buildSculptedPhalanxGeometry(spec.w * 0.45, spec.w * 0.39, spec.l2),
-    dipGeo: new THREE.SphereGeometry(spec.w * 0.39, 8, 6),
-    p3Geo: buildSculptedPhalanxGeometry(spec.w * 0.39, spec.w * 0.32, spec.l3),
-    tipGeo: new THREE.SphereGeometry(spec.w * 0.33, 8, 6),
+    knuckleGeo: buildGloveJointGeometry(spec.w * 0.520, 0.0116, 1.07, 1.04, 0.23),
+    p1Geo: buildSculptedPhalanxGeometry(spec.w * 0.488, spec.w * 0.448, spec.l1, { curl: 0.185 }),
+    pipGeo: buildGloveJointGeometry(spec.w * 0.452, 0.0096, 1.045, 0.96, 0.14),
+    p2Geo: buildSculptedPhalanxGeometry(spec.w * 0.432, spec.w * 0.392, spec.l2, { curl: 0.235, pleats: 1 }),
+    dipGeo: buildGloveJointGeometry(spec.w * 0.396, 0.0080, 1.03, 0.94, 0.09),
+    p3Geo: buildSculptedPhalanxGeometry(spec.w * 0.376, spec.w * 0.312, spec.l3, { curl: 0.300, nail: true, stitches: false, pleats: 1 }),
   }));
 
   const sharedGeos = {
     sleeveHeadGeo: buildSleeveHeadGeometry(0.0505),
     upperSleeveGeo: buildTailoredSleeveGeometry(0.0478, 0.0505, { gather: 0.0042, oval: 0.885 }),
     elbowHingeGeo: buildElbowHingeGeometry(0.0476),
-    elbowCreaseGeo: new THREE.TorusGeometry(0.0415, 0.0050, 6, 15),
-    foreSleeveGeo: buildTailoredSleeveGeometry(0.0438, 0.0486, { gather: 0.0030, oval: 0.90 }),
-    coatCuffHemGeo: new THREE.CylinderGeometry(0.0452, 0.0470, 0.031, 18),
-    cuffTabGeo: new THREE.TorusGeometry(0.0468, 0.0044, 6, 16, Math.PI * 0.62),
+    // утолщение-«бант» на локте: кольцо обхватывает ОВАЛЬНОЕ сечение рукава
+    // (0,885 по ширине), иначе его бока торчат плоскими «крыльями»
+    elbowCreaseGeo: new THREE.TorusGeometry(0.0474, 0.0034, 6, 22),
+    foreSleeveGeo: buildTailoredSleeveGeometry(0.0410, 0.0470, { gather: 0.0020, oval: 0.90 }),
+    coatCuffHemGeo: new THREE.CylinderGeometry(0.0462, 0.0478, 0.033, 20),
+    cuffTabGeo: new THREE.TorusGeometry(0.0528, 0.0032, 8, 26, Math.PI * 0.66),
     cuffBtnGeo: new THREE.CylinderGeometry(0.0055, 0.0055, 0.003, 9),
-    knitCuffGeo: new THREE.CylinderGeometry(0.0372, 0.0392, 0.032, 16),
-    strapGeo: new THREE.CylinderGeometry(0.0386, 0.0394, 0.018, 16),
+    knitCuffGeo: new THREE.CylinderGeometry(0.0338, 0.0354, 0.052, 18),
+    strapGeo: new THREE.CylinderGeometry(0.0452, 0.0468, 0.0185, 20),
     miniScreenGeo: new THREE.BoxGeometry(0.031, 0.0045, 0.017),
     ledDotGeo: new THREE.SphereGeometry(0.0022, 6, 5),
-    rivetGeo: new THREE.SphereGeometry(0.0056, 8, 6),
-    wristBridgeGeo: new THREE.SphereGeometry(0.028, 10, 8),
+    rivetGeo: new THREE.CylinderGeometry(0.0034, 0.0040, 0.0028, 12),
+    wristBridgeGeo: buildGloveWristGeometry({ rxHand: 0.0240, ryHand: 0.0126, rxCuff: 0.0346, ryCuff: 0.0214 }),
+    gloveBindingGeo: new THREE.TorusGeometry(0.0342, 0.0024, 8, 26),
     palmRightGeo: buildSculptedPalmGeometry(1),
     palmLeftGeo: buildSculptedPalmGeometry(-1),
-    palmPadGeo: new THREE.SphereGeometry(0.038, 12, 10),
     thenarRightGeo: buildThenarGeometry(1),
     thenarLeftGeo: buildThenarGeometry(-1),
-    hypothenarGeo: new THREE.SphereGeometry(0.016, 8, 7),
-    wristSnapGeo: new THREE.CylinderGeometry(0.0042, 0.0042, 0.0025, 9),
-    stitchArchGeo: new THREE.TubeGeometry(stitchCurve, 12, 0.0011, 6, false),
+    wristSnapGeo: new THREE.CylinderGeometry(0.0034, 0.0036, 0.0026, 10),
     fingerTemplates,
     thumbMetaGeo: buildThumbSegmentGeometry({ rBase: 0.0138, rTip: 0.0124, len: 0.0312, curl: 0.060, swell: 0.04, noseAt: 0.97 }),
     thumbProxGeo: buildThumbSegmentGeometry({ rBase: 0.0126, rTip: 0.0110, len: 0.0266, curl: 0.105, swell: 0.06, noseAt: 0.95 }),
-    thumbDistGeo: buildThumbSegmentGeometry({ rBase: 0.0114, rTip: 0.0092, len: 0.0226, curl: 0.130, swell: 0.05 }),
+    thumbDistGeo: buildThumbSegmentGeometry({ rBase: 0.0114, rTip: 0.0092, len: 0.0226, curl: 0.130, swell: 0.05, nail: true }),
   };
 
   // 1) Группа корпуса и ног в гравитационной системе торса (поворачивается qTorsoToCam)
@@ -1678,6 +1828,9 @@ export function createGlovedHand(initialSide = 'right') {
 
   const staticBody = buildAvatarBodyGroup(mats);
   bodyRoot.add(staticBody.bodyGroup);
+  // шея — ВНЕ 7 батчей торса (их количество проверяют тесты), но внутри bodyRoot,
+  // чтобы она жила вместе с наклоном головы и торса
+  bodyRoot.add(staticBody.neckMesh);
 
   // Спокойная вторая (свободная) рука внутри системы корпуса — всегда лежит у кармана пальто!
   const passiveArm = createArticulatedArm(mats, sharedGeos, {
@@ -1903,7 +2056,6 @@ export function createGlovedHand(initialSide = 'right') {
         tpl.p2Geo.dispose();
         tpl.dipGeo.dispose();
         tpl.p3Geo.dispose();
-        tpl.tipGeo.dispose();
       }
       for (const [k, v] of Object.entries(sharedGeos)) {
         if (k !== 'fingerTemplates' && v?.dispose) v.dispose();

@@ -102,6 +102,60 @@ const VIEWS = {
     cam: 'ext', eye: [0.62, -0.42, -0.86], at: [0.19, -0.60, -0.24], fov: 24,
     pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
   },
+  // ---- ЛУПА СКУЛЬПТОРА: кисть руки крупным планом (bare — без пальто, чтобы
+  // сукно не заслоняло перчатку; ракурсы подобраны под реальный взгляд вниз в VR)
+  'handRestBack': {
+    cam: 'ext', eye: [0.36, -0.30, -0.86], at: [0.196, -0.635, -0.315], fov: 21, bare: true,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handRestPalm': {
+    cam: 'ext', eye: [0.01, -0.70, -0.76], at: [0.196, -0.640, -0.300], fov: 22, bare: true,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handRestSide': {
+    cam: 'ext', eye: [0.90, -0.615, -0.20], at: [0.196, -0.635, -0.300], fov: 19, bare: true,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handRestThumb': {
+    cam: 'ext', eye: [0.02, -0.42, -0.80], at: [0.150, -0.600, -0.300], fov: 18, bare: true,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handFull': {
+    cam: 'ext', eye: [0.56, -0.28, -0.86], at: [0.196, -0.645, -0.315], fov: 18, bare: true,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handInner': {
+    cam: 'ext', eye: [-0.34, -0.52, -0.86], at: [0.150, -0.628, -0.290], fov: 16, bare: true,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handCoat': {
+    cam: 'ext', eye: [-0.02, -0.42, -1.06], at: [0.196, -0.632, -0.288], fov: 17,
+    pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
+  },
+  'handOpen': {
+    cam: 'ext', eye: [0.30, 0.12, -1.10], at: [0.098, -0.105, -0.415], fov: 16, bare: true,
+    pose: {
+      visible: true, handMode: true, handTracked: true, handSide: 'right',
+      headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0,
+      pos: { x: 0.10, y: -0.10, z: -0.42 }, vel: { x: 0, y: 0, z: 0 },
+      qArm: quatLook(new THREE.Vector3(0.06, -0.34, -0.94), new THREE.Vector3(-0.10, 0.93, -0.35)).toArray(),
+      elbowPos: { x: 0.24, y: 0.10, z: -0.16 },
+      shoulderPos: { x: 0.196, y: -0.290, z: -0.042 },
+      reach: 0.72, overBin: true, elbowBendDeg: 40, phase: 'search',
+    },
+  },
+  'handGrip': {
+    cam: 'ext', eye: [0.36, -0.08, -1.06], at: [0.113, -0.200, -0.415], fov: 16, bare: true,
+    pose: {
+      visible: true, handMode: true, handTracked: true, handSide: 'right',
+      headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0,
+      pos: { x: 0.115, y: -0.20, z: -0.42 }, vel: { x: 0, y: 0, z: 0 },
+      qArm: quatLook(new THREE.Vector3(0.02, -0.62, -0.78), new THREE.Vector3(-0.16, 0.76, -0.63)).toArray(),
+      elbowPos: { x: 0.245, y: -0.02, z: -0.17 },
+      shoulderPos: { x: 0.196, y: -0.290, z: -0.042 },
+      reach: 0.2, phase: 'inspect', calmLowerProgress: 0.55, elbowBendDeg: 78,
+    },
+  },
   'mirrorFull': {
     cam: 'ext', eye: [0.0, -0.46, -2.65], at: [0.0, -0.62, 0.0], fov: 34,
     pose: { visible: true, handMode: false, headLook: { yaw: 0, pitch: 0 }, torsoYaw: 0 },
@@ -128,6 +182,9 @@ window.__PREVIEW__ = {
       camera.lookAt(target);
     }
     step(1 / 60, v.pose);
+    // «голая» кисть: пальто (батч торса) скрывает перчатку в 3/4, поэтому в
+    // луповых ракурсах его отключаем — руки, манжеты и маячок остаются на месте
+    avatar.torsoGroup.visible = !v.bare;
     renderer.render(scene, camera);
     return true;
   },
