@@ -112,8 +112,12 @@ export class WristHostLink {
     this.hid = '';
     this.pendingCandidates = [];
     this.attempt = 0;
+    this.offerInFlight = false;
+    this.offerStartedAt = 0;
     this.preferLanOnly = false;
     this.peerJoined = false;
+    this.peerSid = '';
+    this.hostHandSide = 'right';
     this.dcOpenedAt = 0;
     this.lastPongAt = 0;
     this.lastFastRxAt = 0;
@@ -142,10 +146,11 @@ export class WristHostLink {
     this.wakeLock = null;
   }
 
-  startDemo(roomCode = this.roomCode || makeCode()) {
+  startDemo(roomCode = this.roomCode || makeCode(), initialHandSide = this.hostHandSide) {
     this.stop();
     this.mode = 'demo';
     this.roomCode = String(roomCode);
+    this.hostHandSide = initialHandSide === 'left' ? 'left' : 'right';
     this.routeKind = 'demo';
     this.error = null;
     if (typeof BroadcastChannel !== 'undefined') {
@@ -156,8 +161,13 @@ export class WristHostLink {
         if (msg.k === 'hello') {
           this.connected = true;
           this.p2pOpen = true;
-          if (msg.side === 'left' || msg.side === 'right') this.onHandSide(msg.side);
-          this.bc?.postMessage({ k: 'ack', room: this.roomCode, ts: Date.now() });
+          this.lastSeq = -1;
+          if (msg.sid) this.peerSid = String(msg.sid);
+          if (msg.explicitSide && (msg.side === 'left' || msg.side === 'right')) {
+            this.hostHandSide = msg.side;
+            this.onHandSide(msg.side);
+          }
+          this.bc?.postMessage({ k: 'ack', room: this.roomCode, side: this.hostHandSide, ts: Date.now() });
           this._emitStatus();
         } else if (msg.k === 'wrist') {
           this.connected = true;
@@ -179,7 +189,7 @@ export class WristHostLink {
     return { ok: true, roomCode: this.roomCode, mode: 'demo' };
   }
 
-  async startFirebase(rawConfig) {
+  async startFirebase(rawConfig, initialHandSide = this.hostHandSide) {
     const cfg = parseFirebaseConfig(rawConfig);
     if (!cfg) {
       this.error = 'Вставьте корректный firebaseConfig или URL Realtime Database';
@@ -190,6 +200,7 @@ export class WristHostLink {
     this.stop();
     this.mode = 'firebase';
     this.roomCode = makeCode();
+    this.hostHandSide = initialHandSide === 'left' ? 'left' : 'right';
     this.error = null;
 
     try {
@@ -210,6 +221,7 @@ export class WristHostLink {
       await set(ref(this.db, roomPath), {
         createdAt: Date.now(),
         hostAlive: true,
+        hostHandSide: { side: this.hostHandSide, ts: Date.now() },
       });
       try {
         onDisconnect(ref(this.db, `${roomPath}/hostAlive`)).remove();
@@ -222,7 +234,8 @@ export class WristHostLink {
           if (!val) return;
           this.peerJoined = true;
           this.connected = true;
-          if (!this.isFastHealthy()) {
+          this.lastSeq = -1;
+          if (!this.isFastHealthy() && !this._isOfferNegotiating()) {
             this._startRtcOffer(false);
           }
           this._emitStatus();
@@ -277,7 +290,7 @@ export class WristHostLink {
           if (!hello || !hello.ts) return;
           this.peerJoined = true;
           this.connected = true;
-          if (!this.isFastHealthy()) {
+          if (!this.isFastHealthy() && !this._isOfferNegotiating()) {
             this._startRtcOffer(false);
           }
         })
@@ -339,82 +352,101 @@ export class WristHostLink {
     return this.dcOpenedAt > 0 && Math.max(0, now - this.dcOpenedAt) < 3500;
   }
 
+  _isOfferNegotiating(now = performance.now()) {
+    if (this.offerInFlight) return true;
+    if (!this.pc || !this.offerStartedAt) return false;
+    const st = this.pc.connectionState;
+    if (st === 'failed' || st === 'closed') return false;
+    return Math.max(0, now - this.offerStartedAt) < 4500;
+  }
+
   async _startRtcOffer(forceStun = false) {
     if (typeof RTCPeerConnection === 'undefined' || !this.db || !this.fbMod) return;
-    this._closePcOnly();
-    this.attempt += 1;
-    this.hid = makeHid();
-    const currentHid = this.hid;
-
-    const useLanOnly = this.preferLanOnly || (!forceStun && this.attempt % 2 === 1);
-    const iceServers = useLanOnly ? [] : GOOGLE_STUN_SERVERS;
-    const { ref, set, push, remove } = this.fbMod;
-    const rtcBase = `wn_wrist_rooms/${this.roomCode}/rtc`;
-
+    if (this.offerInFlight) return;
+    this.offerInFlight = true;
     try {
-      await Promise.all([
-        remove(ref(this.db, `${rtcBase}/answer`)),
-        remove(ref(this.db, `${rtcBase}/hostCandidates`)),
-        remove(ref(this.db, `${rtcBase}/wristCandidates`)),
-      ]);
-    } catch { /* ignore */ }
+      this._closePcOnly();
+      this.attempt += 1;
+      this.hid = makeHid();
+      this.offerStartedAt = performance.now();
+      const currentHid = this.hid;
 
-    const pc = new RTCPeerConnection({ iceServers });
-    this.pc = pc;
+      const useLanOnly = this.preferLanOnly || (!forceStun && this.attempt % 2 === 1);
+      const iceServers = useLanOnly ? [] : GOOGLE_STUN_SERVERS;
+      const { ref, set, push, remove } = this.fbMod;
+      const rtcBase = `wn_wrist_rooms/${this.roomCode}/rtc`;
 
-    const fast = pc.createDataChannel('wrist-fast', { ordered: false, maxRetransmits: 0 });
-    const ctrl = pc.createDataChannel('wrist-ctrl', { ordered: true });
-    this.dcFast = fast;
-    this.dcCtrl = ctrl;
+      try {
+        await Promise.all([
+          remove(ref(this.db, `${rtcBase}/answer`)),
+          remove(ref(this.db, `${rtcBase}/hostCandidates`)),
+          remove(ref(this.db, `${rtcBase}/wristCandidates`)),
+        ]);
+      } catch { /* ignore */ }
 
-    const onOpen = () => {
-      if (this.hid !== currentHid) return;
-      this.p2pOpen = true;
-      this.connected = true;
-      this.dcOpenedAt = performance.now();
-      this._inspectRoute(useLanOnly);
-      this._emitStatus();
-    };
+      if (this.mode !== 'firebase' || this.hid !== currentHid) return;
 
-    fast.onopen = onOpen;
-    ctrl.onopen = onOpen;
+      const pc = new RTCPeerConnection({ iceServers });
+      this.pc = pc;
 
-    fast.onmessage = (ev) => this._onChannelMessage(ev.data, true);
-    ctrl.onmessage = (ev) => this._onChannelMessage(ev.data, false);
+      const fast = pc.createDataChannel('wrist-fast', { ordered: false, maxRetransmits: 0 });
+      const ctrl = pc.createDataChannel('wrist-ctrl', { ordered: true });
+      this.dcFast = fast;
+      this.dcCtrl = ctrl;
 
-    pc.onicecandidate = (ev) => {
-      if (!ev.candidate || this.hid !== currentHid) return;
-      push(ref(this.db, `${rtcBase}/hostCandidates`), {
-        hid: currentHid,
-        candidate: ev.candidate.toJSON ? ev.candidate.toJSON() : ev.candidate,
-      }).catch(() => {});
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (this.hid !== currentHid) return;
-      const st = pc.connectionState;
-      if (st === 'connected') {
+      const onOpen = () => {
+        if (this.hid !== currentHid) return;
         this.p2pOpen = true;
+        this.connected = true;
+        this.lastSeq = -1;
+        this.dcOpenedAt = performance.now();
         this._inspectRoute(useLanOnly);
         this._emitStatus();
-      } else if (st === 'failed' || st === 'closed') {
-        // При 'disconnected' канал НЕ рвём — даём радиомодулю Wi-Fi 8.5 с восстановиться!
-        this.p2pOpen = false;
-        this.routeKind = this.connected ? 'firebase' : 'idle';
-        this._emitStatus();
-      }
-    };
+      };
 
-    try {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      await set(ref(this.db, `${rtcBase}/offer`), {
-        hid: currentHid,
-        sdp: offer.sdp,
-        iceMode: useLanOnly ? 'lan' : 'stun',
-        ts: Date.now(),
-      });
-    } catch { /* watchdog повторит */ }
+      fast.onopen = onOpen;
+      ctrl.onopen = onOpen;
+
+      fast.onmessage = (ev) => this._onChannelMessage(ev.data, true);
+      ctrl.onmessage = (ev) => this._onChannelMessage(ev.data, false);
+
+      pc.onicecandidate = (ev) => {
+        if (!ev.candidate || this.hid !== currentHid) return;
+        push(ref(this.db, `${rtcBase}/hostCandidates`), {
+          hid: currentHid,
+          candidate: ev.candidate.toJSON ? ev.candidate.toJSON() : ev.candidate,
+        }).catch(() => {});
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (this.hid !== currentHid) return;
+        const st = pc.connectionState;
+        if (st === 'connected') {
+          this.p2pOpen = true;
+          this._inspectRoute(useLanOnly);
+          this._emitStatus();
+        } else if (st === 'failed' || st === 'closed') {
+          // При 'disconnected' канал НЕ рвём — даём радиомодулю Wi-Fi 8.5 с восстановиться!
+          this.p2pOpen = false;
+          this.offerStartedAt = 0;
+          this.routeKind = this.connected ? 'firebase' : 'idle';
+          this._emitStatus();
+        }
+      };
+
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await set(ref(this.db, `${rtcBase}/offer`), {
+          hid: currentHid,
+          sdp: offer.sdp,
+          iceMode: useLanOnly ? 'lan' : 'stun',
+          ts: Date.now(),
+        });
+      } catch { /* watchdog повторит */ }
+    } finally {
+      this.offerInFlight = false;
+    }
   }
 
   async _inspectRoute(wasLanAttempt) {
@@ -504,6 +536,7 @@ export class WristHostLink {
 
   sendHandSide(side) {
     const clean = side === 'left' ? 'left' : 'right';
+    this.hostHandSide = clean;
     const payload = { k: 'hand_side', room: this.roomCode, side: clean, ts: Date.now() };
     if (this.mode === 'demo' && this.bc) {
       this.bc.postMessage(payload);
@@ -517,8 +550,14 @@ export class WristHostLink {
 
   _handlePacket(pkt, fromFast) {
     const now = performance.now();
+    if (pkt.sid && pkt.sid !== this.peerSid) {
+      // Перезагрузка или переподключение страницы браслета начинает seq с 1 заново:
+      // мгновенно сбрасываем счётчик без единого потерянного пакета!
+      this.peerSid = String(pkt.sid);
+      this.lastSeq = -1;
+    }
     if (fromFast && Number.isFinite(pkt.seq)) {
-      if (pkt.seq <= this.lastSeq && this.lastSeq - pkt.seq < 3000) return;
+      if (pkt.seq <= this.lastSeq && this.lastSeq - pkt.seq < 45) return;
       this.lastSeq = pkt.seq;
     }
     this.lastAnyRxAt = now;
@@ -568,7 +607,7 @@ export class WristHostLink {
 
     this.watchdogTimer = setInterval(() => {
       if (this.mode !== 'firebase' || !this.peerJoined) return;
-      if (!this.isFastHealthy()) {
+      if (!this.isFastHealthy() && !this._isOfferNegotiating()) {
         this.p2pOpen = false;
         this._startRtcOffer(false);
       }
@@ -583,9 +622,11 @@ export class WristHostLink {
     this.dcCtrl = null;
     this.pc = null;
     this.pendingCandidates = [];
+    this.offerStartedAt = 0;
     this.dcOpenedAt = 0;
     this.lastPongAt = 0;
     this.lastFastRxAt = 0;
+    this.lastSeq = -1;
     this.p2pOpen = false;
   }
 

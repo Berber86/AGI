@@ -633,21 +633,6 @@ export class WristHandFusion {
     const headYaw = Number.isFinite(headLook?.yaw) ? headLook.yaw : 0;
     const headPitch = Number.isFinite(headLook?.pitch) ? headLook.pitch : 0;
 
-    // Корпус мягко поворачивается вслед за большими поворотами головы по горизонту,
-    // но строго сохраняет гравитационную вертикаль при кивках вверх/вниз!
-    const yawDiff = headYaw - this.torsoYaw;
-    if (Math.abs(yawDiff) > 18 * DEG) {
-      this.torsoYaw += (yawDiff - Math.sign(yawDiff) * 18 * DEG) * 0.45;
-    }
-    this.torsoYaw += (headYaw - this.torsoYaw) * Math.min(1, safeDt * 2.8);
-    const relHeadYaw = headYaw - this.torsoYaw;
-    // Перевод из системы корпуса в систему камеры очков: Rx(-headPitch) * Ry(+relHeadYaw)
-    const qTorsoToCam = qMul(
-      qAxisAngle([1, 0, 0], -headPitch),
-      qAxisAngle([0, 1, 0], relHeadYaw)
-    );
-    const qCamToTorso = qConj(qTorsoToCam);
-
     // 1. 60 Гц ориентация предплечья и кисти в гравитационной системе корпуса:
     // Внимание на знак: headYaw > 0 — это физический поворот ВПРАВО (Ry(-headYaw) в OpenGL),
     // поэтому переход из мира в повернувшийся корпус требует умножения на Ry(+torsoYaw)!
@@ -675,6 +660,35 @@ export class WristHandFusion {
         }
       }
     }
+
+    // Честно разделяем поворот ТОЛЬКО шеи (игрок смотрит по сторонам двора, держа руку в баке)
+    // и разворот ВСЕГО корпуса/кресла (когда и голова, и рука поворачиваются в одну сторону вместе)!
+    const qTrimOnly = qNormalize(qMul(qAxisAngle([0, 1, 0], this.yawTrimRad), qRawArm));
+    const trimFwd = qRotVec(qTrimOnly, [0, 0, -1]);
+    const trimHoriz = Math.hypot(trimFwd[0], trimFwd[2]);
+    let torsoTargetYaw = this.torsoYaw;
+    if (phase === 'search' && trimHoriz > 0.35) {
+      const armYawRight = Math.atan2(trimFwd[0], -trimFwd[2]);
+      const dHead = headYaw - this.torsoYaw;
+      const dArm = armYawRight - this.torsoYaw;
+      const dShared = dHead >= 0 ? clamp(dArm, 0, dHead) : clamp(dArm, dHead, 0);
+      torsoTargetYaw = clamp(this.torsoYaw + dShared, headYaw - 50 * DEG, headYaw + 50 * DEG);
+    } else {
+      torsoTargetYaw = clamp(this.torsoYaw, headYaw - 50 * DEG, headYaw + 50 * DEG);
+    }
+    const yawDiff = torsoTargetYaw - this.torsoYaw;
+    if (Math.abs(yawDiff) > 18 * DEG) {
+      this.torsoYaw += (yawDiff - Math.sign(yawDiff) * 18 * DEG) * 0.45;
+    }
+    this.torsoYaw += (torsoTargetYaw - this.torsoYaw) * Math.min(1, safeDt * 3.2);
+    const relHeadYaw = headYaw - this.torsoYaw;
+    // Перевод из системы корпуса в систему камеры очков: Rx(-headPitch) * Ry(+relHeadYaw)
+    const qTorsoToCam = qMul(
+      qAxisAngle([1, 0, 0], -headPitch),
+      qAxisAngle([0, 1, 0], relHeadYaw)
+    );
+    const qCamToTorso = qConj(qTorsoToCam);
+
     const qYawTrim = qAxisAngle([0, 1, 0], this.yawTrimRad + this.torsoYaw);
     this.qArmTorso = qNormalize(qMul(qYawTrim, qRawArm));
     this.qArm = qNormalize(qMul(qTorsoToCam, this.qArmTorso));

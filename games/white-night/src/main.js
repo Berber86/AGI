@@ -136,6 +136,7 @@ function ensureWrist(){
    onHandSide:side=>setVrHandSide(side,{fromRemote:true}),
    onStatus:()=>{if($('#vr-dialog')?.open)syncVrPrep();}
   });
+  wristLink.hostHandSide=vrSettings.handSide;
  }
  return wristFusion;
 }
@@ -258,7 +259,7 @@ function stopVr(reason='exit'){
  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
  world.resize();updateUI();
  if(pendingCompletion){pendingCompletion=false;renderComplete();$('#complete-dialog').showModal();}
- else if(reason!=='hidden')notify('VR-обзор завершён. Находки из очков уже в коллекции.');
+ else if(reason!=='hidden'&&state.phase!=='inspect')notify('VR-обзор завершён. Находки из очков уже в коллекции.');
  return true;
 }
 function stepVrLook(dt){const look=vrLook.update(dt);world.setHeadLook(look.yaw,look.pitch);return look;}
@@ -321,8 +322,8 @@ function bind(){
  $('#vr-camera').addEventListener('click',e=>{if(!vrPickSide)return;const look=ensureVrLook(),sample=look.tracker.sampleColor(e.clientX,e.clientY,e.currentTarget.getBoundingClientRect());if(!sample||sample.chroma<35)return;if(vrPickSide==='left')vrSettings.leftHue=Math.round(sample.hue);else vrSettings.rightHue=Math.round(sample.hue);look.setHues(vrSettings.leftHue,vrSettings.rightHue);if(look.tracker.calibrated)look.tracker.clearCalibration();persistVrSettings();vrPrepNote='Цвет обновлён. Покажите обе метки и снова зафиксируйте центр.';vrPickSide=null;look.tracker.process(true);syncVrPrep();});
  $('#vr-calibrate').addEventListener('click',()=>{const look=ensureVrLook();look.tracker.process(true);const result=look.tracker.calibrate();vrPrepNote=result.ok?'':result.message;syncVrPrep();});
  $$('[data-hand-side]').forEach(b=>b.addEventListener('click',()=>setVrHandSide(b.dataset.handSide)));
- $('#vr-hand-room-btn').addEventListener('click',async()=>{ensureWrist();wristCalNote='';await wristLink.startFirebase($('#vr-hand-fb')?.value||'');syncVrPrep();});
- $('#vr-hand-demo-btn').addEventListener('click',()=>{ensureWrist();wristCalNote='';wristLink.startDemo('111111');syncVrPrep();});
+ $('#vr-hand-room-btn').addEventListener('click',async()=>{ensureWrist();wristCalNote='';await wristLink.startFirebase($('#vr-hand-fb')?.value||'',vrSettings.handSide);syncVrPrep();});
+ $('#vr-hand-demo-btn').addEventListener('click',()=>{ensureWrist();wristCalNote='';wristLink.startDemo('111111',vrSettings.handSide);syncVrPrep();});
  $('#vr-hand-cam-btn').addEventListener('click',async()=>{const tr=ensureBeaconTracker();if(tr.running)tr.stop();else await tr.start($('#vr-hand-camera'));syncVrPrep();});
  $('#vr-hand-cal1').addEventListener('click',()=>runWristCalibrationStep('pose1'));
  $('#vr-hand-cal2').addEventListener('click',()=>runWristCalibrationStep('pose2'));
@@ -338,7 +339,7 @@ function bind(){
  canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>10){drag.moved=true;if(state.phase!=='inspect'&&!vrActive)markLookUsed();}if(state.phase==='inspect'){world.rotate(dx,dy);updateViews();}else if(!vrActive){world.lookBy(dx,dy);}drag.x=e.clientX;drag.y=e.clientY;});
  canvas.addEventListener('pointerup',e=>{clearTimeout(vrHoldTimer);if(!drag||drag.id!==e.pointerId)return;const tap=!drag.moved;drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(tap&&state.phase==='search'&&world.hitBin(e.clientX,e.clientY))search();});canvas.addEventListener('pointercancel',()=>{clearTimeout(vrHoldTimer);drag=null;});canvas.addEventListener('lostpointercapture',()=>{clearTimeout(vrHoldTimer);drag=null;});
  document.addEventListener('visibilitychange',()=>{paused=document.hidden;drag=null;lastTime=0;if(document.hidden&&vrActive)stopVr('hidden');});window.addEventListener('blur',()=>drag=null);window.addEventListener('resize',()=>{world.resize();if(vrActive)syncVrStereoMode();if(dialogs.some(d=>d.open))world.update(.016);});
- document.addEventListener('fullscreenchange',()=>{if(vrActive&&!document.fullscreenElement)stopVr('fullscreen');});window.addEventListener('pagehide',()=>{if(vrPendingSave)finishVrFind('pagehide');if(vrActive)vrLook?.stop();vrBeaconTracker?.stop();wristLink?.stop();});
+ document.addEventListener('fullscreenchange',()=>{if(vrActive&&!document.fullscreenElement)stopVr('fullscreen');});window.addEventListener('pagehide',()=>{if(vrPendingSave)finishVrFind('pagehide');else if(vrActive&&state.phase==='inspect'&&!state.reviewing){if(!world.revealState?.ready){world.finishReveal();syncReveal();}decide(true,{fromVr:true});}if(vrActive)vrLook?.stop();vrBeaconTracker?.stop();wristLink?.stop();});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&vrActive){e.preventDefault();stopVr('escape');return;}if(e.key==='Escape'&&!dialogs.some(d=>d.open)&&state.phase==='inspect'){e.preventDefault();if(state.reviewing)closeReview();else{world.finishReveal();syncReveal();decide(false);}}});
  canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;$('#webgl-error').hidden=false;});
 }
@@ -360,7 +361,7 @@ async function start(){
    gyro:(yawDeg,pitchDeg,steps=10,dt=.03)=>setVrGyroAbsolute(yawDeg,pitchDeg,steps,dt),
    marker:(markers,now)=>ensureVrLook().tracker.inject(markers,now),
    calibrate:now=>ensureVrLook().tracker.calibrate(now),
-   wristDemo:code=>{ensureWrist();return wristLink.startDemo(code||'111111');},
+   wristDemo:code=>{ensureWrist();return wristLink.startDemo(code||'111111',vrSettings.handSide);},
    wristPacket:(pkt,now=performance.now())=>{ensureWrist();wristLink.injectPacket(pkt,now);return vrInfoSnapshot();},
    wristBeacon:(spots,now=performance.now())=>{ensureWrist();return ensureBeaconTracker().inject(spots,now);},
    wristCalibrateStretch:()=>runWristCalibrationStep('pose1'),

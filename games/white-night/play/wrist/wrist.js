@@ -112,6 +112,7 @@ const sensorState = {
   active: false,
   synthetic: false,
   handSide: 'right',
+  explicitSide: false,
   q: [0, 0, 0, 1],
   linMag: 0,
   rotRate: 0,
@@ -123,6 +124,7 @@ const sensorState = {
 const link = {
   mode: 'off', // 'off' | 'demo' | 'firebase'
   room: '',
+  sid: 's' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4),
   connected: false,
   p2pOpen: false,
   route: 'idle',
@@ -141,6 +143,8 @@ const link = {
   lastPongAt: 0,
   lastFastTxAt: 0,
   lastFbWriteAt: 0,
+  lastHelloSentAt: 0,
+  answerSentAt: 0,
   wakeLock: null,
   txTimer: null,
   pingTimer: null,
@@ -268,6 +272,7 @@ function buildPacket() {
   return {
     k: 'wrist',
     room: link.room,
+    sid: link.sid,
     seq: link.seq,
     q: sensorState.q.map((v) => +v.toFixed(5)),
     linMag: sensorState.linMag,
@@ -315,11 +320,19 @@ function startTransmitLoop() {
   }, 16);
 
   link.pingTimer = setInterval(() => {
+    const now = performance.now();
     const ch = link.dcCtrl?.readyState === 'open' ? link.dcCtrl : link.dcFast;
     if (ch?.readyState === 'open') {
-      try { ch.send(JSON.stringify({ k: 'ping', t: Math.round(performance.now()) })); } catch { /* ignore */ }
-    } else if (link.mode === 'firebase' && link.db && link.fbMod) {
-      // Напоминаем хосту поднять новый оффер, если прямой канал ещё не открыт
+      try { ch.send(JSON.stringify({ k: 'ping', t: Math.round(now) })); } catch { /* ignore */ }
+    } else if (
+      link.mode === 'firebase' &&
+      link.db &&
+      link.fbMod &&
+      now - link.lastHelloSentAt >= 5000 &&
+      now - link.answerSentAt >= 4500
+    ) {
+      // Напоминаем хосту поднять новый оффер только если текущее рукопожатие WebRTC не в процессе!
+      link.lastHelloSentAt = now;
       const { ref, set } = link.fbMod;
       set(ref(link.db, `wn_wrist_rooms/${link.room}/rtc/hello`), { ts: Date.now() }).catch(() => {});
     }
@@ -371,6 +384,7 @@ function renderHandSideUI() {
 function setHandSide(side, broadcast = true) {
   const clean = side === 'left' ? 'left' : 'right';
   sensorState.handSide = clean;
+  if (broadcast) sensorState.explicitSide = true;
   try { localStorage.setItem(HAND_SIDE_KEY, clean); } catch { /* ignore */ }
   renderHandSideUI();
   if (!broadcast || link.mode === 'off') return;
@@ -395,6 +409,8 @@ function connectDemo(code) {
   els.roomCode.value = cleanCode;
   link.mode = 'demo';
   link.room = cleanCode;
+  link.sid = 's' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+  link.seq = 0;
   link.connected = true;
   link.p2pOpen = true;
   if (typeof BroadcastChannel !== 'undefined') {
@@ -404,12 +420,22 @@ function connectDemo(code) {
       if (!d || String(d.room) !== link.room) return;
       if (d.k === 'ack') {
         link.connected = true;
+        if (!sensorState.explicitSide && (d.side === 'left' || d.side === 'right')) {
+          setHandSide(d.side, false);
+        }
         renderStatus();
       } else if (d.k === 'hand_side' && (d.side === 'left' || d.side === 'right')) {
         setHandSide(d.side, false);
       }
     };
-    link.bc.postMessage({ k: 'hello', room: link.room, side: sensorState.handSide, ts: Date.now() });
+    link.bc.postMessage({
+      k: 'hello',
+      room: link.room,
+      sid: link.sid,
+      side: sensorState.handSide,
+      explicitSide: sensorState.explicitSide,
+      ts: Date.now(),
+    });
   }
   requestSensors();
   acquireWakeLock();
@@ -458,9 +484,13 @@ async function connectFirebase() {
 
     const { ref, set, push, onValue, onChildAdded } = dbMod;
     const roomPath = `wn_wrist_rooms/${code}`;
-    await set(ref(link.db, `${roomPath}/wristJoined`), { ts: Date.now() });
-    await set(ref(link.db, `${roomPath}/handSide`), { side: sensorState.handSide, ts: Date.now() });
-    await set(ref(link.db, `${roomPath}/rtc/hello`), { ts: Date.now() });
+    link.sid = 's' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+    link.seq = 0;
+    link.lastHelloSentAt = performance.now();
+    await set(ref(link.db, `${roomPath}/wristJoined`), { sid: link.sid, ts: Date.now() });
+    if (sensorState.explicitSide) {
+      await set(ref(link.db, `${roomPath}/handSide`), { side: sensorState.handSide, ts: Date.now() });
+    }
     link.connected = true;
 
     link.unsubs.push(
@@ -574,6 +604,7 @@ async function answerOffer(offer) {
     }
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+    link.answerSentAt = performance.now();
     await set(ref(link.db, `${rtcBase}/answer`), {
       hid: currentHid,
       sdp: answer.sdp,
@@ -656,12 +687,16 @@ try {
   if (saved) els.fbConfig.value = saved;
   else els.fbDetails.open = true;
   const savedSide = localStorage.getItem(HAND_SIDE_KEY);
-  if (savedSide === 'left' || savedSide === 'right') sensorState.handSide = savedSide;
+  if (savedSide === 'left' || savedSide === 'right') {
+    sensorState.handSide = savedSide;
+    sensorState.explicitSide = true;
+  }
 } catch { /* ignore */ }
 
 const params = new URLSearchParams(window.location.search);
 if (params.get('hand') === 'left' || params.get('hand') === 'right') {
   sensorState.handSide = params.get('hand');
+  sensorState.explicitSide = true;
 }
 renderHandSideUI();
 if (params.get('room')) els.roomCode.value = params.get('room').replace(/\D/g, '').slice(0, 6);

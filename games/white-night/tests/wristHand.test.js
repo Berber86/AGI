@@ -742,5 +742,56 @@ test('recenterOnSessionStart defers while player holds Cardboard goggles at fore
   assert.ok(snap.pos.x > 0.04 && snap.pos.x < 0.25, `arm centered in front of chair: x=${snap.pos.x}`);
 });
 
+test('WristHostLink protects in-flight WebRTC offers from 1.2s abort livelock and accepts seq=1 immediately on wrist reload', () => {
+  const received = [];
+  const link = new WristHostLink({ onSensor: (s) => received.push(s) });
+
+  // 1) Пока оффер собирает ICE-кандидаты (< 4.5 с, connectionState = 'connecting'), повторный hello не рвёт его
+  link.pc = { connectionState: 'connecting' };
+  link.offerStartedAt = 1000;
+  assert.equal(link._isOfferNegotiating(2200), true, 'active WebRTC handshake must not be aborted at 1.2s');
+  assert.equal(link._isOfferNegotiating(6000), false, 'expired handshake (>4.5s) allows retry');
+  link.pc = { connectionState: 'failed' };
+  assert.equal(link._isOfferNegotiating(2200), false, 'failed PC allows immediate retry');
+
+  // 2) После 35 секунд работы (seq = 2100) обычное опоздание старого UDP-пакета (seq = 2098) того же sid отбрасывается...
+  link._handlePacket({ sid: 's-first', seq: 2100, q: [0, 0, 0, 1] }, true);
+  assert.equal(received.length, 1);
+  link._handlePacket({ sid: 's-first', seq: 2098, q: [0, 0, 0, 1] }, true);
+  assert.equal(received.length, 1, 'out-of-order UDP packet within same session is ignored');
+
+  // ...но при перезагрузке вкладки браслета (новый sid, seq снова 1) пакет принимается МГНОВЕННО без 35-секундной заморозки!
+  link._handlePacket({ sid: 's-reloaded', seq: 1, q: [0, 0, 0, 1] }, true);
+  assert.equal(received.length, 2, 'reloaded wrist tab seq=1 is accepted with zero dropped frames');
+});
+
+test('Neck-only head turn (+45 deg) keeps outstretched arm steady in world space without false elbow bend', () => {
+  const fusion = new WristHandFusion('right');
+  const qPose1 = w3cDeviceQuaternion(0, 90, 0, 0);
+  const qPose2 = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qPose1);
+  fusion.feedSensor({ q: qPose1, ts: 0 });
+  fusion.calibrateStretchPose();
+  fusion.feedSensor({ q: qPose2, ts: 10 });
+  fusion.calibrateBendPose();
+
+  // Игрок держит прямую руку неподвижно в сторону бака (0° в комнате),
+  // а ПОВОРАЧИВАЕТ ТОЛЬКО ГОЛОВУ на +45° вправо, рассматривая окна двора!
+  let snap;
+  for (let i = 0; i < 40; i++) {
+    const t = 100 + i * 25;
+    fusion.feedSensor({ q: qPose1, linMag: 0, rotRate: 0, ts: t });
+    snap = fusion.update(0.025, { phase: 'search', headLook: { yaw: 45 * DEG, pitch: 0 }, now: t });
+  }
+  assert.ok(Math.abs(fusion.torsoYaw) < 2 * DEG, `torso stays still on neck-only turn: torsoYaw=${fusion.torsoYaw / DEG}`);
+  assert.ok(snap.reach > 0.92, `arm stays fully extended without false chest bend: reach=${snap.reach}`);
+
+  // Переводим ориентацию кисти из повернувшейся камеры Ry(-45°) обратно в мир двора:
+  // рука должна остаться направленной точно вперёд к баку [0, 0, -1]!
+  const qWorldArm = qMul(qAxisAngle([0, 1, 0], -45 * DEG), snap.qArm);
+  const worldFwd = qRotVec(qWorldArm, [0, 0, -1]);
+  assert.ok(Math.abs(worldFwd[0]) < 0.03 && worldFwd[2] < -0.99, `world arm stays aimed at bin: ${JSON.stringify(worldFwd)}`);
+});
+
+
 
 

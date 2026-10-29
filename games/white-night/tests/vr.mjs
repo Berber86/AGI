@@ -360,8 +360,18 @@ try {
     wristHref.includes('room=777777') && wristHref.includes('hand=left') && wristHref.includes('demo=1'),
     `dynamic wrist link href=${wristHref}`
   );
+  // Reload wrist tab from scratch (seq restarts at 1, no explicit handSide in localStorage):
+  // verify it adopts host's 'left' choice via ack AND packets flow immediately with zero seq freeze!
+  await wristPage.evaluate(() => localStorage.removeItem('wn_wrist_hand_side'));
+  await wristPage.goto(wristUrl, { waitUntil: 'networkidle0' });
+  await wristPage.evaluate(() => window.__WRIST_TEST__.setPose({ alpha: 0, beta: 90, gamma: 0 }));
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  const wristReloaded = await wristPage.evaluate(() => window.__WRIST_TEST__.status());
+  assert.equal(wristReloaded.handSide, 'left', 'Unconfigured wrist adopts host handSide on join');
+  const hostAfterReload = await vr(page);
+  assert.equal(hostAfterReload.wrist.link.fresh, true, 'Reloaded wrist seq=1 packets accepted immediately');
   await page.evaluate(() => window.__GAME_TEST__.vr.setHandSide('right'));
-  check('Reopening VR dialog auto-resumes granted gyro and updates companion link URL params');
+  check('Reopening VR dialog, reloading wrist tab (seq=1), and companion link URL params all stay synced');
   await wristPage.close();
   await page.close();
 

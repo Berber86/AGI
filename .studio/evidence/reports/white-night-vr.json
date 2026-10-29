@@ -18,7 +18,7 @@
     "Twisting the wrist rotates the 3D find and a sharp wave throws/discards it",
     "Calmly lowering the hand downward saves the find into the collection",
     "Right/Left wrist choice syncs bidirectionally and mirrors 2-bone elbow & glove anatomy",
-    "Reopening VR dialog auto-resumes granted gyro and updates companion link URL params",
+    "Reopening VR dialog, reloading wrist tab (seq=1), and companion link URL params all stay synced",
     "No page errors, console errors or failed HTTP responses"
   ],
   "gaze": {
