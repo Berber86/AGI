@@ -79,12 +79,15 @@ test('WristBeaconTracker detects dual luminous spots (#00ff66 + #ff00aa) and mea
 
   const farRes = tracker.analyzeRgba(farFrame, 200, 150, 100);
   assert.equal(farRes.status, 'pair');
-  assert.ok(Math.abs(farRes.u - 0.54) < 0.02);
-  assert.ok(Math.abs(farRes.spanNorm - 0.10) < 0.02);
+  assert.ok(Math.abs(farRes.rawU - 0.54) < 0.02);
+  assert.ok(Math.abs(farRes.rawSpanNorm - 0.10) < 0.02);
 
   const nearRes = tracker.analyzeRgba(nearFrame, 200, 150, 200);
   assert.equal(nearRes.status, 'pair');
-  assert.ok(nearRes.spanNorm > farRes.spanNorm * 2.1);
+  // Сырое измерение кадра: «кисть ближе -> пятно крупнее» — это физика оптики, а не
+  // слежение. В слияние же уходит spanNorm (сглаженный) — иначе шум центроида 11 раз в
+  // секунду пиныл бы позу (именно это и давало «безумные рывки» на реальном телефоне).
+  assert.ok(nearRes.rawSpanNorm > farRes.rawSpanNorm * 2.1);
 });
 
 test('2-gesture calibration solves arbitrary wrist strap angles (portrait, transverse, oblique)', () => {

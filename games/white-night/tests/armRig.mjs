@@ -198,8 +198,8 @@ export function makeBeaconModel(opts = {}) {
       const off = add3(scale3(devY, along), scale3(devX, across));
       const d1 = add3(pose.wrist, off);
       const d2 = sub3(pose.wrist, off);
-      const p1 = project(d1);
-      const p2 = project(d2);
+      let p1 = project(d1);
+      let p2 = project(d2);
       if (
         [p1, p2].some((p) => !(p.u > 0.02 && p.u < 0.98 && p.v > 0.02 && p.v < 0.98))
       ) {
@@ -217,6 +217,13 @@ export function makeBeaconModel(opts = {}) {
           ageMs: 20,
         };
       }
+      // Шум центроида добавляется ДО трекера — иначе гейт не проверял бы, что фильтр
+      // измерения действительно гасит дребезг (шум после фильтра был бы «сырым» пинком).
+      if (opts2.noise) {
+        const j = opts2.noise;
+        p1 = { u: p1.u + j(), v: p1.v + j() };
+        p2 = { u: p2.u + j(), v: p2.v + j() };
+      }
       const injected = tracker.inject({ distal: p1, proximal: p2 }, now);
       const fovFudge = opts2.spanFudge ?? 1;
       const span = injected.spanNorm * fovFudge;
@@ -225,6 +232,12 @@ export function makeBeaconModel(opts = {}) {
         u: injected.u,
         v: injected.v,
         spanNorm: span,
+        // Сырое измерение оптики (для тестов «что видно в кадре» и калибровки-линейки):
+        // spanNorm выше — сглаженный, его видит слияние.
+        rawU: injected.rawU ?? injected.u,
+        rawV: injected.rawV ?? injected.v,
+        rawSpanNorm: (injected.rawSpanNorm ?? injected.spanNorm) * fovFudge,
+        rawRollRad: injected.rawRollRad ?? injected.rollRad,
         rollRad: injected.rollRad,
         fresh: true,
         ts: now,

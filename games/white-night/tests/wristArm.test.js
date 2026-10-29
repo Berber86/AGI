@@ -195,7 +195,7 @@ test('beacon geometry stays measurable: span never collapses to zero for a strai
     for (const elbowDeg of [0, 15, 30, 45]) {
       const pose = poseArm({ side: 'right', elbowDeg, raiseDeg: 0, inwardDeg: 20 });
       const s = flat.sample(pose, 1000 + elbowDeg, { layout });
-      spans.push(s.status === 'pair' ? s.spanNorm : 0);
+      spans.push(s.status === 'pair' ? s.rawSpanNorm : 0);
     }
     const worst = Math.min(...spans);
     if (layout === 'diagonal') {
@@ -210,7 +210,7 @@ test('beacon geometry stays measurable: span never collapses to zero for a strai
       const pose = poseArm({ side: 'right', elbowDeg, raiseDeg: 0, inwardDeg });
       const s = flat.sample(pose, 1000 + elbowDeg, { layout: 'stacked' });
       if (s.status !== 'pair') continue;
-      worstSpan = Math.min(worstSpan, s.spanNorm);
+      worstSpan = Math.min(worstSpan, s.rawSpanNorm);
     }
   }
   assert.ok(worstSpan > 0.018, `минимальный видимый разнос ${worstSpan.toFixed(4)} < порога 0.018`);
@@ -219,7 +219,7 @@ test('beacon geometry stays measurable: span never collapses to zero for a strai
   const nearFar = [0.9, 0.7, 0.55, 0.45].map((d) => {
     const pose = poseArm({ side: 'right', elbowDeg: 62, raiseDeg: 0, inwardDeg: 0 });
     const scaled = { ...pose, wrist: pose.wrist.map((c) => c * d) };
-    return flat.sample(scaled, 1000, { layout: 'stacked' }).spanNorm;
+    return flat.sample(scaled, 1000, { layout: 'stacked' }).rawSpanNorm;
   });
   for (let i = 1; i < nearFar.length; i++) {
     assert.ok(nearFar[i] > nearFar[i - 1] * 1.05, `ближе — а пятно мельче: ${nearFar.join(', ')}`);

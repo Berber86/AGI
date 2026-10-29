@@ -123,7 +123,11 @@ function runWristCalibrationStep(step){
 }
 function setVrHandSide(side,{fromRemote=false}={}){
  const clean=side==='left'?'left':'right';
+ const changed=clean!==vrSettings.handSide;
  vrSettings.handSide=clean;persistVrSettings();
+ // Смена руки = новый объект наблюдения: фильтр измерения маяка обязан начаться заново,
+ // иначе левая кисть первые полсекунды «вытягивается» из правой и боковой знак врёт.
+ if(changed&&vrBeaconTracker)vrBeaconTracker.resetTracking();
  if(wristFusion)wristFusion.setHandSide(clean);
  world?.vrHand?.setHandSide?.(clean);
  if(!fromRemote)wristLink?.sendHandSide(clean);

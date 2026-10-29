@@ -26,6 +26,27 @@ const Q_ENU_TO_GL = [-Math.SQRT1_2, 0, 0, Math.SQRT1_2];
 export const UPPER_ARM_LEN = 0.33;
 export const FOREARM_LEN = 0.31;
 
+/* Порядок приоритетов источников (осознанная схема, а не «кто громче»):
+   1. Гироскоп запястья 60 Гц — ВЕДУЩИЙ по движению: он знает каждый кадр, поэтому
+      рука не «догоняет» игрока на полпути (запаздывание движения ≈ одна пружина).
+   2. Камера ~11 Гц — КОРРЕКТИРУЮЩИЙ по положению: она одна знает абсолют, но говорит
+      редко. Её вес поднимается и опускается ТОЛЬКО плавно (OPTIC_W_RATE), а выбор
+      корня и длина луча ограничены по скорости — иначе редкий, но резкий кадр оптики
+      перетягивает позу и рождает ровно тот рывок, который бесит на телефоне.
+   3. Анатомия (длина костей) — закон, а не предпочтение: дальше выпрямленной руки и
+      ближе «внутрь плеча» запястье не уходит никогда.
+   4. Когда данных нет — держим последнее честное решение (самопроизвольное разгибание
+      руки заметнее и хуже, чем сохранение позы).
+   5. Выход проходит через пружину критического демпфирования с потолками скорости и
+      ускорения — «безумный рывок» становится физически невозможным на уровне вывода.
+   Цена: поза отстаёт на ~1 кадр оптики + 60..120 мс пружины. Разовые ложные взмахи
+   допустимы: канал жеста (linMag/rotRate) идёт мимо этих фильтров и остаётся резким. */
+const OPTIC_TAU_RISE = 0.1; // с — как быстро набираем доверие к маяку
+const OPTIC_TAU_FALL = 0.38; // с — как медленно его отпускаем (пропало пятно ≠ проzyła поза)
+const OPTIC_W_RATE = 2.2; // 1/с — потолок скорости кроссфейда «гироскоп ↔ оптика»
+const MAX_WRIST_SPEED = 4.6; // м/с — быстрее кисть игрока не летает
+const MAX_WRIST_ACC = 40; // м/с² — потолок ускорения: он и убирает рывок
+
 function clamp(v, lo, hi) {
   return v < lo ? lo : v > hi ? hi : v;
 }
@@ -303,6 +324,9 @@ export class WristHandFusion {
     this.prevBeaconSpan = NaN; // приращение видимого разноса маяка — страж согласованности
     this.prevSolvedLen = NaN;
     this.beaconRho = NaN; // непрерывность выбора корня оптики (метры от камеры до запястья)
+    this.confEff = 0; // сглаженное доверие к маяку (сырое conf — только «данные есть/нет»)
+    this.opticRootNear = false; // какая из двух анатомических гипотез выбрана сейчас
+    this.opticW = 0; // текущий вес оптики в смеси (растёт и тает только плавно)
     this.bendHoldRad = 0; // последний уверенно решённый угол локтя
     this.holdTiltRad = 0; // наклон оси предплечья в тот же момент
     this.bendHoldSet = false;
@@ -770,10 +794,17 @@ export class WristHandFusion {
         bendGyroRad -= Math.min(bendGyroRad * 0.55, (upTilt - foldRange) * (1 - inwardCross) * 1.25);
       }
     } else {
-      // Расслабленная рука вдоль тела — почти прямая (лёгкий физиологический недосгиб).
+      // Предплечье смотрит вниз — сгибание это или рука висит вдоль тела, камера сейчас
+      // не говорит, поэтому это толькоprior: лёгкий физиологический недосгиб (локоть
+      // никогда не locked-out на 0°) плюс толика на «кисть далеко за линией тела».
+      // На КАНАЛ ЖЕСТА этот prior больше не влияет: reach берётся из расстояния (см. ниже),
+      // так что 40° здесь не «ломают» открытие бака — а для позы руки это честная анатомия.
       bendGyroRad = clamp(-armTiltRad * 0.18, 0, 40 * DEG);
     }
     bendGyroRad = clamp(bendGyroRad, 0, 150 * DEG);
+    // До удержания и до оптики — независимое показание датчика (им оно и должно судить,
+    // какая из двух анатомических гипотез активна, иначе фильтр сам себя кормит).
+    const bendSensorRad = bendGyroRad;
     // Глубокий сгиб локтя рука «доделывает» уже без оптики: кисть у груди уходит из
     // кадра шлема. Чтобы не угадывать, чья это работа (локтя или плеча), помним, КАКОЙ
     // сустав двинулся последним по честному измерению, и дельту наклона отдаём ему же.
@@ -862,9 +893,19 @@ export class WristHandFusion {
         this.torsoWristPos.z - shoulderTorso.z
       );
     }
+    this.confEff +=
+      (conf - this.confEff) *
+      (1 - Math.exp(-safeDt / (conf > this.confEff ? OPTIC_TAU_RISE : OPTIC_TAU_FALL)));
+    /* Асимметрия, и она принципиальна: свежий честный снимок принимаем СРАЗУ (иначе
+       первые 100 мс после захвата маяка позе неоткуда исправляться — на игре это
+       «промах мимо бака» и лишняя задержка жеста), а отпускаем медленно (см. τ выше):
+       обрыв видимости не должен выдёргивать авторитет у уже решённой позы. */
+    const confTrust = Math.max(conf, this.confEff);
     this.prevBeaconSpan = conf > 0 ? beacon.spanNorm : NaN;
     let optTarget = null;
-    if (conf > 0) {
+    // Данные (conf > 0) и накопленное доверие (confEff) — разные вещи: луч считаем,
+    // только если маяк действительно в кадре СЕЙЧАС, но верим ему в степени confEff.
+    if (conf > 0 && confTrust > 0.02) {
       const rayCam = vNorm([
         (beacon.u - 0.5) * 2 * tanH,
         -(beacon.v - 0.5) * 2 * tanH * aspectY,
@@ -878,17 +919,27 @@ export class WristHandFusion {
       const disc = ac * ac - (cx * cx + cy * cy + cz * cz) + UPPER_ARM_LEN * UPPER_ARM_LEN;
       let rho = ac;
       if (disc > 0) {
-        // У луча с сферой плеча два пересечения — это настоящая неоднозначность позы
-        // («локоть согнут и кисть близко» против «локоть выпрямлен и кисть далеко»).
-        // Разрешает её гироскоп: он независимо знает, согнут ли локоть прямо сейчас.
-        // Прежняя привязка к «предыдущему ρ» попадала в ловушку: однажды сложив руку,
-        // алгоритм уже не мог её разогнуть, потому что ближний корень оставался ближе всех.
+        // У луча с сферой плеча ДВА пересечения — это настоящая неоднозначность позы.
+        /* Выбор корня: «локоть согнут и кисть близко» против «рука выпрямлена и далеко».
+           Судит ЧИСТОЕ показание гироскопа предплечья (bendSensorRad — ДО удержания и ДО
+           решения оптики). Это принципиально: прежний приор строился из уже решённой позы,
+           и получалась петля обратной связи — на неподвижной руке с шумом маяка локоть
+           уползал на 5° каждые 150 мс (замерено зондом). Размер пятна как линейка здесь не
+           участвует: он различает «далеко/близко», но подъём прямой руки и сгибание дают
+           похожую дистанцию — проверка на синтетическом теле это подтвердила. */
         const root = Math.sqrt(disc);
-        const priorCam = qRotVec(qTorsoToCam, [gyroTarget.x, gyroTarget.y, gyroTarget.z]);
-        const priorRho = Math.hypot(priorCam[0], priorCam[1], priorCam[2]) || chainMax;
         const farRoot = ac + root;
         const nearRoot = ac - root;
-        rho = Math.abs(farRoot - priorRho) <= Math.abs(nearRoot - priorRho) ? farRoot : nearRoot;
+        const upperDirPrior = qRotVec(qAxisAngle(flexAxis, bendSensorRad), fwd);
+        const priorWrist = [
+          shoulderTorso.x + UPPER_ARM_LEN * upperDirPrior[0] + FOREARM_LEN * fwd[0],
+          shoulderTorso.y + UPPER_ARM_LEN * upperDirPrior[1] + FOREARM_LEN * fwd[1],
+          shoulderTorso.z + UPPER_ARM_LEN * upperDirPrior[2] + FOREARM_LEN * fwd[2],
+        ];
+        const priorCam = qRotVec(qTorsoToCam, priorWrist);
+        const priorRho = Math.hypot(priorCam[0], priorCam[1], priorCam[2]) || chainMax;
+        this.opticRootNear = Math.abs(nearRoot - priorRho) < Math.abs(farRoot - priorRho);
+        rho = this.opticRootNear ? nearRoot : farRoot;
       }
       rho = clamp(rho, minChain * 0.7, maxChain + 0.24);
       if (!Number.isFinite(this.beaconRho)) this.beaconRho = rho;
@@ -900,11 +951,19 @@ export class WristHandFusion {
         ray[2] * this.beaconRho,
       ];
     }
+    // Доверие к оптике — величина НАКОПИТЕЛЬНАЯ: пустой кадр не должен в один миг
+    // возвращать весь авторитет гироскопу, а найденный маяк — в один миг перетягивать позу.
     if (optTarget) {
       // Смешиваем НЕ координаты (сredняя двух точек «короче» обеих — именно так локоть
       // и заклинивало), а направление и длину отдельно: луч камеры даёт направление,
       // анатомическое решение — расстояние до запястья.
-      const w = clamp(0.78 * conf, 0, 0.78);
+      const wTarget = clamp(0.78 * confTrust, 0, 0.78);
+      // ВВЕРХ вес отпускаем быстро (это просто «увидели маяк» — см. шум, он отфильтрован
+      // на уровне измерения), а ВНИЗ — медленно: обрыв видимость не должен выдёргивать
+      // позу из-под игрока. Асимметрия и есть «плавность к актуальному состоянию».
+      const maxWStep = (wTarget > this.opticW ? 8 : OPTIC_W_RATE) * safeDt;
+      this.opticW += clamp(wTarget - this.opticW, -maxWStep, maxWStep);
+      const w = this.opticW;
       const gdx = gyroTarget.x - shoulderTorso.x;
       const gdy = gyroTarget.y - shoulderTorso.y;
       const gdz = gyroTarget.z - shoulderTorso.z;
@@ -923,15 +982,27 @@ export class WristHandFusion {
         z: shoulderTorso.z + dir[2] * len,
       };
     }
-    this.trackingSource = sensorStale ? 'stale' : conf > 0.5 ? 'gyro+beacon' : 'gyro-only';
+    // Петля гистерезиса в 0.1 по метке источника: на границе доверия label не должен
+    // мигать 11 раз в секунду (тесты и HUD читают именно её).
+    this.trackingSource = sensorStale
+      ? 'stale'
+      : conf > 0 && confTrust > 0.55
+        ? 'gyro+beacon'
+        : confTrust < 0.45
+          ? 'gyro-only'
+          : this.trackingSource;
 
-    if (optTarget && conf > 0.5) {
+    if (optTarget && confTrust > 0.5) {
       // Плавная компенсация горизонтального дрейфа гироскопа (до 12°/с): сравниваем
       // не «придуманную» позицию, а ЧЕСТНУЮ проекцию кинематической модели в кадр камеры.
       const expectedCam = qRotVec(qTorsoToCamAtBeacon, [gyroTarget.x, gyroTarget.y, gyroTarget.z]);
       if (expectedCam[2] < -0.08) {
         const expectedU = clamp(0.5 + expectedCam[0] / -expectedCam[2] / (2 * tanH), 0.06, 0.94);
-        const uErr = beacon.u - expectedU;
+        // МЁРТВАЯ ЗОНА в шум: иначе trim (единственный канал, который крутит весь корпус
+        // вслед за маяком) интегрирует шум центроида — и неподвижная рука ползёт со
+        // скоростью до 12°/с, а это и есть «ложные взмахи» + дрейф позы в покое.
+        const uErrRaw = beacon.u - expectedU;
+        const uErr = Math.abs(uErrRaw) < 0.008 ? 0 : uErrRaw - Math.sign(uErrRaw) * 0.008;
         const maxTrimStep = 12 * DEG * safeDt;
         this.yawTrimRad = clamp(
           this.yawTrimRad - clamp(uErr * 0.35, -maxTrimStep, maxTrimStep),
@@ -971,15 +1042,51 @@ export class WristHandFusion {
       }
     }
 
-    // 4. Критически демпфированная пружина 2-го порядка (масса предплечья, без дрожи и перерегулирования!)
+    if (!optTarget) {
+      // Маяк пропал — вес оптики не «отваливается» кадром, а съезжает к нулю с той же
+      // скоростью: поза уходит к гироскопу плавно, без щелчка.
+      this.opticW = Math.max(0, this.opticW - OPTIC_W_RATE * safeDt);
+    }
+
+    // 4. Критически демпфированная пружина 2-го порядка (масса предплечья, без дрожи и
+    //    перерегулирования) С ПОТОЛКАМИ: скорость и ускорение кисти ограничены, поэтому
+    //    даже полностью «сдвинувшаяся» оценка цели не способна дать визуальный рывок —
+    //    ошибка съедается за 2-4 кадра заметным, но плавным доводнением.
     const omega = 26; // рад/с (~4.1 Гц собственная частота живой руки)
     const subSteps = Math.max(1, Math.ceil(safeDt / 0.017));
     const hDt = safeDt / subSteps;
+    const maxDVel = MAX_WRIST_ACC * hDt;
     for (let s = 0; s < subSteps; s++) {
+      const vPrevX = this.torsoWristVel.x;
+      const vPrevY = this.torsoWristVel.y;
+      const vPrevZ = this.torsoWristVel.z;
       for (const axis of ['x', 'y', 'z']) {
         const err = targetTorso[axis] - this.torsoWristPos[axis];
         const acc = omega * omega * err - 2 * omega * this.torsoWristVel[axis];
-        this.torsoWristVel[axis] += acc * hDt;
+        this.torsoWristVel[axis] += clamp(acc * hDt, -maxDVel, maxDVel);
+      }
+      const sp = Math.hypot(this.torsoWristVel.x, this.torsoWristVel.y, this.torsoWristVel.z);
+      // Потолок УСКОРЕНИЯ по модулю (а не по осям): иначе поворот вектора скорости
+      // внутри одного шага даёт «пинок» до √3 раз сильнее лимита, и глаз видит рывок.
+      if (sp > 1e-6) {
+        const kSpeed = Math.hypot(vPrevX, vPrevY, vPrevZ);
+        const dSpeed = sp - kSpeed;
+        if (Math.abs(dSpeed) > maxDVel) {
+          const target = kSpeed + Math.sign(dSpeed) * maxDVel;
+          const k = target / sp;
+          this.torsoWristVel.x *= k;
+          this.torsoWristVel.y *= k;
+          this.torsoWristVel.z *= k;
+        }
+      }
+      const sp2 = Math.hypot(this.torsoWristVel.x, this.torsoWristVel.y, this.torsoWristVel.z);
+      if (sp2 > MAX_WRIST_SPEED) {
+        const k = MAX_WRIST_SPEED / sp2;
+        this.torsoWristVel.x *= k;
+        this.torsoWristVel.y *= k;
+        this.torsoWristVel.z *= k;
+      }
+      for (const axis of ['x', 'y', 'z']) {
         this.torsoWristPos[axis] += this.torsoWristVel[axis] * hDt;
       }
     }
@@ -1001,7 +1108,11 @@ export class WristHandFusion {
 
     // Запоминаем решённое сгибание как опору для времени без оптики и заодно
     // «кто именно двигался»: локоть или плечо (знак и доля от приращения наклона).
-    if (conf > 0.5) {
+    // Удержание переписывается ТОЛЬКО когда оптика реально кормит позу в этом кадре:
+    // conf > 0 (данные есть) И confTrust > 0.5 (им верят). Иначе после секунды без камеры
+    // «накопленное доверие» ещё высоко, а обновлять нечего — и это обнуляло приращение,
+    // из-за которого локоть переставал догибаться вне кадра.
+    if (conf > 0 && confTrust > 0.5) {
       if (this.bendHoldSet) {
         const dBend = bendSolvedRad - this.bendHoldRad;
         const dElev = armTiltRad - this.holdTiltRad - dBend;
@@ -1016,11 +1127,23 @@ export class WristHandFusion {
 
     // «Насколько рука выпрямлена» (0..1) — из РЕШЁННОГО сгибания локтя, а не из догадок,
     // и нормируется собственным диапазоном игрока из калибровки (жест 2 = полный сгиб).
-    const reachTarget = clamp(
-      1 - 0.84 * clamp(bendSolvedRad / this.bendSpanRad, 0, 1.15),
-      0.06,
-      1.02
+    /* «Насколько рука выпрямлена» — из РАССТОЯНИЯ плечо-кисть, а не из угла локтя:
+       вблизи полной выпрямленности угол = acos(...) и его производная по расстоянию
+       уходит в бесконечность — 1 см ошибки смешения оценок давал 20° «сгиба» и reach
+       падал с 0.99 до 0.63 (на этом и спотыкалось открытие бака). Расстояние же
+       линейно, а калибровка игрока входит аналитически: d(сгиб) = √(L1²+L2²+2L1L2·cos φ),
+       где φ = 180° − сгиб, поэтому «полный сгиб» из жеста 2 превращается в расстояние,
+       а не в эмпирический коэффициент. */
+    const chainSq = UPPER_ARM_LEN * UPPER_ARM_LEN + FOREARM_LEN * FOREARM_LEN;
+    const chain2 = 2 * UPPER_ARM_LEN * FOREARM_LEN;
+    const distFolded = Math.sqrt(Math.max(0.01, chainSq + chain2 * Math.cos(this.bendSpanRad)));
+    const reachSpan = Math.max(0.05, chainMax - distFolded);
+    const distNow = Math.hypot(
+      targetTorso.x - shoulderTorso.x,
+      targetTorso.y - shoulderTorso.y,
+      targetTorso.z - shoulderTorso.z
     );
+    const reachTarget = clamp(1 - 0.84 * clamp((chainMax - distNow) / reachSpan, 0, 1.15), 0.06, 1.02);
     this.reach += (reachTarget - this.reach) * (1 - Math.exp(-safeDt * 18));
 
     // Переводим все три сустава и скорость из системы корпуса в систему камеры очков!

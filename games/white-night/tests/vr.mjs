@@ -290,8 +290,11 @@ try {
   const preWrist = await vr(page);
   const torsoYawDeg = ((preWrist.wrist?.hand?.torsoYaw ?? 0) * 180) / Math.PI;
   const seenBeacon = straightRightArmBeacon(gaze.yaw - torsoYawDeg, gaze.pitch);
+  // Штамп = КОНЕЦ интервала шага: тест сжимает 350 мс в один evaluate, а на телефоне за
+  // это время прилетело бы ~4 новых снимка маяка. Иначе последний кадр «протухает» ещё
+  // до того, как его увидит слияние, и оптический канал молчит там, где он обязан работать.
   info = await page.evaluate(({ t, beacon }) => {
-    window.__GAME_TEST__.vr.wristBeacon(beacon, t);
+    window.__GAME_TEST__.vr.wristBeacon(beacon, t + 350);
     return window.__GAME_TEST__.vr.step(0.35, t);
   }, { t: simClock, beacon: seenBeacon });
   simClock += 400;
@@ -335,7 +338,7 @@ try {
     const torsoYawNow = ((lastHand.torsoYaw ?? 0) * 180) / Math.PI;
     const beaconNow = straightRightArmBeacon(gaze.yaw - torsoYawNow, gaze.pitch);
     const stepInfo = await page.evaluate(({ t, beacon }) => {
-      window.__GAME_TEST__.vr.wristBeacon(beacon, t);
+      window.__GAME_TEST__.vr.wristBeacon(beacon, t + 350);
       return window.__GAME_TEST__.vr.step(0.35, t);
     }, { t: simClock, beacon: beaconNow });
     lastHand = stepInfo.wrist.hand;
@@ -427,25 +430,32 @@ try {
   });
   await new Promise((resolve) => setTimeout(resolve, 80));
   simClock += 1500;
-  // Локоть теперь определяется ГЕОМЕТРИЕЙ (луч камера→маяк + сфера плеча), а не догадкой
-  // по одному гироскопу. Значит, чтобы проверить зеркальную (левую) согнутую руку, надо
-  // честно показать камере левую кисть у груди: 0.30 м вместо 0.72 м, и пятно крупнее.
-  // Точку берём в СИСТЕМЕ КАМЕРЫ (у=0, наклон 0): слияние само переводит луч в систему
-  // корпуса по фактической позе головы на момент снимка, поэтому пиксель всегда честный,
-  // а значит пятно остаётся в кадре (иначе conf=0 и локотр решает один гироскоп).
-  const leftFold = straightRightArmBeacon(0, 0, 0.195, [-0.1, -0.1, -0.34]);
+  // Локоть определяется ГЕОМЕТРИЕЙ, поэтому левую согнутую руку надо ЧЕСТНО показать
+  // камере: точка берётся в системе КОРПУСА (кисть у груди слева, 0.45 м от головы) и
+  // проектируется с учётом ЖИВОГО доворота корпуса и наклона головы — иначе пятно улетает
+  // за край кадра, conf падает в 0, и локоть решал бы один гироскоп.
+  const dbgLeft = await vr(page);
+  const torsoYawLeft = ((dbgLeft.wrist?.hand?.torsoYaw ?? 0) * 180) / Math.PI;
+  // Кисть у груди слева: 0.35 м от плеча (это ~110° истинного сгиба) и 0.40 м от головы,
+  // поэтому пятно крупное (0.17) и обе точки гарантированно внутри кадра.
+  const leftFold = straightRightArmBeacon(gaze.yaw - torsoYawLeft, gaze.pitch, 0.17, [-0.13, -0.1, -0.37]);
   info = await page.evaluate(({ t, beacon }) => {
     window.__GAME_TEST__.vr.wristBeacon(beacon, t);
     return window.__GAME_TEST__.vr.step(0.45, t);
   }, { t: simClock, beacon: leftFold });
   simClock += 500;
   info = await page.evaluate(({ t, beacon }) => {
-    window.__GAME_TEST__.vr.wristBeacon(beacon, t + 90);
+    window.__GAME_TEST__.vr.wristBeacon(beacon, t + 450);
     return window.__GAME_TEST__.vr.step(0.45, t);
   }, { t: simClock, beacon: leftFold });
   assert.equal(info.wrist.hand.handSide, 'left');
   assert.equal(info.world.handSide, 'left');
-  assert.ok(info.world.handPosition[0] < -0.04, `left wrist x=${info.world.handPosition[0]}`);
+  assert.ok(
+    info.world.handPosition[0] < -0.04,
+    `левая кисть должна быть левее середины: x=${info.world.handPosition[0]} ` +
+      `beacon=${JSON.stringify(info.wrist.beacon)} src=${info.wrist.hand.trackingSource} ` +
+      `pos=${JSON.stringify(info.wrist.hand.pos)}`
+  );
   assert.ok(info.wrist.hand.elbowPos.x < -0.08, `left elbow x=${info.wrist.hand.elbowPos.x}`);
   assert.ok(
     info.wrist.hand.elbowBendDeg > 55,

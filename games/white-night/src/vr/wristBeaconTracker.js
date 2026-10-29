@@ -156,6 +156,11 @@ export class WristBeaconTracker {
     this.processMs = 0;
     this.lastPairAt = -10000;
     this.lastPairPos = { u: 0.5, v: 0.55, spanNorm: 0.12 };
+    // Гейт-фильтр измерения (см. _filterPair): оптика говорит ~11 Гц, и если отдавать
+    // в слияние сырое пятно, аватар получает пинок на каждом шуме центроида.
+    this.lp = null; // сглаженные u,v,разнос,угол пары
+    this.lpReject = 0; // подряд идущие «выбросы»: один — похоже на помеху, три — это движение
+    this.lpGap = 0;
     this.latest = {
       status: 'none',
       u: 0.5,
@@ -240,14 +245,22 @@ export class WristBeaconTracker {
       if (spanNorm >= 0.018 && spanNorm <= 0.58 && areaRatio <= 9) {
         const u = (distal.u + proximal.u) * 0.5;
         const v = (distal.v + proximal.v) * 0.5;
+        const smooth = this._filterPair({ u, v, spanNorm, rollRad: Math.atan2(-dy, dx) });
         this.lastPairAt = now;
-        this.lastPairPos = { u, v, spanNorm };
+        this.lpGap = 0;
+        this.lastPairPos = { u: smooth.u, v: smooth.v, spanNorm: smooth.spanNorm };
         this.latest = {
           status: 'pair',
-          u,
-          v,
-          spanNorm,
-          rollRad: Math.atan2(-dy, dx),
+          u: smooth.u,
+          v: smooth.v,
+          spanNorm: smooth.spanNorm,
+          rollRad: smooth.rollRad,
+          // «Сырое» измерение optics-канала — для калибровки и тестов оптики: фильтр
+          // выше — про слежение, а не про то, что реально видно в этом кадре.
+          rawU: u,
+          rawV: v,
+          rawSpanNorm: spanNorm,
+          rawRollRad: Math.atan2(-dy, dx),
           distalFound: true,
           proximalFound: true,
           ts: now,
@@ -264,12 +277,17 @@ export class WristBeaconTracker {
       now - this.lastPairAt <= SINGLE_GRACE_MS &&
       Math.hypot(one.u - this.lastPairPos.u, one.v - this.lastPairPos.v) <= 0.20
     ) {
+      this.lpGap++;
       this.latest = {
         status: 'single',
         u: one.u,
         v: one.v,
         spanNorm: this.lastPairPos.spanNorm,
         rollRad: this.latest.rollRad,
+        rawU: one.u,
+        rawV: one.v,
+        rawSpanNorm: this.lastPairPos.spanNorm,
+        rawRollRad: this.latest.rollRad,
         distalFound: !!distal.found,
         proximalFound: !!proximal.found,
         ts: now,
@@ -277,6 +295,10 @@ export class WristBeaconTracker {
       return this.latest;
     }
 
+    // Пару потеряли: фильтр НЕ обнуляем — иначе каждая короткая потеря маяка
+    // встречала бы слияние новым «прыжком» при возврате кисти в кадр.
+    this.lpGap++;
+    this.lpReject = 0;
     this.latest = {
       ...this.latest,
       status: 'none',
@@ -284,6 +306,49 @@ export class WristBeaconTracker {
       proximalFound: false,
     };
     return this.latest;
+  }
+
+  /**
+   * Приоритет 1 — фильтрация ИЗМЕРЕНИЯ (а не позы). Гейт по отклонению: обычный шум
+   * центроида (полпикселя) сглаживается коэффициентом 0.42, а реальное быстрое движение
+   * отличается тем, что «выброс» повторяется кадр за кадром — после трёх таких кадров
+   * фильтруемся почти мгновенно (0.92), чтобы не тащить руку с задержкой.
+   * После пропажи маяка первый кадр берётся осторожнее (0.5): новый луч мог «перескочить»
+   * на чужое пятно, а резкий перелёт позы как раз и выглядит как безумный рывок.
+   */
+  _filterPair(m) {
+    const lp = this.lp;
+    if (!lp) {
+      this.lp = { ...m };
+      return m;
+    }
+    const d = Math.hypot(m.u - lp.u, (m.v - lp.v) * this.aspectY, (m.spanNorm - lp.spanNorm) * 0.5);
+    let a = 0.42;
+    if (d > 0.3) {
+      this.lpReject = (this.lpReject || 0) + 1;
+      a = this.lpReject >= 3 ? 0.92 : 0.16;
+    } else {
+      this.lpReject = 0;
+      // Долгая слепота (больше полусекунды без пары) — усреднять с прошлым бессмысленно:
+      // за это время рука успела уйти куда угодно, и «смазанное» измерение как раз и
+      // рождает длинный догоняющий мах вместо честного нового кадра.
+      if (this.lpGap > 6) {
+        this.lp = { ...m };
+        this.lpGap = 0;
+        return m;
+      }
+    }
+    let dRoll = m.rollRad - lp.rollRad;
+    while (dRoll > Math.PI) dRoll -= 2 * Math.PI;
+    while (dRoll < -Math.PI) dRoll += 2 * Math.PI;
+    const out = {
+      u: lp.u + (m.u - lp.u) * a,
+      v: lp.v + (m.v - lp.v) * a,
+      spanNorm: lp.spanNorm + (m.spanNorm - lp.spanNorm) * a,
+      rollRad: lp.rollRad + dRoll * a,
+    };
+    this.lp = out;
+    return out;
   }
 
   process(force = false, now = performance.now()) {
@@ -303,6 +368,29 @@ export class WristBeaconTracker {
     }
     this.processMs = +(performance.now() - t0).toFixed(2);
     return this.latest;
+  }
+
+  /**
+   * Забыть историю слежения (фильтр измерения). Нужно при смене активной руки: пятно
+   * относится к ДРУГОМУ запястью, и усреднять его с позавчерашним положением левой кисти
+   * — значит соврать геометрии на величину до половины кадра.
+   */
+  resetTracking() {
+    this.lp = null;
+    this.lpReject = 0;
+    this.lpGap = 0;
+    // И сам последний снимок: он относится к ДРУГОМУ запястью. Пока он числится свежим,
+    // слияние тянуло новую активную руку на старое пятно (на телефоне это прикрыто
+    // протуханием по ageMs, но полагаться на таймер — не аргумент).
+    this.latest = {
+      ...this.latest,
+      status: 'none',
+      spanNorm: 0,
+      distalFound: false,
+      proximalFound: false,
+      ts: 0,
+    };
+    return true;
   }
 
   /**
