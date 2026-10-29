@@ -36,7 +36,8 @@ async function findGaze(page) {
       if (info.gazeHit) return { yaw, pitch };
     }
   }
-  throw new Error('No tested head angle placed the bin under the centre gaze ray');
+  const probe = await page.evaluate(() => ({ settings: window.__GAME_TEST__.vr.settings(), world: window.__GAME_TEST__.vr.info().world, m: window.__GAME_TEST__.getMetrics(), phase: window.__GAME_TEST__.getState() }));
+  throw new Error('No tested head angle placed the bin under the centre gaze ray :: ' + JSON.stringify(probe));
 }
 
 async function focusFor(page, gaze, seconds) {
@@ -208,7 +209,7 @@ try {
   wristPage.on('pageerror', (e) => errors.push(`wrist pageerror: ${e.message}`));
   wristPage.on('console', (m) => { if (m.type() === 'error') errors.push(`wrist console: ${m.text()}`); });
   await wristPage.setViewport({ width: 390, height: 780, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
-  const wristUrl = `http://127.0.0.1:${server.address().port}${prefix}wrist/index.html?demo=1&room=777777`;
+  const wristUrl = `http://127.0.0.1:${server.address().port}${prefix}wrist/index.html?test=1&demo=1&room=777777`;
 
   await page.evaluate(() => {
     window.__GAME_TEST__.reset();

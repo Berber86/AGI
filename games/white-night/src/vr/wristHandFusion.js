@@ -169,24 +169,6 @@ function basisColumnsToQuat(colX, colY, colZ) {
   return qNormalize([x, y, z, w]);
 }
 
-function quatToEulerYXZ([x, y, z, w]) {
-  const m20 = 2 * (x * z - w * y);
-  const m21 = 2 * (y * z + w * x);
-  const m22 = 1 - 2 * (x * x + y * y);
-  const m01 = 2 * (x * y - w * z);
-  const m11 = 1 - 2 * (x * x + z * z);
-  const m02 = 2 * (x * z + w * y);
-  const pitch = Math.asin(-clamp(m21, -1, 1));
-  let yaw = 0;
-  let roll = 0;
-  if (Math.abs(m21) < 0.9999) {
-    yaw = Math.atan2(m02, m22);
-    roll = Math.atan2(m01, m11);
-  } else {
-    yaw = Math.atan2(-m20, 1 - 2 * (x * x + z * z));
-  }
-  return { yaw, pitch, roll };
-}
 
 /**
  * Аналитическая двухзвенная инверсная кинематика (Плечо S -> Локоть E -> Запястье W)
@@ -461,12 +443,10 @@ export class WristHandFusion {
     }
     const qBend = qNormalize(sensor.q);
     const dq = qMul(qConj(this.qStretch), qBend);
-    const sign = dq[3] < 0 ? -1 : 1;
-    const dqx = dq[0] * sign;
-    const dqy = dq[1] * sign;
-    const dqz = dq[2] * sign;
-    const dqw = clamp(dq[3] * sign, -1, 1);
-    const angleRad = 2 * Math.acos(clamp(dqw, 0, 1));
+    // У приращения важна только величина угла: ось этого конкретного поворота
+    // для «Жеста 2» не используется, поэтому разлагать dq на оси некуда.
+    const dqw = clamp(dq[3], -1, 1);
+    const angleRad = 2 * Math.acos(Math.abs(dqw));
     if (angleRad < 12 * DEG) {
       return {
         ok: false,

@@ -482,7 +482,7 @@ async function connectFirebase() {
     link.db = dbMod.getDatabase(app, cfg.databaseURL);
     link.fbMod = dbMod;
 
-    const { ref, set, push, onValue, onChildAdded } = dbMod;
+    const { ref, set, onValue, onChildAdded } = dbMod;
     const roomPath = `wn_wrist_rooms/${code}`;
     link.sid = 's' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
     link.seq = 0;
@@ -704,8 +704,10 @@ if (params.get('demo') === '1') {
   connectDemo(params.get('room') || '111111');
 }
 
-// Тестовый интерфейс для headless E2E проверки связки двух вкладок
-window.__WRIST_TEST__ = {
+// Тестовый интерфейс для headless E2E проверки связки двух вкладок.
+// Наружу не отдаём: страница браслета живёт на обычном хостинге, а управление
+// датчиками и каналом из консоли чужой вкладке ничего хорошего не даёт.
+if (new URLSearchParams(window.location.search).has('test')) window.__WRIST_TEST__ = {
   connectDemo,
   setHandSide: (side) => setHandSide(side, true),
   setPose({ alpha = 0, beta = 90, gamma = 0, linMag = 0, rotRate = 0 } = {}) {

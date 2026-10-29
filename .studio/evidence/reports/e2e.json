@@ -25,8 +25,8 @@
   "performance": [
     {
       "viewport": "360x800 SwiftShader, not a physical phone",
-      "drawCalls": 33,
-      "triangles": 95172,
+      "drawCalls": 71,
+      "triangles": 139980,
       "geometries": 172,
       "textures": 89,
       "models": 18,
@@ -35,7 +35,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 175.03535353535352,
+      "meanFrameMs": 17.686597938144015,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -52,7 +52,7 @@
         "pitchDeg": 0
       },
       "perf": {
-        "samples": 99,
+        "samples": 97,
         "meanMs": 0,
         "fps": 0,
         "dpr": 1,
@@ -109,7 +109,7 @@
       "pose": "front",
       "inspectionBounds": null,
       "modelDetails": null,
-      "meanFrameMs": 16.56666666666706,
+      "meanFrameMs": 16.566666666666606,
       "renderer": "WebKit WebGL",
       "reveal": {
         "progress": 1,
@@ -470,18 +470,18 @@
         "min": [
           -0.8370629572624678,
           -1.05,
-          -0.15360902802827245
+          -0.16732237895963464
         ],
         "max": [
           0.8370629572624678,
           1.05,
-          0.15360902802827245
+          0.16732237895963464
         ]
       }
     }
   ],
   "build": {
-    "totalBytes": 6871016,
+    "totalBytes": 6873622,
     "files": [
       {
         "file": "assets/cormorant-garamond-cyrillic-400-normal-DD2KOZkl.woff2",
@@ -504,12 +504,12 @@
         "bytes": 404997
       },
       {
-        "file": "assets/index-CrmcHT0K.css",
-        "bytes": 35427
+        "file": "assets/index-BxBjZa0S.js",
+        "bytes": 831892
       },
       {
-        "file": "assets/index-D8FEMyNb.js",
-        "bytes": 829639
+        "file": "assets/index-DgIdZMy3.css",
+        "bytes": 35451
       },
       {
         "file": "assets/manrope-cyrillic-400-normal-BMzJvInZ.woff2",
@@ -593,7 +593,7 @@
       },
       {
         "file": "wrist/wrist.js",
-        "bytes": 27801
+        "bytes": 28130
       }
     ]
   },

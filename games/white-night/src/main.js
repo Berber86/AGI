@@ -14,9 +14,9 @@ const $$=selector=>[...document.querySelectorAll(selector)];
 const icon=id=>`<svg aria-hidden="true"><use href="#i-${id}"/></svg>`;
 let storage;try{storage=window.localStorage;}catch{storage={getItem(){return null;},setItem(){throw Error('storage unavailable');}};}
 let state=loadSave(storage),world,filter='all',drag=null,toastTimer,feedbackTimer,lastRevealPhase=null,lastTime=0,raf=0,paused=document.hidden,forcedItem=null;
-const VR_SETTINGS_KEY='white-night-vr-v1',WRIST_CAL_KEY='white-night-wrist-cal-v1',VR_FOCUS_SECONDS=10;
+const VR_SETTINGS_KEY='white-night-vr-v1',VR_FOCUS_SECONDS=10;
 function loadVrSettings(){try{const raw=storage.getItem(VR_SETTINGS_KEY),p=raw?JSON.parse(raw):{};return {mode:p.mode==='fusion'?'fusion':p.mode==='hand'?'hand':'gyro',handSide:p.handSide==='left'?'left':'right',quality:p.quality==='low'?'low':'high',leftHue:Number.isFinite(p.leftHue)?((p.leftHue%360)+360)%360:16,rightHue:Number.isFinite(p.rightHue)?((p.rightHue%360)+360)%360:338};}catch{return {mode:'gyro',handSide:'right',quality:'high',leftHue:16,rightHue:338};}}
-let vrSettings=loadVrSettings(),vrLook=null,vrBeaconTracker=null,wristFusion=null,wristLink=null,wristCalNote='',wristFbPrefilled=false,vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrPrepNote='',vrHoldTimer=0;
+let contextLost=false,vrSettings=loadVrSettings(),vrLook=null,vrBeaconTracker=null,wristFusion=null,wristLink=null,wristCalNote='',wristFbPrefilled=false,vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrPrepNote='',vrHoldTimer=0;
 const headShake=new HeadShakeDetector();
 function persistVrSettings(){try{storage.setItem(VR_SETTINGS_KEY,JSON.stringify(vrSettings));}catch{}}
 const testing=new URLSearchParams(location.search).has('test');
@@ -86,6 +86,12 @@ function syncBinTag(){
  // so it keeps pointing at the bin when the courtyard is reframed.
  const tag=$('.bin-tag');if(!tag)return;
  const p=world.binEdge();
+ // Выноска прикреплена правым краем (translate(-100%)) и рисует линию-«указку»
+ // вправо: за границы кадра её нельзя выпускать, а когда бака в кадре нет —
+ // честнее не показывать ничего, чем стрелку в пустую стену.
+ const visible=p.onScreen&&p.x>232&&p.x<innerWidth-12&&p.y>104&&p.y<innerHeight-150;
+ tag.hidden=!visible;
+ if(!visible)return;
  tag.style.left=`${Math.round(p.x)}px`;tag.style.top=`${Math.round(p.y)}px`;
 }
 const LOOK_HINT_KEY='white-night-look-hint-v1';
@@ -342,10 +348,26 @@ function bind(){
  const canvas=$('#world');canvas.addEventListener('pointerdown',e=>{if(vrActive){clearTimeout(vrHoldTimer);vrHoldTimer=setTimeout(()=>stopVr('long-press'),900);return;}if(dialogs.some(d=>d.open)||drag||!e.isPrimary)return;if(state.phase==='inspect'){world.finishReveal();syncReveal();}drag={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,moved:false};canvas.setPointerCapture(e.pointerId);});
  canvas.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>10){drag.moved=true;if(state.phase!=='inspect'&&!vrActive)markLookUsed();}if(state.phase==='inspect'){world.rotate(dx,dy);updateViews();}else if(!vrActive){world.lookBy(dx,dy);}drag.x=e.clientX;drag.y=e.clientY;});
  canvas.addEventListener('pointerup',e=>{clearTimeout(vrHoldTimer);if(!drag||drag.id!==e.pointerId)return;const tap=!drag.moved;drag=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);if(tap&&state.phase==='search'&&world.hitBin(e.clientX,e.clientY))search();});canvas.addEventListener('pointercancel',()=>{clearTimeout(vrHoldTimer);drag=null;});canvas.addEventListener('lostpointercapture',()=>{clearTimeout(vrHoldTimer);drag=null;});
- document.addEventListener('visibilitychange',()=>{paused=document.hidden;drag=null;lastTime=0;if(document.hidden&&vrActive)stopVr('hidden');});window.addEventListener('blur',()=>drag=null);window.addEventListener('resize',()=>{world.resize();if(vrActive)syncVrStereoMode();if(dialogs.some(d=>d.open))world.update(.016);});
+ document.addEventListener('visibilitychange',()=>{paused=document.hidden||contextLost;drag=null;lastTime=0;if(document.hidden&&vrActive)stopVr('hidden');});window.addEventListener('blur',()=>drag=null);window.addEventListener('resize',()=>{world.resize();if(vrActive)syncVrStereoMode();if(dialogs.some(d=>d.open))world.update(.016);});
  document.addEventListener('fullscreenchange',()=>{if(vrActive&&!document.fullscreenElement)stopVr('fullscreen');});window.addEventListener('pagehide',()=>{if(vrPendingSave)finishVrFind('pagehide');else if(vrActive&&state.phase==='inspect'&&!state.reviewing){if(!world.revealState?.ready){world.finishReveal();syncReveal();}decide(true,{fromVr:true});}if(vrActive)vrLook?.stop();vrBeaconTracker?.stop();wristLink?.stop();});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&vrActive){e.preventDefault();stopVr('escape');return;}if(e.key==='Escape'&&!dialogs.some(d=>d.open)&&state.phase==='inspect'){e.preventDefault();if(state.reviewing)closeReview();else{world.finishReveal();syncReveal();decide(false);}}});
- canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();paused=true;$('#webgl-error').hidden=false;});
+ canvas.addEventListener('webglcontextlost',e=>{
+  e.preventDefault();contextLost=true;paused=true;
+  // Одна и та же панель и для «WebGL нет вообще», и для временной отдачи
+  // видеопамяти — а советы нужны разные: второе обычно проходит само.
+  $('#webgl-error h2').textContent='Двор уступил видеопамять';
+  $('#webgl-error p').textContent='Браузер или система забрали графический контекст: свёрнутые вкладки, другой тяжёлый процесс, обновление драйвера. Обычно двор возвращается сам, как только получит контекст обратно.';
+  $('#webgl-error').hidden=false;
+ });
+ canvas.addEventListener('webglcontextrestored',async()=>{
+  // Без этого шага двор оставался мёртвым до перезагрузки страницы: three
+  // заново зальёт буферы и заткнёт новый IBL только если его попросить.
+  try{await world.restoreGLContext();}catch(error){console.error(error);}
+  contextLost=false;paused=document.hidden;lastTime=0;
+  $('#webgl-error').hidden=true;
+  syncReveal();updateUI();syncVrPrep();
+  notify('Графика перезапустилась — двор снова здесь.','kept');
+ });
 }
 async function start(){
  try{world=new World($('#world'));try{if(storage.getItem('white-night-quality')==='low'){world.setQuality(true);$('#low-quality').checked=true;}}catch{}
@@ -378,6 +400,9 @@ async function start(){
    finish:()=>finishVrFind('test')
   }};
  if(import.meta.env.PROD&&'serviceWorker' in navigator)navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(()=>{console.warn('Offline mode could not be enabled.');});
- }catch(error){console.error(error);$('#loading').hidden=true;$('#webgl-error').hidden=false;cancelAnimationFrame(raf);}
+ }catch(error){console.error(error);$('#loading').hidden=true;
+   $('#webgl-error h2').textContent='Двор пока не открылся';
+   $('#webgl-error p').textContent='Для игры нужен браузер с WebGL 2. Попробуйте включить аппаратное ускорение или открыть игру в свежей версии Chrome.';
+   $('#webgl-error').hidden=false;cancelAnimationFrame(raf);}
 }
 start();

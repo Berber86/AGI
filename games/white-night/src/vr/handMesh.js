@@ -947,39 +947,6 @@ function buildPocketFlapGeometry(side = 1) {
 
 
 /**
- * Вязаный шарф-мешок (muffler) в ДВА оборота вокруг шеи — ровно то, что видно
- * из-под подбородка при взгляде вниз в VR: плотный рубчик, нахлёст второго оборота,
- * заправленный конец и один свободно висящий конец, лежащий строго по сукну пальто.
- */
-function buildMufflerWrapGeometry({ cy, rx, rz, cz, band, ribs, phase, droop, squashTop = 0.92 }) {
-  const rings = [];
-  const steps = 44;
-  for (let s = 0; s <= steps; s++) {
-    const u = s / steps;
-    const phi = u * Math.PI * 2; // 0 — строго спереди (-Z)
-    const front = Math.max(0, Math.cos(phi));
-    const pathX = Math.sin(phi) * rx;
-    const pathZ = cz - Math.cos(phi) * rz - droop * front * 0.55;
-    const pathY = cy - droop * front;
-    const rib = 1 + 0.052 * Math.cos(phi * ribs + phase);
-    const underChin = Math.exp(-Math.pow((phi - 0) / 0.55, 2)) + Math.exp(-Math.pow((phi - Math.PI * 2) / 0.55, 2));
-    rings.push((theta) => {
-      const c = Math.cos(theta);
-      const sn = Math.sin(theta);
-      const rr = band * rib;
-      const out = Math.sign(c) * Math.pow(Math.abs(c), 0.88) * rr * 1.10;
-      const up = sn >= 0
-        ? sn * rr * (squashTop - 0.10 * front + 0.05 * underChin)
-        : sn * rr * 0.70;
-      const ex = Math.sin(phi);
-      const ez = -Math.cos(phi);
-      return [pathX + ex * out, pathY + up, pathZ + ez * out];
-    });
-  }
-  return buildLoftedTube(rings, 18, { capStart: false, capEnd: false });
-}
-
-/**
  * Вязаная стойка шарфа: плотная ТРУБА в рубчик вокруг шеи (её верхний край с подворотом —
  * ровно то, что видно в нижней каёмке кадра, когда опускаешь голову) и один свободный конец,
  * спущенный по грудине в V-вырез лацканов. Шарф намеренно ужат ДО внутри ворота пальто:

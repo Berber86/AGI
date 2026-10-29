@@ -169,7 +169,7 @@ function addCat(parent,pos,scale=1,rotY=0,mat=M.black){
   blob(cat,.16,[0,.15,-.02],mat,[.95,.82,1.28]);
   lowSphere(cat,.086,[0,.325,.13],mat);
   for(const side of [-1,1]){
-    const ear=mesh(new THREE.CylinderGeometry(.001,.032,.07,4),mat,cat,[side*.047,.405,.125],[0,0,-side*.16]);
+    mesh(new THREE.CylinderGeometry(.001,.032,.07,4),mat,cat,[side*.047,.405,.125],[0,0,-side*.16]);
     cyl(cat,.018,.02,.17,[side*.056,.085,.12],mat,[0,0,0],8);
   }
   lineTube(cat,[[.13,.08,-.16],[.22,.045,-.02],[.16,.055,.15]],.017,mat,10);
@@ -271,7 +271,6 @@ export function addCourtyardDetails(g,scene){
   });
   mesh(new THREE.PlaneGeometry(.42,.56),new THREE.MeshStandardMaterial({map:paper,roughness:.95,side:THREE.DoubleSide}),g,[-4.95,1.81,-6.45],[0,0,-.05]);
   // Contact patches ground rubbish bags and bicycle instead of letting them float.
-  const shadowMap=YARD.shadowMap;
   for(const [x,z,w,h] of [...RUBBISH.map(b=>[b.x,b.z,b.scale*3.5,b.scale*3]),[3.5,-5.8,2.9,1],[-3.3,-2.6,1.4,1.1]])mesh(new THREE.PlaneGeometry(w,h),contact,g,[x,.022,z],[-Math.PI/2,0,0]);
   for(let i=0;i<30;i++){
     const x=-7.1+r()*1.3,z=-6+r()*6,hei=.03+r()*.13;
@@ -307,7 +306,7 @@ function addGardenBed(g,pos,rotY,length,seed){
     blob(bed,.07+rand()*.06,[x-.12-rand()*.07,.14+rand()*.09,z+(rand()-.5)*.16],mat,[1.2,.6,.9],0);
   }
   for(let i=0;i<18;i++)blob(bed,.018+rand()*.014,[-length/2+.25+rand()*(length-.5),.17+rand()*.16,(rand()-.5)*.52],[M.red,M.cream,M.gold][i%3],[1,1,1],0);
-  for(let i=0;i<12;i++){const blade=mesh(new THREE.CylinderGeometry(.001,.018,.13,5),yard.green,bed,[-length/2+.2+rand()*(length-.4),.13,(rand()-.5)*.58],[rand()*.3,0,rand()*.3]);}
+  for(let i=0;i<12;i++)mesh(new THREE.CylinderGeometry(.001,.018,.13,5),yard.green,bed,[-length/2+.2+rand()*(length-.4),.13,(rand()-.5)*.58],[rand()*.3,0,rand()*.3]);
   return bed;
 }
 function addStringLights(g,a,b,sag,count=9){
@@ -378,7 +377,7 @@ function addLivingCourtyard(g){
   lowSphere(door,.035,[.075,1.02,.34],M.silver);
   // Tyres and a tarp-covered scooter along the right wall.
   for(let i=0;i<3;i++)mesh(new THREE.TorusGeometry(.34,.105,8,26),M.rubber,g,[7.58,.13+i*.22,-5.82],[Math.PI/2,0,i*.2]);
-  const leanTyre=mesh(new THREE.TorusGeometry(.34,.105,8,26),M.rubber,g,[7.03,.36,-5.72],[.2,.35,1.25]);
+  mesh(new THREE.TorusGeometry(.34,.105,8,26),M.rubber,g,[7.03,.36,-5.72],[.2,.35,1.25]);
   const scooter=new THREE.Group();scooter.position.set(7.5,0,-3.0);scooter.rotation.y=.04;g.add(scooter);
   box(scooter,[.62,.58,1.72],[0,.58,0],M.leather,.18);
   box(scooter,[.54,.46,1.0],[0,1.02,-.12],M.leather,.19);

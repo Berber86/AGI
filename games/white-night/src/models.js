@@ -391,7 +391,7 @@ function newspaper(g){
   const mat=new THREE.MeshStandardMaterial({map,roughness:1,side:THREE.DoubleSide,bumpMap:M.paper.bumpMap,bumpScale:.004});
   for(let side=0;side<2;side++){
     const geo=new THREE.PlaneGeometry(1.14,1.43,40,40),p=geo.attributes.position;
-    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i);p.setZ(i,side*.004);}
+    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i);p.setZ(i,side*.004-.021*Math.cos(x*2.6)*Math.cos(y*1.9)-.011*Math.sin(y*3.4));}
     geo.computeVertexNormals();mesh(geo,mat,g);
   }
 }
