@@ -240,6 +240,18 @@ export function solveTwoBoneArmIK(
   return { shoulder: { x: sx, y: sy, z: sz }, elbow, wrist, elbowBendDeg, clampedDist: r };
 }
 
+/**
+ * Насколько можно доверять лучу с маяка: статус пары, «свежесть» пакета и то, не ушёл
+ * ли объект за край кадра (на границе пиксели враньяют сильнее всего).
+ */
+function beaconConfidence(beacon) {
+  if (!beacon || !beacon.fresh || beacon.status === 'none') return 0;
+  const edgeMargin = Math.min(beacon.u, 1 - beacon.u, beacon.v, 1 - beacon.v);
+  if (!(edgeMargin > 0)) return 0; // маяк ушёл за край — направления нам не видно
+  const edgeFade = clamp((edgeMargin - 0.015) / 0.05, 0.2, 1);
+  return (beacon.status === 'pair' ? 1 : 0.45) * edgeFade;
+}
+
 export class WristHandFusion {
   constructor(opts = 'right') {
     const sideArg = typeof opts === 'string' ? opts : opts?.handSide;
@@ -285,6 +297,16 @@ export class WristHandFusion {
     this.elbowBendDeg = 68;
     this.reach = 0.25;
     this.elevationDeg = 0;
+    // Короткая история позы головы (нужна, чтобы переводить ЛУЧ с маяка по тому наклону
+    // головы, при котором этот луч был снят, — см. qCamToTorsoAt).
+    this.headHist = [];
+    this.prevBeaconSpan = NaN; // приращение видимого разноса маяка — страж согласованности
+    this.prevSolvedLen = NaN;
+    this.beaconRho = NaN; // непрерывность выбора корня оптики (метры от камеры до запястья)
+    this.bendHoldRad = 0; // последний уверенно решённый угол локтя
+    this.holdTiltRad = 0; // наклон оси предплечья в тот же момент
+    this.bendHoldSet = false;
+    this.opticMotion = 0; // +1 = двигался локоть, -1 = плечо (доля приращения наклона)
     this.screenFacingCos = 0.85;
     this.trackingSource = 'idle';
 
@@ -301,6 +323,7 @@ export class WristHandFusion {
     this.inspectItemQ = [0, 0, 0, 1];
     this.inspectEnteredAt = 0;
     this.maxInspectPitchRad = 0;
+    this.maxInspectWristY = 0; // потолок высоты кисти за этот осмотр — «опустить» значит ниже него
     this.itemRot = { x: 0, y: 0, z: 0 };
     this.calmLowerSec = 0;
     this.lastDecisionAt = -2000;
@@ -571,6 +594,7 @@ export class WristHandFusion {
       this.inspectItemQ = [0, 0, 0, 1];
       this.inspectEnteredAt = now;
       this.maxInspectPitchRad = Math.asin(clamp(fwdStart[1], -1, 1));
+      this.maxInspectWristY = this.torsoWristPos.y;
       this.itemRot = { x: 0, y: 0, z: 0 };
       this.calmLowerSec = 0;
     } else {
@@ -667,7 +691,6 @@ export class WristHandFusion {
       qAxisAngle([1, 0, 0], -headPitch),
       qAxisAngle([0, 1, 0], relHeadYaw)
     );
-    const qCamToTorso = qConj(qTorsoToCam);
 
     const qYawTrim = qAxisAngle([0, 1, 0], this.yawTrimRad + this.torsoYaw);
     this.qArmTorso = qNormalize(qMul(qYawTrim, qRawArm));
@@ -694,11 +717,11 @@ export class WristHandFusion {
     const screenCamNormal = qRotVec(this.qArm, screenLocalInArm);
     this.screenFacingCos = screenCamNormal[2];
 
-    // 2. Биомеханическая оценка позы руки в пространстве корпуса:
-    //    - выпрямление вперёд (pitch ~ 0°)
-    //    - сгибание локтя к груди (pitch вверх + увод внутрь к груди)
-    //    - поднятие всей руки высоко вверх (высокий подъём предплечья > bendSpan + наружу/вверх)
-    //    - плавное опускание руки вниз (pitch < 0° до -80° вдоль пальто)
+    // 2. Ориентация предплечья из гироскопа (60 Гц). ВАЖНО: наклон оси предплечья
+    //    берётся ПОЛНЫМ углом в вертикальной плоскости (atan2), а не asin(): asin
+    //    «складывает» движение за 90° (100° сгибания игра видела как 80°, а 140° —
+    //    как 40°), из-за чего локоть на первой же половине диапазона упирался и
+    //    начинал разгибаться обратно, когда игрок догибал руку к груди.
     const fwd = qRotVec(this.qArmTorso, [0, 0, -1]);
     let swingRateDeg = 0;
     if (this.prevFwd) {
@@ -708,94 +731,206 @@ export class WristHandFusion {
     this.prevFwd = [...fwd];
     const pitchUpRad = Math.asin(clamp(fwd[1], -1, 1));
     const yawRightRad = Math.atan2(fwd[0], Math.max(0.12, Math.hypot(fwd[2], fwd[1] * 0.35)));
-    this.elevationDeg = +(pitchUpRad * RAD).toFixed(1);
+    const armTiltRad = Math.atan2(fwd[1], -fwd[2]); // -180°..180°, без «складывания»
+    this.elevationDeg = +(armTiltRad * RAD).toFixed(1);
 
-    // Оцениваем, сгибает ли игрок руку в локте к груди или поднимает всю руку высоко вверх:
-    // у правой руки (side=+1) поворот внутрь к груди — это yaw < 0; у левой (side=-1) — yaw > 0.
-    const inwardCross = clamp(-side * yawRightRad / (28 * DEG), -0.35, 1.0);
-    const highRaiseBlend = clamp((pitchUpRad - (this.bendSpanRad + 6 * DEG)) / (26 * DEG), 0, 1);
+    // 3. ГЕОМЕТРИЯ, а не догадки. Локоть — шарнир с известными длинами костей,
+    //    поэтому «где запястье» вычисляется, а не угадывается по наклону кисти:
+    //
+    //        | ρ·r − (плечо + L2·f) | = L1
+    //
+    //    r — единичный луч камеры на маяк (его дают просто пиксели u,v и угол обзора),
+    //    f — ось предплечья из гироскопа, L1/L2 — плечо и предплечье, ρ — неизвестное
+    //    расстояние до запястья. Квадратное уравнение: луч либо проходит через сферу
+    //    плеча (тогда два решения — локоть «ближе» или «дальше», берём непрерывное),
+    //    либо промахивается (тогда берём ближайшую точку и доверяем гироскопу).
+    //    Это и есть ответ на вопрос «когда рука может быть только согнута в локте»:
+    //    подъём руки вверх и сгибание локтя дают РАЗНЫЙ луч камеры, поэтому их больше
+    //    нельзя перепутать, как это делала старая шкала «pitch -> насколько согнут локоть».
+    const chainMax = UPPER_ARM_LEN + FOREARM_LEN; // 0.640 м полностью выпрямленной руки
+    const maxChain = chainMax - 0.001;           // совпадает с «живым» пределом IK (микросгиб ~7°)
+    const minChain = 0.18;                       // предельный сгиб (~150°, кисть у груди)
+    const shoulderLiftY =
+      clamp(armTiltRad / (75 * DEG), 0, 1) * 0.075 - clamp(-armTiltRad / (80 * DEG), 0, 1) * 0.03;
+    const shoulderTorso = { x: side * 0.21, y: -0.27 + shoulderLiftY, z: -0.08 };
 
-    let kinReach;
-    let shoulderLiftY = 0;
-    if (pitchUpRad >= 0) {
-      const bendProgress = clamp(pitchUpRad / Math.max(0.32, this.bendSpanRad), 0, 1.15);
-      // При сгибе к груди дальность укорачивается к ~0.14; но если руку поднимают высоко вверх (> bendSpan)
-      // или ведут вертикально вверх без увода к груди — рука вытягивается вверх к небу!
-      const chestBendFactor = clamp(0.96 + inwardCross * 0.12 - highRaiseBlend * 0.78, 0.18, 1.05);
-      kinReach = clamp(1 - bendProgress * 0.84 * chestBendFactor, 0.12, 1.02);
-      shoulderLiftY = highRaiseBlend * 0.08 + clamp(pitchUpRad / (75 * DEG), 0, 1) * 0.04;
+    // Приор без оптики: из общего наклона оси предплечья «сгибание локтя» — это увод
+    // кисти ВНУТРЬ к груди, а «подъём руки в небо» с отведением наружу выполняет плечо.
+    const inwardCross = clamp(-side * yawRightRad / (26 * DEG), 0, 1);
+    const foldRange = Math.max(20 * DEG, this.bendSpanRad); // «полный сгиб» из калибровки
+    const upTilt = Math.max(0, armTiltRad);
+    let bendGyroRad = 0;
+    if (upTilt > 0) {
+      // До калибровочного «кисть у груди» приращение наклона — это почти целиком локоть:
+      // так устроено тело, плечо при этом почти не двигается. Всё, что выше диапазона
+      // сгиба, — работа плеча (руку поднимают вверх), и наружу отведенная кисть
+      // усиливает именно эту долю.
+      bendGyroRad = Math.min(upTilt, foldRange) * (0.95 + 0.05 * inwardCross);
+      if (upTilt > foldRange) {
+        bendGyroRad -= Math.min(bendGyroRad * 0.55, (upTilt - foldRange) * (1 - inwardCross) * 1.25);
+      }
     } else {
-      // Опускание руки вниз: от 0° до -75° вся рука естественно уходит по дуге вниз от плеча!
-      const downFrac = clamp(-pitchUpRad / (72 * DEG), 0, 1);
-      kinReach = clamp(1 - downFrac * 0.62, 0.28, 1.02);
-      shoulderLiftY = -downFrac * 0.035;
+      // Расслабленная рука вдоль тела — почти прямая (лёгкий физиологический недосгиб).
+      bendGyroRad = clamp(-armTiltRad * 0.18, 0, 40 * DEG);
     }
-
-    const shoulderTorso = {
-      x: side * 0.21,
-      y: -0.27 + shoulderLiftY,
-      z: -0.08,
+    bendGyroRad = clamp(bendGyroRad, 0, 150 * DEG);
+    // Глубокий сгиб локтя рука «доделывает» уже без оптики: кисть у груди уходит из
+    // кадра шлема. Чтобы не угадывать, чья это работа (локтя или плеча), помним, КАКОЙ
+    // сустав двинулся последним по честному измерению, и дельту наклона отдаём ему же.
+    // Именно поэтому подъём руки вверх не превращается в сгибание, а догнутый локоть —
+    // обратно в разгибание. Через 4 с без маяка приор плавно возвращается к эвристике.
+    const beaconUsableNow = beaconConfidence(beacon) > 0.5;
+    if (this.bendHoldSet) {
+      // Пока оптика видит маяк, авторитет у ГЕОМЕТРИИ: приор-удержание включается только
+      // в следам (иначе собственное запаздывание удержания душило бы свежее решение).
+      // Пока маяк не виден, удержание работает ПОЛНОСТЬЮ и не «гаснет» со временем:
+      // новой информации нет, а самопроизвольное разгибание руки (оно и было жалобой
+      // «локоть не сгибается / рука падает») заметно хуже, чем сохранение последнего
+      // честного решения. Как только кисть возвращается в кадр, геометрия исправляет всё.
+      const holdFade = beaconUsableNow ? 0 : 1;
+      // Доля приращения, уходящая в локоть: чему научила оптика, но не больше, чем
+      // позволяет признак «кисть идёт к груди». Подъём руки в небо (кисть наружу) не
+      // имеет права превращаться в сгибание локтя, даже когда маяк уже не виден.
+      const share = clamp(0.5 + 0.5 * this.opticMotion, 0, 1) * (0.35 + 0.65 * inwardCross);
+      const dTilt = armTiltRad - this.holdTiltRad;
+      // Разгибание руки однозначное (ось предплечья вернулась к калибровочной — локоть
+      // обязан разогнуться сразу), а вот догибание вне кадра делим между локтем и плечом.
+      const heldBend = this.bendHoldRad + (dTilt >= 0 ? dTilt * share : dTilt);
+      bendGyroRad = bendGyroRad + (clamp(heldBend, 0, 150 * DEG) - bendGyroRad) * holdFade;
+    }
+    const flexAxis = vNorm(vCross([0, 1, 0], fwd));
+    const upperDir = qRotVec(qAxisAngle(flexAxis, bendGyroRad), fwd);
+    const gyroTarget = {
+      x: shoulderTorso.x + UPPER_ARM_LEN * upperDir[0] + FOREARM_LEN * fwd[0],
+      y: shoulderTorso.y + UPPER_ARM_LEN * upperDir[1] + FOREARM_LEN * fwd[1],
+      z: shoulderTorso.z + UPPER_ARM_LEN * upperDir[2] + FOREARM_LEN * fwd[2],
     };
+    let targetTorso = gyroTarget;
 
-    // Целевая точка запястья в пространстве корпуса по кинематике плеча и локтя
-    const maxChain = UPPER_ARM_LEN + FOREARM_LEN - 0.015; // ~0.625 м от плеча
-    const minChain = 0.25; // согнутый у груди локоть
-    let radialDist;
-    let targetTorso;
+    // Поза головы по времени кадра маяка. Трекер работает ~11 Гц: свежий пакет мог быть
+    // снят 0.3 с назад, а голову за это время успевают повернуть на 45°. Направление на
+    // маяк измерено в КАДРЕ камеры ТОГДА — значит и в систему корпуса его надо переводить
+    // по позе головы ТОГДА же. Иначе один взгляд вниз превращает луч в мусор и складывает
+    // локоть (именно так и вели себя «прыгающая рука» и застывший локоть на телефоне).
+    this.headHist.push({ t: now, yaw: headYaw, pitch: headPitch, torso: this.torsoYaw });
+    if (this.headHist.length > 96) this.headHist.splice(0, this.headHist.length - 96);
+    const beaconTs = Number.isFinite(beacon?.ts) ? beacon.ts : now;
+    let headSnapAtBeacon = this.headHist[this.headHist.length - 1] ?? {
+      yaw: headYaw,
+      pitch: headPitch,
+      torso: this.torsoYaw,
+    };
+    for (let i = this.headHist.length - 1; i >= 0; i--) {
+      if (this.headHist[i].t <= beaconTs) {
+        headSnapAtBeacon = this.headHist[i];
+        break;
+      }
+    }
+    const qTorsoToCamAtBeacon = qMul(
+      qAxisAngle([1, 0, 0], -(headSnapAtBeacon?.pitch ?? headPitch)),
+      qAxisAngle([0, 1, 0], (headSnapAtBeacon?.yaw ?? headYaw) - (headSnapAtBeacon?.torso ?? this.torsoYaw))
+    );
 
-    if (pitchUpRad < -8 * DEG) {
-      // При опускании вниз рука описывает естественную маятниковую дугу от плеча вниз к бедру
-      const downFrac = clamp(-pitchUpRad / (70 * DEG), 0, 1);
-      radialDist = 0.56 - downFrac * 0.09;
+    // Оптический контур (~11 Гц). Раньше он включался ТОЛЬКО когда экран браслета был
+    // повёрнут к камере (жёсткий порог screenFacingCos > 0.18) и тогда перетягивал
+    // запястье на 68% — поза «прыгала» между двумя оценщиками на каждом довороте кисти.
+    // Теперь направление на маяк камера измеряет при любом наклоне экрана, а плавный
+    // вес доверия зависит от края кадра и статуса пары, поэтому скачков больше нет.
+    const tanH = Number.isFinite(beacon?.tanH) ? beacon.tanH : 0.6371; // ~65° по горизонтали
+    const aspectY = Number.isFinite(beacon?.aspectY) ? beacon.aspectY : 0.75;
+    let conf = beaconConfidence(beacon);
+    // Страж согласованности: если геометрия луча требует, чтобы кисть ПОДОШЛА ближе,
+    // apparent-разнос пятен обязан расти (это единственный независимый от ориентации
+    // признак изменения дистанции — сам по себе span measuring в основном наклон экрана).
+    // Без этого стража любой сбойный луч (неверное совмещение камеры с осью взгляда,
+    // доворот корпуса, помеха) складывал локоть намертво.
+    if (conf > 0 && Number.isFinite(beacon?.spanNorm) && Number.isFinite(this.prevBeaconSpan)) {
+      const dSpan = beacon.spanNorm - this.prevBeaconSpan;
+      const solvedLen = Math.hypot(
+        this.torsoWristPos.x - shoulderTorso.x,
+        this.torsoWristPos.y - shoulderTorso.y,
+        this.torsoWristPos.z - shoulderTorso.z
+      );
+      const dLen = solvedLen - this.prevSolvedLen;
+      if (dSpan > -0.004 && dLen < -0.03) conf *= 0.3; // «сближается», а пятно не растёт
+      if (dSpan < 0.004 && dLen > 0.03) conf *= 0.3; // «отдаляется», а пятно не уменьшается
+      this.prevSolvedLen = solvedLen;
+    } else if (conf > 0) {
+      this.prevSolvedLen = Math.hypot(
+        this.torsoWristPos.x - shoulderTorso.x,
+        this.torsoWristPos.y - shoulderTorso.y,
+        this.torsoWristPos.z - shoulderTorso.z
+      );
+    }
+    this.prevBeaconSpan = conf > 0 ? beacon.spanNorm : NaN;
+    let optTarget = null;
+    if (conf > 0) {
+      const rayCam = vNorm([
+        (beacon.u - 0.5) * 2 * tanH,
+        -(beacon.v - 0.5) * 2 * tanH * aspectY,
+        -1,
+      ]);
+      const ray = qRotVec(qConj(qTorsoToCamAtBeacon), rayCam);
+      const cx = shoulderTorso.x + FOREARM_LEN * fwd[0];
+      const cy = shoulderTorso.y + FOREARM_LEN * fwd[1];
+      const cz = shoulderTorso.z + FOREARM_LEN * fwd[2];
+      const ac = ray[0] * cx + ray[1] * cy + ray[2] * cz;
+      const disc = ac * ac - (cx * cx + cy * cy + cz * cz) + UPPER_ARM_LEN * UPPER_ARM_LEN;
+      let rho = ac;
+      if (disc > 0) {
+        // У луча с сферой плеча два пересечения — это настоящая неоднозначность позы
+        // («локоть согнут и кисть близко» против «локоть выпрямлен и кисть далеко»).
+        // Разрешает её гироскоп: он независимо знает, согнут ли локоть прямо сейчас.
+        // Прежняя привязка к «предыдущему ρ» попадала в ловушку: однажды сложив руку,
+        // алгоритм уже не мог её разогнуть, потому что ближний корень оставался ближе всех.
+        const root = Math.sqrt(disc);
+        const priorCam = qRotVec(qTorsoToCam, [gyroTarget.x, gyroTarget.y, gyroTarget.z]);
+        const priorRho = Math.hypot(priorCam[0], priorCam[1], priorCam[2]) || chainMax;
+        const farRoot = ac + root;
+        const nearRoot = ac - root;
+        rho = Math.abs(farRoot - priorRho) <= Math.abs(nearRoot - priorRho) ? farRoot : nearRoot;
+      }
+      rho = clamp(rho, minChain * 0.7, maxChain + 0.24);
+      if (!Number.isFinite(this.beaconRho)) this.beaconRho = rho;
+      const maxRhoStep = 2.4 * safeDt; // оптика редкая — за один кадр рука не «телепортируется»
+      this.beaconRho += clamp(rho - this.beaconRho, -maxRhoStep, maxRhoStep);
+      optTarget = [
+        ray[0] * this.beaconRho,
+        ray[1] * this.beaconRho,
+        ray[2] * this.beaconRho,
+      ];
+    }
+    if (optTarget) {
+      // Смешиваем НЕ координаты (сredняя двух точек «короче» обеих — именно так локоть
+      // и заклинивало), а направление и длину отдельно: луч камеры даёт направление,
+      // анатомическое решение — расстояние до запястья.
+      const w = clamp(0.78 * conf, 0, 0.78);
+      const gdx = gyroTarget.x - shoulderTorso.x;
+      const gdy = gyroTarget.y - shoulderTorso.y;
+      const gdz = gyroTarget.z - shoulderTorso.z;
+      const odx = optTarget[0] - shoulderTorso.x;
+      const ody = optTarget[1] - shoulderTorso.y;
+      const odz = optTarget[2] - shoulderTorso.z;
+      const gLen = Math.hypot(gdx, gdy, gdz) || 1e-4;
+      const oLen = Math.hypot(odx, ody, odz) || 1e-4;
+      const dir = vNorm([gdx / gLen + (odx / oLen - gdx / gLen) * w,
+                         gdy / gLen + (ody / oLen - gdy / gLen) * w,
+                         gdz / gLen + (odz / oLen - gdz / gLen) * w]);
+      const len = gLen + (clamp(oLen, minChain, chainMax) - gLen) * w;
       targetTorso = {
-        x: shoulderTorso.x + fwd[0] * radialDist * 0.82 - side * (1 - downFrac) * 0.06,
-        y: shoulderTorso.y + fwd[1] * radialDist * 0.95 + (1 - downFrac) * 0.14,
-        z: shoulderTorso.z - Math.max(0.18, -fwd[2]) * radialDist * 0.96,
-      };
-    } else {
-      radialDist = minChain + kinReach * (maxChain - minChain);
-      // При сгибе локтя к груди кисть поднимается к уровню груди/осмотра, а не заваливается назад за камеру
-      const chestTuck = 1 - kinReach;
-      targetTorso = {
-        x: shoulderTorso.x + fwd[0] * radialDist * 0.88 - side * (0.09 + chestTuck * 0.03),
-        y: shoulderTorso.y + fwd[1] * (0.20 + kinReach * 0.36 + highRaiseBlend * 0.18) + kinReach * 0.15,
-        z: shoulderTorso.z - (0.28 + kinReach * 0.31) * clamp(-fwd[2] + chestTuck * 0.45, 0.36, 1.05),
+        x: shoulderTorso.x + dir[0] * len,
+        y: shoulderTorso.y + dir[1] * len,
+        z: shoulderTorso.z + dir[2] * len,
       };
     }
+    this.trackingSource = sensorStale ? 'stale' : conf > 0.5 ? 'gyro+beacon' : 'gyro-only';
 
-    // 3. Оптический якорь двухцветного маяка (~10 Гц) — переводим из кадра камеры в корпус!
-    let finalReach = kinReach;
-    const canTrustBeacon =
-      beacon &&
-      beacon.fresh &&
-      beacon.status !== 'none' &&
-      this.screenFacingCos > 0.18;
-
-    if (canTrustBeacon) {
-      this.trackingSource = 'gyro+beacon';
-      if (beacon.status === 'pair' && beacon.spanNorm > 0.015) {
-        const tiltCos = clamp(this.screenFacingCos, 0.42, 1.0);
-        const trueSpan = beacon.spanNorm / tiltCos;
-        const denom = Math.max(0.035, this.beaconNear.span - this.beaconFar.span);
-        const optReach = clamp((this.beaconNear.span - trueSpan) / denom, 0.06, 1.06);
-        finalReach = kinReach * 0.35 + optReach * 0.65;
-
-        const optCamZ = -0.38 - optReach * 0.32;
-        const optCamX = clamp((beacon.u - this.beaconFar.u) * 1.15 + side * 0.10, -0.54, 0.54);
-        const optCamY = clamp((this.beaconFar.v - beacon.v) * 0.94 - 0.11, -0.56, 0.46);
-        const optTorso = qRotVec(qCamToTorso, [optCamX, optCamY, optCamZ]);
-
-        targetTorso.x = targetTorso.x * 0.32 + optTorso[0] * 0.68;
-        targetTorso.y = targetTorso.y * 0.32 + optTorso[1] * 0.68;
-        targetTorso.z = targetTorso.z * 0.35 + optTorso[2] * 0.65;
-
-        // Плавная компенсация горизонтального дрейфа гироскопа (до 12°/с)
-        const expectedCamVec = qRotVec(qTorsoToCam, [
-          shoulderTorso.x + fwd[0] * 0.48 - side * 0.08,
-          shoulderTorso.y + fwd[1] * 0.35,
-          -0.55,
-        ]);
-        const expectedU = clamp(this.beaconFar.u + (expectedCamVec[0] - side * 0.10) * 0.65, 0.1, 0.9);
+    if (optTarget && conf > 0.5) {
+      // Плавная компенсация горизонтального дрейфа гироскопа (до 12°/с): сравниваем
+      // не «придуманную» позицию, а ЧЕСТНУЮ проекцию кинематической модели в кадр камеры.
+      const expectedCam = qRotVec(qTorsoToCamAtBeacon, [gyroTarget.x, gyroTarget.y, gyroTarget.z]);
+      if (expectedCam[2] < -0.08) {
+        const expectedU = clamp(0.5 + expectedCam[0] / -expectedCam[2] / (2 * tanH), 0.06, 0.94);
         const uErr = beacon.u - expectedU;
         const maxTrimStep = 12 * DEG * safeDt;
         this.yawTrimRad = clamp(
@@ -803,15 +938,37 @@ export class WristHandFusion {
           -180 * DEG,
           180 * DEG
         );
-      } else {
-        const optCamX = clamp((beacon.u - this.beaconFar.u) * 1.10 + side * 0.10, -0.52, 0.52);
-        const optCamY = clamp((this.beaconFar.v - beacon.v) * 0.90 - 0.11, -0.54, 0.44);
-        const optTorso = qRotVec(qCamToTorso, [optCamX, optCamY, targetTorso.z]);
-        targetTorso.x = targetTorso.x * 0.55 + optTorso[0] * 0.45;
-        targetTorso.y = targetTorso.y * 0.55 + optTorso[1] * 0.45;
       }
-    } else {
-      this.trackingSource = sensorStale ? 'stale' : 'gyro-only';
+    }
+
+    // Жёсткая анатомическая граница: запястье не может быть дальше выпрямленной руки
+    // и не может «провалиться» внутрь плеча. Только она и обязана ограничивать позу —
+    // никаких clamp'ов «на глазок» для дальности луча — именно они и заклинивали локоть на ~105°.
+    let bendSolvedRad = bendGyroRad;
+    {
+      const dx = targetTorso.x - shoulderTorso.x;
+      const dy = targetTorso.y - shoulderTorso.y;
+      const dz = targetTorso.z - shoulderTorso.z;
+      const dist = Math.hypot(dx, dy, dz);
+      // Угол в локте — из точной теоремы косинусов по решённому расстоянию «плечо-кисть»
+      // (никакого остаточного сгибания из-за клампа IK: 0.640 м = полностью прямая рука).
+      const distEff = clamp(dist, Math.abs(UPPER_ARM_LEN - FOREARM_LEN), chainMax);
+      const cosInt = clamp(
+        (UPPER_ARM_LEN * UPPER_ARM_LEN + FOREARM_LEN * FOREARM_LEN - distEff * distEff) /
+          (2 * UPPER_ARM_LEN * FOREARM_LEN),
+        -1,
+        1
+      );
+      bendSolvedRad = Math.PI - Math.acos(cosInt);
+      const lim = dist > maxChain ? maxChain : dist < minChain ? minChain : 0;
+      if (lim && dist > 1e-4) {
+        const k = lim / dist;
+        targetTorso = {
+          x: shoulderTorso.x + dx * k,
+          y: shoulderTorso.y + dy * k,
+          z: shoulderTorso.z + dz * k,
+        };
+      }
     }
 
     // 4. Критически демпфированная пружина 2-го порядка (масса предплечья, без дрожи и перерегулирования!)
@@ -826,7 +983,6 @@ export class WristHandFusion {
         this.torsoWristPos[axis] += this.torsoWristVel[axis] * hDt;
       }
     }
-    this.reach += (finalReach - this.reach) * (1 - Math.exp(-safeDt * 18));
 
     // 5. Аналитическая двухзвенная кинематика (2-Bone IK): Плечо -> Локоть -> Запястье
     // Анатомический вектор локтя: направлен вниз, наружу (вправо у правой, влево у левой) и чуть назад;
@@ -842,6 +998,30 @@ export class WristHandFusion {
     );
     this.torsoWristPos = { ...ik.wrist };
     this.elbowBendDeg = +ik.elbowBendDeg.toFixed(1);
+
+    // Запоминаем решённое сгибание как опору для времени без оптики и заодно
+    // «кто именно двигался»: локоть или плечо (знак и доля от приращения наклона).
+    if (conf > 0.5) {
+      if (this.bendHoldSet) {
+        const dBend = bendSolvedRad - this.bendHoldRad;
+        const dElev = armTiltRad - this.holdTiltRad - dBend;
+        if (Math.abs(dBend) + Math.abs(dElev) > 1.2 * DEG) {
+          this.opticMotion += (clamp(dBend / (Math.abs(dBend) + Math.abs(dElev)), -1, 1) - this.opticMotion) * 0.35;
+        }
+      }
+      this.bendHoldRad = clamp(bendSolvedRad, 0, 150 * DEG);
+      this.holdTiltRad = armTiltRad;
+      this.bendHoldSet = true;
+    }
+
+    // «Насколько рука выпрямлена» (0..1) — из РЕШЁННОГО сгибания локтя, а не из догадок,
+    // и нормируется собственным диапазоном игрока из калибровки (жест 2 = полный сгиб).
+    const reachTarget = clamp(
+      1 - 0.84 * clamp(bendSolvedRad / this.bendSpanRad, 0, 1.15),
+      0.06,
+      1.02
+    );
+    this.reach += (reachTarget - this.reach) * (1 - Math.exp(-safeDt * 18));
 
     // Переводим все три сустава и скорость из системы корпуса в систему камеры очков!
     const shCam = qRotVec(qTorsoToCam, [ik.shoulder.x, ik.shoulder.y, ik.shoulder.z]);
@@ -910,10 +1090,14 @@ export class WristHandFusion {
         this.inspectItemQ = [0, 0, 0, 1];
         this.inspectEnteredAt = now;
         this.maxInspectPitchRad = pitchUpRad;
+        this.maxInspectWristY = this.torsoWristPos.y;
         this.itemRot = { x: 0, y: 0, z: 0 };
       }
       if (pitchUpRad > this.maxInspectPitchRad) {
         this.maxInspectPitchRad = pitchUpRad;
+      }
+      if (this.torsoWristPos.y > this.maxInspectWristY) {
+        this.maxInspectWristY = this.torsoWristPos.y;
       }
 
       // Инкрементальное геодезическое вращение на группе SO(3) в пространстве корпуса
@@ -975,7 +1159,12 @@ export class WristHandFusion {
           const intentionalDrop =
             (pitchUpRad <= -21 * DEG && pitchDropFromPeak >= 16 * DEG) ||
             pitchUpRad <= -38 * DEG ||
-            (ik.wrist.y <= -0.38 && pitchDropFromPeak >= 14 * DEG);
+            // Киста ниже -0.38 м ЕЩЁ и не повод: рука могла прийти в осмотр уже опущенной.
+            // Требуем реального опускания относительно самого высокого положения за осмотр
+            // (пик ведём так же, как пик наклона) — «спокойно опустил» = ниже пика на 8 см.
+            (ik.wrist.y <= -0.38 &&
+              ik.wrist.y <= this.maxInspectWristY - 0.08 &&
+              pitchDropFromPeak >= 14 * DEG);
           const handCalm = effLinMag < 3.1 && rotRateDeg < 105;
           if (intentionalDrop && handCalm) {
             this.calmLowerSec += safeDt;

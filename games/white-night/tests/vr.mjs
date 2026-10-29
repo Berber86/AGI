@@ -4,6 +4,29 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { launch } from './browser.mjs';
 
+// Куда камера шлема «видит» маяк прямой правой руки. Считается честно из геометрии
+// (плечо x=+0.21 м, запястье в 0.72 м впереди), потому что оптика теперь УЧАСТВУЕТ
+// в решении позы, а не подмешивается вслепую: выдуманные пиксели ломали бы локоть.
+function straightRightArmBeacon(yawDeg = 0, pitchDeg = 0, span = 0.095, wrist = [0.21, -0.27, -0.72]) {
+  const w = wrist;
+  const yaw = (yawDeg * Math.PI) / 180;
+  const pitch = (pitchDeg * Math.PI) / 180;
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const x = w[0] * cy + w[2] * sy;
+  const z0 = -w[0] * sy + w[2] * cy;
+  const cp = Math.cos(-pitch), sp = Math.sin(-pitch);
+  const y = w[1] * cp - z0 * sp;
+  const z = w[1] * sp + z0 * cp;
+  const tanH = 0.6371; // ~65° по горизонтали — та же константа, что в слиянии
+  const aspectY = 0.75;
+  const u = 0.5 + x / -z / (2 * tanH);
+  const v = 0.5 - y / -z / (2 * tanH * aspectY);
+  const half = span / 2;
+  return {
+    distal: { u: +(u - half * 0.9).toFixed(4), v: +(v + half * 0.35).toFixed(4) },
+    proximal: { u: +(u + half * 0.9).toFixed(4), v: +(v - half * 0.35).toFixed(4) },
+  };
+}
 const evidence = path.resolve('../../.studio/evidence');
 fs.mkdirSync(evidence + '/screenshots', { recursive: true });
 fs.mkdirSync(evidence + '/reports', { recursive: true });
@@ -231,7 +254,10 @@ try {
 
   // 2-gesture calibration: 1) straight arm forward -> 2) bend elbow up 50 deg
   let cal1 = await page.evaluate(() => {
-    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.49, v: 0.54 }, proximal: { u: 0.59, v: 0.54 } });
+    // Прямая ПРАВАЯ рука (плечо x=+0.21 м) видна камерой НЕ по центру кадра, а справа:
+    // u ~ 0.73 при угле обзора ~65°. Маяк теперь несёт реальный геометрический смысл,
+    // поэтому синтетические пиксели обязаны быть анатомически согласованы.
+    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.69, v: 0.565 }, proximal: { u: 0.775, v: 0.52 } });
     return window.__GAME_TEST__.vr.wristCalibrateStretch();
   });
   assert.equal(cal1.ok, true);
@@ -241,7 +267,8 @@ try {
   });
   await new Promise((resolve) => setTimeout(resolve, 80));
   let cal2 = await page.evaluate(() => {
-    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.42, v: 0.62 }, proximal: { u: 0.66, v: 0.62 } });
+    // Шаг 2 калибровки: кисть у груди — ближе к камере, поэтому пятно крупнее.
+    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.735, v: 0.605 }, proximal: { u: 0.815, v: 0.53 } });
     return window.__GAME_TEST__.vr.wristCalibrateBend();
   });
   assert.equal(cal2.ok, true);
@@ -257,16 +284,26 @@ try {
     window.__GAME_TEST__.vr.gyro(gaze.yaw, gaze.pitch, 5, 0.02);
     return window.__GAME_TEST__.vr.start();
   }, { gaze });
-  info = await page.evaluate((t) => {
-    window.__GAME_TEST__.vr.wristBeacon({ distal: { u: 0.49, v: 0.54 }, proximal: { u: 0.59, v: 0.54 } }, t);
+  // Корпус в VR сам доворачивается за рукой/головой (torsoYaw), а луч камеры считается
+  // относительно головы. Берём текущий torsoYaw из снимка, иначе синтетический маяк
+  // «врал» бы на десятки градусов — и геометрия честно складывала локоть.
+  const preWrist = await vr(page);
+  const torsoYawDeg = ((preWrist.wrist?.hand?.torsoYaw ?? 0) * 180) / Math.PI;
+  const seenBeacon = straightRightArmBeacon(gaze.yaw - torsoYawDeg, gaze.pitch);
+  info = await page.evaluate(({ t, beacon }) => {
+    window.__GAME_TEST__.vr.wristBeacon(beacon, t);
     return window.__GAME_TEST__.vr.step(0.35, t);
-  }, simClock);
+  }, { t: simClock, beacon: seenBeacon });
   simClock += 400;
   assert.equal(info.world.bodyActive, true);
   assert.equal(info.world.handMode, true);
   assert.equal(info.world.handVisible, true);
   assert.equal(info.world.body?.beaconBandVisible, true);
-  assert.ok(info.wrist.hand.reach > 0.75);
+  assert.ok(
+    info.wrist.hand.reach > 0.75,
+    `прямая рука у камеры: reach=${info.wrist.hand.reach} src=${info.wrist.hand.trackingSource} ` +
+      `pose=${JSON.stringify(info.wrist.hand.pos)} beacon=${JSON.stringify(info.wrist.beacon)}`
+  );
   assert.equal(await page.$('#vr-overlay'), null);
   await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-hand-search.png` });
 
@@ -285,16 +322,35 @@ try {
   check('Stereo VR hand mode renders the diegetic 3D Petersburg avatar & gloved hand with zero DOM HUD');
 
   // Rummage 3 strokes in the bin -> reveals 'cup'
+  // Рука над баком, шлем смотрит на неё — значит на телефоне маяк НИКУДА не пропадает:
+  // он остаётся в кадре на каждом взмахе. Кормим согласованный маяк и дальше, каждый раз
+  // сверяя его с ЖИВЫМ torsoYaw (корпус доворачивается за рукой), иначе синтетический
+  // пакет «врал» бы геометрии на десятки градусов и та честно складывала локоть.
+  let lastHand = info.wrist.hand;
   for (const yawSweep of [12, -12, 12]) {
     await wristPage.evaluate((a) => {
       window.__WRIST_TEST__.setPose({ alpha: a, beta: 90, gamma: 0, linMag: 1.8, rotRate: 75 });
     }, yawSweep);
     await new Promise((resolve) => setTimeout(resolve, 60));
-    await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.35, t), simClock);
+    const torsoYawNow = ((lastHand.torsoYaw ?? 0) * 180) / Math.PI;
+    const beaconNow = straightRightArmBeacon(gaze.yaw - torsoYawNow, gaze.pitch);
+    const stepInfo = await page.evaluate(({ t, beacon }) => {
+      window.__GAME_TEST__.vr.wristBeacon(beacon, t);
+      return window.__GAME_TEST__.vr.step(0.35, t);
+    }, { t: simClock, beacon: beaconNow });
+    lastHand = stepInfo.wrist.hand;
     simClock += 400;
   }
   gameState = await state(page);
-  assert.equal(gameState.phase, 'inspect');
+  const dbg = await vr(page);
+  assert.equal(
+    gameState.phase,
+    'inspect',
+    `3 взмаха у бака должны были открыть находку: reach=${dbg.wrist?.hand?.reach} ` +
+      `src=${dbg.wrist?.hand?.trackingSource} pos=${JSON.stringify(dbg.wrist?.hand?.pos)} ` +
+      `handPos=${JSON.stringify(dbg.world?.handPosition)} gazeHit=${dbg.gazeHit} ` +
+      `searches=${JSON.stringify(dbg.world?.bin?.searches ?? null)}`
+  );
   assert.equal(gameState.current, 'cup');
   await page.evaluate(() => window.__GAME_TEST__.settle());
   info = await vr(page);
@@ -302,9 +358,12 @@ try {
   check('Extended arm rummaging opens the bin in 3 strokes without locking head gaze');
 
   // Rotate wrist -> rotates the 3D find; then sharp wave -> discards find
+  // Крутим предмет КИСТЬЮ (alpha/gamma), предплечье держим на той же высоте (beta: 90).
+  // Опускать предплечье на 15° здесь нельзя: по контракту «спокойно опустить руку вниз» =
+  // жест «забрать в коллекцию», и продукт ОБЯЗАН читать его именно так (см. tests/wristHand.test.js).
   const beforeHandRot = info.world.targetY;
   await wristPage.evaluate(() => {
-    window.__WRIST_TEST__.setPose({ alpha: 36, beta: 75, gamma: 15, linMag: 0.3, rotRate: 25 });
+    window.__WRIST_TEST__.setPose({ alpha: 36, beta: 90, gamma: 15, linMag: 0.3, rotRate: 25 });
   });
   await new Promise((resolve) => setTimeout(resolve, 60));
   simClock = await page.evaluate(() => performance.now() + 500);
@@ -320,8 +379,16 @@ try {
   await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.15, t), simClock);
   simClock += 1200;
   gameState = await state(page);
+  const dbgWave = await vr(page);
   assert.equal(gameState.phase, 'search');
-  assert.equal(gameState.collection.length, 0);
+  assert.equal(
+    gameState.collection.length,
+    0,
+    `резкий взмах кистью обязан ВЫБРОСИТЬ находку, а не прятать её в коллекцию: ` +
+      `calm=${dbgWave.wrist?.hand?.calmLowerProgress ?? null} ` +
+      `pitchUp=${dbgWave.wrist?.hand?.pitchUpDeg ?? null} reach=${dbgWave.wrist?.hand?.reach} ` +
+      `pos=${JSON.stringify(dbgWave.wrist?.hand?.pos ?? null)}`
+  );
   check('Twisting the wrist rotates the 3D find and a sharp wave throws/discards it');
 
   // Rummage a second find ('watch') and calmly lower the hand downward -> keeps in collection
@@ -360,12 +427,32 @@ try {
   });
   await new Promise((resolve) => setTimeout(resolve, 80));
   simClock += 1500;
-  info = await page.evaluate((t) => window.__GAME_TEST__.vr.step(0.45, t), simClock);
+  // Локоть теперь определяется ГЕОМЕТРИЕЙ (луч камера→маяк + сфера плеча), а не догадкой
+  // по одному гироскопу. Значит, чтобы проверить зеркальную (левую) согнутую руку, надо
+  // честно показать камере левую кисть у груди: 0.30 м вместо 0.72 м, и пятно крупнее.
+  // Точку берём в СИСТЕМЕ КАМЕРЫ (у=0, наклон 0): слияние само переводит луч в систему
+  // корпуса по фактической позе головы на момент снимка, поэтому пиксель всегда честный,
+  // а значит пятно остаётся в кадре (иначе conf=0 и локотр решает один гироскоп).
+  const leftFold = straightRightArmBeacon(0, 0, 0.195, [-0.1, -0.1, -0.34]);
+  info = await page.evaluate(({ t, beacon }) => {
+    window.__GAME_TEST__.vr.wristBeacon(beacon, t);
+    return window.__GAME_TEST__.vr.step(0.45, t);
+  }, { t: simClock, beacon: leftFold });
+  simClock += 500;
+  info = await page.evaluate(({ t, beacon }) => {
+    window.__GAME_TEST__.vr.wristBeacon(beacon, t + 90);
+    return window.__GAME_TEST__.vr.step(0.45, t);
+  }, { t: simClock, beacon: leftFold });
   assert.equal(info.wrist.hand.handSide, 'left');
   assert.equal(info.world.handSide, 'left');
   assert.ok(info.world.handPosition[0] < -0.04, `left wrist x=${info.world.handPosition[0]}`);
   assert.ok(info.wrist.hand.elbowPos.x < -0.08, `left elbow x=${info.wrist.hand.elbowPos.x}`);
-  assert.ok(info.wrist.hand.elbowBendDeg > 55, `elbowBendDeg=${info.wrist.hand.elbowBendDeg}`);
+  assert.ok(
+    info.wrist.hand.elbowBendDeg > 55,
+    `левая рука с кистью у груди должна быть согнута в локте: elbowBendDeg=${info.wrist.hand.elbowBendDeg} ` +
+      `reach=${info.wrist.hand.reach} src=${info.wrist.hand.trackingSource} ` +
+      `pos=${JSON.stringify(info.wrist.hand.pos)} beacon=${JSON.stringify(info.wrist.beacon)}`
+  );
   await page.screenshot({ path: `${evidence}/screenshots/white-night-vr-hand-left.png` });
 
   // Switch back to right hand from the VR host and verify wrist companion syncs too

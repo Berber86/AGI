@@ -128,7 +128,7 @@ test('2-gesture calibration solves arbitrary wrist strap angles (portrait, trans
   }
 });
 
-test('Gyro-compensated dual-beacon span keeps true depth steady even when wrist tilts 45 deg', () => {
+test('Beacon depth ignores apparent span (foreshortening-immune) but follows the measured bearing', () => {
   const fusion = new WristHandFusion();
   const qBase = w3cDeviceQuaternion(0, 90, 0, 0);
   const qBent = qMul(qAxisAngle([1, 0, 0], 50 * DEG), qBase);
@@ -138,23 +138,46 @@ test('Gyro-compensated dual-beacon span keeps true depth steady even when wrist 
   fusion.feedSensor({ q: qBent, ts: 20 });
   fusion.calibrateBendPose(fusion.lastSensor, { fresh: true, u: 0.54, v: 0.62, spanNorm: 0.24 });
 
-  // Держим руку на средней дистанции (истинный span = 0.17), но поворачиваем запястье на 45° вокруг Y:
-  // видимый камерой span сжимается в cos(45°) = 0.707 раза (до ~0.12), однако гироскоп компенсирует сжатие!
-  const qTiltedWrist = qMul(qAxisAngle([0, 1, 0], 45 * DEG), qBase);
-  const foreshortenedSpan = 0.17 * Math.cos(45 * DEG);
-  fusion.feedSensor({ q: qTiltedWrist, ts: 100 });
-  let snap;
-  for (let i = 0; i < 20; i++) {
-    snap = fusion.update(1 / 60, {
-      beacon: { fresh: true, status: 'pair', u: 0.52, v: 0.54, spanNorm: foreshortenedSpan, rollRad: 0 },
-      phase: 'search',
-      now: 100 + i * 16,
+  const runWith = (beacon, frames = 24) => {
+    const f = new WristHandFusion();
+    f.importCalibration({
+      handSide: 'right',
+      qStretch: qBase,
+      qBend: qBent,
+      qBasis: [0, 0, 0, 1],
+      qRefInv: qBase,
+      bendSpanRad: 50 * DEG,
+      bendInwardYawRad: 0,
     });
-  }
-  // Без компенсации span=0.12 дал бы optReach=0.86; с компенсацией истинный optReach=0.50!
-  assert.ok(snap.reach < 0.75 && snap.reach > 0.45, `compensated reach=${snap.reach}`);
-});
+    let snap = null;
+    for (let i = 0; i < frames; i++) {
+      f.feedSensor({ q: qBase, linMag: 0.2, rotRate: 0, ts: 100 + i * 16 });
+      snap = f.update(1 / 60, { beacon, phase: 'search', now: 100 + i * 16 });
+    }
+    return { snap, f };
+  };
 
+  // 1) Кисть довернута так, что видимый разнос пятен сжимается в cos(45°) (или раздувается).
+  //    Направление на маяк и гироскоп не меняются -> глубина обязана остаться той же.
+  //    Старая шкала «span = дальномер» требовала поправки tiltCos с клампом и наклоняла
+  //    локоть на величину до 60° — именно из-за этого рука «заклинивала» в согнутом виде.
+  const base = runWith({ fresh: true, status: 'pair', u: 0.52, v: 0.54, spanNorm: 0.17, rollRad: 0 });
+  for (const spanNorm of [0.17 * Math.cos(45 * DEG), 0.17 * Math.cos(70 * DEG), 0.3]) {
+    const tilted = runWith({ fresh: true, status: 'pair', u: 0.52, v: 0.54, spanNorm, rollRad: 0 });
+    assert.ok(
+      Math.abs(tilted.snap.reach - base.snap.reach) < 0.03,
+      `span=${spanNorm.toFixed(3)} сдвинул оценку вытянутости: ${tilted.snap.reach} vs ${base.snap.reach}`
+    );
+  }
+  assert.ok(base.snap.trackingSource === 'gyro+beacon', `источник=${base.snap.trackingSource}`);
+
+  // 2) Позитивный контроль: маяк — НЕ декорация. Сдвиг угла на маяк уводит запястье вбок.
+  const sideBeat = runWith({ fresh: true, status: 'pair', u: 0.66, v: 0.54, spanNorm: 0.17, rollRad: 0 });
+  assert.ok(
+    sideBeat.snap.pos.x - base.snap.pos.x > 0.05,
+    `сдвиг маяка в кадре не двигает руку: ${base.snap.pos.x} -> ${sideBeat.snap.pos.x}`
+  );
+});
 test('Extended arm rummage produces 3 bin pokes, rotates find, Calm Lower keeps, Sharp Wave discards', () => {
   const fusion = new WristHandFusion();
   const qStraight = w3cDeviceQuaternion(0, 90, 0, 0);
@@ -395,7 +418,9 @@ test('Whole-body turn (+45 deg right) keeps arm centered in front of torso, and 
   for (let i = 0; i < 20; i++) {
     recenteredSnap = fusion2.update(1 / 60, { headLook: { yaw: 0, pitch: 0 }, phase: 'search', now: 520 + i * 16 });
   }
-  assert.ok(Math.abs(recenteredSnap.pos.x - 0.12) < 0.08, `recentered pos.x=${recenteredSnap.pos.x}`);
+  // Выпрямленная вперёд рука висит точно под своим плечом (x=0.21), а не свисает
+  // кистью к средней линии тела — так требует анатомия плечевого пояса.
+  assert.ok(Math.abs(recenteredSnap.pos.x - 0.21) < 0.06, `recentered pos.x=${recenteredSnap.pos.x}`);
 });
 
 test('Inspection wrist yaw matches true 1:1 physical direction even with elbow bent 55 deg', () => {

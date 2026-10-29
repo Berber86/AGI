@@ -138,6 +138,7 @@ export function detectLuminousSpot(data, w, h, targetHue, hueTol = 34) {
 
 export class WristBeaconTracker {
   constructor(video = null) {
+    this.aspectY = 0.75; // 4:3 — типовой кадр задней камеры телефона
     this.video = video;
     this.stream = null;
     this.running = false;
@@ -213,6 +214,7 @@ export class WristBeaconTracker {
   }
 
   analyzeRgba(data, w = ANALYZE_W, h = ANALYZE_H, now = performance.now(), videoAspectY = h / w) {
+    this.aspectY = Number.isFinite(videoAspectY) && videoAspectY > 0.1 ? videoAspectY : h / w;
     const distal = detectLuminousSpot(data, w, h, this.distalHue);
     const proximal = detectLuminousSpot(data, w, h, this.proximalHue);
     return this._commitSpots(distal, proximal, w, h, now, videoAspectY);
@@ -220,6 +222,9 @@ export class WristBeaconTracker {
 
   _commitSpots(distal, proximal, w, h, now, videoAspectY = h / w) {
     const aspectY = Number.isFinite(videoAspectY) && videoAspectY > 0.1 ? videoAspectY : (h / w);
+    // Реальное соотношение сторон кадра нужно игре, чтобы перевести пиксели в УГЛЫ
+    // (иначе вертикаль предплечья считается с коэффициентом 0.75 на 16:9-камере).
+    this.aspectY = aspectY;
     // Диагональная нормировка (с эталоном 4:3 -> 1.25): расстояние между пятнами НЕ «дышит»
     // при повороте кисти на 90° перед камерой 16:9 и НЕ сбивается при перевороте телефона
     // из портретного окна калибровки (480x640) в ландшафтные VR-очки (640x480)!
@@ -319,6 +324,7 @@ export class WristBeaconTracker {
     const ageMs = this.latest.ts ? now - this.latest.ts : Infinity;
     return {
       ...this.latest,
+      aspectY: +this.aspectY.toFixed(4),
       fresh: ageMs <= 450 && this.latest.status !== 'none',
       ageMs: Number.isFinite(ageMs) ? Math.round(ageMs) : null,
     };
