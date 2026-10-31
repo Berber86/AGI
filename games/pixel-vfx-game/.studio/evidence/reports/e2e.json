@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-31T17:48:57.736Z",
+  "startedAt": "2026-10-31T19:03:10.735Z",
   "viewport": {
     "buffer": [
       320,
@@ -30,7 +30,7 @@
     {
       "name": "touch: dragging the finger moves the hero",
       "passed": true,
-      "detail": "24.4 px"
+      "detail": "19.6 px"
     },
     {
       "name": "determinism: identical seed and inputs give identical state",
@@ -70,7 +70,7 @@
     {
       "name": "budget: average frame under 33.33 ms (headless SwiftShader)",
       "passed": true,
-      "detail": "17.33 ms avg, 21.68 ms max"
+      "detail": "22.56 ms avg, 31.64 ms max"
     },
     {
       "name": "portrait 360x800: an orientation prompt is shown",
@@ -88,12 +88,12 @@
     ".studio/evidence/screenshots/07-play-915x412.png"
   ],
   "metrics": {
-    "frames": 398,
-    "avgMs": 17.327428810720257,
-    "maxMs": 21.67999999999993,
-    "fps": 37.70867678547742
+    "frames": 274,
+    "avgMs": 22.55804136253043,
+    "maxMs": 31.640000000000327,
+    "fps": 21.260746764331603
   },
-  "finishedAt": "2026-10-31T17:49:10.507Z",
+  "finishedAt": "2026-10-31T19:03:26.091Z",
   "passed": true,
   "consoleErrors": []
 }

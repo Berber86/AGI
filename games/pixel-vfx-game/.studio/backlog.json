@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-31T17:48:37Z",
+  "updatedAt": "2026-10-31T18:25:00Z",
   "tasks": [
     {
       "id": "CORE-001",
@@ -41,7 +41,8 @@
       "status": "done",
       "acceptance": "dist/ is 1.21 MB, manifest + service worker + icons present, no external runtime requests.",
       "evidence": [
-        ".studio/evidence/reports/release.json"
+        ".studio/evidence/reports/release.json",
+        ".studio/evidence/reports/catalog.json"
       ]
     },
     {
@@ -54,10 +55,14 @@
     },
     {
       "id": "NEXT-002",
-      "title": "Publish the build to the repo catalog (games/<name>/play)",
-      "status": "ready",
-      "acceptance": "Built shell checked in under play/, a card added to the root index.html, catalog tests updated.",
-      "evidence": []
+      "title": "Publish the game to the shared catalog with a cover and catalog tests",
+      "status": "done",
+      "acceptance": "The card sits in the repo-root index.html with exactly two links to ./games/pixel-vfx-game/play/index.html, a cover with alt text, the build is self-contained, PWA assets are present, and the repo test suite passes.",
+      "evidence": [
+        ".studio/evidence/reports/catalog.json",
+        "index.html",
+        "tests/test_game_catalog.py"
+      ]
     }
   ]
 }

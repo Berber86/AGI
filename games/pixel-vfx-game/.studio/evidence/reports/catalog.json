@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-31T18:25:00Z",
+  "task": "RELEASE-CATALOG",
+  "catalog": {
+    "card": "index.html :: article.card[data-game=pixel-vfx-game]",
+    "links": [
+      "./games/pixel-vfx-game/play/index.html",
+      "./games/pixel-vfx-game/play/index.html"
+    ],
+    "cover": "games/pixel-vfx-game/cover.webp (1280x720, 25 780 B, generated 1:1 from a real frame by scripts/cover.ts, zoom 4)",
+    "publishedBuild": "games/pixel-vfx-game/play/ (index.html, assets/index-BTpYWiIL.js, manifest.webmanifest, sw.js, icons/)"
+  },
+  "browserCheck": {
+    "server": "python3 -m http.server 8901 --directory <repo root>",
+    "viewport": "1280x900",
+    "landedOn": "http://127.0.0.1:8901/games/pixel-vfx-game/play/index.html",
+    "gameReady": true,
+    "serviceWorkerRegistrations": 1,
+    "consoleErrors": [],
+    "failedRequests": [],
+    "screenshots": [
+      "/home/user/shots/catalog-card.png",
+      "/home/user/shots/play-from-catalog.png"
+    ]
+  },
+  "repoTests": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "passed": 28
+  }
+}

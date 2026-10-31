@@ -187,6 +187,48 @@ class GameCatalogTests(unittest.TestCase):
                 self.assertFalse(value.startswith(('http:', 'https:')), value)
         self.assertNotIn('src/main.tsx', (base / 'index.html').read_text())
 
+    def test_pixel_vfx_game_card_links_to_published_game_and_cover(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a['href'] for t, a in tags if t == 'a' and 'pixel-vfx-game' in a.get('href', '')]
+        self.assertEqual(links, ['./games/pixel-vfx-game/play/index.html'] * 2)
+        for link in links:
+            self.assertTrue((ROOT / link).is_file(), link)
+        images = [a for t, a in tags if t == 'img' and 'pixel-vfx-game' in a.get('src', '')]
+        self.assertEqual(len(images), 1)
+        self.assertTrue((ROOT / images[0]['src']).is_file())
+        self.assertTrue(images[0].get('alt'))
+
+    def test_pixel_vfx_game_published_build_is_self_contained(self):
+        base = ROOT / 'games/pixel-vfx-game/play'
+        tags = Tags((base / 'index.html').read_text()).tags
+        scripts = [a for t, a in tags if t == 'script' and a.get('type') == 'module']
+        self.assertEqual(len(scripts), 1)
+        self.assertTrue(scripts[0]['src'].startswith('./assets/'))
+        for tag, attrs in tags:
+            for attr in ('src', 'href'):
+                value = attrs.get(attr, '')
+                if not value or value.startswith('#') or value.startswith('data:'):
+                    continue
+                self.assertFalse(urlsplit(value).netloc, value)
+                self.assertTrue((base / urlsplit(value).path).exists(), value)
+        html = (base / 'index.html').read_text()
+        self.assertNotIn('src/main.ts', html)
+        self.assertNotIn('http://', html)
+        self.assertNotIn('https://', html)
+
+    def test_pixel_vfx_game_pwa_assets_exist(self):
+        base = ROOT / 'games/pixel-vfx-game/play'
+        manifest = json.loads((base / 'manifest.webmanifest').read_text())
+        self.assertEqual(manifest['scope'], './')
+        self.assertEqual(manifest['orientation'], 'landscape')
+        for icon in manifest['icons']:
+            self.assertTrue((base / icon['src']).is_file(), icon['src'])
+        sw = (base / 'sw.js').read_text()
+        self.assertIn('./index.html', sw)
+        self.assertIn('lesnoy-ogon', sw)
+        self.assertTrue((ROOT / 'games/pixel-vfx-game/cover.webp').is_file())
+        self.assertGreater((ROOT / 'games/pixel-vfx-game/cover.webp').stat().st_size, 10_000)
+
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
         links = [a.get('href') for t, a in tags if t == 'a']

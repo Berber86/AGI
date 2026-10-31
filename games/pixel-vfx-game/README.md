@@ -39,10 +39,15 @@ npm run dev        # живое превью
 npm run check      # статические инварианты (детерминизм, отсутствие CDN, числа контракта)
 npm run typecheck
 npm test           # витальные тесты мира, рендера и арта
-npm run build      # сборка + проверка PWA (относительные пути, ≤ 6 МБ)
+npm run build      # сборка в dist/ + проверка PWA (относительные пути, ≤ 6 МБ)
+npm run build:play # сборка сразу в play/ — это каталог, откуда игру раздаёт общий каталог
 npm run test:e2e   # headless-прогон в браузере, скриншоты в .studio/evidence
 npm run gate       # всё вместе
 ```
+
+## Публикация в общем каталоге
+
+Игра лежит в общем каталоге репозитория: `games/pixel-vfx-game/play/` — собранная версия (относительные пути, `manifest.webmanifest`, `sw.js`, `icons/`), `games/pixel-vfx-game/cover.webp` — обложка 1280×720, снятая с настоящего кадра (`npx vite-node scripts/cover.ts cover.png`, zoom 4). Карточка в корневом `index.html` (`data-game="pixel-vfx-game"`) ведёт на `./games/pixel-vfx-game/play/index.html`; правила карточки проверяют тесты `tests/test_game_catalog.py` (`python3 -m unittest discover -s tests -v` в корне репозитория).
 
 ## Тестовый мост
 

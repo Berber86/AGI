@@ -21,3 +21,7 @@ Record only evidence-backed lessons.
 - **`networkidle0` never settles with a service worker** that precaches the shell: navigate with `domcontentloaded` and wait for an explicit ready flag.
 - **`as const` CONFIG leaks literal types** into class fields (`heroX = CONFIG.fireX` becomes the literal 160) and breaks the first assignment. Annotate numeric fields explicitly.
 - **The fire is solid.** Without a push-out radius the hero stands inside the flames while banking, which read as one bright blob and hid both sprites.
+
+## 2026-10-31 · «Готово» без карточки в каталоге — не готово
+
+Игра собиралась и е2е-проходила, но в общем каталоге её не было: пользователь нашёл это первым. Выпуск теперь не закрывается без пути `games/<slug>/play/` + карточки в корневом `index.html` + тестов в `tests/test_game_catalog.py`, и я прогоняю браузерную проверку «клик по карточке → игра готова» до коммита.

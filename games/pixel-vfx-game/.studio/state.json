@@ -3,8 +3,8 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "Vertical slice delivered: code-driven pixel engine, deterministic sim, 26 unit tests, 13/13 e2e checks, PWA build 1.21 MB",
-  "nextAction": "Physical Android check, then publish under games/<name>/play and add a catalog card",
+  "lastAction": "Vertical slice delivered and published: code-driven pixel engine, deterministic sim, 26 unit tests, 13/13 e2e checks, PWA build 1.21 MB, catalog card + cover live in games/pixel-vfx-game/play/",
+  "nextAction": "Physical Android check on a real phone (only remaining backlog item)",
   "blockers": [
     "physical device not available in this session"
   ],
@@ -17,5 +17,8 @@
     "resultPath": "../.studio/benchmarks/runs/20261031T172600Z-f7cfd1/result.json"
   },
   "createdAt": "2026-10-31T17:26:27Z",
-  "updatedAt": "2026-10-31T17:48:37Z"
+  "updatedAt": "2026-10-31T19:04:00Z",
+  "notes": [
+    "2026-10-31: user correction — the game was missing from the shared catalog; published to games/pixel-vfx-game/play/ and linked from the repo-root index.html with a cover and catalog tests."
+  ]
 }

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-31T17:48:29Z",
-  "command": "npm run build",
+  "generatedAt": "2026-10-31T19:04:00Z",
+  "command": "npm run build:play",
   "distFiles": 6,
   "distBytes": 1265374,
   "distMb": 1.21,
@@ -14,5 +14,31 @@
   },
   "relativePaths": true,
   "externalRuntimeRequests": false,
-  "entry": "dist/index.html"
+  "entry": "games/pixel-vfx-game/play/index.html",
+  "publishedPath": "games/pixel-vfx-game/play/",
+  "cover": "games/pixel-vfx-game/cover.webp",
+  "catalogCard": "index.html :: article.card[data-game=pixel-vfx-game]",
+  "e2e": {
+    "checks": "13/13",
+    "passed": true,
+    "viewport": {
+      "buffer": [
+        320,
+        180
+      ],
+      "css": [
+        693,
+        390
+      ],
+      "dpr": 2
+    },
+    "frames": 274,
+    "avgMs": 22.56,
+    "maxMs": 31.64,
+    "consoleErrors": 0
+  },
+  "repoCatalogTests": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "passed": 28
+  }
 }

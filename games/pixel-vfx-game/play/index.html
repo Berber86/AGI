@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#0a1410" />
+    <meta name="description" content="Лесной огонь — ночная пиксельная аркада про находки, костёр и сгущающуюся тьму." />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <title>Лесной огонь</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #060b09;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #060b09;
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+      #app canvas {
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        touch-action: none;
+        max-width: 100%;
+        max-height: 100%;
+        background: #08110d;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font: 600 14px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #9bbf7c;
+        letter-spacing: 0.08em;
+        pointer-events: none;
+      }
+      #boot.hidden { display: none; }
+      #rotate {
+        position: fixed;
+        inset: 0;
+        display: none;
+        place-items: center;
+        text-align: center;
+        padding: 24px;
+        background: #08110d;
+        color: #d8e8b8;
+        font: 600 16px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        z-index: 20;
+      }
+      @media (orientation: portrait) and (pointer: coarse) {
+        #rotate { display: grid; }
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-BTpYWiIL.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="boot">РАЗЖИГАЕМ КОСТЁР…</div>
+    <div id="rotate">Поверни телефон горизонтально,<br />чтобы войти в лес.</div>
+  </body>
+</html>

@@ -4,13 +4,13 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const dist = "dist";
+const dist = process.argv[2] ?? "dist";
 const required = ["index.html", "manifest.webmanifest", "sw.js", "icons/icon-192.png", "icons/icon-512.png"];
 let failed = false;
 
 for (const f of required) {
   if (!existsSync(join(dist, f))) {
-    console.error(`missing from dist: ${f}`);
+    console.error(`missing from ${dist}: ${f}`);
     failed = true;
   }
 }
