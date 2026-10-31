@@ -1,0 +1,9 @@
+# Generated scratch challenges and active pointer
+runs/
+active.json
+
+# Keep evaluator reports/history visible to Git
+!README.md
+!.gitignore
+!latest-result.json
+!history.jsonl

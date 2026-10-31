@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-10-31T17:48:29Z",
+  "command": "npm run build",
+  "distFiles": 6,
+  "distBytes": 1265374,
+  "distMb": 1.21,
+  "pwa": {
+    "manifest": true,
+    "serviceWorker": true,
+    "icons": [
+      "icons/icon-192.png",
+      "icons/icon-512.png"
+    ]
+  },
+  "relativePaths": true,
+  "externalRuntimeRequests": false,
+  "entry": "dist/index.html"
+}

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-31T17:48:37Z",
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Playable round: move, pick, carry, bank, strike, night, lose, restart",
+      "status": "done",
+      "acceptance": "A full round runs on touch only; banking scores by find value; damage drops a carried find; the light closes over the session; zero hearts ends the run; restart is one tap.",
+      "evidence": [
+        ".studio/evidence/reports/core.json",
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/screenshots/02-play-landscape.png"
+      ]
+    },
+    {
+      "id": "FX-001",
+      "title": "Code-driven pixel effects in the pixelfx method",
+      "status": "done",
+      "acceptance": "Two buffers (color + light), ramp palettes, 4x4 ordered dither, translucent smoke, seeded randomness, deterministic frames, no image files.",
+      "evidence": [
+        ".studio/evidence/reports/core.json",
+        "src/core/frame.ts",
+        "src/fx/effects.ts"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Automated QA: unit, static, browser e2e, frame budget",
+      "status": "done",
+      "acceptance": "26 unit tests, static invariants, 13/13 browser checks, average frame 17.03 ms in headless SwiftShader.",
+      "evidence": [
+        ".studio/evidence/reports/qa.json",
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/screenshots/03-night-landscape.png"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "Static PWA build with relative paths",
+      "status": "done",
+      "acceptance": "dist/ is 1.21 MB, manifest + service worker + icons present, no external runtime requests.",
+      "evidence": [
+        ".studio/evidence/reports/release.json"
+      ]
+    },
+    {
+      "id": "NEXT-001",
+      "title": "Field check on a physical Android phone",
+      "status": "blocked",
+      "blockedBy": "no physical device in this session",
+      "acceptance": "60 s session, drag and tap feel, audio unlocked after the first tap, no console errors on device.",
+      "evidence": []
+    },
+    {
+      "id": "NEXT-002",
+      "title": "Publish the build to the repo catalog (games/<name>/play)",
+      "status": "ready",
+      "acceptance": "Built shell checked in under play/, a card added to the root index.html, catalog tests updated.",
+      "evidence": []
+    }
+  ]
+}

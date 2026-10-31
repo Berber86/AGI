@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-10-31T17:48:29Z",
+  "units": {
+    "total": 26,
+    "passed": 26,
+    "failed": 0
+  },
+  "covered": [
+    "fresh state, hearts, empty score",
+    "lane-free movement clamped to the arena",
+    "pickup caps at three carried finds",
+    "banking only at the fire, scored by find value",
+    "dropped find on damage, iframes block a second hit",
+    "zero hearts ends the run and freezes the score",
+    "seed + scripted input determinism",
+    "the light closes as the night deepens",
+    "tap kills inside reach, cooldown blocks a double hit",
+    "the hero is pushed out of the fire to the banking ring",
+    "render determinism, fire light vs dark corner, frame budget"
+  ],
+  "command": "npm test",
+  "evidence": [
+    ".studio/evidence/reports/vitest.json"
+  ]
+}

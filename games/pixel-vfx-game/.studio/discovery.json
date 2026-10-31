@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 3,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "completedAt": "2026-10-31T17:29:30Z",
+      "optionsUsed": true,
+      "questions": [
+        "fantasy",
+        "verb",
+        "structure",
+        "tone"
+      ],
+      "answers": {
+        "fantasy": "discovery",
+        "verb": "drag_tap",
+        "structure": "endless",
+        "tone": "forest"
+      },
+      "summary": "Главное удовольствие — открытие и находки; палец ведёт героя, тап наносит удар; бесконечный заход за рекордом; сказочный лес: зелень, янтарь, светлячки."
+    },
+    {
+      "stage": 2,
+      "name": "play-experience",
+      "completedAt": "2026-10-31T17:33:12Z",
+      "optionsUsed": true,
+      "questions": [
+        "find",
+        "rhythm",
+        "orientation",
+        "session"
+      ],
+      "answers": {
+        "find": "carry",
+        "rhythm": "darkness",
+        "orientation": "landscape",
+        "session": "long"
+      },
+      "summary": "Находки носят к костру и теряют при попадании; ночь сгущается и сужает круг света; ландшафт, одна рука; сессия 5–10 минут с усилениями между волнами."
+    },
+    {
+      "stage": 3,
+      "name": "contract-lock",
+      "completedAt": "2026-10-31T17:34:27Z",
+      "optionsUsed": true,
+      "questions": [
+        "contract"
+      ],
+      "answers": {
+        "contract": "lean"
+      },
+      "summary": "Утверждена компактная версия: без системы усилений (только счёт и сгущающаяся тьма), 2 типа находок, 2 твари."
+    }
+  ],
+  "answers": {
+    "fantasy": "discovery",
+    "coreVerb": "drag-to-move, tap-to-strike",
+    "structure": "endless-score",
+    "tone": "fairy-forest",
+    "find": "carry-to-campfire",
+    "rhythm": "darkening-night",
+    "orientation": "landscape",
+    "sessionLength": "5-10 min with upgrades"
+  },
+  "openQuestions": [],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-31T17:26:27Z",
+  "updatedAt": "2026-10-31T17:34:27Z"
+}

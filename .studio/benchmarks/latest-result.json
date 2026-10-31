@@ -1,6 +1,6 @@
 {
   "benchmarkVersion": 1,
-  "runId": "20261021T170038Z-f8761c",
+  "runId": "20261031T172600Z-f7cfd1",
   "verdict": "qualified",
   "score": 95,
   "maximumScore": 100,
@@ -116,7 +116,7 @@
       "earned": 0,
       "possible": 5,
       "passed": false,
-      "detail": "AssertionError: CORE-001 evidence missing"
+      "detail": "AssertionError: CORE dependency mismatch"
     },
     {
       "name": "workspace-integrity",
@@ -141,7 +141,7 @@
     }
   ],
   "allowedWork": "May continue with the full Arena Game Forge workflow.",
-  "evaluatedAt": "2026-10-21T17:00:54Z",
+  "evaluatedAt": "2026-10-31T17:26:18Z",
   "policy": {
     "qualified": "score >= 85, code >= 60, plan >= 15, no critical failures",
     "limited": "score >= 70, code >= 50, no critical failures",

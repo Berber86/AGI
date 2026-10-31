@@ -1,0 +1,99 @@
+{
+  "startedAt": "2026-10-31T17:48:57.736Z",
+  "viewport": {
+    "buffer": [
+      320,
+      180
+    ],
+    "css": [
+      693,
+      390
+    ],
+    "dpr": 2
+  },
+  "checks": [
+    {
+      "name": "boot: bridge ready and title screen shown",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "canvas: internal resolution is 320x180",
+      "passed": true,
+      "detail": "320x180"
+    },
+    {
+      "name": "touch: a real tap starts the run",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "touch: dragging the finger moves the hero",
+      "passed": true,
+      "detail": "24.4 px"
+    },
+    {
+      "name": "determinism: identical seed and inputs give identical state",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "loop: a find is picked up and banked at the fire for score",
+      "passed": true,
+      "detail": "score 2, banked 1"
+    },
+    {
+      "name": "record: the best score is written to storage after a scoring run",
+      "passed": true,
+      "detail": "best 2"
+    },
+    {
+      "name": "health: a simulated 60 s session logs no console errors",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "night: the light closes over the session",
+      "passed": true,
+      "detail": "light 88.09, night 0.25"
+    },
+    {
+      "name": "lose: at zero hearts the run ends",
+      "passed": true,
+      "detail": "hearts 0"
+    },
+    {
+      "name": "restart: a tap after the end screen starts a new run",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "budget: average frame under 33.33 ms (headless SwiftShader)",
+      "passed": true,
+      "detail": "17.33 ms avg, 21.68 ms max"
+    },
+    {
+      "name": "portrait 360x800: an orientation prompt is shown",
+      "passed": true,
+      "detail": "Поверни телефон горизонтально,чтобы войти в лес."
+    }
+  ],
+  "screenshots": [
+    ".studio/evidence/screenshots/01-title-landscape.png",
+    ".studio/evidence/screenshots/02-play-landscape.png",
+    ".studio/evidence/screenshots/03-night-landscape.png",
+    ".studio/evidence/screenshots/04-over-landscape.png",
+    ".studio/evidence/screenshots/05-portrait-360x800.png",
+    ".studio/evidence/screenshots/06-portrait-412x915.png",
+    ".studio/evidence/screenshots/07-play-915x412.png"
+  ],
+  "metrics": {
+    "frames": 398,
+    "avgMs": 17.327428810720257,
+    "maxMs": 21.67999999999993,
+    "fps": 37.70867678547742
+  },
+  "finishedAt": "2026-10-31T17:49:10.507Z",
+  "passed": true,
+  "consoleErrors": []
+}
