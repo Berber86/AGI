@@ -35,6 +35,7 @@
 │   ├── immersive-vr-remote-input.md   ← VR, камера-метки, внешний джойстик и полевой QA
 │   ├── lifehacks-and-pitfalls.md      ← проверенные приёмы и тупики живых сессий
 │   ├── perf-freeze-triage.md          ← фризы мобильного 3D: шейдерные пермутации, прогрев, 15с-пробник
+│   ├── pixel-art-fx.md                ← пиксельные VFX: метод pixelfx, шиты, hit-stop, планка качества
 │   └── workspace-resets-and-recovery.md ← что теряется при сбросах окружения и как восстанавливаться
 ├── scripts/
 └── templates/
@@ -46,6 +47,7 @@
 - [VR, камера и внешний джойстик](.agents/skills/arena-game-forge/references/immersive-vr-remote-input.md)
 - [Сбросы окружения и восстановление](.agents/skills/arena-game-forge/references/workspace-resets-and-recovery.md)
 - [Диагностика фризов мобильного 3D](.agents/skills/arena-game-forge/references/perf-freeze-triage.md)
+- [Пиксельные VFX и спрайтовые эффекты (pixelfx)](.agents/skills/arena-game-forge/references/pixel-art-fx.md)
 
 ## Главные выводы полевых замеров (производительность)
 

@@ -83,6 +83,8 @@ Default technical choices:
 
 Create the smallest playable vertical slice first. Do not produce a content-heavy shell before proving the core loop.
 
+For pixel-art games, read `references/pixel-art-fx.md` before planning the visual layer. It covers the `pixelfx` method (effects as code, two buffers, seeded frames, render → look → refine), vendoring the MIT runtime, sprite-sheet export for Phaser and other engines, host-side hit-stop timing, and the mobile cost of `putImageData`.
+
 ## Quality gates
 
 Read `references/quality-gates.md` and `references/mobile-web.md` before claiming completion. If the contract targets stable 30–60 FPS on phones or includes VR/stereo, also read `references/perf-freeze-triage.md` before field QA — mobile "unreal" freezes are usually shader-permutation storms, and `linkProgram` counters do not show their cost. If the contract includes VR/3D viewing, camera-based tracking, a second-device controller, Firebase/WebRTC, or another asynchronous input source, read `references/immersive-vr-remote-input.md` before technical planning and again before field QA.
@@ -125,5 +127,6 @@ Do not mark work complete if the preview was not exercised or required evidence 
 - Sandbox resets and git recovery: `references/workspace-resets-and-recovery.md`
 - Headless browser setup (no GPU, no apt): `references/headless-browser-setup.md`
 - Field-tested lifehacks and pitfalls (UV traps, corridor sweep, perf, camera, test flakes): `references/lifehacks-and-pitfalls.md`
+- Pixel-art VFX and sprite effects (pixelfx: two-buffer effects as code, palette ramps, sprite sheets, acts and hit-stop, authoring loop and quality bar): `references/pixel-art-fx.md`
 - Mobile 3D freeze triage, shader permutations, and warm-up (link vs first-draw compile, per-mesh masking, 15s frame probe): `references/perf-freeze-triage.md`
 - VR, camera markers, stereo comfort, dual-rail WebRTC 60 Hz P2P + Firebase fallback joystick, compass-free 3D hand-tilt, failure semantics, and field QA: `references/immersive-vr-remote-input.md` (includes the gaze contract: marker entity ≥0.15 s, horizontal-rectangle shape, pair proves straight, lone marker steers its own way, coast-and-fade instead of timer return to centre, symmetric alien-side rejection; dual-rail 6-digit room remote: LAN-first WebRTC `RTCDataChannel` 60 Hz with 0 cloud writes while open, `hid` handshake isolation, transient `disconnected` survival + background auto-heal, automatic Firebase coalesced fallback, compass-free 3D Rodrigues hand-tilt with blind VR grip re-centering, dual-phone `navigator.wakeLock`; split code/media PWA caches and measured update cost, unit-tested gyro/marker/tilt sign conventions, guarded gyro+camera fusion, gaze-dwell and head-shake input, zero in-headset HUD, manual-only VR quality)
