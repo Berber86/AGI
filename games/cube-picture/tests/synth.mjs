@@ -59,6 +59,10 @@ export function renderScene(rows, opts = {}) {
     boost = 1, // яркость граней кубиков относительно эталона (верхние грани обычно светлее)
     textures = null, // {key: {data, width, height}} — настоящие текстуры граней (RGB)
     bgTexture = null, // настоящая текстура фона
+    bgColor = null, // свой цвет фона (кремовая бумага, голубоватая тень)
+    sat = 1, // «телефон усилил/приглушил цвета»: насыщенность всего кадра
+    gamma = 1, // тоновая кривая камеры
+    tintSide = null, // смешанный свет: тинт у правого края кадра (у левого — tint)
   } = opts;
   const rand = rng(seed);
   const W = size;
@@ -100,6 +104,8 @@ export function renderScene(rows, opts = {}) {
       if (bg === 'wood') {
         const s = Math.sin(y * 0.06 + Math.sin(x * 0.013) * 3) * 16;
         col = [178 + s, 126 + s * 0.8, 74 + s * 0.5];
+      } else if (bgColor) {
+        col = bgColor.slice();
       } else if (bg === 'gray') {
         col = [150, 150, 152];
       } else if (bgTexture) {
@@ -126,9 +132,16 @@ export function renderScene(rows, opts = {}) {
       }
       const n = (rand() - 0.5) * 2 * noise;
       const i = (y * W + x) * 4;
-      data[i] = col[0] * light * tint[0] + n;
-      data[i + 1] = col[1] * light * tint[1] + n;
-      data[i + 2] = col[2] * light * tint[2] + n;
+      const tt = tintSide ? tint.map((v, j) => v + (tintSide[j] - v) * (x / W)) : tint;
+      let out = [col[0] * light * tt[0], col[1] * light * tt[1], col[2] * light * tt[2]];
+      if (gamma !== 1) out = out.map((v) => 255 * Math.pow(Math.max(0, Math.min(255, v)) / 255, gamma));
+      if (sat !== 1) {
+        const Y = 0.299 * out[0] + 0.587 * out[1] + 0.114 * out[2];
+        out = out.map((v) => Y + (v - Y) * sat);
+      }
+      data[i] = out[0] + n;
+      data[i + 1] = out[1] + n;
+      data[i + 2] = out[2] + n;
       data[i + 3] = 255;
     }
   }

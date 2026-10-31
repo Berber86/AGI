@@ -19,9 +19,10 @@ export const DEFAULTS = {
   minBgDist: 0.14, // минимальное отличие от фона (в долях цвета фона)
   minY: 0.13, // относительная яркость ниже — щель/глубокая тень
   darkY: 0.55, // темнее этого — предмет, даже если почти серый (тени на бумаге светлее)
-  chromaScale: 0.03, // «единица» расстояния по цветности
+  chromaScale: 0.08, // «единица» расстояния по log-цветности
+  logEps: 0.15,
   lumScale: 0.2, // «единица» расстояния по log-светлоте (после поправки на общую яркость сцены)
-  maxDist: 3.2, // дальше от всех эталонов — «неизвестный цвет»
+  maxDist: 3.2, // дальше от всех эталонов — «неизвестный цвет» (см. TOLERANCE)
   strongColor: 0.1, // неизвестный, но явно цветной пиксель — посторонний предмет
   minAreaFrac: 0.003, // минимальная площадь всех кубиков (доля кадра)
   speckFrac: 0.025, // области меньше этой доли от всех кубиков — мусор
@@ -29,6 +30,24 @@ export const DEFAULTS = {
   cellFill: 0.4, // доля «кубиковых» пикселей, чтобы клетка считалась занятой
   aspectMin: 0.6,
   aspectMax: 1.65,
+  gainMin: 0.6, // пределы подстройки насыщенности снимка
+  gainMax: 1.7,
+  castMax: 0.25, // предел подстройки оттенка снимка (в log-цветности)
+  adaptNoise: 0.1, // разброс цвета одного кубика в log-цветности
+  adaptGainSd: 0.2, // насколько обычно телефон меняет насыщенность
+  adaptCastSd: 0.1,
+  fitMinSep: 3, // цвета ближе этого (в единицах chromaScale) к соседу — не голосуют в подстройке
+  pairGap: 0.35, // минимальный зазор между группами похожих цветов (в долях расстояния между эталонами)
+  pairLoose: 0.75, // один цвет пары в картинке: клетка засчитывается, пока не дальше этой доли к соседу
+  fitMinFrac: 0.06, // цвет голосует, если занимает хотя бы такую долю пикселей (одна клетка из 10) // насколько обычно остаётся сдвиг оттенка после деления на фон
+  mode: 'color', // color — важны цвета; shape — важна только форма, цвета любые
+  tolerance: 'wide',
+};
+
+/** Допуск цвета. wide — по умолчанию: подстройка под снимок, похожие цвета набора засчитываются. */
+export const TOLERANCE = {
+  strict: { maxDist: 3.2, lumScale: 0.2, adapt: false, twins: false, share: 2 },
+  wide: { maxDist: 4.5, lumScale: 0.3, adapt: true, twins: true, share: 0.3, relative: true },
 };
 
 const UNKNOWN = '?';
@@ -84,47 +103,101 @@ export function rotateGrid(target, k) {
   return g;
 }
 
+// Цветность в логарифмах: u = проекция (ln r, ln g, ln b) на плоскость, перпендикулярную яркости.
+// В этих координатах баланс белого — сдвиг, а тоновая кривая/насыщенность камеры — растяжение,
+// поэтому подстройка «g·u + t» описывает их почти точно.
+const E1 = [Math.SQRT1_2, -Math.SQRT1_2, 0];
+const E2 = [1 / Math.sqrt(6), 1 / Math.sqrt(6), -2 / Math.sqrt(6)];
+let EPS = 0.08; // смягчение логарифма у почти нулевых каналов (синий у жёлтого)
+const toUV = (r, g, b) => {
+  const l = [Math.log(Math.max(r, 0) + EPS), Math.log(Math.max(g, 0) + EPS), Math.log(Math.max(b, 0) + EPS)];
+  return [l[0] * E1[0] + l[1] * E1[1], l[0] * E2[0] + l[1] * E2[1] + l[2] * E2[2]];
+};
+
 /** Эталоны палитры: цветность и относительная яркость. */
 function refsOf(palette) {
   return Object.keys(palette).map((k) => {
     const rel = palette[k].rel;
     const sum = rel[0] + rel[1] + rel[2];
-    return { key: k, c: rel.map((v) => v / sum), y: sum / 3, decoy: !!palette[k].decoy };
+    const c = rel.map((v) => v / sum);
+    return { key: k, c, uv: toUV(rel[0], rel[1], rel[2]), y: sum / 3, decoy: !!palette[k].decoy };
   });
+}
+
+/** Цвет фона: медиана по краю кадра; при adapt — ещё и плавный перепад света слева-направо и сверху-вниз. */
+function backgroundOf(small, o) {
+  const { w, h, rgb } = small;
+  const bw = Math.max(1, Math.round(Math.min(w, h) * o.border));
+  const sides = { all: [[], [], []], l: [[], [], []], r: [[], [], []], t: [[], [], []], b: [[], [], []] };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const L = x < bw;
+      const R = x >= w - bw;
+      const T = y < bw;
+      const B = y >= h - bw;
+      if (!(L || R || T || B)) continue;
+      const i = (y * w + x) * 3;
+      for (let ch = 0; ch < 3; ch++) {
+        const v = rgb[i + ch];
+        sides.all[ch].push(v);
+        if (L) sides.l[ch].push(v);
+        if (R) sides.r[ch].push(v);
+      }
+    }
+  }
+  // Верх и низ собираем по столбцам, чтобы отрезки шли вдоль края.
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < bw; y++) {
+      const it = (y * w + x) * 3;
+      const ib = ((h - 1 - y) * w + x) * 3;
+      for (let ch = 0; ch < 3; ch++) {
+        sides.t[ch].push(rgb[it + ch]);
+        sides.b[ch].push(rgb[ib + ch]);
+      }
+    }
+  }
+  const med = (k) => sides[k].map((a) => median(a));
+  // Край стороны — медиана медиан 5 отрезков: рука или игрушка на трети края не сдвигает оценку.
+  const segMed = (k) =>
+    sides[k].map((a) => {
+      const n = a.length;
+      const parts = [];
+      for (let i = 0; i < 5; i++) parts.push(median(a.slice(Math.floor((i * n) / 5), Math.floor(((i + 1) * n) / 5))));
+      return median(parts);
+    });
+  const bg = med('all').map((v) => Math.max(8, v));
+  let gx = [0, 0, 0];
+  let gy = [0, 0, 0];
+  if (o.adapt) {
+    const [l, r, t, b] = ['l', 'r', 't', 'b'].map(segMed);
+    const lim = (d, ch) => Math.max(-0.35 * bg[ch], Math.min(0.35 * bg[ch], d));
+    gx = bg.map((_, ch) => lim(r[ch] - l[ch], ch));
+    gy = bg.map((_, ch) => lim(b[ch] - t[ch], ch));
+  }
+  return { bg, at: (x, y, ch) => Math.max(8, bg[ch] + gx[ch] * (x / w - 0.5) + gy[ch] * (y / h - 0.5)) };
 }
 
 /** Метки пикселей: индекс цвета палитры, keys.length = неизвестный цвет, -1 = фон. */
 export function classify(small, palette, o = DEFAULTS) {
   const { w, h, rgb } = small;
+  EPS = o.logEps ?? DEFAULTS.logEps;
   const keys = Object.keys(palette);
   const refs = refsOf(palette);
-  // Фон: медиана по краевому кольцу.
-  const bw = Math.max(1, Math.round(Math.min(w, h) * o.border));
-  const rs = [];
-  const gs = [];
-  const bs = [];
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      if (x >= bw && x < w - bw && y >= bw && y < h - bw) continue;
-      const i = (y * w + x) * 3;
-      rs.push(rgb[i]);
-      gs.push(rgb[i + 1]);
-      bs.push(rgb[i + 2]);
-    }
-  }
-  const bg = [median(rs), median(gs), median(bs)].map((v) => Math.max(8, v));
+  const { bg, at } = backgroundOf(small, o);
   const bgMax = Math.max(...bg);
   const lightBg = bgMax > 100 && bgMax - Math.min(...bg) < 70;
   const labels = new Int8Array(w * h).fill(-1);
   const fgness = new Float32Array(w * h); // отличие от фона — для оценки наклона по краям
   const cs2 = o.chromaScale * o.chromaScale;
   const max2 = o.maxDist * o.maxDist;
-  // Проход 1: кандидаты и расстояния по цветности.
+  // Кандидаты: заметно отличаются от фона.
   const cand = [];
   for (let p = 0; p < w * h; p++) {
-    const nr = rgb[p * 3] / bg[0];
-    const ng = rgb[p * 3 + 1] / bg[1];
-    const nb = rgb[p * 3 + 2] / bg[2];
+    const x = p % w;
+    const yy = (p / w) | 0;
+    const nr = rgb[p * 3] / at(x, yy, 0);
+    const ng = rgb[p * 3 + 1] / at(x, yy, 1);
+    const nb = rgb[p * 3 + 2] / at(x, yy, 2);
     const dist = Math.hypot(nr - 1, ng - 1, nb - 1);
     fgness[p] = Math.min(1.5, dist);
     if (dist < o.minBgDist) continue;
@@ -137,35 +210,120 @@ export function classify(small, palette, o = DEFAULTS) {
     const sat = Math.hypot(cr - 1 / 3, cg - 1 / 3, cb - 1 / 3);
     // Почти серое — фон или тень, если только это не заметно тёмный предмет (тёмно-зелёный кубик на бумаге).
     if (sat < o.neutral && y > o.darkY) continue;
-    const dc = refs.map((r) => ((cr - r.c[0]) ** 2 + (cg - r.c[1]) ** 2 + (cb - r.c[2]) ** 2) / cs2);
-    cand.push({ p, y, sat, dc });
+    cand.push({ p, y, sat, uv: toUV(nr, ng, nb) });
+  }
+  // Подстройка под снимок: телефон усиливает/приглушает цвета, фон бывает не нейтральным (кремовая
+  // бумага, голубоватая тень). Ищем общее преобразование цветности u' = g·u + t, при котором пиксели
+  // ближе всего к эталонам (несколько итераций «ближайший эталон → МНК»). Ошибку ребёнка это не прячет:
+  // преобразование одно на весь кадр, а цвета кубиков разные.
+  let g = 1;
+  let t0 = 0;
+  let t1 = 0;
+  const nearestChroma = (q, skipDecoy) => {
+    const u = g * q.uv[0] + t0;
+    const v = g * q.uv[1] + t1;
+    let best = -1;
+    let bestD = Infinity;
+    for (let k = 0; k < refs.length; k++) {
+      if (skipDecoy && refs[k].decoy) continue;
+      const d = ((u - refs[k].uv[0]) ** 2 + (v - refs[k].uv[1]) ** 2) / cs2;
+      if (d < bestD) [best, bestD] = [k, d];
+    }
+    return [best, bestD];
+  };
+  // Цвета с близким «соседом» (красный/розовый) в подстройке не голосуют: именно их и нужно различать,
+  // а любой их сдвиг подстройка «объяснила» бы, утягивая кубик к соседу.
+  for (const r of refs) {
+    if (r.decoy) continue;
+    let near = Infinity;
+    for (const q of refs) if (q !== r && !q.decoy) near = Math.min(near, Math.hypot(r.uv[0] - q.uv[0], r.uv[1] - q.uv[1]));
+    r.noFit = near < o.fitMinSep * o.chromaScale;
+  }
+  if (o.adapt && cand.length >= 12) {
+    for (let iter = 0; iter < 5; iter++) {
+      const lim = iter === 0 ? 25 : 9;
+      // Средняя цветность каждого найденного цвета: голос у цвета, а не у пикселя — иначе подстройка
+      // подгоняется под случайный оттенок одного крупного кубика.
+      const acc = refs.map(() => ({ n: 0, u: 0, v: 0 }));
+      let total = 0;
+      for (const q of cand) {
+        const [k, d] = nearestChroma(q, true);
+        if (d > lim) continue;
+        acc[k].n++;
+        acc[k].u += q.uv[0];
+        acc[k].v += q.uv[1];
+        total++;
+      }
+      if (total < 12) break;
+      // Байесовская регрессия u_ref ≈ g·u + t с притяжением к «без подстройки» (g = 1, t = 0).
+      const ic = 1 / (o.adaptNoise * o.adaptNoise);
+      const ig = 1 / (o.adaptGainSd * o.adaptGainSd);
+      const it = 1 / (o.adaptCastSd * o.adaptCastSd);
+      let suu = 0;
+      let su0 = 0;
+      let su1 = 0;
+      let sur = 0;
+      let sr0 = 0;
+      let sr1 = 0;
+      let K = 0;
+      refs.forEach((r, k) => {
+        const a = acc[k];
+        if (r.noFit || a.n < Math.max(4, total * o.fitMinFrac)) return;
+        const u0 = a.u / a.n;
+        const u1 = a.v / a.n;
+        suu += u0 * u0 + u1 * u1;
+        su0 += u0;
+        su1 += u1;
+        sur += u0 * r.uv[0] + u1 * r.uv[1];
+        sr0 += r.uv[0];
+        sr1 += r.uv[1];
+        K++;
+      });
+      if (!K) break;
+      if (o.debug) o.debug.push(refs.map((r, k) => acc[k].n ? `${r.key}:${acc[k].n}:${(acc[k].u / acc[k].n - r.uv[0]).toFixed(3)},${(acc[k].v / acc[k].n - r.uv[1]).toFixed(3)}` : '').filter(Boolean).join(' '));
+      // Нормальные уравнения 3×3 (g, t0, t1); t выражаем через g и подставляем.
+      const D = K * ic + it;
+      const A = suu * ic + ig - (su0 * su0 + su1 * su1) * ic * ic / D;
+      const B = sur * ic + ig - (su0 * sr0 + su1 * sr1) * ic * ic / D;
+      g = Math.max(o.gainMin, Math.min(o.gainMax, B / A));
+      t0 = (sr0 - g * su0) * ic / D;
+      t1 = (sr1 - g * su1) * ic / D;
+      const tl = Math.hypot(t0, t1);
+      if (tl > o.castMax) [t0, t1] = [(t0 * o.castMax) / tl, (t1 * o.castMax) / tl];
+    }
   }
   // Общий множитель яркости сцены: кубики на белой бумаге относительно темнее, чем на серой ткани,
   // но одинаково для всех цветов. Оцениваем по пикселям с уверенным совпадением по цветности.
   const ratios = [];
   for (const q of cand) {
-    let k = 0;
-    for (let i = 1; i < refs.length; i++) if (q.dc[i] < q.dc[k]) k = i;
-    if (q.dc[k] <= 4 && !refs[k].decoy) ratios.push(Math.log(q.y / refs[k].y));
+    const [k, d] = nearestChroma(q, true);
+    if (d <= 4) ratios.push(Math.log(q.y / refs[k].y));
   }
   const lumShift = ratios.length >= 12 ? median(ratios) : 0;
-  // Проход 2: цветность + светлота с поправкой на сцену (отличает голубой от синего, сиреневый от фиолетового).
+  // Итог: цветность + светлота с поправкой на сцену (отличает голубой от синего, сиреневый от фиолетового).
   const ls2 = o.lumScale * o.lumScale;
+  const uvAdj = new Float32Array(w * h * 2).fill(NaN);
   for (const q of cand) {
+    const u = g * q.uv[0] + t0;
+    const v = g * q.uv[1] + t1;
+    uvAdj[q.p * 2] = u;
+    uvAdj[q.p * 2 + 1] = v;
     const ly = Math.log(q.y) - lumShift;
     let best = -1;
     let bestD = Infinity;
     for (let k = 0; k < refs.length; k++) {
-      const d = q.dc[k] + (ly - Math.log(refs[k].y)) ** 2 / ls2;
-      if (d < bestD) {
-        bestD = d;
-        best = k;
-      }
+      const d = ((u - refs[k].uv[0]) ** 2 + (v - refs[k].uv[1]) ** 2) / cs2 + (ly - Math.log(refs[k].y)) ** 2 / ls2;
+      if (d < bestD) [best, bestD] = [k, d];
     }
     if (bestD <= max2) labels[q.p] = best;
     else if (q.sat >= o.strongColor) labels[q.p] = keys.length;
   }
-  return { labels, bg, lightBg, keys, fgness, lumShift };
+  // Пары похожих цветов набора (красный/розовый): их в широком допуске сравниваем относительно.
+  const pairs = [];
+  refs.forEach((r, i) => refs.forEach((q, j) => {
+    if (j > i && !r.decoy && !q.decoy && Math.hypot(r.uv[0] - q.uv[0], r.uv[1] - q.uv[1]) < o.fitMinSep * o.chromaScale) pairs.push([r, q]);
+  }));
+  return { labels, bg, lightBg, keys, fgness, lumShift, gain: g, cast: [t0, t1], uvAdj, pairs };
 }
 
 /** Оставляет только «настоящие» области кубиков. Возвращает маску и площадь. */
@@ -284,16 +442,54 @@ function boxAt(points, angle) {
 }
 
 /**
+ * Похожие цвета набора (красный/розовый) при широком допуске сравниваются относительно:
+ * свет может сдвинуть оба цвета, но «красные» клетки должны остаться краснее «розовых».
+ * t — положение клетки на отрезке «эталон A (0) → эталон B (1)».
+ */
+function relativeShades(cells, pairs, o) {
+  for (const [A, B] of pairs) {
+    const fam = (k) => k === A.key || k === B.key;
+    const dx = B.uv[0] - A.uv[0];
+    const dy = B.uv[1] - A.uv[1];
+    const L2 = dx * dx + dy * dy;
+    const proj = (uv) => ((uv[0] - A.uv[0]) * dx + (uv[1] - A.uv[1]) * dy) / L2;
+    const inFam = cells.filter((c) => fam(c.want) && fam(c.got) && c.uv);
+    if (!inFam.length) continue;
+    const tA = inFam.filter((c) => c.want === A.key).map((c) => proj(c.uv));
+    const tB = inFam.filter((c) => c.want === B.key).map((c) => proj(c.uv));
+    let accept;
+    if (tA.length && tB.length) {
+      // Оба цвета в картинке. Свет сдвигает обе группы вместе: оцениваем общий сдвиг δ по средним групп,
+      // затем каждая клетка должна быть по свою сторону от сдвинутой середины, а группы — заметно разными.
+      const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+      const delta = (mean(tA) + mean(tB) - 1) / 2;
+      const mid = 0.5 + delta;
+      accept = tA.every((t) => t < mid) && tB.every((t) => t > mid) && mean(tB) - mean(tA) >= o.pairGap;
+      if (accept) for (const c of inFam) c.ok = true;
+    } else {
+      // Только один цвет пары: засчитываем, пока клетка не стала явно соседним цветом.
+      for (const c of inFam) {
+        const t = proj(c.uv);
+        if (c.want === A.key ? t <= o.pairLoose : t >= 1 - o.pairLoose) c.ok = true;
+      }
+    }
+  }
+}
+
+/**
  * Анализ снимка.
  * @param img {data, width, height} — RGBA-кадр (область рамки с небольшим полем вокруг)
  * @param target 2D-массив ключей палитры или null
  * @returns {ok, reason, rotation, cells, mismatches, found, expected, ...}
  */
 export function analyze(img, target, palette, opts = {}) {
-  const o = { ...DEFAULTS, ...opts };
+  const o = { ...DEFAULTS, ...TOLERANCE[opts.tolerance || DEFAULTS.tolerance], ...opts };
+  const shapeOnly = o.mode === 'shape';
+  // «Двойники»: цвет набора, который засчитывается за цвет картинки (голубой — за синий).
+  const twinOf = (k) => (o.twins && palette[k] && palette[k].twin) || null;
   const small = downscale(img, o.work);
   const { w, h } = small;
-  const { labels, bg, lightBg, keys, fgness } = classify(small, palette, o);
+  const { labels, bg, lightBg, keys, fgness, uvAdj, pairs } = classify(small, palette, o);
   const { keep, area } = cleanComponents(labels, w, h, o);
   const expected = target.flat().filter(Boolean).length;
   const base = { ok: false, expected, found: 0, bg, lightBg, rotation: 0, cells: [], mismatches: [], frame: null };
@@ -307,13 +503,17 @@ export function analyze(img, target, palette, opts = {}) {
   const ca = Math.cos(skew.angle);
   const sa = Math.sin(skew.angle);
   const toXY = (u, v) => [u * ca - v * sa, u * sa + v * ca];
-  const labelAt = (u, v) => {
+  const pixAt = (u, v) => {
     const [x, y] = toXY(u, v);
     const ix = Math.round(x);
     const iy = Math.round(y);
     if (ix < 0 || iy < 0 || ix >= w || iy >= h) return -1;
     const p = iy * w + ix;
-    return keep[p] ? labels[p] : -1;
+    return keep[p] ? p : -1;
+  };
+  const labelAt = (u, v) => {
+    const p = pixAt(u, v);
+    return p < 0 ? -1 : labels[p];
   };
 
   let best = null;
@@ -332,36 +532,59 @@ export function analyze(img, target, palette, opts = {}) {
       for (let c = 0; c < cols; c++) {
         const counts = new Map();
         let fg = 0;
+        let su = 0;
+        let sv = 0;
+        let sn = 0;
         for (let i = 0; i < n; i++) {
           for (let j = 0; j < n; j++) {
             const fu = 0.5 + ((i + 0.5) / n - 0.5) * o.cellInner;
             const fv = 0.5 + ((j + 0.5) / n - 0.5) * o.cellInner;
-            const l = labelAt(u0 + (c + fu) * cw, v0 + (r + fv) * ch);
+            const px = pixAt(u0 + (c + fu) * cw, v0 + (r + fv) * ch);
+            const l = px < 0 ? -1 : labels[px];
             if (l >= 0) {
               fg++;
               counts.set(l, (counts.get(l) || 0) + 1);
+              if (!Number.isNaN(uvAdj[px * 2])) {
+                su += uvAdj[px * 2];
+                sv += uvAdj[px * 2 + 1];
+                sn++;
+              }
             }
           }
         }
         let got = null;
+        const want = T[r][c].v;
+        let ok;
         if (fg / (n * n) >= o.cellFill) {
           let top = -1;
           let topN = -1;
           for (const [l, cnt] of counts) if (cnt > topN) [top, topN] = [l, cnt];
           got = top < keys.length ? keys[top] : UNKNOWN;
-        }
-        const want = T[r][c].v;
+          if (shapeOnly) ok = !!want;
+          else {
+            // Доля пикселей нужного цвета (с двойниками): кубик, который камера видит «наполовину розовым»,
+            // при широком допуске засчитывается за красный.
+            let wantN = 0;
+            for (const [l, cnt] of counts) {
+              const k = keys[l];
+              if (k && (k === want || twinOf(k) === want)) wantN += cnt;
+            }
+            ok = !!want && (got === want || twinOf(got) === want || wantN >= o.share * fg);
+          }
+        } else ok = !want;
         const corners = [
           [0, 0], [1, 0], [1, 1], [0, 1],
         ].map(([a, b]) => {
           const [x, y] = toXY(u0 + (c + a) * cw, v0 + (r + b) * ch);
           return [x * small.scale, y * small.scale];
         });
-        const cell = { r, c, src: T[r][c].src, want, got, ok: want === got, corners };
+        const cell = { r, c, src: T[r][c].src, want, got, ok, corners, uv: sn ? [su / sn, sv / sn] : null };
         cells.push(cell);
-        if (!cell.ok) mismatches.push(cell);
       }
     }
+    if (!shapeOnly && o.relative) relativeShades(cells, pairs, o);
+    mismatches.length = 0;
+    for (const cell of cells) if (!cell.ok) mismatches.push(cell);
     const score = mismatches.length + Math.abs(Math.log(aspect)) * 0.6;
     if (!best || score < best.score) best = { k, rows, cols, cells, mismatches, score, aspect };
   }
