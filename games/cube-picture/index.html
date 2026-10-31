@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#7c4dff">
+  <meta name="description" content="Детская игра: собери картинку из настоящих кубиков и сфотографируй — картинка оживёт!">
+  <title>Кубик-картинка</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main id="app">
+    <!-- Карта картинок -->
+    <section id="scr-map" class="screen active" aria-label="Картинки">
+      <header class="bar">
+        <canvas id="logo" class="logo" aria-hidden="true"></canvas>
+        <button id="btnAdult" class="icon-btn adult" aria-label="Для взрослых (удерживать)">
+          <span class="ring"></span><span data-icon="gear"></span>
+        </button>
+      </header>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <!-- Образец -->
+    <section id="scr-task" class="screen" aria-label="Образец">
+      <header class="bar">
+        <button class="icon-btn" data-go="map" aria-label="Назад"><span data-icon="back"></span></button>
+      </header>
+      <div class="task-body">
+        <canvas id="taskCanvas" class="task-canvas"></canvas>
+        <canvas id="invCanvas" class="inv-canvas" aria-label="Какие кубики понадобятся"></canvas>
+      </div>
+      <button id="btnCamera" class="big-btn" aria-label="Сфотографировать"><span data-icon="camera"></span></button>
+    </section>
+
+    <!-- Камера -->
+    <section id="scr-camera" class="screen dark" aria-label="Камера">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="guide" class="guide"></canvas>
+      <header class="bar overlay">
+        <button class="icon-btn" data-go="task" aria-label="Назад"><span data-icon="back"></span></button>
+        <canvas id="camSample" class="cam-sample" aria-hidden="true"></canvas>
+      </header>
+      <div class="cam-bottom">
+        <button id="btnGallery" class="icon-btn gallery" aria-label="Выбрать фото"><span data-icon="gallery"></span></button>
+        <button id="btnShutter" class="shutter" aria-label="Сфотографировать"><span></span></button>
+        <span class="spacer"></span>
+      </div>
+      <input id="fileInput" type="file" accept="image/*" capture="environment" hidden>
+    </section>
+
+    <!-- Проверка и результат -->
+    <section id="scr-result" class="screen" aria-label="Результат">
+      <canvas id="resultCanvas" class="result-canvas"></canvas>
+      <div id="resultActions" class="actions"></div>
+    </section>
+
+    <!-- Меню для взрослых -->
+    <div id="adultSheet" class="sheet" hidden>
+      <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="adultTitle">
+        <button id="btnAdultClose" class="icon-btn close" aria-label="Закрыть"><span data-icon="close"></span></button>
+        <h2 id="adultTitle">Для взрослых</h2>
+        <ol class="tips">
+          <li>Выложите кубики на <b>светлый однотонный</b> фон — лист бумаги или светлый стол.</li>
+          <li>Держите телефон <b>сверху</b>, чтобы все кубики были внутри рамки и не касались её края.</li>
+          <li>Картинку можно собрать повёрнутой — это засчитывается.</li>
+          <li>Если камера не открылась, нажмите кнопку с картинкой — можно снять системной камерой или выбрать фото.</li>
+        </ol>
+        <div class="sheet-row">
+          <button id="btnSound" class="pill"></button>
+          <button id="btnReset" class="pill warn">Сбросить звёзды</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

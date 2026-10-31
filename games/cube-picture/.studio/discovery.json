@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "status": "approved",
+  "plannedStages": 2,
+  "completedStages": [
+    {
+      "stage": 1,
+      "name": "creative-direction",
+      "optionsUsed": true,
+      "answers": {
+        "cubes": "flat-table",
+        "colors": "custom: Я потом пришлю тебе фото с цветами",
+        "age": "3-5",
+        "pictures": "objects"
+      }
+    },
+    {
+      "stage": 2,
+      "name": "contract-lock",
+      "optionsUsed": true,
+      "answers": {
+        "approval": "approve-lean"
+      }
+    }
+  ],
+  "answers": {
+    "cubes": "flat-table",
+    "colors": "custom: Я потом пришлю тебе фото с цветами",
+    "age": "3-5",
+    "pictures": "objects",
+    "approval": "approve-lean"
+  },
+  "openQuestions": [
+    "Точная палитра кубиков — пользователь пришлёт фото; до этого палитра конфигурируемая"
+  ],
+  "initialRequestPath": ".studio/request.md",
+  "createdAt": "2026-10-31T10:36:14Z",
+  "updatedAt": "2026-10-31T10:50:00Z"
+}

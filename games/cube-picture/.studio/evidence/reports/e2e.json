@@ -1,0 +1,236 @@
+{
+  "startedAt": "2026-10-31T11:21:25.938Z",
+  "checks": [
+    {
+      "ok": true,
+      "msg": "старт: карта картинок"
+    },
+    {
+      "ok": true,
+      "msg": "на карте 8 картинок"
+    },
+    {
+      "ok": true,
+      "msg": "первая картинка подсвечена как следующая"
+    },
+    {
+      "ok": true,
+      "msg": "детские экраны без текста (найдено: [])"
+    },
+    {
+      "ok": true,
+      "msg": "касание карточки открывает образец «светофор»"
+    },
+    {
+      "ok": true,
+      "msg": "образец нарисован"
+    },
+    {
+      "ok": true,
+      "msg": "камера включилась (camera=live)"
+    },
+    {
+      "ok": true,
+      "msg": "живой предпросмотр узнал сборку (live={\"ok\":true,\"reason\":\"match\"})"
+    },
+    {
+      "ok": true,
+      "msg": "кнопка 📷 подсвечена «готово»"
+    },
+    {
+      "ok": true,
+      "msg": "свёрнуто: камера остановлена"
+    },
+    {
+      "ok": true,
+      "msg": "развёрнуто: камера снова работает"
+    },
+    {
+      "ok": true,
+      "msg": "после снимка камера выключена, идёт проверка"
+    },
+    {
+      "ok": true,
+      "msg": "снимок с камеры засчитан (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":3,\"expected\":3})"
+    },
+    {
+      "ok": true,
+      "msg": "звезда за «светофор» сохранена"
+    },
+    {
+      "ok": true,
+      "msg": "после победы 3 кнопки: карта, ещё раз, следующая"
+    },
+    {
+      "ok": true,
+      "msg": "ошибка цвета найдена в клетке (1,0): [{\"src\":[1,0],\"want\":\"R\",\"got\":\"Y\"}]"
+    },
+    {
+      "ok": true,
+      "msg": "показан экран «почти»"
+    },
+    {
+      "ok": true,
+      "msg": "при ошибке 2 кнопки: образец и переснять"
+    },
+    {
+      "ok": true,
+      "msg": "«переснять» снова открывает камеру"
+    },
+    {
+      "ok": true,
+      "msg": "пустой стол не засчитан"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: анимация нарисована (σ=26.0,65.7)"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "snake: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "snake: анимация нарисована (σ=12.9,26.7)"
+    },
+    {
+      "ok": true,
+      "msg": "snake: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "flower: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "flower: анимация нарисована (σ=27.7,55.0)"
+    },
+    {
+      "ok": true,
+      "msg": "flower: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "rocket: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "rocket: анимация нарисована (σ=20.0,29.3)"
+    },
+    {
+      "ok": true,
+      "msg": "rocket: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "fish: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "fish: анимация нарисована (σ=20.1,48.2)"
+    },
+    {
+      "ok": true,
+      "msg": "fish: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "car: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "car: анимация нарисована (σ=27.4,68.6)"
+    },
+    {
+      "ok": true,
+      "msg": "car: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "house: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "house: анимация нарисована (σ=23.2,41.9)"
+    },
+    {
+      "ok": true,
+      "msg": "house: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "butterfly: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "butterfly: анимация нарисована (σ=22.9,51.8)"
+    },
+    {
+      "ok": true,
+      "msg": "butterfly: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "все 8 звёзд собраны (8)"
+    },
+    {
+      "ok": true,
+      "msg": "короткое касание шестерёнки меню не открывает"
+    },
+    {
+      "ok": true,
+      "msg": "удержание шестерёнки 1 с открывает меню взрослых"
+    },
+    {
+      "ok": true,
+      "msg": "камера запрещена → запасной режим"
+    },
+    {
+      "ok": true,
+      "msg": "кнопка «выбрать фото» подсвечена"
+    },
+    {
+      "ok": true,
+      "msg": "фото из файла засчитано (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":10,\"expected\":10})"
+    },
+    {
+      "ok": true,
+      "msg": "нет ошибок в консоли ([])"
+    }
+  ],
+  "consoleErrors": [],
+  "screenshots": [
+    ".studio/evidence/screenshots/360x800-map.webp",
+    ".studio/evidence/screenshots/360x800-task.webp",
+    ".studio/evidence/screenshots/360x800-camera.webp",
+    ".studio/evidence/screenshots/360x800-success-traffic.webp",
+    ".studio/evidence/screenshots/360x800-fail-flower.webp",
+    ".studio/evidence/screenshots/360x800-fail-empty.webp",
+    ".studio/evidence/screenshots/360x800-anim-01-traffic.webp",
+    ".studio/evidence/screenshots/360x800-anim-02-snake.webp",
+    ".studio/evidence/screenshots/360x800-anim-03-flower.webp",
+    ".studio/evidence/screenshots/360x800-anim-04-rocket.webp",
+    ".studio/evidence/screenshots/360x800-anim-05-fish.webp",
+    ".studio/evidence/screenshots/360x800-anim-06-car.webp",
+    ".studio/evidence/screenshots/360x800-anim-07-house.webp",
+    ".studio/evidence/screenshots/360x800-anim-08-butterfly.webp",
+    ".studio/evidence/screenshots/360x800-map-all-stars.webp",
+    ".studio/evidence/screenshots/360x800-adult.webp",
+    ".studio/evidence/screenshots/412x915-map.webp",
+    ".studio/evidence/screenshots/412x915-task-butterfly.webp",
+    ".studio/evidence/screenshots/412x915-camera-fallback.webp",
+    ".studio/evidence/screenshots/412x915-success-butterfly.webp",
+    ".studio/evidence/screenshots/412x915-fail-car.webp"
+  ],
+  "finishedAt": "2026-10-31T11:24:10.904Z",
+  "passed": 51,
+  "failed": 0
+}

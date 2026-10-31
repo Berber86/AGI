@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Модуль анализа снимка + картинки + юнит-тесты на синтетике",
+      "status": "done",
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "все синтетические сценарии проходят"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/vision-unit.txt"
+      ]
+    },
+    {
+      "id": "CORE-002",
+      "title": "UI: карта, образец, камера, проверка, успех/ошибка, анимации, звук, прогресс",
+      "status": "done",
+      "dependsOn": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "полный цикл касаниями"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/360x800-map.webp",
+        ".studio/evidence/screenshots/360x800-camera.webp"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Headless e2e + скриншоты 360×800/412×915 + анимации",
+      "status": "done",
+      "dependsOn": [
+        "CORE-002"
+      ],
+      "acceptanceCriteria": [
+        "нет ошибок консоли, победа и ошибка наблюдаемы"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "PWA, карточка в каталоге, тесты каталога, handoff",
+      "status": "done",
+      "dependsOn": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "test_game_catalog проходит"
+      ],
+      "evidence": [
+        ".studio/handoffs/2026-10-31-mvp.md"
+      ]
+    },
+    {
+      "id": "FIELD-001",
+      "title": "Подстроить палитру по фото реальных кубиков пользователя и проверить на телефоне",
+      "status": "blocked",
+      "dependsOn": [
+        "RELEASE-001"
+      ],
+      "acceptanceCriteria": [
+        "реальные кубики распознаются при дневном и ламповом свете"
+      ],
+      "evidence": []
+    }
+  ],
+  "updatedAt": "2026-10-31T11:45:00Z"
+}
