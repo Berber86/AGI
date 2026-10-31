@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-31T12:26:59.451Z",
+  "startedAt": "2026-10-31T15:44:35.176Z",
   "checks": [
     {
       "ok": true,
@@ -87,7 +87,7 @@
     },
     {
       "ok": true,
-      "msg": "traffic: анимация нарисована (σ=31.8,65.0)"
+      "msg": "traffic: анимация нарисована (σ=25.9,65.0)"
     },
     {
       "ok": true,
@@ -111,7 +111,7 @@
     },
     {
       "ok": true,
-      "msg": "flower: анимация нарисована (σ=26.3,52.7)"
+      "msg": "flower: анимация нарисована (σ=21.5,52.7)"
     },
     {
       "ok": true,
@@ -123,7 +123,7 @@
     },
     {
       "ok": true,
-      "msg": "rocket: анимация нарисована (σ=19.2,29.3)"
+      "msg": "rocket: анимация нарисована (σ=15.7,29.3)"
     },
     {
       "ok": true,
@@ -147,7 +147,7 @@
     },
     {
       "ok": true,
-      "msg": "car: анимация нарисована (σ=26.8,67.1)"
+      "msg": "car: анимация нарисована (σ=38.4,67.1)"
     },
     {
       "ok": true,
@@ -159,7 +159,7 @@
     },
     {
       "ok": true,
-      "msg": "house: анимация нарисована (σ=25.1,38.7)"
+      "msg": "house: анимация нарисована (σ=21.4,38.7)"
     },
     {
       "ok": true,
@@ -171,7 +171,7 @@
     },
     {
       "ok": true,
-      "msg": "butterfly: анимация нарисована (σ=27.6,51.6)"
+      "msg": "butterfly: анимация нарисована (σ=22.5,51.6)"
     },
     {
       "ok": true,
@@ -183,11 +183,55 @@
     },
     {
       "ok": true,
+      "msg": "переключатель на карте включает режим «форма»"
+    },
+    {
+      "ok": true,
+      "msg": "в режиме «форма» свои звёзды (пока ни одной)"
+    },
+    {
+      "ok": true,
+      "msg": "форма: ракета из любых цветов засчитана (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":6,\"expected\":6})"
+    },
+    {
+      "ok": true,
+      "msg": "форма: звезда в режиме «форма», звёзды цвета не тронуты"
+    },
+    {
+      "ok": true,
+      "msg": "форма: ракета оживает"
+    },
+    {
+      "ok": true,
+      "msg": "форма: без нижнего кубика не засчитано (reason=shape)"
+    },
+    {
+      "ok": true,
+      "msg": "форма: без кубика в середине — ошибка ровно в клетке (1,1) ([{\"src\":[1,1],\"want\":\"B\",\"got\":null}])"
+    },
+    {
+      "ok": true,
+      "msg": "переключатель возвращает режим «цвета»"
+    },
+    {
+      "ok": true,
       "msg": "короткое касание шестерёнки меню не открывает"
     },
     {
       "ok": true,
       "msg": "удержание шестерёнки 1 с открывает меню взрослых"
+    },
+    {
+      "ok": true,
+      "msg": "по умолчанию широкий допуск цвета"
+    },
+    {
+      "ok": true,
+      "msg": "кнопка в меню взрослых включает строгий допуск"
+    },
+    {
+      "ok": true,
+      "msg": "и возвращает широкий"
     },
     {
       "ok": true,
@@ -223,6 +267,10 @@
     ".studio/evidence/screenshots/360x800-anim-07-house.webp",
     ".studio/evidence/screenshots/360x800-anim-08-butterfly.webp",
     ".studio/evidence/screenshots/360x800-map-all-stars.webp",
+    ".studio/evidence/screenshots/360x800-map-shape.webp",
+    ".studio/evidence/screenshots/360x800-task-shape-rocket.webp",
+    ".studio/evidence/screenshots/360x800-success-shape-rocket.webp",
+    ".studio/evidence/screenshots/360x800-fail-shape-rocket.webp",
     ".studio/evidence/screenshots/360x800-adult.webp",
     ".studio/evidence/screenshots/412x915-map.webp",
     ".studio/evidence/screenshots/412x915-task-butterfly.webp",
@@ -230,7 +278,7 @@
     ".studio/evidence/screenshots/412x915-success-butterfly.webp",
     ".studio/evidence/screenshots/412x915-fail-car.webp"
   ],
-  "finishedAt": "2026-10-31T12:29:06.555Z",
-  "passed": 51,
+  "finishedAt": "2026-10-31T15:46:34.927Z",
+  "passed": 62,
   "failed": 0
 }

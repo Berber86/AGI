@@ -240,6 +240,41 @@ const checkRows = (page, rows, opts = {}) =>
   await sleep(300);
   await shot(page, '360x800-map-all-stars');
 
+  // Режим «форма»: переключатель на карте, свои звёзды, любые цвета, оживление в цветах ребёнка.
+  await tap(page, '#modeShape');
+  await sleep(200);
+  s = await st(page);
+  ok(s.playMode === 'shape', 'переключатель на карте включает режим «форма»');
+  ok((await page.$$('.card.done')).length === 0, 'в режиме «форма» свои звёзды (пока ни одной)');
+  await shot(page, '360x800-map-shape');
+  await page.evaluate(() => window.__GAME_TEST__.open(3));
+  await sleep(200);
+  await shot(page, '360x800-task-shape-rocket');
+  s = await checkRows(page, ['.G.', '.K.', 'YRY', '.C.'], { cube: 50 });
+  ok(s.ok, `форма: ракета из любых цветов засчитана (result=${JSON.stringify(s)})`);
+  await page.evaluate(() => window.__GAME_TEST__.finishCheck());
+  s = await st(page);
+  ok(s.doneShape.includes('rocket') && s.done.length === 8, 'форма: звезда в режиме «форма», звёзды цвета не тронуты');
+  await page.evaluate(() => window.__GAME_TEST__.freeze(2.2));
+  ok((await canvasVariance(page, '#resultCanvas')) > 10, 'форма: ракета оживает');
+  await shot(page, '360x800-success-shape-rocket');
+  await page.evaluate(() => window.__GAME_TEST__.unfreeze());
+  await page.evaluate(() => window.__GAME_TEST__.open(3));
+  s = await checkRows(page, ['.G.', '.K.', 'YRY', '...'], { cube: 50 });
+  ok(!s.ok, `форма: без нижнего кубика не засчитано (reason=${s.reason})`);
+  await page.evaluate(() => window.__GAME_TEST__.open(3));
+  s = await checkRows(page, ['.G.', '...', 'YRY', '.C.'], { cube: 50 });
+  ok(!s.ok && s.mismatches.length === 1 && s.mismatches[0].src.join() === '1,1', `форма: без кубика в середине — ошибка ровно в клетке (1,1) (${JSON.stringify(s.mismatches)})`);
+  await page.evaluate(() => window.__GAME_TEST__.finishCheck());
+  await page.evaluate(() => window.__GAME_TEST__.freeze(1.5));
+  await shot(page, '360x800-fail-shape-rocket');
+  await page.evaluate(() => window.__GAME_TEST__.unfreeze());
+  await page.evaluate(() => window.__GAME_TEST__.go('map'));
+  await sleep(200);
+  await tap(page, '#modeColor');
+  await sleep(200);
+  ok((await st(page)).playMode === 'color', 'переключатель возвращает режим «цвета»');
+
   // Меню взрослых — удержание 1 с.
   const box = await (await page.$('#btnAdult')).boundingBox();
   await page.touchscreen.touchStart(box.x + 20, box.y + 20);
@@ -251,6 +286,11 @@ const checkRows = (page, rows, opts = {}) =>
   await page.touchscreen.touchEnd();
   ok(await page.$eval('#adultSheet', (e) => !e.hidden), 'удержание шестерёнки 1 с открывает меню взрослых');
   await shot(page, '360x800-adult');
+  ok((await st(page)).tolerance === 'wide', 'по умолчанию широкий допуск цвета');
+  await page.click('#btnTolerance');
+  ok((await st(page)).tolerance === 'strict', 'кнопка в меню взрослых включает строгий допуск');
+  await page.click('#btnTolerance');
+  ok((await st(page)).tolerance === 'wide', 'и возвращает широкий');
   await page.close();
 }
 

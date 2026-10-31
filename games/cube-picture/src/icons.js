@@ -10,5 +10,9 @@ export const ICONS = {
   eye: svg('<path d="M4 24s7-12 20-12 20 12 20 12-7 12-20 12S4 24 4 24z" fill="#fff" stroke="currentColor" stroke-width="3.5"/><circle cx="24" cy="24" r="7.5" fill="#2f6ff0"/><circle cx="24" cy="24" r="3.5" fill="#111"/><circle cx="26.5" cy="21.5" r="1.6" fill="#fff"/>'),
   gear: svg('<path d="M24 15a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm17 12v-6l-5-1a13 13 0 0 0-1.6-3.8l3-4.2-4.3-4.3-4.2 3a13 13 0 0 0-3.9-1.6L24 3h-6l-1 5.1a13 13 0 0 0-3.9 1.6l-4.2-3-4.3 4.3 3 4.2A13 13 0 0 0 6 19l-5 1v6l5 1a13 13 0 0 0 1.6 3.9l-3 4.2 4.3 4.3 4.2-3a13 13 0 0 0 3.9 1.6l1 5h6l1-5a13 13 0 0 0 3.9-1.6l4.2 3 4.3-4.3-3-4.2a13 13 0 0 0 1.6-3.9z" fill="currentColor" transform="translate(3 1) scale(.88)"/>'),
   gallery: svg('<rect x="6" y="9" width="36" height="30" rx="6" fill="#fff"/><circle cx="17" cy="19" r="4" fill="#ffc83d"/><path d="M9 36l10-11 7 7 5-5 8 9z" fill="#2fb84a"/>'),
+  // Режим «цвета»: четыре разноцветных кубика.
+  modeColor: svg('<rect x="5" y="5" width="17" height="17" rx="5" fill="#ef5b5b"/><rect x="26" y="5" width="17" height="17" rx="5" fill="#f5c63c"/><rect x="5" y="26" width="17" height="17" rx="5" fill="#2f8a4e"/><rect x="26" y="26" width="17" height="17" rx="5" fill="#3456b8"/>'),
+  // Режим «форма»: силуэт из трёх одинаковых кубиков с пунктирным местом.
+  modeShape: svg('<rect x="5" y="5" width="17" height="17" rx="5" fill="#8f86a8"/><rect x="5" y="26" width="17" height="17" rx="5" fill="#8f86a8"/><rect x="26" y="26" width="17" height="17" rx="5" fill="#8f86a8"/><rect x="27.5" y="6.5" width="14" height="14" rx="4" fill="none" stroke="#b9b1cc" stroke-width="3" stroke-dasharray="4 3"/>'),
   close: svg('<path d="M13 13l22 22M35 13L13 35" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>'),
 };

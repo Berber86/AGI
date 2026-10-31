@@ -48,5 +48,24 @@ export function cubeCount(picture) {
 export function colorCounts(picture) {
   const counts = {};
   for (const ch of picture.rows.join('')) if (ch !== '.') counts[ch] = (counts[ch] || 0) + 1;
-  return Object.keys(PALETTE).filter((k) => counts[k]).map((k) => [k, counts[k]]);
+  return [...Object.keys(PALETTE), '*'].filter((k) => counts[k]).map((k) => [k, counts[k]]);
+}
+
+/** Режим «форма»: та же картинка, все кубики — «любого цвета» ('*'). */
+export function asShape(picture) {
+  return { ...picture, rows: picture.rows.map((r) => r.replace(/[^.]/g, '*')) };
+}
+
+/**
+ * Картинка в цветах, из которых её собрал ребёнок (режим «форма»): cells — клетки результата
+ * проверки (src — клетка образца, got — увиденный цвет). Неузнанный цвет — цвет образца.
+ */
+export function coloredBy(picture, cells) {
+  const rows = picture.rows.map((r) => [...r]);
+  for (const cell of cells || []) {
+    if (!cell.src || !cell.want || !cell.got) continue;
+    const [r, c] = cell.src;
+    if (PALETTE[cell.got]) rows[r][c] = cell.got;
+  }
+  return { ...picture, rows: rows.map((r) => r.join('')), roles: picture.rows.map((r) => [...r]) };
 }

@@ -85,7 +85,29 @@ html, body {
 .adult.holding .ring { animation: hold 1s linear forwards; }
 @keyframes hold { to { clip-path: inset(0 0 0 0); } }
 
-.logo { height: 56px; width: 220px; }
+.logo { height: 56px; width: 220px; flex: 1 1 auto; min-width: 0; max-width: 220px; }
+
+.mode-switch {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.65);
+}
+.mode-btn {
+  width: 50px;
+  height: 50px;
+  padding: 8px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.mode-btn[aria-pressed='true'] { opacity: 1; background: var(--card); box-shadow: 0 3px 0 #e2d4ff; }
+.mode-btn:active { transform: translateY(2px); }
 
 /* --- карта --- */
 .cards {

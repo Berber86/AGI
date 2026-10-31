@@ -101,7 +101,7 @@ function traffic(ctx, W, H, t, picture) {
     });
   });
   // На зелёный проезжает машинка.
-  const green = cubes.findIndex((c) => c.key === 'G');
+  const green = cubes.findIndex((c) => c.role === 'G');
   if (phase === green && green >= 0) {
     const p = (ta % 1.2) / 1.2;
     const cx = lerp(-W * 0.2, W * 1.2, p);
@@ -221,8 +221,8 @@ function flower(ctx, W, H, t, picture) {
   const T0 = intro(cubes);
   const ta = Math.max(0, t - T0);
   const k = easeOut(ta / 0.8);
-  const stem = cubes.find((c) => c.key === 'G');
-  const center = cubes.find((c) => c.key === 'Y');
+  const stem = cubes.find((c) => c.role === 'G');
+  const center = cubes.find((c) => c.role === 'Y');
   const [stx, sty] = L.at(stem.r, stem.c);
   const [ccx, ccy] = L.at(center.r, center.c);
   const lift = -k * L.pitch * 0.5;
@@ -338,7 +338,7 @@ function rocket(ctx, W, H, t, picture) {
     });
   });
   // Иллюминатор на верхнем синем кубике.
-  const win = cubes.find((c) => c.key === 'B');
+  const win = cubes.find((c) => c.role === 'B');
   if (win && t > T0) {
     const [x, y] = L.at(win.r, win.c);
     ctx.fillStyle = '#d8f3ff';
@@ -393,7 +393,7 @@ function fish(ctx, W, H, t, picture) {
     drawCube(ctx, px, y + wave + bob, L.s * popScale(t, i), cube.key, { rot: tail });
   });
   // Глаз.
-  const eye = cubes.find((c) => c.key === 'P') || cubes[cubes.length - 1];
+  const eye = cubes.find((c) => c.role === 'P') || cubes[cubes.length - 1];
   if (t > T0) {
     const [x, y] = L.at(eye.r, eye.c);
     const px = x + shiftX;
@@ -454,7 +454,7 @@ function car(ctx, W, H, t, picture) {
   }
   const L = placeCubes(picture, W, H, { x: 0.15, y: 0.42, w: 0.7, h: 0.33 }, 0.17);
   const bounce = -Math.abs(Math.sin(ta * 9)) * L.pitch * 0.07 * k;
-  const head = cubes.find((c) => c.key === 'Y');
+  const head = cubes.find((c) => c.role === 'Y');
   if (head && ta > 0) {
     const [hx, hy] = L.at(head.r, head.c);
     ctx.fillStyle = 'rgba(255,240,140,0.35)';
@@ -522,12 +522,12 @@ function house(ctx, W, H, t, picture) {
   }
   cubes.forEach((cube, i) => {
     const [x, y] = L.at(cube.r, cube.c);
-    const grass = cube.key === 'G';
-    const wall = cube.key === 'Y';
+    const grass = cube.role === 'G';
+    const wall = cube.role === 'Y';
     drawCube(ctx, x, y, L.s * popScale(t, i), cube.key, {
       rot: grass ? Math.sin(ta * 2.5 + cube.c) * 0.15 : 0,
       glow: wall ? night * 1.1 : 0,
-      dim: !wall && cube.key !== 'B' ? night * 0.35 : 0,
+      dim: !wall && cube.role !== 'B' ? night * 0.35 : 0,
     });
     if (wall && t > T0) {
       ctx.fillStyle = mix('#7fd0ff', '#fff2a0', night);
@@ -542,7 +542,7 @@ function house(ctx, W, H, t, picture) {
       ctx.lineTo(x + L.s * 0.2, y - L.s * 0.04);
       ctx.stroke();
     }
-    if (cube.key === 'B' && t > T0) {
+    if (cube.role === 'B' && t > T0) {
       ctx.fillStyle = '#ffd21f';
       ctx.beginPath();
       ctx.arc(x + L.s * 0.22, y + L.s * 0.05, L.s * 0.06, 0, Math.PI * 2);

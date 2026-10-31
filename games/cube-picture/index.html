@@ -16,6 +16,10 @@
     <section id="scr-map" class="screen active" aria-label="Картинки">
       <header class="bar">
         <canvas id="logo" class="logo" aria-hidden="true"></canvas>
+        <div class="mode-switch" role="group" aria-label="Режим">
+          <button id="modeColor" class="mode-btn" aria-label="Цвета и форма" aria-pressed="true"><span data-icon="modeColor"></span></button>
+          <button id="modeShape" class="mode-btn" aria-label="Только форма, цвета любые" aria-pressed="false"><span data-icon="modeShape"></span></button>
+        </div>
         <button id="btnAdult" class="icon-btn adult" aria-label="Для взрослых (удерживать)">
           <span class="ring"></span><span data-icon="gear"></span>
         </button>
@@ -66,10 +70,13 @@
           <li>Выложите кубики на <b>светлый однотонный</b> фон — лист бумаги или светлый стол.</li>
           <li>Держите телефон <b>сверху</b>, чтобы все кубики были внутри рамки и не касались её края.</li>
           <li>Картинку можно собрать повёрнутой — это засчитывается.</li>
+          <li>Переключатель на карте: <b>разноцветные кубики</b> — важны и форма, и цвета; <b>серые кубики</b> — важна только форма, цвета любые. Звёзды у режимов свои.</li>
+          <li>Если при вашем свете игра не принимает правильные цвета, оставьте «широкий допуск». Сиреневый кубик лучше снимать на белой бумаге.</li>
           <li>Если камера не открылась, нажмите кнопку с картинкой — можно снять системной камерой или выбрать фото.</li>
         </ol>
         <div class="sheet-row">
           <button id="btnSound" class="pill"></button>
+          <button id="btnTolerance" class="pill"></button>
           <button id="btnReset" class="pill warn">Сбросить звёзды</button>
         </div>
       </div>

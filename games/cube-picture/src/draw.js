@@ -13,8 +13,12 @@ export function roundRect(ctx, x, y, w, h, r) {
 }
 
 /** Кубик с центром (cx, cy) и стороной s. opts: rot, sx, sy, alpha, glow, dim */
+/** «Любой цвет» (режим «форма»): светло-серый кубик с четырьмя цветными точками. */
+export const ANY = '*';
+const ANY_STYLE = { fill: '#d4cfe0', dark: '#a49db8', light: '#f1eef8' };
+
 export function drawCube(ctx, cx, cy, s, key, opts = {}) {
-  const p = PALETTE[key] || { fill: '#999', dark: '#555', light: '#ccc' };
+  const p = key === ANY ? ANY_STYLE : PALETTE[key] || { fill: '#999', dark: '#555', light: '#ccc' };
   const { rot = 0, sx = 1, sy = 1, alpha = 1, glow = 0, dim = 0 } = opts;
   if (alpha <= 0 || s <= 0) return;
   ctx.save();
@@ -49,6 +53,15 @@ export function drawCube(ctx, cx, cy, s, key, opts = {}) {
   ctx.fillStyle = 'rgba(255,255,255,0.35)';
   roundRect(ctx, -h + s * 0.12, -h + s * 0.1, s * 0.38, s * 0.14, s * 0.07);
   ctx.fill();
+  if (key === ANY) {
+    const dots = ['Y', 'R', 'G', 'B'];
+    dots.forEach((k, i) => {
+      ctx.fillStyle = PALETTE[k].fill;
+      ctx.beginPath();
+      ctx.arc((i % 2 ? 1 : -1) * s * 0.15, -s * 0.06 + (i > 1 ? 1 : -1) * s * 0.15, s * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
   if (dim > 0) {
     ctx.fillStyle = `rgba(20,20,35,${0.62 * dim})`;
     roundRect(ctx, -h, -h, s, s, r);
@@ -57,10 +70,16 @@ export function drawCube(ctx, cx, cy, s, key, opts = {}) {
   ctx.restore();
 }
 
-/** Список кубиков картинки: {r, c, key}. */
+/**
+ * Список кубиков картинки: {r, c, key, role}. key — каким цветом рисовать, role — цвет в образце
+ * (по нему анимация находит «окошко», «стебель» и т. п.). В режиме «форма» картинка оживает в цветах,
+ * из которых её собрал ребёнок: picture.roles хранит исходные цвета.
+ */
 export function cubesOf(picture) {
   const out = [];
-  picture.rows.forEach((row, r) => [...row].forEach((key, c) => key !== '.' && out.push({ r, c, key })));
+  picture.rows.forEach((row, r) =>
+    [...row].forEach((key, c) => key !== '.' && out.push({ r, c, key, role: picture.roles ? picture.roles[r][c] : key })),
+  );
   return out;
 }
 

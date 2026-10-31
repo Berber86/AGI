@@ -1,7 +1,7 @@
 // «Кубик-картинка»: образец → сборка из настоящих кубиков → фото → проверка → оживление.
-import { PALETTE, PICTURES, PLAY_COLORS, grid } from './pictures.js';
+import { PALETTE, PICTURES, PLAY_COLORS, grid, asShape, coloredBy } from './pictures.js';
 import { analyze } from './vision.js';
-import { drawPicture, drawInventory, drawCube, layoutPicture, roundRect, star } from './draw.js';
+import { drawPicture, drawInventory, drawCube, layoutPicture, roundRect, star, ANY } from './draw.js';
 import { drawAnimation, drawConfetti } from './anim.js';
 import { sfx, unlockAudio, suspendAudio, setSoundEnabled } from './sound.js';
 import { ICONS } from './icons.js';
@@ -13,7 +13,8 @@ const MARGIN = 0.14; // поле вокруг рамки (доля сторон�
 
 // ------------------------------------------------------------ прогресс
 const STORE = 'cube-picture-v1';
-let progress = { done: [], sound: true };
+// done — звёзды режима «цвета», doneShape — режима «форма»; tolerance — допуск цвета (wide | strict).
+let progress = { done: [], doneShape: [], sound: true, mode: 'color', tolerance: 'wide' };
 try {
   progress = { ...progress, ...JSON.parse(localStorage.getItem(STORE) || '{}') };
 } catch {
@@ -40,6 +41,12 @@ const state = {
   frozenTime: null, // для скриншотов в тестах
 };
 const picture = () => PICTURES[state.index];
+const shapeMode = () => progress.mode === 'shape';
+/** Звёзды текущего режима. */
+const doneList = () => (shapeMode() ? progress.doneShape : progress.done);
+/** Как картинка выглядит в текущем режиме (в «форме» — кубики «любого цвета»). */
+const shown = (p) => (shapeMode() ? asShape(p) : p);
+const analyzeOpts = () => ({ mode: progress.mode, tolerance: progress.tolerance });
 
 document.querySelectorAll('[data-icon]').forEach((el) => (el.innerHTML = ICONS[el.dataset.icon]));
 
@@ -87,7 +94,8 @@ function renderLogo() {
 function renderMap() {
   renderLogo();
   const wrap = $('cards');
-  const nextIdx = PICTURES.findIndex((p) => !progress.done.includes(p.id));
+  updateModeSwitch();
+  const nextIdx = PICTURES.findIndex((p) => !doneList().includes(p.id));
   if (!wrap.children.length) {
     PICTURES.forEach((p, i) => {
       const b = document.createElement('button');
@@ -105,13 +113,13 @@ function renderMap() {
   }
   [...wrap.children].forEach((b, i) => {
     const p = PICTURES[i];
-    const done = progress.done.includes(p.id);
+    const done = doneList().includes(p.id);
     b.classList.toggle('next', i === nextIdx);
     b.classList.toggle('done', done);
     const [cv, badge] = b.querySelectorAll('canvas');
     const { ctx, W, H } = fitCanvas(cv);
     ctx.clearRect(0, 0, W, H);
-    drawPicture(ctx, p, W * 0.1, H * 0.1, W * 0.8, H * 0.8, { maxCube: W * 0.24 });
+    drawPicture(ctx, shown(p), W * 0.1, H * 0.1, W * 0.8, H * 0.8, { maxCube: W * 0.24 });
     const bb = fitCanvas(badge);
     bb.ctx.clearRect(0, 0, bb.W, bb.H);
     if (done) star(bb.ctx, bb.W / 2, bb.H / 2, bb.W * 0.45);
@@ -119,9 +127,28 @@ function renderMap() {
   });
 }
 
+function updateModeSwitch() {
+  $('modeColor').setAttribute('aria-pressed', String(!shapeMode()));
+  $('modeShape').setAttribute('aria-pressed', String(shapeMode()));
+}
+function setPlayMode(mode) {
+  if (progress.mode === mode) return;
+  progress.mode = mode;
+  save();
+  renderMap();
+}
+$('modeColor').addEventListener('click', () => {
+  sfx.tap();
+  setPlayMode('color');
+});
+$('modeShape').addEventListener('click', () => {
+  sfx.tap();
+  setPlayMode('shape');
+});
+
 // ------------------------------------------------------------ образец
 function renderTask() {
-  const p = picture();
+  const p = shown(picture());
   const { ctx, W, H } = fitCanvas($('taskCanvas'));
   ctx.clearRect(0, 0, W, H);
   drawPicture(ctx, p, W * 0.08, H * 0.08, W * 0.84, H * 0.84, { grid: true, maxCube: W * 0.26 });
@@ -223,7 +250,7 @@ function liveCheck() {
   const c = grabFrame(120, liveCanvas);
   if (!c) return;
   const img = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, 120, 120);
-  liveResult = analyze(img, grid(picture()), PALETTE, { work: 120 });
+  liveResult = analyze(img, grid(picture()), PALETTE, { work: 120, ...analyzeOpts() });
   $('btnShutter').classList.toggle('ready', !!liveResult.ok);
   drawGuide();
 }
@@ -279,7 +306,7 @@ function drawGuide() {
 function renderCamSample() {
   const { ctx, W, H } = fitCanvas($('camSample'));
   ctx.clearRect(0, 0, W, H);
-  drawPicture(ctx, picture(), 8, 8, W - 16, H - 16);
+  drawPicture(ctx, shown(picture()), 8, 8, W - 16, H - 16);
 }
 
 $('btnShutter').addEventListener('click', () => {
@@ -332,7 +359,7 @@ const CHECK_TIME = 1.0;
 
 function checkPhoto(canvas) {
   const img = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height);
-  const res = analyze(img, grid(picture()), PALETTE);
+  const res = analyze(img, grid(picture()), PALETTE, analyzeOpts());
   state.photo = canvas;
   state.result = res;
   setMode('checking');
@@ -391,8 +418,8 @@ function onCheckDone() {
     setMode('success');
     sfx.success();
     const id = picture().id;
-    if (!progress.done.includes(id)) {
-      progress.done.push(id);
+    if (!doneList().includes(id)) {
+      doneList().push(id);
       save();
       setTimeout(() => sfx.star(), 900);
     }
@@ -433,7 +460,7 @@ function drawPhoto(ctx, x, y, size, t) {
       ctx.arc(cx, cy, cs * (0.55 + 0.08 * pulse), 0, Math.PI * 2);
       ctx.stroke();
       // Какой цвет нужен — маленький кубик в углу клетки (или «пусто»).
-      if (cell.want) drawCube(ctx, cx + cs * 0.42, cy - cs * 0.42, cs * 0.42, cell.want);
+      if (cell.want) drawCube(ctx, cx + cs * 0.42, cy - cs * 0.42, cs * 0.42, shapeMode() ? ANY : cell.want);
       else {
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 4;
@@ -482,7 +509,8 @@ function drawResult(t) {
     ctx.save();
     roundRect(ctx, 0, 0, W, H, 28);
     ctx.clip();
-    drawAnimation(ctx, W, H, t, p);
+    // В режиме «форма» картинка оживает в цветах, из которых её собрал ребёнок.
+    drawAnimation(ctx, W, H, t, shapeMode() ? coloredBy(p, state.result.cells) : p);
     drawConfetti(ctx, W, H, t);
     ctx.restore();
     // Звезда прилетает в угол.
@@ -508,7 +536,7 @@ function drawResult(t) {
     const wrong = new Set(state.result.mismatches.map((m) => m.src.join(',')));
     const allWrong = state.result.reason === 'empty' || state.result.reason === 'shape';
     const pulse = 0.5 + 0.5 * Math.sin(t * 6);
-    drawPicture(ctx, p, W * 0.1, top + boxH * 0.08, W * 0.8, boxH * 0.84, {
+    drawPicture(ctx, shown(p), W * 0.1, top + boxH * 0.08, W * 0.8, boxH * 0.84, {
       maxCube: W * 0.2,
       grid: true,
       cubeOpts: (cube) => (allWrong ? { sx: 1 + 0.06 * pulse, sy: 1 + 0.06 * pulse } : {}),
@@ -595,7 +623,14 @@ function openAdult() {
 }
 function updateSoundBtn() {
   $('btnSound').textContent = progress.sound ? '🔊 Звук включён' : '🔇 Звук выключен';
+  $('btnTolerance').textContent = progress.tolerance === 'strict' ? '🎯 Цвета: строго' : '🌈 Цвета: широкий допуск';
 }
+$('btnTolerance').addEventListener('click', () => {
+  progress.tolerance = progress.tolerance === 'strict' ? 'wide' : 'strict';
+  save();
+  updateSoundBtn();
+  sfx.tap();
+});
 $('btnAdultClose').addEventListener('click', () => ($('adultSheet').hidden = true));
 $('adultSheet').addEventListener('click', (e) => {
   // Отпускание пальца после удержания даёт click по фону — его игнорируем.
@@ -611,6 +646,7 @@ $('btnSound').addEventListener('click', () => {
 $('btnReset').addEventListener('click', () => {
   if (!confirm('Сбросить все звёзды?')) return;
   progress.done = [];
+  progress.doneShape = [];
   save();
   renderMap();
 });
@@ -624,6 +660,9 @@ window.__GAME_TEST__ = {
     mode: state.mode,
     camera: state.camera,
     done: [...progress.done],
+    doneShape: [...progress.doneShape],
+    playMode: progress.mode,
+    tolerance: progress.tolerance,
     result: state.result ? summary(state.result) : null,
     live: liveResult ? { ok: liveResult.ok, reason: liveResult.reason } : null,
   }),
@@ -632,6 +671,7 @@ window.__GAME_TEST__ = {
     go('task');
   },
   go,
+  setPlayMode,
   /** Прогоняет ImageData через тот же путь, что и снимок с камеры. */
   checkImageData(img) {
     const c = document.createElement('canvas');

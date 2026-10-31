@@ -26,10 +26,13 @@ export const DEFAULTS = {
   strongColor: 0.1, // неизвестный, но явно цветной пиксель — посторонний предмет
   minAreaFrac: 0.003, // минимальная площадь всех кубиков (доля кадра)
   speckFrac: 0.025, // области меньше этой доли от всех кубиков — мусор
+  fragFrac: 0.4, // обрывок у выкинутой краевой области меньше этой доли кубика — тоже мусор
   cellInner: 0.5, // доля клетки, по которой голосуем (центр)
   cellFill: 0.4, // доля «кубиковых» пикселей, чтобы клетка считалась занятой
   aspectMin: 0.6,
   aspectMax: 1.65,
+  shapeAspectMin: 0.8, // режим «форма»: допустимая вытянутость клетки
+  shapeAspectMax: 1.25,
   gainMin: 0.6, // пределы подстройки насыщенности снимка
   gainMax: 1.7,
   castMax: 0.25, // предел подстройки оттенка снимка (в log-цветности)
@@ -219,7 +222,7 @@ export function classify(small, palette, o = DEFAULTS) {
   let g = 1;
   let t0 = 0;
   let t1 = 0;
-  const nearestChroma = (q, skipDecoy) => {
+  const nearestChroma = (q, skipDecoy = false) => {
     const u = g * q.uv[0] + t0;
     const v = g * q.uv[1] + t1;
     let best = -1;
@@ -247,6 +250,8 @@ export function classify(small, palette, o = DEFAULTS) {
       const acc = refs.map(() => ({ n: 0, u: 0, v: 0 }));
       let total = 0;
       for (const q of cand) {
+        // Ближайший игровой цвет (в блёклом снимке синий похож на голубой, фиолетовый — на сиреневый,
+        // а голосовать должны именно они). В режиме «форма» подстройка выключена — там цвета не важны.
         const [k, d] = nearestChroma(q, true);
         if (d > lim) continue;
         acc[k].n++;
@@ -326,6 +331,27 @@ export function classify(small, palette, o = DEFAULTS) {
   return { labels, bg, lightBg, keys, fgness, lumShift, gain: g, cast: [t0, t1], uvAdj, pairs };
 }
 
+/**
+ * Заполнение «дыр»: бледный кубик (сиреневый на сером столе) с шумом выходит дырявым и рассыпается
+ * на обрывки. Пиксель фона, у которого ≥5 из 8 соседей одного цвета, получает этот цвет.
+ */
+function fillHoles(labels, w, h, nLabels) {
+  const src = Int8Array.from(labels);
+  const cnt = new Int32Array(nLabels);
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const p = y * w + x;
+      if (src[p] >= 0) continue;
+      cnt.fill(0);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const l = src[p + dy * w + dx];
+        if (l >= 0) cnt[l]++;
+      }
+      for (let l = 0; l < nLabels; l++) if (cnt[l] >= 5) labels[p] = l;
+    }
+  }
+}
+
 /** Оставляет только «настоящие» области кубиков. Возвращает маску и площадь. */
 function cleanComponents(labels, w, h, o) {
   const seen = new Uint8Array(w * h);
@@ -363,7 +389,40 @@ function cleanComponents(labels, w, h, o) {
     }
     comps.push({ pix, touches });
   }
+  // Рука или игрушка у края при широком допуске распадается на «рябь» из разных цветов: обрывки,
+  // примыкающие к выкинутой краевой области и заметно меньше кубика, тоже выкидываем (до устойчивости).
+  const compOf = new Int32Array(w * h).fill(-1);
+  comps.forEach((c, i) => c.pix.forEach((p) => (compOf[p] = i)));
+  const sizes = comps.filter((c) => !c.touches).map((c) => c.pix.length).sort((a, b) => b - a);
+  const big = sizes.filter((v) => v >= sizes[0] * 0.25); // кубики (крупные области), без мелочи
+  const cubeArea = big.length ? big[big.length >> 1] : 0;
+  for (let changed = true, guard = 0; changed && guard < 20; guard++) {
+    changed = false;
+    for (const c of comps) {
+      if (c.touches || c.pix.length >= cubeArea * o.fragFrac) continue;
+      let adj = false;
+      for (const p of c.pix) {
+        const x = p % w;
+        const y = (p / w) | 0;
+        for (let dy = -1; dy <= 1 && !adj; dy++) {
+          for (let dx = -1; dx <= 1 && !adj; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+            const j = compOf[ny * w + nx];
+            if (j >= 0 && comps[j] !== c && comps[j].touches) adj = true;
+          }
+        }
+        if (adj) break;
+      }
+      if (adj) {
+        c.touches = true;
+        changed = true;
+      }
+    }
+  }
   const inside = comps.filter((c) => !c.touches);
+  if (o.debug) o.debug.push('cubeArea ' + cubeArea + ' inside ' + inside.map((c) => `${labels[c.pix[0]]}:${c.pix.length}@${c.pix[0] % w},${(c.pix[0] / w) | 0}`).join(' '));
   const total = inside.reduce((s, c) => s + c.pix.length, 0);
   const minArea = Math.max(4, total * o.speckFrac);
   const keep = new Uint8Array(w * h);
@@ -466,6 +525,23 @@ function relativeShades(cells, pairs, o) {
       const mid = 0.5 + delta;
       accept = tA.every((t) => t < mid) && tB.every((t) => t > mid) && mean(tB) - mean(tA) >= o.pairGap;
       if (accept) for (const c of inFam) c.ok = true;
+      else {
+        // Не сошлось — где ошибка? Делим клетки пары по самому большому разрыву на «ближе к A» и «ближе к B»
+        // (относительно, а не по эталонам). Если явного разрыва нет — все кубики одного оттенка, и тогда
+        // верны обычные метки.
+        const ts = inFam.map((c) => ({ c, t: proj(c.uv) })).sort((a, b) => a.t - b.t);
+        let cut = -1;
+        let gap = 0;
+        for (let i = 0; i + 1 < ts.length; i++) if (ts[i + 1].t - ts[i].t > gap) [gap, cut] = [ts[i + 1].t - ts[i].t, i];
+        if (gap >= o.pairGap) {
+          // Из двух объяснений (обычные метки или разделение по разрыву) берём то, где ошибок меньше:
+          // ребёнку лучше показать один неверный кубик, чем два сомнительных.
+          const byCut = ts.map((e, i) => e.c.want === (i <= cut ? A.key : B.key));
+          const wrongCut = byCut.filter((v) => !v).length;
+          const wrongNow = ts.filter((e) => !e.c.ok).length;
+          if (wrongCut < wrongNow) ts.forEach((e, i) => (e.c.ok = byCut[i]));
+        }
+      }
     } else {
       // Только один цвет пары: засчитываем, пока клетка не стала явно соседним цветом.
       for (const c of inFam) {
@@ -485,11 +561,20 @@ function relativeShades(cells, pairs, o) {
 export function analyze(img, target, palette, opts = {}) {
   const o = { ...DEFAULTS, ...TOLERANCE[opts.tolerance || DEFAULTS.tolerance], ...opts };
   const shapeOnly = o.mode === 'shape';
+  if (shapeOnly) {
+    // Форма: цвет не важен — всё, что заметно отличается от фона, считается кубиком;
+    // клетки должны быть почти квадратными (иначе 2 кубика «растягиваются» на сетку из 3).
+    o.maxDist = Infinity;
+    o.adapt = false;
+    o.aspectMin = Math.max(o.aspectMin, o.shapeAspectMin);
+    o.aspectMax = Math.min(o.aspectMax, o.shapeAspectMax);
+  }
   // «Двойники»: цвет набора, который засчитывается за цвет картинки (голубой — за синий).
   const twinOf = (k) => (o.twins && palette[k] && palette[k].twin) || null;
   const small = downscale(img, o.work);
   const { w, h } = small;
   const { labels, bg, lightBg, keys, fgness, uvAdj, pairs } = classify(small, palette, o);
+  fillHoles(labels, w, h, keys.length + 1);
   const { keep, area } = cleanComponents(labels, w, h, o);
   const expected = target.flat().filter(Boolean).length;
   const base = { ok: false, expected, found: 0, bg, lightBg, rotation: 0, cells: [], mismatches: [], frame: null };

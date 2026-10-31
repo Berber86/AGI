@@ -3,12 +3,12 @@
   "phase": "release",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "FIELD-001 done: palette from real cubes, two-pass classifier; vision 577/577, e2e 51/51",
-  "nextAction": "FIELD-002: live phone check with real cubes",
+  "lastAction": "TOL-001 + SHAPE-001 done: wide color tolerance, shape-only mode; vision 963/963, e2e 62/62",
+  "nextAction": "FIELD-002: live phone check with real cubes (both modes)",
   "blockers": [
     "Нужна живая проверка на телефоне пользователя"
   ],
-  "latestHandoff": ".studio/handoffs/2026-10-31-palette.md",
+  "latestHandoff": ".studio/handoffs/2026-10-31-tolerance-shape.md",
   "sessionBenchmark": {
     "runId": "20261031T103535Z-b1b568",
     "status": "qualified",
@@ -17,5 +17,5 @@
     "resultPath": "../../.studio/benchmarks/runs/20261031T103535Z-b1b568/result.json"
   },
   "createdAt": "2026-10-31T10:36:14Z",
-  "updatedAt": "2026-10-31T12:40:00Z"
+  "updatedAt": "2026-10-31T16:10:00Z"
 }

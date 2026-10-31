@@ -17,6 +17,22 @@
 
 # 🦋 butterfly
 
+# форма: 🚦 traffic
+
+# форма: 🐍 snake
+
+# форма: 🌷 flower
+
+# форма: 🚀 rocket
+
+# форма: 🐟 fish
+
+# форма: 🚗 car
+
+# форма: 🏠 house
+
+# форма: 🦋 butterfly
+
 # чужие картинки
 
-577 passed, 0 failed
+963 passed, 0 failed
