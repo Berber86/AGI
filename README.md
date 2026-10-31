@@ -48,6 +48,7 @@
 - [Сбросы окружения и восстановление](.agents/skills/arena-game-forge/references/workspace-resets-and-recovery.md)
 - [Диагностика фризов мобильного 3D](.agents/skills/arena-game-forge/references/perf-freeze-triage.md)
 - [Пиксельные VFX и спрайтовые эффекты (pixelfx)](.agents/skills/arena-game-forge/references/pixel-art-fx.md)
+- Живая витрина этих приёмов: [`demos/pixel-fx/`](demos/pixel-fx/README.md) — 13 эффектов, палитры, акт, hit-stop и экспорт спрайт-листа
 
 ## Главные выводы полевых замеров (производительность)
 

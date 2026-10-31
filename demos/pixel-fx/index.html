@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>pixelfx · витрина</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="head">
+    <h1>pixelfx<span>.</span>витрина</h1>
+    <p>
+      Тринадцать эффектов из <a href="https://github.com/patch-gg/pixelfx">patch-gg/pixelfx</a> —
+      не картинки, а маленькие программы: буфер цвета + буфер света, детерминированный <code>seed</code>,
+      палитра как рампа и «акт» с замахом, стоп-кадром на контакте и восстановлением.
+      <b>Кликните по сцене</b> — эффект сработает в этой точке.
+    </p>
+  </header>
+
+  <main class="main">
+    <section class="stage">
+      <div class="screen"><canvas id="stage" width="320" height="180" aria-label="Сцена: 320×180 пикселей"></canvas></div>
+      <div class="bar">
+        <span id="status">—</span>
+        <span id="cost">—</span>
+      </div>
+      <p class="hint">Сцена — 320×180 арт-пикселей, апскейл целым множителем, <code>image-rendering: pixelated</code>.</p>
+    </section>
+
+    <aside class="panel">
+      <section class="group wide">
+        <h2>Эффект</h2>
+        <div id="effects" class="chips"></div>
+      </section>
+
+      <section class="group">
+        <h2>Палитра</h2>
+        <div id="palettes" class="chips ramps"></div>
+        <p class="hint">Цвет не зашит в код: у эффекта одна рампа «тёмное → яркое», и её можно заменить целиком.</p>
+      </section>
+
+      <section class="group">
+        <h2>Поведение</h2>
+        <label class="switch"><input id="body" type="checkbox" checked><span>Тело и акт: замах → freeze → восстановление</span></label>
+        <label class="switch"><input id="hoststop" type="checkbox" checked><span>Хост-hit-stop: пауза всего мира на ударе</span></label>
+        <label class="switch"><input id="auto" type="checkbox" checked><span>Повторять автоматически</span></label>
+        <div class="row">
+          <button id="seed" class="button">Другой дубль</button>
+          <button id="replay" class="button ghost">Ещё раз</button>
+        </div>
+        <p class="hint" id="modehint">—</p>
+      </section>
+
+      <details class="group wide" id="sheetbox">
+        <summary>Спрайт-лист — экспорт для любого движка</summary>
+        <div class="sheet"><canvas id="sheet"></canvas></div>
+        <p class="hint" id="sheetinfo">—</p>
+        <a id="download" class="button" download>Скачать PNG</a>
+      </details>
+
+      <details class="group" id="timingbox">
+        <summary>Тайминг акта — данные для своей игры</summary>
+        <pre id="timing">—</pre>
+        <p class="hint">Это то, что читает игра с собственным персонажем: заранее начать замах на <code>windup</code>, попасть эффектом в <code>t</code>, заморозить мир на <code>freeze</code>.</p>
+      </details>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <p>Что здесь можно потрогать:</p>
+    <ol>
+      <li><b>Два буфера.</b> Цвет и аддитивный свет: горящее ядро светится, а не «ярко покрашено».</li>
+      <li><b>Детерминизм.</b> «Другой дубль» меняет <code>seed</code>: та же программа, другой рисунок — и всегда воспроизводимый.</li>
+      <li><b>Рампа вместо палитры.</b> Один и тот же эффект становится огнём, льдом или матрицей без правки кода.</li>
+      <li><b>Акт.</b> Замах → удар → стоп-кадр на контакте → восстановление; цель реагирует и качается на пружине.</li>
+      <li><b>Хост-hit-stop.</b> Без тела игра сама замирает на кадре удара — тайминг берётся из данных эффекта.</li>
+      <li><b>Спрайт-лист.</b> Те же кадры — в PNG для Godot, Unity, GameMaker или Phaser.</li>
+    </ol>
+    <p class="hint">
+      Код: <code>app.js</code> (~450 строк, без сборки и зависимостей) + вендоренный рантайм
+      <code>vendor/pixelfx/</code> (MIT). Разбор приёмов — в
+      <code>.agents/skills/arena-game-forge/references/pixel-art-fx.md</code>.
+    </p>
+  </footer>
+</div>
+<noscript>Витрине нужен JavaScript.</noscript>
+<script type="module" src="app.js"></script>
+</body>
+</html>
