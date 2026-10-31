@@ -1,17 +1,15 @@
 // Синтетические «фото» раскладки кубиков сверху для тестов распознавания.
 // Используется и в Node (юнит-тесты), и в браузере (e2e через тестовый мост).
 
-// Так цвета кубиков обычно видит камера (темнее и грязнее, чем на экране).
-export const CAMERA_COLORS = {
-  R: [196, 38, 42],
-  O: [232, 118, 34],
-  Y: [232, 196, 44],
-  G: [44, 146, 72],
-  B: [38, 88, 186],
-  P: [118, 58, 158],
-  K: [230, 120, 160], // розовый — по умолчанию цвета нет в палитре
-  W: [244, 242, 236], // белый кубик — почти как бумага
-};
+import { PALETTE } from '../src/pictures.js';
+
+const PAPER = [236, 232, 224];
+// Цвет кубика на снимке = относительный цвет из палитры × цвет серой простыни с фото пользователя.
+// Белая бумага в тестах светлее простыни, поэтому кубики на ней относительно темнее эталона — как в жизни.
+const SHEET = [145, 140, 138];
+export const CAMERA_COLORS = Object.fromEntries(Object.entries(PALETTE).map(([k, v]) => [k, v.rel.map((c, i) => c * SHEET[i])]));
+CAMERA_COLORS.W = [244, 242, 236]; // белый кубик — почти как бумага
+CAMERA_COLORS.O = [232, 118, 34]; // оранжевый — такого цвета в наборе нет
 
 function rng(seed) {
   let s = seed >>> 0 || 1;
@@ -58,6 +56,9 @@ export function renderScene(rows, opts = {}) {
     lightGradient = 0.12,
     wobble = 0, // неаккуратность: случайный сдвиг каждого кубика, px
     keystone = 0, // съёмка не строго сверху: верх кадра шире низа на долю
+    boost = 1, // яркость граней кубиков относительно эталона (верхние грани обычно светлее)
+    textures = null, // {key: {data, width, height}} — настоящие текстуры граней (RGB)
+    bgTexture = null, // настоящая текстура фона
   } = opts;
   const rand = rng(seed);
   const W = size;
@@ -101,14 +102,18 @@ export function renderScene(rows, opts = {}) {
         col = [178 + s, 126 + s * 0.8, 74 + s * 0.5];
       } else if (bg === 'gray') {
         col = [150, 150, 152];
+      } else if (bgTexture) {
+        col = sampleTex(bgTexture, x / bgTexture.width, y / bgTexture.height, true);
       } else {
-        col = [236, 232, 224];
+        col = PAPER.slice();
       }
       const light = 1 - lightGradient * (y / H) + lightGradient / 2;
       const hit = cubeAt(lx, ly);
       if (hit) {
-        const base = CAMERA_COLORS[hit.ch];
-        const sh = cubeShift[hit.r][hit.c];
+        const base = textures && textures[hit.ch]
+          ? sampleTex(textures[hit.ch], 0.1 + hit.fx * 0.8, 0.1 + hit.fy * 0.8).map((v) => v * boost)
+          : CAMERA_COLORS[hit.ch].map((v) => v * boost);
+        const sh = textures ? [0, 0, 0] : cubeShift[hit.r][hit.c];
         const edge = Math.min(hit.fx, hit.fy, 1 - hit.fx, 1 - hit.fy);
         const bevel = edge < 0.08 ? 0.72 : edge < 0.14 ? 0.88 : 1;
         const hl = hit.fx + hit.fy < 0.5 ? 1.06 : 1;
@@ -133,4 +138,22 @@ export function renderScene(rows, opts = {}) {
 /** Заменяет символ в клетке (r, c). */
 export function setCell(rows, r, c, ch) {
   return rows.map((row, i) => (i === r ? row.slice(0, c) + ch + row.slice(c + 1) : row));
+}
+
+function sampleTex(t, u, v, tile = false) {
+  let x = u * t.width;
+  let y = v * t.height;
+  if (tile) {
+    // зеркальное «плиточное» повторение без швов
+    const mx = Math.floor(x / t.width);
+    const my = Math.floor(y / t.height);
+    x = ((x % t.width) + t.width) % t.width;
+    y = ((y % t.height) + t.height) % t.height;
+    if (mx % 2) x = t.width - 1 - x;
+    if (my % 2) y = t.height - 1 - y;
+  }
+  const ix = Math.max(0, Math.min(t.width - 1, Math.floor(x)));
+  const iy = Math.max(0, Math.min(t.height - 1, Math.floor(y)));
+  const i = (iy * t.width + ix) * 3;
+  return [t.data[i], t.data[i + 1], t.data[i + 2]];
 }

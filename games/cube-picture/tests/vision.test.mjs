@@ -2,6 +2,10 @@
 import { analyze, rotateGrid } from '../src/vision.js';
 import { PALETTE, PICTURES, grid } from '../src/pictures.js';
 import { renderScene, rotateRows, setCell } from './synth.mjs';
+import { realCubeTextures } from './png.mjs';
+import { fileURLToPath } from 'node:url';
+
+const REAL = realCubeTextures(fileURLToPath(new URL('./fixtures-real-cubes.png', import.meta.url)));
 
 let failed = 0;
 let passed = 0;
@@ -24,26 +28,31 @@ section('rotateGrid');
   ok(JSON.stringify(rotateRows(['AB.', 'CDE'], 1)) === JSON.stringify(['CA', 'DB', 'E.']), 'synth.rotateRows совпадает с rotateGrid');
 }
 
-// Расширенная палитра (как будет после фото кубиков): розовый отличаем от красного по насыщенности.
-const PINK_PALETTE = { ...PALETTE, R: { ...PALETTE.R, sat: 0.8 }, K: { name: 'розовый', hue: 338, sat: 0.48, fill: '#ff8fc0' } };
-
-const OTHER = { R: 'B', O: 'G', Y: 'P', G: 'R', B: 'Y', P: 'O' };
+// Замены на самый похожий цвет — самые трудные ошибки.
+const OTHER = { R: 'K', K: 'R', Y: 'G', G: 'B', B: 'P', P: 'B' };
+// Цвета из набора, которых нет в картинках: голубой вместо синего, сиреневый вместо фиолетового.
+const DECOY = { B: 'C', P: 'L' };
 const scenes = {
   'прямо, бумага': {},
   'поворот 90°': { k: 1 },
   'поворот 180° + наклон 8°': { k: 2, angle: 8 },
   'поворот 270° + наклон −14°': { k: 3, angle: -14 },
-  'деревянный стол': { bg: 'wood', angle: 5 },
   'тёплая лампа': { tint: [1.12, 0.96, 0.72] },
   'холодный свет + шум': { tint: [0.86, 0.96, 1.14], noise: 18 },
   'мелкие кубики, сдвиг': { cube: 34, offset: [30, -20] },
   'рука у края кадра': { specks: [{ x: 0, y: 200, r: 60, color: [222, 170, 140] }] },
   'крошка на столе': { specks: [{ x: 60, y: 330, r: 3, color: [40, 90, 190] }] },
   'серый стол': { bg: 'gray' },
+  'кубики светлее (×1.4)': { boost: 1.4 },
+  'кубики темнее (×0.75)': { boost: 0.75 },
+  'настоящие кубики с фото': { real: true },
+  'настоящие кубики, поворот 90° + наклон 10°': { real: true, k: 1, angle: 10 },
+  'настоящие кубики, светлее ×1.3': { real: true, boost: 1.3 },
+  'настоящие кубики, тёплая лампа': { real: true, tint: [1.1, 0.97, 0.8] },
   'неаккуратно: зазоры и сдвиги': { gap: 9, wobble: 6, angle: 4 },
   'наклон 35°': { angle: 35, cube: 40 },
   'камера под углом (трапеция)': { keystone: 0.25, angle: -6 },
-  'всё сразу': { k: 1, angle: 20, wobble: 5, gap: 7, keystone: 0.18, tint: [1.08, 0.97, 0.8], bg: 'wood', noise: 16, cube: 42 },
+  'всё сразу': { k: 1, angle: 20, wobble: 5, gap: 7, keystone: 0.18, tint: [1.08, 0.97, 0.8], bg: 'gray', noise: 16, cube: 42 },
 };
 
 for (const pic of PICTURES) {
@@ -53,7 +62,8 @@ for (const pic of PICTURES) {
 
   for (const [name, s] of Object.entries(scenes)) {
     const rows = rotateRows(pic.rows, s.k || 0);
-    const img = renderScene(rows, { size: 360, cube: s.cube || cubeSize(rows), ...s, seed: 11 + (s.k || 0) });
+    const real = s.real ? { textures: REAL, bgTexture: REAL.bg, noise: 4 } : {};
+    const img = renderScene(rows, { size: 360, cube: s.cube || cubeSize(rows), ...s, ...real, seed: 11 + (s.k || 0) });
     const res = analyze(img, target, PALETTE);
     ok(res.ok, `${pic.id}: верная сборка распознана — ${name} (reason=${res.reason}, ошибок ${res.mismatches.length})`);
     if (s.k && res.ok) ok(res.rotation === s.k * 90 || isSymmetric(pic.rows, s.k, res.rotation), `${pic.id}: угол поворота ${s.k * 90}° (получили ${res.rotation})`);
@@ -79,19 +89,22 @@ for (const pic of PICTURES) {
       res = analyze(renderScene(white, { size: 360, cube: cubeSize(white), seed: 3 }), target, PALETTE);
       ok(!res.ok, `${pic.id}: белый кубик вместо (${r},${c}) не засчитан`);
 
-      if (ch === 'R') {
-        const pink = setCell(pic.rows, r, c, 'K');
-        res = analyze(renderScene(pink, { size: 360, cube: cubeSize(pink), seed: 3 }), target, PINK_PALETTE);
-        ok(!res.ok && res.mismatches.some((m) => m.got === 'K'), `${pic.id}: с розовым в палитре розовый вместо красного (${r},${c}) не засчитан`);
-        res = analyze(renderScene(pic.rows, { size: 360, cube: cubeSize(pic.rows), seed: 4 }), target, PINK_PALETTE);
-        ok(res.ok, `${pic.id}: с розовым в палитре верная сборка распознана`);
+      if (DECOY[ch]) {
+        const decoy = setCell(pic.rows, r, c, DECOY[ch]);
+        res = analyze(renderScene(decoy, { size: 360, cube: cubeSize(decoy), seed: 5 }), target, PALETTE);
+        ok(!res.ok, `${pic.id}: ${DECOY[ch] === 'C' ? 'голубой' : 'сиреневый'} вместо (${r},${c}) не засчитан`);
+        res = analyze(renderScene(decoy, { size: 360, cube: cubeSize(decoy), textures: REAL, bgTexture: REAL.bg, noise: 4 }), target, PALETTE);
+        ok(!res.ok, `${pic.id}: настоящий ${DECOY[ch] === 'C' ? 'голубой' : 'сиреневый'} кубик вместо (${r},${c}) не засчитан`);
       }
+      const realSwap = setCell(pic.rows, r, c, OTHER[ch]);
+      res = analyze(renderScene(realSwap, { size: 360, cube: cubeSize(realSwap), textures: REAL, bgTexture: REAL.bg, noise: 4, angle: 3 }), target, PALETTE);
+      ok(!res.ok && res.mismatches.length === 1, `${pic.id}: настоящие кубики — ${ch}→${OTHER[ch]} в (${r},${c}) найден (ошибок ${res.mismatches.length})`);
     });
   });
 
   // Лишний кубик рядом с картинкой (новая колонка справа и строка снизу).
   {
-    const wider = pic.rows.map((row, i) => row + (i === 0 ? 'B' : '.'));
+    const wider = pic.rows.map((row, i) => row + (i === 0 ? 'G' : '.'));
     let res = analyze(renderScene(wider, { size: 360, cube: cubeSize(wider) }), target, PALETTE);
     ok(!res.ok, `${pic.id}: лишний кубик справа не засчитан`);
     const taller = [...pic.rows, 'R' + '.'.repeat(pic.rows[0].length - 1)];

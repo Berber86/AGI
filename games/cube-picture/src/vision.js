@@ -2,10 +2,11 @@
 //
 // Конвейер:
 //  1) уменьшаем кадр до ~160 px (усреднение = шумоподавление);
-//  2) фон = медиана цвета по краю кадра; при светлом фоне под тёплым/холодным светом
-//     выравниваем баланс белого по фону;
-//  3) пиксель — «кубик», если он заметно отличается от фона, насыщен и не слишком тёмный;
-//     цвет — ближайший оттенок палитры;
+//  2) фон = медиана цвета по краю кадра; каждый пиксель делим на цвет фона —
+//     так убираются яркость и оттенок освещения (тёплая лампа, пасмурный день);
+//  3) у каждого пикселя считаем цветность (доли R,G,B) и относительную яркость и сравниваем
+//     с эталонами палитры (сняты с фото настоящих кубиков); почти нейтральные пиксели (фон, тени)
+//     и очень тёмные щели — не кубики;
 //  4) связные области: выкидываем крошки и всё, что касается края кадра (рука, игрушки);
 //  5) оцениваем наклон раскладки по направлениям краёв кубиков;
 //  6) делим рамку на сетку картинки в 4 поворотах, в центре каждой клетки голосуем за цвет;
@@ -14,10 +15,14 @@
 export const DEFAULTS = {
   work: 160, // размер стороны рабочего кадра
   border: 0.05, // доля края кадра для оценки фона
-  minChroma: 40, // минимальная «цветность» (max-min) после баланса белого
-  minBgDist: 55, // минимальное отличие от фона (RGB-расстояние)
-  minValue: 0.14, // минимальная яркость
-  hueTol: 40, // дальше этого от всех цветов палитры — «неизвестный цвет»
+  neutral: 0.034, // цветность ближе этого к серому — фон/тень (зелёный кубик ≈ 0.06)
+  minBgDist: 0.14, // минимальное отличие от фона (в долях цвета фона)
+  minY: 0.13, // относительная яркость ниже — щель/глубокая тень
+  darkY: 0.55, // темнее этого — предмет, даже если почти серый (тени на бумаге светлее)
+  chromaScale: 0.03, // «единица» расстояния по цветности
+  lumScale: 0.2, // «единица» расстояния по log-светлоте (после поправки на общую яркость сцены)
+  maxDist: 3.2, // дальше от всех эталонов — «неизвестный цвет»
+  strongColor: 0.1, // неизвестный, но явно цветной пиксель — посторонний предмет
   minAreaFrac: 0.003, // минимальная площадь всех кубиков (доля кадра)
   speckFrac: 0.025, // области меньше этой доли от всех кубиков — мусор
   cellInner: 0.5, // доля клетки, по которой голосуем (центр)
@@ -27,26 +32,6 @@ export const DEFAULTS = {
 };
 
 const UNKNOWN = '?';
-
-function hsv(r, g, b) {
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const c = max - min;
-  let h = 0;
-  if (c > 0) {
-    if (max === r) h = ((g - b) / c) % 6;
-    else if (max === g) h = (b - r) / c + 2;
-    else h = (r - g) / c + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-  return [h, c, max / 255];
-}
-
-const hueDist = (a, b) => {
-  const d = Math.abs(a - b) % 360;
-  return d > 180 ? 360 - d : d;
-};
 
 function median(values) {
   const a = Float64Array.from(values).sort();
@@ -99,11 +84,20 @@ export function rotateGrid(target, k) {
   return g;
 }
 
+/** Эталоны палитры: цветность и относительная яркость. */
+function refsOf(palette) {
+  return Object.keys(palette).map((k) => {
+    const rel = palette[k].rel;
+    const sum = rel[0] + rel[1] + rel[2];
+    return { key: k, c: rel.map((v) => v / sum), y: sum / 3, decoy: !!palette[k].decoy };
+  });
+}
+
 /** Метки пикселей: индекс цвета палитры, keys.length = неизвестный цвет, -1 = фон. */
 export function classify(small, palette, o = DEFAULTS) {
   const { w, h, rgb } = small;
   const keys = Object.keys(palette);
-  const refs = keys.map((k) => ({ hue: palette[k].hue, sat: palette[k].sat }));
+  const refs = refsOf(palette);
   // Фон: медиана по краевому кольцу.
   const bw = Math.max(1, Math.round(Math.min(w, h) * o.border));
   const rs = [];
@@ -118,44 +112,60 @@ export function classify(small, palette, o = DEFAULTS) {
       bs.push(rgb[i + 2]);
     }
   }
-  const bg = [median(rs), median(gs), median(bs)];
+  const bg = [median(rs), median(gs), median(bs)].map((v) => Math.max(8, v));
   const bgMax = Math.max(...bg);
-  const bgChroma = bgMax - Math.min(...bg);
-  const lightBg = bgMax > 110 && bgChroma < 95;
-  let gains = [1, 1, 1];
-  if (lightBg) {
-    const avg = (bg[0] + bg[1] + bg[2]) / 3;
-    gains = bg.map((c) => Math.min(1.5, Math.max(0.67, avg / Math.max(1, c))));
-  }
+  const lightBg = bgMax > 100 && bgMax - Math.min(...bg) < 70;
   const labels = new Int8Array(w * h).fill(-1);
-  const chroma = new Float32Array(w * h);
+  const fgness = new Float32Array(w * h); // отличие от фона — для оценки наклона по краям
+  const cs2 = o.chromaScale * o.chromaScale;
+  const max2 = o.maxDist * o.maxDist;
+  // Проход 1: кандидаты и расстояния по цветности.
+  const cand = [];
   for (let p = 0; p < w * h; p++) {
-    const r0 = rgb[p * 3];
-    const g0 = rgb[p * 3 + 1];
-    const b0 = rgb[p * 3 + 2];
-    const dist = Math.hypot(r0 - bg[0], g0 - bg[1], b0 - bg[2]);
-    const [hue, cr, val] = hsv(
-      Math.min(255, r0 * gains[0]),
-      Math.min(255, g0 * gains[1]),
-      Math.min(255, b0 * gains[2]),
-    );
-    chroma[p] = cr;
+    const nr = rgb[p * 3] / bg[0];
+    const ng = rgb[p * 3 + 1] / bg[1];
+    const nb = rgb[p * 3 + 2] / bg[2];
+    const dist = Math.hypot(nr - 1, ng - 1, nb - 1);
+    fgness[p] = Math.min(1.5, dist);
     if (dist < o.minBgDist) continue;
-    if (cr < o.minChroma || val < o.minValue) continue;
-    const sat = cr / (val * 255);
+    const sum = nr + ng + nb;
+    const y = sum / 3;
+    if (y < o.minY) continue;
+    const cr = nr / sum;
+    const cg = ng / sum;
+    const cb = nb / sum;
+    const sat = Math.hypot(cr - 1 / 3, cg - 1 / 3, cb - 1 / 3);
+    // Почти серое — фон или тень, если только это не заметно тёмный предмет (тёмно-зелёный кубик на бумаге).
+    if (sat < o.neutral && y > o.darkY) continue;
+    const dc = refs.map((r) => ((cr - r.c[0]) ** 2 + (cg - r.c[1]) ** 2 + (cb - r.c[2]) ** 2) / cs2);
+    cand.push({ p, y, sat, dc });
+  }
+  // Общий множитель яркости сцены: кубики на белой бумаге относительно темнее, чем на серой ткани,
+  // но одинаково для всех цветов. Оцениваем по пикселям с уверенным совпадением по цветности.
+  const ratios = [];
+  for (const q of cand) {
+    let k = 0;
+    for (let i = 1; i < refs.length; i++) if (q.dc[i] < q.dc[k]) k = i;
+    if (q.dc[k] <= 4 && !refs[k].decoy) ratios.push(Math.log(q.y / refs[k].y));
+  }
+  const lumShift = ratios.length >= 12 ? median(ratios) : 0;
+  // Проход 2: цветность + светлота с поправкой на сцену (отличает голубой от синего, сиреневый от фиолетового).
+  const ls2 = o.lumScale * o.lumScale;
+  for (const q of cand) {
+    const ly = Math.log(q.y) - lumShift;
     let best = -1;
     let bestD = Infinity;
     for (let k = 0; k < refs.length; k++) {
-      // Насыщенность учитываем, только если у цвета палитры она задана (например, розовый vs красный).
-      const d = hueDist(hue, refs[k].hue) + (refs[k].sat == null ? 0 : 45 * Math.abs(sat - refs[k].sat));
+      const d = q.dc[k] + (ly - Math.log(refs[k].y)) ** 2 / ls2;
       if (d < bestD) {
         bestD = d;
         best = k;
       }
     }
-    labels[p] = bestD <= o.hueTol ? best : keys.length;
+    if (bestD <= max2) labels[q.p] = best;
+    else if (q.sat >= o.strongColor) labels[q.p] = keys.length;
   }
-  return { labels, bg, lightBg, keys, chroma };
+  return { labels, bg, lightBg, keys, fgness, lumShift };
 }
 
 /** Оставляет только «настоящие» области кубиков. Возвращает маску и площадь. */
@@ -164,7 +174,8 @@ function cleanComponents(labels, w, h, o) {
   const comps = [];
   const stack = new Int32Array(w * h);
   for (let start = 0; start < w * h; start++) {
-    if (labels[start] < 0 || seen[start]) continue;
+    const lab = labels[start];
+    if (lab < 0 || seen[start]) continue;
     let sp = 0;
     stack[sp++] = start;
     seen[start] = 1;
@@ -183,7 +194,9 @@ function cleanComponents(labels, w, h, o) {
           const nx = x + dx;
           if (nx < 0 || nx >= w) continue;
           const q = ny * w + nx;
-          if (!seen[q] && labels[q] >= 0) {
+          // Области ищем отдельно для каждого цвета: складка фона или рука, касающаяся края,
+          // не утягивает за собой соседние кубики.
+          if (!seen[q] && labels[q] === lab) {
             seen[q] = 1;
             stack[sp++] = q;
           }
@@ -207,7 +220,7 @@ function cleanComponents(labels, w, h, o) {
 
 /**
  * Наклон раскладки по направлениям краёв: края кубиков параллельны сетке, поэтому
- * усредняем вектор (cos 4θ, sin 4θ) градиента цветности, взвешенный квадратом силы края.
+ * усредняем вектор (cos 4θ, sin 4θ) градиента «отличия от фона», взвешенный квадратом силы края.
  * Работает для любых фигур (в отличие от минимальной рамки, которая путается на «крестиках»).
  */
 function estimateSkew(chroma, keep, w, h) {
@@ -280,7 +293,7 @@ export function analyze(img, target, palette, opts = {}) {
   const o = { ...DEFAULTS, ...opts };
   const small = downscale(img, o.work);
   const { w, h } = small;
-  const { labels, bg, lightBg, keys, chroma } = classify(small, palette, o);
+  const { labels, bg, lightBg, keys, fgness } = classify(small, palette, o);
   const { keep, area } = cleanComponents(labels, w, h, o);
   const expected = target.flat().filter(Boolean).length;
   const base = { ok: false, expected, found: 0, bg, lightBg, rotation: 0, cells: [], mismatches: [], frame: null };
@@ -289,7 +302,7 @@ export function analyze(img, target, palette, opts = {}) {
 
   const points = [];
   for (let p = 0; p < w * h; p++) if (keep[p]) points.push(p % w, (p / w) | 0);
-  const skew = { angle: estimateSkew(chroma, keep, w, h) };
+  const skew = { angle: estimateSkew(fgness, keep, w, h) };
   const [u0, u1, v0, v1] = boxAt(points, skew.angle);
   const ca = Math.cos(skew.angle);
   const sa = Math.sin(skew.angle);
