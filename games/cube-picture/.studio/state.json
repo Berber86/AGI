@@ -3,12 +3,12 @@
   "phase": "release",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "TOL-001 + SHAPE-001 done: wide color tolerance, shape-only mode; vision 963/963, e2e 62/62",
+  "lastAction": "PICS-002 done: 6 simple pictures (2–4 cubes) with animations, 14 total; vision 1679/1679, e2e 80/80",
   "nextAction": "FIELD-002: live phone check with real cubes (both modes)",
   "blockers": [
     "Нужна живая проверка на телефоне пользователя"
   ],
-  "latestHandoff": ".studio/handoffs/2026-10-31-tolerance-shape.md",
+  "latestHandoff": ".studio/handoffs/2026-10-31-simple-pictures.md",
   "sessionBenchmark": {
     "runId": "20261031T103535Z-b1b568",
     "status": "qualified",
@@ -17,5 +17,5 @@
     "resultPath": "../../.studio/benchmarks/runs/20261031T103535Z-b1b568/result.json"
   },
   "createdAt": "2026-10-31T10:36:14Z",
-  "updatedAt": "2026-10-31T16:10:00Z"
+  "updatedAt": "2026-10-31T16:45:00Z"
 }

@@ -1,7 +1,19 @@
 
 # rotateGrid
 
+# 🕯️ candle
+
+# ❤️ heart
+
+# ⛵ boat
+
 # 🚦 traffic
+
+# 🍄 mushroom
+
+# 🎁 present
+
+# 🐛 caterpillar
 
 # 🐍 snake
 
@@ -17,7 +29,19 @@
 
 # 🦋 butterfly
 
+# форма: 🕯️ candle
+
+# форма: ❤️ heart
+
+# форма: ⛵ boat
+
 # форма: 🚦 traffic
+
+# форма: 🍄 mushroom
+
+# форма: 🎁 present
+
+# форма: 🐛 caterpillar
 
 # форма: 🐍 snake
 
@@ -35,4 +59,4 @@
 
 # чужие картинки
 
-963 passed, 0 failed
+1679 passed, 0 failed

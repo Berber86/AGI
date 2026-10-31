@@ -64,7 +64,10 @@ function writeY4M(path, rows) {
   const frame = Buffer.concat([Buffer.from('FRAME\n'), Y, U, V]);
   writeFileSync(path, Buffer.concat([Buffer.from(`YUV4MPEG2 W${W} H${H} F30:1 Ip A1:1 C420jpeg\n`), frame, frame]));
 }
-writeY4M('/tmp/cube-traffic.y4m', PICTURES[0].rows);
+const FIRST = PICTURES[0];
+const N = PICTURES.length;
+const idx = (id) => PICTURES.findIndex((p) => p.id === id);
+writeY4M('/tmp/cube-traffic.y4m', FIRST.rows);
 
 process.env.LD_LIBRARY_PATH = '/tmp/al2023/lib';
 process.env.HOME = '/tmp';
@@ -132,7 +135,7 @@ const checkRows = (page, rows, opts = {}) =>
   const page = await newPage(360, 800);
   let s = await st(page);
   ok(s.screen === 'map', 'старт: карта картинок');
-  ok((await page.$$('.card')).length === 8, 'на карте 8 картинок');
+  ok((await page.$$('.card')).length === N, `на карте ${N} картинок`);
   ok(await page.$eval('.card[data-index="0"]', (e) => e.classList.contains('next')), 'первая картинка подсвечена как следующая');
   const textNodes = await page.evaluate(() => {
     const out = [];
@@ -149,7 +152,7 @@ const checkRows = (page, rows, opts = {}) =>
   await tap(page, '.card[data-index="0"]');
   await sleep(300);
   s = await st(page);
-  ok(s.screen === 'task' && s.picture === 'traffic', 'касание карточки открывает образец «светофор»');
+  ok(s.screen === 'task' && s.picture === FIRST.id, `касание первой карточки открывает образец «${FIRST.id}»`);
   ok((await canvasVariance(page, '#taskCanvas')) > 8, 'образец нарисован');
   await shot(page, '360x800-task');
 
@@ -185,13 +188,13 @@ const checkRows = (page, rows, opts = {}) =>
   await page.waitForFunction(() => window.__GAME_TEST__.state().mode === 'success', { timeout: 4000 }).catch(() => {});
   s = await st(page);
   ok(s.mode === 'success' && s.result.ok, `снимок с камеры засчитан (result=${JSON.stringify(s.result)})`);
-  ok(s.done.includes('traffic'), 'звезда за «светофор» сохранена');
+  ok(s.done.includes(FIRST.id), `звезда за «${FIRST.id}» сохранена`);
   await sleep(1200);
-  await shot(page, '360x800-success-traffic');
+  await shot(page, `360x800-success-${FIRST.id}`);
   ok((await page.$$('#resultActions .icon-btn')).length === 3, 'после победы 3 кнопки: карта, ещё раз, следующая');
 
   // Ошибка: «цветок» с жёлтым вместо розового лепестка слева.
-  await page.evaluate(() => window.__GAME_TEST__.open(2));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('flower'));
   s = await checkRows(page, ['.R.', 'YYK', '.G.']);
   ok(!s.ok && s.mismatches.length === 1 && s.mismatches[0].src.join() === '1,0', `ошибка цвета найдена в клетке (1,0): ${JSON.stringify(s.mismatches)}`);
   await page.evaluate(() => window.__GAME_TEST__.finishCheck());
@@ -204,14 +207,14 @@ const checkRows = (page, rows, opts = {}) =>
   ok((await st(page)).screen === 'camera', '«переснять» снова открывает камеру');
 
   // Пустой стол.
-  await page.evaluate(() => window.__GAME_TEST__.open(1));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('snake'));
   s = await checkRows(page, ['.']);
   ok(!s.ok && s.reason === 'empty', 'пустой стол не засчитан');
   await page.evaluate(() => window.__GAME_TEST__.finishCheck());
   await sleep(400);
   await shot(page, '360x800-fail-empty');
 
-  // Все 8 анимаций (поворот сборки на 90° — тоже засчитывается).
+  // Все анимации (поворот сборки на 90° — тоже засчитывается).
   for (let i = 0; i < PICTURES.length; i++) {
     const p = PICTURES[i];
     await page.evaluate((i) => window.__GAME_TEST__.open(i), i);
@@ -230,12 +233,12 @@ const checkRows = (page, rows, opts = {}) =>
     const b = await (await page.$('#resultCanvas')).screenshot({ type: 'png' });
     ok(vars.every((v) => v > 10), `${p.id}: анимация нарисована (σ=${vars.map((v) => v.toFixed(1))})`);
     ok(!a.equals(b), `${p.id}: кадры анимации меняются во времени`);
-    await page.evaluate((t) => window.__GAME_TEST__.freeze(t), p.id === 'rocket' ? 2.2 : 3.6);
+    await page.evaluate((t) => window.__GAME_TEST__.freeze(t), ({ rocket: 2.2, present: 2.7 })[p.id] || 3.6);
     await shot(page, `360x800-anim-${String(i + 1).padStart(2, '0')}-${p.id}`);
     await page.evaluate(() => window.__GAME_TEST__.unfreeze());
   }
   s = await st(page);
-  ok(s.done.length === 8, `все 8 звёзд собраны (${s.done.length})`);
+  ok(s.done.length === N, `все ${N} звёзд собраны (${s.done.length})`);
   await page.evaluate(() => window.__GAME_TEST__.go('map'));
   await sleep(300);
   await shot(page, '360x800-map-all-stars');
@@ -247,22 +250,22 @@ const checkRows = (page, rows, opts = {}) =>
   ok(s.playMode === 'shape', 'переключатель на карте включает режим «форма»');
   ok((await page.$$('.card.done')).length === 0, 'в режиме «форма» свои звёзды (пока ни одной)');
   await shot(page, '360x800-map-shape');
-  await page.evaluate(() => window.__GAME_TEST__.open(3));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('rocket'));
   await sleep(200);
   await shot(page, '360x800-task-shape-rocket');
   s = await checkRows(page, ['.G.', '.K.', 'YRY', '.C.'], { cube: 50 });
   ok(s.ok, `форма: ракета из любых цветов засчитана (result=${JSON.stringify(s)})`);
   await page.evaluate(() => window.__GAME_TEST__.finishCheck());
   s = await st(page);
-  ok(s.doneShape.includes('rocket') && s.done.length === 8, 'форма: звезда в режиме «форма», звёзды цвета не тронуты');
+  ok(s.doneShape.includes('rocket') && s.done.length === N, 'форма: звезда в режиме «форма», звёзды цвета не тронуты');
   await page.evaluate(() => window.__GAME_TEST__.freeze(2.2));
   ok((await canvasVariance(page, '#resultCanvas')) > 10, 'форма: ракета оживает');
   await shot(page, '360x800-success-shape-rocket');
   await page.evaluate(() => window.__GAME_TEST__.unfreeze());
-  await page.evaluate(() => window.__GAME_TEST__.open(3));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('rocket'));
   s = await checkRows(page, ['.G.', '.K.', 'YRY', '...'], { cube: 50 });
   ok(!s.ok, `форма: без нижнего кубика не засчитано (reason=${s.reason})`);
-  await page.evaluate(() => window.__GAME_TEST__.open(3));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('rocket'));
   s = await checkRows(page, ['.G.', '...', 'YRY', '.C.'], { cube: 50 });
   ok(!s.ok && s.mismatches.length === 1 && s.mismatches[0].src.join() === '1,1', `форма: без кубика в середине — ошибка ровно в клетке (1,1) (${JSON.stringify(s.mismatches)})`);
   await page.evaluate(() => window.__GAME_TEST__.finishCheck());
@@ -298,7 +301,7 @@ const checkRows = (page, rows, opts = {}) =>
 {
   const page = await newPage(412, 915, { noCamera: true });
   await shot(page, '412x915-map');
-  await page.evaluate(() => window.__GAME_TEST__.open(7));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('butterfly'));
   await sleep(200);
   await shot(page, '412x915-task-butterfly');
   await tap(page, '#btnCamera');
@@ -308,7 +311,7 @@ const checkRows = (page, rows, opts = {}) =>
   await sleep(400);
   await shot(page, '412x915-camera-fallback');
   // Фото «из галереи»: бабочка, снятая с телефона 4:3 под углом.
-  const scene = renderScene(PICTURES[7].rows, { size: 600, cube: 70, angle: -9, tint: [1.08, 0.98, 0.84] });
+  const scene = renderScene(PICTURES[idx('butterfly')].rows, { size: 600, cube: 70, angle: -9, tint: [1.08, 0.98, 0.84] });
   const wide = await sharp(Buffer.from(scene.data), { raw: { width: 600, height: 600, channels: 4 } })
     .extend({ left: 100, right: 100, background: { r: 236, g: 232, b: 224, alpha: 1 } })
     .jpeg({ quality: 85 })
@@ -321,7 +324,7 @@ const checkRows = (page, rows, opts = {}) =>
   ok(s.mode === 'success', `фото из файла засчитано (result=${JSON.stringify(s.result)})`);
   await sleep(2000);
   await shot(page, '412x915-success-butterfly');
-  await page.evaluate(() => window.__GAME_TEST__.open(5));
+  await page.evaluate((i) => window.__GAME_TEST__.open(i), idx('car'));
   await checkRows(page, ['.BB.', 'RRRY', 'P...']);
   await page.evaluate(() => window.__GAME_TEST__.finishCheck());
   await sleep(300);

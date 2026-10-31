@@ -620,7 +620,431 @@ function butterfly(ctx, W, H, t, picture) {
   ctx.restore();
 }
 
-export const ANIMATIONS = { traffic, snake, flower, rocket, fish, car, house, butterfly };
+// ================================================================ простые картинки (2–4 кубика)
+
+/** Глазки на кубике: (x, y) — центр между глазами, s — сторона кубика. */
+function eyes(ctx, x, y, s, look = 0, open = 1) {
+  for (const d of [-1, 1]) {
+    const ex = x + d * s * 0.2;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(ex, y, s * 0.13, s * 0.15 * Math.max(0.12, open), 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (open > 0.3) {
+      ctx.fillStyle = '#2a2140';
+      ctx.beginPath();
+      ctx.arc(ex + look * s * 0.05, y + s * 0.02, s * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+/** Моргание раз в несколько секунд: 1 — открыты, 0 — закрыты. */
+const blink = (t, seed = 0) => (((t + seed) % 3.1) < 0.14 ? 0.1 : 1);
+
+function heartPath(ctx, x, y, s) {
+  ctx.beginPath();
+  ctx.moveTo(x, y + s * 0.38);
+  ctx.bezierCurveTo(x - s * 0.95, y - s * 0.2, x - s * 0.4, y - s * 0.85, x, y - s * 0.32);
+  ctx.bezierCurveTo(x + s * 0.4, y - s * 0.85, x + s * 0.95, y - s * 0.2, x, y + s * 0.38);
+  ctx.closePath();
+}
+
+/** Сдвигает раскладку по вертикали так, чтобы нижний ряд кубиков стоял на линии y. */
+function standOn(L, y) {
+  const oy = y - L.s / 2 - (L.rows - 1) * L.pitch;
+  return { ...L, oy, at: (r, c) => [L.ox + c * L.pitch, oy + r * L.pitch] };
+}
+
+/** Огонёк-капля над (x, y): k — яркость появления. */
+function flame(ctx, x, y, s, t, k) {
+  const h = s * (0.75 + 0.08 * Math.sin(t * 13) + 0.05 * Math.sin(t * 23)) * k;
+  const wv = s * 0.26 * k;
+  const sway = Math.sin(t * 5.3) * s * 0.06;
+  const layer = (sc, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x + sway * 1.6, y - h * sc);
+    ctx.bezierCurveTo(x + wv * sc * 1.2, y - h * sc * 0.45, x + wv * sc, y, x, y);
+    ctx.bezierCurveTo(x - wv * sc, y, x - wv * sc * 1.2, y - h * sc * 0.45, x + sway * 1.6, y - h * sc);
+    ctx.fill();
+  };
+  layer(1, '#ff9a3c');
+  layer(0.7, '#ffd23f');
+  layer(0.4, '#fff6c8');
+}
+
+/** Центр картинки (для вращения/качания всей фигуры). */
+function centerOf(L) {
+  const [x0, y0] = L.at(0, 0);
+  const [x1, y1] = L.at(L.rows - 1, L.cols - 1);
+  return [(x0 + x1) / 2, (y0 + y1) / 2];
+}
+
+// ---------------------------------------------------------------- свечка
+function candle(ctx, W, H, t, picture) {
+  const cubes = cubesOf(picture);
+  const T0 = intro(cubes);
+  const ta = Math.max(0, t - T0);
+  const lit = easeOut(ta / 0.8);
+  sky(ctx, W, H, mix('#241a3a', '#5a3a5e', lit), mix('#3b2a55', '#a8664f', lit));
+  // Звёзды в окне.
+  ctx.fillStyle = 'rgba(140,170,255,0.25)';
+  roundRect(ctx, W * 0.1, H * 0.08, W * 0.3, H * 0.22, 14);
+  ctx.fill();
+  for (let i = 0; i < 6; i++) star(ctx, W * (0.14 + hash(i) * 0.22), H * (0.11 + hash(i + 9) * 0.16), 4 + hash(i + 3) * 3, '#fff7c2', '#fff7c2');
+  // Стол.
+  ground(ctx, W, H, H * 0.78, '#8a5a3c', '#5e3b26');
+  const L = standOn(placeCubes(picture, W, H, { x: 0.3, y: 0.28, w: 0.4, h: 0.5 }, 0.22), H * 0.8);
+  const flameCube = cubes.reduce((a, c) => (c.r < a.r ? c : a), cubes[0]);
+  const [fx, fy] = L.at(flameCube.r, flameCube.c);
+  // Тёплый ореол.
+  if (lit > 0) {
+    const r = L.pitch * (1.6 + 0.15 * Math.sin(t * 13) + 0.1 * Math.sin(t * 7.3)) * lit;
+    const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, r * 2.2);
+    g.addColorStop(0, 'rgba(255,214,120,0.55)');
+    g.addColorStop(1, 'rgba(255,170,80,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // Искорки летят вверх.
+  for (let j = 0; j < 8 && ta > 0; j++) {
+    const age = (ta * 0.7 + j / 8) % 1;
+    const x = fx + Math.sin(j * 2.3 + age * 6) * L.s * 0.35;
+    const y = fy - L.s * 1.2 - age * L.pitch * 2.2;
+    star(ctx, x, y, L.s * 0.09 * (1 - age), '#fff1a8', '#ffc94a');
+  }
+  cubes.forEach((cube, i) => {
+    const [x, y] = L.at(cube.r, cube.c);
+    const flame = cube === flameCube;
+    drawCube(ctx, x, y, L.s * popScale(t, i), cube.key, {
+      rot: flame ? Math.sin(t * 4.3) * 0.05 * lit : 0,
+      glow: flame ? lit * (0.8 + 0.2 * Math.sin(t * 11)) : 0,
+    });
+  });
+  // Фитилёк и огонёк над верхним кубиком.
+  if (lit > 0) {
+    const top = fy - L.s * 0.5;
+    ctx.strokeStyle = '#3a2a2a';
+    ctx.lineWidth = L.s * 0.06;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(fx, top);
+    ctx.lineTo(fx, top - L.s * 0.14);
+    ctx.stroke();
+    flame(ctx, fx, top - L.s * 0.08, L.s, t, lit);
+  }
+}
+
+// ---------------------------------------------------------------- сердечко
+function heart(ctx, W, H, t, picture) {
+  sky(ctx, W, H, '#ffd6e8', '#ff9ec4');
+  // Мягкие круги-«пузыри» фона.
+  for (let i = 0; i < 7; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${0.18 + 0.1 * Math.sin(t * 1.3 + i)})`;
+    ctx.beginPath();
+    ctx.arc(W * hash(i + 20), H * hash(i + 40), W * (0.06 + hash(i + 60) * 0.1), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const cubes = cubesOf(picture);
+  const T0 = intro(cubes);
+  const ta = Math.max(0, t - T0);
+  const L = placeCubes(picture, W, H, { x: 0.2, y: 0.28, w: 0.6, h: 0.4 }, 0.24);
+  const [cx, cy] = centerOf(L);
+  // Маленькие сердечки улетают вверх.
+  for (let j = 0; j < 16 && ta > 0; j++) {
+    const age = (ta * 0.35 + hash(j)) % 1;
+    const x = W * (0.1 + hash(j + 5) * 0.8) + Math.sin(age * 9 + j) * W * 0.03;
+    const y = H * (1.05 - age * 1.1);
+    ctx.globalAlpha = 0.85 * Math.sin(age * Math.PI);
+    heartPath(ctx, x, y, W * (0.035 + hash(j + 2) * 0.03));
+    ctx.fillStyle = ['#ef3b6e', '#ffffff', '#e0508e', '#ff7aa8'][j % 4];
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // «Тук-тук»: два быстрых толчка и пауза.
+  const ph = ta % 1.1;
+  const beat = ta > 0 ? 0.16 * Math.exp(-Math.pow((ph - 0.1) / 0.06, 2)) + 0.11 * Math.exp(-Math.pow((ph - 0.32) / 0.06, 2)) : 0;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(1 + beat, 1 + beat);
+  ctx.translate(-cx, -cy);
+  // Розовое сердце-подложка проявляется под кубиками.
+  ctx.globalAlpha = 0.55 * easeOut(ta / 0.8);
+  heartPath(ctx, cx, cy - L.pitch * 0.15, L.pitch * 2.6);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  cubes.forEach((cube, i) => {
+    const [x, y] = L.at(cube.r, cube.c);
+    drawCube(ctx, x, y, L.s * popScale(t, i), cube.key, { glow: beat * 4 });
+  });
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- кораблик
+function boat(ctx, W, H, t, picture) {
+  sky(ctx, W, H, '#8fd3ff', '#e6f7ff');
+  ctx.fillStyle = '#ffe27a';
+  ctx.beginPath();
+  ctx.arc(W * 0.82, H * 0.12, W * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+  cloud(ctx, ((t * 14) % (W + 220)) - 120, H * 0.14, W * 0.08);
+  // Чайки.
+  ctx.strokeStyle = '#4a5568';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const x = ((t * (30 + i * 9) + i * W * 0.4) % (W + 60)) - 30;
+    const y = H * (0.2 + i * 0.06) + Math.sin(t * 2 + i) * 6;
+    const f = Math.sin(t * 8 + i) * 4;
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y - f);
+    ctx.quadraticCurveTo(x - 4, y - 8, x, y);
+    ctx.quadraticCurveTo(x + 4, y - 8, x + 10, y - f);
+    ctx.stroke();
+  }
+  const seaY = H * 0.64;
+  const wave = (x, ph, amp) => seaY + Math.sin(x * 0.03 + ph) * amp + Math.sin(x * 0.071 + ph * 1.3) * amp * 0.5;
+  const drawSea = (ph, amp, color, dy) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 8) ctx.lineTo(x, wave(x, ph, amp) + dy);
+    ctx.lineTo(W, H);
+    ctx.fill();
+  };
+  drawSea(t * 1.2, 8, '#5fb4ea', -H * 0.03);
+  const cubes = cubesOf(picture);
+  const T0 = intro(cubes);
+  const ta = Math.max(0, t - T0);
+  const k = easeOut(ta / 0.8);
+  const L = standOn(placeCubes(picture, W, H, { x: 0.25, y: 0.3, w: 0.5, h: 0.36 }, 0.2), seaY + H * 0.05);
+  const [cx, cy] = centerOf(L);
+  const span = W * 1.4;
+  const dx = k ? ((ta * W * 0.08 + span / 2) % span) - span / 2 : 0;
+  const bob = Math.sin(ta * 2.2) * L.pitch * 0.12 * k;
+  const rock = Math.sin(ta * 2.2 + 0.8) * 0.12 * k;
+  const bottom = Math.max(...cubes.map((c) => c.r));
+  ctx.save();
+  ctx.translate(cx + dx, cy + bob);
+  ctx.rotate(rock);
+  ctx.translate(-cx, -cy);
+  cubes.forEach((cube, i) => {
+    const [x, y] = L.at(cube.r, cube.c);
+    const sail = cube.r < bottom;
+    drawCube(ctx, x, y, L.s * popScale(t, i), cube.key, { sx: sail ? 1 + 0.06 * Math.sin(ta * 5) * k : 1 });
+  });
+  ctx.restore();
+  drawSea(t * 1.6 + 2, 10, 'rgba(46,140,214,0.88)', H * 0.06);
+  // Пена.
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  for (let i = 0; i < 6; i++) {
+    const x = ((i * W) / 5 + t * 40) % (W + 40) - 20;
+    ctx.beginPath();
+    ctx.ellipse(x, wave(x, t * 1.6 + 2, 10) + H * 0.06, 12, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------- грибок
+function mushroom(ctx, W, H, t, picture) {
+  sky(ctx, W, H, '#bfe9ff', '#f2fbe8');
+  const groundY = H * 0.72;
+  // Деревья вдали.
+  for (let i = 0; i < 5; i++) {
+    const x = W * (0.05 + i * 0.23);
+    const th = H * (0.08 + hash(i + 7) * 0.05);
+    ctx.fillStyle = '#9b6b45';
+    ctx.fillRect(x - W * 0.015, groundY - th, W * 0.03, th);
+    ctx.fillStyle = i % 2 ? '#7cc576' : '#5fae5c';
+    ctx.beginPath();
+    ctx.arc(x, groundY - th - W * 0.06, W * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ground(ctx, W, H, groundY, '#8fd46f', '#5aa94a');
+  const cubes = cubesOf(picture);
+  const T0 = intro(cubes);
+  const ta = Math.max(0, t - T0);
+  const L = standOn(placeCubes(picture, W, H, { x: 0.2, y: 0.34, w: 0.6, h: 0.36 }, 0.22), groundY + H * 0.04);
+  const bottom = Math.max(...cubes.map((c) => c.r));
+  const [, yb] = L.at(bottom, 0);
+  // Вырастает из земли, потом прыгает с «приплюскиванием».
+  const grow = easeOutBack(ta / 0.9);
+  const hopT = Math.max(0, ta - 1.1) % 1.3;
+  const hop = ta > 1.1 ? Math.max(0, Math.sin((hopT / 0.8) * Math.PI)) * (hopT < 0.8 ? 1 : 0) : 0;
+  const squash = ta > 1.1 && hopT > 0.8 ? Math.sin(((hopT - 0.8) / 0.5) * Math.PI) * 0.18 : 0;
+  const lift = hop * L.pitch * 1.1;
+  // Тень.
+  ctx.fillStyle = `rgba(30,70,30,${0.25 * (1 - hop * 0.6)})`;
+  ctx.beginPath();
+  ctx.ellipse(W / 2, yb + L.s * 0.55, L.pitch * (1.4 - hop * 0.5), L.s * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.save();
+  ctx.translate(W / 2, yb + L.s / 2);
+  ctx.scale(1 + squash, clamp01(grow) * (1 - squash) + (grow > 1 ? grow - 1 : 0));
+  ctx.translate(-W / 2, -(yb + L.s / 2) - lift / Math.max(0.3, grow));
+  cubes.forEach((cube, i) => {
+    const [x, y] = L.at(cube.r, cube.c);
+    drawCube(ctx, x, y, L.s * popScale(t, i), cube.key);
+  });
+  const stem = cubes.find((c) => c.r === bottom);
+  if (stem && ta > 0.6) {
+    const [x, y] = L.at(stem.r, stem.c);
+    eyes(ctx, x, y - L.s * 0.05, L.s, Math.sin(ta * 0.9), blink(ta));
+    ctx.strokeStyle = '#3a2c5c';
+    ctx.lineWidth = L.s * 0.05;
+    ctx.beginPath();
+    ctx.arc(x, y + L.s * 0.12, L.s * 0.12, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // Травинки спереди.
+  ctx.strokeStyle = '#3f9a3f';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 16; i++) {
+    const x = W * (i / 15);
+    ctx.beginPath();
+    ctx.moveTo(x, H);
+    ctx.lineTo(x + Math.sin(t * 2 + i) * 4, groundY + H * 0.08 + hash(i) * H * 0.08);
+    ctx.stroke();
+  }
+}
+
+// ---------------------------------------------------------------- подарок
+function present(ctx, W, H, t, picture) {
+  sky(ctx, W, H, '#fff1d6', '#ffd9e6');
+  // Гирлянда.
+  for (let i = 0; i < 9; i++) {
+    const x = W * (0.05 + i * 0.112);
+    const y = H * 0.07 + Math.sin(i * 0.9) * 8;
+    ctx.fillStyle = ['#ef5b5b', '#f5c63c', '#2f8a4e', '#3456b8', '#e0508e'][i % 5];
+    ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(t * 3 + i));
+    ctx.beginPath();
+    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ground(ctx, W, H, H * 0.8, '#e9c9a6', '#d4aa82');
+  const cubes = cubesOf(picture);
+  const T0 = intro(cubes);
+  const ta = Math.max(0, t - T0);
+  const L = standOn(placeCubes(picture, W, H, { x: 0.25, y: 0.42, w: 0.5, h: 0.38 }, 0.22), H * 0.84);
+  const [cx] = centerOf(L);
+  const top = Math.min(...cubes.map((c) => c.r));
+  // Цикл 3 с: трясётся → крышка подлетает → звезда выпрыгивает → крышка обратно.
+  const ph = ta % 3;
+  const shake = ta > 0 && ph < 0.8 ? Math.sin(ph * 40) * 0.07 * (ph / 0.8) : 0;
+  const open = ta > 0 && ph >= 0.8 ? Math.sin(clamp01((ph - 0.8) / 2) * Math.PI) : 0;
+  const lidUp = easeOut(open * 1.6) * L.pitch * 1.4;
+  const [, yTop] = L.at(top, 0);
+  if (open > 0) {
+    const sp = clamp01((ph - 0.9) / 1.4);
+    const sy = yTop - L.pitch * 0.4 - easeOut(sp) * H * 0.22;
+    for (let j = 0; j < 10; j++) {
+      const a = (j / 10) * Math.PI * 2 + ta;
+      const r = L.pitch * (0.6 + sp * 1.4);
+      star(ctx, cx + Math.cos(a) * r, sy + Math.sin(a) * r * 0.7, L.s * 0.08 * (1 - sp * 0.5), '#fff6a6', '#ffcf3d');
+    }
+    ctx.save();
+    ctx.translate(cx, sy);
+    ctx.rotate(sp * Math.PI * 2);
+    star(ctx, 0, 0, L.s * (0.25 + 0.35 * easeOutBack(sp)));
+    ctx.restore();
+  }
+  cubes.forEach((cube, i) => {
+    const [x, y] = L.at(cube.r, cube.c);
+    const lid = cube.r === top;
+    const lx = lid ? (x - cx) * (1 + open * 0.15) + cx : x;
+    drawCube(ctx, lx, y - (lid ? lidUp : 0), L.s * popScale(t, i), cube.key, {
+      rot: shake + (lid ? (x < cx ? -1 : 1) * open * 0.35 : 0),
+    });
+  });
+  // Бантик на крышке.
+  if (ta > 0) {
+    const by = yTop - L.s * 0.55 - lidUp;
+    ctx.fillStyle = '#fff';
+    for (const d of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + d * L.s * 0.22, by, L.s * 0.22, L.s * 0.13, d * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, by, L.s * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------- гусеница
+function caterpillar(ctx, W, H, t, picture) {
+  sky(ctx, W, H, '#d6f5ff', '#f4ffe6');
+  const groundY = H * 0.66;
+  ground(ctx, W, H, groundY, '#9ee07f', '#63b552');
+  // Листик, к которому ползёт.
+  for (let i = 0; i < 4; i++) {
+    const x = W * (0.12 + i * 0.26);
+    ctx.strokeStyle = '#3f9a3f';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x, groundY);
+    ctx.quadraticCurveTo(x + 8, groundY - H * 0.06, x + Math.sin(t * 1.5 + i) * 6, groundY - H * 0.1);
+    ctx.stroke();
+    ctx.fillStyle = '#4fae4a';
+    ctx.beginPath();
+    ctx.ellipse(x + 14, groundY - H * 0.07, W * 0.045, W * 0.02, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const cubes = cubesOf(picture).sort((a, b) => a.c - b.c || a.r - b.r);
+  const T0 = intro(cubes);
+  const ta = Math.max(0, t - T0);
+  const k = easeOut(ta / 0.8);
+  // Раскладываем в одну линию (как бы ни была повёрнута картинка в образце).
+  const n = cubes.length;
+  const s = Math.min(W * 0.17, (W * 0.62) / n);
+  const pitch = s * 1.06;
+  const span = W + pitch * n * 2;
+  const x0 = ((ta * W * 0.07 + span * 0.4) % span) - pitch * n;
+  const baseY = groundY - s * 0.45;
+  cubes.forEach((cube, i) => {
+    const wave = Math.max(0, Math.sin(ta * 4 - i * 0.9)) * s * 0.45 * k;
+    const x = x0 + i * pitch + Math.sin(ta * 4 - i * 0.9) * s * 0.08 * k;
+    drawCube(ctx, x, baseY - wave, s * popScale(t, i), cube.key, { rot: Math.cos(ta * 4 - i * 0.9) * 0.12 * k });
+  });
+  // Голова — последний кубик: глазки и усики.
+  const head = n - 1;
+  const hx = x0 + head * pitch;
+  const hy = baseY - Math.max(0, Math.sin(ta * 4 - head * 0.9)) * s * 0.45 * k;
+  if (t > T0) {
+    eyes(ctx, hx + s * 0.05, hy - s * 0.05, s, 1, blink(ta, 0.7));
+    ctx.strokeStyle = '#2a2140';
+    ctx.lineWidth = s * 0.06;
+    ctx.lineCap = 'round';
+    for (const d of [-1, 1]) {
+      const tipX = hx + d * s * 0.25 + Math.sin(ta * 6 + d) * s * 0.05;
+      const tipY = hy - s * 0.95;
+      ctx.beginPath();
+      ctx.moveTo(hx + d * s * 0.15, hy - s * 0.45);
+      ctx.quadraticCurveTo(hx + d * s * 0.1, hy - s * 0.8, tipX, tipY);
+      ctx.stroke();
+      ctx.fillStyle = '#2a2140';
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, s * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Цветочки спереди.
+  for (let i = 0; i < 7; i++) {
+    const x = W * (0.07 + i * 0.145);
+    const y = groundY + H * (0.12 + hash(i) * 0.14);
+    ctx.fillStyle = ['#ff6fa8', '#ffd21f', '#ffffff'][i % 3];
+    for (let a = 0; a < 5; a++) {
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a * 1.256 + t) * 6, y + Math.sin(a * 1.256 + t) * 6, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+export const ANIMATIONS = { traffic, snake, flower, rocket, fish, car, house, butterfly, candle, heart, boat, mushroom, present, caterpillar };
 
 export function drawAnimation(ctx, W, H, t, picture) {
   const f = ANIMATIONS[picture.anim];

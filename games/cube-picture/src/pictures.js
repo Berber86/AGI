@@ -27,7 +27,14 @@ export const PLAY_COLORS = Object.keys(PALETTE).filter((k) => !PALETTE[k].decoy)
 export const MAX_PER_COLOR = 2;
 
 export const PICTURES = [
+  // Простые (2–4 кубика) — в начале карты.
+  { id: 'candle', emoji: '🕯️', anim: 'candle', rows: ['Y', 'P'] },
+  { id: 'heart', emoji: '❤️', anim: 'heart', rows: ['K.K', '.R.'] },
+  { id: 'boat', emoji: '⛵', anim: 'boat', rows: ['K.', 'BB'] },
   { id: 'traffic', emoji: '🚦', anim: 'traffic', rows: ['R', 'Y', 'G'] },
+  { id: 'mushroom', emoji: '🍄', anim: 'mushroom', rows: ['RKR', '.Y.'] },
+  { id: 'present', emoji: '🎁', anim: 'present', rows: ['KY', 'RR'] },
+  { id: 'caterpillar', emoji: '🐛', anim: 'caterpillar', rows: ['GGRY'] },
   { id: 'snake', emoji: '🐍', anim: 'snake', rows: ['G..', 'GPY'], chain: [[0, 0], [1, 0], [1, 1], [1, 2]] },
   { id: 'flower', emoji: '🌷', anim: 'flower', rows: ['.R.', 'KYK', '.G.'] },
   { id: 'rocket', emoji: '🚀', anim: 'rocket', rows: ['.R.', '.B.', 'PBP', '.Y.'] },

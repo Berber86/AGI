@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-31T15:44:35.176Z",
+  "startedAt": "2026-10-31T16:27:50.122Z",
   "checks": [
     {
       "ok": true,
@@ -7,7 +7,7 @@
     },
     {
       "ok": true,
-      "msg": "на карте 8 картинок"
+      "msg": "на карте 14 картинок"
     },
     {
       "ok": true,
@@ -19,7 +19,7 @@
     },
     {
       "ok": true,
-      "msg": "касание карточки открывает образец «светофор»"
+      "msg": "касание первой карточки открывает образец «candle»"
     },
     {
       "ok": true,
@@ -51,11 +51,11 @@
     },
     {
       "ok": true,
-      "msg": "снимок с камеры засчитан (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":3,\"expected\":3})"
+      "msg": "снимок с камеры засчитан (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":2,\"expected\":2})"
     },
     {
       "ok": true,
-      "msg": "звезда за «светофор» сохранена"
+      "msg": "звезда за «candle» сохранена"
     },
     {
       "ok": true,
@@ -83,7 +83,43 @@
     },
     {
       "ok": true,
-      "msg": "traffic: верная сборка засчитана (поворот 0°)"
+      "msg": "candle: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "candle: анимация нарисована (σ=14.9,30.7)"
+    },
+    {
+      "ok": true,
+      "msg": "candle: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "heart: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "heart: анимация нарисована (σ=11.1,21.3)"
+    },
+    {
+      "ok": true,
+      "msg": "heart: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "boat: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "boat: анимация нарисована (σ=17.3,43.1)"
+    },
+    {
+      "ok": true,
+      "msg": "boat: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: верная сборка засчитана (поворот 90°)"
     },
     {
       "ok": true,
@@ -92,6 +128,42 @@
     {
       "ok": true,
       "msg": "traffic: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "mushroom: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "mushroom: анимация нарисована (σ=35.4,54.9)"
+    },
+    {
+      "ok": true,
+      "msg": "mushroom: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "present: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "present: анимация нарисована (σ=13.4,32.3)"
+    },
+    {
+      "ok": true,
+      "msg": "present: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "caterpillar: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "caterpillar: анимация нарисована (σ=25.4,51.7)"
+    },
+    {
+      "ok": true,
+      "msg": "caterpillar: кадры анимации меняются во времени"
     },
     {
       "ok": true,
@@ -111,7 +183,7 @@
     },
     {
       "ok": true,
-      "msg": "flower: анимация нарисована (σ=21.5,52.7)"
+      "msg": "flower: анимация нарисована (σ=26.3,52.7)"
     },
     {
       "ok": true,
@@ -123,7 +195,7 @@
     },
     {
       "ok": true,
-      "msg": "rocket: анимация нарисована (σ=15.7,29.3)"
+      "msg": "rocket: анимация нарисована (σ=19.2,29.3)"
     },
     {
       "ok": true,
@@ -135,7 +207,7 @@
     },
     {
       "ok": true,
-      "msg": "fish: анимация нарисована (σ=23.9,47.3)"
+      "msg": "fish: анимация нарисована (σ=19.5,47.3)"
     },
     {
       "ok": true,
@@ -179,7 +251,7 @@
     },
     {
       "ok": true,
-      "msg": "все 8 звёзд собраны (8)"
+      "msg": "все 14 звёзд собраны (14)"
     },
     {
       "ok": true,
@@ -255,17 +327,23 @@
     ".studio/evidence/screenshots/360x800-map.webp",
     ".studio/evidence/screenshots/360x800-task.webp",
     ".studio/evidence/screenshots/360x800-camera.webp",
-    ".studio/evidence/screenshots/360x800-success-traffic.webp",
+    ".studio/evidence/screenshots/360x800-success-candle.webp",
     ".studio/evidence/screenshots/360x800-fail-flower.webp",
     ".studio/evidence/screenshots/360x800-fail-empty.webp",
-    ".studio/evidence/screenshots/360x800-anim-01-traffic.webp",
-    ".studio/evidence/screenshots/360x800-anim-02-snake.webp",
-    ".studio/evidence/screenshots/360x800-anim-03-flower.webp",
-    ".studio/evidence/screenshots/360x800-anim-04-rocket.webp",
-    ".studio/evidence/screenshots/360x800-anim-05-fish.webp",
-    ".studio/evidence/screenshots/360x800-anim-06-car.webp",
-    ".studio/evidence/screenshots/360x800-anim-07-house.webp",
-    ".studio/evidence/screenshots/360x800-anim-08-butterfly.webp",
+    ".studio/evidence/screenshots/360x800-anim-01-candle.webp",
+    ".studio/evidence/screenshots/360x800-anim-02-heart.webp",
+    ".studio/evidence/screenshots/360x800-anim-03-boat.webp",
+    ".studio/evidence/screenshots/360x800-anim-04-traffic.webp",
+    ".studio/evidence/screenshots/360x800-anim-05-mushroom.webp",
+    ".studio/evidence/screenshots/360x800-anim-06-present.webp",
+    ".studio/evidence/screenshots/360x800-anim-07-caterpillar.webp",
+    ".studio/evidence/screenshots/360x800-anim-08-snake.webp",
+    ".studio/evidence/screenshots/360x800-anim-09-flower.webp",
+    ".studio/evidence/screenshots/360x800-anim-10-rocket.webp",
+    ".studio/evidence/screenshots/360x800-anim-11-fish.webp",
+    ".studio/evidence/screenshots/360x800-anim-12-car.webp",
+    ".studio/evidence/screenshots/360x800-anim-13-house.webp",
+    ".studio/evidence/screenshots/360x800-anim-14-butterfly.webp",
     ".studio/evidence/screenshots/360x800-map-all-stars.webp",
     ".studio/evidence/screenshots/360x800-map-shape.webp",
     ".studio/evidence/screenshots/360x800-task-shape-rocket.webp",
@@ -278,7 +356,7 @@
     ".studio/evidence/screenshots/412x915-success-butterfly.webp",
     ".studio/evidence/screenshots/412x915-fail-car.webp"
   ],
-  "finishedAt": "2026-10-31T15:46:34.927Z",
-  "passed": 62,
+  "finishedAt": "2026-10-31T16:30:06.790Z",
+  "passed": 80,
   "failed": 0
 }

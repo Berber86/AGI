@@ -29,6 +29,7 @@ export const DEFAULTS = {
   fragFrac: 0.4, // обрывок у выкинутой краевой области меньше этой доли кубика — тоже мусор
   cellInner: 0.5, // доля клетки, по которой голосуем (центр)
   cellFill: 0.4, // доля «кубиковых» пикселей, чтобы клетка считалась занятой
+  maxCellCube: 2, // клетка сетки больше стольких площадей кубика — сетка не та
   aspectMin: 0.6,
   aspectMax: 1.65,
   shapeAspectMin: 0.8, // режим «форма»: допустимая вытянутость клетки
@@ -39,6 +40,9 @@ export const DEFAULTS = {
   adaptNoise: 0.1, // разброс цвета одного кубика в log-цветности
   adaptGainSd: 0.2, // насколько обычно телефон меняет насыщенность
   adaptCastSd: 0.1,
+  adaptVoteFrac: 0.35, // доля среднего кубика картинки, чтобы цвет голосовал в подстройке
+  adaptFirstLim: 64, // первая итерация подстройки: насколько далеко (в квадратах chromaScale) пиксель ещё голосует
+  adaptMinColors: 2, // столько разных цветов (без пары красный/розовый) нужно для подстройки
   fitMinSep: 3, // цвета ближе этого (в единицах chromaScale) к соседу — не голосуют в подстройке
   pairGap: 0.35, // минимальный зазор между группами похожих цветов (в долях расстояния между эталонами)
   pairLoose: 0.75, // один цвет пары в картинке: клетка засчитывается, пока не дальше этой доли к соседу
@@ -244,7 +248,7 @@ export function classify(small, palette, o = DEFAULTS) {
   }
   if (o.adapt && cand.length >= 12) {
     for (let iter = 0; iter < 5; iter++) {
-      const lim = iter === 0 ? 25 : 9;
+      const lim = iter === 0 ? o.adaptFirstLim : 9;
       // Средняя цветность каждого найденного цвета: голос у цвета, а не у пикселя — иначе подстройка
       // подгоняется под случайный оттенок одного крупного кубика.
       const acc = refs.map(() => ({ n: 0, u: 0, v: 0 }));
@@ -260,6 +264,9 @@ export function classify(small, palette, o = DEFAULTS) {
         total++;
       }
       if (total < 12) break;
+      // Голосует цвет, которого хотя бы ~треть среднего кубика картинки: тени и края красного кубика дают
+      // «фиолетовую» и «зелёную» кайму, и в картинке из 2–3 кубиков она иначе голосовала бы наравне с кубиками.
+      const minVote = Math.max(4, total * o.fitMinFrac, (total / (o.expectedCubes || 1)) * o.adaptVoteFrac);
       // Байесовская регрессия u_ref ≈ g·u + t с притяжением к «без подстройки» (g = 1, t = 0).
       const ic = 1 / (o.adaptNoise * o.adaptNoise);
       const ig = 1 / (o.adaptGainSd * o.adaptGainSd);
@@ -273,7 +280,7 @@ export function classify(small, palette, o = DEFAULTS) {
       let K = 0;
       refs.forEach((r, k) => {
         const a = acc[k];
-        if (r.noFit || a.n < Math.max(4, total * o.fitMinFrac)) return;
+        if (r.noFit || a.n < minVote) return;
         const u0 = a.u / a.n;
         const u1 = a.v / a.n;
         suu += u0 * u0 + u1 * u1;
@@ -284,8 +291,14 @@ export function classify(small, palette, o = DEFAULTS) {
         sr1 += r.uv[1];
         K++;
       });
-      if (!K) break;
-      if (o.debug) o.debug.push(refs.map((r, k) => acc[k].n ? `${r.key}:${acc[k].n}:${(acc[k].u / acc[k].n - r.uv[0]).toFixed(3)},${(acc[k].v / acc[k].n - r.uv[1]).toFixed(3)}` : '').filter(Boolean).join(' '));
+      // Один голосующий цвет — сдвиг оттенка не подстраиваем: его отклонение с равным успехом объясняется
+      // и светом, и самим кубиком, а «подстроенный» кадр утягивает остальные (красный → розовый).
+      if (K < o.adaptMinColors) {
+        // Остаётся только насыщенность (общая «блёклость» снимка): она не сдвигает оттенок.
+        g = K ? Math.max(o.gainMin, Math.min(o.gainMax, (sur * ic + ig) / (suu * ic + ig))) : 1;
+        [t0, t1] = [0, 0];
+        continue;
+      }
       // Нормальные уравнения 3×3 (g, t0, t1); t выражаем через g и подставляем.
       const D = K * ic + it;
       const A = suu * ic + ig - (su0 * su0 + su1 * su1) * ic * ic / D;
@@ -422,7 +435,6 @@ function cleanComponents(labels, w, h, o) {
     }
   }
   const inside = comps.filter((c) => !c.touches);
-  if (o.debug) o.debug.push('cubeArea ' + cubeArea + ' inside ' + inside.map((c) => `${labels[c.pix[0]]}:${c.pix.length}@${c.pix[0] % w},${(c.pix[0] / w) | 0}`).join(' '));
   const total = inside.reduce((s, c) => s + c.pix.length, 0);
   const minArea = Math.max(4, total * o.speckFrac);
   const keep = new Uint8Array(w * h);
@@ -433,6 +445,39 @@ function cleanComponents(labels, w, h, o) {
     area += c.pix.length;
   }
   return { keep, area, removedEdge: comps.length - inside.length };
+}
+
+/**
+ * Типичная площадь «пятна» на маске кубиков (все цвета вместе, 4-связность): кубики с зазором — отдельные
+ * пятна, вплотную — сливаются. Слияние только завышает оценку (проверка размера клетки мягче), а путаница
+ * цветов внутри кубика её не дробит — в отличие от областей по цветам.
+ */
+function blobArea(keep, w, h) {
+  const seen = new Uint8Array(w * h);
+  const stack = new Int32Array(w * h);
+  const sizes = [];
+  for (let start = 0; start < w * h; start++) {
+    if (!keep[start] || seen[start]) continue;
+    let sp = 0;
+    let n = 0;
+    stack[sp++] = start;
+    seen[start] = 1;
+    while (sp) {
+      const p = stack[--sp];
+      n++;
+      const x = p % w;
+      for (const q of [p - w, p + w, x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1]) {
+        if (q >= 0 && q < w * h && keep[q] && !seen[q]) {
+          seen[q] = 1;
+          stack[sp++] = q;
+        }
+      }
+    }
+    sizes.push(n);
+  }
+  sizes.sort((a, b) => b - a);
+  const big = sizes.filter((v) => v >= sizes[0] * 0.25);
+  return big.length ? big[big.length >> 1] : 0;
 }
 
 /**
@@ -573,9 +618,11 @@ export function analyze(img, target, palette, opts = {}) {
   const twinOf = (k) => (o.twins && palette[k] && palette[k].twin) || null;
   const small = downscale(img, o.work);
   const { w, h } = small;
+  o.expectedCubes = target.flat().filter(Boolean).length;
   const { labels, bg, lightBg, keys, fgness, uvAdj, pairs } = classify(small, palette, o);
   fillHoles(labels, w, h, keys.length + 1);
   const { keep, area } = cleanComponents(labels, w, h, o);
+  const cubeArea = blobArea(keep, w, h);
   const expected = target.flat().filter(Boolean).length;
   const base = { ok: false, expected, found: 0, bg, lightBg, rotation: 0, cells: [], mismatches: [], frame: null };
 
@@ -610,6 +657,10 @@ export function analyze(img, target, palette, opts = {}) {
     const ch = (v1 - v0) / rows;
     const aspect = cw / ch;
     if (aspect < o.aspectMin || aspect > o.aspectMax) continue;
+    // Клетка не может быть намного больше одного кубика: иначе большая чужая фигура «влезает»
+    // в маленькую сетку (ракета из 8 кубиков — в свечку из 2). Слипшиеся одноцветные кубики только
+    // увеличивают оценку кубика, поэтому проверка от этого становится мягче, а не строже.
+    if (cubeArea > 0 && cw * ch > o.maxCellCube * cubeArea) continue;
     const cells = [];
     const mismatches = [];
     const n = 7;
@@ -671,7 +722,7 @@ export function analyze(img, target, palette, opts = {}) {
     mismatches.length = 0;
     for (const cell of cells) if (!cell.ok) mismatches.push(cell);
     const score = mismatches.length + Math.abs(Math.log(aspect)) * 0.6;
-    if (!best || score < best.score) best = { k, rows, cols, cells, mismatches, score, aspect };
+    if (!best || score < best.score) best = { k, rows, cols, cells, mismatches, score, aspect, cellCube: cubeArea ? (cw * ch) / cubeArea : 0 };
   }
 
   const frame = [
@@ -691,6 +742,7 @@ export function analyze(img, target, palette, opts = {}) {
     cells: best.cells,
     mismatches: best.mismatches,
     found,
+    cellCube: best.cellCube,
     frame,
     skewDeg: (skew.angle * 180) / Math.PI,
   };
