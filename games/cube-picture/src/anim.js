@@ -315,7 +315,8 @@ function rocket(ctx, W, H, t, picture) {
   roundRect(ctx, W * 0.3, padY, W * 0.4, H * 0.03, 6);
   ctx.fill();
   const shake = cyc < 1.4 && ta > 0 ? Math.sin(t * 60) * L.pitch * 0.04 * (cyc / 1.4) : 0;
-  const flame = cubes.find((c) => c.key === 'O');
+  // Огонь — самый нижний кубик (сопло ракеты), какого бы он ни был цвета.
+  const flame = cubes.reduce((a, c) => (c.r > a.r ? c : a), cubes[0]);
   // Дым и огонь.
   if (flame && ta > 0) {
     const [fx, fy0] = L.at(flame.r, flame.c);

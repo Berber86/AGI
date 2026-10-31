@@ -1,5 +1,5 @@
 // «Кубик-картинка»: образец → сборка из настоящих кубиков → фото → проверка → оживление.
-import { PALETTE, PICTURES, grid } from './pictures.js';
+import { PALETTE, PICTURES, PLAY_COLORS, grid } from './pictures.js';
 import { analyze } from './vision.js';
 import { drawPicture, drawInventory, drawCube, layoutPicture, roundRect, star } from './draw.js';
 import { drawAnimation, drawConfetti } from './anim.js';
@@ -79,7 +79,7 @@ document.querySelectorAll('[data-go]').forEach((b) =>
 function renderLogo() {
   const { ctx, W, H } = fitCanvas($('logo'));
   ctx.clearRect(0, 0, W, H);
-  const keys = ['R', 'Y', 'G', 'B', 'O', 'P'];
+  const keys = PLAY_COLORS;
   const s = Math.min(H * 0.62, W / 7.5);
   keys.forEach((k, i) => drawCube(ctx, s * 0.7 + i * s * 1.12, H / 2 + (i % 2 ? -s * 0.15 : s * 0.15), s, k, { rot: (i % 2 ? 1 : -1) * 0.12 }));
 }

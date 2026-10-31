@@ -3,12 +3,12 @@
   "phase": "release",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "MVP delivered: vision 467/467, e2e 51/51, catalog card + tests",
-  "nextAction": "FIELD-001: palette from user's cube photo, physical phone check",
+  "lastAction": "FIELD-001 done: palette from real cubes, two-pass classifier; vision 577/577, e2e 51/51",
+  "nextAction": "FIELD-002: live phone check with real cubes",
   "blockers": [
-    "Ожидается фото кубиков пользователя для палитры"
+    "Нужна живая проверка на телефоне пользователя"
   ],
-  "latestHandoff": ".studio/handoffs/2026-10-31-mvp.md",
+  "latestHandoff": ".studio/handoffs/2026-10-31-palette.md",
   "sessionBenchmark": {
     "runId": "20261031T103535Z-b1b568",
     "status": "qualified",
@@ -17,5 +17,5 @@
     "resultPath": "../../.studio/benchmarks/runs/20261031T103535Z-b1b568/result.json"
   },
   "createdAt": "2026-10-31T10:36:14Z",
-  "updatedAt": "2026-10-31T11:45:00Z"
+  "updatedAt": "2026-10-31T12:40:00Z"
 }

@@ -190,9 +190,9 @@ const checkRows = (page, rows, opts = {}) =>
   await shot(page, '360x800-success-traffic');
   ok((await page.$$('#resultActions .icon-btn')).length === 3, 'после победы 3 кнопки: карта, ещё раз, следующая');
 
-  // Ошибка: «цветок» с жёлтым вместо красного лепестка.
+  // Ошибка: «цветок» с жёлтым вместо розового лепестка слева.
   await page.evaluate(() => window.__GAME_TEST__.open(2));
-  s = await checkRows(page, ['.R.', 'YYR', '.G.']);
+  s = await checkRows(page, ['.R.', 'YYK', '.G.']);
   ok(!s.ok && s.mismatches.length === 1 && s.mismatches[0].src.join() === '1,0', `ошибка цвета найдена в клетке (1,0): ${JSON.stringify(s.mismatches)}`);
   await page.evaluate(() => window.__GAME_TEST__.finishCheck());
   ok((await st(page)).mode === 'fail', 'показан экран «почти»');

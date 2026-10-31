@@ -19,4 +19,4 @@
 
 # чужие картинки
 
-467 passed, 0 failed
+577 passed, 0 failed
