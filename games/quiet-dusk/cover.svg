@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 270" width="480" height="270" role="img" aria-label="Тихий закат: герой с мечом и слайм на фоне деревни в лучах заходящего солнца">
+  <defs>
+    <linearGradient id="sunset" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d1230"/>
+      <stop offset="0.45" stop-color="#4a2450"/>
+      <stop offset="0.72" stop-color="#a3435a"/>
+      <stop offset="1" stop-color="#ffc27a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.62" r="0.42">
+      <stop offset="0" stop-color="#ffe6a8" stop-opacity="0.95"/>
+      <stop offset="0.45" stop-color="#ffb06a" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#ff9a5c" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="goo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a6f06a"/>
+      <stop offset="1" stop-color="#1f8f4f"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="270" fill="url(#sunset)"/>
+  <circle cx="350" cy="168" r="26" fill="#ffe6a8"/>
+  <rect width="480" height="270" fill="url(#glow)"/>
+
+  <!-- облачные полосы -->
+  <g fill="#c9705e" opacity="0.55">
+    <rect x="40" y="52" width="120" height="3" rx="1.5"/>
+    <rect x="210" y="38" width="86" height="3" rx="1.5"/>
+    <rect x="300" y="70" width="150" height="3" rx="1.5"/>
+  </g>
+
+  <!-- дальние холмы -->
+  <path d="M0 182 Q60 168 120 178 T240 176 T360 180 T480 172 L480 270 L0 270 Z" fill="#4a2a52"/>
+  <path d="M0 184 Q60 170 120 180 T240 178 T360 182 T480 174" fill="none" stroke="#7d4463" stroke-width="2"/>
+
+  <!-- деревня слева -->
+  <g>
+    <g fill="#3d2438">
+      <path d="M28 168 L44 146 L60 168 Z"/><path d="M78 174 L96 150 L114 174 Z"/><path d="M126 162 L140 144 L154 162 Z"/>
+    </g>
+    <g fill="#251a2e">
+      <rect x="34" y="168" width="20" height="42"/><rect x="84" y="174" width="24" height="36"/><rect x="130" y="162" width="18" height="48"/>
+    </g>
+    <g fill="#ffc46a">
+      <rect x="39" y="178" width="6" height="7"/><rect x="89" y="184" width="6" height="7"/><rect x="135" y="172" width="6" height="7"/>
+    </g>
+  </g>
+
+  <!-- земля и тропа -->
+  <rect y="208" width="480" height="62" fill="#2a1f2b"/>
+  <path d="M0 216 Q120 210 240 214 T480 210 L480 224 Q360 220 240 226 T0 230 Z" fill="#4a3539"/>
+
+  <!-- забор -->
+  <g stroke="#2a1c26" stroke-width="3">
+    <path d="M300 196 v22 M330 194 v24 M360 196 v22 M390 193 v25 M420 195 v23 M450 194 v24"/>
+    <path d="M298 206 H480 M298 214 H480"/>
+  </g>
+
+  <!-- светлячки -->
+  <g fill="#d6ff5a">
+    <circle cx="250" cy="150" r="2"/><circle cx="286" cy="128" r="1.6"/><circle cx="404" cy="140" r="1.8"/><circle cx="446" cy="120" r="1.4"/>
+  </g>
+
+  <!-- герой: тёмный силуэт с тёплой подсветкой справа -->
+  <g transform="translate(150 168)">
+    <ellipse cx="14" cy="42" rx="18" ry="4" fill="#140d18" opacity="0.55"/>
+    <g fill="#2a2030">
+      <path d="M8 8 q8 -9 16 0 q4 6 3 13 h-22 q-1 -8 3 -13z"/>
+      <rect x="6" y="21" width="20" height="13" rx="3"/>
+      <rect x="8" y="33" width="7" height="10"/><rect x="18" y="33" width="7" height="10"/>
+    </g>
+    <g fill="#ffcf94" opacity="0.75">
+      <path d="M20 10 q5 2 6 8 h-5z"/>
+    </g>
+    <g stroke="#cfdcf0" stroke-width="2" stroke-linecap="round">
+      <path d="M26 26 L40 40"/>
+    </g>
+    <circle cx="41" cy="41" r="2" fill="#ffffff"/>
+  </g>
+
+  <!-- слайм -->
+  <g transform="translate(340 188)">
+    <ellipse cx="26" cy="24" rx="26" ry="5" fill="#140d18" opacity="0.5"/>
+    <path d="M2 22 q0 -24 24 -24 t24 24 z" fill="url(#goo)" stroke="#0b2f2b" stroke-width="2.5"/>
+    <ellipse cx="19" cy="11" rx="3.4" ry="4.4" fill="#f0ffd2"/>
+    <ellipse cx="33" cy="11" rx="3.4" ry="4.4" fill="#f0ffd2"/>
+    <ellipse cx="19.5" cy="12" rx="1.7" ry="2.6" fill="#0b2f2b"/>
+    <ellipse cx="33.5" cy="12" rx="1.7" ry="2.6" fill="#0b2f2b"/>
+    <ellipse cx="12" cy="6" rx="4" ry="2.4" fill="#f0ffd2" opacity="0.6"/>
+  </g>
+
+  <!-- заголовок -->
+  <g font-family="'Trebuchet MS', 'Segoe UI', sans-serif" text-anchor="middle">
+    <text x="240" y="60" font-size="30" font-weight="900" fill="#1d1230" opacity="0.45">Тихий закат</text>
+    <text x="240" y="57" font-size="30" font-weight="900" fill="#ffe6a8">Тихий закат</text>
+    <text x="240" y="78" font-size="11" letter-spacing="4" fill="#ffcfa0" opacity="0.95">ПОШАГОВАЯ JRPG · ПРОЛОГ</text>
+  </g>
+</svg>

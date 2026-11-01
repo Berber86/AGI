@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#1d1230">
+  <meta name="description" content="Тихий закат — пошаговая JRPG: пролог, первый бой и первый уровень.">
+  <title>Тихий закат</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage" class="stage" aria-label="Сцена боя">
+    <canvas id="scene" width="320" height="180"></canvas>
+
+    <!-- верхняя полоса: герой и враг -->
+    <div id="hud" class="hud" hidden>
+      <div class="who hero">
+        <span class="name">Тиль</span>
+        <span class="lv" id="heroLv">ур. 1</span>
+        <div class="bars">
+          <div class="bar hp"><i id="heroHpFill"></i><b id="heroHpText">32/32</b></div>
+          <div class="bar mp"><i id="heroMpFill"></i><b id="heroMpText">10/10</b></div>
+        </div>
+      </div>
+      <div class="who foe">
+        <span class="name" id="foeName">Слайм</span>
+        <div class="bars">
+          <div class="bar foehp"><i id="foeHpFill"></i></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- короткая подсказка хода: тонкая полоска под HUD, сцену не закрывает -->
+    <div id="hint" class="hintline" hidden></div>
+
+    <!-- реплика поверх сцены -->
+    <div id="talk" class="talk" hidden>
+      <span class="speaker" id="talkWho"></span>
+      <p id="talkText"></p>
+      <span class="next" id="talkNext">▼</span>
+    </div>
+
+    <!-- команды -->
+    <div id="commands" class="commands" hidden>
+      <button class="cmd" data-cmd="attack"><b>Атака</b><i>меч</i></button>
+      <button class="cmd" data-cmd="skill" id="cmdSkill" disabled><b>Ледяной шип</b><i>4 MP</i></button>
+      <button class="cmd" data-cmd="heal" id="cmdHeal"><b>Лечение</b><i>5 MP</i></button>
+      <button class="cmd" data-cmd="potion" id="cmdPotion"><b>Зелье</b><i>×1</i></button>
+    </div>
+
+    <!-- затемнение и карточки: титул, победа, уровень, финал -->
+    <div id="veil" class="veil">
+      <section id="card" class="card">
+        <p class="kicker" id="cardKicker">Пролог</p>
+        <h1 id="cardTitle">Тихий закат</h1>
+        <p id="cardText">Деревня Тихая Падь. Солнце садится, за околицей шуршит что-то мягкое.</p>
+        <div class="xp" id="xpWrap" hidden><i id="xpFill"></i></div>
+        <div class="card-actions" id="cardActions"></div>
+        <p class="fine" id="cardFine"></p>
+      </section>
+    </div>
+
+    <button id="pause" class="pause" aria-label="Пауза" hidden>II</button>
+  </div>
+  <p class="rotate">Поверните телефон горизонтально — так бой видно крупнее.</p>
+</div>
+<script type="module" src="./src/game.js"></script>
+</body>
+</html>

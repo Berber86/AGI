@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Тихий закат: слизень на фоне заката">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2e1a44"/>
+      <stop offset="0.55" stop-color="#8a3a58"/>
+      <stop offset="1" stop-color="#f09a5c"/>
+    </linearGradient>
+    <linearGradient id="goo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a6f06a"/>
+      <stop offset="1" stop-color="#1f8f4f"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="22" fill="url(#sky)"/>
+  <circle cx="96" cy="70" r="17" fill="#ffd27a" opacity="0.9"/>
+  <path d="M0 92 Q34 82 66 90 T128 86 L128 128 L0 128 Z" fill="#33203c"/>
+  <path d="M30 100 q0 -30 26 -30 t26 30 z" fill="url(#goo)" stroke="#0b2f2b" stroke-width="3"/>
+  <ellipse cx="45" cy="86" rx="4" ry="5" fill="#f0ffd2"/>
+  <ellipse cx="63" cy="86" rx="4" ry="5" fill="#f0ffd2"/>
+  <ellipse cx="45" cy="87" rx="2" ry="3" fill="#0b2f2b"/>
+  <ellipse cx="63" cy="87" rx="2" ry="3" fill="#0b2f2b"/>
+</svg>
