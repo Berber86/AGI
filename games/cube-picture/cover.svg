@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6e9"/><stop offset="1" stop-color="#ffe1f0"/></linearGradient>
+    <linearGradient id="ph" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a76ff"/><stop offset="1" stop-color="#7c4dff"/></linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#bg)"/>
+  <!-- стол и настоящие кубики -->
+  <rect x="40" y="70" width="250" height="230" rx="24" fill="#fffdf8" stroke="#f1e6d6" stroke-width="4"/>
+  <g>
+    <rect x="135" y="95" width="56" height="56" rx="10" fill="#a8181a"/><rect x="135" y="95" width="56" height="49" rx="10" fill="#e8322f"/>
+    <rect x="75" y="157" width="56" height="56" rx="10" fill="#a8181a"/><rect x="75" y="157" width="56" height="49" rx="10" fill="#e8322f"/>
+    <rect x="135" y="157" width="56" height="56" rx="10" fill="#c99a00"/><rect x="135" y="157" width="56" height="49" rx="10" fill="#ffd21f"/>
+    <rect x="195" y="157" width="56" height="56" rx="10" fill="#a8181a"/><rect x="195" y="157" width="56" height="49" rx="10" fill="#e8322f"/>
+    <rect x="135" y="219" width="56" height="56" rx="10" fill="#17802c"/><rect x="135" y="219" width="56" height="49" rx="10" fill="#2fb84a"/>
+  </g>
+  <!-- телефон с камерой -->
+  <g transform="translate(360 40) rotate(6)">
+    <rect width="190" height="290" rx="30" fill="#2b2140"/>
+    <rect x="12" y="14" width="166" height="262" rx="22" fill="#bfe9ff"/>
+    <rect x="12" y="200" width="166" height="76" fill="#8ad66b"/>
+    <path d="M95 200 V130" stroke="#2f9a3f" stroke-width="10" stroke-linecap="round"/>
+    <rect x="80" y="64" width="30" height="30" rx="6" fill="#e8322f"/>
+    <rect x="48" y="96" width="30" height="30" rx="6" fill="#e8322f"/>
+    <rect x="80" y="96" width="30" height="30" rx="6" fill="#ffd21f"/>
+    <rect x="112" y="96" width="30" height="30" rx="6" fill="#e8322f"/>
+    <rect x="80" y="128" width="30" height="30" rx="6" fill="#2fb84a"/>
+    <g fill="#ffd21f"><circle cx="40" cy="50" r="5"/><circle cx="150" cy="60" r="4"/><circle cx="150" cy="170" r="5"/></g>
+    <circle cx="95" cy="246" r="20" fill="url(#ph)" stroke="#fff" stroke-width="5"/>
+  </g>
+  <path d="M300 185 q30 -30 56 -6" fill="none" stroke="#7c4dff" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 14"/>
+  <polygon points="590,40 598,58 618,60 603,73 607,93 590,83 573,93 577,73 562,60 582,58" fill="#ffc83d" stroke="#e09400" stroke-width="4" stroke-linejoin="round"/>
+</svg>
