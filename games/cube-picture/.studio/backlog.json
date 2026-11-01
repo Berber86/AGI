@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "tasks": [
+    {
+      "id": "CORE-001",
+      "title": "Модуль анализа снимка + картинки + юнит-тесты на синтетике",
+      "status": "done",
+      "dependsOn": [],
+      "acceptanceCriteria": [
+        "все синтетические сценарии проходят"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/vision-unit.txt"
+      ]
+    },
+    {
+      "id": "CORE-002",
+      "title": "UI: карта, образец, камера, проверка, успех/ошибка, анимации, звук, прогресс",
+      "status": "done",
+      "dependsOn": [
+        "CORE-001"
+      ],
+      "acceptanceCriteria": [
+        "полный цикл касаниями"
+      ],
+      "evidence": [
+        ".studio/evidence/screenshots/360x800-map.webp",
+        ".studio/evidence/screenshots/360x800-camera.webp"
+      ]
+    },
+    {
+      "id": "QA-001",
+      "title": "Headless e2e + скриншоты 360×800/412×915 + анимации",
+      "status": "done",
+      "dependsOn": [
+        "CORE-002"
+      ],
+      "acceptanceCriteria": [
+        "нет ошибок консоли, победа и ошибка наблюдаемы"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "RELEASE-001",
+      "title": "PWA, карточка в каталоге, тесты каталога, handoff",
+      "status": "done",
+      "dependsOn": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "test_game_catalog проходит"
+      ],
+      "evidence": [
+        ".studio/handoffs/2026-10-31-mvp.md"
+      ]
+    },
+    {
+      "id": "FIELD-001",
+      "title": "Подстроить палитру по фото реальных кубиков пользователя",
+      "status": "done",
+      "dependsOn": [
+        "RELEASE-001"
+      ],
+      "acceptanceCriteria": [
+        "палитра из 6 цветов набора (Y,R,розовый,фиолетовый,зелёный,тёмно-синий) построена по фото, без экрана калибровки",
+        "голубой и сиреневый из набора не засчитываются за синий и фиолетовый",
+        "сборки из текстур реальных кубиков распознаются прямо, с наклоном, при ярком и тёплом свете"
+      ],
+      "evidence": [
+        "games/cube-picture/tests/fixtures-real-cubes.png",
+        "games/cube-picture/.studio/evidence/reports/vision-unit.txt",
+        "games/cube-picture/.studio/evidence/reports/e2e.json"
+      ]
+    },
+    {
+      "id": "TOL-001",
+      "title": "Широкий допуск цвета: подстройка под снимок, двойники, относительное сравнение красного/розового",
+      "status": "done",
+      "dependsOn": [
+        "FIELD-001"
+      ],
+      "acceptanceCriteria": [
+        "правильные сборки распознаются при кремовой бумаге, голубоватой тени, усиленных/блёклых цветах, тоновых кривых, сильной лампе и смешанном свете (синтетика и текстуры реальных кубиков)",
+        "подмена кубика другим цветом по-прежнему находится ровно в своей клетке",
+        "строгий допуск сохранён и переключается в меню взрослых"
+      ],
+      "evidence": [
+        "games/cube-picture/.studio/evidence/reports/vision-unit.txt"
+      ]
+    },
+    {
+      "id": "SHAPE-001",
+      "title": "Режим «только форма»: любые цвета наших кубиков, оживление в цветах ребёнка",
+      "status": "done",
+      "dependsOn": [
+        "FIELD-001"
+      ],
+      "acceptanceCriteria": [
+        "переключатель на карте без текста, свои звёзды у режима",
+        "форма из любых цветов набора засчитывается, без кубика/с лишним — нет, чужие формы — нет",
+        "анимация после успеха рисуется в цветах собранных кубиков"
+      ],
+      "evidence": [
+        "games/cube-picture/.studio/evidence/reports/e2e.json",
+        "games/cube-picture/.studio/evidence/screenshots/360x800-map-shape.webp"
+      ]
+    },
+    {
+      "id": "PICS-002",
+      "title": "6 простых картинок (2–4 кубика) со своими анимациями",
+      "status": "done",
+      "dependsOn": [
+        "SHAPE-001"
+      ],
+      "acceptanceCriteria": [
+        "Свечка, сердечко, кораблик, грибок, подарок, гусеница — по 2–4 кубика, не больше 2 одного цвета",
+        "Все 14 форм попарно различны с учётом поворотов (режим «форма» их не путает)",
+        "Каждая новая картинка оживает своей анимацией; части ищутся по положению, а не по цвету",
+        "Карта: простые картинки в начале, звёзды по id (прогресс сохранён)",
+        "vision: все проверки проходят для 14 картинок (верная сборка, ошибки, чужие картинки и формы); e2e без ошибок консоли"
+      ],
+      "evidence": [
+        ".studio/evidence/reports/vision-unit.txt",
+        ".studio/evidence/reports/e2e.json",
+        ".studio/evidence/screenshots/360x800-anim-01-candle.webp",
+        ".studio/evidence/screenshots/360x800-map.webp"
+      ]
+    },
+    {
+      "id": "FIELD-002",
+      "title": "Живая проверка на телефоне с реальными кубиками",
+      "status": "blocked",
+      "dependsOn": [
+        "FIELD-001",
+        "TOL-001",
+        "SHAPE-001",
+        "PICS-002"
+      ],
+      "acceptanceCriteria": [
+        "реальные кубики распознаются камерой телефона при дневном и ламповом свете"
+      ],
+      "evidence": []
+    }
+  ],
+  "updatedAt": "2026-10-31T11:45:00Z"
+}

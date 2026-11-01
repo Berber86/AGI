@@ -187,6 +187,35 @@ class GameCatalogTests(unittest.TestCase):
                 self.assertFalse(value.startswith(('http:', 'https:')), value)
         self.assertNotIn('src/main.tsx', (base / 'index.html').read_text())
 
+    def test_cube_picture_card_links_to_build_free_game(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a['href'] for t, a in tags if t == 'a' and 'games/cube-picture' in a.get('href', '')]
+        self.assertEqual(links, ['./games/cube-picture/index.html'] * 2)
+        self.assertTrue((ROOT / links[0]).is_file())
+        images = [a for t, a in tags if t == 'img' and 'cube-picture' in a.get('src', '')]
+        self.assertEqual(len(images), 1)
+        self.assertTrue((ROOT / images[0]['src']).is_file())
+        self.assertTrue(images[0].get('alt'))
+
+        base = ROOT / 'games/cube-picture'
+        manifest = json.loads((base / 'manifest.webmanifest').read_text())
+        self.assertEqual(manifest['scope'], './')
+        for icon in manifest['icons']:
+            self.assertTrue((base / icon['src']).is_file())
+        sw = (base / 'sw.js').read_text()
+        for module in sorted((base / 'src').glob('*.js')):
+            self.assertIn(f"'./src/{module.name}'", sw, module.name)
+        html = (base / 'index.html').read_text()
+        for tag, attrs in Tags(html).tags:
+            for attr in ('src', 'href'):
+                value = attrs.get(attr, '')
+                if value:
+                    self.assertFalse(urlsplit(value).netloc, value)
+                    self.assertTrue((base / urlsplit(value).path).exists(), value)
+        app = (base / 'src/app.js').read_text()
+        self.assertIn("facingMode: { ideal: 'environment' }", app)
+        self.assertIn('capture="environment"', html)
+
     def test_previous_game_is_still_linked(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
         links = [a.get('href') for t, a in tags if t == 'a']

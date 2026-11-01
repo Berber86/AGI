@@ -1,0 +1,362 @@
+{
+  "startedAt": "2026-10-31T16:27:50.122Z",
+  "checks": [
+    {
+      "ok": true,
+      "msg": "старт: карта картинок"
+    },
+    {
+      "ok": true,
+      "msg": "на карте 14 картинок"
+    },
+    {
+      "ok": true,
+      "msg": "первая картинка подсвечена как следующая"
+    },
+    {
+      "ok": true,
+      "msg": "детские экраны без текста (найдено: [])"
+    },
+    {
+      "ok": true,
+      "msg": "касание первой карточки открывает образец «candle»"
+    },
+    {
+      "ok": true,
+      "msg": "образец нарисован"
+    },
+    {
+      "ok": true,
+      "msg": "камера включилась (camera=live)"
+    },
+    {
+      "ok": true,
+      "msg": "живой предпросмотр узнал сборку (live={\"ok\":true,\"reason\":\"match\"})"
+    },
+    {
+      "ok": true,
+      "msg": "кнопка 📷 подсвечена «готово»"
+    },
+    {
+      "ok": true,
+      "msg": "свёрнуто: камера остановлена"
+    },
+    {
+      "ok": true,
+      "msg": "развёрнуто: камера снова работает"
+    },
+    {
+      "ok": true,
+      "msg": "после снимка камера выключена, идёт проверка"
+    },
+    {
+      "ok": true,
+      "msg": "снимок с камеры засчитан (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":2,\"expected\":2})"
+    },
+    {
+      "ok": true,
+      "msg": "звезда за «candle» сохранена"
+    },
+    {
+      "ok": true,
+      "msg": "после победы 3 кнопки: карта, ещё раз, следующая"
+    },
+    {
+      "ok": true,
+      "msg": "ошибка цвета найдена в клетке (1,0): [{\"src\":[1,0],\"want\":\"K\",\"got\":\"Y\"}]"
+    },
+    {
+      "ok": true,
+      "msg": "показан экран «почти»"
+    },
+    {
+      "ok": true,
+      "msg": "при ошибке 2 кнопки: образец и переснять"
+    },
+    {
+      "ok": true,
+      "msg": "«переснять» снова открывает камеру"
+    },
+    {
+      "ok": true,
+      "msg": "пустой стол не засчитан"
+    },
+    {
+      "ok": true,
+      "msg": "candle: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "candle: анимация нарисована (σ=14.9,30.7)"
+    },
+    {
+      "ok": true,
+      "msg": "candle: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "heart: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "heart: анимация нарисована (σ=11.1,21.3)"
+    },
+    {
+      "ok": true,
+      "msg": "heart: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "boat: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "boat: анимация нарисована (σ=17.3,43.1)"
+    },
+    {
+      "ok": true,
+      "msg": "boat: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: анимация нарисована (σ=25.9,65.0)"
+    },
+    {
+      "ok": true,
+      "msg": "traffic: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "mushroom: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "mushroom: анимация нарисована (σ=35.4,54.9)"
+    },
+    {
+      "ok": true,
+      "msg": "mushroom: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "present: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "present: анимация нарисована (σ=13.4,32.3)"
+    },
+    {
+      "ok": true,
+      "msg": "present: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "caterpillar: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "caterpillar: анимация нарисована (σ=25.4,51.7)"
+    },
+    {
+      "ok": true,
+      "msg": "caterpillar: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "snake: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "snake: анимация нарисована (σ=13.7,28.4)"
+    },
+    {
+      "ok": true,
+      "msg": "snake: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "flower: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "flower: анимация нарисована (σ=26.3,52.7)"
+    },
+    {
+      "ok": true,
+      "msg": "flower: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "rocket: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "rocket: анимация нарисована (σ=19.2,29.3)"
+    },
+    {
+      "ok": true,
+      "msg": "rocket: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "fish: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "fish: анимация нарисована (σ=19.5,47.3)"
+    },
+    {
+      "ok": true,
+      "msg": "fish: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "car: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "car: анимация нарисована (σ=38.4,67.1)"
+    },
+    {
+      "ok": true,
+      "msg": "car: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "house: верная сборка засчитана (поворот 0°)"
+    },
+    {
+      "ok": true,
+      "msg": "house: анимация нарисована (σ=21.4,38.7)"
+    },
+    {
+      "ok": true,
+      "msg": "house: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "butterfly: верная сборка засчитана (поворот 90°)"
+    },
+    {
+      "ok": true,
+      "msg": "butterfly: анимация нарисована (σ=22.5,51.6)"
+    },
+    {
+      "ok": true,
+      "msg": "butterfly: кадры анимации меняются во времени"
+    },
+    {
+      "ok": true,
+      "msg": "все 14 звёзд собраны (14)"
+    },
+    {
+      "ok": true,
+      "msg": "переключатель на карте включает режим «форма»"
+    },
+    {
+      "ok": true,
+      "msg": "в режиме «форма» свои звёзды (пока ни одной)"
+    },
+    {
+      "ok": true,
+      "msg": "форма: ракета из любых цветов засчитана (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":6,\"expected\":6})"
+    },
+    {
+      "ok": true,
+      "msg": "форма: звезда в режиме «форма», звёзды цвета не тронуты"
+    },
+    {
+      "ok": true,
+      "msg": "форма: ракета оживает"
+    },
+    {
+      "ok": true,
+      "msg": "форма: без нижнего кубика не засчитано (reason=shape)"
+    },
+    {
+      "ok": true,
+      "msg": "форма: без кубика в середине — ошибка ровно в клетке (1,1) ([{\"src\":[1,1],\"want\":\"B\",\"got\":null}])"
+    },
+    {
+      "ok": true,
+      "msg": "переключатель возвращает режим «цвета»"
+    },
+    {
+      "ok": true,
+      "msg": "короткое касание шестерёнки меню не открывает"
+    },
+    {
+      "ok": true,
+      "msg": "удержание шестерёнки 1 с открывает меню взрослых"
+    },
+    {
+      "ok": true,
+      "msg": "по умолчанию широкий допуск цвета"
+    },
+    {
+      "ok": true,
+      "msg": "кнопка в меню взрослых включает строгий допуск"
+    },
+    {
+      "ok": true,
+      "msg": "и возвращает широкий"
+    },
+    {
+      "ok": true,
+      "msg": "камера запрещена → запасной режим"
+    },
+    {
+      "ok": true,
+      "msg": "кнопка «выбрать фото» подсвечена"
+    },
+    {
+      "ok": true,
+      "msg": "фото из файла засчитано (result={\"ok\":true,\"reason\":\"match\",\"rotation\":0,\"mismatches\":[],\"found\":10,\"expected\":10})"
+    },
+    {
+      "ok": true,
+      "msg": "нет ошибок в консоли ([])"
+    }
+  ],
+  "consoleErrors": [],
+  "screenshots": [
+    ".studio/evidence/screenshots/360x800-map.webp",
+    ".studio/evidence/screenshots/360x800-task.webp",
+    ".studio/evidence/screenshots/360x800-camera.webp",
+    ".studio/evidence/screenshots/360x800-success-candle.webp",
+    ".studio/evidence/screenshots/360x800-fail-flower.webp",
+    ".studio/evidence/screenshots/360x800-fail-empty.webp",
+    ".studio/evidence/screenshots/360x800-anim-01-candle.webp",
+    ".studio/evidence/screenshots/360x800-anim-02-heart.webp",
+    ".studio/evidence/screenshots/360x800-anim-03-boat.webp",
+    ".studio/evidence/screenshots/360x800-anim-04-traffic.webp",
+    ".studio/evidence/screenshots/360x800-anim-05-mushroom.webp",
+    ".studio/evidence/screenshots/360x800-anim-06-present.webp",
+    ".studio/evidence/screenshots/360x800-anim-07-caterpillar.webp",
+    ".studio/evidence/screenshots/360x800-anim-08-snake.webp",
+    ".studio/evidence/screenshots/360x800-anim-09-flower.webp",
+    ".studio/evidence/screenshots/360x800-anim-10-rocket.webp",
+    ".studio/evidence/screenshots/360x800-anim-11-fish.webp",
+    ".studio/evidence/screenshots/360x800-anim-12-car.webp",
+    ".studio/evidence/screenshots/360x800-anim-13-house.webp",
+    ".studio/evidence/screenshots/360x800-anim-14-butterfly.webp",
+    ".studio/evidence/screenshots/360x800-map-all-stars.webp",
+    ".studio/evidence/screenshots/360x800-map-shape.webp",
+    ".studio/evidence/screenshots/360x800-task-shape-rocket.webp",
+    ".studio/evidence/screenshots/360x800-success-shape-rocket.webp",
+    ".studio/evidence/screenshots/360x800-fail-shape-rocket.webp",
+    ".studio/evidence/screenshots/360x800-adult.webp",
+    ".studio/evidence/screenshots/412x915-map.webp",
+    ".studio/evidence/screenshots/412x915-task-butterfly.webp",
+    ".studio/evidence/screenshots/412x915-camera-fallback.webp",
+    ".studio/evidence/screenshots/412x915-success-butterfly.webp",
+    ".studio/evidence/screenshots/412x915-fail-car.webp"
+  ],
+  "finishedAt": "2026-10-31T16:30:06.790Z",
+  "passed": 80,
+  "failed": 0
+}
