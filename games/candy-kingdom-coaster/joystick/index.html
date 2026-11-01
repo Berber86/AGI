@@ -164,36 +164,91 @@
   .status { font-size: 14.5px; font-weight: 800; text-align: center; margin: 0; }
   .ok { color: #9be7b4; } .err { color: #ff9db1; font-size: 13px; white-space: pre-wrap; }
   .warn { font-size: 12px; line-height: 1.45; color: #ffc9d6; margin: 6px 0 0; }
+  .pair-saved-btn {
+    width: 100%; margin-bottom: 8px; padding: 13px 14px; font-size: 15.5px;
+    background: linear-gradient(135deg, #27d39b, #149975); color: #fff;
+    box-shadow: 0 6px 18px rgba(20, 153, 117, 0.35);
+  }
+  .qr-scan-box, .qr-ans-box {
+    margin-top: 10px; padding: 10px; border-radius: 14px;
+    background: rgba(0, 0, 0, 0.32); border: 1px solid rgba(255, 255, 255, 0.22);
+    text-align: center;
+  }
+  .qr-scan-video {
+    width: 100%; max-height: 210px; aspect-ratio: 4 / 3; object-fit: cover;
+    border-radius: 12px; background: #0d0513; display: block; margin-bottom: 8px;
+  }
+  .qr-ans-svg {
+    width: 196px; height: 196px; margin: 8px auto; padding: 6px;
+    background: #fff; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+  }
+  .qr-ans-svg svg { width: 100%; height: 100%; display: block; }
+  .fb-details { margin-top: 6px; }
+  .fb-details summary {
+    cursor: pointer; font-size: 12.5px; font-weight: 700; opacity: 0.78;
+    padding: 6px 2px; user-select: none;
+  }
+  .fb-details[open] summary { margin-bottom: 8px; opacity: 1; }
+  .hub-link {
+    display: inline-block; margin-top: 6px; color: #ffd166; font-size: 12px;
+    font-weight: 700; text-decoration: none;
+  }
 </style>
 </head>
 <body>
 <main>
   <header id="intro-head">
-    <h1>🕹 Джойстик Candy Kingdom</h1>
-    <p class="sub">Этот телефон — руль и педаль в руке! На главном телефоне откройте игру → «VR-поездка» →
-    «Вести с джойстика»: введите 6 цифр кода и рулите наклонами или сенсорами.</p>
+    <h1>⚡ Джойстик Candy Kingdom</h1>
+    <p class="sub">Раздайте Wi-Fi с телефона-экрана на этот телефон — без ключей и настройки API! Сканируйте QR с экрана один раз или нажмите на сохранённую пару.</p>
   </header>
 
-  <section class="card" id="card-config">
-    <h2>1. Firebase (один раз на этом телефоне)</h2>
-    <textarea id="cfg" placeholder='Тот же firebaseConfig, что и на телефоне-экране'></textarea>
-    <div class="row" style="margin-top:8px">
-      <button type="button" id="btn-cfg">Подключить Firebase</button>
-      <button type="button" id="btn-demo" class="secondary">Демо без Firebase</button>
-    </div>
-    <p id="cfg-status" class="ok"></p>
-    <p id="cfg-error" class="err"></p>
-    <p class="warn">Совет для минимальной задержки (3–8 мс): раздайте Wi-Fi с одного телефона на другой — после входа по коду пульт сам переключится на прямой канал WebRTC 60 Гц!</p>
-  </section>
-
-  <section class="card hidden" id="card-join">
-    <h2>2. Комната</h2>
+  <section class="card" id="card-join">
+    <h2>⚡ Подключение по Wi-Fi (60 Гц)</h2>
+    <button type="button" id="btn-saved-pair" class="pair-saved-btn hidden">▶ Моя пара — подключиться</button>
     <div class="row">
-      <input type="text" id="join-code" inputmode="numeric" maxlength="6" placeholder="Код с экрана, 6 цифр" style="flex:2">
+      <button type="button" id="btn-scan-qr">◈ Сканировать QR с экрана</button>
+      <button type="button" id="btn-paste-off" class="secondary">▸ Офлайн-код</button>
+    </div>
+
+    <div id="qr-scan-box" class="qr-scan-box hidden">
+      <video id="qr-scan-video" class="qr-scan-video" playsinline muted></video>
+      <div class="row">
+        <button type="button" id="btn-scan-flip" class="secondary">↻ Камера</button>
+        <button type="button" id="btn-scan-stop" class="secondary">✕ Закрыть</button>
+      </div>
+      <p class="sub" id="qr-scan-status" style="margin-top:6px">Наведите камеру на QR на экране игры…</p>
+    </div>
+
+    <div id="qr-ans-box" class="qr-ans-box hidden">
+      <p class="status ok" style="font-size:13.5px">◈ Офлайн шаг 2: покажите этот QR камере экрана!</p>
+      <div id="qr-ans-svg" class="qr-ans-svg"></div>
+      <div class="row">
+        <button type="button" id="btn-copy-ans" class="secondary">▸ Скопировать ответ</button>
+        <button type="button" id="btn-cancel-ans" class="secondary">✕ Отмена</button>
+      </div>
+      <p class="sub" id="qr-ans-status" style="margin-top:6px">Как только экран считает этот QR, джойстик включится автоматически.</p>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <input type="text" id="join-code" inputmode="numeric" maxlength="7" placeholder="Или 6 цифр пары с экрана" style="flex:2">
       <button type="button" id="btn-join-go">Войти</button>
     </div>
-    <p class="sub" id="join-status"></p>
+    <p class="sub" id="join-status" style="margin-top:6px"></p>
+    <a class="hub-link" href="../../remote-hub/index.html">⚡ Открыть универсальный «Мой пульт» (автовыбор игры) →</a>
   </section>
+
+  <details class="card fb-details" id="fb-fallback-details">
+    <summary>Резерв: свой Firebase или Демо (две вкладки)</summary>
+    <div id="card-config">
+      <textarea id="cfg" placeholder='Тот же firebaseConfig, что и на телефоне-экране'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btn-cfg">Подключить Firebase</button>
+        <button type="button" id="btn-demo" class="secondary">Демо без Firebase</button>
+      </div>
+      <p id="cfg-status" class="ok"></p>
+      <p id="cfg-error" class="err"></p>
+    </div>
+  </details>
 
   <section class="card hidden" id="card-joy">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -298,11 +353,29 @@ import {
   createFirebaseRtcSignaling,
   createBroadcastRtcSignaling,
 } from '../src/tilt-rtc.js';
+import {
+  loadSavedPairCode,
+  savePairCode,
+  normalizePairCode,
+  formatPairCode,
+  createAutoPairSignaling,
+  acceptOfflineOfferAndCreateAnswer,
+  renderQrSvg,
+  QrCameraScanner,
+  parseScannedPayload,
+} from '../src/local-pair.js';
 
 const $ = (id) => document.getElementById(id);
 const els = {
   cfg: $('cfg'), cfgStatus: $('cfg-status'), cfgError: $('cfg-error'),
+  fbDetails: $('fb-fallback-details'),
   cardConfig: $('card-config'), cardJoin: $('card-join'), cardJoy: $('card-joy'),
+  btnSavedPair: $('btn-saved-pair'),
+  btnScanQr: $('btn-scan-qr'), btnPasteOff: $('btn-paste-off'),
+  qrScanBox: $('qr-scan-box'), qrScanVideo: $('qr-scan-video'),
+  btnScanFlip: $('btn-scan-flip'), btnScanStop: $('btn-scan-stop'), qrScanStatus: $('qr-scan-status'),
+  qrAnsBox: $('qr-ans-box'), qrAnsSvg: $('qr-ans-svg'),
+  btnCopyAns: $('btn-copy-ans'), btnCancelAns: $('btn-cancel-ans'), qrAnsStatus: $('qr-ans-status'),
   joinCode: $('join-code'), joinStatus: $('join-status'), joyStatus: $('joy-status'), joyNet: $('joy-net'),
   rtcPill: $('rtc-pill'), rtcPillText: $('rtc-pill-text'), btnRtcRetry: $('btn-rtc-retry'),
   padSteer: $('pad-steer'), padThrottle: $('pad-throttle'), driveReadout: $('drive-readout'),
@@ -327,11 +400,12 @@ const DRIVE_SESSION = (globalThis.crypto && globalThis.crypto.randomUUID)
   : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const state = {
-  kind: null, room: null,
+  kind: 'local', room: null,
   steer: 0, throttle: 0, brake: 0, throttleY: 75,
   steerPointer: null, throttlePointer: null,
   keyLeft: false, keyRight: false, keyUp: false,
   seq: 0, db: null, f: null, rtt: [], pending: null, pingSeq: 0, ch: null,
+  autoSig: null, brokersOnline: 0,
   rtc: null, uiMode: 'steer',
 };
 
@@ -417,6 +491,15 @@ function updateRtcUi() {
     els.rtcPillText.textContent = `${routeLabel}${oneWay} (0 записей в облако)`;
     els.joyStatus.textContent = '✓ Связь есть — прямой канал 60 Гц!';
     els.joyStatus.className = 'status ok';
+  } else if (state.kind === 'local' || state.kind === 'offline') {
+    els.rtcPill.className = 'rtc-pill';
+    els.rtcPillText.textContent = state.kind === 'offline'
+      ? '📴 Офлайн QR: ждём сканирование ответа камерой экрана…'
+      : (note
+        ? `📡 Авто-пара (${note})`
+        : (state.brokersOnline > 0
+          ? '📡 Ищем экран вашей пары и поднимаем прямой Wi-Fi 60 Гц…'
+          : '📡 Ищем экран (нет интернета? нажмите «Сменить» → Офлайн QR)'));
   } else if (state.kind === 'demo') {
     els.rtcPill.className = 'rtc-pill';
     els.rtcPillText.textContent = note
@@ -456,7 +539,12 @@ function scheduleDriveSend() {
     driveDirty = false;
     const waitRtc = rtcForce ? 0 : Math.max(0, RTC_SEND_MS - (performance.now() - lastRtcSent));
     if (waitRtc === 0) {
-      if (rtcTimer && rtcTimer !== 'micro') clearTimeout(rtcTimer);
+      if (rtcTimer && rtcTimer !== 'micro') { clearTimeout(rtcTimer); rtcTimer = null; }
+      if (rtcForce) {
+        rtcTimer = null;
+        flushRtcDrive();
+        return;
+      }
       if (rtcTimer === 'micro') return;
       rtcTimer = 'micro';
       queueMicrotask(() => {
@@ -541,9 +629,11 @@ function flushCloudDrive() {
   lastDrivePacket = packet;
   const wire = { ...packet, sid: DRIVE_SESSION, seq: ++state.seq, sts: Date.now() };
   driveSentCount++;
-  if (state.kind === 'demo') {
+  if (state.kind === 'local') {
+    if (state.autoSig) state.autoSig.sendFallback({ kind: 'input', state: wire });
+  } else if (state.kind === 'demo') {
     state.ch.postMessage({ kind: 'input', room: state.room, state: wire });
-  } else {
+  } else if (state.kind === 'firebase' && state.f) {
     state.f.set(roomRef('/input'), wire).catch(() => {});
   }
 }
@@ -639,10 +729,16 @@ function startLoops() {
   }, DRIVE_HEARTBEAT_MS);
   setInterval(() => {
     if (!state.room || document.hidden || state.pending || (state.rtc && state.rtc.isOpen())) return;
+    if (state.kind === 'offline') return;
     const id = ++state.pingSeq;
     state.pending = { id, t0: performance.now() };
-    if (state.kind === 'demo') state.ch.postMessage({ kind: 'ping', room: state.room, id });
-    else state.f.set(roomRef('/ping'), { id }).catch(() => {});
+    if (state.kind === 'local') {
+      if (state.autoSig) state.autoSig.sendFallback({ kind: 'ping', id });
+    } else if (state.kind === 'demo') {
+      state.ch.postMessage({ kind: 'ping', room: state.room, id });
+    } else if (state.kind === 'firebase' && state.f) {
+      state.f.set(roomRef('/ping'), { id }).catch(() => {});
+    }
   }, PING_INTERVAL_MS);
 }
 function pushDriveKeepVisual() {
@@ -665,10 +761,32 @@ function onPong(id) {
   }
 }
 
-async function join(code) {
-  if (!/^\d{6}$/.test(code)) { els.joinStatus.textContent = 'Код — ровно 6 цифр, как на экране'; return; }
+function closeActiveLinks() {
   if (state.rtc) { state.rtc.close(); state.rtc = null; }
+  if (state.autoSig) { state.autoSig.dispose(); state.autoSig = null; }
+}
+
+function showJoyActiveScreen(codeLabel) {
+  $('intro-head').classList.add('hidden');
+  if (els.fbDetails) els.fbDetails.classList.add('hidden');
+  els.cardJoin.classList.add('hidden');
+  els.cardJoy.classList.remove('hidden');
+  $('btn-change-room').textContent = `${codeLabel} · Сменить`;
+  window.scrollTo(0, 0);
+}
+
+async function join(rawCode) {
+  const code = normalizePairCode(rawCode);
+  if (!/^\d{6}$/.test(code)) { els.joinStatus.textContent = 'Код — ровно 6 цифр, как на экране'; return; }
+  stopQrScanner();
+  cancelOfflineAnswerBox();
+  closeActiveLinks();
+  if (!state.kind || state.kind === 'offline') state.kind = 'local';
   state.room = code;
+  if (state.kind === 'local') {
+    savePairCode(code);
+    syncSavedPairButton();
+  }
 
   const rtcCallbacks = {
     onOpenChange: (open) => {
@@ -677,7 +795,7 @@ async function join(code) {
         rtcDirty = true; rtcForce = true;
         flushRtcDrive();
       } else {
-        // Мгновенный бесшовный откат на Firebase / Demo при обрыве WebRTC!
+        // Мгновенный бесшовный откат на резервный канал при обрыве WebRTC!
         driveDirty = true; driveForce = true;
         flushCloudDrive();
       }
@@ -691,7 +809,23 @@ async function join(code) {
     onState: (st) => renderCmdState(st),
   };
 
-  if (state.kind === 'firebase') {
+  if (state.kind === 'local') {
+    state.autoSig = createAutoPairSignaling(code, {
+      game: 'ckc',
+      role: 'controller',
+      onBrokerChange: (count) => {
+        state.brokersOnline = count;
+        updateRtcUi();
+      },
+      onFallbackMessage: (m) => {
+        if (!m || typeof m !== 'object') return;
+        if (m.kind === 'pong') onPong(m.id);
+        if (m.kind === 'state' && m.state) renderCmdState(m.state);
+      },
+    });
+    els.joyStatus.textContent = `Пара ${formatPairCode(code)} — ищем экран по Wi-Fi…`;
+    state.rtc = new RtcJoyPeer(state.autoSig, DRIVE_SESSION, rtcCallbacks);
+  } else if (state.kind === 'firebase') {
     state.f.onValue(roomRef('/pong'), (s) => { const v = s.val(); if (v) onPong(v.id); });
     state.f.onValue(roomRef('/state'), (s) => { const v = s.val(); if (v) renderCmdState(v); });
     let metaSeen = false;
@@ -711,7 +845,7 @@ async function join(code) {
         hintTimer = setTimeout(() => {
           hintTimer = null;
           if (metaSeen) return;
-          els.joyStatus.textContent = 'Комната не найдена. Проверьте: 1) на главном телефоне в подготовке VR выбран «🕹 Джойстик» и комната создана; 2) код совпадает цифра в цифру; 3) конфиг Firebase на ОБОИХ телефонах одинаковый. Продолжаю ждать…';
+          els.joyStatus.textContent = 'Комната не найдена. Проверьте код и конфиг Firebase. Продолжаю ждать…';
           els.joyStatus.className = 'status warn';
         }, 8000);
       }
@@ -728,12 +862,7 @@ async function join(code) {
     state.rtc = new RtcJoyPeer(createBroadcastRtcSignaling(state.ch, code), DRIVE_SESSION, rtcCallbacks);
   }
 
-  $('intro-head').classList.add('hidden');
-  els.cardConfig.classList.add('hidden');
-  els.cardJoin.classList.add('hidden');
-  els.cardJoy.classList.remove('hidden');
-  $('btn-change-room').textContent = `Комната ${code} · Сменить`;
-  window.scrollTo(0, 0);
+  showJoyActiveScreen(`Пара ${formatPairCode(code)}`);
   updateRtcUi();
   lastDrivePacket = null;
   lastDriveSent = 0;
@@ -743,9 +872,175 @@ async function join(code) {
   driveForce = true;
   await ensureWakeLock();
   pushDrive(true);
+  if (state.autoSig) state.autoSig.sendFallback({ kind: 'hello-meta' });
   startLoops();
   state.rtc.start().catch(() => {});
-  els.joinStatus.textContent = `Комната ${code}`;
+  els.joinStatus.textContent = `Пара ${formatPairCode(code)}`;
+}
+
+// 100% локальный офлайн-адаптер для взаимного обмена QR-кодами (авиарежим + точка доступа Wi-Fi)
+let pendingOfflineAnswerToken = '';
+function createOfflineJoyRtcAdapter(pc, getChannels, callbacks) {
+  let open = false;
+  let pingTimer = null;
+  let pingSeq = 0;
+  const adapter = {
+    rttMs: null,
+    routeKind: 'lan',
+    preferLanOnly: true,
+    statusNote: 'Офлайн QR ↔ QR',
+    isOpen: () => open && Boolean(getChannels().fast && getChannels().fast.readyState === 'open'),
+    setPreferLanOnly: () => {},
+    onWake: () => {},
+    reconnect: async () => {},
+    sendInput(wire) {
+      const { fast } = getChannels();
+      if (!fast || fast.readyState !== 'open') return false;
+      try { fast.send(JSON.stringify({ k: 'in', state: wire })); return true; } catch { return false; }
+    },
+    sendCmd(name, seq) {
+      const { ctrl, fast } = getChannels();
+      const ch = (ctrl && ctrl.readyState === 'open') ? ctrl : fast;
+      if (!ch || ch.readyState !== 'open') return false;
+      try { ch.send(JSON.stringify({ k: 'cmd', name, seq })); return true; } catch { return false; }
+    },
+    close() {
+      if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+      open = false;
+      try { getChannels().fast?.close(); } catch { /* ignore */ }
+      try { getChannels().ctrl?.close(); } catch { /* ignore */ }
+      try { pc.close(); } catch { /* ignore */ }
+    },
+    bindChannel(ch) {
+      if (ch.label === 'fast') {
+        const markOpen = () => {
+          if (open) return;
+          open = true;
+          callbacks.onOpenChange(true);
+          if (!pingTimer) {
+            pingTimer = setInterval(() => {
+              if (ch.readyState !== 'open') return;
+              try { ch.send(JSON.stringify({ k: 'ping', id: ++pingSeq, t0: performance.now() })); } catch { /* ignore */ }
+            }, 900);
+          }
+        };
+        if (ch.readyState === 'open') markOpen();
+        ch.onopen = markOpen;
+        ch.onclose = () => { open = false; callbacks.onOpenChange(false); };
+      }
+      ch.onmessage = (ev) => {
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.k === 'pong' && typeof msg.t0 === 'number') {
+          const rtt = Math.max(1, performance.now() - msg.t0);
+          adapter.rttMs = rtt;
+          callbacks.onRtt(rtt);
+          try { getChannels().fast?.send(JSON.stringify({ k: 'pong-ack', rtt: Math.round(rtt) })); } catch { /* ignore */ }
+        } else if (msg.k === 'state' && msg.state) {
+          callbacks.onState(msg.state);
+        }
+      };
+    },
+  };
+  return adapter;
+}
+
+async function handleOfflineOfferToken(offerToken) {
+  stopQrScanner();
+  closeActiveLinks();
+  try {
+    els.joinStatus.textContent = 'Собираем локальный ответ точки доступа Wi-Fi…';
+    const ans = await acceptOfflineOfferAndCreateAnswer(offerToken, {
+      fastLabel: 'fast',
+      ctrlLabel: 'ctrl',
+    });
+    pendingOfflineAnswerToken = ans.token;
+    state.kind = 'offline';
+    const pairCode = normalizePairCode(ans.pairCode) || loadSavedPairCode() || '000000';
+    if (normalizePairCode(ans.pairCode)) {
+      savePairCode(ans.pairCode);
+      syncSavedPairButton();
+    }
+    state.room = pairCode;
+
+    let fastCh = null;
+    let ctrlCh = null;
+    const rtcAdapter = createOfflineJoyRtcAdapter(ans.pc, () => ({ fast: fastCh, ctrl: ctrlCh }), {
+      onOpenChange: (open) => {
+        if (open) {
+          els.qrAnsBox.classList.add('hidden');
+          showJoyActiveScreen(pairCode !== '000000' ? `Пара ${formatPairCode(pairCode)}` : 'Офлайн Wi-Fi');
+          updateRtcUi();
+          ensureWakeLock();
+          startLoops();
+          rtcDirty = true; rtcForce = true;
+          flushRtcDrive();
+        } else {
+          updateRtcUi();
+        }
+      },
+      onRtt: (rtt) => {
+        state.rtt.push(rtt);
+        if (state.rtt.length > 30) state.rtt.shift();
+        updateRtcUi();
+        els.joyNet.textContent = `⚡ Прямой офлайн WebRTC · в одну сторону ≈ ${Math.max(1, Math.round(rtt / 2))} мс`;
+      },
+      onState: (st) => renderCmdState(st),
+    });
+    state.rtc = rtcAdapter;
+    ans.onFastChannel((ch) => { fastCh = ch; rtcAdapter.bindChannel(ch); });
+    ans.onCtrlChannel((ch) => { ctrlCh = ch; rtcAdapter.bindChannel(ch); });
+
+    els.qrAnsSvg.innerHTML = renderQrSvg(ans.token, { border: 2 });
+    els.qrAnsBox.classList.remove('hidden');
+    els.joinStatus.textContent = '';
+    return { token: ans.token, pairCode };
+  } catch (err) {
+    els.joinStatus.textContent = 'Не удалось разобрать офлайн-код: ' + (err?.message || err);
+    return null;
+  }
+}
+
+let qrScanner = null;
+function stopQrScanner() {
+  if (qrScanner) {
+    qrScanner.stop();
+    qrScanner = null;
+  }
+  if (els.qrScanBox) els.qrScanBox.classList.add('hidden');
+}
+
+function cancelOfflineAnswerBox() {
+  pendingOfflineAnswerToken = '';
+  if (els.qrAnsBox) els.qrAnsBox.classList.add('hidden');
+}
+
+function handleScannedAny(raw) {
+  const parsed = parseScannedPayload(raw);
+  if (parsed.kind === 'offline-offer') {
+    handleOfflineOfferToken(parsed.token);
+    return true;
+  }
+  if (parsed.kind === 'pair-code') {
+    state.kind = 'local';
+    els.joinCode.value = parsed.pairCode;
+    join(parsed.pairCode);
+    return true;
+  }
+  return false;
+}
+
+function syncSavedPairButton() {
+  const saved = loadSavedPairCode();
+  if (!els.btnSavedPair) return;
+  if (saved) {
+    els.btnSavedPair.textContent = `▶ Подключиться к моей паре (${formatPairCode(saved)})`;
+    els.btnSavedPair.classList.remove('hidden');
+    if (!els.joinCode.value) els.joinCode.value = saved;
+  } else {
+    els.btnSavedPair.classList.add('hidden');
+  }
 }
 
 $('btn-cfg').addEventListener('click', async () => {
@@ -753,7 +1048,7 @@ $('btn-cfg').addEventListener('click', async () => {
   try {
     await bootFirebase(parseFirebaseConfig(els.cfg.value));
     try { localStorage.setItem('ckc_stand_cfg', els.cfg.value); } catch { /* ignore */ }
-    els.cfgStatus.textContent = 'Firebase подключён. Введите код комнаты.';
+    els.cfgStatus.textContent = 'Firebase подключён. Введите 6-значный код выше и нажмите «Войти».';
     els.cardJoin.classList.remove('hidden');
   } catch (e) {
     els.cfgError.textContent = 'Не удалось подключить Firebase: ' + (e && e.message ? e.message : e);
@@ -766,6 +1061,59 @@ $('btn-demo').addEventListener('click', () => {
   els.cfgError.textContent = '';
   els.cfgStatus.textContent = 'Демо-режим: работает в двух вкладках одного браузера.';
   els.cardJoin.classList.remove('hidden');
+});
+els.btnSavedPair?.addEventListener('click', () => {
+  const saved = loadSavedPairCode();
+  if (saved) {
+    state.kind = 'local';
+    join(saved);
+  }
+});
+els.btnScanQr?.addEventListener('click', async () => {
+  if (qrScanner) { stopQrScanner(); return; }
+  cancelOfflineAnswerBox();
+  els.qrScanBox.classList.remove('hidden');
+  els.qrScanStatus.textContent = 'Запускаем камеру…';
+  qrScanner = new QrCameraScanner({
+    videoEl: els.qrScanVideo,
+    facingMode: 'environment',
+    onResult: (raw) => {
+      if (handleScannedAny(raw)) stopQrScanner();
+    },
+  });
+  try {
+    await qrScanner.start();
+    els.qrScanStatus.textContent = 'Наведите камеру на QR на экране игры…';
+  } catch (err) {
+    els.qrScanStatus.textContent = 'Камера недоступна (' + (err?.message || err) + ') — введите 6 цифр или нажмите «Офлайн-код».';
+  }
+});
+els.btnScanFlip?.addEventListener('click', () => {
+  if (qrScanner) qrScanner.flipCamera().catch(() => {});
+});
+els.btnScanStop?.addEventListener('click', stopQrScanner);
+els.btnPasteOff?.addEventListener('click', async () => {
+  let raw = '';
+  try { raw = await navigator.clipboard.readText(); } catch { /* ignore */ }
+  if (!raw) raw = window.prompt('Вставьте офлайн-код шага 1 с экрана игры:') || '';
+  if (!raw) return;
+  if (!handleScannedAny(raw)) {
+    els.joinStatus.textContent = 'Не распознан код или QR-ссылка.';
+  }
+});
+els.btnCopyAns?.addEventListener('click', async () => {
+  if (!pendingOfflineAnswerToken) return;
+  try {
+    await navigator.clipboard.writeText(pendingOfflineAnswerToken);
+    els.qrAnsStatus.textContent = 'Ответ скопирован! Вставьте его на экране игры.';
+  } catch {
+    window.prompt('Скопируйте ответный код шага 2:', pendingOfflineAnswerToken);
+  }
+});
+els.btnCancelAns?.addEventListener('click', () => {
+  cancelOfflineAnswerBox();
+  closeActiveLinks();
+  state.kind = 'local';
 });
 $('btn-join-go').addEventListener('click', () => join(els.joinCode.value.trim()));
 els.btnRtcRetry.addEventListener('click', () => {
@@ -785,12 +1133,16 @@ $('btn-rtc-lan').addEventListener('click', () => {
 els.cardJoy.addEventListener('pointerdown', () => { ensureWakeLock(); }, { passive: true });
 $('btn-change-room').addEventListener('click', () => {
   releaseAll();
-  if (state.rtc) { state.rtc.close(); state.rtc = null; }
+  stopQrScanner();
+  cancelOfflineAnswerBox();
+  closeActiveLinks();
   state.room = null;
+  if (state.kind === 'offline') state.kind = 'local';
   $('intro-head').classList.remove('hidden');
-  els.cardConfig.classList.remove('hidden');
+  if (els.fbDetails) els.fbDetails.classList.remove('hidden');
   els.cardJoin.classList.remove('hidden');
   els.cardJoy.classList.add('hidden');
+  syncSavedPairButton();
 });
 
 // ---------------------------------------------------------------- 3D наклоны ладони
@@ -1026,7 +1378,8 @@ function releaseAll() {
   pushDrive(true);
 }
 window.addEventListener('pagehide', () => {
-  if (state.rtc) { state.rtc.close(); state.rtc = null; }
+  stopQrScanner();
+  closeActiveLinks();
 });
 window.addEventListener('blur', releaseTouchAndKeys);
 window.addEventListener('online', () => {
@@ -1052,8 +1405,13 @@ function sendCmd(name) {
   if (!state.room) return;
   queueMicrotask(() => { // сеть после синхронного обновления UI, без задержки фоновых setTimeout
     if (state.rtc && state.rtc.sendCmd(name, seq)) return;
-    if (state.kind === 'demo') state.ch.postMessage({ kind: 'cmd', room: state.room, name, seq });
-    else state.f.set(roomRef('/cmd'), { name, seq, sts: state.f.serverTimestamp() }).catch(() => {});
+    if (state.kind === 'local') {
+      if (state.autoSig) state.autoSig.sendFallback({ kind: 'cmd', name, seq });
+    } else if (state.kind === 'demo') {
+      state.ch.postMessage({ kind: 'cmd', room: state.room, name, seq });
+    } else if (state.kind === 'firebase' && state.f) {
+      state.f.set(roomRef('/cmd'), { name, seq, sts: state.f.serverTimestamp() }).catch(() => {});
+    }
   });
 }
 
@@ -1148,8 +1506,34 @@ try {
   const saved = localStorage.getItem('ckc_stand_cfg');
   if (saved) els.cfg.value = saved;
 } catch { /* ignore */ }
-if (qs.get('demo') === '1') $('btn-demo').click();
-if (qs.get('code')) els.joinCode.value = qs.get('code');
+syncSavedPairButton();
+
+const hashParams = new URLSearchParams(location.hash.startsWith('#') ? location.hash.slice(1) : '');
+const hashOffline = hashParams.get('off') || qs.get('off') || '';
+const urlPair = normalizePairCode(qs.get('pair') || '');
+const urlCode = normalizePairCode(qs.get('code') || '');
+
+if (qs.get('demo') === '1') {
+  $('btn-demo').click();
+  if (urlCode) {
+    els.joinCode.value = urlCode;
+    if (qs.get('auto') === '1') join(urlCode);
+  }
+} else if (hashOffline) {
+  if (urlPair) savePairCode(urlPair);
+  syncSavedPairButton();
+  handleOfflineOfferToken(hashOffline);
+} else if (urlPair) {
+  state.kind = 'local';
+  els.joinCode.value = urlPair;
+  join(urlPair);
+} else if (urlCode) {
+  els.joinCode.value = urlCode;
+  if (qs.get('auto') === '1') {
+    state.kind = 'local';
+    join(urlCode);
+  }
+}
 
 // QA hooks
 window.__JOY__ = {
@@ -1157,6 +1541,7 @@ window.__JOY__ = {
     kind: state.kind,
     transport: state.rtc && state.rtc.isOpen() ? 'webrtc' : state.kind,
     rtcOpen: !!(state.rtc && state.rtc.isOpen()),
+    brokersOnline: state.brokersOnline,
     rtcSent: rtcSentCount,
     room: state.room,
     mode: state.uiMode,
@@ -1172,6 +1557,9 @@ window.__JOY__ = {
   }),
   demo: () => $('btn-demo').click(),
   join: (code) => join(String(code)),
+  joinLocal: (code) => { state.kind = 'local'; return join(String(code)); },
+  acceptOfflineOffer: (token) => handleOfflineOfferToken(token),
+  offlineAnswerToken: () => pendingOfflineAnswerToken,
   setDrive: (steer, throttle, brake = 0) => {
     state.steerPointer = null; state.throttlePointer = null;
     state.steer = clamp11(+steer || 0);

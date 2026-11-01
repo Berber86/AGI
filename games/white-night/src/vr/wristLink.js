@@ -1,17 +1,23 @@
 // wristLink.js — приёмник 60 Гц датчиков с телефона-браслета для «Белой ночи».
 //
-// Архитектура связи (проверенная на реальных смартфонах):
-//   - Сигналинг по 6-значному коду комнаты через Firebase Realtime Database
-//     (автоматически подхватывает уже сохранённый конфиг `ckc_stand_cfg` из стенда/гонки!).
-//   - Автоматический подъём прямого локального канала WebRTC DataChannel (60 Гц,
-//     ordered: false, maxRetransmits: 0, 0 обращений к БД после рукопожатия).
-//   - Защита от VPN: нечётные попытки используют LAN-first (iceServers: []),
-//     чётные добавляют Google STUN; фиксация preferLanOnly после первого LAN-успеха.
-//   - Уникальный hid каждой попытки, устойчивость к кратковременному 'disconnected',
-//     двусторонний ping/pong раз в 1 с и фоновый Auto-Heal без участия игрока.
-//   - Резервный канал Firebase (~8 Гц) при недоступности UDP + локальный BroadcastChannel
-//     для проверки в двух вкладках одного браузера и автотестов.
-//   - Строго без виброотклика и звуков.
+// Архитектура связи без обязательного ввода API Firebase:
+//   1) `local` (по умолчанию) — общая «Моя пара» (`agi_pair_v1`):
+//      телефоны узнают друг друга по сохранённому 6-значному ключу (через встроенную
+//      WSS-сваху + BroadcastChannel) и открывают прямой локальный канал WebRTC DataChannel
+//      (60 Гц, ordered: false, maxRetransmits: 0) по точке доступа Wi-Fi.
+//   2) `offline` (100% без интернета, авиарежим + точка доступа Wi-Fi) —
+//      взаимный обмен компактными QR-кодами `AG1.<base64url>` камера ↔ экран.
+//   3) `firebase` / `demo` — свёрнутый резервный режим для совместимости и автотестов.
+//   - Строго без тактильного отклика и звуков.
+
+import {
+  ensureHostPairCode,
+  normalizePairCode,
+  savePairCode,
+  createAutoPairSignaling,
+  createOfflineHostOffer,
+  buildControllerQrUrl,
+} from './localPair.js';
 
 const FB_CDN = 'https://www.gstatic.com/firebasejs/11.0.1';
 const SHARED_CFG_KEY = 'ckc_stand_cfg';
@@ -92,17 +98,20 @@ export class WristHostLink {
     this.onHandSide = onHandSide || (() => {});
     this.onStatus = onStatus || (() => {});
 
-    this.mode = 'off'; // 'off' | 'demo' | 'firebase'
+    this.mode = 'off'; // 'off' | 'local' | 'demo' | 'firebase'
     this.roomCode = '';
     this.connected = false;
     this.p2pOpen = false;
-    this.routeKind = 'idle'; // 'idle' | 'demo' | 'firebase' | 'lan' | 'stun'
+    this.routeKind = 'idle'; // 'idle' | 'demo' | 'local' | 'firebase' | 'lan' | 'stun'
+    this.brokersOnline = 0;
     this.rttMs = null;
     this.rxHz = 0;
     this.error = null;
 
     this.db = null;
     this.fbMod = null;
+    this.autoSig = null;
+    this.offlineSession = null;
     this.unsubs = [];
     this.bc = null;
 
@@ -146,8 +155,190 @@ export class WristHostLink {
     this.wakeLock = null;
   }
 
+  startLocalPair(pairCode = '', initialHandSide = this.hostHandSide) {
+    this.stop({ silent: true });
+    const clean = normalizePairCode(pairCode) || ensureHostPairCode();
+    savePairCode(clean);
+    this.mode = 'local';
+    this.roomCode = clean;
+    this.hostHandSide = initialHandSide === 'left' ? 'left' : 'right';
+    this.routeKind = 'idle';
+    this.error = null;
+
+    this.autoSig = createAutoPairSignaling(clean, {
+      game: 'wn',
+      role: 'host',
+      onBrokerChange: (count) => {
+        this.brokersOnline = count;
+        this._emitStatus();
+      },
+      onFallbackMessage: (msg) => {
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.k === 'hello') {
+          this.peerJoined = true;
+          this.connected = true;
+          this.lastSeq = -1;
+          if (msg.sid) this.peerSid = String(msg.sid);
+          if (msg.explicitSide && (msg.side === 'left' || msg.side === 'right')) {
+            this.hostHandSide = msg.side;
+            this.onHandSide(msg.side);
+          }
+          this.autoSig?.sendFallback({ k: 'ack', room: this.roomCode, side: this.hostHandSide, ts: Date.now() });
+          if (!this.isFastHealthy() && !this._isOfferNegotiating()) {
+            this._startRtcOffer(false);
+          }
+          this._emitStatus();
+        } else if (msg.k === 'wrist') {
+          this.connected = true;
+          if (!this.isFastHealthy()) {
+            this.routeKind = 'local';
+            this._handlePacket(msg, false);
+          }
+        } else if (msg.k === 'cal' && msg.step) {
+          const cid = msg.id || `${msg.step}:${msg.ts || 0}`;
+          if (!this.seenCalIds.has(cid)) {
+            this.seenCalIds.add(cid);
+            this.onCalCommand(msg.step);
+          }
+        } else if (msg.k === 'hand_side' && (msg.side === 'left' || msg.side === 'right')) {
+          this.onHandSide(msg.side);
+        }
+      },
+    });
+
+    this.unsubs.push(
+      this.autoSig.onHello(() => {
+        this.peerJoined = true;
+        this.connected = true;
+        this.autoSig?.sendFallback({ k: 'ack', room: this.roomCode, side: this.hostHandSide, ts: Date.now() });
+        if (!this.isFastHealthy() && !this._isOfferNegotiating()) {
+          this._startRtcOffer(false);
+        }
+        this._emitStatus();
+      }),
+      this.autoSig.onAnswer(async (ans) => {
+        if (!ans || ans.hid !== this.hid || !this.pc) return;
+        if (this.pc.signalingState !== 'have-local-offer') return;
+        const currentHid = this.hid;
+        try {
+          await this.pc.setRemoteDescription({ type: 'answer', sdp: ans.sdp });
+          const queued = this.pendingCandidates.filter((c) => c.hid === currentHid);
+          this.pendingCandidates = [];
+          for (const item of queued) {
+            if (this.hid !== currentHid || !this.pc) break;
+            try { await this.pc.addIceCandidate(item.candidate); } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }),
+      this.autoSig.onJoyCandidate(async (item) => {
+        if (!item || !item.candidate || !item.hid) return;
+        if (item.hid !== this.hid || !this.pc || !this.pc.remoteDescription) {
+          this.pendingCandidates.push(item);
+          if (this.pendingCandidates.length > 48) this.pendingCandidates.shift();
+          return;
+        }
+        try { await this.pc.addIceCandidate(item.candidate); } catch { /* ignore */ }
+      }),
+    );
+
+    this.acquireWakeLock();
+    this._startMeters();
+    this._startRtcOffer(false);
+    this._emitStatus();
+    return { ok: true, roomCode: this.roomCode, mode: 'local' };
+  }
+
+  async createOfflineOffer(controllerUrl = './wrist/index.html') {
+    if (!this.roomCode || this.mode === 'off') {
+      this.startLocalPair('', this.hostHandSide);
+    }
+    this._closeOfflineSession();
+    const offerSession = await createOfflineHostOffer({
+      fastLabel: 'wrist-fast',
+      ctrlLabel: 'wrist-ctrl',
+      game: 'wn',
+      pairCode: this.roomCode,
+    });
+    this.offlineSession = offerSession;
+    const { pc, fast, ctrl } = offerSession;
+
+    const onOpen = () => {
+      if (this.offlineSession !== offerSession) return;
+      this.dcFast = fast;
+      this.dcCtrl = ctrl;
+      this.pc = pc;
+      this.p2pOpen = true;
+      this.connected = true;
+      this.routeKind = 'lan';
+      this.preferLanOnly = true;
+      this.lastSeq = -1;
+      const now = performance.now();
+      this.dcOpenedAt = now;
+      this.lastPongAt = now;
+      this._sendCtrl({ k: 'hand_side', room: this.roomCode, side: this.hostHandSide, ts: Date.now() });
+      this._emitStatus();
+    };
+
+    fast.onopen = onOpen;
+    ctrl.onopen = onOpen;
+    fast.onmessage = (ev) => {
+      if (this.offlineSession !== offerSession) return;
+      this._onChannelMessage(ev.data, true);
+    };
+    ctrl.onmessage = (ev) => {
+      if (this.offlineSession !== offerSession) return;
+      this._onChannelMessage(ev.data, false);
+    };
+    pc.onconnectionstatechange = () => {
+      if (this.offlineSession !== offerSession) return;
+      const st = pc.connectionState;
+      if (st === 'failed' || st === 'closed') {
+        this.p2pOpen = false;
+        this._emitStatus();
+      } else if (st === 'connected' && fast.readyState === 'open') {
+        onOpen();
+      }
+    };
+
+    const qrUrl = buildControllerQrUrl({
+      controllerUrl,
+      pairCode: this.roomCode,
+      offlineToken: offerSession.token,
+      extraParams: this.hostHandSide === 'left' ? { hand: 'left' } : {},
+    });
+    this._emitStatus();
+    return {
+      roomCode: this.roomCode,
+      token: offerSession.token,
+      qrUrl,
+      candidatesCount: offerSession.candidatesCount,
+    };
+  }
+
+  async applyOfflineAnswer(answerToken) {
+    if (!this.offlineSession) {
+      throw new Error('Сначала откройте шаг 1 (Офлайн QR)');
+    }
+    return this.offlineSession.applyAnswer(answerToken);
+  }
+
+  _closeOfflineSession() {
+    if (!this.offlineSession) return;
+    const s = this.offlineSession;
+    this.offlineSession = null;
+    if (this.pc === s.pc) {
+      this.pc = null;
+      this.dcFast = null;
+      this.dcCtrl = null;
+      this.p2pOpen = false;
+    }
+    try { s.fast?.close(); } catch { /* ignore */ }
+    try { s.ctrl?.close(); } catch { /* ignore */ }
+    try { s.pc?.close(); } catch { /* ignore */ }
+  }
+
   startDemo(roomCode = this.roomCode || makeCode(), initialHandSide = this.hostHandSide) {
-    this.stop();
+    this.stop({ silent: true });
     this.mode = 'demo';
     this.roomCode = String(roomCode);
     this.hostHandSide = initialHandSide === 'left' ? 'left' : 'right';
@@ -197,7 +388,7 @@ export class WristHostLink {
       return { ok: false, error: this.error };
     }
     saveFirebaseRaw(rawConfig);
-    this.stop();
+    this.stop({ silent: true });
     this.mode = 'firebase';
     this.roomCode = makeCode();
     this.hostHandSide = initialHandSide === 'left' ? 'left' : 'right';
@@ -227,7 +418,6 @@ export class WristHostLink {
         onDisconnect(ref(this.db, `${roomPath}/hostAlive`)).remove();
       } catch { /* ignore */ }
 
-      // Подписка на присутствие браслета
       this.unsubs.push(
         onValue(ref(this.db, `${roomPath}/wristJoined`), (snap) => {
           const val = snap.val();
@@ -242,7 +432,6 @@ export class WristHostLink {
         })
       );
 
-      // Подписка на резервный поток датчиков через Firebase (работает пока P2P ещё поднимается)
       this.unsubs.push(
         onValue(ref(this.db, `${roomPath}/fbInput`), (snap) => {
           const pkt = snap.val();
@@ -255,7 +444,6 @@ export class WristHostLink {
         })
       );
 
-      // Команды калибровки с экрана браслета (без зависимости от сверки часов двух телефонов!)
       let initialCalSnap = true;
       this.unsubs.push(
         onValue(ref(this.db, `${roomPath}/calCmd`), (snap) => {
@@ -273,7 +461,6 @@ export class WristHostLink {
         })
       );
 
-      // Выбор руки (левая / правая) с экрана браслета
       this.unsubs.push(
         onValue(ref(this.db, `${roomPath}/handSide`), (snap) => {
           const hs = snap.val();
@@ -283,7 +470,6 @@ export class WristHostLink {
         })
       );
 
-      // Сигналинг WebRTC от браслета: hello / answer / кандидаты
       this.unsubs.push(
         onValue(ref(this.db, `${roomPath}/rtc/hello`), (snap) => {
           const hello = snap.val();
@@ -319,7 +505,6 @@ export class WristHostLink {
           const item = snap.val();
           if (!item || !item.candidate || !item.hid) return;
           if (item.hid !== this.hid || !this.pc || !this.pc.remoteDescription) {
-            // Буферизуем ранние LAN-кандидаты браслета до завершения setRemoteDescription(answer)!
             this.pendingCandidates.push(item);
             if (this.pendingCandidates.length > 48) this.pendingCandidates.shift();
             return;
@@ -348,7 +533,6 @@ export class WristHostLink {
     const rxAge = this.lastFastRxAt > 0 ? Math.max(0, now - this.lastFastRxAt) : Infinity;
     const freshest = Math.min(pongAge, rxAge);
     if (Number.isFinite(freshest)) return freshest < 8500;
-    // Короткое стартовое окно (3.5 с) сразу после onopen, пока летит первый пакет/pong
     return this.dcOpenedAt > 0 && Math.max(0, now - this.dcOpenedAt) < 3500;
   }
 
@@ -361,7 +545,9 @@ export class WristHostLink {
   }
 
   async _startRtcOffer(forceStun = false) {
-    if (typeof RTCPeerConnection === 'undefined' || !this.db || !this.fbMod) return;
+    if (typeof RTCPeerConnection === 'undefined') return;
+    if (this.mode !== 'local' && !(this.mode === 'firebase' && this.db && this.fbMod)) return;
+    if (this.offlineSession && this.isFastHealthy()) return;
     if (this.offerInFlight) return;
     this.offerInFlight = true;
     try {
@@ -373,18 +559,22 @@ export class WristHostLink {
 
       const useLanOnly = this.preferLanOnly || (!forceStun && this.attempt % 2 === 1);
       const iceServers = useLanOnly ? [] : GOOGLE_STUN_SERVERS;
-      const { ref, set, push, remove } = this.fbMod;
-      const rtcBase = `wn_wrist_rooms/${this.roomCode}/rtc`;
 
-      try {
-        await Promise.all([
-          remove(ref(this.db, `${rtcBase}/answer`)),
-          remove(ref(this.db, `${rtcBase}/hostCandidates`)),
-          remove(ref(this.db, `${rtcBase}/wristCandidates`)),
-        ]);
-      } catch { /* ignore */ }
+      if (this.mode === 'local' && this.autoSig) {
+        await this.autoSig.resetForOffer(currentHid);
+      } else if (this.mode === 'firebase' && this.db && this.fbMod) {
+        const { ref, remove } = this.fbMod;
+        const rtcBase = `wn_wrist_rooms/${this.roomCode}/rtc`;
+        try {
+          await Promise.all([
+            remove(ref(this.db, `${rtcBase}/answer`)),
+            remove(ref(this.db, `${rtcBase}/hostCandidates`)),
+            remove(ref(this.db, `${rtcBase}/wristCandidates`)),
+          ]);
+        } catch { /* ignore */ }
+      }
 
-      if (this.mode !== 'firebase' || this.hid !== currentHid) return;
+      if ((this.mode !== 'local' && this.mode !== 'firebase') || this.hid !== currentHid) return;
 
       const pc = new RTCPeerConnection({ iceServers });
       this.pc = pc;
@@ -400,6 +590,7 @@ export class WristHostLink {
         this.connected = true;
         this.lastSeq = -1;
         this.dcOpenedAt = performance.now();
+        this._sendCtrl({ k: 'hand_side', room: this.roomCode, side: this.hostHandSide, ts: Date.now() });
         this._inspectRoute(useLanOnly);
         this._emitStatus();
       };
@@ -412,10 +603,16 @@ export class WristHostLink {
 
       pc.onicecandidate = (ev) => {
         if (!ev.candidate || this.hid !== currentHid) return;
-        push(ref(this.db, `${rtcBase}/hostCandidates`), {
-          hid: currentHid,
-          candidate: ev.candidate.toJSON ? ev.candidate.toJSON() : ev.candidate,
-        }).catch(() => {});
+        const candJson = ev.candidate.toJSON ? ev.candidate.toJSON() : ev.candidate;
+        if (this.mode === 'local' && this.autoSig) {
+          this.autoSig.pushHostCandidate({ hid: currentHid, candidate: candJson }).catch(() => {});
+        } else if (this.mode === 'firebase' && this.db && this.fbMod) {
+          const { ref, push } = this.fbMod;
+          push(ref(this.db, `wn_wrist_rooms/${this.roomCode}/rtc/hostCandidates`), {
+            hid: currentHid,
+            candidate: candJson,
+          }).catch(() => {});
+        }
       };
 
       pc.onconnectionstatechange = () => {
@@ -426,10 +623,9 @@ export class WristHostLink {
           this._inspectRoute(useLanOnly);
           this._emitStatus();
         } else if (st === 'failed' || st === 'closed') {
-          // При 'disconnected' канал НЕ рвём — даём радиомодулю Wi-Fi 8.5 с восстановиться!
           this.p2pOpen = false;
           this.offerStartedAt = 0;
-          this.routeKind = this.connected ? 'firebase' : 'idle';
+          this.routeKind = this.connected ? (this.mode === 'local' ? 'local' : 'firebase') : 'idle';
           this._emitStatus();
         }
       };
@@ -437,12 +633,18 @@ export class WristHostLink {
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        await set(ref(this.db, `${rtcBase}/offer`), {
+        const offerPayload = {
           hid: currentHid,
           sdp: offer.sdp,
           iceMode: useLanOnly ? 'lan' : 'stun',
           ts: Date.now(),
-        });
+        };
+        if (this.mode === 'local' && this.autoSig) {
+          await this.autoSig.writeOffer(offerPayload);
+        } else if (this.mode === 'firebase' && this.db && this.fbMod) {
+          const { ref, set } = this.fbMod;
+          await set(ref(this.db, `wn_wrist_rooms/${this.roomCode}/rtc/offer`), offerPayload);
+        }
       } catch { /* watchdog повторит */ }
     } finally {
       this.offerInFlight = false;
@@ -542,7 +744,9 @@ export class WristHostLink {
       this.bc.postMessage(payload);
     }
     this._sendCtrl(payload);
-    if (this.mode === 'firebase' && this.db && this.fbMod && this.roomCode) {
+    if (this.mode === 'local' && this.autoSig) {
+      this.autoSig.sendFallback(payload);
+    } else if (this.mode === 'firebase' && this.db && this.fbMod && this.roomCode) {
       const { ref, set } = this.fbMod;
       set(ref(this.db, `wn_wrist_rooms/${this.roomCode}/hostHandSide`), payload).catch(() => {});
     }
@@ -551,8 +755,6 @@ export class WristHostLink {
   _handlePacket(pkt, fromFast) {
     const now = performance.now();
     if (pkt.sid && pkt.sid !== this.peerSid) {
-      // Перезагрузка или переподключение страницы браслета начинает seq с 1 заново:
-      // мгновенно сбрасываем счётчик без единого потерянного пакета!
       this.peerSid = String(pkt.sid);
       this.lastSeq = -1;
     }
@@ -573,9 +775,6 @@ export class WristHostLink {
     });
   }
 
-  /**
-   * Синтетический инжектор пакетов для детерминированных тестов без сети.
-   */
   injectPacket(pkt, now = performance.now()) {
     this.connected = true;
     this.p2pOpen = true;
@@ -606,7 +805,8 @@ export class WristHostLink {
     }, 1000);
 
     this.watchdogTimer = setInterval(() => {
-      if (this.mode !== 'firebase' || !this.peerJoined) return;
+      if ((this.mode !== 'firebase' && this.mode !== 'local') || !this.peerJoined) return;
+      if (this.offlineSession) return;
       if (!this.isFastHealthy() && !this._isOfferNegotiating()) {
         this.p2pOpen = false;
         this._startRtcOffer(false);
@@ -615,6 +815,7 @@ export class WristHostLink {
   }
 
   _closePcOnly() {
+    if (this.offlineSession && this.pc === this.offlineSession.pc) return;
     try { this.dcFast?.close(); } catch { /* ignore */ }
     try { this.dcCtrl?.close(); } catch { /* ignore */ }
     try { this.pc?.close(); } catch { /* ignore */ }
@@ -630,15 +831,20 @@ export class WristHostLink {
     this.p2pOpen = false;
   }
 
-  stop() {
+  stop({ silent = false } = {}) {
     clearInterval(this.pingTimer);
     clearInterval(this.watchdogTimer);
     this.pingTimer = null;
     this.watchdogTimer = null;
+    this._closeOfflineSession();
     for (const u of this.unsubs) {
       try { u(); } catch { /* ignore */ }
     }
     this.unsubs = [];
+    if (this.autoSig) {
+      this.autoSig.dispose();
+      this.autoSig = null;
+    }
     this._closePcOnly();
     if (this.bc) {
       try { this.bc.close(); } catch { /* ignore */ }
@@ -646,12 +852,13 @@ export class WristHostLink {
     }
     this.releaseWakeLock();
     this.mode = 'off';
+    this.brokersOnline = 0;
     this.connected = false;
     this.peerJoined = false;
     this.routeKind = 'idle';
     this.rxHz = 0;
     this.rttMs = null;
-    this._emitStatus();
+    if (!silent) this._emitStatus();
   }
 
   status() {
@@ -661,6 +868,8 @@ export class WristHostLink {
       connected: this.connected,
       p2pOpen: this.isFastHealthy(),
       routeKind: this.routeKind,
+      brokersOnline: this.brokersOnline,
+      offlineReady: Boolean(this.offlineSession),
       rttMs: this.rttMs,
       rxHz: this.rxHz,
       error: this.error,

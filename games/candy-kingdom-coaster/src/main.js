@@ -25,6 +25,14 @@ import { HUD, fillRecordsPanel } from './hud.js';
 import { QualityGovernor } from './quality.js';
 import { VRController, normalizeVrSettings } from './vr.js';
 import { RemoteControl, parseFirebaseConfig } from './remote.js';
+import {
+  formatPairCode,
+  rotateHostPairCode,
+  buildControllerQrUrl,
+  renderQrSvg,
+  QrCameraScanner,
+  parseScannedPayload,
+} from './local-pair.js';
 import { CamTracker, CAM_COLORS } from './camtrack.js';
 import { GyroLook } from './gyro.js';
 import { FusionLook } from './fusionlook.js';
@@ -234,6 +242,15 @@ const el = {
   vrDriverGesture: document.getElementById('vr-driver-gesture'),
   vrDriverRemote: document.getElementById('vr-driver-remote'),
   vrRemotePanel: document.getElementById('vr-remote-panel'),
+  vrPairQr: document.getElementById('vr-pair-qr'),
+  vrPairRotate: document.getElementById('vr-pair-rotate'),
+  vrOfflineToggle: document.getElementById('vr-offline-toggle'),
+  vrOfflineBox: document.getElementById('vr-offline-box'),
+  vrOfflineVideo: document.getElementById('vr-offline-video'),
+  vrOfflineFlip: document.getElementById('vr-offline-flip'),
+  vrOfflinePaste: document.getElementById('vr-offline-paste'),
+  vrOfflineCopy: document.getElementById('vr-offline-copy'),
+  vrOfflineStatus: document.getElementById('vr-offline-status'),
   vrCfg: document.getElementById('vr-cfg'),
   vrCfgConnect: document.getElementById('vr-cfg-connect'),
   vrRoomDemo: document.getElementById('vr-room-demo'),
@@ -900,7 +917,21 @@ function updateCameraLook(now, force = false) {
   vr.setSimLook(camSmooth.yaw, camSmooth.pitch);
 }
 
+let offlineQrScanner = null;
+let offlineOfferInfo = null;
+let lastRenderedQrValue = '';
+
+function stopOfflineQrFlow() {
+  if (offlineQrScanner) {
+    offlineQrScanner.stop();
+    offlineQrScanner = null;
+  }
+  offlineOfferInfo = null;
+  if (el.vrOfflineBox) el.vrOfflineBox.classList.add('hidden');
+}
+
 function closeRemote() {
+  stopOfflineQrFlow();
   stopCamTracker();
   if (remoteCtrl) { remoteCtrl.close(); remoteCtrl = null; }
 }
@@ -1014,39 +1045,113 @@ function exitVrToMenu() {
 }
 
 // --- экран подготовки: режим взгляда, ползунок камер, обратный отсчёт
+function renderRemotePairQr(value) {
+  if (!el.vrPairQr || !value || value === lastRenderedQrValue) return;
+  try {
+    el.vrPairQr.innerHTML = renderQrSvg(value, { border: 2 });
+    lastRenderedQrValue = value;
+  } catch { /* ignore */ }
+}
+
 function updateRemoteUi() {
   const info = remoteCtrl ? remoteCtrl.info() : null;
   if (!info || !info.room) {
-    el.vrRoomCode.classList.add('hidden');
+    el.vrRoomCode.textContent = '------';
+    el.vrRoomStatus.classList.remove('is-ok');
     el.vrRoomStatus.textContent = 'Джойстик не подключён — до его появления ведёт автопилот';
     return;
   }
-  el.vrRoomCode.textContent = info.room;
+  el.vrRoomCode.textContent = formatPairCode(info.room);
   el.vrRoomCode.classList.remove('hidden');
+
+  if (offlineOfferInfo && offlineOfferInfo.room === info.room) {
+    renderRemotePairQr(offlineOfferInfo.qrUrl);
+  } else {
+    renderRemotePairQr(buildControllerQrUrl({
+      controllerUrl: './joystick/index.html',
+      pairCode: info.room,
+    }));
+  }
+
+  if (info.rtcOpen && offlineQrScanner) {
+    stopOfflineQrFlow();
+  }
+
   const linkBadge = info.rtcOpen
-    ? '⚡ WebRTC 60 Гц'
-    : (info.kind === 'firebase' ? '☁️ Firebase' : 'Демо');
+    ? '⚡ прямой Wi-Fi WebRTC 60 Гц'
+    : info.kind === 'local'
+      ? (info.brokersOnline > 0 ? '◈ авто-пара готова' : '◈ ждём точку доступа / QR')
+      : (info.kind === 'firebase' ? '☁ Firebase' : 'Демо');
+  el.vrRoomStatus.classList.toggle('is-ok', Boolean(info.connected));
   el.vrRoomStatus.textContent = info.connected
-    ? `🕹 Джойстик на связи (${linkBadge}${info.lastLagMs !== null ? ` · ≈ ${info.lastLagMs} мс` : ''}) — он ведёт машинку`
-    : `Код комнаты ${info.room} — ждём джойстик на втором телефоне…`;
+    ? `✓ Джойстик на связи (${linkBadge}${info.lastLagMs !== null ? ` · ≈ ${info.lastLagMs} мс` : ''}) — он ведёт машинку`
+    : `Ваша пара ${formatPairCode(info.room)} (${linkBadge}) — откройте «Мой пульт» или сканируйте QR на втором телефоне`;
 }
-async function setupRemote(kind) {
+
+async function setupRemote(kind = 'local', forcedCode = '') {
   try {
+    stopOfflineQrFlow();
     const rc = ensureRemote();
-    if (kind === 'demo') rc.useDemo();
+    if (kind === 'local') rc.useLocalPair(forcedCode);
+    else if (kind === 'demo') rc.useDemo();
     else {
       const cfg = parseFirebaseConfig(el.vrCfg.value);
       await rc.connectFirebase(cfg);
       try { localStorage.setItem('ckc_stand_cfg', el.vrCfg.value); } catch { /* ignore */ }
     }
-    const code = await rc.createRoom();
+    const code = await rc.createRoom(forcedCode);
+    lastRenderedQrValue = '';
     ensureScreenWakeLock();
     publishRemoteState(); // джойстик видит экран сразу, ещё до старта поездки
-    el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
+    if (kind !== 'local' && el.vrCfgStatus) {
+      el.vrCfgStatus.textContent = `Комната создана: ${code}. Введите код на телефоне-джойстике.`;
+    }
   } catch (e) {
-    el.vrCfgStatus.textContent = 'Ошибка комнаты: ' + (e && e.message ? e.message : e);
+    if (el.vrCfgStatus) {
+      el.vrCfgStatus.textContent = 'Ошибка комнаты: ' + (e && e.message ? e.message : e);
+    }
   }
   updateRemoteUi();
+}
+
+async function startOfflineQrFlow() {
+  if (offlineOfferInfo) {
+    stopOfflineQrFlow();
+    lastRenderedQrValue = '';
+    updateRemoteUi();
+    return;
+  }
+  try {
+    if (!remoteCtrl || !remoteCtrl.room) {
+      await setupRemote('local');
+    }
+    el.vrOfflineBox.classList.remove('hidden');
+    el.vrOfflineStatus.textContent = 'Собираем локальные адреса Wi-Fi точки доступа…';
+    offlineOfferInfo = await ensureRemote().createOfflineOffer('./joystick/index.html');
+    lastRenderedQrValue = '';
+    updateRemoteUi();
+    el.vrOfflineStatus.textContent = 'Шаг 1 готов (QR обновлён). Сканируйте его джойстиком и покажите ответный QR камере ниже.';
+    offlineQrScanner = new QrCameraScanner({
+      videoEl: el.vrOfflineVideo,
+      facingMode: 'environment',
+      onResult: async (raw) => {
+        const parsed = parseScannedPayload(raw);
+        if (parsed.kind !== 'offline-answer') return;
+        try {
+          el.vrOfflineStatus.textContent = 'Ответ получен! Открываем прямой канал 60 Гц…';
+          await ensureRemote().applyOfflineAnswer(parsed.token);
+          stopOfflineQrFlow();
+          publishRemoteState();
+          updateRemoteUi();
+        } catch (err) {
+          el.vrOfflineStatus.textContent = 'Ошибка ответа: ' + (err?.message || err);
+        }
+      },
+    });
+    await offlineQrScanner.start();
+  } catch (err) {
+    el.vrOfflineStatus.textContent = 'Камера недоступна (' + (err?.message || err) + ') — используйте кнопки «Код шага 1» и «Вставить ответ».';
+  }
 }
 
 function updateCamPrepUi() {
@@ -1157,10 +1262,14 @@ function saveVrUi() {
 }
 function openVrPrep() {
   syncVrUi();
+  if (vrSettings.driverMode === 'remote' && (!remoteCtrl || !remoteCtrl.room)) {
+    setupRemote('local');
+  }
   el.vrScreen.classList.remove('hidden');
 }
 function hideVrPrep() {
   stopVrCountdown();
+  stopOfflineQrFlow();
   el.vrScreen.classList.add('hidden');
 }
 let vrCountTimer = null;
@@ -1177,11 +1286,56 @@ function selectDriverMode(mode) {
   if (vrSettings.driverMode === 'gesture') vrSettings.gestureZoom = true;
   if (vrSettings.driverMode !== 'remote' && remoteCtrl) closeRemote();
   saveVrUi();
+  if (vrSettings.driverMode === 'remote' && (!remoteCtrl || !remoteCtrl.room)) {
+    setupRemote('local');
+  }
   SFX.play('click');
 }
 el.vrDriverAuto.addEventListener('click', () => selectDriverMode('auto'));
 el.vrDriverGesture.addEventListener('click', () => selectDriverMode('gesture'));
 el.vrDriverRemote.addEventListener('click', () => selectDriverMode('remote'));
+el.vrPairRotate?.addEventListener('click', () => {
+  SFX.play('click');
+  const next = rotateHostPairCode();
+  setupRemote('local', next);
+});
+el.vrOfflineToggle?.addEventListener('click', () => {
+  SFX.play('click');
+  startOfflineQrFlow();
+});
+el.vrOfflineFlip?.addEventListener('click', () => {
+  SFX.play('click');
+  if (offlineQrScanner) offlineQrScanner.flipCamera().catch(() => {});
+});
+el.vrOfflineCopy?.addEventListener('click', async () => {
+  SFX.play('click');
+  if (!offlineOfferInfo?.token) return;
+  try {
+    await navigator.clipboard.writeText(offlineOfferInfo.token);
+    el.vrOfflineStatus.textContent = 'Код шага 1 скопирован — отправьте его на второй телефон.';
+  } catch {
+    window.prompt('Скопируйте офлайн-код шага 1:', offlineOfferInfo.token);
+  }
+});
+el.vrOfflinePaste?.addEventListener('click', async () => {
+  SFX.play('click');
+  let raw = '';
+  try { raw = await navigator.clipboard.readText(); } catch { /* ignore */ }
+  if (!raw) raw = window.prompt('Вставьте ответный код с телефона-джойстика:') || '';
+  const parsed = parseScannedPayload(raw);
+  if (parsed.kind !== 'offline-answer') {
+    if (raw) el.vrOfflineStatus.textContent = 'Это не ответный код шага 2 (нужен AG1-ответ с джойстика).';
+    return;
+  }
+  try {
+    await ensureRemote().applyOfflineAnswer(parsed.token);
+    stopOfflineQrFlow();
+    publishRemoteState();
+    updateRemoteUi();
+  } catch (err) {
+    el.vrOfflineStatus.textContent = 'Ошибка ответа: ' + (err?.message || err);
+  }
+});
 el.vrCfgConnect.addEventListener('click', () => { SFX.play('click'); setupRemote('firebase'); });
 el.vrRoomDemo.addEventListener('click', () => { SFX.play('click'); setupRemote('demo'); });
 try {
@@ -2152,10 +2306,32 @@ window.__TEST__ = {
   async remoteDemo() {
     vrSettings.driverMode = 'remote';
     const rc = ensureRemote();
-    if (!rc.kind) rc.useDemo();
+    rc.useDemo();
     const code = await rc.createRoom();
     publishRemoteState();
     return { code, info: rc.info() };
+  },
+  async remoteLocal(pairCode = '') {
+    vrSettings.driverMode = 'remote';
+    const rc = ensureRemote();
+    rc.useLocalPair(pairCode);
+    const code = await rc.createRoom(pairCode);
+    publishRemoteState();
+    updateRemoteUi();
+    return { code, info: rc.info() };
+  },
+  async remoteOfflineOffer() {
+    vrSettings.driverMode = 'remote';
+    const rc = ensureRemote();
+    const offer = await rc.createOfflineOffer('./joystick/index.html');
+    publishRemoteState();
+    return offer;
+  },
+  async remoteOfflineAnswer(token) {
+    const rc = ensureRemote();
+    await rc.applyOfflineAnswer(token);
+    publishRemoteState();
+    return rc.info();
   },
   remoteState() { publishRemoteState(); return lastRemoteState; },
   gestureEnableSynthetic(on = true) {

@@ -8,6 +8,14 @@ import { HeadShakeDetector } from './vr/headGestures.js';
 import { WristBeaconTracker } from './vr/wristBeaconTracker.js';
 import { WristHandFusion } from './vr/wristHandFusion.js';
 import { WristHostLink, loadSavedFirebaseRaw } from './vr/wristLink.js';
+import {
+  formatPairCode,
+  rotateHostPairCode,
+  buildControllerQrUrl,
+  renderQrSvg,
+  QrCameraScanner,
+  parseScannedPayload,
+} from './vr/localPair.js';
 const THREE_clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const $=selector=>document.querySelector(selector);
 const $$=selector=>[...document.querySelectorAll(selector)];
@@ -16,7 +24,9 @@ let storage;try{storage=window.localStorage;}catch{storage={getItem(){return nul
 let state=loadSave(storage),world,filter='all',drag=null,toastTimer,feedbackTimer,lastRevealPhase=null,lastTime=0,raf=0,paused=document.hidden,forcedItem=null;
 const VR_SETTINGS_KEY='white-night-vr-v1',VR_FOCUS_SECONDS=10;
 function loadVrSettings(){try{const raw=storage.getItem(VR_SETTINGS_KEY),p=raw?JSON.parse(raw):{};return {mode:p.mode==='fusion'?'fusion':p.mode==='hand'?'hand':'gyro',handSide:p.handSide==='left'?'left':'right',quality:p.quality==='low'?'low':'high',leftHue:Number.isFinite(p.leftHue)?((p.leftHue%360)+360)%360:16,rightHue:Number.isFinite(p.rightHue)?((p.rightHue%360)+360)%360:338};}catch{return {mode:'gyro',handSide:'right',quality:'high',leftHue:16,rightHue:338};}}
-let contextLost=false,vrSettings=loadVrSettings(),vrLook=null,vrBeaconTracker=null,wristFusion=null,wristLink=null,wristCalNote='',wristFbPrefilled=false,vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrPrepNote='',vrHoldTimer=0;
+let contextLost=false,vrSettings=loadVrSettings(),vrLook=null,vrBeaconTracker=null,wristFusion=null,wristLink=null,wristCalNote='',wristFbPrefilled=false,wnOfflineScanner=null,wnOfflineOffer=null,wnLastQrValue='',vrActive=false,vrStereo=false,vrStarting=false,vrCountingDown=false,vrCountdownToken=0,vrFocus=0,vrGazeHit=false,vrPendingSave=false,pendingCompletion=false,vrPickSide=null,vrRestoreLow=false,vrAppliedLow=false,vrPrepNote='',vrHoldTimer=0;
+function stopWnOfflineFlow(){if(wnOfflineScanner){wnOfflineScanner.stop();wnOfflineScanner=null;}wnOfflineOffer=null;const box=$('#vr-hand-offline-box');if(box)box.hidden=true;}
+function renderWnQr(val){const box=$('#vr-hand-qr');if(!box||!val||val===wnLastQrValue)return;try{box.innerHTML=renderQrSvg(val,{border:2});wnLastQrValue=val;}catch{}}
 const headShake=new HeadShakeDetector();
 function persistVrSettings(){try{storage.setItem(VR_SETTINGS_KEY,JSON.stringify(vrSettings));}catch{}}
 const testing=new URLSearchParams(location.search).has('test');
@@ -185,13 +195,19 @@ function syncVrPrep(){
  }else if(vrSettings.mode==='hand'){
   ensureWrist();
   $$('[data-hand-side]').forEach(b=>{const active=b.dataset.handSide===vrSettings.handSide;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
-  if(!wristFbPrefilled){wristFbPrefilled=true;const saved=loadSavedFirebaseRaw();const fbEl=$('#vr-hand-fb');if(fbEl&&saved)fbEl.value=saved;else if($('#vr-hand-fb-details'))$('#vr-hand-fb-details').open=true;}
+  if(!wristFbPrefilled){wristFbPrefilled=true;const saved=loadSavedFirebaseRaw();const fbEl=$('#vr-hand-fb');if(fbEl&&saved)fbEl.value=saved;}
+  if(wristLink.mode==='off'&&!wristFusion.lastSensor){wristLink.startLocalPair('',vrSettings.handSide);}
   const st=wristLink.status(),hasSignal=st.connected||!!wristFusion.lastSensor;
-  $('#vr-hand-code').textContent=st.roomCode||'——';
+  $('#vr-hand-code').textContent=st.roomCode?formatPairCode(st.roomCode):'——';
+  if(st.roomCode){
+   if(wnOfflineOffer&&wnOfflineOffer.roomCode===st.roomCode)renderWnQr(wnOfflineOffer.qrUrl);
+   else renderWnQr(buildControllerQrUrl({controllerUrl:'./wrist/index.html',pairCode:st.roomCode,extraParams:vrSettings.handSide==='left'?{hand:'left'}:{}}));
+  }
+  if(st.p2pOpen&&wnOfflineScanner)stopWnOfflineFlow();
   const wristLinkEl=$('#vr-wrist-link');
-  if(wristLinkEl){const q=new URLSearchParams();if(st.roomCode)q.set('room',st.roomCode);if(vrSettings.handSide==='left')q.set('hand','left');if(st.mode==='demo')q.set('demo','1');const qs=q.toString();wristLinkEl.href=qs?`./wrist/index.html?${qs}`:'./wrist/index.html';}
+  if(wristLinkEl){const q=new URLSearchParams();if(st.mode==='local'&&st.roomCode)q.set('pair',st.roomCode);else if(st.roomCode)q.set('room',st.roomCode);if(vrSettings.handSide==='left')q.set('hand','left');if(st.mode==='demo')q.set('demo','1');const qs=q.toString();wristLinkEl.href=qs?`./wrist/index.html?${qs}`:'./wrist/index.html';}
   const netEl=$('#vr-hand-net-status');
-  netEl.textContent=st.error?st.error:st.p2pOpen?(st.routeKind==='demo'?`Демо-канал активен (${st.rxHz||60} Гц).`:`⚡ Прямой Wi-Fi 60 Гц подключён${st.rttMs?` · ${st.rttMs} мс`:''}.`):st.connected?'☁️ Браслет на связи через облако (поднимаю прямой канал 60 Гц…).':st.roomCode?`Код комнаты ${st.roomCode} создан — введите его на странице браслета.`:'Создайте 6-значный код и введите его на втором телефоне.';
+  netEl.textContent=st.error?st.error:st.p2pOpen?(st.routeKind==='demo'?`Демо-канал активен (${st.rxHz||60} Гц).`:`⚡ Прямой Wi-Fi 60 Гц подключён${st.rttMs?` · ${st.rttMs} мс`:''}.`):st.connected?'Браслет найден — поднимаю прямой канал Wi-Fi 60 Гц…':st.mode==='local'?`Пара ${formatPairCode(st.roomCode)} готова${st.brokersOnline>0?' · авто-поиск вкл.':''} — сканируйте QR на втором телефоне или откройте «Мой пульт».`:st.roomCode?`Код комнаты ${st.roomCode} создан — введите его на странице браслета.`:'Откройте браслет на втором телефоне.';
   netEl.className=`vr-status-line ${st.error?'warn':hasSignal?'good':''}`;
   const bInfo=vrBeaconTracker?.info();
   $('#vr-hand-cam-btn').textContent=bInfo?.running?'Камера маяка вкл.':'Камера маяка (опц.)';
@@ -230,6 +246,7 @@ function syncVrStereoMode(force=false){
 }
 async function startVrSession(){
  if(vrActive||state.phase==='inspect')return false;
+ stopWnOfflineFlow();
  const look=ensureVrLook(),isHand=vrSettings.mode==='hand',dialog=$('#vr-dialog');
  look.setMode(vrSettings.mode==='fusion'?'fusion':'gyro');
  if(dialog.open){vrStarting=true;dialog.close();vrStarting=false;}
@@ -335,16 +352,39 @@ function bind(){
  $$('.vr-pick').forEach(b=>b.addEventListener('click',()=>{const side=b.id==='vr-pick-left'?'left':'right';vrPrepNote='';vrPickSide=vrPickSide===side?null:side;syncVrPrep();}));
  $('#vr-camera').addEventListener('click',e=>{if(!vrPickSide)return;const look=ensureVrLook(),sample=look.tracker.sampleColor(e.clientX,e.clientY,e.currentTarget.getBoundingClientRect());if(!sample||sample.chroma<35)return;if(vrPickSide==='left')vrSettings.leftHue=Math.round(sample.hue);else vrSettings.rightHue=Math.round(sample.hue);look.setHues(vrSettings.leftHue,vrSettings.rightHue);if(look.tracker.calibrated)look.tracker.clearCalibration();persistVrSettings();vrPrepNote='Цвет обновлён. Покажите обе метки и снова зафиксируйте центр.';vrPickSide=null;look.tracker.process(true);syncVrPrep();});
  $('#vr-calibrate').addEventListener('click',()=>{const look=ensureVrLook();look.tracker.process(true);const result=look.tracker.calibrate();vrPrepNote=result.ok?'':result.message;syncVrPrep();});
- $$('[data-hand-side]').forEach(b=>b.addEventListener('click',()=>setVrHandSide(b.dataset.handSide)));
- $('#vr-hand-room-btn').addEventListener('click',async()=>{ensureWrist();wristCalNote='';await wristLink.startFirebase($('#vr-hand-fb')?.value||'',vrSettings.handSide);syncVrPrep();});
- $('#vr-hand-demo-btn').addEventListener('click',()=>{ensureWrist();wristCalNote='';wristLink.startDemo('111111',vrSettings.handSide);syncVrPrep();});
- $('#vr-hand-cam-btn').addEventListener('click',async()=>{const tr=ensureBeaconTracker();if(tr.running)tr.stop();else await tr.start($('#vr-hand-camera'));syncVrPrep();});
+ $$('[data-hand-side]').forEach(b=>b.addEventListener('click',()=>{wnLastQrValue='';setVrHandSide(b.dataset.handSide);}));
+ $('#vr-hand-rotate-btn')?.addEventListener('click',()=>{ensureWrist();stopWnOfflineFlow();wristCalNote='';wnLastQrValue='';wristLink.startLocalPair(rotateHostPairCode(),vrSettings.handSide);syncVrPrep();});
+ $('#vr-hand-offline-btn')?.addEventListener('click',async()=>{
+  ensureWrist();
+  if(wnOfflineOffer){stopWnOfflineFlow();wnLastQrValue='';syncVrPrep();return;}
+  vrBeaconTracker?.stop();
+  const box=$('#vr-hand-offline-box'),stEl=$('#vr-hand-offline-status'),vid=$('#vr-hand-offline-video');
+  if(box)box.hidden=false;
+  if(stEl)stEl.textContent='Собираем локальные адреса точки доступа Wi-Fi…';
+  try{
+   wnOfflineOffer=await wristLink.createOfflineOffer('./wrist/index.html');
+   wnLastQrValue='';syncVrPrep();
+   if(stEl)stEl.textContent='Шаг 1 готов (QR выше обновлён). Сканируйте его на браслете и покажите ответный QR камере ниже.';
+   wnOfflineScanner=new QrCameraScanner({videoEl:vid,facingMode:'environment',onResult:async raw=>{
+    const parsed=parseScannedPayload(raw);
+    if(parsed.kind!=='offline-answer')return;
+    try{await wristLink.applyOfflineAnswer(parsed.token);stopWnOfflineFlow();syncVrPrep();}catch(err){if(stEl)stEl.textContent='Ошибка ответа: '+(err?.message||err);}
+   }});
+   await wnOfflineScanner.start();
+  }catch(err){if(stEl)stEl.textContent='Камера недоступна ('+(err?.message||err)+') — используйте «Код шага 1» и «Вставить ответ».';}
+ });
+ $('#vr-hand-offline-flip')?.addEventListener('click',()=>{wnOfflineScanner?.flipCamera().catch(()=>{});});
+ $('#vr-hand-offline-copy')?.addEventListener('click',async()=>{if(!wnOfflineOffer?.token)return;const stEl=$('#vr-hand-offline-status');try{await navigator.clipboard.writeText(wnOfflineOffer.token);if(stEl)stEl.textContent='Код шага 1 скопирован.';}catch{window.prompt('Скопируйте офлайн-код шага 1:',wnOfflineOffer.token);}});
+ $('#vr-hand-offline-paste')?.addEventListener('click',async()=>{const stEl=$('#vr-hand-offline-status');let raw='';try{raw=await navigator.clipboard.readText();}catch{}if(!raw)raw=window.prompt('Вставьте ответный код с телефона-браслета:')||'';const parsed=parseScannedPayload(raw);if(parsed.kind!=='offline-answer'){if(raw&&stEl)stEl.textContent='Нужен ответный код шага 2 с браслета.';return;}try{await wristLink.applyOfflineAnswer(parsed.token);stopWnOfflineFlow();syncVrPrep();}catch(err){if(stEl)stEl.textContent='Ошибка ответа: '+(err?.message||err);}});
+ $('#vr-hand-room-btn').addEventListener('click',async()=>{ensureWrist();stopWnOfflineFlow();wnLastQrValue='';wristCalNote='';await wristLink.startFirebase($('#vr-hand-fb')?.value||'',vrSettings.handSide);syncVrPrep();});
+ $('#vr-hand-demo-btn').addEventListener('click',()=>{ensureWrist();stopWnOfflineFlow();wnLastQrValue='';wristCalNote='';wristLink.startDemo('111111',vrSettings.handSide);syncVrPrep();});
+ $('#vr-hand-cam-btn').addEventListener('click',async()=>{stopWnOfflineFlow();const tr=ensureBeaconTracker();if(tr.running)tr.stop();else await tr.start($('#vr-hand-camera'));syncVrPrep();});
  $('#vr-hand-cal1').addEventListener('click',()=>runWristCalibrationStep('pose1'));
  $('#vr-hand-cal2').addEventListener('click',()=>runWristCalibrationStep('pose2'));
  $('#vr-start').addEventListener('click',beginVrCountdown);
  $('#vr-quality').value=vrSettings.quality;$('#vr-quality').addEventListener('change',e=>{vrSettings.quality=e.target.value;persistVrSettings();});
  $$('[data-close]').forEach(b=>b.addEventListener('click',()=>document.getElementById(b.dataset.close).close()));
- dialogs.forEach(d=>{d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}});d.addEventListener('close',()=>{drag=null;lastTime=0;if(d.id==='vr-dialog'&&!vrStarting&&!vrActive){vrCountdownToken++;vrCountingDown=false;$('#vr-countdown').hidden=true;vrPickSide=null;vrPrepNote='';vrLook?.stop();vrBeaconTracker?.stop();}});});
+ dialogs.forEach(d=>{d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close();}});d.addEventListener('close',()=>{drag=null;lastTime=0;if(d.id==='vr-dialog'&&!vrStarting&&!vrActive){vrCountdownToken++;vrCountingDown=false;$('#vr-countdown').hidden=true;vrPickSide=null;vrPrepNote='';stopWnOfflineFlow();vrLook?.stop();vrBeaconTracker?.stop();}});});
  $$('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;$$('[data-filter]').forEach(x=>x.classList.toggle('active',x===b));renderCollection();}));
  $('#low-quality').addEventListener('change',e=>{world.setQuality(e.target.checked);world.update(.016);try{storage.setItem('white-night-quality',e.target.checked?'low':'high');}catch{}});
  $('#reset-button').addEventListener('click',()=>{$('#reset-confirm').hidden=false;$('#reset-button').hidden=true;});$('#reset-cancel').addEventListener('click',()=>{$('#reset-confirm').hidden=true;$('#reset-button').hidden=false;});$('#reset-yes').addEventListener('click',reset);
@@ -392,6 +432,9 @@ async function start(){
    marker:(markers,now)=>ensureVrLook().tracker.inject(markers,now),
    calibrate:now=>ensureVrLook().tracker.calibrate(now),
    wristDemo:code=>{ensureWrist();return wristLink.startDemo(code||'111111',vrSettings.handSide);},
+   wristLocal:code=>{ensureWrist();const r=wristLink.startLocalPair(code||'',vrSettings.handSide);syncVrPrep();return r;},
+   wristOfflineOffer:()=>{ensureWrist();return wristLink.createOfflineOffer('./wrist/index.html');},
+   wristOfflineAnswer:token=>{ensureWrist();return wristLink.applyOfflineAnswer(token);},
    wristPacket:(pkt,now=performance.now())=>{ensureWrist();wristLink.injectPacket(pkt,now);return vrInfoSnapshot();},
    wristBeacon:(spots,now=performance.now())=>{ensureWrist();return ensureBeaconTracker().inject(spots,now);},
    wristCalibrateStretch:()=>runWristCalibrationStep('pose1'),

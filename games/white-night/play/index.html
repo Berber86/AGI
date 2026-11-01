@@ -8,8 +8,8 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <title>Белая ночь — Бюро находок</title>
-  <script type="module" crossorigin src="./assets/index-DvFgjb-s.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DgIdZMy3.css">
+  <script type="module" crossorigin src="./assets/index-W5GIYZ4_.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-B1OlRyj-.css">
 </head>
 <body>
   <svg class="svg-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
@@ -86,22 +86,48 @@
       <div class="vr-step">
         <b>2</b>
         <div>
-          <strong>Выберите руку и подключите телефон-браслет (60 Гц)</strong>
-          <p>Укажите, на какое запястье надет браслет <em>экраном наружу</em>, и откройте на нём <a id="vr-wrist-link" href="./wrist/index.html" target="_blank" rel="noopener" class="vr-inline-link">страницу браслета</a>:</p>
+          <strong>Выберите руку и подключите телефон-браслет по Wi-Fi (60 Гц · без API)</strong>
+          <p>Раздайте Wi-Fi со смартфона на браслет, укажите запястье <em>экраном наружу</em> и сканируйте QR на втором телефоне (или откройте <a id="vr-wrist-link" href="./wrist/index.html" target="_blank" rel="noopener" class="vr-inline-link">страницу браслета</a> / «Мой пульт»):</p>
           <div class="vr-mode-tabs vr-hand-side-tabs" role="group" aria-label="На какой руке браслет">
             <button type="button" id="vr-hand-side-left" data-hand-side="left">Левая рука</button>
             <button type="button" id="vr-hand-side-right" data-hand-side="right" class="active">Правая рука</button>
           </div>
-          <details class="vr-fb-details" id="vr-hand-fb-details">
-            <summary>Настройки Firebase (подхватываются автоматически)</summary>
-            <textarea id="vr-hand-fb" rows="2" placeholder="firebaseConfig или URL Realtime Database"></textarea>
-          </details>
-          <div class="vr-hand-connect-row">
-            <button type="button" id="vr-hand-room-btn" class="vr-action">Создать код (Wi-Fi / P2P)</button>
-            <button type="button" id="vr-hand-demo-btn" class="vr-action">Демо (2 вкладки)</button>
-            <span id="vr-hand-code" class="vr-room-badge" aria-live="polite">——</span>
+
+          <div class="vr-hand-wifi-card">
+            <div class="vr-hand-wifi-top">
+              <div id="vr-hand-qr" class="vr-hand-qr" aria-label="QR для быстрого подключения браслета"></div>
+              <div class="vr-hand-wifi-meta">
+                <span class="vr-hand-wifi-eyebrow">Общая пара двух телефонов</span>
+                <span id="vr-hand-code" class="vr-room-badge" aria-live="polite">——</span>
+                <div class="vr-hand-connect-row">
+                  <button type="button" id="vr-hand-rotate-btn" class="vr-action">Новая пара</button>
+                  <button type="button" id="vr-hand-offline-btn" class="vr-action">Без интернета (QR ↔ QR)</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="vr-hand-offline-box" class="vr-hand-offline-box" hidden>
+              <p class="vr-status-line">100% локально без интернета: 1) сканируйте обновлённый QR выше на браслете, 2) покажите ответный QR с браслета камере ниже:</p>
+              <video id="vr-hand-offline-video" class="vr-hand-offline-video" playsinline muted aria-label="Сканер ответного QR браслета"></video>
+              <div class="vr-hand-connect-row">
+                <button type="button" id="vr-hand-offline-flip" class="vr-action">Камера</button>
+                <button type="button" id="vr-hand-offline-paste" class="vr-action">Вставить ответ</button>
+                <button type="button" id="vr-hand-offline-copy" class="vr-action">Код шага 1</button>
+              </div>
+              <p id="vr-hand-offline-status" class="vr-status-line">Готовим локальное приглашение…</p>
+            </div>
           </div>
-          <p id="vr-hand-net-status" class="vr-status-line">Создайте 6-значный код и введите его на втором телефоне.</p>
+
+          <p id="vr-hand-net-status" class="vr-status-line">Подключаем локальную пару Wi-Fi…</p>
+
+          <details class="vr-fb-details" id="vr-hand-fb-details">
+            <summary>Свой Firebase или Демо (резерв)</summary>
+            <textarea id="vr-hand-fb" rows="2" placeholder="firebaseConfig или URL Realtime Database"></textarea>
+            <div class="vr-hand-connect-row">
+              <button type="button" id="vr-hand-room-btn" class="vr-action">Комната через Firebase</button>
+              <button type="button" id="vr-hand-demo-btn" class="vr-action">Демо (2 вкладки)</button>
+            </div>
+          </details>
         </div>
       </div>
       <div class="vr-step">

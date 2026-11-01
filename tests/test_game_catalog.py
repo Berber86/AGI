@@ -40,12 +40,15 @@ class GameCatalogTests(unittest.TestCase):
         sw = (base / 'sw.js').read_text()
         self.assertIn('./wrist/index.html', sw)
         self.assertIn('./wrist/wrist.js', sw)
+        self.assertIn('./wrist/local-pair.js', sw)
         for js_file in (
             ROOT / 'games/white-night/public/wrist/wrist.js',
+            ROOT / 'games/white-night/public/wrist/local-pair.js',
             ROOT / 'games/white-night/src/vr/wristLink.js',
+            ROOT / 'games/white-night/src/vr/localPair.js',
             ROOT / 'games/white-night/src/vr/wristHandFusion.js',
         ):
-            self.assertNotIn('vibrate', js_file.read_text(), str(js_file))
+            self.assertNotIn('vibrate', js_file.read_text().lower(), str(js_file))
 
     def test_published_html_has_local_bundled_assets(self):
         base = ROOT / 'games/white-night/play'
@@ -152,12 +155,15 @@ class GameCatalogTests(unittest.TestCase):
         self.assertIn('stable-thumb', html)
         sw = (ROOT / 'games/candy-kingdom-coaster/sw.js').read_text()
         self.assertIn("'./gesture-stand/index.html'", sw)
-        self.assertIn("ckc-v58", sw)
+        self.assertIn("ckc-v59", sw)
         self.assertIn("ckc-ml-mediapipe-1.1.1", sw)
         self.assertIn("./vendor/mediapipe/vision_bundle.mjs", sw)
         self.assertIn("'./src/gyro.js'", sw)
         self.assertIn("'./src/fusionlook.js'", sw)
         self.assertIn("'./src/tilt-rtc.js'", sw)
+        self.assertIn("'./src/local-pair.js'", sw)
+        self.assertIn("'./vendor/qr/index.js'", sw)
+        self.assertIn("'./vendor/qr/decode.js'", sw)
 
     def test_pelagic_eye_card_links_to_published_game_and_cover(self):
         tags = Tags((ROOT / 'index.html').read_text()).tags
@@ -235,6 +241,25 @@ class GameCatalogTests(unittest.TestCase):
         stand_dir = ROOT / 'games/webrtc-stand'
         for rel in ('README.md', 'styles.css', 'src/app.js', 'src/rtc-link.js', 'src/signaling.js', 'src/config-parser.js'):
             self.assertTrue((stand_dir / rel).is_file(), rel)
+
+    def test_remote_hub_card_and_offline_pwa_assets_exist(self):
+        tags = Tags((ROOT / 'index.html').read_text()).tags
+        links = [a['href'] for t, a in tags if t == 'a' and 'remote-hub' in a.get('href', '')]
+        self.assertEqual(links, ['./games/remote-hub/index.html'] * 2)
+        for link in links:
+            self.assertTrue((ROOT / link).is_file())
+        images = [a for t, a in tags if t == 'img' and 'remote-hub' in a.get('src', '')]
+        self.assertEqual(len(images), 1)
+        self.assertTrue((ROOT / images[0]['src']).is_file())
+        self.assertTrue(images[0].get('alt'))
+
+        hub_dir = ROOT / 'games/remote-hub'
+        for rel in ('README.md', 'index.html', 'hub.js', 'local-pair.js', 'cover.svg', 'manifest.webmanifest', 'sw.js', 'qr/index.js', 'qr/decode.js'):
+            self.assertTrue((hub_dir / rel).is_file(), rel)
+        manifest = json.loads((hub_dir / 'manifest.webmanifest').read_text())
+        self.assertEqual(manifest['scope'], './')
+        for js_rel in ('hub.js', 'local-pair.js'):
+            self.assertNotIn('vibrate', (hub_dir / js_rel).read_text().lower(), js_rel)
 
 
 if __name__ == '__main__':
