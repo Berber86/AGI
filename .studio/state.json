@@ -3,10 +3,10 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "v8 delivered: balconies removed, fourth side with arch and gates, stars and moon, look-up camera; 29 unit, yard 9, e2e 17, desktop, landscape 12, vr 12, thumbnails, catalog passed; export 6741154 bytes",
-  "nextAction": "Physical Android gesture/adaptation check if requested; no PR opened",
+  "lastAction": "Zero-API local Wi-Fi 60 Hz WebRTC pairing (auto + 100% offline mutual QR <-> QR), shared persistent pair agi_pair_v1, and Universal Мой пульт PWA hub delivered across Candy Kingdom Coaster and White Night; 26 Python, 11 CKC unit, 67 WN unit, 19 WN VR E2E, and 7 cross-context local pairing E2E checks passed",
+  "nextAction": "Merged to main on user request",
   "blockers": [],
-  "latestHandoff": ".studio/handoffs/2026-10-20-visual-v8.md",
+  "latestHandoff": ".studio/handoffs/2026-11-01-local-pairing.md",
   "sessionBenchmark": {
     "runId": "20261021T170038Z-f8761c",
     "status": "qualified",
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/runs/20261021T170038Z-f8761c/result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-10-21T17:00:54Z"
+  "updatedAt": "2026-11-01T15:00:00Z"
 }

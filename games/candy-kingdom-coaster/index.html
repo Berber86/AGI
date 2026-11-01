@@ -211,15 +211,44 @@
           <button type="button" id="vr-driver-remote" class="mid-btn vr-mode" aria-pressed="false">🕹 Джойстик</button>
         </div>
         <div id="vr-remote-panel" class="hidden">
-          <textarea id="vr-cfg" rows="3" placeholder="Тот же firebaseConfig, что и на телефоне-джойстике"></textarea>
-          <div class="row">
-            <button type="button" id="vr-cfg-connect" class="mid-btn">Подключить Firebase и создать комнату</button>
-            <button type="button" id="vr-room-demo" class="mid-btn">Комната без Firebase (две вкладки)</button>
+          <div class="vr-wifi-card">
+            <div class="vr-wifi-top">
+              <div id="vr-pair-qr" class="vr-pair-qr" aria-label="QR для быстрого подключения джойстика"></div>
+              <div class="vr-wifi-meta">
+                <span class="vr-wifi-eyebrow">⚡ Раздайте Wi-Fi джойстику · Без API</span>
+                <div id="vr-room-code" class="vr-room-code">------</div>
+                <div class="row vr-wifi-actions">
+                  <button type="button" id="vr-pair-rotate" class="mid-btn">↻ Новый код</button>
+                  <button type="button" id="vr-offline-toggle" class="mid-btn">◈ Без интернета (QR ↔ QR)</button>
+                </div>
+              </div>
+            </div>
+            <p id="vr-room-status" class="vr-note vr-wifi-status">Джойстик не подключён — до его появления ведёт автопилот</p>
+            <p class="vr-note">1 раз наведите камеру второго телефона на QR (или откройте <b>«Мой пульт»</b> в каталоге) — оба телефона запомнят друг друга сразу для <b>Сладкой Гонки</b> и <b>Белой ночи</b>!</p>
+
+            <div id="vr-offline-box" class="vr-offline-box hidden">
+              <p class="vr-note"><b>100% локально без интернета:</b> 1) наведите сканер джойстика на QR выше (он переключится на офлайн-приглашение), 2) поднесите ответный QR с экрана джойстика к камере ниже:</p>
+              <video id="vr-offline-video" class="vr-offline-video" playsinline muted></video>
+              <div class="row">
+                <button type="button" id="vr-offline-flip" class="mid-btn">↻ Камера</button>
+                <button type="button" id="vr-offline-paste" class="mid-btn">▸ Вставить ответ</button>
+                <button type="button" id="vr-offline-copy" class="mid-btn">▸ Код шага 1</button>
+              </div>
+              <p id="vr-offline-status" class="vr-note">Готовим офлайн-код точки доступа…</p>
+            </div>
           </div>
-          <p id="vr-cfg-status" class="vr-note"></p>
-          <div id="vr-room-code" class="vr-room-code hidden">------</div>
-          <p id="vr-room-status" class="vr-note">Джойстик не подключён — до его появления ведёт автопилот</p>
-          <p class="vr-note">На втором телефоне: каталог игр → «Джойстик для VR-поездки» → тот же конфиг → этот код.</p>
+
+          <details class="vr-fb-fallback" id="vr-fb-details">
+            <summary>Резерв: свой Firebase или Демо (две вкладки)</summary>
+            <div class="vr-fb-fallback-body">
+              <textarea id="vr-cfg" rows="3" placeholder="Тот же firebaseConfig, что и на телефоне-джойстике"></textarea>
+              <div class="row">
+                <button type="button" id="vr-cfg-connect" class="mid-btn">Подключить Firebase и создать комнату</button>
+                <button type="button" id="vr-room-demo" class="mid-btn">Комната без Firebase (две вкладки)</button>
+              </div>
+              <p id="vr-cfg-status" class="vr-note"></p>
+            </div>
+          </details>
         </div>
         <button type="button" id="btn-vr-start" class="big-btn">▶ Надеть очки</button>
         <div id="vr-count" class="hidden" role="status"><span id="vr-count-num">5</span><p>Вставьте телефон в очки…</p></div>

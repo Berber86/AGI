@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#101622" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <title>Мой пульт — Авто-подключение второго телефона (60 Гц)</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101622;
+      --panel: rgba(25, 34, 52, 0.88);
+      --line: rgba(190, 210, 240, 0.18);
+      --ink: #f2f6fc;
+      --muted: #9eb0c8;
+      --gold: #ffd166;
+      --mint: #4df0c0;
+      --pink: #ff6aa8;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0; min-height: 100dvh;
+      background: radial-gradient(circle at 20% 10%, #241539 0%, #101622 52%, #0e221e 100%);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    main {
+      max-width: 480px; margin: 0 auto;
+      padding: calc(14px + env(safe-area-inset-top)) 14px calc(22px + env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; gap: 11px;
+    }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    h1 { margin: 0; font-size: 1.28rem; font-weight: 900; letter-spacing: 0.01em; }
+    .back-link {
+      color: var(--muted); text-decoration: none; font-size: 0.82rem; font-weight: 700;
+      padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line);
+      background: rgba(255,255,255,0.05); white-space: nowrap;
+    }
+    .sub { margin: 0; font-size: 0.84rem; color: var(--muted); line-height: 1.44; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line);
+      border-radius: 16px; padding: 13px 14px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .radar-pill {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 8px 11px; border-radius: 12px; font-size: 0.83rem; font-weight: 800;
+      background: rgba(255, 209, 102, 0.12); border: 1px solid rgba(255, 209, 102, 0.38);
+      color: var(--gold);
+    }
+    .radar-pill.ok {
+      background: rgba(77, 240, 192, 0.15); border-color: rgba(77, 240, 192, 0.55);
+      color: var(--mint);
+    }
+    .pair-display {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 10px 12px; border-radius: 12px;
+      background: rgba(0, 0, 0, 0.28); border: 1px solid var(--line);
+    }
+    .pair-digits {
+      font-size: 1.45rem; font-weight: 900; letter-spacing: 0.16em;
+      font-variant-numeric: tabular-nums; color: #fff;
+    }
+    button, .game-btn {
+      appearance: none; border: 1px solid var(--line); border-radius: 13px;
+      padding: 12px 14px; font-size: 0.94rem; font-weight: 800;
+      color: var(--ink); background: rgba(255, 255, 255, 0.10);
+      cursor: pointer; text-decoration: none; text-align: center;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    button.primary {
+      background: linear-gradient(135deg, #ff6aa8, #e03a88);
+      border-color: rgba(255, 160, 205, 0.55); color: #fff;
+    }
+    button.mini { padding: 7px 10px; font-size: 0.78rem; border-radius: 9px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .row > * { flex: 1; }
+    input[type="text"] {
+      width: 100%; border-radius: 12px; border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.36); color: #fff;
+      padding: 11px 12px; font-size: 1.08rem; font-weight: 700;
+      letter-spacing: 0.12em; text-align: center;
+    }
+    .qr-box {
+      padding: 10px; border-radius: 13px; background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--line); text-align: center;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .qr-box[hidden], [hidden] { display: none !important; }
+    .qr-video {
+      width: 100%; max-height: 210px; aspect-ratio: 4 / 3; object-fit: cover;
+      border-radius: 10px; background: #070a10;
+    }
+    .game-launch-grid { display: flex; flex-direction: column; gap: 8px; }
+    .game-btn.ckc {
+      background: linear-gradient(135deg, rgba(255, 106, 168, 0.25), rgba(255, 209, 102, 0.16));
+      border-color: rgba(255, 106, 168, 0.5);
+    }
+    .game-btn.wn {
+      background: linear-gradient(135deg, rgba(59, 214, 127, 0.20), rgba(210, 176, 118, 0.18));
+      border-color: rgba(77, 240, 192, 0.45);
+    }
+    .hint { margin: 0; font-size: 0.79rem; color: var(--muted); line-height: 1.42; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>⚡ Мой пульт · 60 Гц</h1>
+      <a class="back-link" href="../../index.html">← В каталог</a>
+    </header>
+    <p class="sub">
+      Раздайте Wi-Fi с телефона-экрана на этот смартфон. Сканируйте QR один раз — «Мой пульт» сам узнает, какая VR-игра открыта на экране, и включит нужный контроллер без API-ключей!
+    </p>
+
+    <section class="card">
+      <div class="radar-pill" id="radar-pill">
+        <span id="radar-text">◈ Нет сохранённой пары — сканируйте QR с экрана</span>
+      </div>
+
+      <div class="pair-display" id="saved-pair-row" hidden>
+        <div>
+          <div class="hint">Моя сохранённая пара:</div>
+          <div class="pair-digits" id="saved-pair-digits">--- ---</div>
+        </div>
+        <button type="button" class="mini" id="forget-pair-btn">Сменить / забыть</button>
+      </div>
+
+      <div class="row">
+        <button type="button" class="primary" id="scan-qr-btn">◈ Сканировать QR с экрана</button>
+        <button type="button" id="paste-btn" style="flex:0 0 auto">▸ Код</button>
+      </div>
+
+      <div class="qr-box" id="qr-scan-box" hidden>
+        <video id="qr-scan-video" class="qr-video" playsinline muted></video>
+        <div class="row">
+          <button type="button" id="scan-flip-btn">↻ Камера</button>
+          <button type="button" id="scan-stop-btn">✕ Закрыть</button>
+        </div>
+        <p class="hint" id="qr-scan-status">Наведите камеру на QR в меню подготовки VR…</p>
+      </div>
+
+      <div class="row">
+        <input type="text" id="pair-input" inputmode="numeric" maxlength="7" placeholder="Или 6 цифр с экрана" style="flex:2" />
+        <button type="button" id="save-pair-btn">Связать</button>
+      </div>
+      <p class="hint" id="pair-msg"></p>
+    </section>
+
+    <section class="card">
+      <strong style="font-size:0.9rem">Быстрый выбор контроллера вручную</strong>
+      <p class="hint">Если на точке доступа выключен интернет или вы ещё не открыли экран VR, выберите игру одним нажатием — ваша пара передастся автоматически:</p>
+      <div class="game-launch-grid">
+        <a class="game-btn ckc" id="launch-ckc" href="../candy-kingdom-coaster/joystick/index.html">
+          ▶ Джойстик «Сладкой Гонки» (руль + наклоны)
+        </a>
+        <a class="game-btn wn" id="launch-wn" href="../white-night/play/wrist/index.html">
+          ▶ Браслет «Белой ночи» (3D-рука + маяк)
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./hub.js"></script>
+</body>
+</html>

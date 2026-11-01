@@ -312,10 +312,23 @@ body:not([data-screen='game']) #hud { visibility: hidden; pointer-events: none; 
 #vr-count { margin: 10px 0 2px; color: #a3658c; font-weight: 900; }
 #vr-count-num { font-size: 58px; line-height: 1; color: #e2608f; font-variant-numeric: tabular-nums; }
 #vr-count p { margin: 4px 0 0; font-size: 15px; }
-.vr-room-code { font-size: 40px; font-weight: 900; letter-spacing: 6px; text-align: center; color: #c2547f; margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.vr-room-code { font-size: 32px; font-weight: 900; letter-spacing: 4px; text-align: center; color: #c2547f; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.vr-wifi-card { background: linear-gradient(180deg, #fff6fb, #ffeef6); border: 1.5px solid #f2bfd7; border-radius: 16px; padding: 10px 12px; margin: 8px 0; }
+.vr-wifi-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.vr-pair-qr { width: 118px; height: 118px; flex: 0 0 118px; background: #fff; border: 2px solid #f0bed5; border-radius: 12px; padding: 5px; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+.vr-pair-qr svg { width: 100%; height: 100%; display: block; }
+.vr-wifi-meta { flex: 1 1 170px; min-width: 0; text-align: center; }
+.vr-wifi-eyebrow { display: block; font-size: 11.5px; font-weight: 850; color: #9c5379; }
+.vr-wifi-status { font-weight: 800; color: #7e3e62; margin-top: 6px; }
+.vr-wifi-status.is-ok { color: #26784a; }
+.vr-offline-box { margin-top: 8px; padding-top: 8px; border-top: 1px dashed #eab3cd; }
+.vr-offline-video { width: 100%; max-height: 170px; aspect-ratio: 4 / 3; object-fit: cover; background: #140812; border-radius: 12px; display: block; margin: 6px 0; }
+.vr-fb-fallback { margin-top: 6px; font-size: 12px; color: #8c5c79; }
+.vr-fb-fallback summary { cursor: pointer; font-weight: 800; padding: 4px 2px; user-select: none; }
+.vr-fb-fallback-body { margin-top: 6px; }
 #vr-remote-panel textarea { width: 100%; border-radius: 12px; border: 1px solid #ecd4e1; background: #fff; color: #6b4a5e; padding: 8px; font-family: monospace; font-size: 10px; }
-#vr-remote-panel .row { display: flex; gap: 8px; }
-#vr-remote-panel .row .mid-btn { flex: 1; margin: 6px 0; font-size: 13px; }
+#vr-remote-panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
+#vr-remote-panel .row .mid-btn { flex: 1; margin: 4px 0; font-size: 12px; padding: 8px 10px; }
 #vr-cam-video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #000; border-radius: 12px; display: block; }
 .vr-cam-view { position: relative; margin-bottom: 8px; }
 .vr-cam-cross { position: absolute; inset: 0; pointer-events: none; }

@@ -1,10 +1,14 @@
 // Телефон-джойстик для VR-поездки: второй телефон передаёт аналоговые
 // значения руля, газа и тормоза на экран в очках.
-// Двухконтурный транспорт по одному 6-значному коду комнаты:
-//   1) Прямой WebRTC DataChannel (60 Гц, ~3–8 мс, 0 записей в БД во время езды),
-//      который поднимается автоматически после входа по 6-значному коду.
-//   2) Автоматический прозрачный резерв через Firebase Realtime Database (6.25 Гц),
-//      если прямой P2P заблокирован VPN или сотовым оператором.
+//
+// Режимы сопряжения без обязательного ввода API Firebase:
+//   1) `local` (по умолчанию) — общая «Моя пара» (`agi_pair_v1`):
+//      телефоны узнают друг друга по сохранённому 6-значному ключу (через встроенную
+//      бесплатную WSS-сваху + BroadcastChannel) и открывают прямой локальный канал
+//      WebRTC DataChannel (60 Гц, ~2–6 мс, `iceServers: []`) по точке доступа Wi-Fi.
+//   2) `offline` (100% без интернета, авиарежим + точка доступа Wi-Fi) —
+//      взаимный обмен компактными QR-кодами `AG1.<base64url>` камера ↔ экран.
+//   3) `firebase` / `demo` — свёрнутый резервный режим для совместимости.
 // Если джойстик молчит дольше REMOTE_FRESH_MS (6 секунд), main.js мягко возвращает автопилота.
 
 import {
@@ -12,6 +16,14 @@ import {
   createFirebaseRtcSignaling,
   createBroadcastRtcSignaling,
 } from './tilt-rtc.js';
+import {
+  ensureHostPairCode,
+  normalizePairCode,
+  savePairCode,
+  createAutoPairSignaling,
+  createOfflineHostOffer,
+  buildControllerQrUrl,
+} from './local-pair.js';
 
 export const REMOTE_FRESH_MS = 6000;
 const DEMO_CHANNEL = 'ckc-joystick-stand';
@@ -54,7 +66,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, Number.isFinite(+v) ? +v 
 
 export class RemoteControl {
   constructor() {
-    this.kind = null;        // 'firebase' | 'demo'
+    this.kind = null;        // 'local' | 'offline' | 'firebase' | 'demo'
     this.room = null;
     // Continuous controls from the second phone:
     // steer ∈ [-1..1], throttle ∈ [0..1], brake ∈ [0..1].
@@ -66,6 +78,10 @@ export class RemoteControl {
     this.cloudPackets = 0;
     this._rtc = null;
     this._rtcOpen = false;
+    this._autoSig = null;
+    this._offlineSession = null;
+    this._pairCode = '';
+    this._brokersOnline = 0;
     this._lastStatePayload = null;
     this._unsubs = [];
     this._timeOffset = 0;
@@ -78,6 +94,14 @@ export class RemoteControl {
     this._lastInputSeq = 0;
     this._inputSession = null;
     this._lastPing = null;
+  }
+
+  useLocalPair(pairCode = '') {
+    const clean = normalizePairCode(pairCode) || ensureHostPairCode();
+    savePairCode(clean);
+    this._pairCode = clean;
+    this.kind = 'local';
+    return clean;
   }
 
   async connectFirebase(config) {
@@ -98,39 +122,44 @@ export class RemoteControl {
 
   get _roomPath() { return `rooms/${this.room}`; }
 
+  _closeOfflineSession() {
+    if (!this._offlineSession) return;
+    const s = this._offlineSession;
+    this._offlineSession = null;
+    try { s.fast?.close(); } catch { /* ignore */ }
+    try { s.ctrl?.close(); } catch { /* ignore */ }
+    try { s.pc?.close(); } catch { /* ignore */ }
+  }
+
   _clearRoomOnly() {
+    this._closeOfflineSession();
     if (this._rtc) {
       this._rtc.close();
       this._rtc = null;
     }
+    if (this._autoSig) {
+      this._autoSig.dispose();
+      this._autoSig = null;
+    }
     this._rtcOpen = false;
+    this._brokersOnline = 0;
     for (const u of this._unsubs) { try { u(); } catch { /* ignore */ } }
     this._unsubs = [];
   }
 
-  async createRoom() {
-    if (!this.kind) throw new Error('Сначала подключите Firebase или демо-режим');
-    this._clearRoomOnly();
-    this.room = newCode();
-    this.connected = false;
-    this.driveState = { steer: 0, throttle: 0, brake: 0 };
-    this.lastInputAt = 0;
-    this.lastLag = null;
-    this.rtcPackets = 0;
-    this.cloudPackets = 0;
-    this._lastCmdSeq = 0;
-    this._lastInputSeq = 0;
-    this._inputSession = null;
-    this._lastPing = null;
-
-    const rtcCallbacks = {
+  _makeRtcCallbacks() {
+    return {
       onOpenChange: (open) => {
         this._rtcOpen = open;
+        if (open) {
+          this.connected = true;
+          if (!this.lastInputAt) this.lastInputAt = performance.now();
+        }
         if (this.onStatus) this.onStatus(this.info());
       },
       onCtrlOpen: () => {
-        if (this._lastStatePayload && this._rtc) {
-          this._rtc.sendState(this._lastStatePayload);
+        if (this._lastStatePayload) {
+          this._sendRtcState(this._lastStatePayload);
         }
       },
       onRtt: (rtt) => {
@@ -147,6 +176,78 @@ export class RemoteControl {
         this._acceptCmd(name, seq);
       },
     };
+  }
+
+  _sendRtcState(payload) {
+    if (this._offlineSession?.ctrl?.readyState === 'open') {
+      try {
+        this._offlineSession.ctrl.send(JSON.stringify({ k: 'state', state: payload }));
+        return true;
+      } catch { /* ignore */ }
+    }
+    if (this._rtc) {
+      return this._rtc.sendState(payload);
+    }
+    return false;
+  }
+
+  async createRoom(forcedCode = '') {
+    if (!this.kind) this.useLocalPair(forcedCode);
+    this._clearRoomOnly();
+    this.room = this.kind === 'local'
+      ? (normalizePairCode(forcedCode) || this._pairCode || ensureHostPairCode())
+      : (normalizePairCode(forcedCode) || newCode());
+    if (this.kind === 'local') {
+      this._pairCode = this.room;
+      savePairCode(this.room);
+    }
+    this.connected = false;
+    this.driveState = { steer: 0, throttle: 0, brake: 0 };
+    this.lastInputAt = 0;
+    this.lastLag = null;
+    this.rtcPackets = 0;
+    this.cloudPackets = 0;
+    this._lastCmdSeq = 0;
+    this._lastInputSeq = 0;
+    this._inputSession = null;
+    this._lastPing = null;
+
+    const rtcCallbacks = this._makeRtcCallbacks();
+
+    if (this.kind === 'local') {
+      this._autoSig = createAutoPairSignaling(this.room, {
+        game: 'ckc',
+        role: 'host',
+        onBrokerChange: (count) => {
+          this._brokersOnline = count;
+          if (this.onStatus) this.onStatus(this.info());
+        },
+        onFallbackMessage: (m) => {
+          if (!m || typeof m !== 'object') return;
+          if (m.kind === 'input' && m.state) {
+            const lag = typeof m.state.sts === 'number' ? Math.max(0, Date.now() - m.state.sts) : null;
+            this._accept(m.state, lag, 'local-bus');
+          } else if (m.kind === 'ping') {
+            this.connected = true;
+            this._autoSig?.sendFallback({ kind: 'pong', id: m.id });
+            if (this._lastStatePayload) {
+              this._autoSig?.sendFallback({ kind: 'state', state: this._lastStatePayload });
+            }
+            if (this.onStatus) this.onStatus(this.info());
+          } else if (m.kind === 'cmd' && m.name) {
+            this._acceptCmd(m.name, m.seq);
+          } else if (m.kind === 'hello-meta') {
+            if (this._lastStatePayload) {
+              this._autoSig?.sendFallback({ kind: 'state', state: this._lastStatePayload });
+            }
+          }
+        },
+      });
+      this._rtc = new RtcHostPeer(this._autoSig, rtcCallbacks);
+      this._rtc.start();
+      if (this.onStatus) this.onStatus(this.info());
+      return this.room;
+    }
 
     if (this.kind === 'demo') {
       const handler = (e) => {
@@ -198,16 +299,103 @@ export class RemoteControl {
     return this.room;
   }
 
+  /**
+   * 100% локальное офлайн-приглашение WebRTC для взаимного обмена QR-кодами (без интернета).
+   * Работает поверх текущей комнаты, не ломая фоновую авто-пару.
+   */
+  async createOfflineOffer(controllerUrl = './joystick/index.html') {
+    if (!this.room) {
+      this.useLocalPair();
+      await this.createRoom();
+    }
+    this._closeOfflineSession();
+    const offerSession = await createOfflineHostOffer({
+      fastLabel: 'fast',
+      ctrlLabel: 'ctrl',
+      game: 'ckc',
+      pairCode: this.room,
+    });
+    this._offlineSession = offerSession;
+    const cb = this._makeRtcCallbacks();
+    const { pc, fast, ctrl } = offerSession;
+
+    const sendFast = (obj) => {
+      if (fast.readyState !== 'open') return false;
+      try { fast.send(JSON.stringify(obj)); return true; } catch { return false; }
+    };
+
+    const bindCh = (ch, label) => {
+      ch.onopen = () => {
+        if (this._offlineSession !== offerSession) return;
+        if (label === 'fast') cb.onOpenChange(true);
+        if (label === 'ctrl') cb.onCtrlOpen();
+      };
+      ch.onclose = () => {
+        if (this._offlineSession !== offerSession) return;
+        if (label === 'fast') cb.onOpenChange(false);
+      };
+      ch.onmessage = (ev) => {
+        if (this._offlineSession !== offerSession) return;
+        let msg;
+        try { msg = JSON.parse(ev.data); } catch { return; }
+        if (!msg || typeof msg !== 'object') return;
+        if (msg.k === 'in' && msg.state) {
+          const lag = this.lastLag !== null ? Math.max(1, Math.round(this.lastLag)) : 2;
+          cb.onInput(msg.state, lag);
+        } else if (msg.k === 'ping') {
+          sendFast({ k: 'pong', id: msg.id, t0: msg.t0 });
+          cb.onAlive();
+        } else if (msg.k === 'pong-ack' && Number.isFinite(msg.rtt)) {
+          cb.onRtt(Math.max(1, Math.round(msg.rtt)));
+        } else if (msg.k === 'cmd' && msg.name) {
+          cb.onCmd(msg.name, msg.seq);
+        }
+      };
+    };
+    bindCh(fast, 'fast');
+    bindCh(ctrl, 'ctrl');
+
+    pc.onconnectionstatechange = () => {
+      if (this._offlineSession !== offerSession) return;
+      const st = pc.connectionState;
+      if (st === 'failed' || st === 'closed') {
+        cb.onOpenChange(false);
+      } else if (st === 'connected' && fast.readyState === 'open') {
+        cb.onOpenChange(true);
+      }
+    };
+
+    const qrUrl = buildControllerQrUrl({
+      controllerUrl,
+      pairCode: this.room,
+      offlineToken: offerSession.token,
+    });
+    return {
+      room: this.room,
+      token: offerSession.token,
+      qrUrl,
+      candidatesCount: offerSession.candidatesCount,
+    };
+  }
+
+  async applyOfflineAnswer(answerToken) {
+    if (!this._offlineSession) {
+      throw new Error('Сначала откройте шаг 1 (Офлайн QR экрана)');
+    }
+    return this._offlineSession.applyAnswer(answerToken);
+  }
+
   _acceptCmd(name, seq) {
     if (!name || seq === this._lastCmdSeq) return;
     if (Number.isFinite(seq)) this._lastCmdSeq = seq;
     this.connected = true;
     this.lastInputAt = performance.now();
     if (this.onCommand) this.onCommand(name);
+    if (this.onStatus) this.onStatus(this.info());
   }
 
   _accept(st, lag, source = 'cloud') {
-    // Firebase can deliver a queued snapshot after a newer one (or after a faster
+    // Firebase/bus can deliver a queued snapshot after a newer one (or after a faster
     // WebRTC packet). Ignore stale packets by monotonic (sid, seq).
     const sid = typeof st?.sid === 'string' ? st.sid : null;
     if (sid && sid !== this._inputSession) {
@@ -226,11 +414,13 @@ export class RemoteControl {
       throttle: clamp(Number.isFinite(+st?.throttle) ? +st.throttle : 0, 0, 1),
       brake: clamp(Number.isFinite(+st?.brake) ? +st.brake : 0, 0, 1),
     };
+    const wasConnected = this.connected;
     this.lastInputAt = performance.now();
     if (typeof lag === 'number') this.lastLag = lag;
     if (source === 'webrtc') this.rtcPackets += 1;
     else this.cloudPackets += 1;
     this.connected = true;
+    if (!wasConnected && this.onStatus) this.onStatus(this.info());
   }
 
   // Состояние игры для экрана команд джойстика (пауза/авто/взгляд/базис/звук).
@@ -238,22 +428,22 @@ export class RemoteControl {
     if (!this.room) return;
     const payload = { ...obj, rtcOpen: this._rtcOpen };
     this._lastStatePayload = payload;
-    if (this._rtc) {
-      this._rtc.sendState(payload);
-    }
-    if (this.kind === 'demo') {
+    this._sendRtcState(payload);
+    if (this.kind === 'local') {
+      if (this._autoSig) this._autoSig.sendFallback({ kind: 'state', state: payload });
+    } else if (this.kind === 'demo') {
       if (this._ch) this._ch.postMessage({ kind: 'state', room: this.room, state: payload });
     } else if (this.kind === 'firebase') {
       this._f.set(this._f.ref(this._db, `${this._roomPath}/state`), payload).catch(() => {});
     }
   }
 
-  // Частое обновление спидометра только через открытый P2P WebRTC (0 записей в Firebase).
+  // Частое обновление спидометра только через открытый P2P WebRTC (0 записей в сеть).
   publishFastHud(obj) {
-    if (!this._rtc || !this._rtcOpen) return;
+    if (!this._rtcOpen) return;
     const merged = { ...(this._lastStatePayload || {}), ...obj, rtcOpen: true };
     this._lastStatePayload = merged;
-    this._rtc.sendState(merged);
+    this._sendRtcState(merged);
   }
 
   steer() {
@@ -277,6 +467,8 @@ export class RemoteControl {
       kind: this.kind,
       transport: this._rtcOpen ? 'webrtc' : this.kind,
       rtcOpen: this._rtcOpen,
+      brokersOnline: this._brokersOnline,
+      offlineReady: Boolean(this._offlineSession),
       room: this.room,
       connected: this.connected,
       fresh: this.fresh(),

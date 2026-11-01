@@ -199,6 +199,47 @@
       #flash-banner {
         border-color: rgba(210, 176, 118, 0.8);
       }
+      .saved-pair-btn {
+        background: #173425;
+        border-color: rgba(59, 214, 127, 0.55);
+        color: #b7ffd3;
+      }
+      .qr-box {
+        padding: 10px;
+        border-radius: 12px;
+        background: #0a0e14;
+        border: 1px solid var(--line);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .qr-box[hidden] { display: none; }
+      .qr-video {
+        width: 100%;
+        max-height: 200px;
+        aspect-ratio: 4 / 3;
+        object-fit: cover;
+        border-radius: 10px;
+        background: #05070a;
+      }
+      .qr-ans-svg {
+        width: 192px;
+        height: 192px;
+        margin: 0 auto;
+        padding: 6px;
+        background: #ffffff;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .qr-ans-svg svg { width: 100%; height: 100%; display: block; }
+      .hub-link {
+        color: var(--accent);
+        font-size: 0.8rem;
+        text-decoration: none;
+      }
     </style>
   </head>
   <body>
@@ -206,8 +247,8 @@
       <header>
         <h1>Белая ночь · Браслет руки</h1>
         <p class="sub">
-          Закрепите этот телефон на запястье <strong>экраном наружу</strong> (в сторону VR-очков).
-          Гироскоп 60 Гц даёт мгновенный отклик кисти, а двухцветный экран-маяк держит точную дальность.
+          Раздайте Wi-Fi с телефона-экрана на этот смартфон и закрепите его на запястье <strong>экраном наружу</strong>.
+          Сопряжение идёт напрямую по Wi-Fi 60 Гц без ключей API.
         </p>
       </header>
 
@@ -217,23 +258,55 @@
           <span class="pill" id="sensor-pill">Датчики: ожидание</span>
         </div>
 
-        <div>
-          <label for="room-code">6-значный код из окна «VR · Рука-браслет»</label>
-          <input id="room-code" class="code-input" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="off" />
-        </div>
-
-        <details id="fb-details">
-          <summary>Настройки Firebase (подхватываются автоматически)</summary>
-          <div style="margin-top:8px">
-            <textarea id="fb-config" placeholder="Вставьте firebaseConfig или URL Realtime Database"></textarea>
-          </div>
-        </details>
+        <button type="button" class="saved-pair-btn" id="saved-pair-btn" hidden>
+          Подключиться к моей паре
+        </button>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap">
-          <button type="button" class="primary" id="connect-btn" style="flex:1">Подключить браслет</button>
-          <button type="button" id="demo-btn">Демо (2 вкладки)</button>
+          <button type="button" id="scan-qr-btn" style="flex:1">Сканировать QR с экрана</button>
+          <button type="button" id="paste-off-btn">Офлайн-код</button>
         </div>
-        <p class="hint" id="conn-msg">Введите 6 цифр с первого телефона и нажмите «Подключить браслет».</p>
+
+        <div class="qr-box" id="qr-scan-box" hidden>
+          <video id="qr-scan-video" class="qr-video" playsinline muted></video>
+          <div style="display:flex; gap:8px">
+            <button type="button" id="scan-flip-btn" style="flex:1">Камера</button>
+            <button type="button" id="scan-stop-btn" style="flex:1">Закрыть</button>
+          </div>
+          <p class="hint" id="qr-scan-msg">Наведите камеру на QR в окне «VR · Рука-браслет»…</p>
+        </div>
+
+        <div class="qr-box" id="qr-ans-box" hidden>
+          <strong>Офлайн шаг 2: покажите этот QR камере экрана</strong>
+          <div class="qr-ans-svg" id="qr-ans-svg"></div>
+          <div style="display:flex; gap:8px">
+            <button type="button" id="copy-ans-btn" style="flex:1">Скопировать ответ</button>
+            <button type="button" id="cancel-ans-btn" style="flex:1">Отмена</button>
+          </div>
+          <p class="hint" id="qr-ans-msg">Как только экран считает этот QR, прямой канал 60 Гц откроется сам.</p>
+        </div>
+
+        <div>
+          <label for="room-code">Или 6 цифр пары с экрана</label>
+          <div style="display:flex; gap:8px">
+            <input id="room-code" class="code-input" inputmode="numeric" maxlength="7" placeholder="000000" autocomplete="off" style="flex:1" />
+            <button type="button" class="primary" id="connect-btn">Войти</button>
+          </div>
+        </div>
+
+        <p class="hint" id="conn-msg">Сканируйте QR с первого телефона один раз — пара сохранится для обеих игр.</p>
+        <a class="hub-link" href="../../remote-hub/index.html">Открыть универсальный «Мой пульт» (автовыбор игры) →</a>
+
+        <details id="fb-details">
+          <summary>Свой Firebase или Демо (резерв)</summary>
+          <div style="margin-top:8px; display:flex; flex-direction:column; gap:8px">
+            <textarea id="fb-config" placeholder="Вставьте firebaseConfig или URL Realtime Database"></textarea>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+              <button type="button" id="fb-connect-btn" style="flex:1">Войти через Firebase</button>
+              <button type="button" id="demo-btn">Демо (2 вкладки)</button>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section class="card">
@@ -264,7 +337,7 @@
         </button>
         <p class="hint">
           Зелёное пятно — ближе к кисти, пурпурное — ближе к локтю (порядок не критичен: калибровка учтёт ваш ремешок).
-          Никакой вибрации и звуков во время игры нет.
+          Никакого тактильного отклика и звуков во время игры нет.
         </p>
       </section>
     </main>
