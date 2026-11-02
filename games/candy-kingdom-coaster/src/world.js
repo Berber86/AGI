@@ -424,7 +424,49 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
   mergeByMaterial(mountainGroup); // 32 cones -> 3 draw calls
 
   // ---------- the Sugar Castle ----------
+  // Native Blender 4.2 asset (`sugar-castle.glb`, built by assets/models/build-castle.py):
+  // one named mesh per material group with BVH-baked AO in COLOR_0. Returns a group
+  // ready to scale/place, or null when the GLB has not loaded so buildCastle() falls
+  // back to the procedural castle below. The wafer walls keep the runtime wall.webp
+  // map; every other surface is pure vertex color, so the whole landmark renders in
+  // ~11 draw calls instead of the procedural ~37.
+  function buildCastleGlb() {
+    const names = ['CastleWalls', 'CastleTrim', 'CastleRoofPink', 'CastleRoofPurple', 'CastleRoofBlue',
+      'CastleGold', 'CastleWindows', 'CastleDoors', 'CastleFlags', 'CastleRainbow', 'CastleBalloons'];
+    const geos = {};
+    for (const n of names) { const g = getModelMesh('sugarCastle', n); if (!g) return null; geos[n] = g; }
+    const vc = { vertexColors: true };
+    const mats = {
+      CastleWalls: new THREE.MeshStandardMaterial({ color: '#ffffff', map: TEX.wall || null, roughness: 0.55, metalness: 0.05, ...vc }),
+      CastleTrim: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5, ...vc }),
+      CastleRoofPink: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0.12, emissive: '#7a1044', emissiveIntensity: 0.22, ...vc }),
+      CastleRoofPurple: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0.12, emissive: '#2c1270', emissiveIntensity: 0.22, ...vc }),
+      CastleRoofBlue: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, metalness: 0.12, emissive: '#0d3a66', emissiveIntensity: 0.22, ...vc }),
+      CastleGold: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3, metalness: 0.85, emissive: '#7a5c10', emissiveIntensity: 0.35, ...vc }),
+      CastleWindows: new THREE.MeshStandardMaterial({ color: '#6a2c8c', emissive: '#ffb347', emissiveIntensity: 0.85, roughness: 0.3, ...vc }),
+      CastleDoors: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55, metalness: 0.15, ...vc }),
+      CastleFlags: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.5, side: THREE.DoubleSide, ...vc }),
+      CastleRainbow: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.45, ...vc }),
+      CastleBalloons: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.3, ...vc }),
+    };
+    // big masses cast shadows; tiny / emissive trim does not (mobile shadow budget)
+    const casters = new Set(['CastleWalls', 'CastleTrim', 'CastleRoofPink', 'CastleRoofPurple', 'CastleRoofBlue', 'CastleGold', 'CastleDoors']);
+    const castle = new THREE.Group();
+    castle.name = 'sugarCastleGlb';
+    for (const n of names) {
+      const m = new THREE.Mesh(geos[n], mats[n]); // shared geometry across both castles
+      m.name = 'glb-' + n;
+      m.castShadow = casters.has(n);
+      m.receiveShadow = true;
+      m.userData.noCollide = true; // landmark scenery, never on the racing line
+      castle.add(m);
+    }
+    return castle;
+  }
+
   function buildCastle(scale = 1) {
+    const glb = buildCastleGlb();
+    if (glb) { glb.scale.setScalar(scale); return glb; }
     const castle = new THREE.Group();
     // wafer-brick map (assets/textures/wall.webp) tinted by the pink wall colours;
     // the cream trim (wallC: crenellations, teeth, stairs) stays smooth icing

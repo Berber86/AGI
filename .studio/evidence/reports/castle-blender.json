@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "task": "Sugar Castle rebuilt in native Blender 4.2 (build-castle.py -> sugar-castle.glb + .blend), integrated with procedural fallback",
+  "date": "2026-11-02",
+  "asset": {
+    "script": "games/candy-kingdom-coaster/assets/models/build-castle.py",
+    "glb": "games/candy-kingdom-coaster/assets/models/sugar-castle.glb",
+    "blend": "games/candy-kingdom-coaster/assets/models/sugar-castle.blend",
+    "blenderVersion": "4.2 LTS (bpy 4.2.0 headless)",
+    "materialGroups": 11,
+    "triangles": 41510,
+    "glbBytes": 1037280,
+    "attributes": ["POSITION", "NORMAL", "TEXCOORD_0 (walls)", "COLOR_0 (BVH AO)"],
+    "bboxGame": { "min": [-27, 0, -19], "max": [27, 56.5, 20.1] }
+  },
+  "perCastle": {
+    "before": { "triangles": 55594, "drawCalls": 37, "source": "procedural src/world.js, ~317 primitives merged by material" },
+    "after": { "triangles": 41510, "drawCalls": 11, "source": "sugar-castle.glb, one mesh per material group" }
+  },
+  "wholeSceneAudit": {
+    "before": { "meshes": 589, "totalCalls": 589, "totalTriU095": 1012728 },
+    "after": { "meshes": 537, "totalCalls": 537, "totalTriU095": 985528 },
+    "deltaCalls": -52,
+    "deltaTri": -27200,
+    "pageErrors": "none"
+  },
+  "checks": {
+    "glbLoads": "2 GLB castles found in scene (finish + mid-ride), vertexColors + UV present, no fallback warning",
+    "proceduralFallback": "blocking sugar-castle.glb -> 0 GLB castles, 2 procedural castles (37 calls / 55594 tris) + '[CKC] model \"sugarCastle\" failed to load — using procedural fallback'",
+    "pythonSuite": "27/27 pass (tests/test_game_catalog.py cache pin updated ckc-v59 -> ckc-v62)",
+    "nodeUnit": "11/11 pass (local-pair.test.mjs, tilt-rtc.test.mjs)",
+    "jsSyntax": "node --check OK for world.js, models.js, sw.js"
+  },
+  "evidence": [
+    "games/candy-kingdom-coaster/tests/evidence/castle-blender-studio.png",
+    "games/candy-kingdom-coaster/tests/evidence/castle-glb-front.png",
+    "games/candy-kingdom-coaster/tests/evidence/castle-glb-side.png",
+    "games/candy-kingdom-coaster/tests/evidence/castle-glb-race.png",
+    "games/candy-kingdom-coaster/tests/evidence/castle-procedural-before.png"
+  ],
+  "notes": "Headless SwiftShader software GL; draw-call/triangle counts are exact scene-graph facts, frame timing is not a physical-Android FPS claim. Rainbow moved in front of the gatehouse (procedural buried it inside the gate box). Both castle instances share the 11 GLB geometries."
+}

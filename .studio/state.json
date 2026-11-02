@@ -3,8 +3,8 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "Zero-API local Wi-Fi 60 Hz WebRTC pairing (auto + 100% offline mutual QR <-> QR), shared persistent pair agi_pair_v1, and Universal Мой пульт PWA hub delivered across Candy Kingdom Coaster and White Night; 26 Python, 11 CKC unit, 67 WN unit, 19 WN VR E2E, and 7 cross-context local pairing E2E checks passed",
-  "nextAction": "Merged to main on user request",
+  "lastAction": "CKC Sugar Castle rebuilt in native Blender 4.2 (build-castle.py -> sugar-castle.glb + .blend, BVH AO in COLOR_0), integrated with procedural fallback; per-castle 55594 tris/37 calls -> 41510 tris/11 calls, whole scene 589 -> 537 calls; sw ckc-v62; 27 Python + 11 CKC node unit checks passed",
+  "nextAction": "Awaiting user review of the Blender castle; commit on arena/53791cc9-agi",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-11-01-local-pairing.md",
   "sessionBenchmark": {
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/runs/20261031T103535Z-b1b568/result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-11-01T15:00:00Z"
+  "updatedAt": "2026-11-02T22:40:00Z"
 }
