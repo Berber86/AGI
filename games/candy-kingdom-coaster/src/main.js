@@ -37,6 +37,7 @@ import { CamTracker, CAM_COLORS } from './camtrack.js';
 import { GyroLook } from './gyro.js';
 import { FusionLook } from './fusionlook.js';
 import { loadTextures, countLoaded } from './textures.js';
+import { loadModels } from './models.js';
 import { setLoading, finishLoading, paintLoading } from './loading.js';
 
 // ---------------------------------------------------------------- renderer
@@ -71,12 +72,15 @@ composer.addPass(new OutputPass());
 // Real image textures are fetched before the world is built so every material
 // starts with its final map. Missing files fall back to procedural canvases.
 setLoading(4, 0, 'Открываем конфетный мир…');
-const TEX = await loadTextures({
-  renderer,
-  onProgress: (n, total) => {
-    setLoading(4 + (n / total) * 52, 0, 'Добавляем краски и сладости…');
-  },
-});
+const [TEX] = await Promise.all([
+  loadTextures({
+    renderer,
+    onProgress: (n, total) => {
+      setLoading(4 + (n / total) * 52, 0, 'Добавляем краски и сладости…');
+    },
+  }),
+  loadModels(),
+]);
 setLoading(60, 0, 'Строим сладкую трассу…');
 await paintLoading();
 

@@ -72,7 +72,21 @@ export function createForks(scene, track, TEX = {}) {
     return true;
   };
 
-  const bearGeo = gummyBearGeometry(true);
+  const bearHiGeo = gummyBearGeometry(false);
+  const bearLoGeo = gummyBearGeometry(true);
+  const tintBearBadge = (geo, hex, t = {}) => {
+    const src = geo.index ? geo.toNonIndexed() : geo.clone();
+    const srcCol = src.attributes.color;
+    const g = bake(geo, '#ffffff', t);
+    if (srcCol) {
+      const col = g.attributes.color;
+      const tint = C(hex);
+      for (let i = 0; i < col.count; i++) {
+        col.setXYZ(i, srcCol.getX(i) * tint.r, srcCol.getY(i) * tint.g, srcCol.getZ(i) * tint.b);
+      }
+    }
+    return g;
+  };
   const star = starGeometry(1.1);
   const clusterGeo = crystalClusterGeometry(1, 4);
   const bears = [], corridors = [];
@@ -137,7 +151,7 @@ export function createForks(scene, track, TEX = {}) {
       signLights.push(bake(plateGeometry(5.6), '#eee5d2', { pos: [0, badgeY, 0] }));
       signLights.push(bake(new THREE.TorusGeometry(6.35, .34, 5, 22), C(gate.accent || '#ffd77a'), { pos: [0, badgeY, .1] }));
       const kind = route.emblem || 'star';
-      emblem.push(kind === 'bear' ? bake(bearGeo, C('#6cbb90'), { scale: 4.0, pos: [0, badgeY - 5.4, -.62] })
+      emblem.push(kind === 'bear' ? tintBearBadge(bearLoGeo, '#5cd192', { scale: 3.75, rot: [0, Math.PI, 0], pos: [0, badgeY - 3.65, -1.55] })
         : kind === 'star' ? bake(star, C('#f5c33f'), { scale: 4.4, rot: [0, 0, Math.PI / 5], pos: [0, badgeY - .1, -.5] })
           : kind === 'cookie' ? bake(cookieGeometry(4.6, 1.05, 7), C('#b3733a'), { pos: [0, badgeY - .1, -.5] })
             : join([[0, -1.7, -1.5, 2.7, '#f2f9ff'], [1, 1.7, -1.5, 2.5, '#a7dcf2'],
@@ -173,12 +187,8 @@ export function createForks(scene, track, TEX = {}) {
           const g = new THREE.Group(); g.name = 'gummyFriend';
           g.position.copy(p.pos); g.position.y = stand + .5;
           g.rotation.y = p.heading + Math.PI; g.scale.setScalar(3.1);
-          const gm = new THREE.MeshPhysicalMaterial({ color: gumColors[i % gumColors.length], roughness: .2, clearcoat: 1, metalness: .03 });
-          g.add(new THREE.Mesh(bearGeo, gm));
-          for (const x of [-.12, .12]) {
-            const eye = new THREE.Mesh(new THREE.SphereGeometry(.045, 7, 4), new THREE.MeshStandardMaterial({ color: '#5c414b' }));
-            eye.position.set(x, 1.55, .39); g.add(eye);
-          }
+          const gm = new THREE.MeshPhysicalMaterial({ color: gumColors[i % gumColors.length], vertexColors: true, roughness: .16, clearcoat: .55, clearcoatRoughness: .14, metalness: .02, emissive: 0x220c14, emissiveIntensity: .14 });
+          g.add(new THREE.Mesh(bearHiGeo, gm));
           group.add(g); g.userData.baseY = g.position.y; bears.push(g);
         }
         // cane arches over the road: the hills' own rhythm
@@ -476,7 +486,7 @@ export function createForks(scene, track, TEX = {}) {
   }
   mergeByMaterial(staticParts, { castShadow: false, receiveShadow: true, noCollide: false });
   mergeByMaterial(overhead, { castShadow: false, receiveShadow: false, noCollide: true }); // overhead: the car passes under
-  const { sync: syncBears } = instanceGroups(group, bears, 'forkGummyFriends');
+  const { sync: syncBears } = instanceGroups(group, bears, 'forkGummyFriends', { keepVertexColors: true });
   function update(dt, time, s) {
     for (let i = 0; i < bears.length; i++) {
       const b = bears[i];

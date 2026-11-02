@@ -8,7 +8,7 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v59'; // v59: zero-API Wi-Fi local pairing + offline mutual QR + shared pair
+const CACHE = 'ckc-v60'; // v60: Blender-sculpted Gummy Bears (.glb Hi/Lo + raytraced jelly vertex colors)
 const MEDIA_CACHE = 'ckc-media-v1';
 const ML_CACHE = 'ckc-ml-mediapipe-1.1.1'; // lazy, persistent cache for WASM + 8.4 MB gesture model
 const SHELL = [
@@ -54,6 +54,7 @@ const SHELL = [
   './tracking-stand/index.html',
   './gesture-stand/index.html',
   './src/textures.js',
+  './src/models.js',
   './src/ramps.js',
   './src/music.js',
   './src/bridge.js',
@@ -108,7 +109,8 @@ const MEDIA = [
   './assets/textures/car-plate.webp',
   './assets/textures/car-quilt.webp',
   './assets/textures/car-polka.webp',
-  './assets/textures/car-plush.webp'
+  './assets/textures/car-plush.webp',
+  './assets/models/gummy-bear.glb'
 ];
 
 // Общая функция: кладём по одному, не роняя весь install из-за одного 404.

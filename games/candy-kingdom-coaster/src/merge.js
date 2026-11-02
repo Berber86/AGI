@@ -66,17 +66,17 @@ export function mergeByMaterial(group, { castShadow = true, receiveShadow = true
 const geoKey = (g) => (g.parameters && !g.parameters.shapes ? g.type + JSON.stringify(g.parameters) : g.uuid);
 const matKey = (m) => JSON.stringify([
   m.type, m.roughness, m.metalness, m.side, m.transparent, m.opacity, m.flatShading, m.map ? m.map.uuid : 0,
-  m.emissive ? m.emissive.getHex() : 0, m.emissiveIntensity, m.clearcoat, m.depthWrite, m.blending,
+  m.emissive ? m.emissive.getHex() : 0, m.emissiveIntensity, m.clearcoat, m.depthWrite, m.blending, !!m.vertexColors,
 ]);
 
-export function instanceGroups(parent, groups, name = 'animatedSet') {
+export function instanceGroups(parent, groups, name = 'animatedSet', opts = {}) {
   const buckets = new Map();
   const moved = [];
   groups.forEach((g) => {
     if (g.parent !== parent) throw new Error('instanceGroups: group must be a direct child of parent');
     g.updateMatrixWorld(true);
     g.traverse((m) => {
-      if (!m.isMesh || m.isInstancedMesh || Array.isArray(m.material) || m.material.vertexColors) return;
+      if (!m.isMesh || m.isInstancedMesh || Array.isArray(m.material) || (m.material.vertexColors && !opts.keepVertexColors)) return;
       const key = geoKey(m.geometry) + '|' + matKey(m.material);
       let b = buckets.get(key);
       if (!b) buckets.set(key, (b = { geo: m.geometry, mat: m.material, items: [] }));

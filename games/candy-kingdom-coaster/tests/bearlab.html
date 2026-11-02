@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Лаборатория желейных мишек — Blender vs 9 сфер</title>
+  <style>
+    html, body {
+      margin: 0; height: 100%; overflow: hidden;
+      background: #1d1228; color: #fff7fb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+    #hud {
+      position: fixed; top: 14px; left: 14px; right: 14px;
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 10px; pointer-events: none; z-index: 5;
+    }
+    .card {
+      pointer-events: auto;
+      background: rgba(34, 18, 48, 0.84);
+      border: 1px solid rgba(255, 196, 226, 0.28);
+      border-radius: 16px;
+      padding: 10px 14px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+    }
+    .title { font-weight: 800; font-size: 15px; letter-spacing: 0.01em; color: #ffd9ec; }
+    .sub { font-size: 12px; color: #dcbdd2; margin-top: 3px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.09); color: #fff;
+      border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700;
+    }
+    button.active {
+      background: linear-gradient(135deg, #ff5f9e, #ff9966);
+      border-color: #ffe2ee; color: #24091a;
+    }
+    #labels {
+      position: fixed; bottom: 18px; left: 0; right: 0;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      text-align: center; pointer-events: none; padding: 0 4vw;
+    }
+    .lbl {
+      display: inline-block; margin: 0 auto;
+      background: rgba(28, 14, 40, 0.82);
+      border: 1px solid rgba(255, 210, 232, 0.25);
+      border-radius: 12px; padding: 7px 14px;
+    }
+    .lbl b { display: block; font-size: 13px; color: #ffe5f2; }
+    .lbl span { font-size: 11px; color: #d5b4ca; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../vendor/three/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="hud">
+    <div class="card">
+      <div class="title">Лаборатория желейных мишек — Нативный пайплайн Blender 4.2 (.glb)</div>
+      <div class="sub" id="stats">Загрузка GummyBear_Hi / GummyBear_Lo…</div>
+    </div>
+    <div class="card controls" id="modeBar">
+      <button data-mode="jelly" class="active">Желе + Clearcoat</button>
+      <button data-mode="vcol">Карта SSS / AO (Vertex Colors)</button>
+      <button data-mode="wire">Сетка QuadriFlow</button>
+    </div>
+    <div class="card controls" id="flavorBar"></div>
+  </div>
+
+  <div id="labels">
+    <div><div class="lbl"><b>ДО: 9 склеенных сфер</b><span id="statOld">SphereGeometry × 9 (щели и внутренние стыки)</span></div></div>
+    <div><div class="lbl"><b>ПОСЛЕ: Blender Sculpt + QuadriFlow (Hi)</b><span id="statHi">Цельная оболочка, SSS/AO, глазки с бликами</span></div></div>
+    <div><div class="lbl"><b>ПОСЛЕ: Blender Dalniy LOD (Lo)</b><span id="statLo">Дальний LOD с проекцией скульпт-нормалей</span></div></div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { mergeGeometries } from '../vendor/three/jsm/utils/BufferGeometryUtils.js';
+    import { loadModels, getModelMesh } from '../src/models.js';
+
+    const FLAVORS = [
+      { name: 'Малина', hex: '#ff3d78' },
+      { name: 'Манго', hex: '#ffa23a' },
+      { name: 'Мята', hex: '#52d69c' },
+      { name: 'Лимон', hex: '#f5d442' },
+      { name: 'Черника', hex: '#9f78ff' },
+      { name: 'Клубника', hex: '#f278b1' },
+    ];
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#231530');
+    scene.fog = new THREE.FogExp2('#231530', 0.042);
+
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 80);
+    let camDist = 6.7, camPitch = 0.2, camYaw = 0;
+    let dragging = false, lastX = 0, lastY = 0;
+    function syncCamera() {
+      camera.position.set(
+        Math.sin(camYaw) * Math.cos(camPitch) * camDist,
+        1.18 + Math.sin(camPitch) * camDist,
+        Math.cos(camYaw) * Math.cos(camPitch) * camDist
+      );
+      camera.lookAt(0, 1.12, 0);
+    }
+    syncCamera();
+    renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+    window.addEventListener('pointerup', () => { dragging = false; });
+    window.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      camYaw -= (e.clientX - lastX) * 0.007;
+      camPitch = Math.max(-0.25, Math.min(0.85, camPitch + (e.clientY - lastY) * 0.006));
+      lastX = e.clientX; lastY = e.clientY;
+      syncCamera();
+    });
+    renderer.domElement.addEventListener('wheel', (e) => {
+      camDist = Math.max(3.4, Math.min(11.0, camDist + e.deltaY * 0.004));
+      syncCamera();
+    }, { passive: true });
+
+    const hemi = new THREE.HemisphereLight(0xffe9f6, 0x4b2859, 1.35);
+    scene.add(hemi);
+
+    const keyLight = new THREE.DirectionalLight(0xfff5ea, 2.5);
+    keyLight.position.set(4.5, 7.5, 5.5);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.DirectionalLight(0xff8ec6, 1.65);
+    rimLight.position.set(-4.0, 4.0, -5.0);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0x9ee8ff, 0.85);
+    fillLight.position.set(-4.8, 2.5, 3.5);
+    scene.add(fillLight);
+
+    const floor = new THREE.Mesh(
+      new THREE.CylinderGeometry(7.5, 8.0, 0.3, 64),
+      new THREE.MeshStandardMaterial({ color: '#38224a', roughness: 0.65, metalness: 0.05 })
+    );
+    floor.position.y = -0.15;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    function makePlinth(x) {
+      const g = new THREE.Group();
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.92, 1.04, 0.24, 32),
+        new THREE.MeshStandardMaterial({ color: '#fff1de', roughness: 0.42 })
+      );
+      base.position.y = 0.12;
+      base.receiveShadow = true;
+      base.castShadow = true;
+      const rim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.97, 0.97, 0.07, 32),
+        new THREE.MeshStandardMaterial({ color: '#f3c975', roughness: 0.32, metalness: 0.15 })
+      );
+      rim.position.y = 0.24;
+      g.add(base, rim);
+      g.position.x = x;
+      scene.add(g);
+      return g;
+    }
+
+    function buildLegacy9SphereBear() {
+      const [a, b] = [12, 9];
+      const [c, d] = [7, 5];
+      const parts = [
+        { geo: new THREE.SphereGeometry(0.55, a, b), pos: [0, 0.62, 0], scale: [1, 1.15, 0.82] },
+        { geo: new THREE.SphereGeometry(0.38, a, b), pos: [0, 1.5, 0.05] },
+        { geo: new THREE.SphereGeometry(0.15, c, d), pos: [-0.3, 1.82, 0] },
+        { geo: new THREE.SphereGeometry(0.15, c, d), pos: [0.3, 1.82, 0] },
+        { geo: new THREE.SphereGeometry(0.17, c, d), pos: [-0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
+        { geo: new THREE.SphereGeometry(0.17, c, d), pos: [0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
+        { geo: new THREE.SphereGeometry(0.2, c, d), pos: [-0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
+        { geo: new THREE.SphereGeometry(0.2, c, d), pos: [0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
+        { geo: new THREE.SphereGeometry(0.16, c, d), pos: [0, 1.45, 0.36], scale: [1.15, 0.9, 0.8] },
+      ].map((p) => {
+        const g = p.geo.clone();
+        if (p.scale) g.scale(p.scale[0], p.scale[1], p.scale[2]);
+        if (p.pos) g.translate(p.pos[0], p.pos[1], p.pos[2]);
+        return g;
+      });
+      const merged = mergeGeometries(parts, false);
+      const count = merged.attributes.position.count;
+      merged.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+      return merged;
+    }
+
+    await loadModels();
+    const legacyGeo = buildLegacy9SphereBear();
+    const hiGeo = getModelMesh('gummyBear', 'GummyBear_Hi');
+    const loGeo = getModelMesh('gummyBear', 'GummyBear_Lo');
+
+    const xs = [-2.25, 0, 2.25];
+    xs.forEach(makePlinth);
+
+    let currentFlavor = FLAVORS[0].hex;
+    let currentMode = 'jelly';
+
+    function makeBearMaterial(hex, isLegacy = false) {
+      if (currentMode === 'vcol') {
+        return new THREE.MeshBasicMaterial({ vertexColors: true });
+      }
+      if (currentMode === 'wire') {
+        return new THREE.MeshStandardMaterial({
+          color: hex,
+          vertexColors: !isLegacy,
+          wireframe: true,
+          roughness: 0.35,
+        });
+      }
+      return new THREE.MeshPhysicalMaterial({
+        color: hex,
+        vertexColors: !isLegacy,
+        roughness: isLegacy ? 0.22 : 0.15,
+        metalness: 0.02,
+        transparent: true,
+        opacity: isLegacy ? 0.9 : 0.94,
+        clearcoat: 0.55,
+        clearcoatRoughness: 0.13,
+        emissive: 0x260c14,
+        emissiveIntensity: 0.18,
+      });
+    }
+
+    const meshes = [
+      { geo: legacyGeo, x: xs[0], isLegacy: true },
+      { geo: hiGeo, x: xs[1], isLegacy: false },
+      { geo: loGeo, x: xs[2], isLegacy: false },
+    ].map(({ geo, x, isLegacy }) => {
+      const m = new THREE.Mesh(geo, makeBearMaterial(currentFlavor, isLegacy));
+      m.position.set(x, 0.275, 0);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      scene.add(m);
+      return { mesh: m, isLegacy };
+    });
+
+    const triCount = (g) => (g.index ? g.index.count / 3 : g.attributes.position.count / 3);
+    document.getElementById('statOld').textContent = `${legacyGeo.attributes.position.count} вершин · ${triCount(legacyGeo)} треуг. · без шеи и глаз`;
+    document.getElementById('statHi').textContent = `${hiGeo.attributes.position.count} вершин · ${triCount(hiGeo)} треуг. · 65 КБ .glb`;
+    document.getElementById('statLo').textContent = `${loGeo.attributes.position.count} вершин · ${triCount(loGeo)} треуг. · кастомные нормали`;
+    document.getElementById('stats').textContent =
+      `gummy-bear.glb загружен: Hi (${triCount(hiGeo)} tris) + Lo (${triCount(loGeo)} tris) · Запечённый SSS + AO в COLOR_0`;
+
+    function refreshMaterials() {
+      for (const item of meshes) {
+        item.mesh.material.dispose();
+        item.mesh.material = makeBearMaterial(currentFlavor, item.isLegacy);
+      }
+    }
+
+    const flavorBar = document.getElementById('flavorBar');
+    FLAVORS.forEach((f, idx) => {
+      const btn = document.createElement('button');
+      btn.textContent = f.name;
+      if (idx === 0) btn.classList.add('active');
+      btn.onclick = () => {
+        currentFlavor = f.hex;
+        [...flavorBar.children].forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        refreshMaterials();
+      };
+      flavorBar.appendChild(btn);
+    });
+
+    document.querySelectorAll('#modeBar button').forEach((btn) => {
+      btn.onclick = () => {
+        currentMode = btn.dataset.mode;
+        document.querySelectorAll('#modeBar button').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        refreshMaterials();
+      };
+    });
+
+    const params = new URLSearchParams(location.search);
+    const spin = params.get('spin') !== '0';
+    if (params.get('mode')) {
+      const b = document.querySelector(`#modeBar button[data-mode="${params.get('mode')}"]`);
+      if (b) b.click();
+    }
+    if (params.get('yaw')) {
+      const yaw = parseFloat(params.get('yaw')) || 0;
+      meshes.forEach((m) => { m.mesh.rotation.y = yaw; });
+    }
+
+    window.BEARLAB = { scene, camera, renderer, meshes, setYaw: (y) => meshes.forEach((m) => { m.mesh.rotation.y = y; }) };
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      if (spin && !dragging) {
+        for (const item of meshes) item.mesh.rotation.y += dt * 0.55;
+      }
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

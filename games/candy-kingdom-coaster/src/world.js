@@ -4,6 +4,7 @@ import { RoundedBoxGeometry } from '../vendor/three/jsm/geometries/RoundedBoxGeo
 import { mergeGeometries } from '../vendor/three/jsm/utils/BufferGeometryUtils.js';
 import { ZONES, TUNING } from './config.js';
 import { mergeByMaterial, instanceGroups } from './merge.js';
+import { getModelMesh } from './models.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -168,19 +169,25 @@ const withLod = (fn) => (lo = false) => {
 };
 
 export const gummyBearGeometry = withLod((lo) => {
+  const glb = getModelMesh('gummyBear', lo ? 'GummyBear_Lo' : 'GummyBear_Hi');
+  if (glb) return glb.clone();
   const [a, b] = lo ? [8, 6] : [12, 9];
   const [c, d] = lo ? [5, 4] : [7, 5];
-  return mergeParts([
+  const fallback = mergeParts([
     { geo: new THREE.SphereGeometry(0.55, a, b), pos: [0, 0.62, 0], scale: [1, 1.15, 0.82] },
     { geo: new THREE.SphereGeometry(0.38, a, b), pos: [0, 1.5, 0.05] },
     { geo: new THREE.SphereGeometry(0.15, c, d), pos: [-0.3, 1.82, 0] },
     { geo: new THREE.SphereGeometry(0.15, c, d), pos: [0.3, 1.82, 0] },
-    { geo: new THREE.SphereGeometry(0.17, c, d), pos: [-0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
-    { geo: new THREE.SphereGeometry(0.17, c, d), pos: [0.62, 0.95, 0.1], scale: [1, 1.5, 1] },
+    { geo: new THREE.SphereGeometry(0.17, c, d), pos: [-0.48, 0.92, 0.12], scale: [1, 1.35, 1] },
+    { geo: new THREE.SphereGeometry(0.17, c, d), pos: [0.48, 0.92, 0.12], scale: [1, 1.35, 1] },
     { geo: new THREE.SphereGeometry(0.2, c, d), pos: [-0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
     { geo: new THREE.SphereGeometry(0.2, c, d), pos: [0.3, 0.16, 0.12], scale: [1, 1, 1.3] },
-    { geo: new THREE.SphereGeometry(0.16, c, d), pos: [0, 1.45, 0.36], scale: [1.15, 0.9, 0.8] }, // muzzle
+    { geo: new THREE.SphereGeometry(0.16, c, d), pos: [0, 1.45, 0.36], scale: [1.15, 0.9, 0.8] },
   ]);
+  const n = fallback.attributes.position.count;
+  const white = new Float32Array(n * 3).fill(1);
+  fallback.setAttribute('color', new THREE.Float32BufferAttribute(white, 3));
+  return fallback;
 });
 
 const lollipopGeometry = withLod((lo) => mergeParts([
@@ -820,7 +827,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     lolli: [['#ff5fa2', TEX.lolliPink], ['#56c8ff', TEX.lolliBlue], ['#ffd45e', TEX.lolliYellow]].map(([c, tex]) =>
       new THREE.MeshStandardMaterial({ map: mapOr(tex, () => swirlTexture(c, '#fff2f7')), roughness: 0.36, metalness: 0.05 })),
     cane: new THREE.MeshStandardMaterial({ map: mapOr(TEX.cane, () => stripeTexture()), roughness: 0.42 }),
-    bear: new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.9, clearcoat: 0.9, clearcoatRoughness: 0.25, emissive: 0x301018, emissiveIntensity: 0.25 }),
+    bear: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.16, metalness: 0.02, transparent: true, opacity: 0.94, clearcoat: 0.55, clearcoatRoughness: 0.14, emissive: 0x260c14, emissiveIntensity: 0.2 }),
     // tint bases: the near-white sugar maps are multiplied by the instance colours
     tree: new THREE.MeshStandardMaterial({ map: TEX.gumdrop || null, roughness: 0.6 }),
     marsh: new THREE.MeshStandardMaterial({ map: TEX.marshmallow || null, roughness: 0.7 }),
@@ -1097,7 +1104,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       ]),
     };
     const crowdMats = {
-      bear: new THREE.MeshStandardMaterial({ roughness: 0.32, metalness: 0.05 }),
+      bear: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.04 }),
       kitty: new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.02 }),
       bunny: new THREE.MeshStandardMaterial({ roughness: 0.62, metalness: 0.0 }),
     };
@@ -1523,7 +1530,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     const icing = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.5 });
     const choc = new THREE.MeshStandardMaterial({ color: '#7a4526', roughness: 0.6 });
     const dark = new THREE.MeshStandardMaterial({ color: '#5a2f1a', roughness: 0.45 });
-    const gumMat = new THREE.MeshPhysicalMaterial({ roughness: 0.22, metalness: 0.05, transparent: true, opacity: 0.9, clearcoat: 0.9, clearcoatRoughness: 0.25, emissive: 0x301018, emissiveIntensity: 0.25 });
+    const gumMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.16, metalness: 0.02, transparent: true, opacity: 0.94, clearcoat: 0.55, clearcoatRoughness: 0.14, emissive: 0x260c14, emissiveIntensity: 0.2 });
     const gumShared = BEAR_COLORS.map((c) => {
       const m = gumMat.clone();
       m.color.set(c);
