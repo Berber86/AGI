@@ -11,6 +11,7 @@ const MODEL_ROOT = new URL('../assets/models/', import.meta.url);
 
 export const MODEL_MANIFEST = {
   gummyBear: { file: 'gummy-bear.glb' },
+  starRacer7: { file: 'star-racer-7.glb' },
 };
 
 const TYPE_ARITY = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };

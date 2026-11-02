@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { createCar } from '../src/car.js';
 import { loadTextures } from '../src/textures.js';
+import { loadModels } from '../src/models.js';
 
 const q = new URLSearchParams(location.search);
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -57,7 +58,9 @@ const grass = new THREE.Mesh(new THREE.CircleGeometry(80, 48), new THREE.MeshSta
 grass.rotation.x = -Math.PI / 2; grass.position.y = -0.01; grass.receiveShadow = true;
 scene.add(grass);
 
-const TEX = q.get('tex') === '0' ? {} : await loadTextures({ renderer });
+const [TEX] = q.get('tex') === '0'
+  ? [{}]
+  : await Promise.all([loadTextures({ renderer }), loadModels()]);
 const t0 = performance.now();
 const car = createCar({ renderer, TEX });
 const buildMs = Math.round(performance.now() - t0);
