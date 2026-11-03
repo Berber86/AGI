@@ -677,21 +677,31 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     return castle;
   }
 
-  // Place the big castle beside the finish line; a second one looms mid-ride.
-  const finPose = track.getPose(track.length * 0.985, 0);
+  // The big castle stands at the CENTRE of the Sugar Castle loop, on the RIGHT
+  // of the approach; the road circles it almost fully before the finish. It is
+  // planted on the ground plane and kept perfectly upright. A second castle
+  // still looms mid-ride. GROUND_Y matches the far-ground disc in track.js.
+  const GROUND_Y = -3.35;
+  const cs = track.castleSection;
   const castleMain = buildCastle(1.5);
-  castleMain.position.copy(finPose.pos).add(
-    new THREE.Vector3(Math.cos(finPose.heading) * 42, -3.2, -Math.sin(finPose.heading) * 42)
-  );
-  castleMain.lookAt(finPose.pos.x, castleMain.position.y + 6, finPose.pos.z);
+  castleMain.position.set(cs.center.x, GROUND_Y + 1.4, cs.center.z);
+  // Yaw-only orientation: face the gate toward the loop entry (the first thing
+  // the driver sees). The old lookAt(target +6 m) pitched the whole castle
+  // backwards and levered part of the foundation off the ground.
+  castleMain.rotation.y = Math.atan2(cs.entry.x - cs.center.x, cs.entry.z - cs.center.z);
   world.add(castleMain);
   const midPose = track.getPose(track.cakeSection.s0 - 70, 0);
   const castleFar = buildCastle(1.2);
-  castleFar.position.copy(midPose.pos).add(
-    new THREE.Vector3(Math.cos(midPose.heading) * 95, -3.5, -Math.sin(midPose.heading) * 95)
+  castleFar.position.set(
+    midPose.pos.x + Math.cos(midPose.heading) * 95,
+    GROUND_Y + 1.4,
+    midPose.pos.z - Math.sin(midPose.heading) * 95
   );
-  castleFar.lookAt(midPose.pos.x, castleFar.position.y + 6, midPose.pos.z);
+  castleFar.rotation.y = Math.atan2(midPose.pos.x - castleFar.position.x, midPose.pos.z - castleFar.position.z);
   world.add(castleFar);
+  // The castle, chocolate apron and royal garden own the clearing inside the
+  // loop. Scatter props that would land on the royal grounds are dropped below.
+  const castleKeepOut = (x, z) => Math.hypot(x - cs.center.x, z - cs.center.z) < 53;
 
   // ---------- drive-under candy gates (car passes beneath) ------------------
   {
@@ -748,7 +758,9 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       const grp = new THREE.Group();
       // chocolate apron under the terrace (stays inside the platform footprint)
       const apron = new THREE.Mesh(new RoundedBoxGeometry(57 * sc, 1.4, 39 * sc, 3, 0.7), chocMat);
-      apron.position.y = -0.9;
+      // Top of the apron meets the castle base exactly; its underside sits on
+      // the ground plane, so neither the terrace nor the foundation floats.
+      apron.position.y = -0.7;
       grp.add(apron);
       // candy bridge from the gate out over the apron (never reaches the road)
       const bridge = new THREE.Group();
@@ -784,7 +796,7 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
       mergeByMaterial(grp, { noCollide: false }); // ~34 meshes (16 own textures) -> 5 draws
       world.add(grp);
     };
-    grounds(castleMain.position, finPose.pos, 1.5);
+    grounds(castleMain.position, cs.entry, 1.5);
     grounds(castleFar.position, midPose.pos, 1.2);
   }
 
@@ -983,6 +995,11 @@ export function createWorld(scene, track, renderer, TEX = {}, river = null) {
     else if (i % 3 === 1) placements.lolli1.push({ s: hs, x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i, sc: 3.9 + (i % 2) });
     else placements.cane.push({ s: hs, x: p.pos.x, y: p.pos.y - 1, z: p.pos.z, ry: i * 1.7, sc: 3.7 + (i % 2) * 1.2 });
   });
+
+  // Drop any scatter prop that would take root inside the castle loop's royal
+  // grounds. Filtering after the fact keeps the shared rand() sequence (and so
+  // every other prop on the course) exactly where it was.
+  for (const key of Object.keys(placements)) placements[key] = placements[key].filter((p) => !castleKeepOut(p.x, p.z));
 
   // ---- spatial chunking of instanced props ---------------------------------
   // One InstancedMesh spanning the whole 1.3 km course can never be culled:

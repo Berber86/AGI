@@ -8,7 +8,7 @@
 //                 кода: качаются ОДИН раз (при первом обращении) и живут между
 //                 версиями. Раньше каждое обновление тянуло все 7.3 МБ заново —
 //                 на телефоне это давало рывки, если начать играть сразу.
-const CACHE = 'ckc-v62'; // v62: Blender-built Sugar Castle landmark (.glb + BVH AO, ~11 draw calls)
+const CACHE = 'ckc-v63'; // v63: Sugar Castle loop — road circles the castle (right of the finish), upright + grounded
 const MEDIA_CACHE = 'ckc-media-v1';
 const ML_CACHE = 'ckc-ml-mediapipe-1.1.1'; // lazy, persistent cache for WASM + 8.4 MB gesture model
 const SHELL = [

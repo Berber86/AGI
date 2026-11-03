@@ -1,0 +1,41 @@
+{
+  "task": "Sugar Castle: move to the RIGHT of the finish, route the track in a near-full circle around it, remove the backward tilt and the floating foundation",
+  "date": "2026-11-03",
+  "game": "games/candy-kingdom-coaster",
+  "branch": "arena/53791cc9-agi",
+  "request": "Возможно его стоит сделать справа, а не слева от финиша. И объехать его почти кругом, чтобы успеть насладиться. Также сейчас он накренён назад и часть фундамента даже частично висит в воздухе",
+  "implementation": {
+    "loop": "CASTLE_COURSE replaces the base-course tail (loopStart 1400 base-metres) with a near-full circle as an isolated Course section, like the cake detour; baseLength unchanged (1473 m). radius 70 m, sweep 5.7 rad (~327 deg), exit straight 55 m to the finish.",
+    "side": "castle at the loop centre, on the RIGHT of the approach (loopRight = tangent x UP); constant right-hand turn keeps it inside the loop",
+    "tilt": "yaw-only orientation (rotation.y toward the loop entry); rotation.x = rotation.z = 0 (old lookAt(target.y+6) pitched it backwards)",
+    "foundation": "castle base at GROUND_Y + 1.4 = -1.95 on the chocolate apron; apron underside on the ground plane GROUND_Y = -3.35 (no floating)",
+    "farCastle": "also made upright (yaw-only) and grounded",
+    "props": "castleKeepOut (radius 53 m) filters scatter props off the royal grounds without disturbing the shared rand() sequence",
+    "balance": "track 1865 -> 2247 m (+20%); TIME_MEDAL 105 -> 126 s (cruise auto-drive finishes ~132.6 s); zone 4 Sugar Castle Run widened u0 0.88 -> 0.90; service-worker cache ckc-v63"
+  },
+  "geometry_check": {
+    "trackLength_m": 2247,
+    "baseLength_m": 1473,
+    "castleSection": { "center": [-204.3, 1.5, 1028.4], "s0": 1793, "s1": 2247, "radius": 70 },
+    "castleWorld": { "pos": [-204.26, -1.95, 1028.36], "rot": [0, 1.5476, 0], "scale": 1.5 },
+    "loopRadii_m": [70, 70, 70, 70, 70, 70, 70, 70, 70, 70.7, 89.1],
+    "tangentJoinDot": 0.999,
+    "note": "last two samples are the exit straight moving away from the centre"
+  },
+  "checks": {
+    "python_unittest": "27/27 OK",
+    "node_unit": "11/11 pass (local-pair, tilt-rtc)",
+    "validator_self_test": "passed",
+    "castleqa": "2 GLB castles, 41510 tris / 11 calls each, COLOR_0 + UV + vertexColors, no fallback warnings, no page errors",
+    "whole_scene_audit": { "u0.42": { "calls": 606, "tris": 1191184 }, "u0.08": { "calls": 606, "tris": 1190324 }, "u0.95": { "calls": 606, "tris": 1274158 }, "pageerrors": "none", "note": "+20% vs the 537-call / 985k-tri baseline, proportional to the longer track; frustum-culled instancing keeps per-frame cost down" },
+    "loop_render_ms_median": { "u0.42": 4.9, "u0.80": 4.9, "u0.86": 6.3, "u0.90": 9.8, "u0.95": 5.8, "note": "single 823 ms max at u0.86 is a one-time shader compile, not steady-state" },
+    "auto_drive_finish": { "seconds": 132.6, "sweets": 107, "total": 182, "state": "finish", "errors": "none" }
+  },
+  "screenshots": [
+    "tests/evidence/castle-loop-overhead.png",
+    "tests/evidence/castle-loop-driver.png",
+    "tests/evidence/castle-loop-grounded.png",
+    "tests/evidence/castle-loop-approach.png"
+  ],
+  "limitations": "Headless SwiftShader timings are not a physical-Android FPS measurement. The loop is a constant-height near-circle; entry/exit curvature is eased by centripetal Catmull-Rom."
+}

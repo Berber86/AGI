@@ -3,8 +3,8 @@
   "phase": "done",
   "activeRole": "release",
   "currentTask": null,
-  "lastAction": "CKC Sugar Castle rebuilt in native Blender 4.2 (build-castle.py -> sugar-castle.glb + .blend, BVH AO in COLOR_0), integrated with procedural fallback; per-castle 55594 tris/37 calls -> 41510 tris/11 calls, whole scene 589 -> 537 calls; sw ckc-v62; 27 Python + 11 CKC node unit checks passed",
-  "nextAction": "Awaiting user review of the Blender castle; commit on arena/53791cc9-agi",
+  "lastAction": "CKC Sugar Castle loop: road now circles the castle ~327 deg on the RIGHT before the finish (CASTLE_COURSE as an isolated Course section, baseLength stable); castle made upright (yaw-only) and grounded on the apron/ground plane, far castle fixed too; props kept off the royal grounds; track 1865->2247 m, TIME_MEDAL 105->126 s, sw ckc-v63; 27 Python + 11 node unit + validator + castleqa passed",
+  "nextAction": "Awaiting user review of the castle loop; commit on arena/53791cc9-agi",
   "blockers": [],
   "latestHandoff": ".studio/handoffs/2026-11-01-local-pairing.md",
   "sessionBenchmark": {
@@ -15,5 +15,5 @@
     "resultPath": ".studio/benchmarks/runs/20261031T103535Z-b1b568/result.json"
   },
   "createdAt": "2026-10-14T17:20:06Z",
-  "updatedAt": "2026-11-02T22:40:00Z"
+  "updatedAt": "2026-11-03T11:10:00Z"
 }

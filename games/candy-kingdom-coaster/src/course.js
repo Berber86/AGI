@@ -2,7 +2,7 @@
 // the original route; landmarks after it keep their original spacing through
 // fromBaseDistance(). Road, car, camera and pickups all use this SAME curve.
 import * as THREE from 'three';
-import { BRIDGE, CAKE_COURSE } from './config.js';
+import { BRIDGE, CAKE_COURSE, CASTLE_COURSE } from './config.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const smooth = (t) => t * t * (3 - 2 * t);
@@ -145,15 +145,51 @@ export function buildCourse() {
   const departure = new THREE.CubicBezierCurve3(b, b.clone().addScaledVector(forward, C.departure / 3),
     newExit.clone().addScaledVector(exitT, -C.departure / 3), newExit);
   const bridge = new SaggingBridge(up.getPoint(1), down.getPoint(0), C.bridgeSag);
+
+  // ---- Sugar Castle loop: the tail bends into a near-full circle around the
+  // castle. The entry continues the base course tangent; the arc keeps the
+  // castle on the RIGHT (a constant right-hand turn), then a short straight
+  // runs out to the finish. Built as one centripetal Catmull-Rom so curvature
+  // eases in and out instead of kinking where the straight meets the circle.
+  const K = CASTLE_COURSE, cakeOffset = newExit.clone().sub(oldExit);
+  const loopEntry = base.getPointAt(K.loopStart / baseLength).add(cakeOffset.clone());
+  const loopT = base.getTangentAt(K.loopStart / baseLength).setY(0).normalize();
+  const loopRight = new THREE.Vector3().crossVectors(loopT, UP).normalize();
+  const castleCenter = loopEntry.clone().addScaledVector(loopRight, K.radius);
+  const phiE = Math.atan2(loopEntry.z - castleCenter.z, loopEntry.x - castleCenter.x);
+  const loopY = loopEntry.y, loopPts = [loopEntry.clone()];
+  const nArc = 56;
+  for (let i = 1; i <= nArc; i++) {
+    const a = phiE + K.sweep * (i / nArc);
+    loopPts.push(new THREE.Vector3(castleCenter.x + K.radius * Math.cos(a), loopY, castleCenter.z + K.radius * Math.sin(a)));
+  }
+  const aEnd = phiE + K.sweep;
+  const exitDir = new THREE.Vector3(-Math.sin(aEnd), 0, Math.cos(aEnd));
+  const loopEnd = loopPts[loopPts.length - 1];
+  loopPts.push(loopEnd.clone().addScaledVector(exitDir, K.exitLength * 0.5));
+  loopPts.push(loopEnd.clone().addScaledVector(exitDir, K.exitLength));
+  const castleLoop = new THREE.CatmullRomCurve3(loopPts, false, 'centripetal', 0.5);
+  castleLoop.arcLengthDivisions = 2000;
+
   const curve = new Course([
     ['before', new Slice(base, 0, C.baseStart)], ['approach', approach],
     ['ascent', up], ['cakeBridge', bridge], ['descent', down], ['departure', departure],
-    ['after', new Slice(base, C.baseEnd, baseLength, newExit.clone().sub(oldExit))],
+    ['after', new Slice(base, C.baseEnd, K.loopStart, cakeOffset)],
+    ['castleLoop', castleLoop],
   ]);
   const part = (id) => curve.sections.find((p) => p.id === id);
   const endS = part('after').s0, extra = endS - C.baseEnd;
-  const fromBaseDistance = (s) => s <= C.baseStart ? s : s >= C.baseEnd ? s + extra
-    : C.baseStart + (s - C.baseStart) / (C.baseEnd - C.baseStart) * (endS - C.baseStart);
+  const castleS0 = part('castleLoop').s0;
+  const fromBaseDistance = (s) => {
+    if (s <= C.baseStart) return s;
+    if (s < C.baseEnd) return C.baseStart + (s - C.baseStart) / (C.baseEnd - C.baseStart) * (endS - C.baseStart);
+    if (s <= K.loopStart) return s + extra;
+    return castleS0 + (s - K.loopStart) / (baseLength - K.loopStart) * (curve.length - castleS0);
+  };
+  const castleSection = {
+    center: castleCenter, entry: loopEntry, radius: K.radius,
+    s0: castleS0, s1: part('castleLoop').s1,
+  };
   const cake = (id, center, lowY, flavor) => ({
     id, flavor, center, lowY, topY, turns: C.turns,
     s0: part(id).s0, s1: part(id).s1,
@@ -167,5 +203,5 @@ export function buildCourse() {
     bridge: { s0: part('cakeBridge').s0, s1: part('cakeBridge').s1, y: topY,
       lowY: topY - C.bridgeSag, sag: C.bridgeSag, span: C.bridgeLength },
   };
-  return { curve, baseLength, fromBaseDistance, cakeSection };
+  return { curve, baseLength, fromBaseDistance, cakeSection, castleSection };
 }

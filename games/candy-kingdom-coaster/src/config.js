@@ -48,6 +48,18 @@ export const CAKE_COURSE = {
   railLateral: 8.5, // outside the entire car envelope at the soft steering wall
 };
 
+// The Sugar Castle loop. Like the cake detour it replaces a quiet tail of the
+// base course (so baseLength and every base-metre landmark stay put), but it
+// bends the road into a near-full circle AROUND the castle so the driver gets
+// a long, slow look at it. The castle sits at the loop centre, on the RIGHT of
+// the approach, upright and planted on the ground plane.
+export const CASTLE_COURSE = {
+  loopStart: 1400,   // base-course metres where the castle loop takes over
+  radius: 70,        // loop centreline radius; castle footprint clears the inner kerb
+  sweep: 5.7,        // radians of arc (~327°): "almost a full circle"
+  exitLength: 55,    // straight run from the loop exit to the finish line
+};
+
 // Two genuine route choices. Bounds are BASE-course metres, like landmarks.
 // Their local curves have their own metre tables; stations outside them never
 // move, so the river, cakes, suspended bridge and tunnel retain their joins.
@@ -118,8 +130,8 @@ export const ZONES = [
   { id: 0, name: 'Lollipop Meadows',  u0: 0.00, u1: 0.22, fog: 0x9fd8ff, sky: 0x7ec9f2 },
   { id: 1, name: 'Gummy Bear Grove',  u0: 0.22, u1: 0.46, fog: 0xffd9a8, sky: 0x86cdf2 },
   { id: 2, name: 'Cocoa Canyon',      u0: 0.46, u1: 0.68, fog: 0xffc9b0, sky: 0x8cc6ee },
-  { id: 3, name: 'Marshmallow Valley',u0: 0.68, u1: 0.88, fog: 0xffd6ec, sky: 0x93c9f4 },
-  { id: 4, name: 'Sugar Castle Run',  u0: 0.88, u1: 1.001, fog: 0xffd2e8, sky: 0x8fc9f2 },
+  { id: 3, name: 'Marshmallow Valley',u0: 0.68, u1: 0.90, fog: 0xffd6ec, sky: 0x93c9f4 },
+  { id: 4, name: 'Sugar Castle Run',  u0: 0.90, u1: 1.001, fog: 0xffd2e8, sky: 0x8fc9f2 },
 ];
 
 // --- Medals: explicit counters over sweets collected in ONE ride ---
@@ -130,7 +142,9 @@ export const MEDALS = [
 ];
 
 // Bonus time medal (explicit threshold in seconds)
-export const TIME_MEDAL = { id: 'speed', icon: '⏱️', name: 'Speed Racer', requirement: 'Финиш быстрее 105 секунд', maxSeconds: 105 };
+// Scaled with the castle loop (+20% distance): cruise now finishes ~133 s, so
+// the medal still asks for a ~5% faster-than-cruise, boost-assisted run.
+export const TIME_MEDAL = { id: 'speed', icon: '⏱️', name: 'Speed Racer', requirement: 'Финиш быстрее 126 секунд', maxSeconds: 126 };
 
 export function zoneAt(u) {
   for (const z of ZONES) if (u >= z.u0 && u < z.u1) return z;

@@ -145,7 +145,7 @@ function checkerTexture() {
 }
 
 export function createTrack(scene, TEX = {}) {
-  const { curve: reference, baseLength, fromBaseDistance, cakeSection } = buildCourse();
+  const { curve: reference, baseLength, fromBaseDistance, cakeSection, castleSection } = buildCourse();
   const routes = createRoutes(reference, fromBaseDistance), curve = routes.curve;
   const length = curve.getLength();
   const zones = ZONES.map((z) => ({ ...z,
@@ -626,7 +626,7 @@ export function createTrack(scene, TEX = {}) {
       const r = new THREE.Vector3().crossVectors(t, UP).normalize();
       return { pos: p.addScaledVector(r, lateral), tangent: t, right: r, heading: Math.atan2(t.x, t.z) };
     },
-    baseLength, fromBaseDistance, cakeSection, isCakeSection, zones, zoneAt,
+    baseLength, fromBaseDistance, cakeSection, castleSection, isCakeSection, zones, zoneAt,
     roadMeshes, // one per zone (all named 'road')
     runoffMeshes, // pseudo road before the start / after the finish
     runoff: { pre: EXT_PRE, post: EXT_POST },
